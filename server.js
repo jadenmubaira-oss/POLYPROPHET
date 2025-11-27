@@ -507,8 +507,7 @@ class SupremeBrain {
         }
     }
 
-    evaluateOutcome(finalPrice) {
-        const startPrice = previousCheckpointPrices[this.asset];
+    evaluateOutcome(finalPrice, startPrice) {
         if (!startPrice) return;
 
         const actual = finalPrice > startPrice ? 'UP' : 'DOWN';
@@ -762,9 +761,12 @@ setInterval(() => {
         if (now >= cp && now < cp + 5) {
             // CRITICAL FIX: Only evaluate if we haven't already evaluated this checkpoint
             if (lastEvaluatedCheckpoint[a] !== cp) {
-                // Evaluate the PREVIOUS checkpoint outcome
-                if (previousCheckpointPrices[a] && checkpointPrices[a]) {
-                    Brains[a].evaluateOutcome(checkpointPrices[a]);
+
+                // Evaluate the JUST FINISHED cycle (Live vs Checkpoint)
+                // checkpointPrices[a] = Start of the cycle that just ended
+                // livePrices[a] = End of the cycle that just ended
+                if (checkpointPrices[a] && livePrices[a]) {
+                    Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
                     log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS}`, a);
                 }
 
@@ -785,7 +787,7 @@ setInterval(() => {
 function getCurrentCheckpoint() { return Math.floor(Date.now() / 1000) - (Math.floor(Date.now() / 1000) % INTERVAL_SECONDS); }
 function getNextCheckpoint() { return getCurrentCheckpoint() + INTERVAL_SECONDS; }
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
 async function startup() {
     log('🚀 SUPREME DEITY: CLOUD EDITION');
@@ -804,7 +806,7 @@ async function startup() {
     setInterval(fetchFearGreedIndex, 300000);
     setInterval(fetchFundingRates, 300000);
 
-    server.listen(PORT, '0.0.0.0', () => {
+    server.listen(PORT, () => {
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT}`);
         log(`🌐 Access at: http://localhost:${PORT}`);
     });
