@@ -7,12 +7,65 @@ const WebSocket = require('ws');
 const fs = require('fs');
 const path = require('path');
 const cors = require('cors');
+const Redis = require('ioredis');
+const auth = require('basic-auth');
 
 // Initialize App
 const app = express();
 app.use(cors());
+
+// ==================== PASSWORD PROTECTION ====================
+app.use((req, res, next) => {
+    // Skip auth for API endpoints (allow UptimeRobot to ping without login)
+    if (req.path.startsWith('/api/')) {
+        return next();
+    }
+
+    const credentials = auth(req);
+    const username = process.env.AUTH_USERNAME || 'admin';
+    const password = process.env.AUTH_PASSWORD || 'changeme';
+
+    if (!credentials || credentials.name !== username || credentials.pass !== password) {
+        res.statusCode = 401;
+        res.setHeader('WWW-Authenticate', 'Basic realm="Supreme Deity"');
+        res.end('Access denied');
+    } else {
+        next();
+    }
+});
+
 app.use(express.static('public'));
 const server = http.createServer(app);
+
+// ==================== REDIS SETUP (FALLBACK-SAFE) ====================
+let redis = null;
+let redisAvailable = false;
+
+if (process.env.REDIS_URL) {
+    try {
+        redis = new Redis(process.env.REDIS_URL, {
+            maxRetriesPerRequest: 3,
+            retryStrategy: (times) => {
+                if (times > 3) return null;
+                return Math.min(times * 50, 2000);
+            }
+        });
+
+        redis.on('connect', () => {
+            redisAvailable = true;
+            log('✅ Redis Connected - Persistence Enabled');
+        });
+
+        redis.on('error', (err) => {
+            redisAvailable = false;
+            log(`⚠️ Redis Error: ${err.message} - Using memory fallback`);
+        });
+    } catch (e) {
+        log(`⚠️ Redis Init Failed: ${e.message} - Using memory fallback`);
+    }
+} else {
+    log('⚠️ REDIS_URL not set - Using ephemeral storage');
+}
 
 // ==================== IMMUTABLE DATA LAYER (Node.js Port) ====================
 const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
@@ -173,41 +226,56 @@ class KalmanFilter {
     }
 }
 
-// ==================== HISTORIAN (FILE-BASED PATTERN STORAGE) ====================
+// ==================== HISTORIAN (REDIS-BACKED PATTERN STORAGE) ====================
 const PATTERNS_DIR = './patterns';
 
-function initPatternStorage() {
-    if (!fs.existsSync(PATTERNS_DIR)) {
-        fs.mkdirSync(PATTERNS_DIR, { recursive: true });
-    }
-    ASSETS.forEach(asset => {
-        const file = path.join(PATTERNS_DIR, `${asset}.json`);
-        if (!fs.existsSync(file)) {
-            fs.writeFileSync(file, JSON.stringify([]));
+// In-memory fallback if Redis unavailable
+let memoryPatterns = {};
+
+async function initPatternStorage() {
+    ASSETS.forEach(asset => memoryPatterns[asset] = []);
+
+    // Try to load from Redis
+    if (redisAvailable && redis) {
+        try {
+            for (const asset of ASSETS) {
+                const stored = await redis.get(`patterns:${asset}`);
+                if (stored) {
+                    memoryPatterns[asset] = JSON.parse(stored);
+                    log(`📚 Loaded ${memoryPatterns[asset].length} patterns from Redis`, asset);
+                }
+            }
+        } catch (e) {
+            log(`⚠️ Redis pattern load failed: ${e.message}`);
         }
-    });
+    }
     log('📚 Historian Storage Initialized');
 }
 
-function savePattern(asset, vector, outcome) {
+async function savePattern(asset, vector, outcome) {
     try {
-        const file = path.join(PATTERNS_DIR, `${asset}.json`);
-        let patterns = JSON.parse(fs.readFileSync(file, 'utf8'));
-
-        patterns.push({
+        const pattern = {
             id: `${asset}-${Date.now()}`,
             asset,
             vector,
             outcome,
             timestamp: Date.now()
-        });
+        };
 
-        // Keep only last 500 patterns per asset
-        if (patterns.length > 500) {
-            patterns = patterns.slice(-500);
+        // Save to memory first
+        memoryPatterns[asset].push(pattern);
+        if (memoryPatterns[asset].length > 500) {
+            memoryPatterns[asset] = memoryPatterns[asset].slice(-500);
         }
 
-        fs.writeFileSync(file, JSON.stringify(patterns));
+        // Persist to Redis if available
+        if (redisAvailable && redis) {
+            try {
+                await redis.set(`patterns:${asset}`, JSON.stringify(memoryPatterns[asset]));
+            } catch (e) {
+                log(`⚠️ Redis pattern save error: ${e.message}`, asset);
+            }
+        }
     } catch (e) {
         log(`⚠️ Pattern save error: ${e.message}`, asset);
     }
@@ -215,9 +283,7 @@ function savePattern(asset, vector, outcome) {
 
 async function findSimilarPattern(asset, currentVector) {
     try {
-        const file = path.join(PATTERNS_DIR, `${asset}.json`);
-        const patterns = JSON.parse(fs.readFileSync(file, 'utf8'));
-
+        const patterns = memoryPatterns[asset] || [];
         if (patterns.length === 0) return null;
 
         let bestMatch = null;
@@ -225,9 +291,7 @@ async function findSimilarPattern(asset, currentVector) {
 
         patterns.forEach(p => {
             if (p.vector.length !== currentVector.length) return;
-
             const dist = MathLib.dtwDistance(currentVector, p.vector);
-
             if (dist < minDistance) {
                 minDistance = dist;
                 bestMatch = p;
@@ -698,10 +762,10 @@ async function fetchFundingRates() {
     }
 }
 
-// ==================== PERSISTENCE ====================
+// ==================== PERSISTENCE (REDIS-BACKED) ====================
 const DB_FILE = 'deity_state.json';
 
-function saveState() {
+async function saveState() {
     const state = {
         stats: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].stats }), {}),
         evolution: ASSETS.reduce((acc, a) => ({
@@ -712,24 +776,41 @@ function saveState() {
             }
         }), {})
     };
-    fs.writeFileSync(DB_FILE, JSON.stringify(state));
+
+    // Save to Redis if available
+    if (redisAvailable && redis) {
+        try {
+            await redis.set('deity:state', JSON.stringify(state));
+        } catch (e) {
+            log(`⚠️ Redis state save error: ${e.message}`);
+        }
+    }
 }
 
-function loadState() {
-    if (fs.existsSync(DB_FILE)) {
+async function loadState() {
+    // Try Redis first
+    if (redisAvailable && redis) {
         try {
-            const state = JSON.parse(fs.readFileSync(DB_FILE));
-            if (state.stats) ASSETS.forEach(a => { if (state.stats[a]) Brains[a].stats = state.stats[a]; });
-            if (state.evolution) ASSETS.forEach(a => {
-                if (state.evolution[a]) {
-                    Brains[a].atrMultiplier = state.evolution[a].atrMultiplier;
-                    Brains[a].winStreak = state.evolution[a].winStreak;
-                    Brains[a].lossStreak = state.evolution[a].lossStreak;
-                }
-            });
-            log('💾 State Restored from Disk');
-        } catch (e) { log('⚠️ Save file corrupt'); }
+            const stored = await redis.get('deity:state');
+            if (stored) {
+                const state = JSON.parse(stored);
+                if (state.stats) ASSETS.forEach(a => { if (state.stats[a]) Brains[a].stats = state.stats[a]; });
+                if (state.evolution) ASSETS.forEach(a => {
+                    if (state.evolution[a]) {
+                        Brains[a].atrMultiplier = state.evolution[a].atrMultiplier;
+                        Brains[a].winStreak = state.evolution[a].winStreak;
+                        Brains[a].lossStreak = state.evolution[a].lossStreak;
+                    }
+                });
+                log('💾 State Restored from Redis');
+                return;
+            }
+        } catch (e) {
+            log(`⚠️ Redis state load error: ${e.message}`);
+        }
     }
+
+    log('ℹ️ Starting with fresh state');
 }
 
 // ==================== API & SERVER ====================
@@ -793,8 +874,8 @@ async function startup() {
     log('🚀 SUPREME DEITY: CLOUD EDITION');
     log('🔧 Initializing...');
 
-    initPatternStorage();
-    loadState();
+    await initPatternStorage();
+    await loadState();
     connectWebSocket();
 
     setInterval(() => ASSETS.forEach(a => Brains[a].update()), 1000);
