@@ -614,19 +614,44 @@ async function fetchCurrentMarkets() {
         try {
             const eventUrl = `${GAMMA_API}/events/slug/${slug}`;
             const eventData = await fetchJSON(eventUrl);
-            if (!eventData?.markets?.length) { currentMarkets[asset] = null; continue; }
+
+            if (!eventData?.markets?.length) {
+                log(`⚠️ No market found for ${slug}`, asset);
+                currentMarkets[asset] = null;
+                continue;
+            }
+
             const market = eventData.markets.find(m => m.active && !m.closed) || eventData.markets[0];
-            if (!market.clobTokenIds) { currentMarkets[asset] = null; continue; }
+            if (!market.clobTokenIds) {
+                log(`⚠️ No token IDs for market`, asset);
+                currentMarkets[asset] = null;
+                continue;
+            }
+
             const tokenIds = JSON.parse(market.clobTokenIds);
             const [upBook, downBook] = await Promise.all([
                 fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[0]}`),
                 fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[1]}`)
             ]);
+
             let yesPrice = 0.5, noPrice = 0.5;
-            if (upBook?.asks?.length) yesPrice = parseFloat(upBook.asks[0].price);
-            else if (downBook?.asks?.length) { noPrice = parseFloat(downBook.asks[0].price); yesPrice = 1 - noPrice; }
-            if (downBook?.asks?.length) noPrice = parseFloat(downBook.asks[0].price);
-            else if (upBook?.asks?.length) noPrice = 1 - yesPrice;
+
+            // Extract best ask prices from order book
+            if (upBook?.asks?.length) {
+                const sortedUpAsks = [...upBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                yesPrice = parseFloat(sortedUpAsks[0].price);
+            } else if (downBook?.asks?.length) {
+                const sortedDownAsks = [...downBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                noPrice = parseFloat(sortedDownAsks[0].price);
+                yesPrice = 1 - noPrice;
+            }
+
+            if (downBook?.asks?.length) {
+                const sortedDownAsks = [...downBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                noPrice = parseFloat(sortedDownAsks[0].price);
+            } else if (upBook?.asks?.length) {
+                noPrice = 1 - yesPrice;
+            }
 
             if (!marketOddsHistory[asset]) marketOddsHistory[asset] = [];
             marketOddsHistory[asset].push({ yes: yesPrice, no: noPrice, timestamp: Date.now() });
@@ -641,7 +666,12 @@ async function fetchCurrentMarkets() {
                 volume: market.volume24hr || 0,
                 lastUpdated: Date.now()
             };
-        } catch (e) { currentMarkets[asset] = null; }
+
+            log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}% | NO ${(noPrice * 100).toFixed(1)}%`, asset);
+        } catch (e) {
+            log(`❌ Market fetch error: ${e.message}`, asset);
+            currentMarkets[asset] = null;
+        }
         await new Promise(r => setTimeout(r, 300));
     }
 }
