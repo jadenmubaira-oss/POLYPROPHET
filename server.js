@@ -25,6 +25,7 @@ const INTERVAL_SECONDS = 900;
 let livePrices = {};
 let checkpointPrices = {};
 let previousCheckpointPrices = {}; // For outcome evaluation
+let lastEvaluatedCheckpoint = {}; // Track last evaluated checkpoint to prevent double-counting
 let priceHistory = {};
 let marketOddsHistory = {};
 let currentMarkets = {};
@@ -37,6 +38,7 @@ ASSETS.forEach(asset => {
     priceHistory[asset] = [];
     checkpointPrices[asset] = null;
     previousCheckpointPrices[asset] = null;
+    lastEvaluatedCheckpoint[asset] = 0; // Initialize to 0
     livePrices[asset] = null;
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
@@ -756,18 +758,24 @@ setInterval(() => {
     const cp = now - (now % INTERVAL_SECONDS);
 
     ASSETS.forEach(a => {
+        // Only process within the 5-second checkpoint window
         if (now >= cp && now < cp + 5) {
-            if (checkpointPrices[a] !== livePrices[a]) {
-                // Evaluate the PREVIOUS checkpoint
-                if (previousCheckpointPrices[a]) {
+            // CRITICAL FIX: Only evaluate if we haven't already evaluated this checkpoint
+            if (lastEvaluatedCheckpoint[a] !== cp) {
+                // Evaluate the PREVIOUS checkpoint outcome
+                if (previousCheckpointPrices[a] && checkpointPrices[a]) {
                     Brains[a].evaluateOutcome(checkpointPrices[a]);
+                    log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS}`, a);
                 }
 
-                // Update checkpoints
+                // Update checkpoints for the NEW cycle
                 previousCheckpointPrices[a] = checkpointPrices[a];
                 checkpointPrices[a] = livePrices[a];
 
-                log(`🔄 Checkpoint: ${checkpointPrices[a].toFixed(2)}`, a);
+                // Mark this checkpoint as evaluated
+                lastEvaluatedCheckpoint[a] = cp;
+
+                log(`🔄 Checkpoint: ${checkpointPrices[a]?.toFixed(2) || 'pending'}`, a);
             }
         }
     });
