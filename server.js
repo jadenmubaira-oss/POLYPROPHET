@@ -874,6 +874,35 @@ async function startup() {
     log('🚀 SUPREME DEITY: CLOUD EDITION');
     log('🔧 Initializing...');
 
+    // Wait for Redis connection if configured
+    if (process.env.REDIS_URL && redis) {
+        log('⏳ Waiting for Redis connection...');
+        await new Promise(resolve => {
+            if (redis.status === 'ready' || redis.status === 'connect') {
+                return resolve();
+            }
+            const onConnect = () => {
+                cleanup();
+                resolve();
+            };
+            const onError = () => {
+                cleanup();
+                resolve(); // Resolve anyway to fallback
+            };
+            const cleanup = () => {
+                redis.removeListener('connect', onConnect);
+                redis.removeListener('error', onError);
+            };
+            redis.once('connect', onConnect);
+            redis.once('error', onError);
+            // Timeout fallback (2s)
+            setTimeout(() => {
+                cleanup();
+                resolve();
+            }, 2000);
+        });
+    }
+
     await initPatternStorage();
     await loadState();
     connectWebSocket();
