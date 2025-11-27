@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUPREME DEITY: CLOUD ORACLE</title>
+    <style>
+        :root {
+            --bg-dark: #0a0a12;
+            --card-bg: #14141f;
+            --text-main: #ffffff;
+            --text-dim: #8888aa;
+            --accent-up: #00ff9d;
+            --accent-down: #ff0055;
+            --accent-gold: #ffd700;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            background: linear-gradient(135deg, #fff, #888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 5px;
+            letter-spacing: 1px;
+        }
+
+        .card-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .asset-name {
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .market-link {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .market-link:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .prophecy-hud {
+            text-align: center;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .signal-box {
+            font-size: 32px;
+            font-weight: 900;
+            padding: 15px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.03);
+            margin-bottom: 10px;
+            letter-spacing: 2px;
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .signal-box.up {
+            color: var(--accent-up);
+            background: rgba(0, 255, 157, 0.1);
+            border: 1px solid rgba(0, 255, 157, 0.3);
+        }
+
+        .signal-box.down {
+            color: var(--accent-down);
+            background: rgba(255, 0, 85, 0.1);
+            border: 1px solid rgba(255, 0, 85, 0.3);
+        }
+
+        .signal-box.neutral {
+            color: var(--text-dim);
+        }
+
+        .signal-tier {
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            height: 15px;
+        }
+
+        .tier-conviction {
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        .tier-advisory {
+            color: #00ccff;
+        }
+
+        .confidence-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .edge-display {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: 5px;
+            height: 15px;
+        }
+
+        .ensemble-votes {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 5px;
+            opacity: 0.7;
+        }
+
+        .data-block {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .label {
+            color: var(--text-dim);
+        }
+
+        .value {
+            font-family: 'Roboto Mono', monospace;
+            font-weight: 700;
+        }
+
+        .value.up {
+            color: var(--accent-up);
+        }
+
+        .value.down {
+            color: var(--accent-down);
+        }
+
+        .cloud-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            color: var(--accent-up);
+            font-size: 12px;
+            font-weight: bold;
+            background: rgba(0, 255, 157, 0.1);
+            padding: 5px 10px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 255, 157, 0.3);
+            backdrop-filter: blur(5px);
+        }
+
+        @keyframes blink {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.7;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .blink {
+            animation: blink 2s infinite;
+        }
+
+        .glow-up {
+            box-shadow: 0 0 30px rgba(0, 255, 157, 0.15);
+            border-color: rgba(0, 255, 157, 0.3);
+        }
+
+        .glow-down {
+            box-shadow: 0 0 30px rgba(255, 0, 85, 0.15);
+            border-color: rgba(255, 0, 85, 0.3);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="cloud-status">☁️ CLOUD CONNECTED</div>
+    <div class="container">
+        <div class="header">
+            <h1>SUPREME DEITY</h1>
+            <div class="subtitle">24/7 CLOUD ORACLE • ULTRA FAST EDITION</div>
+        </div>
+        <div id="card-grid" class="card-grid"></div>
+    </div>
+
+    <script>
+        const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
+
+        async function update() {
+            try {
+                const res = await fetch('/api/state');
+                const data = await res.json();
+                renderCards(data);
+                document.querySelector('.cloud-status').innerText = "☁️ CLOUD CONNECTED";
+                document.querySelector('.cloud-status').style.color = "#00ff9d";
+            } catch (e) {
+                console.error("Connection lost");
+                document.querySelector('.cloud-status').innerText = "⚠️ DISCONNECTED";
+                document.querySelector('.cloud-status').style.color = "#ff0055";
+            }
+        }
+
+        function initGrid(grid) {
+            ASSETS.forEach(asset => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.id = `card-${asset}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="asset-name">${asset}</div>
+                        <a href="#" target="_blank" class="market-link" id="link-${asset}">MARKET ↗</a>
+                    </div>
+                    
+                    <div class="prophecy-hud" id="hud-${asset}">
+                        <div class="signal-tier" id="tier-${asset}"></div>
+                        <div class="signal-box" id="signal-${asset}">WAITING</div>
+                        <div class="confidence-bar"><div class="confidence-fill" id="conf-${asset}"></div></div>
+                        <div class="edge-display" id="edge-${asset}"></div>
+                        <div class="ensemble-votes" id="votes-${asset}"></div>
+                    </div>
+
+                    <div class="data-block">
+                        <div class="data-row"><span class="label">CHECKPOINT</span><span class="value" id="cp-${asset}">---</span></div>
+                        <div class="data-row"><span class="label">LIVE</span><span class="value" id="live-${asset}">---</span></div>
+                        <div class="data-row"><span class="label">GAP</span><span class="value" id="gap-${asset}">---</span></div>
+                        <div class="data-row"><span class="label">ACCURACY</span><span class="value" id="acc-${asset}">---%</span></div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function renderCards(data) {
+            const grid = document.getElementById('card-grid');
+            if (grid.innerHTML === '') initGrid(grid);
+
+            ASSETS.forEach(asset => {
+                const brain = data[asset];
+                if (!brain) return;
+
+                const live = brain.live;
+                const cp = brain.checkpoint;
+                const market = brain.market;
+
+                // Update DOM
+                if (live) document.getElementById(`live-${asset}`).innerText = live.toFixed(2);
+                if (cp) document.getElementById(`cp-${asset}`).innerText = cp.toFixed(2);
+
+                if (live && cp) {
+                    const diff = live - cp;
+                    const pct = (diff / cp) * 100;
+                    const gapEl = document.getElementById(`gap-${asset}`);
+                    gapEl.innerText = `${diff > 0 ? '+' : ''}${pct.toFixed(3)}%`;
+                    gapEl.className = `value ${diff > 0 ? 'up' : 'down'}`;
+                }
+
+                const acc = brain.stats.total > 0 ? ((brain.stats.wins / brain.stats.total) * 100).toFixed(0) : '---';
+                document.getElementById(`acc-${asset}`).innerText = `${acc}%`;
+
+                if (market) {
+                    document.getElementById(`link-${asset}`).href = market.marketUrl;
+                }
+
+                const signalEl = document.getElementById(`signal-${asset}`);
+                const confFill = document.getElementById(`conf-${asset}`);
+                const edgeEl = document.getElementById(`edge-${asset}`);
+                const tierEl = document.getElementById(`tier-${asset}`);
+                const votesEl = document.getElementById(`votes-${asset}`);
+                const card = document.getElementById(`card-${asset}`);
+
+                if (brain.prediction === 'UP') {
+                    signalEl.innerText = "BUY UP";
+                    signalEl.className = "signal-box up blink";
+                    confFill.style.width = `${(brain.confidence * 100)}%`;
+                    confFill.style.background = "#00ff9d";
+                    tierEl.innerText = brain.tier === 'CONVICTION' ? "🔥 CONVICTION" : "⚡ ADVISORY";
+                    tierEl.className = brain.tier === 'CONVICTION' ? "signal-tier tier-conviction" : "signal-tier tier-advisory";
+                    card.className = brain.tier === 'CONVICTION' ? "card glow-up" : "card glow-advisory";
+                } else if (brain.prediction === 'DOWN') {
+                    signalEl.innerText = "BUY DOWN";
+                    signalEl.className = "signal-box down blink";
+                    confFill.style.width = `${(brain.confidence * 100)}%`;
+                    confFill.style.background = "#ff0055";
+                    tierEl.innerText = brain.tier === 'CONVICTION' ? "🔥 CONVICTION" : "⚡ ADVISORY";
+                    tierEl.className = brain.tier === 'CONVICTION' ? "signal-tier tier-conviction" : "signal-tier tier-advisory";
+                    card.className = brain.tier === 'CONVICTION' ? "card glow-down" : "card glow-advisory";
+                } else {
+                    signalEl.innerText = "ANALYZING";
+                    signalEl.className = "signal-box neutral";
+                    confFill.style.width = "0%";
+                    tierEl.innerText = "";
+                    card.className = "card";
+                }
+
+                if (brain.edge > 0) edgeEl.innerText = `Edge: +${brain.edge.toFixed(1)}%`;
+                else edgeEl.innerText = "";
+
+                votesEl.innerText = `Ensemble: ${brain.votes.UP.toFixed(1)} UP | ${brain.votes.DOWN.toFixed(1)} DOWN`;
+            });
+        }
+
+        setInterval(update, 1000);
+    </script>
+</body>
+
+</html>
