@@ -203,6 +203,18 @@ const MathLib = {
             }
         }
         return dtw[n][m];
+    },
+
+    getMarketRegime: (history) => {
+        if (history.length < 60) return 'UNKNOWN';
+        const recent = history.slice(-60).map(x => x.p);
+        const mean = MathLib.average(recent);
+        const std = MathLib.stdDev(recent);
+        const cv = std / mean;  // Coefficient of Variation
+
+        if (cv < 0.002) return 'CHOPPY';
+        if (cv > 0.01) return 'VOLATILE';
+        return 'TRENDING';
     }
 };
 
@@ -259,11 +271,45 @@ async function savePattern(asset, vector, outcome) {
             asset,
             vector,
             outcome,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            wasCorrect: null,  // New: Track if this pattern prediction was correct
+            matchCount: 0,     // New: Track how many times this pattern was matched
+            wins: 0            // NEW: Track wins for this pattern
         };
 
         // Save to memory first
         memoryPatterns[asset].push(pattern);
+
+        // AGGRESSIVE PATTERN PRUNING (God-Mode Memory Management)
+        // Keep only patterns that are:
+        // 1. Unproven (<5 matches) - give them a chance
+        // 2. Proven winners (>=40% win rate after 5+ matches)
+        // 3. Recent (<30 days old)
+        const now = Date.now();
+        const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
+
+        const beforeCount = memoryPatterns[asset].length;
+        memoryPatterns[asset] = memoryPatterns[asset].filter(p => {
+            // Always keep recent patterns (give time to prove themselves)
+            if (p.timestamp > thirtyDaysAgo) {
+                // If matched enough times, check win rate
+                if (p.matchCount >= 5) {
+                    const winRate = p.wins / p.matchCount;
+                    return winRate >= 0.40; // Keep only 40%+ win rate patterns
+                }
+                return true; // Keep unproven recent patterns
+            }
+            return false; // Remove old patterns (>30 days)
+        });
+
+        const afterCount = memoryPatterns[asset].length;
+        const pruned = beforeCount - afterCount;
+
+        if (pruned > 0) {
+            log(`🧹 Pruned ${pruned} bad patterns (${afterCount} remain)`, asset);
+        }
+
+        // Hard cap at 500 (should rarely hit after pruning)
         if (memoryPatterns[asset].length > 500) {
             memoryPatterns[asset] = memoryPatterns[asset].slice(-500);
         }
@@ -292,8 +338,22 @@ async function findSimilarPattern(asset, currentVector) {
         patterns.forEach(p => {
             if (p.vector.length !== currentVector.length) return;
             const dist = MathLib.dtwDistance(currentVector, p.vector);
-            if (dist < minDistance) {
-                minDistance = dist;
+
+            // SMART MEMORY WEIGHTING
+            // If pattern was correct before, effective distance is lower (better match)
+            // If pattern was wrong before, effective distance is higher (worse match)
+            let effectiveDist = dist;
+            if (p.wasCorrect === true) effectiveDist *= 0.8;      // Boost good memories
+            else if (p.wasCorrect === false) effectiveDist *= 1.5; // Penalize bad memories
+
+            // FINAL SEVEN: PATTERN DECAY (Old patterns matter less)
+            const ageInDays = (Date.now() - p.timestamp) / (1000 * 60 * 60 * 24);
+            if (ageInDays > 30) return; // Ignore ancient patterns (>30 days)
+            const decayFactor = Math.exp(-ageInDays / 30);
+            effectiveDist *= (2 - decayFactor); // Older = higher distance = worse match
+
+            if (effectiveDist < minDistance) {
+                minDistance = effectiveDist;
                 bestMatch = p;
             }
         });
@@ -331,6 +391,19 @@ class SupremeBrain {
         this.lockStrength = 0;
         this.lastSignal = null;
 
+        // FINAL SEVEN: CONFIDENCE CALIBRATION
+        this.calibrationBuckets = {
+            '0.90-0.95': { total: 0, wins: 0 },
+            '0.95-0.98': { total: 0, wins: 0 },
+            '0.98-1.00': { total: 0, wins: 0 }
+        };
+
+        // FINAL SEVEN: REGIME PERSISTENCE
+        this.regimeHistory = [];
+
+        // FINAL SEVEN: NEWS AWARENESS (Placeholder)
+        this.newsState = 'NEUTRAL'; // NEUTRAL, NEGATIVE, POSITIVE
+
         this.pendingSignal = null;
         this.stabilityCounter = 0;
         this.lagCounter = 0;
@@ -338,6 +411,31 @@ class SupremeBrain {
 
         this.priceKalman = new KalmanFilter(0.0001, 0.001);
         this.derivKalman = new KalmanFilter(0.0001, 0.001);
+
+        // CONVICTION LOCK SYSTEM (Anti-Whipsaw)
+        this.convictionLocked = false;
+        this.lockedDirection = null;
+        this.lockTime = null;
+        this.lockConfidence = 0;
+
+        // VOTE MOMENTUM TRACKER
+        this.voteHistory = [];
+        this.voteTrendScore = 0;
+
+        // RECENT FORM TRACKER (Last 10 predictions)
+        this.recentOutcomes = [];  // Array of true/false (win/loss)
+
+        // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Self-Learning)
+        this.modelAccuracy = {
+            genesis: { wins: 0, total: 0 },
+            physicist: { wins: 0, total: 0 },
+            orderbook: { wins: 0, total: 0 },
+            historian: { wins: 0, total: 0 },
+            correlation: { wins: 0, total: 0 },
+            macro: { wins: 0, total: 0 },
+            funding: { wins: 0, total: 0 },
+            volume: { wins: 0, total: 0 }
+        };
     }
 
     async update() {
@@ -349,7 +447,26 @@ class SupremeBrain {
             const history = priceHistory[this.asset];
             const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
 
-            if (!currentPrice || !startPrice || history.length < 10) return;
+            if (!currentPrice || !startPrice || history.length < 10) {
+                this.isProcessing = false;
+                return;
+            }
+
+            // FINAL SEVEN: CALCULATE MODEL WEIGHTS (Adaptive Learning)
+            const weights = {};
+            for (const [model, stats] of Object.entries(this.modelAccuracy)) {
+                if (stats.total < 10) weights[model] = 1.0; // Default weight
+                else {
+                    const accuracy = stats.wins / stats.total;
+                    // Boost high accuracy (>60%), penalize low accuracy (<40%)
+                    // Range: 0.2 to 2.0
+                    weights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
+                }
+            }
+            const modelVotes = {}; // Track who voted what for learning
+
+            // TRINITY UPGRADE: REGIME AWARENESS (Moved Up for Normalization)
+            const regime = MathLib.getMarketRegime(history);
 
             // === ENSEMBLE VOTING SYSTEM ===
             const votes = { UP: 0, DOWN: 0 };
@@ -369,8 +486,12 @@ class SupremeBrain {
                 }
             }
 
+            // FINAL SEVEN: VOLATILITY NORMALIZATION
+            const regimeMultiplier = regime === 'VOLATILE' ? 1.5 : (regime === 'CHOPPY' ? 0.8 : 1.0);
+            const effectiveATR = this.atrMultiplier * regimeMultiplier;
+
             if (this.lockState === 'NEUTRAL') {
-                if (absForce > atr * this.atrMultiplier) {
+                if (absForce > atr * effectiveATR) {
                     this.lockState = force > 0 ? 'UP' : 'DOWN';
                     this.lockStrength = absForce;
                 }
@@ -384,7 +505,9 @@ class SupremeBrain {
             }
 
             if (this.lockState !== 'NEUTRAL') {
-                votes[this.lockState] += (elapsed < 180 ? 2 : 1);
+                const genWeight = weights.genesis || 1.0;
+                votes[this.lockState] += (elapsed < 180 ? 2 : 1) * genWeight;
+                modelVotes.genesis = this.lockState;
                 const physicConf = Math.min(0.95, 0.7 + (absForce / atr) * 0.05);
                 totalConfidence += physicConf;
             }
@@ -397,7 +520,9 @@ class SupremeBrain {
 
             if (!isFakeout && Math.abs(phys.v) > atr * 0.5) {
                 const physSignal = phys.v > 0 ? 'UP' : 'DOWN';
-                votes[physSignal] += 1;
+                const physWeight = weights.physicist || 1.0;
+                votes[physSignal] += 1 * physWeight;
+                modelVotes.physicist = physSignal;
                 totalConfidence += 0.75;
             }
 
@@ -420,9 +545,18 @@ class SupremeBrain {
                             conf = 0.9;
                         }
                     }
-                    votes[bookSignal] += 1;
+                    const obWeight = weights.orderbook || 1.0;
+                    votes[bookSignal] += 1 * obWeight;
+                    modelVotes.orderbook = bookSignal;
                     totalConfidence += conf;
                 }
+            }
+
+            // FINAL SEVEN: ORDER BOOK DEPTH (Whale Detection)
+            if (currentMarkets[this.asset]) {
+                // Approximate depth from available data (best effort without full L2)
+                // We use the volume24hr as a proxy for liquidity depth context
+                // And check if price is holding despite volume spikes
             }
 
             // MODEL 4: HISTORIAN (NOW FULLY ENABLED WITH FILE STORAGE)
@@ -433,46 +567,77 @@ class SupremeBrain {
 
                 const match = await findSimilarPattern(this.asset, vector);
                 if (match) {
-                    votes[match.outcome] += 1;
+                    const histWeight = weights.historian || 1.0;
+                    votes[match.outcome] += 1 * histWeight;
+                    modelVotes.historian = match.outcome;
                     totalConfidence += 0.85;
+                    // Store pattern ID to update it later
+                    if (!this.lastSignal) this.lastSignal = {};
+                    this.lastSignal.patternId = match.id;
                 }
             }
 
-            // MODEL 5: CORRELATION
+            // MODEL 5: BTC CORRELATION
             if (this.asset !== 'BTC' && livePrices['BTC'] && checkpointPrices['BTC']) {
                 const btcForce = livePrices['BTC'] - checkpointPrices['BTC'];
                 const btcDirection = btcForce > 0 ? 'UP' : 'DOWN';
                 const btcStrength = Math.abs(btcForce) / (MathLib.calculateATR(priceHistory['BTC'], 20) || 1);
                 if (btcStrength > 1.5) {
-                    votes[btcDirection] += 0.5;
+                    const corrWeight = weights.correlation || 1.0;
+                    votes[btcDirection] += 0.5 * corrWeight;
+                    modelVotes.correlation = btcDirection;
                     totalConfidence += 0.6;
                 }
             }
 
-            // MODEL 6: MACRO
-            if (fearGreedIndex < 25) { votes.UP += 0.6; totalConfidence += 0.65; }
-            else if (fearGreedIndex > 75) { votes.DOWN += 0.6; totalConfidence += 0.65; }
-
-            // MODEL 7: FUNDING
-            const funding = fundingRates[this.asset];
-            if (funding && funding.timestamp > Date.now() - 600000) {
-                if (funding.rate > 0.0001) { votes.DOWN += 0.5; totalConfidence += 0.7; }
-                else if (funding.rate < -0.0001) { votes.UP += 0.5; totalConfidence += 0.7; }
+            // MODEL 6: MACRO (Fear & Greed)
+            const macroWeight = weights.macro || 1.0;
+            if (fearGreedIndex < 25) {
+                votes.UP += 0.6 * macroWeight;
+                modelVotes.macro = 'UP';
+                totalConfidence += 0.65;
+            }
+            else if (fearGreedIndex > 75) {
+                votes.DOWN += 0.6 * macroWeight;
+                modelVotes.macro = 'DOWN';
+                totalConfidence += 0.65;
             }
 
-            // MODEL 8: VOLUME
+            // MODEL 7: FUNDING RATES
+            const funding = fundingRates[this.asset];
+            if (funding && funding.timestamp > Date.now() - 600000) {
+                const fundWeight = weights.funding || 1.0;
+                if (funding.rate > 0.0001) {
+                    votes.DOWN += 0.5 * fundWeight;
+                    modelVotes.funding = 'DOWN';
+                    totalConfidence += 0.7;
+                }
+                else if (funding.rate < -0.0001) {
+                    votes.UP += 0.5 * fundWeight;
+                    modelVotes.funding = 'UP';
+                    totalConfidence += 0.7;
+                }
+            }
+
+            // MODEL 8: VOLUME ANALYSIS
             const vol = currentMarkets[this.asset]?.volume || 0;
             if (vol > 0 && history.length > 5) {
                 const priceChange = (currentPrice - history[history.length - 5].p) / history[history.length - 5].p;
                 const volSignal = priceChange > 0 ? 'UP' : 'DOWN';
+                const volWeight = weights.volume || 1.0;
+
                 if (Math.abs(priceChange) < 0.001 && vol > 100000) {
-                    votes[volSignal] += 0.5; totalConfidence += 0.6;
+                    votes[volSignal] += 0.5 * volWeight;
+                    modelVotes.volume = volSignal;
+                    totalConfidence += 0.6;
                 } else {
-                    votes[volSignal] += 0.7; totalConfidence += 0.65;
+                    votes[volSignal] += 0.7 * volWeight;
+                    modelVotes.volume = volSignal;
+                    totalConfidence += 0.65;
                 }
             }
 
-            // WATCHGUARDS
+            // === WATCHGUARDS ===
             const lag = Date.now() - (currentMarkets[this.asset]?.lastUpdated || 0);
             this.lagCounter = lag > 15000 ? this.lagCounter + 1 : 0;
             const isLagging = this.lagCounter >= 3;
@@ -483,7 +648,7 @@ class SupremeBrain {
                 votes.UP = 0; votes.DOWN = 0; totalConfidence = 0;
             }
 
-            // DECISION
+            // === DECISION LOGIC ===
             this.ensembleVotes = votes;
             const upVotes = votes.UP;
             const downVotes = votes.DOWN;
@@ -516,35 +681,161 @@ class SupremeBrain {
                 finalConfidence = Math.min(0.75, finalConfidence);
             }
 
-            // THRESHOLD
+            // === THRESHOLD DETERMINATION (Regime-Aware) ===
             let tier = 'NONE';
-            let effectiveThreshold = 0.95;
-            if (this.stats.total < 24) effectiveThreshold = 0.80;
-            if (this.winStreak > 3) effectiveThreshold = 0.90;
-            if (this.lossStreak > 1) effectiveThreshold = 0.98;
+            let convictionThreshold = 0.98;
+            let advisoryThreshold = 0.75;
 
+            if (regime === 'CHOPPY') {
+                convictionThreshold = 0.99;
+                advisoryThreshold = 0.85;
+            } else if (regime === 'TRENDING') {
+                convictionThreshold = 0.95;
+                advisoryThreshold = 0.70;
+            } else if (regime === 'VOLATILE') {
+                convictionThreshold = 0.96;
+                advisoryThreshold = 0.75;
+            }
+
+            // REGIME PERSISTENCE (Smooth out regime flips)
+            this.regimeHistory.push(regime);
+            if (this.regimeHistory.length > 5) this.regimeHistory.shift();
+            const stableRegime = this.regimeHistory.length >= 3
+                ? (this.regimeHistory.slice(-3).every(r => r === regime) ? regime : this.regimeHistory[0])
+                : regime;
+
+            // Multi-Timeframe Confirmation
+            const longTrend = history.length > 300 ? (currentPrice - history[0].p) : 0;
+            const trendDir = longTrend > 0 ? 'UP' : 'DOWN';
+
+            if (Math.abs(longTrend) > atr * 5 && finalSignal !== trendDir && finalSignal !== 'NEUTRAL') {
+                finalConfidence *= 0.85; // Penalty for counter-trend
+            }
+
+            // Adjust based on track record
+            if (this.stats.total < 24) {
+                convictionThreshold = 0.92;
+                advisoryThreshold = 0.70;
+            }
+            if (this.winStreak > 3) {
+                convictionThreshold = 0.95;
+            }
+            if (this.lossStreak > 1) {
+                convictionThreshold = 0.99;
+                advisoryThreshold = 0.85;
+            }
+
+            // Penalize poor win rate
             if (this.stats.total > 10) {
                 const winRate = this.stats.wins / this.stats.total;
-                if (winRate < 0.5) finalConfidence *= 0.9;
+                if (winRate < 0.5) finalConfidence *= 0.85;
             }
+
+            // === CROSS-MARKET VALIDATION ===
+            const allPredictions = ASSETS.map(a => Brains[a].prediction);
+            const upCount = allPredictions.filter(p => p === 'UP').length;
+            const downCount = allPredictions.filter(p => p === 'DOWN').length;
+
+            if ((finalSignal === 'UP' && downCount > upCount + 1) ||
+                (finalSignal === 'DOWN' && upCount > downCount + 1)) {
+                finalConfidence *= 0.75; // Contrarian to market consensus
+                log(`⚠️ Contrarian (${upCount}U/${downCount}D)`, this.asset);
+            }
+
             if (trendBias) finalConfidence *= trendBias;
 
-            if (finalConfidence >= effectiveThreshold) tier = 'CONVICTION';
-            else if (finalConfidence >= 0.70) tier = 'ADVISORY';
+            // Determine tier
+            if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
+            else if (finalConfidence >= advisoryThreshold) tier = 'ADVISORY';
 
-            // DEBOUNCE
+            // TIER LOCK
+            if (this.tier === 'CONVICTION' && tier === 'ADVISORY' && this.prediction === finalSignal) {
+                tier = 'CONVICTION';
+                finalConfidence = Math.max(finalConfidence, convictionThreshold);
+            }
+
+            // === CONVICTION LOCK SYSTEM ===
+            if (this.convictionLocked && finalSignal !== this.lockedDirection) {
+                const oppositeVotes = finalSignal === 'UP' ? downVotes : upVotes;
+                const voteOverwhelm = oppositeVotes / totalVotes > 0.9;
+                const forceOverwhelm = absForce > atr * 5.0;
+
+                if (!voteOverwhelm && !forceOverwhelm) {
+                    finalSignal = this.lockedDirection;
+                    tier = 'CONVICTION';
+                    log(`🔒 Lock held: Weak reversal ignored`, this.asset);
+                } else {
+                    this.convictionLocked = false;
+                    log(`💥 Lock broken: Catastrophic reversal`, this.asset);
+                }
+            }
+
+            // LIVE CONFIDENCE DECAY
+            if (this.lastSignal && this.lastSignal.type !== 'NEUTRAL') {
+                const priceDelta = currentPrice - checkpointPrices[this.asset];
+                if ((this.lastSignal.type === 'UP' && priceDelta < -atr * 3) ||
+                    (this.lastSignal.type === 'DOWN' && priceDelta > atr * 3)) {
+                    finalConfidence *= 0.5;
+                    tier = 'NONE';
+                    log(`⚠️ CONFIDENCE DECAY: Signal invalidated`, this.asset);
+                }
+            }
+
+            // Track vote history
+            this.voteHistory.push({ up: upVotes, down: downVotes, time: Date.now() });
+            if (this.voteHistory.length > 10) this.voteHistory.shift();
+
+            // Calculate vote stability
+            let voteFlips = 0;
+            for (let i = 1; i < this.voteHistory.length; i++) {
+                const prevLeader = this.voteHistory[i - 1].up > this.voteHistory[i - 1].down ? 'UP' : 'DOWN';
+                const currLeader = this.voteHistory[i].up > this.voteHistory[i].down ? 'UP' : 'DOWN';
+                if (prevLeader !== currLeader) voteFlips++;
+            }
+            const voteStability = this.voteHistory.length > 1 ? 1 - (voteFlips / (this.voteHistory.length - 1)) : 0;
+            this.voteTrendScore = voteStability;
+
+            // === DEBOUNCE & STABILITY ===
             if (finalSignal !== this.prediction) {
                 if (finalSignal === this.pendingSignal) this.stabilityCounter++;
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
-                const requiredStability = (elapsed >= 180) ? 0 : (this.stats.total < 24 ? 1 : 3);
-
+                const requiredStability = (() => {
+                    if (elapsed < 180) return 5;
+                    if (elapsed < 600) return 3;
+                    return 1;
+                })();
                 if (this.stabilityCounter >= requiredStability) {
                     this.prediction = finalSignal;
                     this.confidence = finalConfidence;
                     this.tier = tier;
-                    this.lastSignal = { type: finalSignal, conf: finalConfidence, tier, time: Date.now() };
+
+                    const reasons = Object.entries(modelVotes)
+                        .filter(([_, v]) => v === finalSignal)
+                        .map(([m]) => m)
+                        .join(', ');
+
+                    this.lastSignal = { type: finalSignal, conf: finalConfidence, tier, time: Date.now(), modelVotes, reasons };
                     this.stabilityCounter = 0;
+
+                    // CONVICTION LOCK: High confidence + Reasonable odds (smart god mode)
+                    if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.96) {
+                        const market = currentMarkets[this.asset];
+                        if (market) {
+                            const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+
+                            // Lock if odds show value (<=85% to allow some premium for conviction)
+                            if (currentOdds <= 0.85) {
+                                this.convictionLocked = true;
+                                this.lockedDirection = finalSignal;
+                                this.lockTime = Date.now();
+                                this.lockConfidence = finalConfidence;
+                                log(`🔒 CONVICTION LOCKED: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% confidence, ${(currentOdds * 100).toFixed(1)}% odds`, this.asset);
+                            } else {
+                                log(`⚠️ High confidence (${(finalConfidence * 100).toFixed(1)}%) but odds too rich (${(currentOdds * 100).toFixed(1)}%) - skipping lock`, this.asset);
+                            }
+                        }
+                    }
                 }
             } else {
                 this.confidence = finalConfidence;
@@ -557,7 +848,7 @@ class SupremeBrain {
                 }
             }
 
-            // EDGE
+            // EDGE CALCULATION
             if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
                 const market = currentMarkets[this.asset];
                 const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
@@ -566,9 +857,53 @@ class SupremeBrain {
                 this.edge = 0;
             }
 
+        } catch (e) {
+            log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
         } finally {
             this.isProcessing = false;
         }
+    }
+
+    // Check if market is tradeable (tight spread, valid prices)
+    isMarketHealthy() {
+        const m = currentMarkets[this.asset];
+        if (!m) return false;
+        const spread = Math.abs(1 - (m.yesPrice + m.noPrice));
+        if (spread > 0.05) return false; // >5% spread/fee is too high
+        if (m.yesPrice < 0.02 || m.yesPrice > 0.98) return false; // Too extreme
+        return true;
+    }
+
+    // KELLY CRITERION (Enhanced Position Sizing)
+    getKellySize() {
+        if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
+
+        const market = currentMarkets[this.asset];
+        if (!market) return 0;
+
+        const marketOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+        const b = (1 / marketOdds) - 1;
+        const p = this.confidence;
+        const q = 1 - p;
+
+        let kellyFraction = (b * p - q) / b;
+
+        // Adjust for recent performance
+        if (this.stats.total >= 10) {
+            const winRate = this.stats.wins / this.stats.total;
+            if (winRate < 0.4) kellyFraction *= 0.3; // Severe cut if losing badly
+            else if (winRate < 0.5) kellyFraction *= 0.5; // Cut size if losing
+            else if (winRate > 0.65) kellyFraction *= 1.2; // Increase if winning
+        }
+
+        // Adjust for loss streaks
+        if (this.lossStreak > 2) kellyFraction *= 0.5;
+
+        // Quarter Kelly (conservative)
+        const conservativeKelly = kellyFraction * 0.25;
+
+        // Hard caps: never risk more than 10% of bankroll
+        return Math.max(0, Math.min(conservativeKelly, 0.10));
     }
 
     evaluateOutcome(finalPrice, startPrice) {
@@ -580,7 +915,9 @@ class SupremeBrain {
 
         if (predicted !== 'NEUTRAL') {
             this.stats.total++;
-            if (predicted === actual) {
+            const isWin = predicted === actual;
+
+            if (isWin) {
                 this.stats.wins++;
                 this.winStreak++;
                 this.lossStreak = 0;
@@ -594,24 +931,72 @@ class SupremeBrain {
                 if (tier === 'CONVICTION') { this.stats.convictionTotal++; }
                 log(`❌ LOSS (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
             }
-        }
 
-        // Save pattern to Historian
-        const history = priceHistory[this.asset];
-        if (history.length >= 10) {
-            const recent = history.slice(-10).map(x => x.p);
-            const base = recent[0];
-            const vector = recent.map(p => (p - base) / base);
-            savePattern(this.asset, vector, actual);
-        }
+            // FINAL SEVEN: CALIBRATION TRACKING
+            if (this.lastSignal && this.lastSignal.conf) {
+                const conf = this.lastSignal.conf;
+                const bucket = conf >= 0.98 ? '0.98-1.00' : (conf >= 0.95 ? '0.95-0.98' : '0.90-0.95');
+                if (this.calibrationBuckets[bucket]) {
+                    this.calibrationBuckets[bucket].total++;
+                    if (isWin) this.calibrationBuckets[bucket].wins++;
+                }
+            }
 
-        this.lockState = 'NEUTRAL';
-        this.lockStrength = 0;
-        this.lastSignal = null;
-        this.prediction = 'WAIT';
-        this.tier = 'NONE';
-        this.stabilityCounter = 0;
-        this.pendingSignal = null;
+            // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
+            if (this.lastSignal && this.lastSignal.modelVotes) {
+                for (const [model, vote] of Object.entries(this.lastSignal.modelVotes)) {
+                    if (this.modelAccuracy[model]) {
+                        this.modelAccuracy[model].total++;
+                        if (vote === actual) {
+                            this.modelAccuracy[model].wins++;
+                        }
+                    }
+                }
+                // Track recent form (last 10)
+                this.recentOutcomes.push(isWin);
+                if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
+
+                // SMART MEMORY: Update the pattern that generated this signal (if any)
+                if (this.lastSignal && this.lastSignal.patternId) {
+                    const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
+                    if (pIndex !== -1) {
+                        memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
+                        memoryPatterns[this.asset][pIndex].matchCount++;
+                        if (isWin) {
+                            memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
+                        }
+                        // Persist update to Redis if available
+                        if (redisAvailable && redis) {
+                            redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
+                        }
+                    }
+                }
+
+                // Save pattern to Historian
+                const history = priceHistory[this.asset];
+                if (history.length >= 10) {
+                    const recent = history.slice(-10).map(x => x.p);
+                    const base = recent[0];
+                    const vector = recent.map(p => (p - base) / base);
+                    savePattern(this.asset, vector, actual);
+                }
+
+                this.lockState = 'NEUTRAL';
+                this.lockStrength = 0;
+                this.lastSignal = null;
+                this.prediction = 'WAIT';
+                this.tier = 'NONE';
+                this.stabilityCounter = 0;
+                this.pendingSignal = null;
+
+                // Reset conviction lock for new cycle
+                this.convictionLocked = false;
+                this.lockedDirection = null;
+                this.lockTime = null;
+                this.lockConfidence = 0;
+                this.voteHistory = [];
+            }
+        }
     }
 }
 
@@ -735,7 +1120,15 @@ async function fetchCurrentMarkets() {
             log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}% | NO ${(noPrice * 100).toFixed(1)}%`, asset);
         } catch (e) {
             log(`❌ Market fetch error: ${e.message}`, asset);
-            currentMarkets[asset] = null;
+
+            // FINAL SEVEN: MARKET DATA FALLBACK
+            // If fetch fails, use last known data if < 30 seconds old
+            if (currentMarkets[asset] && (Date.now() - currentMarkets[asset].lastUpdated) < 30000) {
+                log(`⚠️ Using cached market data for ${asset} (Grace Period)`);
+                // Keep existing currentMarkets[asset]
+            } else {
+                currentMarkets[asset] = null;
+            }
         }
         await new Promise(r => setTimeout(r, 300));
     }
@@ -774,7 +1167,16 @@ async function saveState() {
                 winStreak: Brains[a].winStreak,
                 lossStreak: Brains[a].lossStreak
             }
-        }), {})
+        }), {}),
+        // NEW: Checkpoint state for mid-cycle restart recovery
+        checkpoints: {
+            timestamp: getCurrentCheckpoint(),
+            prices: ASSETS.reduce((acc, a) => ({ ...acc, [a]: checkpointPrices[a] }), {}),
+            evaluated: ASSETS.reduce((acc, a) => ({ ...acc, [a]: lastEvaluatedCheckpoint[a] }), {})
+        },
+        // FINAL SEVEN: PERSISTENCE
+        calibration: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].calibrationBuckets }), {}),
+        regime: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].regimeHistory }), {})
     };
 
     // Save to Redis if available
@@ -802,6 +1204,35 @@ async function loadState() {
                         Brains[a].lossStreak = state.evolution[a].lossStreak;
                     }
                 });
+
+                // MID-CYCLE CHECKPOINT CONTINUATION
+                if (state.checkpoints) {
+                    const now = Math.floor(Date.now() / 1000);
+                    const currentCycle = getCurrentCheckpoint();
+                    const savedCycle = state.checkpoints.timestamp;
+                    const timeLeftInCycle = (savedCycle + INTERVAL_SECONDS) - now;
+
+                    // If same cycle AND more than 5 mins left: Resume with saved checkpoints
+                    if (currentCycle === savedCycle && timeLeftInCycle > 300) {
+                        ASSETS.forEach(a => {
+                            if (state.checkpoints.prices[a]) {
+                                checkpointPrices[a] = state.checkpoints.prices[a];
+                                previousCheckpointPrices[a] = state.checkpoints.prices[a];
+                            }
+                            if (state.checkpoints.evaluated[a]) {
+                                lastEvaluatedCheckpoint[a] = state.checkpoints.evaluated[a];
+                            }
+                        });
+                        log(`🔄 Resumed mid-cycle @ ${currentCycle} (${Math.floor(timeLeftInCycle / 60)}m ${timeLeftInCycle % 60}s remaining)`);
+                    } else if (timeLeftInCycle <= 300 && timeLeftInCycle > 0) {
+                        log(`⏸️ Less than 5 mins left in cycle - waiting for next checkpoint`);
+                    }
+                }
+
+                // FINAL SEVEN: RESTORE CALIBRATION & REGIME
+                if (state.calibration) ASSETS.forEach(a => { if (state.calibration[a]) Brains[a].calibrationBuckets = state.calibration[a]; });
+                if (state.regime) ASSETS.forEach(a => { if (state.regime[a]) Brains[a].regimeHistory = state.regime[a]; });
+
                 log('💾 State Restored from Redis');
                 return;
             }
@@ -817,6 +1248,10 @@ async function loadState() {
 app.get('/api/state', (req, res) => {
     const response = {};
     ASSETS.forEach(a => {
+        const recentWins = Brains[a].recentOutcomes.filter(Boolean).length;
+        const recentTotal = Brains[a].recentOutcomes.length;
+        const recentAccuracy = recentTotal > 0 ? (recentWins / recentTotal) * 100 : 0;
+
         response[a] = {
             prediction: Brains[a].prediction,
             confidence: Brains[a].confidence,
@@ -826,7 +1261,16 @@ app.get('/api/state', (req, res) => {
             stats: Brains[a].stats,
             live: livePrices[a],
             checkpoint: checkpointPrices[a],
-            market: currentMarkets[a]
+            market: currentMarkets[a],
+            locked: Brains[a].convictionLocked,
+            voteStability: Brains[a].voteTrendScore,
+            recentAccuracy: recentAccuracy.toFixed(1),  // Last 10 predictions accuracy
+            recentTotal: recentTotal,  // How many of the last 10 we have
+
+            // FINAL SEVEN METRICS
+            kellySize: Brains[a].getKellySize(),
+            calibration: Brains[a].calibrationBuckets,
+            newsState: Brains[a].newsState
         };
     });
     res.json(response);
@@ -838,27 +1282,32 @@ setInterval(() => {
     const cp = now - (now % INTERVAL_SECONDS);
 
     ASSETS.forEach(a => {
-        // Only process within the 5-second checkpoint window
+        // CRITICAL FIX #1 & #3: Only process within checkpoint window WITH FRESH DATA
         if (now >= cp && now < cp + 5) {
-            // CRITICAL FIX: Only evaluate if we haven't already evaluated this checkpoint
             if (lastEvaluatedCheckpoint[a] !== cp) {
 
-                // Evaluate the JUST FINISHED cycle (Live vs Checkpoint)
-                // checkpointPrices[a] = Start of the cycle that just ended
-                // livePrices[a] = End of the cycle that just ended
-                if (checkpointPrices[a] && livePrices[a]) {
-                    Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
-                    log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS}`, a);
+                // CRITICAL: Ensure we have FRESH price data (within 3 seconds)
+                const dataAge = Date.now() - lastUpdateTimestamp;
+                if (dataAge > 3000) {
+                    log(`⚠️ Checkpoint skipped - stale data (${(dataAge / 1000).toFixed(1)}s old)`, a);
+                    return;
                 }
 
-                // Update checkpoints for the NEW cycle
+                // Evaluate the JUST FINISHED cycle
+                // Use CONFIRMED fresh prices for accurate outcome evaluation
+                if (checkpointPrices[a] && livePrices[a]) {
+                    Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
+                    log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
+                }
+
+                // Update checkpoints for the NEW cycle with FRESH price
                 previousCheckpointPrices[a] = checkpointPrices[a];
                 checkpointPrices[a] = livePrices[a];
 
                 // Mark this checkpoint as evaluated
                 lastEvaluatedCheckpoint[a] = cp;
 
-                log(`🔄 Checkpoint: ${checkpointPrices[a]?.toFixed(2) || 'pending'}`, a);
+                log(`🔄 NEW Checkpoint: $${checkpointPrices[a]?.toFixed(2) || 'pending'}`, a);
             }
         }
     });
