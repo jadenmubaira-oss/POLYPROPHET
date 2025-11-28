@@ -425,6 +425,11 @@ class SupremeBrain {
         // RECENT FORM TRACKER (Last 10 predictions)
         this.recentOutcomes = [];  // Array of true/false (win/loss)
 
+        // CYCLE COMMITMENT (Real-World Trading Lock)
+        this.cycleCommitted = false;
+        this.committedDirection = null;
+        this.commitTime = null;
+
         // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Self-Learning)
         this.modelAccuracy = {
             genesis: { wins: 0, total: 0 },
@@ -754,8 +759,20 @@ class SupremeBrain {
                 finalConfidence = Math.max(finalConfidence, convictionThreshold);
             }
 
-            // === CONVICTION LOCK SYSTEM ===
-            if (this.convictionLocked && finalSignal !== this.lockedDirection) {
+            // === CYCLE COMMITMENT LOCK (Real-World Trading Mode) ===
+            // Once committed to a direction, NEVER flip-flop for the entire cycle
+            // This mimics real trading: once you buy shares, you can't switch sides
+            if (this.cycleCommitted && finalSignal !== this.committedDirection) {
+                // OVERRIDE: Keep committed direction NO MATTER WHAT
+                finalSignal = this.committedDirection;
+                // Keep existing tier but mark as committed
+                if (tier === 'NONE') tier = 'ADVISORY'; // Don't drop below ADVISORY once committed
+                log(`💎 CYCLE COMMITTED: Holding ${this.committedDirection} (no flip-flops allowed)`, this.asset);
+            }
+
+            // === CONVICTION LOCK SYSTEM (Anti-Whipsaw for Non-Committed) ===
+            // This only applies before cycle commitment
+            if (!this.cycleCommitted && this.convictionLocked && finalSignal !== this.lockedDirection) {
                 const oppositeVotes = finalSignal === 'UP' ? downVotes : upVotes;
                 const voteOverwhelm = oppositeVotes / totalVotes > 0.9;
                 const forceOverwhelm = absForce > atr * 5.0;
@@ -818,7 +835,23 @@ class SupremeBrain {
                     this.lastSignal = { type: finalSignal, conf: finalConfidence, tier, time: Date.now(), modelVotes, reasons };
                     this.stabilityCounter = 0;
 
-                    // CONVICTION LOCK: High confidence + Reasonable odds (smart god mode)
+                    // CYCLE COMMITMENT: Lock direction for real-world trading
+                    // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
+                    if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
+                        const market = currentMarkets[this.asset];
+                        // Only commit if we have reasonable odds (otherwise wait for better entry)
+                        if (market) {
+                            const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+                            if (currentOdds <= 0.85 || tier === 'CONVICTION') {
+                                this.cycleCommitted = true;
+                                this.committedDirection = finalSignal;
+                                this.commitTime = Date.now();
+                                log(`💎 CYCLE COMMITMENT: ${finalSignal} @ ${tier} tier, ${(currentOdds * 100).toFixed(1)}% odds (LOCKED FOR CYCLE)`, this.asset);
+                            }
+                        }
+                    }
+
+                    // CONVICTION LOCK: High confidence + Reasonable odds (anti-whipsaw)
                     if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.96) {
                         const market = currentMarkets[this.asset];
                         if (market) {
@@ -995,6 +1028,11 @@ class SupremeBrain {
                 this.lockTime = null;
                 this.lockConfidence = 0;
                 this.voteHistory = [];
+
+                // Reset cycle commitment for new cycle
+                this.cycleCommitted = false;
+                this.committedDirection = null;
+                this.commitTime = null;
             }
         }
     }
@@ -1392,18 +1430,6 @@ app.get('/', (req, res) => {
                 const dashboard = document.getElementById('dashboard');
                 const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
                 
-                // Helper function for safe HTML generation
-                function getMarketLinkHtml(market) {
-                    if (!market || !market.marketUrl) return '';
-                    return \`
-                        <div style="text-align: center; margin-top: 15px;">
-                            <a href="\${market.marketUrl}" target="_blank" class="market-link">
-                                📊 View on Polymarket →
-                            </a>
-                        </div>
-                    \`;
-                }
-
                 dashboard.innerHTML = assets.map(asset => {
                     const d = data[asset];
                     if (!d) return '';
@@ -1457,7 +1483,11 @@ app.get('/', (req, res) => {
                                 </div>
                             </div>
                             
-                            \${getMarketLinkHtml(d.market)}
+                            \${d.market && d.market.marketUrl ? \`<div style="text-align: center; margin-top: 15px;">
+                                <a href="\${d.market.marketUrl}" target="_blank" class="market-link">
+                                    📊 View on Polymarket →
+                                </a>
+                            </div>\` : ''}
                         </div>
                     \`;
                 }).join('');
