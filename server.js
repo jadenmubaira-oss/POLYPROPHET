@@ -1245,6 +1245,72 @@ async function loadState() {
 }
 
 // ==================== API & SERVER ====================
+
+// Home route - simple landing page
+app.get('/', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Polymarket Supreme Deity Oracle</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(0,0,0,0.3);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+        h1 { margin-top: 0; font-size: 2.5em; }
+        .status { padding: 15px; background: rgba(0,255,0,0.2); border-radius: 8px; margin: 20px 0; }
+        .endpoint { background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; font-family: monospace; }
+        a { color: #4fc3f7; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .metric { display: inline-block; margin: 10px 20px 10px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔮 Polymarket Supreme Deity Oracle</h1>
+        <div class="status">
+            ✅ <strong>Status:</strong> ONLINE | Running 24/7
+        </div>
+        
+        <h2>📊 Access Predictions</h2>
+        <div class="endpoint">
+            <strong>API Endpoint:</strong> <a href="/api/state">/api/state</a>
+        </div>
+        
+        <h2>⚡ Features</h2>
+        <ul>
+            <li>8 AI models with adaptive learning</li>
+            <li>Conviction locks at 96%+ confidence</li>
+            <li>Pattern matching with intelligent pruning</li>
+            <li>Real-time predictions for BTC, ETH, SOL, XRP</li>
+        </ul>
+        
+        <h2>📈 Metrics</h2>
+        <div>
+            <div class="metric"><strong>Markets:</strong> 15-min crypto checkpoints</div>
+            <div class="metric"><strong>Update Freq:</strong> 1 second</div>
+            <div class="metric"><strong>Target Accuracy:</strong> 65-75%</div>
+        </div>
+        
+        <h2>📖 Documentation</h2>
+        <p>Visit the <a href="https://github.com/jadenmubaira-oss/POLYPROPHET" target="_blank">GitHub Repository</a> for full documentation.</p>
+    </div>
+</body>
+</html>
+    `);
+});
+
 app.get('/api/state', (req, res) => {
     const response = {};
     ASSETS.forEach(a => {
