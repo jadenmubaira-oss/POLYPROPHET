@@ -1348,13 +1348,35 @@ app.get('/', (req, res) => {
             font-size: 1.1em;
         }
         .loading { text-align: center; padding: 50px; font-size: 1.5em; }
+        .countdown {
+            font-size: 2em;
+            font-weight: bold;
+            color: #00ff00;
+            text-shadow: 0 0 10px #00ff00;
+        }
+        .market-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 8px 16px;
+            background: rgba(0,150,255,0.3);
+            border: 1px solid #0096ff;
+            border-radius: 6px;
+            color: #4fc3f7;
+            text-decoration: none;
+            font-size: 0.85em;
+            transition: all 0.3s;
+        }
+        .market-link:hover {
+            background: rgba(0,150,255,0.5);
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
     <div class="header">
         <h1>🔮 SUPREME DEITY ORACLE</h1>
         <div class="status-bar">
-            ✅ <strong>LIVE</strong> | Updates every second | <span id="last-update">Loading...</span>
+            ✅ <strong>LIVE</strong> | Next Checkpoint: <span class="countdown" id="countdown">--:--</span> | <span id="last-update">Loading...</span>
         </div>
     </div>
     <div id="dashboard" class="grid">
@@ -1422,9 +1444,27 @@ app.get('/', (req, res) => {
                                     <strong>Y:\${d.market ? (d.market.yesPrice * 100).toFixed(1) : 'N/A'}% / N:\${d.market ? (d.market.noPrice * 100).toFixed(1) : 'N/A'}%</strong>
                                 </div>
                             </div>
+                            
+                            \${d.market && d.market.marketUrl ? `
+                                <div style="text-align: center; margin-top: 15px;">
+        <a href="\${d.market.marketUrl}" target="_blank" class="market-link">
+            📊 View on Polymarket →
+        </a>
+                                </div>
+        ` : ''}
                         </div>
                     \`;
                 }).join('');
+                
+                // Update countdown timer
+                const now = Math.floor(Date.now() / 1000);
+                const interval = 900; // 15 minutes in seconds
+                const nextCheckpoint = now - (now % interval) + interval;
+                const timeLeft = nextCheckpoint - now;
+                const minutes = Math.floor(timeLeft / 60);
+                const seconds = timeLeft % 60;
+                document.getElementById('countdown').textContent = 
+                    minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
                 
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             } catch (e) {
