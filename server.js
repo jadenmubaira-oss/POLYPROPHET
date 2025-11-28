@@ -1392,6 +1392,18 @@ app.get('/', (req, res) => {
                 const dashboard = document.getElementById('dashboard');
                 const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
                 
+                // Helper function for safe HTML generation
+                function getMarketLinkHtml(market) {
+                    if (!market || !market.marketUrl) return '';
+                    return \`
+                        <div style="text-align: center; margin-top: 15px;">
+                            <a href="\${market.marketUrl}" target="_blank" class="market-link">
+                                📊 View on Polymarket →
+                            </a>
+                        </div>
+                    \`;
+                }
+
                 dashboard.innerHTML = assets.map(asset => {
                     const d = data[asset];
                     if (!d) return '';
@@ -1445,13 +1457,7 @@ app.get('/', (req, res) => {
                                 </div>
                             </div>
                             
-                            \${d.market && d.market.marketUrl ? `
-                                <div style="text-align: center; margin-top: 15px;">
-        <a href="\${d.market.marketUrl}" target="_blank" class="market-link">
-            📊 View on Polymarket →
-        </a>
-                                </div>
-        ` : ''}
+                            \${getMarketLinkHtml(d.market)}
                         </div>
                     \`;
                 }).join('');
