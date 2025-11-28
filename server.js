@@ -1246,66 +1246,202 @@ async function loadState() {
 
 // ==================== API & SERVER ====================
 
-// Home route - simple landing page
+// Home route - LIVE DASHBOARD
 app.get('/', (req, res) => {
     res.send(`
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Polymarket Supreme Deity Oracle</title>
+    <title>Supreme Deity Oracle - LIVE</title>
+    <meta charset="UTF-8">
     <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 900px;
-            margin: 50px auto;
-            padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             color: white;
+            padding: 20px;
+            min-height: 100vh;
         }
-        .container {
-            background: rgba(0,0,0,0.3);
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
         }
-        h1 { margin-top: 0; font-size: 2.5em; }
-        .status { padding: 15px; background: rgba(0,255,0,0.2); border-radius: 8px; margin: 20px 0; }
-        .endpoint { background: rgba(0,0,0,0.4); padding: 15px; border-radius: 8px; font-family: monospace; }
-        a { color: #4fc3f7; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .metric { display: inline-block; margin: 10px 20px 10px 0; }
+        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
+        .status-bar {
+            background: rgba(0,255,0,0.2);
+            padding: 10px 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .asset-card {
+            background: rgba(0,0,0,0.4);
+            border-radius: 12px;
+            padding: 20px;
+            border: 2px solid rgba(255,255,255,0.1);
+            transition: all 0.3s;
+        }
+        .asset-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.3); }
+        .asset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .asset-name { font-size: 1.8em; font-weight: bold; }
+        .prediction {
+            font-size: 3em;
+            font-weight: bold;
+            text-align: center;
+            margin: 15px 0;
+            text-shadow: 0 0 20px currentColor;
+        }
+        .prediction.UP { color: #00ff00; }
+        .prediction.DOWN { color: #ff0044; }
+        .prediction.WAIT { color: #ffaa00; }
+        .confidence {
+            text-align: center;
+            font-size: 1.3em;
+            margin: 10px 0;
+        }
+        .tier {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .tier.CONVICTION { background: #ff0066; }
+        .tier.ADVISORY { background: #ff9900; }
+        .tier.NONE { background: #555; }
+        .stats {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+        .locked {
+            background: rgba(255,0,100,0.3);
+            border: 2px solid #ff0066;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(255,0,100,0.5); }
+            50% { box-shadow: 0 0 40px rgba(255,0,100,0.8); }
+        }
+        .price-display {
+            text-align: center;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+        .loading { text-align: center; padding: 50px; font-size: 1.5em; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🔮 Polymarket Supreme Deity Oracle</h1>
-        <div class="status">
-            ✅ <strong>Status:</strong> ONLINE | Running 24/7
+    <div class="header">
+        <h1>🔮 SUPREME DEITY ORACLE</h1>
+        <div class="status-bar">
+            ✅ <strong>LIVE</strong> | Updates every second | <span id="last-update">Loading...</span>
         </div>
-        
-        <h2>📊 Access Predictions</h2>
-        <div class="endpoint">
-            <strong>API Endpoint:</strong> <a href="/api/state">/api/state</a>
-        </div>
-        
-        <h2>⚡ Features</h2>
-        <ul>
-            <li>8 AI models with adaptive learning</li>
-            <li>Conviction locks at 96%+ confidence</li>
-            <li>Pattern matching with intelligent pruning</li>
-            <li>Real-time predictions for BTC, ETH, SOL, XRP</li>
-        </ul>
-        
-        <h2>📈 Metrics</h2>
-        <div>
-            <div class="metric"><strong>Markets:</strong> 15-min crypto checkpoints</div>
-            <div class="metric"><strong>Update Freq:</strong> 1 second</div>
-            <div class="metric"><strong>Target Accuracy:</strong> 65-75%</div>
-        </div>
-        
-        <h2>📖 Documentation</h2>
-        <p>Visit the <a href="https://github.com/jadenmubaira-oss/POLYPROPHET" target="_blank">GitHub Repository</a> for full documentation.</p>
     </div>
+    <div id="dashboard" class="grid">
+        <div class="loading">Loading oracle data...</div>
+    </div>
+    
+    <script>
+        async function fetchData() {
+            try {
+                const res = await fetch('/api/state');
+                const data = await res.json();
+                
+                const dashboard = document.getElementById('dashboard');
+                const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
+                
+                dashboard.innerHTML = assets.map(asset => {
+                    const d = data[asset];
+                    if (!d) return '';
+                    
+                    const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(1) : '0.0';
+                    const convWinRate = d.stats.convictionTotal > 0 ? ((d.stats.convictionWins / d.stats.convictionTotal) * 100).toFixed(1) : '0.0';
+                    
+                    return \`
+                        <div class="asset-card \${d.locked ? 'locked' : ''}">
+                            <div class="asset-header">
+                                <div class="asset-name">\${asset}</div>
+                                <div>\${d.locked ? '🔒 LOCKED' : ''}</div>
+                            </div>
+                            
+                            <div class="prediction \${d.prediction}">\${d.prediction}</div>
+                            
+                            <div class="confidence">
+                                <strong>\${(d.confidence * 100).toFixed(1)}%</strong> confidence
+                            </div>
+                            
+                            <div style="text-align: center; margin: 10px 0;">
+                                <span class="tier \${d.tier}">\${d.tier}</span>
+                            </div>
+                            
+                            <div class="price-display">
+                                Live: <strong>$\${d.live ? d.live.toFixed(2) : 'N/A'}</strong><br>
+                                Checkpoint: <strong>$\${d.checkpoint ? d.checkpoint.toFixed(2) : 'N/A'}</strong><br>
+                                Edge: <strong>\${d.edge ? d.edge.toFixed(2) : '0'}%</strong>
+                            </div>
+                            
+                            <div class="stats">
+                                <div class="stat-row">
+                                    <span>Win Rate:</span>
+                                    <strong>\${winRate}% (\${d.stats.wins}/\${d.stats.total})</strong>
+                                </div>
+                                <div class="stat-row">
+                                    <span>Conviction Rate:</span>
+                                    <strong>\${convWinRate}% (\${d.stats.convictionWins}/\${d.stats.convictionTotal})</strong>
+                                </div>
+                                <div class="stat-row">
+                                    <span>Recent (L10):</span>
+                                    <strong>\${d.recentAccuracy}% (\${d.recentTotal} trades)</strong>
+                                </div>
+                                <div class="stat-row">
+                                    <span>Vote Stability:</span>
+                                    <strong>\${(d.voteStability * 100).toFixed(0)}%</strong>
+                                </div>
+                                <div class="stat-row">
+                                    <span>Market Odds:</span>
+                                    <strong>Y:\${d.market ? (d.market.yesPrice * 100).toFixed(1) : 'N/A'}% / N:\${d.market ? (d.market.noPrice * 100).toFixed(1) : 'N/A'}%</strong>
+                                </div>
+                            </div>
+                        </div>
+                    \`;
+                }).join('');
+                
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            } catch (e) {
+                document.getElementById('dashboard').innerHTML = \`
+                    <div class="loading" style="color: #ff4444;">
+                        ❌ Error loading data: \${e.message}
+                    </div>
+                \`;
+            }
+        }
+        
+        // Initial load
+        fetchData();
+        
+        // Auto-refresh every 1 second
+        setInterval(fetchData, 1000);
+    </script>
 </body>
 </html>
     `);
