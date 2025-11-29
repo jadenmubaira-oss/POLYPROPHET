@@ -41,6 +41,33 @@ app.use(express.static('public'));
 const server = http.createServer(app);
 
 // ==================== REDIS SETUP (FALLBACK-SAFE) ====================
+let redis = null;
+let redisAvailable = false;
+
+if (process.env.REDIS_URL) {
+    try {
+        redis = new Redis(process.env.REDIS_URL, {
+            maxRetriesPerRequest: 3,
+            retryStrategy: (times) => {
+                if (times > 3) return null;
+                return Math.min(times * 50, 2000);
+            }
+        });
+
+        redis.on('connect', () => {
+            redisAvailable = true;
+            log('✅ Redis Connected - Persistence Enabled (ZERO DATA LOSS)');
+        });
+
+        redis.on('error', (err) => {
+            redisAvailable = false;
+            log(`⚠️ Redis Error: ${err.message} - Using memory fallback`);
+        });
+    } catch (e) {
+        log(`⚠️ Redis Init Failed: ${e.message} - Using memory fallback`);
+    }
+} else {
+    log('⚠️ REDIS_URL not set - Using ephemeral storage');
 }
 
 // ==================== NOTIFICATION SYSTEM SETUP ====================
@@ -261,4 +288,8 @@ class NotificationManager {
         });
     }
 
-    startup();
+}
+}
+
+// Initialize Notification Manager
+NotificationManager.startup();
