@@ -279,44 +279,50 @@ class NotificationManager {
         }
 
 
-        setInterval(() => ASSETS.forEach(a => Brains[a].update()), 1000);
-        setInterval(fetchCurrentMarkets, 2000);
-        setInterval(Historian.save, 60000);
-
-        server.listen(process.env.PORT || 3000, () => {
-            log(`âœ… Server running on port ${process.env.PORT || 3000}`);
-        });
     }
+
+}
+
+// ==================== MAIN EXECUTION LOOP ====================
+// Start the Brains and Data Fetching
+setInterval(() => ASSETS.forEach(a => Brains[a].update()), 1000);
+setInterval(fetchCurrentMarkets, 2000);
+setInterval(Historian.save, 60000);
+
+// Start the Server
+server.listen(process.env.PORT || 3000, () => {
+    log(`✅ Server running on port ${process.env.PORT || 3000}`);
+});
 
     static async startup() {
-        if (redisAvailable) {
-            try {
-                // Load System Config (API Keys)
-                const configData = await redis.get('systemConfig');
-                if (configData) {
-                    systemConfig = JSON.parse(configData);
-                    log('⚙️ System configuration loaded from Redis');
-                }
-
-                // Load Subscribers
-                const subData = await redis.get('subscribers');
-                if (subData) {
-                    subscribers = JSON.parse(subData);
-                    log(`👥 Loaded ${subscribers.length} subscribers from Redis`);
-                }
-
-                // Load User Preferences
-                const prefData = await redis.get('userPreferences');
-                if (prefData) {
-                    userPreferences = JSON.parse(prefData);
-                    log('👤 User preferences loaded from Redis');
-                }
-
-            } catch (e) {
-                log(`⚠️ Error loading data from Redis: ${e.message}`);
+    if (redisAvailable) {
+        try {
+            // Load System Config (API Keys)
+            const configData = await redis.get('systemConfig');
+            if (configData) {
+                systemConfig = JSON.parse(configData);
+                log('⚙️ System configuration loaded from Redis');
             }
+
+            // Load Subscribers
+            const subData = await redis.get('subscribers');
+            if (subData) {
+                subscribers = JSON.parse(subData);
+                log(`👥 Loaded ${subscribers.length} subscribers from Redis`);
+            }
+
+            // Load User Preferences
+            const prefData = await redis.get('userPreferences');
+            if (prefData) {
+                userPreferences = JSON.parse(prefData);
+                log('👤 User preferences loaded from Redis');
+            }
+
+        } catch (e) {
+            log(`⚠️ Error loading data from Redis: ${e.message}`);
         }
     }
+}
 }
 
 // Initialize Notification Manager

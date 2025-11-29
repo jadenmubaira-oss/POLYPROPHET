@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POLYPROPHET SUPREME</title>
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-purple: #bc13fe;
+            --neon-green: #0aff0a;
+            --neon-red: #ff003c;
+            --bg-dark: #050505;
+            --panel-bg: rgba(10, 10, 15, 0.95);
+            --border-color: rgba(0, 243, 255, 0.3);
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: #fff;
+            font-family: 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        header {
+            text-align: center;
+            border-bottom: 2px solid var(--neon-blue);
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        h1 { margin: 0; font-size: 2.5em; letter-spacing: 5px; }
+        .subtitle { color: var(--neon-purple); font-size: 1.2em; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.1);
+        }
+
+        .panel h2 {
+            color: var(--neon-blue);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+
+        .price { font-size: 1.5em; font-weight: bold; }
+        .up { color: var(--neon-green); }
+        .down { color: var(--neon-red); }
+
+        .signal-box {
+            background: rgba(0,0,0,0.5);
+            padding: 15px;
+            text-align: center;
+            border: 1px solid #333;
+            margin-top: 15px;
+        }
+
+        .signal-strong {
+            font-size: 1.5em;
+            font-weight: bold;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        /* Forms & Inputs */
+        input, select, button {
+            background: #111;
+            border: 1px solid var(--neon-blue);
+            color: #fff;
+            padding: 10px;
+            width: 100%;
+            margin-bottom: 10px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: var(--neon-blue);
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #fff;
+            box-shadow: 0 0 15px var(--neon-blue);
+        }
+
+        .btn-red {
+            background: var(--neon-red);
+            border-color: var(--neon-red);
+        }
+        .btn-red:hover { box-shadow: 0 0 15px var(--neon-red); }
+
+        .subscriber-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .sub-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px;
+            border-bottom: 1px solid #222;
+        }
+
+        .status-log {
+            height: 150px;
+            overflow-y: auto;
+            font-size: 0.9em;
+            color: #aaa;
+            font-family: monospace;
+            border: 1px solid #333;
+            padding: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: #222;
+            border: 1px solid #444;
+            color: #888;
+        }
+
+        .tab-btn.active {
+            background: var(--neon-purple);
+            color: #fff;
+            border-color: var(--neon-purple);
+        }
+
+        .hidden { display: none; }
+
+        /* Guide Styles */
+        .guide-content h3 { color: var(--neon-green); }
+        .guide-content ul { padding-left: 20px; }
+        .guide-content li { margin-bottom: 10px; }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>POLYPROPHET SUPREME</h1>
+        <div class="subtitle">ORACLE CLASS PREDICTION ENGINE</div>
+        <div id="connection-status" style="color: var(--neon-red)">CONNECTING...</div>
+    </header>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('dashboard')">DASHBOARD</button>
+        <button class="tab-btn" onclick="showTab('setup')">SYSTEM SETUP</button>
+        <button class="tab-btn" onclick="showTab('guide')">GUIDE</button>
+    </div>
+
+    <!-- DASHBOARD TAB -->
+    <div id="dashboard" class="tab-content">
+        <div class="dashboard-grid" id="asset-grid">
+            <!-- Assets will be injected here -->
+        </div>
+
+        <div class="panel" style="margin-top: 20px;">
+            <h2>SYSTEM LOGS</h2>
+            <div class="status-log" id="system-log"></div>
+            <button onclick="exportData()" style="width: auto; margin-top: 10px;">📥 EXPORT CYCLE DATA</button>
+        </div>
+    </div>
+
+    <!-- SETUP TAB -->
+    <div id="setup" class="tab-content hidden">
+        <div class="dashboard-grid">
+            <!-- API Configuration -->
+            <div class="panel">
+                <h2>API CONFIGURATION</h2>
+                <p style="color: #aaa; font-size: 0.9em;">Credentials are stored securely in Redis.</p>
+                
+                <label>Twilio Account SID</label>
+                <input type="password" id="twilio-sid" placeholder="AC...">
+                
+                <label>Twilio Auth Token</label>
+                <input type="password" id="twilio-token" placeholder="Token...">
+                
+                <label>Twilio Phone Number</label>
+                <input type="text" id="twilio-phone" placeholder="+1234567890">
+                
+                <label>Gmail User</label>
+                <input type="text" id="gmail-user" placeholder="user@gmail.com">
+                
+                <label>Gmail App Password</label>
+                <input type="password" id="gmail-pass" placeholder="App Password">
+                
+                <button onclick="saveConfig()">💾 SAVE CONFIGURATION</button>
+            </div>
+
+            <!-- Subscriber Management -->
+            <div class="panel">
+                <h2>SUBSCRIBER MANAGEMENT</h2>
+                <div class="subscriber-list" id="sub-list">
+                    <!-- Subscribers injected here -->
+                </div>
+
+                <div style="border-top: 1px solid #333; padding-top: 10px;">
+                    <h3>Add New Subscriber</h3>
+                    <select id="sub-type">
+                        <option value="email">Email</option>
+                        <option value="sms">SMS</option>
+                    </select>
+                    <input type="text" id="sub-value" placeholder="Email or Phone (+1...)">
+                    <button onclick="addSubscriber()">➕ ADD SUBSCRIBER</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GUIDE TAB -->
+    <div id="guide" class="tab-content hidden">
+        <div class="panel guide-content">
+            <h2>THE PROPHET'S GUIDE</h2>
+            
+            <h3>🚀 MISSION: £10 -> £1,000,000</h3>
+            <p>This system is designed for passive, high-conviction wealth generation. It does not trade often; it trades <strong>perfectly</strong>.</p>
+
+            <h3>🎯 HOW IT WORKS</h3>
+            <ul>
+                <li><strong>Dual-Brain Architecture:</strong>
+                    <ul>
+                        <li><strong>Standard Mode:</strong> Analyzes market structure every 15 minutes. Alerts at 85% confidence.</li>
+                        <li><strong>Sniper Mode (ALWAYS ON):</strong> Scans every second for 90%+ anomalies (flash crashes, pumps).</li>
+                    </ul>
+                </li>
+                <li><strong>Persistence:</strong> All your settings and patterns are saved to Redis. You can restart the server without losing data.</li>
+            </ul>
+
+            <h3>⚙️ SETUP INSTRUCTIONS</h3>
+            <ol>
+                <li>Go to the <strong>SYSTEM SETUP</strong> tab.</li>
+                <li>Enter your <strong>Twilio</strong> credentials (for SMS) and <strong>Gmail</strong> App Password (for Email).</li>
+                <li>Click <strong>SAVE CONFIGURATION</strong>.</li>
+                <li>Add your phone number and email in the <strong>SUBSCRIBER MANAGEMENT</strong> section.</li>
+                <li>Wait for the alerts. Do not force trades. Trust the Oracle.</li>
+            </ol>
+
+            <h3>⚠️ IMPORTANT NOTES</h3>
+            <ul>
+                <li><strong>Do not spam refresh:</strong> The system updates automatically via WebSocket.</li>
+                <li><strong>Twilio Costs:</strong> Ensure your Twilio account has credits.</li>
+                <li><strong>Gmail:</strong> You MUST use an "App Password", not your login password.</li>
+            </ul>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // WebSocket Connection
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${protocol}//${window.location.host}`);
+    const logDiv = document.getElementById('system-log');
+
+    ws.onopen = () => {
+        document.getElementById('connection-status').innerText = '🟢 ONLINE';
+        document.getElementById('connection-status').style.color = 'var(--neon-green)';
+        log('Connected to Oracle Server');
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'UPDATE') {
+            updateDashboard(data.payload);
+        } else if (data.type === 'LOG') {
+            log(data.message);
+        } else if (data.type === 'CONFIG_LOADED') {
+            // Populate config fields (masked)
+            if(data.payload.twilioSid) document.getElementById('twilio-sid').value = '********';
+            // ... (security: don't show actual keys)
+        } else if (data.type === 'SUBSCRIBERS') {
+            renderSubscribers(data.payload);
+        }
+    };
+
+    function updateDashboard(data) {
+        const grid = document.getElementById('asset-grid');
+        grid.innerHTML = ''; // Clear current
+
+        Object.keys(data.prices).forEach(asset => {
+            const price = data.prices[asset];
+            const prediction = data.predictions[asset] || { direction: 'ANALYZING', confidence: 0 };
+            
+            const card = document.createElement('div');
+            card.className = 'panel';
+            card.innerHTML = `
+                <h2>${asset}</h2>
+                <div class="stat-row">
+                    <span>Price:</span>
+                    <span class="price">$${price ? price.toFixed(2) : '---'}</span>
+                </div>
+                <div class="signal-box">
+                    <div style="font-size: 0.9em; color: #aaa;">PREDICTION</div>
+                    <div class="signal-strong ${prediction.direction === 'UP' ? 'up' : 'down'}">
+                        ${prediction.direction}
+                    </div>
+                    <div style="margin-top: 5px;">Confidence: ${prediction.confidence}%</div>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    function log(msg) {
+        const entry = document.createElement('div');
+        entry.innerText = `> ${msg}`;
+        logDiv.insertBefore(entry, logDiv.firstChild);
+    }
+
+    function showTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById(tabId).classList.remove('hidden');
+        event.target.classList.add('active');
+    }
+
+    // API Functions
+    async function saveConfig() {
+        const config = {
+            twilioSid: document.getElementById('twilio-sid').value,
+            twilioToken: document.getElementById('twilio-token').value,
+            twilioPhone: document.getElementById('twilio-phone').value,
+            gmailUser: document.getElementById('gmail-user').value,
+            gmailPass: document.getElementById('gmail-pass').value
+        };
+
+        // Only send if not masked
+        if (config.twilioSid === '********') delete config.twilioSid;
+        // ... simplified for demo
+
+        await fetch('/api/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        log('Configuration saved to Redis');
+    }
+
+    async function addSubscriber() {
+        const type = document.getElementById('sub-type').value;
+        const value = document.getElementById('sub-value').value;
+        if (!value) return;
+
+        await fetch('/api/subscribers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, value })
+        });
+        document.getElementById('sub-value').value = '';
+        log(`Added subscriber: ${value}`);
+    }
+
+    async function removeSubscriber(value) {
+        await fetch('/api/subscribers', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ value })
+        });
+        log(`Removed subscriber: ${value}`);
+    }
+
+    function renderSubscribers(list) {
+        const container = document.getElementById('sub-list');
+        container.innerHTML = '';
+        list.forEach(sub => {
+            const div = document.createElement('div');
+            div.className = 'sub-item';
+            div.innerHTML = `
+                <span>${sub.type.toUpperCase()}: ${sub.value}</span>
+                <button class="btn-red" style="width: auto; padding: 2px 10px;" onclick="removeSubscriber('${sub.value}')">X</button>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function exportData() {
+        window.location.href = '/api/export';
+    }
+</script>
+
+</body>
+</html>
