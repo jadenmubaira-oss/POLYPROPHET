@@ -899,172 +899,213 @@ class SupremeBrain {
                         }
                     }
                 }
-        } else {
-            this.confidence = finalConfidence;
-            this.tier = tier;
-            this.stabilityCounter = 0;
-            this.pendingSignal = null;
-            if (this.lastSignal) {
-                this.lastSignal.conf = finalConfidence;
-                this.lastSignal.tier = tier;
-            }
-        }
+            } else {
+                // === VISUAL STABILIZATION (The "Peace of Mind" Layer) ===
+                // Decouple raw model volatility from user-facing signals when locked
 
-        // EDGE CALCULATION
-        if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
-            const market = currentMarkets[this.asset];
-            const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
-            this.edge = (this.confidence - marketProb) * 100;
-        } else {
-            this.edge = 0;
-        }
+                // 1. If Locked, STAY Locked visually (Ironclad Conviction with Hysteresis)
+                if (this.convictionLocked) {
+                    // HYSTERESIS: Only break lock if confidence crashes below 80% (Catastrophic failure)
+                    if (finalConfidence < 0.80) {
+                        this.convictionLocked = false;
+                        log(`💥 LOCK BROKEN: Confidence crashed to ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
+                    } else {
+                        // LOCK HOLDS (Even if 81%, 82%, 83%...)
+                        tier = 'CONVICTION';
+                        finalSignal = this.lockedDirection; // Ensure direction matches lock
 
-    } catch(e) {
-        log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
-    } finally {
-        this.isProcessing = false;
-    }
-    }
-
-// Check if market is tradeable (tight spread, valid prices)
-isMarketHealthy() {
-    const m = currentMarkets[this.asset];
-    if (!m) return false;
-    const spread = Math.abs(1 - (m.yesPrice + m.noPrice));
-    if (spread > 0.05) return false; // >5% spread/fee is too high
-    if (m.yesPrice < 0.02 || m.yesPrice > 0.98) return false; // Too extreme
-    return true;
-}
-
-// KELLY CRITERION (Enhanced Position Sizing)
-getKellySize() {
-    if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
-
-    const market = currentMarkets[this.asset];
-    if (!market) return 0;
-
-    const marketOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
-    const b = (1 / marketOdds) - 1;
-    const p = this.confidence;
-    const q = 1 - p;
-
-    let kellyFraction = (b * p - q) / b;
-
-    // Adjust for recent performance
-    if (this.stats.total >= 10) {
-        const winRate = this.stats.wins / this.stats.total;
-        if (winRate < 0.4) kellyFraction *= 0.3; // Severe cut if losing badly
-        else if (winRate < 0.5) kellyFraction *= 0.5; // Cut size if losing
-        else if (winRate > 0.65) kellyFraction *= 1.2; // Increase if winning
-    }
-
-    // Adjust for loss streaks
-    if (this.lossStreak > 2) kellyFraction *= 0.5;
-
-    // Quarter Kelly (conservative)
-    const conservativeKelly = kellyFraction * 0.25;
-
-    // Hard caps: never risk more than 10% of bankroll
-    return Math.max(0, Math.min(conservativeKelly, 0.10));
-}
-
-evaluateOutcome(finalPrice, startPrice) {
-    if (!startPrice) return;
-
-    const actual = finalPrice > startPrice ? 'UP' : 'DOWN';
-    const predicted = this.lastSignal ? this.lastSignal.type : 'NEUTRAL';
-    const tier = this.lastSignal ? this.lastSignal.tier : 'NONE';
-
-    if (predicted !== 'NEUTRAL') {
-        this.stats.total++;
-        const isWin = predicted === actual;
-
-        if (isWin) {
-            this.stats.wins++;
-            this.winStreak++;
-            this.lossStreak = 0;
-            this.atrMultiplier = Math.max(1.2, this.atrMultiplier - 0.80);
-            if (tier === 'CONVICTION') { this.stats.convictionTotal++; this.stats.convictionWins++; }
-            log(`✅ WIN (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
-        } else {
-            this.winStreak = 0;
-            this.lossStreak++;
-            this.atrMultiplier = Math.min(3.5, this.atrMultiplier + 2.50);
-            if (tier === 'CONVICTION') { this.stats.convictionTotal++; }
-            log(`❌ LOSS (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
-        }
-
-        // FINAL SEVEN: CALIBRATION TRACKING
-        if (this.lastSignal && this.lastSignal.conf) {
-            const conf = this.lastSignal.conf;
-            const bucket = conf >= 0.98 ? '0.98-1.00' : (conf >= 0.95 ? '0.95-0.98' : '0.90-0.95');
-            if (this.calibrationBuckets[bucket]) {
-                this.calibrationBuckets[bucket].total++;
-                if (isWin) this.calibrationBuckets[bucket].wins++;
-            }
-        }
-
-        // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
-        if (this.lastSignal && this.lastSignal.modelVotes) {
-            for (const [model, vote] of Object.entries(this.lastSignal.modelVotes)) {
-                if (this.modelAccuracy[model]) {
-                    this.modelAccuracy[model].total++;
-                    if (vote === actual) {
-                        this.modelAccuracy[model].wins++;
+                        // WARNING SYSTEM: If confidence dips into Buffer Zone (80-85%)
+                        if (finalConfidence < 0.85) {
+                            log(`⚠️ WARNING: Confidence weakening (${(finalConfidence * 100).toFixed(1)}%), but lock holds`, this.asset);
+                            // We allow confidence to show 80-85% here so user sees the warning
+                            // But Tier stays CONVICTION
+                        } else {
+                            // Strong lock - enforce 85% floor visually
+                            finalConfidence = Math.max(finalConfidence, 0.85);
+                        }
                     }
                 }
-            }
-            // Track recent form (last 10)
-            this.recentOutcomes.push(isWin);
-            if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
 
-            // SMART MEMORY: Update the pattern that generated this signal (if any)
-            if (this.lastSignal && this.lastSignal.patternId) {
-                const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
-                if (pIndex !== -1) {
-                    memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
-                    memoryPatterns[this.asset][pIndex].matchCount++;
-                    if (isWin) {
-                        memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
-                    }
-                    // Persist update to Redis if available
-                    if (redisAvailable && redis) {
-                        redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
-                    }
+                // 2. If Committed, maintain floor (Ironclad Commitment)
+                if (this.cycleCommitted) {
+                    finalSignal = this.committedDirection;
+                    // Never drop below ADVISORY once committed
+                    if (tier === 'NONE') tier = 'ADVISORY';
+
+                    // If we are holding against the tide, show resilience (min 70%)
+                    // This prevents the user from seeing "51% confidence" when we are committed
+                    if (finalConfidence < 0.70) finalConfidence = 0.70;
+                }
+
+                // 3. Apply Smoothed State
+                this.confidence = finalConfidence;
+                this.tier = tier;
+                this.prediction = finalSignal;
+
+                this.stabilityCounter = 0;
+                this.pendingSignal = null;
+
+                if (this.lastSignal) {
+                    this.lastSignal.conf = finalConfidence;
+                    this.lastSignal.tier = tier;
                 }
             }
 
-            // Save pattern to Historian
-            const history = priceHistory[this.asset];
-            if (history.length >= 10) {
-                const recent = history.slice(-10).map(x => x.p);
-                const base = recent[0];
-                const vector = recent.map(p => (p - base) / base);
-                savePattern(this.asset, vector, actual);
+            // EDGE CALCULATION
+            if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
+                const market = currentMarkets[this.asset];
+                const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+                this.edge = (this.confidence - marketProb) * 100;
+            } else {
+                this.edge = 0;
             }
 
-            this.lockState = 'NEUTRAL';
-            this.lockStrength = 0;
-            this.lastSignal = null;
-            this.prediction = 'WAIT';
-            this.tier = 'NONE';
-            this.stabilityCounter = 0;
-            this.pendingSignal = null;
-
-            // Reset conviction lock for new cycle
-            this.convictionLocked = false;
-            this.lockedDirection = null;
-            this.lockTime = null;
-            this.lockConfidence = 0;
-            this.voteHistory = [];
-
-            // Reset cycle commitment for new cycle
-            this.cycleCommitted = false;
-            this.committedDirection = null;
-            this.commitTime = null;
+        } catch (e) {
+            log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
+        } finally {
+            this.isProcessing = false;
         }
     }
-}
+
+    // Check if market is tradeable (tight spread, valid prices)
+    isMarketHealthy() {
+        const m = currentMarkets[this.asset];
+        if (!m) return false;
+        const spread = Math.abs(1 - (m.yesPrice + m.noPrice));
+        if (spread > 0.05) return false; // >5% spread/fee is too high
+        if (m.yesPrice < 0.02 || m.yesPrice > 0.98) return false; // Too extreme
+        return true;
+    }
+
+    // KELLY CRITERION (Enhanced Position Sizing)
+    getKellySize() {
+        if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
+
+        const market = currentMarkets[this.asset];
+        if (!market) return 0;
+
+        const marketOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+        const b = (1 / marketOdds) - 1;
+        const p = this.confidence;
+        const q = 1 - p;
+
+        let kellyFraction = (b * p - q) / b;
+
+        // Adjust for recent performance
+        if (this.stats.total >= 10) {
+            const winRate = this.stats.wins / this.stats.total;
+            if (winRate < 0.4) kellyFraction *= 0.3; // Severe cut if losing badly
+            else if (winRate < 0.5) kellyFraction *= 0.5; // Cut size if losing
+            else if (winRate > 0.65) kellyFraction *= 1.2; // Increase if winning
+        }
+
+        // Adjust for loss streaks
+        if (this.lossStreak > 2) kellyFraction *= 0.5;
+
+        // Quarter Kelly (conservative)
+        const conservativeKelly = kellyFraction * 0.25;
+
+        // Hard caps: never risk more than 10% of bankroll
+        return Math.max(0, Math.min(conservativeKelly, 0.10));
+    }
+
+    evaluateOutcome(finalPrice, startPrice) {
+        if (!startPrice) return;
+
+        const actual = finalPrice > startPrice ? 'UP' : 'DOWN';
+        const predicted = this.lastSignal ? this.lastSignal.type : 'NEUTRAL';
+        const tier = this.lastSignal ? this.lastSignal.tier : 'NONE';
+
+        if (predicted !== 'NEUTRAL') {
+            this.stats.total++;
+            const isWin = predicted === actual;
+
+            if (isWin) {
+                this.stats.wins++;
+                this.winStreak++;
+                this.lossStreak = 0;
+                this.atrMultiplier = Math.max(1.2, this.atrMultiplier - 0.80);
+                if (tier === 'CONVICTION') { this.stats.convictionTotal++; this.stats.convictionWins++; }
+                log(`✅ WIN (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
+            } else {
+                this.winStreak = 0;
+                this.lossStreak++;
+                this.atrMultiplier = Math.min(3.5, this.atrMultiplier + 2.50);
+                if (tier === 'CONVICTION') { this.stats.convictionTotal++; }
+                log(`❌ LOSS (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
+            }
+
+            // FINAL SEVEN: CALIBRATION TRACKING
+            if (this.lastSignal && this.lastSignal.conf) {
+                const conf = this.lastSignal.conf;
+                const bucket = conf >= 0.98 ? '0.98-1.00' : (conf >= 0.95 ? '0.95-0.98' : '0.90-0.95');
+                if (this.calibrationBuckets[bucket]) {
+                    this.calibrationBuckets[bucket].total++;
+                    if (isWin) this.calibrationBuckets[bucket].wins++;
+                }
+            }
+
+            // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
+            if (this.lastSignal && this.lastSignal.modelVotes) {
+                for (const [model, vote] of Object.entries(this.lastSignal.modelVotes)) {
+                    if (this.modelAccuracy[model]) {
+                        this.modelAccuracy[model].total++;
+                        if (vote === actual) {
+                            this.modelAccuracy[model].wins++;
+                        }
+                    }
+                }
+                // Track recent form (last 10)
+                this.recentOutcomes.push(isWin);
+                if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
+
+                // SMART MEMORY: Update the pattern that generated this signal (if any)
+                if (this.lastSignal && this.lastSignal.patternId) {
+                    const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
+                    if (pIndex !== -1) {
+                        memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
+                        memoryPatterns[this.asset][pIndex].matchCount++;
+                        if (isWin) {
+                            memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
+                        }
+                        // Persist update to Redis if available
+                        if (redisAvailable && redis) {
+                            redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
+                        }
+                    }
+                }
+
+                // Save pattern to Historian
+                const history = priceHistory[this.asset];
+                if (history.length >= 10) {
+                    const recent = history.slice(-10).map(x => x.p);
+                    const base = recent[0];
+                    const vector = recent.map(p => (p - base) / base);
+                    savePattern(this.asset, vector, actual);
+                }
+
+                this.lockState = 'NEUTRAL';
+                this.lockStrength = 0;
+                this.lastSignal = null;
+                this.prediction = 'WAIT';
+                this.tier = 'NONE';
+                this.stabilityCounter = 0;
+                this.pendingSignal = null;
+
+                // Reset conviction lock for new cycle
+                this.convictionLocked = false;
+                this.lockedDirection = null;
+                this.lockTime = null;
+                this.lockConfidence = 0;
+                this.voteHistory = [];
+
+                // Reset cycle commitment for new cycle
+                this.cycleCommitted = false;
+                this.committedDirection = null;
+                this.commitTime = null;
+            }
+        }
+    }
 
 }
 const Brains = {};
@@ -1321,7 +1362,7 @@ app.get('/', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Supreme Deity Oracle - LIVE</title>
+    <title>PolyProphet - LIVE</title>
     <meta charset="UTF-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1439,15 +1480,143 @@ app.get('/', (req, res) => {
             background: rgba(0,150,255,0.5);
             transform: scale(1.05);
         }
+        .personal-note {
+            background: rgba(255,100,0,0.15);
+            border: 2px solid rgba(255,100,0,0.4);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 800px;
+            text-align: center;
+            font-size: 0.95em;
+            line-height: 1.6;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .personal-note strong { color: #ff6644; }
+        .usage-guide {
+            background: rgba(0,0,0,0.5);
+            border: 2px solid rgba(0,200,255,0.4);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px auto;
+            max-width: 1000px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .usage-guide h2 {
+            color: #00ccff;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .usage-guide .step {
+            background: rgba(255,255,255,0.05);
+            padding: 12px;
+            margin: 10px 0;
+            border-left: 4px solid #00ff88;
+            border-radius: 6px;
+        }
+        .usage-guide .step-number {
+            color: #00ff88;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+        .usage-guide .tip {
+            background: rgba(255,200,0,0.1);
+            border-left: 4px solid #ffcc00;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 6px;
+            font-size: 0.9em;
+        }
+        .usage-guide .tip::before {
+            content: "💡 ";
+            font-size: 1.2em;
+        }
+        .toggle-guide {
+            background: rgba(0,150,255,0.3);
+            border: 1px solid #0096ff;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin: 10px auto;
+            display: block;
+            transition: all 0.3s;
+        }
+        .toggle-guide:hover {
+            background: rgba(0,150,255,0.5);
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🔮 SUPREME DEITY ORACLE</h1>
+        <h1>🔮 PolyProphet</h1>
         <div class="status-bar">
             ✅ <strong>LIVE</strong> | Next Checkpoint: <span class="countdown" id="countdown">--:--</span> | <span id="last-update">Loading...</span>
         </div>
     </div>
+    
+    <div class="personal-note">
+        <strong>If you're here, then I trust you.</strong> DO NOT SHARE THIS TO ANYONE ELSE OR TELL ANYONE ELSE ABOUT THIS. Don't lose my trust. Only the people that need to know have this, please keep it that way.<br><br>
+        <em>love, jeed ❤️</em>
+    </div>
+    
+    <button class="toggle-guide" onclick="document.getElementById('guide').style.display = document.getElementById('guide').style.display === 'none' ? 'block' : 'none'">
+        📖 How to Use PolyProphet (Click to Show/Hide)
+    </button>
+    
+    <div id="guide" class="usage-guide" style="display: none;">
+        <h2>💰 How to Turn Your Money into More Money</h2>
+        
+        <div class="step">
+            <span class="step-number">STEP 1:</span> <strong>Watch the Predictions</strong><br>
+            Each card shows a crypto (BTC, ETH, SOL, XRP). The bot predicts if it will go <strong style="color: #00ff00;">UP</strong> or <strong style="color: #ff0044;">DOWN</strong> in the next 15 minutes.
+        </div>
+        
+        <div class="step">
+            <span class="step-number">STEP 2:</span> <strong>Check the Confidence %</strong><br>
+            Higher % = More confident. Look for <strong>70%+</strong> predictions. The bot uses 8 AI models to analyze the market.
+        </div>
+        
+        <div class="step">
+            <span class="step-number">STEP 3:</span> <strong>Understand the Tiers</strong><br>
+            🔴 <strong>CONVICTION</strong> (85%+) = Strongest signal, highest confidence<br>
+            🟠 <strong>ADVISORY</strong> (70-84%) = Good signal, moderate confidence<br>
+            ⚫ <strong>NONE</strong> (<70%) = Weak signal, wait for better setup
+        </div>
+        
+        <div class="step">
+            <span class="step-number">STEP 4:</span> <strong>Click "View on Polymarket"</strong><br>
+            When you see a CONVICTION or ADVISORY signal, click the blue link to open the market on Polymarket.
+        </div>
+        
+        <div class="step">
+            <span class="step-number">STEP 5:</span> <strong>Place Your Bet</strong><br>
+            On Polymarket, buy shares for the direction shown (UP or DOWN). Use 2-5% of your bankroll per trade to stay safe.
+        </div>
+        
+        <div class="tip">
+            <strong>Pro Tip:</strong> Wait for the CONVICTION tier (🔴) or watch for the 🔒 LOCKED status. When locked, the bot is highly confident and won't change its mind.
+        </div>
+        
+        <div class="tip">
+            <strong>Important:</strong> The countdown shows time until the next cycle. Act fast when you see a strong signal in the first 5 minutes of a new cycle.
+        </div>
+        
+        <div class="tip">
+            <strong>Risk Management:</strong> Never bet everything on one prediction. Start small (£10-20), let it compound. This is how you turn £10 into £1,000+.
+        </div>
+        
+        <div class="step">
+            <span class="step-number">WINNING FORMULA:</span><br>
+            ✅ High confidence (80%+)<br>
+            ✅ CONVICTION or ADVISORY tier<br>
+            ✅ Early in the cycle (first 5 min)<br>
+            ✅ Check Win Rate (aim for assets with 60%+ win rate)
+        </div>
+    </div>
+    
     <div id="dashboard" class="grid">
         <div class="loading">Loading oracle data...</div>
     </div>
