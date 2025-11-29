@@ -76,6 +76,7 @@ const INTERVAL_SECONDS = 900;
 
 // State
 let livePrices = {};
+let livePriceTimestamps = {}; // Per-asset price timestamps for accurate staleness detection
 let checkpointPrices = {};
 let previousCheckpointPrices = {}; // For outcome evaluation
 let lastEvaluatedCheckpoint = {}; // Track last evaluated checkpoint to prevent double-counting
@@ -93,6 +94,7 @@ ASSETS.forEach(asset => {
     previousCheckpointPrices[asset] = null;
     lastEvaluatedCheckpoint[asset] = 0; // Initialize to 0
     livePrices[asset] = null;
+    livePriceTimestamps[asset] = 0; // Per-asset timestamp
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
 });
@@ -401,9 +403,6 @@ class SupremeBrain {
         // FINAL SEVEN: REGIME PERSISTENCE
         this.regimeHistory = [];
 
-        // FINAL SEVEN: NEWS AWARENESS (Placeholder)
-        this.newsState = 'NEUTRAL'; // NEUTRAL, NEGATIVE, POSITIVE
-
         this.pendingSignal = null;
         this.stabilityCounter = 0;
         this.lagCounter = 0;
@@ -424,6 +423,9 @@ class SupremeBrain {
 
         // RECENT FORM TRACKER (Last 10 predictions)
         this.recentOutcomes = [];  // Array of true/false (win/loss)
+
+        // PREDICTION HISTORY (For real stability calculation)
+        this.predictionHistory = [];  // Track actual prediction changes
 
         // CYCLE COMMITMENT (Real-World Trading Lock)
         this.cycleCommitted = false;
@@ -451,6 +453,14 @@ class SupremeBrain {
             const startPrice = checkpointPrices[this.asset];
             const history = priceHistory[this.asset];
             const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
+
+            // CRITICAL FIX: Check per-asset price freshness
+            const priceAge = Date.now() - (livePriceTimestamps[this.asset] || 0);
+            if (priceAge > 5000) {
+                // Price is >5 seconds old for THIS asset specifically
+                this.isProcessing = false;
+                return;
+            }
 
             if (!currentPrice || !startPrice || history.length < 10) {
                 this.isProcessing = false;
@@ -686,20 +696,21 @@ class SupremeBrain {
                 finalConfidence = Math.min(0.75, finalConfidence);
             }
 
-            // === THRESHOLD DETERMINATION (Regime-Aware) ===
+            // === THRESHOLD DETERMINATION (Real-World Adjusted) ===
             let tier = 'NONE';
-            let convictionThreshold = 0.98;
-            let advisoryThreshold = 0.75;
+            // REAL-WORLD FIX: Lowered from 98% to 85% (original was unreachable)
+            let convictionThreshold = 0.85;
+            let advisoryThreshold = 0.70;
 
             if (regime === 'CHOPPY') {
-                convictionThreshold = 0.99;
-                advisoryThreshold = 0.85;
-            } else if (regime === 'TRENDING') {
-                convictionThreshold = 0.95;
-                advisoryThreshold = 0.70;
-            } else if (regime === 'VOLATILE') {
-                convictionThreshold = 0.96;
+                convictionThreshold = 0.88;  // Slightly higher for choppy
                 advisoryThreshold = 0.75;
+            } else if (regime === 'TRENDING') {
+                convictionThreshold = 0.82;  // Lower for trending (easier to be confident)
+                advisoryThreshold = 0.68;
+            } else if (regime === 'VOLATILE') {
+                convictionThreshold = 0.85;
+                advisoryThreshold = 0.70;
             }
 
             // REGIME PERSISTENCE (Smooth out regime flips)
@@ -709,42 +720,42 @@ class SupremeBrain {
                 ? (this.regimeHistory.slice(-3).every(r => r === regime) ? regime : this.regimeHistory[0])
                 : regime;
 
-            // Multi-Timeframe Confirmation
+            // Multi-Timeframe Confirmation (less aggressive penalty)
             const longTrend = history.length > 300 ? (currentPrice - history[0].p) : 0;
             const trendDir = longTrend > 0 ? 'UP' : 'DOWN';
 
             if (Math.abs(longTrend) > atr * 5 && finalSignal !== trendDir && finalSignal !== 'NEUTRAL') {
-                finalConfidence *= 0.85; // Penalty for counter-trend
+                finalConfidence *= 0.92; // REDUCED penalty (was 0.85)
             }
 
-            // Adjust based on track record
+            // Adjust based on track record (less aggressive)
             if (this.stats.total < 24) {
-                convictionThreshold = 0.92;
-                advisoryThreshold = 0.70;
+                convictionThreshold = 0.80;  // Lower for new bot
+                advisoryThreshold = 0.65;
             }
             if (this.winStreak > 3) {
-                convictionThreshold = 0.95;
+                convictionThreshold = 0.82;  // Slightly lower on win streak
             }
             if (this.lossStreak > 1) {
-                convictionThreshold = 0.99;
-                advisoryThreshold = 0.85;
+                convictionThreshold = 0.90;  // Higher on loss streak (was 0.99)
+                advisoryThreshold = 0.75;
             }
 
-            // Penalize poor win rate
+            // Penalize poor win rate (less aggressive)
             if (this.stats.total > 10) {
                 const winRate = this.stats.wins / this.stats.total;
-                if (winRate < 0.5) finalConfidence *= 0.85;
+                if (winRate < 0.5) finalConfidence *= 0.92;  // Less harsh (was 0.85)
             }
 
             // === CROSS-MARKET VALIDATION ===
+            // REAL-WORLD FIX: REMOVED contrarian penalty - assets can move independently
             const allPredictions = ASSETS.map(a => Brains[a].prediction);
             const upCount = allPredictions.filter(p => p === 'UP').length;
             const downCount = allPredictions.filter(p => p === 'DOWN').length;
 
             if ((finalSignal === 'UP' && downCount > upCount + 1) ||
                 (finalSignal === 'DOWN' && upCount > downCount + 1)) {
-                finalConfidence *= 0.75; // Contrarian to market consensus
-                log(`⚠️ Contrarian (${upCount}U/${downCount}D)`, this.asset);
+                log(`📊 Contrarian (${upCount}U/${downCount}D) - Independent move`, this.asset);
             }
 
             if (trendBias) finalConfidence *= trendBias;
@@ -787,16 +798,10 @@ class SupremeBrain {
                 }
             }
 
-            // LIVE CONFIDENCE DECAY
-            if (this.lastSignal && this.lastSignal.type !== 'NEUTRAL') {
-                const priceDelta = currentPrice - checkpointPrices[this.asset];
-                if ((this.lastSignal.type === 'UP' && priceDelta < -atr * 3) ||
-                    (this.lastSignal.type === 'DOWN' && priceDelta > atr * 3)) {
-                    finalConfidence *= 0.5;
-                    tier = 'NONE';
-                    log(`⚠️ CONFIDENCE DECAY: Signal invalidated`, this.asset);
-                }
-            }
+            // REAL-WORLD FIX: REMOVED CONFIDENCE DECAY
+            // The decay system was killing signals every few seconds in choppy markets
+            // Real markets have temporary reversals - this doesn't mean the prediction is wrong
+            // Confidence should come from MODEL agreement, not price micromovement validation
 
             // Track vote history
             this.voteHistory.push({ up: upVotes, down: downVotes, time: Date.now() });
@@ -810,7 +815,16 @@ class SupremeBrain {
                 if (prevLeader !== currLeader) voteFlips++;
             }
             const voteStability = this.voteHistory.length > 1 ? 1 - (voteFlips / (this.voteHistory.length - 1)) : 0;
-            this.voteTrendScore = voteStability;
+
+            // REAL-WORLD FIX: Also calculate REAL prediction stability (what user actually sees)
+            const predictionFlips = this.predictionHistory.filter((p, i) =>
+                i > 0 && p !== this.predictionHistory[i - 1] && p !== 'WAIT' && this.predictionHistory[i - 1] !== 'WAIT'
+            ).length;
+            const realStability = this.predictionHistory.length > 1
+                ? 1 - (predictionFlips / (this.predictionHistory.length - 1))
+                : 1;
+
+            this.voteTrendScore = realStability;  // Use REAL stability, not vote stability
 
             // === DEBOUNCE & STABILITY ===
             if (finalSignal !== this.prediction) {
@@ -833,26 +847,41 @@ class SupremeBrain {
                         .join(', ');
 
                     this.lastSignal = { type: finalSignal, conf: finalConfidence, tier, time: Date.now(), modelVotes, reasons };
+                    this.predictionHistory.push(finalSignal); // Track actual predictions for stability calc
                     this.stabilityCounter = 0;
 
-                    // CYCLE COMMITMENT: Lock direction for real-world trading
-                    // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
-                    if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
+                    // REAL-WORLD FIX: EARLY CYCLE COMMITMENT
+                    // Commit within first 60 seconds at 70%+ confidence
+                    // Original requirement (CONVICTION/ADVISORY in 5 min) was never reached
+                    if (!this.cycleCommitted && elapsed < 60 && finalConfidence >= 0.70) {
                         const market = currentMarkets[this.asset];
-                        // Only commit if we have reasonable odds (otherwise wait for better entry)
                         if (market) {
                             const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-                            if (currentOdds <= 0.85 || tier === 'CONVICTION') {
+                            // Check market has direction (not 50/50 coin flip)
+                            const marketHasDirection = (currentOdds >= 0.55 || currentOdds <= 0.45);
+
+                            if (marketHasDirection) {
                                 this.cycleCommitted = true;
                                 this.committedDirection = finalSignal;
                                 this.commitTime = Date.now();
-                                log(`💎 CYCLE COMMITMENT: ${finalSignal} @ ${tier} tier, ${(currentOdds * 100).toFixed(1)}% odds (LOCKED FOR CYCLE)`, this.asset);
+                                log(`💎 CYCLE COMMITMENT: ${finalSignal} @ ${tier} tier, ${(finalConfidence * 100).toFixed(1)}% conf, ${(currentOdds * 100).toFixed(1)}% odds (LOCKED FOR CYCLE)`, this.asset);
+                            } else {
+                                log(`⏸️ 50/50 market (${(currentOdds * 100).toFixed(1)}% odds) - waiting for direction`, this.asset);
                             }
                         }
                     }
 
+                    // SAFETY NET: If 50/50 market persists beyond 60s, commit anyway to prevent flip-flopping
+                    if (!this.cycleCommitted && elapsed >= 60 && elapsed < 90 && finalSignal !== 'NEUTRAL') {
+                        this.cycleCommitted = true;
+                        this.committedDirection = finalSignal;
+                        this.commitTime = Date.now();
+                        log(`💎 LATE COMMITMENT: ${finalSignal} @ ${tier} tier (market was 50/50, committing to prevent flip-flop)`, this.asset);
+                    }
+
                     // CONVICTION LOCK: High confidence + Reasonable odds (anti-whipsaw)
-                    if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.96) {
+                    // REAL-WORLD FIX: Lowered confidence requirement from 96% to 85%
+                    if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.85) {
                         const market = currentMarkets[this.asset];
                         if (market) {
                             const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
@@ -870,174 +899,174 @@ class SupremeBrain {
                         }
                     }
                 }
-            } else {
-                this.confidence = finalConfidence;
-                this.tier = tier;
-                this.stabilityCounter = 0;
-                this.pendingSignal = null;
-                if (this.lastSignal) {
-                    this.lastSignal.conf = finalConfidence;
-                    this.lastSignal.tier = tier;
-                }
+        } else {
+            this.confidence = finalConfidence;
+            this.tier = tier;
+            this.stabilityCounter = 0;
+            this.pendingSignal = null;
+            if (this.lastSignal) {
+                this.lastSignal.conf = finalConfidence;
+                this.lastSignal.tier = tier;
             }
-
-            // EDGE CALCULATION
-            if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
-                const market = currentMarkets[this.asset];
-                const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
-                this.edge = (this.confidence - marketProb) * 100;
-            } else {
-                this.edge = 0;
-            }
-
-        } catch (e) {
-            log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
-        } finally {
-            this.isProcessing = false;
-        }
-    }
-
-    // Check if market is tradeable (tight spread, valid prices)
-    isMarketHealthy() {
-        const m = currentMarkets[this.asset];
-        if (!m) return false;
-        const spread = Math.abs(1 - (m.yesPrice + m.noPrice));
-        if (spread > 0.05) return false; // >5% spread/fee is too high
-        if (m.yesPrice < 0.02 || m.yesPrice > 0.98) return false; // Too extreme
-        return true;
-    }
-
-    // KELLY CRITERION (Enhanced Position Sizing)
-    getKellySize() {
-        if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
-
-        const market = currentMarkets[this.asset];
-        if (!market) return 0;
-
-        const marketOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
-        const b = (1 / marketOdds) - 1;
-        const p = this.confidence;
-        const q = 1 - p;
-
-        let kellyFraction = (b * p - q) / b;
-
-        // Adjust for recent performance
-        if (this.stats.total >= 10) {
-            const winRate = this.stats.wins / this.stats.total;
-            if (winRate < 0.4) kellyFraction *= 0.3; // Severe cut if losing badly
-            else if (winRate < 0.5) kellyFraction *= 0.5; // Cut size if losing
-            else if (winRate > 0.65) kellyFraction *= 1.2; // Increase if winning
         }
 
-        // Adjust for loss streaks
-        if (this.lossStreak > 2) kellyFraction *= 0.5;
+        // EDGE CALCULATION
+        if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
+            const market = currentMarkets[this.asset];
+            const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+            this.edge = (this.confidence - marketProb) * 100;
+        } else {
+            this.edge = 0;
+        }
 
-        // Quarter Kelly (conservative)
-        const conservativeKelly = kellyFraction * 0.25;
-
-        // Hard caps: never risk more than 10% of bankroll
-        return Math.max(0, Math.min(conservativeKelly, 0.10));
+    } catch(e) {
+        log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
+    } finally {
+        this.isProcessing = false;
+    }
     }
 
-    evaluateOutcome(finalPrice, startPrice) {
-        if (!startPrice) return;
+// Check if market is tradeable (tight spread, valid prices)
+isMarketHealthy() {
+    const m = currentMarkets[this.asset];
+    if (!m) return false;
+    const spread = Math.abs(1 - (m.yesPrice + m.noPrice));
+    if (spread > 0.05) return false; // >5% spread/fee is too high
+    if (m.yesPrice < 0.02 || m.yesPrice > 0.98) return false; // Too extreme
+    return true;
+}
 
-        const actual = finalPrice > startPrice ? 'UP' : 'DOWN';
-        const predicted = this.lastSignal ? this.lastSignal.type : 'NEUTRAL';
-        const tier = this.lastSignal ? this.lastSignal.tier : 'NONE';
+// KELLY CRITERION (Enhanced Position Sizing)
+getKellySize() {
+    if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
 
-        if (predicted !== 'NEUTRAL') {
-            this.stats.total++;
-            const isWin = predicted === actual;
+    const market = currentMarkets[this.asset];
+    if (!market) return 0;
 
-            if (isWin) {
-                this.stats.wins++;
-                this.winStreak++;
-                this.lossStreak = 0;
-                this.atrMultiplier = Math.max(1.2, this.atrMultiplier - 0.80);
-                if (tier === 'CONVICTION') { this.stats.convictionTotal++; this.stats.convictionWins++; }
-                log(`✅ WIN (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
-            } else {
-                this.winStreak = 0;
-                this.lossStreak++;
-                this.atrMultiplier = Math.min(3.5, this.atrMultiplier + 2.50);
-                if (tier === 'CONVICTION') { this.stats.convictionTotal++; }
-                log(`❌ LOSS (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
+    const marketOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+    const b = (1 / marketOdds) - 1;
+    const p = this.confidence;
+    const q = 1 - p;
+
+    let kellyFraction = (b * p - q) / b;
+
+    // Adjust for recent performance
+    if (this.stats.total >= 10) {
+        const winRate = this.stats.wins / this.stats.total;
+        if (winRate < 0.4) kellyFraction *= 0.3; // Severe cut if losing badly
+        else if (winRate < 0.5) kellyFraction *= 0.5; // Cut size if losing
+        else if (winRate > 0.65) kellyFraction *= 1.2; // Increase if winning
+    }
+
+    // Adjust for loss streaks
+    if (this.lossStreak > 2) kellyFraction *= 0.5;
+
+    // Quarter Kelly (conservative)
+    const conservativeKelly = kellyFraction * 0.25;
+
+    // Hard caps: never risk more than 10% of bankroll
+    return Math.max(0, Math.min(conservativeKelly, 0.10));
+}
+
+evaluateOutcome(finalPrice, startPrice) {
+    if (!startPrice) return;
+
+    const actual = finalPrice > startPrice ? 'UP' : 'DOWN';
+    const predicted = this.lastSignal ? this.lastSignal.type : 'NEUTRAL';
+    const tier = this.lastSignal ? this.lastSignal.tier : 'NONE';
+
+    if (predicted !== 'NEUTRAL') {
+        this.stats.total++;
+        const isWin = predicted === actual;
+
+        if (isWin) {
+            this.stats.wins++;
+            this.winStreak++;
+            this.lossStreak = 0;
+            this.atrMultiplier = Math.max(1.2, this.atrMultiplier - 0.80);
+            if (tier === 'CONVICTION') { this.stats.convictionTotal++; this.stats.convictionWins++; }
+            log(`✅ WIN (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
+        } else {
+            this.winStreak = 0;
+            this.lossStreak++;
+            this.atrMultiplier = Math.min(3.5, this.atrMultiplier + 2.50);
+            if (tier === 'CONVICTION') { this.stats.convictionTotal++; }
+            log(`❌ LOSS (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
+        }
+
+        // FINAL SEVEN: CALIBRATION TRACKING
+        if (this.lastSignal && this.lastSignal.conf) {
+            const conf = this.lastSignal.conf;
+            const bucket = conf >= 0.98 ? '0.98-1.00' : (conf >= 0.95 ? '0.95-0.98' : '0.90-0.95');
+            if (this.calibrationBuckets[bucket]) {
+                this.calibrationBuckets[bucket].total++;
+                if (isWin) this.calibrationBuckets[bucket].wins++;
             }
+        }
 
-            // FINAL SEVEN: CALIBRATION TRACKING
-            if (this.lastSignal && this.lastSignal.conf) {
-                const conf = this.lastSignal.conf;
-                const bucket = conf >= 0.98 ? '0.98-1.00' : (conf >= 0.95 ? '0.95-0.98' : '0.90-0.95');
-                if (this.calibrationBuckets[bucket]) {
-                    this.calibrationBuckets[bucket].total++;
-                    if (isWin) this.calibrationBuckets[bucket].wins++;
-                }
-            }
-
-            // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
-            if (this.lastSignal && this.lastSignal.modelVotes) {
-                for (const [model, vote] of Object.entries(this.lastSignal.modelVotes)) {
-                    if (this.modelAccuracy[model]) {
-                        this.modelAccuracy[model].total++;
-                        if (vote === actual) {
-                            this.modelAccuracy[model].wins++;
-                        }
+        // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
+        if (this.lastSignal && this.lastSignal.modelVotes) {
+            for (const [model, vote] of Object.entries(this.lastSignal.modelVotes)) {
+                if (this.modelAccuracy[model]) {
+                    this.modelAccuracy[model].total++;
+                    if (vote === actual) {
+                        this.modelAccuracy[model].wins++;
                     }
                 }
-                // Track recent form (last 10)
-                this.recentOutcomes.push(isWin);
-                if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
+            }
+            // Track recent form (last 10)
+            this.recentOutcomes.push(isWin);
+            if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
 
-                // SMART MEMORY: Update the pattern that generated this signal (if any)
-                if (this.lastSignal && this.lastSignal.patternId) {
-                    const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
-                    if (pIndex !== -1) {
-                        memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
-                        memoryPatterns[this.asset][pIndex].matchCount++;
-                        if (isWin) {
-                            memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
-                        }
-                        // Persist update to Redis if available
-                        if (redisAvailable && redis) {
-                            redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
-                        }
+            // SMART MEMORY: Update the pattern that generated this signal (if any)
+            if (this.lastSignal && this.lastSignal.patternId) {
+                const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
+                if (pIndex !== -1) {
+                    memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
+                    memoryPatterns[this.asset][pIndex].matchCount++;
+                    if (isWin) {
+                        memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
+                    }
+                    // Persist update to Redis if available
+                    if (redisAvailable && redis) {
+                        redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
                     }
                 }
-
-                // Save pattern to Historian
-                const history = priceHistory[this.asset];
-                if (history.length >= 10) {
-                    const recent = history.slice(-10).map(x => x.p);
-                    const base = recent[0];
-                    const vector = recent.map(p => (p - base) / base);
-                    savePattern(this.asset, vector, actual);
-                }
-
-                this.lockState = 'NEUTRAL';
-                this.lockStrength = 0;
-                this.lastSignal = null;
-                this.prediction = 'WAIT';
-                this.tier = 'NONE';
-                this.stabilityCounter = 0;
-                this.pendingSignal = null;
-
-                // Reset conviction lock for new cycle
-                this.convictionLocked = false;
-                this.lockedDirection = null;
-                this.lockTime = null;
-                this.lockConfidence = 0;
-                this.voteHistory = [];
-
-                // Reset cycle commitment for new cycle
-                this.cycleCommitted = false;
-                this.committedDirection = null;
-                this.commitTime = null;
             }
+
+            // Save pattern to Historian
+            const history = priceHistory[this.asset];
+            if (history.length >= 10) {
+                const recent = history.slice(-10).map(x => x.p);
+                const base = recent[0];
+                const vector = recent.map(p => (p - base) / base);
+                savePattern(this.asset, vector, actual);
+            }
+
+            this.lockState = 'NEUTRAL';
+            this.lockStrength = 0;
+            this.lastSignal = null;
+            this.prediction = 'WAIT';
+            this.tier = 'NONE';
+            this.stabilityCounter = 0;
+            this.pendingSignal = null;
+
+            // Reset conviction lock for new cycle
+            this.convictionLocked = false;
+            this.lockedDirection = null;
+            this.lockTime = null;
+            this.lockConfidence = 0;
+            this.voteHistory = [];
+
+            // Reset cycle commitment for new cycle
+            this.cycleCommitted = false;
+            this.committedDirection = null;
+            this.commitTime = null;
         }
     }
 }
 
+}
 const Brains = {};
 ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
 
@@ -1063,6 +1092,7 @@ function connectWebSocket() {
                     livePrices[asset] = parseFloat(msg.payload.value);
                     const now = Date.now();
                     lastUpdateTimestamp = now;
+                    livePriceTimestamps[asset] = now; // Per-asset timestamp
                     priceHistory[asset].push({ t: now, p: msg.payload.value });
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
                 }
@@ -1074,6 +1104,7 @@ function connectWebSocket() {
                     livePrices[asset] = parseFloat(msg.payload.value);
                     const now = Date.now();
                     lastUpdateTimestamp = now;
+                    livePriceTimestamps[asset] = now; // Per-asset timestamp
                     priceHistory[asset].push({ t: now, p: msg.payload.value });
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
                 }
@@ -1547,8 +1578,7 @@ app.get('/api/state', (req, res) => {
 
             // FINAL SEVEN METRICS
             kellySize: Brains[a].getKellySize(),
-            calibration: Brains[a].calibrationBuckets,
-            newsState: Brains[a].newsState
+            calibration: Brains[a].calibrationBuckets
         };
     });
     res.json(response);
