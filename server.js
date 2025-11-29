@@ -288,6 +288,35 @@ class NotificationManager {
         });
     }
 
+    static async startup() {
+        if (redisAvailable) {
+            try {
+                // Load System Config (API Keys)
+                const configData = await redis.get('systemConfig');
+                if (configData) {
+                    systemConfig = JSON.parse(configData);
+                    log('⚙️ System configuration loaded from Redis');
+                }
+
+                // Load Subscribers
+                const subData = await redis.get('subscribers');
+                if (subData) {
+                    subscribers = JSON.parse(subData);
+                    log(`👥 Loaded ${subscribers.length} subscribers from Redis`);
+                }
+
+                // Load User Preferences
+                const prefData = await redis.get('userPreferences');
+                if (prefData) {
+                    userPreferences = JSON.parse(prefData);
+                    log('👤 User preferences loaded from Redis');
+                }
+
+            } catch (e) {
+                log(`⚠️ Error loading data from Redis: ${e.message}`);
+            }
+        }
+    }
 }
 
 // Initialize Notification Manager
