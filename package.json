@@ -1,24 +1,24 @@
+```json
 {
     "name": "supreme-deity-cloud",
-    {
-        "name": "supreme-deity-cloud",
-        "version": "1.0.0",
-        "description": "The 24/7 Supreme Deity Prediction Engine",
-        "main": "server.js",
-        "scripts": {
-            "start": "node server.js"
-        },
-        "dependencies": {
-            "express": "^4.18.2",
-            "ws": "^8.13.0",
-            "cors": "^2.8.5",
-            "node-fetch": "^3.3.1",
-            "ioredis": "^5.3.2",
-            "basic-auth": "^2.0.1",
-            "nodemailer": "^6.9.7",
-            "twilio": "^4.19.0"
-        },
-        "engines": {
-            "node": ">=18.0.0"
-        }
+    "version": "1.0.0",
+    "description": "The 24/7 Supreme Deity Prediction Engine",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "ws": "^8.13.0",
+        "cors": "^2.8.5",
+        "node-fetch": "^3.3.1",
+        "ioredis": "^5.3.2",
+        "basic-auth": "^2.0.1",
+        "nodemailer": "^6.9.7",
+        "twilio": "^4.19.0"
+    },
+    "engines": {
+        "node": ">=18.0.0"
     }
+}
+```
