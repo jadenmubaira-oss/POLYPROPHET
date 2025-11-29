@@ -289,7 +289,6 @@ class NotificationManager {
     }
 
 }
-}
 
 // Initialize Notification Manager
 NotificationManager.startup();
