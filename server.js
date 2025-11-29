@@ -283,17 +283,6 @@ class NotificationManager {
 
 }
 
-// ==================== MAIN EXECUTION LOOP ====================
-// Start the Brains and Data Fetching
-setInterval(() => ASSETS.forEach(a => Brains[a].update()), 1000);
-setInterval(fetchCurrentMarkets, 2000);
-setInterval(Historian.save, 60000);
-
-// Start the Server
-server.listen(process.env.PORT || 3000, () => {
-    log(`✅ Server running on port ${process.env.PORT || 3000}`);
-});
-
     static async startup() {
     if (redisAvailable) {
         try {
@@ -324,6 +313,17 @@ server.listen(process.env.PORT || 3000, () => {
     }
 }
 }
+
+// ==================== MAIN EXECUTION LOOP ====================
+// Start the Brains and Data Fetching
+setInterval(() => ASSETS.forEach(a => Brains[a].update()), 1000);
+setInterval(fetchCurrentMarkets, 2000);
+setInterval(Historian.save, 60000);
+
+// Start the Server
+server.listen(process.env.PORT || 3000, () => {
+    log(`✅ Server running on port ${process.env.PORT || 3000}`);
+});
 
 // Initialize Notification Manager
 NotificationManager.startup();
