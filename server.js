@@ -584,23 +584,24 @@ Act now! View: https://polymarket.com`;
     }
 
     static shouldSendAlert(brain, asset) {
+        // 🎯 FIX #1: RELAXED SNIPER CRITERIA (Catch 90-92% opportunities)
+
         // 1. Must be SNIPER GRADE (90%+)
         if (brain.confidence < 0.90) return false;
 
-        // 2. Must be CONVICTION tier
-        if (brain.tier !== 'CONVICTION') return false;
+        // 2. RELAXED: CONVICTION tier OR high confidence (92%+)
+        // Removed strict lock requirement - allows alerts on 90-95% even if not locked yet
+        const isHighConviction = brain.tier === 'CONVICTION' || brain.confidence >= 0.92;
+        if (!isHighConviction) return false;
 
-        // 3. Must be LOCKED (stable)
-        if (!brain.convictionLocked) return false;
-
-        // 4. Must be EARLY in cycle (< 3 mins)
+        // 3. Must be EARLY in cycle (< 3 mins)
         const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
         if (elapsed > 180) return false;
 
-        // 5. Must have EDGE (> 5%)
+        // 4. Must have EDGE (> 5%)
         if (brain.edge < 5) return false;
 
-        // 6. User preferences
+        // 5. User preferences
         if (!userPreferences.alertOnSniper) return false;
 
         return true;
@@ -618,9 +619,13 @@ class SupremeBrain {
         this.edge = 0;
         this.ensembleVotes = { UP: 0, DOWN: 0 };
 
-        // Ultra-Fast Defaults
-        this.atrMultiplier = 2.2;
-        this.reverseMultiplier = 4.5;
+        // STABILITY FIX #2 & #5: Less Sensitive Genesis Protocol
+        this.atrMultiplier = 4.0;  // Increased from 2.2 - needs bigger moves to trigger
+        this.reverseMultiplier = 3.0;  // Increased from 4.5 - harder to break locks
+
+        // STABILITY FIX #3: Prediction Hold Timer
+        this.lastPredictionChange = 0;
+        this.predictionHoldSeconds = 60;  // Hold prediction for 60 seconds minimum
 
         this.winStreak = 0;
         this.lossStreak = 0;
@@ -680,6 +685,20 @@ class SupremeBrain {
             funding: { wins: 0, total: 0 },
             volume: { wins: 0, total: 0 }
         };
+
+        // STABILITY FIX #4: Cached Model Weights (only update at checkpoints)
+        this.cachedWeights = {
+            genesis: 1.0, physicist: 1.0, orderbook: 1.0, historian: 1.0,
+            correlation: 1.0, macro: 1.0, funding: 1.0, volume: 1.0
+        };
+
+        // STABILITY FIX #6: Conviction Lock Timestamp
+        this.lockTimestamp = 0;
+
+        // 🐛 CYCLE HISTORY TRACKING (for debugging)
+        this.currentCycleHistory = [];  // Snapshots of current cycle
+        this.lastCompletedCycle = null;  // Full previous cycle for export
+        this.cycleStartTime = 0;
     }
 
     async update() {
@@ -690,6 +709,18 @@ class SupremeBrain {
             const startPrice = checkpointPrices[this.asset];
             const history = priceHistory[this.asset];
             const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
+
+            // 🛡️ SAFETY GATE #1: LATE-CYCLE PROTECTION (Prevent Suicide Bets)
+            // Don't make predictions with < 2 minutes left in cycle
+            // Market has already decided outcome - jumping in now is statistical suicide
+            if (elapsed > 780) {  // > 13 minutes elapsed (< 120s remaining)
+                this.prediction = 'WAIT';
+                this.confidence = 0;
+                this.tier = 'NONE';
+                this.edge = 0;
+                this.isProcessing = false;
+                return;  // EXIT EARLY - TOO LATE TO TRADE
+            }
 
             // CRITICAL FIX: Check per-asset price freshness
             const priceAge = Date.now() - (livePriceTimestamps[this.asset] || 0);
@@ -704,17 +735,9 @@ class SupremeBrain {
                 return;
             }
 
-            // FINAL SEVEN: CALCULATE MODEL WEIGHTS (Adaptive Learning)
-            const weights = {};
-            for (const [model, stats] of Object.entries(this.modelAccuracy)) {
-                if (stats.total < 10) weights[model] = 1.0; // Default weight
-                else {
-                    const accuracy = stats.wins / stats.total;
-                    // Boost high accuracy (>60%), penalize low accuracy (<40%)
-                    // Range: 0.2 to 2.0
-                    weights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
-                }
-            }
+            // 🎯 FIX #2: USE CACHED MODEL WEIGHTS (No recalculation every second)
+            // Weights are updated at checkpoint in evaluateOutcome(), not here
+            const weights = this.cachedWeights;
             const modelVotes = {}; // Track who voted what for learning
 
             // TRINITY UPGRADE: REGIME AWARENESS (Moved Up for Normalization)
@@ -912,17 +935,40 @@ class SupremeBrain {
             if (totalVotes > 0) {
                 const avgConf = totalConfidence / totalVotes;
                 const R = MathLib.calculateATR(history.slice(-Math.min(history.length, 60)), 5);
-                const margin = R / atr < 0.7 ? 1.5 : (R / atr > 1.3 ? 3.0 : 2.0);
+                // STABILITY FIX #5: MUCH stronger hysteresis margin
+                const margin = R / atr < 0.7 ? 3.0 : (R / atr > 1.3 ? 5.0 : 4.0);  // Increased from 1.5/3.0/2.0
 
-                if (this.prediction === 'DOWN') {
-                    if (upVotes > downVotes + margin) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
-                    else { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
-                } else if (this.prediction === 'UP') {
-                    if (downVotes > upVotes + margin) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
-                    else { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
+                // STABILITY FIX #3: PREDICTION HOLD TIMER
+                // Don't allow prediction changes within 60 seconds unless overwhelming evidence
+                const timeSinceLastChange = (Date.now() - this.lastPredictionChange) / 1000;
+                const canChangePrediction = timeSinceLastChange > this.predictionHoldSeconds;
+
+                if (!canChangePrediction && this.prediction !== 'WAIT' && this.prediction !== 'NEUTRAL') {
+                    // HOLD current prediction - only update confidence smoothly
+                    finalSignal = this.prediction;
+                    const rawConf = avgConf * (this.prediction === 'UP' ? upVotes / totalVotes : downVotes / totalVotes);
+                    // STABILITY FIX #1: Strong confidence smoothing (0.95/0.05)
+                    finalConfidence = this.confidence > 0
+                        ? this.confidence * 0.95 + rawConf * 0.05
+                        : rawConf;
                 } else {
-                    if (upVotes > downVotes) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
-                    else if (downVotes > upVotes) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
+                    // Can change prediction - use hysteresis
+                    if (this.prediction === 'DOWN') {
+                        if (upVotes > downVotes + margin) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
+                        else { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
+                    } else if (this.prediction === 'UP') {
+                        if (downVotes > upVotes + margin) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
+                        else { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
+                    } else {
+                        // First prediction or WAIT state
+                        if (upVotes > downVotes + margin) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
+                        else if (downVotes > upVotes + margin) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
+                    }
+
+                    // STABILITY FIX #1: Apply confidence smoothing even on prediction changes
+                    if (this.confidence > 0 && finalSignal !== 'NEUTRAL') {
+                        finalConfidence = this.confidence * 0.90 + finalConfidence * 0.10;  // Slightly less aggressive when changing
+                    }
                 }
             }
 
@@ -996,6 +1042,41 @@ class SupremeBrain {
             }
 
             if (trendBias) finalConfidence *= trendBias;
+
+            // 🛡️ SAFETY GATE #2: MARKET ODDS PROTECTION (Prevent Suicide Bets)
+            // NEVER bet against overwhelming market consensus (>95%)
+            // If market is 99% Yes and we want to bet No, that's statistical suicide
+            const market = currentMarkets[this.asset];
+            if (market && finalSignal !== 'NEUTRAL' && finalSignal !== 'WAIT') {
+                const oppositeSideOdds = finalSignal === 'UP' ? market.noPrice : market.yesPrice;
+
+                // BLOCK: If market is >95% on opposite side
+                if (oppositeSideOdds > 0.95) {
+                    const timeLeft = INTERVAL_SECONDS - elapsed;
+                    log(`🛑 SUICIDE BET BLOCKED: Market ${(oppositeSideOdds * 100).toFixed(1)}% against ${finalSignal} with ${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')} left`, this.asset);
+                    finalSignal = 'WAIT';
+                    finalConfidence = 0;
+                    tier = 'NONE';
+                }
+            }
+
+            // 🛡️ SAFETY GATE #3: RAPID MOVE PROTECTION (Prevent Late Entry)
+            // If price moved >15% already and market priced it in, don't enter
+            const priceChange = Math.abs((currentPrice - startPrice) / startPrice);
+            if (priceChange > 0.15 && elapsed < 300) {  // >15% move in first 5 min
+                const market = currentMarkets[this.asset];
+                if (market && finalSignal !== 'NEUTRAL' && finalSignal !== 'WAIT') {
+                    const dominantOdds = Math.max(market.yesPrice, market.noPrice);
+                    // If market already priced it in (>75% odds), too late to enter
+                    if (dominantOdds > 0.75) {
+                        const timeLeft = INTERVAL_SECONDS - elapsed;
+                        log(`🛑 RAPID MOVE: ${(priceChange * 100).toFixed(1)}% in ${Math.floor(elapsed / 60)}m, market ${(dominantOdds * 100).toFixed(1)}% - too late to enter`, this.asset);
+                        finalSignal = 'WAIT';
+                        finalConfidence = 0;
+                        tier = 'NONE';
+                    }
+                }
+            }
 
             // Determine tier
             if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
@@ -1129,11 +1210,17 @@ class SupremeBrain {
                                 this.lockedDirection = finalSignal;
                                 this.lockTime = Date.now();
                                 this.lockConfidence = finalConfidence;
+                                this.lockTimestamp = Date.now();  // STABILITY FIX #6
                                 log(`🔒 CONVICTION LOCKED: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% confidence, ${(currentOdds * 100).toFixed(1)}% odds`, this.asset);
                             } else {
                                 log(`⚠️ High confidence (${(finalConfidence * 100).toFixed(1)}%) but odds too rich (${(currentOdds * 100).toFixed(1)}%) - skipping lock`, this.asset);
                             }
                         }
+                    }
+
+                    // STABILITY FIX #3: Track prediction change timestamp
+                    if (this.prediction !== finalSignal) {
+                        this.lastPredictionChange = Date.now();
                     }
                 }
             } else {
@@ -1142,23 +1229,38 @@ class SupremeBrain {
 
                 // 1. If Locked, STAY Locked visually (Ironclad Conviction with Hysteresis)
                 if (this.convictionLocked) {
-                    // HYSTERESIS: Only break lock if confidence crashes below 80% (Catastrophic failure)
-                    if (finalConfidence < 0.80) {
-                        this.convictionLocked = false;
-                        log(`💥 LOCK BROKEN: Confidence crashed to ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
-                    } else {
-                        // LOCK HOLDS (Even if 81%, 82%, 83%...)
-                        tier = 'CONVICTION';
-                        finalSignal = this.lockedDirection; // Ensure direction matches lock
+                    // STABILITY FIX #6: ENFORCE conviction lock for full 5 minutes
+                    const lockAge = (Date.now() - this.lockTimestamp) / 1000;
 
-                        // WARNING SYSTEM: If confidence dips into Buffer Zone (80-85%)
-                        if (finalConfidence < 0.85) {
-                            log(`⚠️ WARNING: Confidence weakening (${(finalConfidence * 100).toFixed(1)}%), but lock holds`, this.asset);
-                            // We allow confidence to show 80-85% here so user sees the warning
-                            // But Tier stays CONVICTION
+                    if (lockAge < 300) {  // Force lock for 5 minutes
+                        tier = 'CONVICTION';
+                        finalSignal = this.lockedDirection;
+                        // DON'T let confidence drop below 90% while locked
+                        finalConfidence = Math.max(0.90, finalConfidence);
+
+                        if (finalConfidence < 0.93) {
+                            log(`⚠️ Lock weakening (${(finalConfidence * 100).toFixed(1)}%), but forced to hold for ${(300 - lockAge).toFixed(0)}s more`, this.asset);
+                        }
+                    } else {
+                        // Lock expired after 5 minutes
+                        // HYSTERESIS: Only break lock if confidence crashes below 80% (Catastrophic failure)
+                        if (finalConfidence < 0.80) {
+                            this.convictionLocked = false;
+                            log(`💥 LOCK BROKEN: Confidence crashed to ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
                         } else {
-                            // Strong lock - enforce 85% floor visually
-                            finalConfidence = Math.max(finalConfidence, 0.85);
+                            // LOCK HOLDS (Even if 81%, 82%, 83%...)
+                            tier = 'CONVICTION';
+                            finalSignal = this.lockedDirection; // Ensure direction matches lock
+
+                            // WARNING SYSTEM: If confidence dips into Buffer Zone (80-85%)
+                            if (finalConfidence < 0.85) {
+                                log(`⚠️ WARNING: Confidence weakening (${(finalConfidence * 100).toFixed(1)}%), but lock holds`, this.asset);
+                                // We allow confidence to show 80-85% here so user sees the warning
+                                // But Tier stays CONVICTION
+                            } else {
+                                // Strong lock - enforce 85% floor visually
+                                finalConfidence = Math.max(finalConfidence, 0.85);
+                            }
                         }
                     }
                 }
@@ -1188,19 +1290,60 @@ class SupremeBrain {
                 }
             }
 
-            // EDGE CALCULATION
+            // 🛡️ FIX #3: CORRECTED EDGE CALCULATION
+            // Edge = (Your Confidence - Market's Price for YOUR side) * 100
+            // Example: 90% confidence on UP, market says UP is 60% → Edge = 30%
+            // If market says UP is 99%, you need >99% confidence for positive edge
             if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
                 const market = currentMarkets[this.asset];
-                const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
-                this.edge = (this.confidence - marketProb) * 100;
+                const ourSideOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+                const oppositeSideOdds = this.prediction === 'UP' ? market.noPrice : market.yesPrice;
+
+                // TRUE edge calculation
+                this.edge = (this.confidence - ourSideOdds) * 100;
+
+                // WARNING: If betting against extreme odds (opposite > 90%)
+                if (oppositeSideOdds > 0.90 && this.edge > 0) {
+                    log(`⚠️ HIGH-RISK BET: Opposite side ${(oppositeSideOdds * 100).toFixed(1)}%, our confidence ${(this.confidence * 100).toFixed(1)}%, edge ${this.edge.toFixed(1)}%`, this.asset);
+                }
             } else {
                 this.edge = 0;
             }
 
-            // ==================== SNIPER DETECTION & ALERT ====================
             // Check if this is a sniper-grade opportunity and alert if criteria met
             if (NotificationManager.shouldSendAlert(this, this.asset)) {
                 NotificationManager.sendAlert(this.asset, this);
+            }
+
+            // 🐛 CYCLE HISTORY: Record snapshot every 10 seconds
+            const now = Date.now();
+            // Reuse elapsed variable from top of update() method
+
+            // Record snapshot every 10 seconds (to keep history manageable)
+            if (!this.lastSnapshotTime || (now - this.lastSnapshotTime) >= 10000) {
+                this.currentCycleHistory.push({
+                    timestamp: new Date(now).toISOString(),
+                    elapsed: elapsed,
+                    prediction: this.prediction,
+                    confidence: this.confidence,
+                    tier: this.tier,
+                    edge: this.edge,
+                    votes: { ...this.ensembleVotes },
+                    locked: this.convictionLocked,
+                    committed: this.cycleCommitted,
+                    currentPrice: livePrices[this.asset],
+                    checkpointPrice: checkpointPrices[this.asset],
+                    marketOdds: currentMarkets[this.asset] ? {
+                        yes: currentMarkets[this.asset].yesPrice,
+                        no: currentMarkets[this.asset].noPrice
+                    } : null
+                });
+                this.lastSnapshotTime = now;
+
+                // Keep history limited to prevent memory issues (max 100 snapshots per cycle)
+                if (this.currentCycleHistory.length > 100) {
+                    this.currentCycleHistory.shift();
+                }
             }
 
         } catch (e) {
@@ -1301,6 +1444,21 @@ class SupremeBrain {
                 // Track recent form (last 10)
                 this.recentOutcomes.push(isWin);
                 if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
+
+                // 🎯 RECALCULATE CACHED WEIGHTS (Learning Loop)
+                // This is where the bot gets smarter over time
+                for (const [model, stats] of Object.entries(this.modelAccuracy)) {
+                    if (stats.total < 10) {
+                        // Not enough data yet, keep default weight
+                        this.cachedWeights[model] = 1.0;
+                    } else {
+                        // Calculate accuracy for this model
+                        const accuracy = stats.wins / stats.total;
+                        // Boost high-accuracy models (>60%), penalize low-accuracy (<40%)
+                        // Range: 0.2 to 2.0
+                        this.cachedWeights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
+                    }
+                }
 
                 // SMART MEMORY: Update the pattern that generated this signal (if any)
                 if (this.lastSignal && this.lastSignal.patternId) {
@@ -1997,6 +2155,9 @@ app.get('/', (req, res) => {
                                 <a href="\${d.market.marketUrl}" target="_blank" class="market-link">
                                     📊 View on Polymarket →
                                 </a>
+                                <button onclick="exportCycle('\${asset}')" style="background: #ff9900; color: black; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px; font-weight: bold;">
+                                    🐛 Export Debug
+                                </button>
                             </div>\` : ''}
                         </div>
                     \`;
@@ -2200,6 +2361,27 @@ app.get('/', (req, res) => {
                 })
             });
         }
+        
+        async function exportCycle(asset) {
+            try {
+                const res = await fetch('/api/export-last-cycle?asset=' + asset);
+                const data = await res.json();
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = asset + '_cycle_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                alert('✅ Exported ' + asset + ' cycle data to JSON file!');
+            } catch (e) {
+                alert('❌ Export failed: ' + e.message);
+            }
+        }
     </script>
 </body>
 </html>
@@ -2385,7 +2567,27 @@ app.post('/api/save-twilio-credentials', async (req, res) => {
     res.json({ success });
 });
 
-// Service Worker for Mobile Notifications
+//After line 2527, add:
+app.get('/api/export-last-cycle', (req, res) => {
+    const asset = req.query.asset || 'BTC';
+    const brain = Brains[asset];
+
+    if (!brain.lastCompletedCycle) {
+        return res.status(404).json({
+            error: 'No completed cycle yet',
+            message: 'Wait 15 minutes for first cycle'
+        });
+    }
+
+    res.json({
+        asset,
+        cycle: brain.lastCompletedCycle,
+        modelWeights: brain.cachedWeights,
+        stats: brain.stats
+    });
+});
+
+// Service Worker for Browser Notifications
 app.get('/sw.js', (req, res) => {
     res.setHeader('Content-Type', 'application/javascript');
     res.send(`
@@ -2422,6 +2624,22 @@ setInterval(() => {
                 if (checkpointPrices[a] && livePrices[a]) {
                     Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
                     log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
+
+                    // 🐛 CYCLE HISTORY: Save completed cycle for export
+                    if (Brains[a].currentCycleHistory.length > 0) {
+                        Brains[a].lastCompletedCycle = {
+                            checkpointStart: cp - INTERVAL_SECONDS,
+                            checkpointEnd: cp,
+                            startPrice: checkpointPrices[a],
+                            endPrice: livePrices[a],
+                            outcome: livePrices[a] > checkpointPrices[a] ? 'UP' : 'DOWN',
+                            snapshots: [...Brains[a].currentCycleHistory]
+                        };
+                        // Clear current cycle history for new cycle
+                        Brains[a].currentCycleHistory = [];
+                        Brains[a].cycleStartTime = Date.now();
+                        log(`💾 Saved cycle history (${Brains[a].lastCompletedCycle.snapshots.length} snapshots)`, a);
+                    }
                 }
 
                 // Update checkpoints for the NEW cycle with FRESH price
