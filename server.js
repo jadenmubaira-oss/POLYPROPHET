@@ -1559,6 +1559,9 @@ app.get('/', (req, res) => {
                     minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
                 
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            } catch (e) {
+                console.error('Fetch error:', e);
+                document.getElementById('last-update').textContent = 'Error: ' + e.message;
             }
         }
         
@@ -1626,9 +1629,6 @@ app.get('/api/state', (req, res) => {
             recentTotal: recentTotal,  // How many of the last 10 we have
 
             // FINAL SEVEN METRICS
-            kellySize: Brains[a].getKellySize(),
-            calibration: Brains[a].calibrationBuckets,
-            newsState: Brains[a].newsState,
             kellySize: Brains[a].getKellySize(),
             calibration: Brains[a].calibrationBuckets,
             newsState: Brains[a].newsState,
