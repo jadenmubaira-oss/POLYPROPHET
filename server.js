@@ -974,21 +974,6 @@ class SupremeBrain {
 
             // FORCED PREDICTION
             if (elapsed >= 180 && finalSignal === 'NEUTRAL') {
-                if (force > 0) { finalSignal = 'UP'; finalConfidence = 0.6 + (absForce / (atr * 3)); }
-                else { finalSignal = 'DOWN'; finalConfidence = 0.6 + (absForce / (atr * 3)); }
-                finalConfidence = Math.min(0.75, finalConfidence);
-            }
-
-            // === THRESHOLD DETERMINATION (Real-World Adjusted) ===
-            let tier = 'NONE';
-            // REAL-WORLD FIX: Lowered from 98% to 85% (original was unreachable)
-            let convictionThreshold = 0.85;
-            let advisoryThreshold = 0.70;
-
-            if (regime === 'CHOPPY') {
-                convictionThreshold = 0.88;  // Slightly higher for choppy
-                advisoryThreshold = 0.75;
-            } else if (regime === 'TRENDING') {
                 convictionThreshold = 0.82;  // Lower for trending (easier to be confident)
                 advisoryThreshold = 0.68;
             } else if (regime === 'VOLATILE') {
