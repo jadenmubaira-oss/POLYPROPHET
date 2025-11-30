@@ -1,4 +1,6 @@
 node_modules/
-.env
 *.log
+.env
+deity_state.json
+patterns/
 .DS_Store

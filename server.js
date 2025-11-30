@@ -297,7 +297,7 @@ async function savePattern(asset, vector, outcome) {
                 // If matched enough times, check win rate
                 if (p.matchCount >= 5) {
                     const winRate = p.wins / p.matchCount;
-                    return winRate >= 0.40; // Keep only 40%+ win rate patterns
+                    return winRate >= 0.55; // Keep only 55%+ win rate patterns (OPTIMIZED for £1M goal)
                 }
                 return true; // Keep unproven recent patterns
             }
@@ -401,7 +401,8 @@ class SupremeBrain {
         };
 
         // FINAL SEVEN: REGIME PERSISTENCE
-        this.regimeHistory = [];
+        // FINAL SEVEN: REGIME PERSISTENCE (Removed to prevent memory leak)
+        // this.regimeHistory = [];
 
         // FINAL SEVEN: NEWS AWARENESS (Placeholder)
         this.newsState = 'NEUTRAL'; // NEUTRAL, NEGATIVE, POSITIVE
@@ -697,7 +698,7 @@ class SupremeBrain {
                 const losingVotes = finalSignal === 'UP' ? downVotes : upVotes;
                 const consensus = (winningVotes - losingVotes) / totalVotes;
 
-                if (consensus >= 0.50) {
+                if (consensus >= 0.25) { // Lowered to capture more valid trades (was 0.50)
                     const consensusBonus = 1.0 + (consensus - 0.50) * 2.0; // Up to 2.0x boost
                     finalConfidence *= consensusBonus;
                     log(`🎯 CONSENSUS BONUS: ${(consensusBonus * 100 - 100).toFixed(1)}% boost (${winningVotes}/${totalVotes} agree)`, this.asset);
@@ -720,10 +721,21 @@ class SupremeBrain {
             }
 
             // === THRESHOLD DETERMINATION (Regime-Aware) ===
-            // 🎯 PROPHET FIX #2: FIXED THRESHOLDS (No regime chaos)
+            // 🎯 PROPHET ENHANCEMENT: ADAPTIVE THRESHOLDS (Regime-Optimized for Frequency)
             let tier = 'NONE';
-            const convictionThreshold = 0.75; // FIXED at 75% (Lowered from 77%)
-            const advisoryThreshold = 0.65;   // FIXED at 65%
+            let convictionThreshold, advisoryThreshold;
+
+            // Adapt thresholds based on market regime for optimal trade frequency + quality
+            if (regime === 'VOLATILE') {
+                convictionThreshold = 0.82; // Higher bar in volatile markets (avoid whipsaws)
+                advisoryThreshold = 0.72;
+            } else if (regime === 'CHOPPY') {
+                convictionThreshold = 0.70; // Lower bar in choppy markets (capture subtle edges)
+                advisoryThreshold = 0.60;
+            } else { // TRENDING or UNKNOWN
+                convictionThreshold = 0.75; // Standard thresholds (optimal baseline)
+                advisoryThreshold = 0.65;
+            }
 
             if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
             else if (finalConfidence >= advisoryThreshold) tier = 'ADVISORY';
@@ -816,6 +828,7 @@ class SupremeBrain {
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
                 const requiredStability = (() => {
+                    if (finalConfidence >= 0.85) return 2; // Fast path for high conviction
                     if (elapsed < 180) return 5;
                     if (elapsed < 600) return 3;
                     return 1;
@@ -1092,24 +1105,30 @@ function connectWebSocket() {
                 const map = { 'btc/usd': 'BTC', 'eth/usd': 'ETH', 'sol/usd': 'SOL', 'xrp/usd': 'XRP' };
                 const asset = map[msg.payload.symbol];
                 if (asset) {
-                    livePrices[asset] = parseFloat(msg.payload.value);
-                    const now = Date.now();
-                    lastUpdateTimestamp = now;
-                    priceHistory[asset].push({ t: now, p: msg.payload.value });
-                    if (priceHistory[asset].length > 500) priceHistory[asset].shift();
-                    livePriceTimestamps[asset] = now;
+                    const price = parseFloat(msg.payload.value);
+                    if (!isNaN(price)) {
+                        livePrices[asset] = price;
+                        const now = Date.now();
+                        lastUpdateTimestamp = now;
+                        priceHistory[asset].push({ t: now, p: price });
+                        if (priceHistory[asset].length > 500) priceHistory[asset].shift();
+                        livePriceTimestamps[asset] = now;
+                    }
                 }
             }
             if (msg.topic === 'crypto_prices' && msg.type === 'update') {
                 const map = { btcusdt: 'BTC', ethusdt: 'ETH', solusdt: 'SOL', xrpusdt: 'XRP' };
                 const asset = map[msg.payload.symbol];
                 if (asset && !livePrices[asset]) {
-                    livePrices[asset] = parseFloat(msg.payload.value);
-                    const now = Date.now();
-                    lastUpdateTimestamp = now;
-                    priceHistory[asset].push({ t: now, p: msg.payload.value });
-                    if (priceHistory[asset].length > 500) priceHistory[asset].shift();
-                    livePriceTimestamps[asset] = now;
+                    const price = parseFloat(msg.payload.value);
+                    if (!isNaN(price)) {
+                        livePrices[asset] = price;
+                        const now = Date.now();
+                        lastUpdateTimestamp = now;
+                        priceHistory[asset].push({ t: now, p: price });
+                        if (priceHistory[asset].length > 500) priceHistory[asset].shift();
+                        livePriceTimestamps[asset] = now;
+                    }
                 }
             }
         } catch (e) { }
@@ -1248,7 +1267,15 @@ async function saveState() {
         },
         // FINAL SEVEN: PERSISTENCE
         calibration: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].calibrationBuckets }), {}),
-        regime: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].regimeHistory }), {})
+        // PROPHET FIX: Persist Cycle Commitment
+        commitment: ASSETS.reduce((acc, a) => ({
+            ...acc,
+            [a]: {
+                committed: Brains[a].cycleCommitted,
+                direction: Brains[a].committedDirection,
+                time: Brains[a].commitTime
+            }
+        }), {})
     };
 
     // Save to Redis if available
@@ -1301,9 +1328,15 @@ async function loadState() {
                     }
                 }
 
-                // FINAL SEVEN: RESTORE CALIBRATION & REGIME
+                // FINAL SEVEN: RESTORE CALIBRATION & COMMITMENT
                 if (state.calibration) ASSETS.forEach(a => { if (state.calibration[a]) Brains[a].calibrationBuckets = state.calibration[a]; });
-                if (state.regime) ASSETS.forEach(a => { if (state.regime[a]) Brains[a].regimeHistory = state.regime[a]; });
+                if (state.commitment) ASSETS.forEach(a => {
+                    if (state.commitment[a]) {
+                        Brains[a].cycleCommitted = state.commitment[a].committed;
+                        Brains[a].committedDirection = state.commitment[a].direction;
+                        Brains[a].commitTime = state.commitment[a].time;
+                    }
+                });
 
                 log('💾 State Restored from Redis');
                 return;
@@ -1465,18 +1498,6 @@ app.get('/', (req, res) => {
                 const dashboard = document.getElementById('dashboard');
                 const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
                 
-                // Helper function for safe HTML generation
-                function getMarketLinkHtml(market) {
-                    if (!market || !market.marketUrl) return '';
-                    return \`
-                        <div style="text-align: center; margin-top: 15px;">
-                            <a href="\${market.marketUrl}" target="_blank" class="market-link">
-                                📊 View on Polymarket →
-                            </a>
-                        </div>
-                    \`;
-                }
-
                 dashboard.innerHTML = assets.map(asset => {
                     const d = data[asset];
                     if (!d) return '';
@@ -1484,6 +1505,11 @@ app.get('/', (req, res) => {
                     const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(1) : '0.0';
                     const convWinRate = d.stats.convictionTotal > 0 ? ((d.stats.convictionWins / d.stats.convictionTotal) * 100).toFixed(1) : '0.0';
                     
+                    // Model Votes Formatter
+                    const mv = d.modelVotes || {};
+                    const upVotes = Object.entries(mv).filter(([k,v]) => v === 'UP').map(([k]) => k).join(', ') || 'None';
+                    const downVotes = Object.entries(mv).filter(([k,v]) => v === 'DOWN').map(([k]) => k).join(', ') || 'None';
+
                     return \`
                         <div class="asset-card \${d.locked ? 'locked' : ''}">
                             <div class="asset-header">
@@ -1502,6 +1528,9 @@ app.get('/', (req, res) => {
                                 <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.8;">
                                     Thresholds: <strong>\${(d.thresholds.conviction * 100).toFixed(0)}%</strong> / <strong>\${(d.thresholds.advisory * 100).toFixed(0)}%</strong>
                                 </div>
+                                \${d.committed ? \`<div style="font-size: 0.85em; margin-top: 8px; padding: 6px; background: rgba(255,0,100,0.2); border-radius: 4px; border: 1px solid #ff0066;">
+                                    💎 COMMITTED to \${d.committedDirection}
+                                </div>\` : \`<div style="font-size: 0.85em; margin-top: 8px; color: #888;">Not committed</div>\`}
                             </div>
                             
                             <div class="price-display">
@@ -1530,6 +1559,13 @@ app.get('/', (req, res) => {
                                 <div class="stat-row">
                                     <span>Market Odds:</span>
                                     <strong>Y:\${d.market ? (d.market.yesPrice * 100).toFixed(1) : 'N/A'}% / N:\${d.market ? (d.market.noPrice * 100).toFixed(1) : 'N/A'}%</strong>
+                                </div>
+                                <div class="stat-row" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                                    <div style="font-size: 0.8em; color: #aaa;">Model Votes:</div>
+                                    <div style="font-size: 0.75em;">
+                                        <span style="color: #00ff00;">UP: \${upVotes}</span><br>
+                                        <span style="color: #ff0044;">DOWN: \${downVotes}</span>
+                                    </div>
                                 </div>
                             </div>
                             
@@ -1625,8 +1661,15 @@ app.get('/api/state', (req, res) => {
             market: currentMarkets[a],
             locked: Brains[a].convictionLocked,
             voteStability: Brains[a].voteTrendScore,
-            recentAccuracy: recentAccuracy.toFixed(1),  // Last 10 predictions accuracy
-            recentTotal: recentTotal,  // How many of the last 10 we have
+            recentAccuracy: recentAccuracy.toFixed(1),
+            recentTotal: recentTotal,
+
+            // UI TRANSPARENCY (NEW)
+            committed: Brains[a].cycleCommitted,
+            committedDirection: Brains[a].committedDirection,
+            commitTime: Brains[a].commitTime,
+            lastSignal: Brains[a].lastSignal,
+            modelVotes: Brains[a].lastSignal?.modelVotes || {},
 
             // FINAL SEVEN METRICS
             kellySize: Brains[a].getKellySize(),
@@ -1685,10 +1728,10 @@ setInterval(() => {
         if (now >= cp && now < cp + 5) {
             if (lastEvaluatedCheckpoint[a] !== cp) {
 
-                // CRITICAL: Ensure we have FRESH price data (within 3 seconds)
-                const dataAge = Date.now() - lastUpdateTimestamp;
+                // CRITICAL: Ensure we have FRESH price data (within 3 seconds) - PER-ASSET CHECK
+                const dataAge = Date.now() - livePriceTimestamps[a];
                 if (dataAge > 3000) {
-                    log(`⚠️ Checkpoint skipped - stale data (${(dataAge / 1000).toFixed(1)}s old)`, a);
+                    log(`⚠️ Checkpoint skipped - stale data for ${a} (${(dataAge / 1000).toFixed(1)}s old)`, a);
                     return;
                 }
 
