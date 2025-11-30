@@ -1,4 +1,4 @@
-﻿// ==================== SUPREME DEITY: CLOUD BRAIN ====================
+// ==================== SUPREME DEITY: CLOUD BRAIN ====================
 // 24/7 Node.js Server - Ultra-Fast Edition - COMPLETE WITH ALL 8 MODELS
 
 const express = require('express');
@@ -9,18 +9,15 @@ const path = require('path');
 const cors = require('cors');
 const Redis = require('ioredis');
 const auth = require('basic-auth');
-const nodemailer = require('nodemailer');
-const twilio = require('twilio');
 
 // Initialize App
 const app = express();
 app.use(cors());
-app.use(express.json()); // For POST body parsing
 
 // ==================== PASSWORD PROTECTION ====================
 app.use((req, res, next) => {
-    // Skip auth for API endpoints and Service Worker
-    if (req.path.startsWith('/api/') || req.path === '/sw.js') {
+    // Skip auth for API endpoints (allow UptimeRobot to ping without login)
+    if (req.path.startsWith('/api/')) {
         return next();
     }
 
@@ -70,83 +67,6 @@ if (process.env.REDIS_URL) {
     log('⚠️ REDIS_URL not set - Using ephemeral storage');
 }
 
-// ==================== NOTIFICATION SYSTEM SETUP ====================
-
-// Email (Nodemailer with Gmail) - Can be configured from UI or .env
-let emailTransporter = null;
-
-// SMS (Twilio) - Can be configured from UI or .env
-let twilioClient = null;
-
-// Notification Credentials & Preferences (In-Memory Cache, backed by Redis)
-let userPreferences = {
-    // User contact info
-    email: null,
-    phone: null,
-
-    // Gmail credentials (can be set from UI)
-    gmailUser: process.env.GMAIL_USER || null,
-    gmailPassword: process.env.GMAIL_APP_PASSWORD || null,
-
-    // Twilio credentials (can be set from UI)
-    twilioSid: process.env.TWILIO_ACCOUNT_SID || null,
-    twilioToken: process.env.TWILIO_AUTH_TOKEN || null,
-    twilioPhone: process.env.TWILIO_PHONE || null,
-
-    // Toggles
-    enableEmail: true,
-    enableSMS: true,
-    enableBrowser: true,
-    alertOnSniper: true,    // Alert on 90%+ conviction
-    alertOnStandard: false  // Alert on 85%+ conviction
-};
-
-// Initialize email transporter
-function initEmailTransporter() {
-    if (userPreferences.gmailUser && userPreferences.gmailPassword) {
-        try {
-            emailTransporter = nodemailer.createTransport({
-                service: 'gmail',
-                auth: {
-                    user: userPreferences.gmailUser,
-                    pass: userPreferences.gmailPassword
-                }
-            });
-            log('✅ Email Notifications Enabled');
-            return true;
-        } catch (e) {
-            log(`❌ Email setup failed: ${e.message}`);
-            return false;
-        }
-    }
-    return false;
-}
-
-// Initialize Twilio client
-function initTwilioClient() {
-    if (userPreferences.twilioSid && userPreferences.twilioToken && userPreferences.twilioPhone) {
-        try {
-            twilioClient = twilio(userPreferences.twilioSid, userPreferences.twilioToken);
-            log('✅ SMS Notifications Enabled');
-            return true;
-        } catch (e) {
-            log(`❌ Twilio setup failed: ${e.message}`);
-            return false;
-        }
-    }
-    return false;
-}
-
-// Try to initialize from .env on startup
-initEmailTransporter();
-initTwilioClient();
-
-// Alert Tracking
-let lastAlertSent = {};     // { BTC: timestamp, ETH: timestamp, ... }
-let alertHistory = [];      // Last 50 alerts
-let systemAlerts = [];      // System health alerts (Twilio credits, etc)
-const ALERT_COOLDOWN = 5 * 60 * 1000; // 5 minutes
-
 // ==================== IMMUTABLE DATA LAYER (Node.js Port) ====================
 const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
 const GAMMA_API = 'https://gamma-api.polymarket.com';
@@ -156,7 +76,6 @@ const INTERVAL_SECONDS = 900;
 
 // State
 let livePrices = {};
-let livePriceTimestamps = {}; // Per-asset price timestamps for accurate staleness detection
 let checkpointPrices = {};
 let previousCheckpointPrices = {}; // For outcome evaluation
 let lastEvaluatedCheckpoint = {}; // Track last evaluated checkpoint to prevent double-counting
@@ -166,6 +85,7 @@ let currentMarkets = {};
 let lastUpdateTimestamp = Date.now();
 let fearGreedIndex = 50;
 let fundingRates = {};
+let livePriceTimestamps = {}; // Per-asset price timestamps for accurate staleness detection
 
 // Initialize State
 ASSETS.forEach(asset => {
@@ -174,10 +94,9 @@ ASSETS.forEach(asset => {
     previousCheckpointPrices[asset] = null;
     lastEvaluatedCheckpoint[asset] = 0; // Initialize to 0
     livePrices[asset] = null;
-    livePriceTimestamps[asset] = 0; // Per-asset timestamp
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
-    lastAlertSent[asset] = 0; // Alert cooldown tracking
+    livePriceTimestamps[asset] = 0;
 });
 
 // Logging
@@ -451,163 +370,6 @@ async function findSimilarPattern(asset, currentVector) {
     }
 }
 
-// ==================== NOTIFICATION MANAGER ====================
-
-class NotificationManager {
-    static async sendAlert(asset, brain) {
-        const now = Date.now();
-
-        // Check cooldown
-        if ((now - (lastAlertSent[asset] || 0)) < ALERT_COOLDOWN) {
-            return; // Too soon, prevent spam
-        }
-
-        const message = this.buildAlertMessage(asset, brain);
-        const subject = `🎯 SNIPER ALERT: ${asset}`;
-        let sent = { email: false, sms: false, browser: true };
-
-        // Send Email
-        if (userPreferences.email && userPreferences.enableEmail && emailTransporter) {
-            try {
-                await emailTransporter.sendMail({
-                    from: process.env.GMAIL_USER,
-                    to: userPreferences.email,
-                    subject: subject,
-                    html: this.buildEmailHTML(asset, brain)
-                });
-                sent.email = true;
-                log(`📧 Email sent to ${userPreferences.email}`, asset);
-            } catch (e) {
-                log(`❌ Email failed: ${e.message}`, asset);
-            }
-        }
-
-        // Send SMS
-        if (userPreferences.phone && userPreferences.enableSMS && twilioClient) {
-            try {
-                await twilioClient.messages.create({
-                    body: message,
-                    from: process.env.TWILIO_PHONE,
-                    to: userPreferences.phone
-                });
-                sent.sms = true;
-                log(`📱 SMS sent to ${userPreferences.phone}`, asset);
-            } catch (e) {
-                log(`❌ SMS failed: ${e.message}`, asset);
-
-                // Track Twilio credit errors
-                if (e.code === 20003) {
-                    systemAlerts.push({
-                        type: 'error',
-                        msg: 'Twilio: Out of credits!',
-                        timestamp: Date.now()
-                    });
-                    if (systemAlerts.length > 10) systemAlerts.shift();
-                }
-            }
-        }
-
-        // Update cooldown
-        lastAlertSent[asset] = now;
-
-        // Save to history
-        alertHistory.unshift({
-            asset,
-            timestamp: now,
-            prediction: brain.prediction,
-            confidence: brain.confidence,
-            tier: brain.tier,
-            edge: brain.edge,
-            sent
-        });
-        if (alertHistory.length > 50) alertHistory.pop();
-
-        log(`🎯 SNIPER ALERT SENT: ${asset} ${brain.prediction} @ ${(brain.confidence * 100).toFixed(1)}%`, asset);
-    }
-
-    static buildAlertMessage(asset, brain) {
-        const market = currentMarkets[asset];
-        const odds = brain.prediction === 'UP' ? market?.yesPrice : market?.noPrice;
-        const timeLeft = getNextCheckpoint() - Math.floor(Date.now() / 1000);
-        const minutes = Math.floor(timeLeft / 60);
-        const seconds = timeLeft % 60;
-
-        return `🎯 SNIPER OPPORTUNITY
-${asset}: ${brain.prediction}
-Confidence: ${(brain.confidence * 100).toFixed(1)}%
-Tier: ${brain.tier} 🔒
-Market Odds: ${odds ? (odds * 100).toFixed(1) : 'N/A'}%
-Edge: +${brain.edge.toFixed(1)}%
-Time: ${minutes}:${seconds.toString().padStart(2, '0')}
-
-Act now! View: https://polymarket.com`;
-    }
-
-    static buildEmailHTML(asset, brain) {
-        const market = currentMarkets[asset];
-        const odds = brain.prediction === 'UP' ? market?.yesPrice : market?.noPrice;
-
-        return `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; background: #1a1a2e; color: white; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: #16213e; border-radius: 12px; padding: 30px; }
-        .header { text-align: center; font-size: 2em; color: #ff0000; margin-bottom: 20px; }
-        .prediction { font-size: 3em; text-align: center; margin: 20px 0; }
-        .prediction.UP { color: #00ff00; }
-        .prediction.DOWN { color: #ff0044; }
-        .stats { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0; }
-        .stat-row { display: flex; justify-content: space-between; margin: 10px 0; }
-        .button { display: inline-block; background: #0096ff; color: white; padding: 15px 30px; 
-                  border-radius: 8px; text-decoration: none; margin: 20px auto; text-align: center; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">🎯 SNIPER ALERT</div>
-        <h2>${asset}</h2>
-        <div class="prediction ${brain.prediction}">${brain.prediction}</div>
-        <div class="stats">
-            <div class="stat-row"><span>Confidence:</span><strong>${(brain.confidence * 100).toFixed(1)}%</strong></div>
-            <div class="stat-row"><span>Tier:</span><strong>${brain.tier} 🔒</strong></div>
-            <div class="stat-row"><span>Market Odds:</span><strong>${odds ? (odds * 100).toFixed(1) : 'N/A'}%</strong></div>
-            <div class="stat-row"><span>Edge:</span><strong>+${brain.edge.toFixed(1)}%</strong></div>
-        </div>
-        <div style="text-align: center;">
-            <a href="${market?.marketUrl || 'https://polymarket.com'}" class="button">📊 View on Polymarket</a>
-        </div>
-    </div>
-</body>
-</html>`;
-    }
-
-    static shouldSendAlert(brain, asset) {
-        // 🎯 FIX #1: RELAXED SNIPER CRITERIA (Catch 90-92% opportunities)
-
-        // 1. Must be SNIPER GRADE (90%+)
-        if (brain.confidence < 0.90) return false;
-
-        // 2. RELAXED: CONVICTION tier OR high confidence (92%+)
-        // Removed strict lock requirement - allows alerts on 90-95% even if not locked yet
-        const isHighConviction = brain.tier === 'CONVICTION' || brain.confidence >= 0.92;
-        if (!isHighConviction) return false;
-
-        // 3. Must be EARLY in cycle (< 3 mins)
-        const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
-        if (elapsed > 180) return false;
-
-        // 4. Must have EDGE (> 5%)
-        if (brain.edge < 5) return false;
-
-        // 5. User preferences
-        if (!userPreferences.alertOnSniper) return false;
-
-        return true;
-    }
-}
-
 // ==================== BRAIN LOGIC ====================
 
 class SupremeBrain {
@@ -619,13 +381,9 @@ class SupremeBrain {
         this.edge = 0;
         this.ensembleVotes = { UP: 0, DOWN: 0 };
 
-        // STABILITY FIX #2 & #5: Less Sensitive Genesis Protocol
-        this.atrMultiplier = 4.0;  // Increased from 2.2 - needs bigger moves to trigger
-        this.reverseMultiplier = 3.0;  // Increased from 4.5 - harder to break locks
-
-        // STABILITY FIX #3: Prediction Hold Timer
-        this.lastPredictionChange = 0;
-        this.predictionHoldSeconds = 60;  // Hold prediction for 60 seconds minimum
+        // Ultra-Fast Defaults
+        this.atrMultiplier = 2.2;
+        this.reverseMultiplier = 4.5;
 
         this.winStreak = 0;
         this.lossStreak = 0;
@@ -644,6 +402,9 @@ class SupremeBrain {
 
         // FINAL SEVEN: REGIME PERSISTENCE
         this.regimeHistory = [];
+
+        // FINAL SEVEN: NEWS AWARENESS (Placeholder)
+        this.newsState = 'NEUTRAL'; // NEUTRAL, NEGATIVE, POSITIVE
 
         this.pendingSignal = null;
         this.stabilityCounter = 0;
@@ -666,9 +427,6 @@ class SupremeBrain {
         // RECENT FORM TRACKER (Last 10 predictions)
         this.recentOutcomes = [];  // Array of true/false (win/loss)
 
-        // PREDICTION HISTORY (For real stability calculation)
-        this.predictionHistory = [];  // Track actual prediction changes
-
         // CYCLE COMMITMENT (Real-World Trading Lock)
         this.cycleCommitted = false;
         this.committedDirection = null;
@@ -686,19 +444,15 @@ class SupremeBrain {
             volume: { wins: 0, total: 0 }
         };
 
-        // STABILITY FIX #4: Cached Model Weights (only update at checkpoints)
+        // Cycle history tracking
+        this.currentCycleHistory = [];
+        this.lastCompletedCycle = null;
+        this.lastSnapshotTime = 0;
+        // Cached weights
         this.cachedWeights = {
             genesis: 1.0, physicist: 1.0, orderbook: 1.0, historian: 1.0,
             correlation: 1.0, macro: 1.0, funding: 1.0, volume: 1.0
         };
-
-        // STABILITY FIX #6: Conviction Lock Timestamp
-        this.lockTimestamp = 0;
-
-        // 🐛 CYCLE HISTORY TRACKING (for debugging)
-        this.currentCycleHistory = [];  // Snapshots of current cycle
-        this.lastCompletedCycle = null;  // Full previous cycle for export
-        this.cycleStartTime = 0;
     }
 
     async update() {
@@ -710,34 +464,22 @@ class SupremeBrain {
             const history = priceHistory[this.asset];
             const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
 
-            // 🛡️ SAFETY GATE #1: LATE-CYCLE PROTECTION (Prevent Suicide Bets)
-            // Don't make predictions with < 2 minutes left in cycle
-            // Market has already decided outcome - jumping in now is statistical suicide
-            if (elapsed > 780) {  // > 13 minutes elapsed (< 120s remaining)
-                this.prediction = 'WAIT';
-                this.confidence = 0;
-                this.tier = 'NONE';
-                this.edge = 0;
-                this.isProcessing = false;
-                return;  // EXIT EARLY - TOO LATE TO TRADE
-            }
-
-            // CRITICAL FIX: Check per-asset price freshness
-            const priceAge = Date.now() - (livePriceTimestamps[this.asset] || 0);
-            if (priceAge > 5000) {
-                // Price is >5 seconds old for THIS asset specifically
-                this.isProcessing = false;
-                return;
-            }
-
             if (!currentPrice || !startPrice || history.length < 10) {
                 this.isProcessing = false;
                 return;
             }
 
-            // 🎯 FIX #2: USE CACHED MODEL WEIGHTS (No recalculation every second)
-            // Weights are updated at checkpoint in evaluateOutcome(), not here
-            const weights = this.cachedWeights;
+            // FINAL SEVEN: CALCULATE MODEL WEIGHTS (Adaptive Learning)
+            const weights = {};
+            for (const [model, stats] of Object.entries(this.modelAccuracy)) {
+                if (stats.total < 10) weights[model] = 1.0; // Default weight
+                else {
+                    const accuracy = stats.wins / stats.total;
+                    // Boost high accuracy (>60%), penalize low accuracy (<40%)
+                    // Range: 0.2 to 2.0
+                    weights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
+                }
+            }
             const modelVotes = {}; // Track who voted what for learning
 
             // TRINITY UPGRADE: REGIME AWARENESS (Moved Up for Normalization)
@@ -935,133 +677,75 @@ class SupremeBrain {
             if (totalVotes > 0) {
                 const avgConf = totalConfidence / totalVotes;
                 const R = MathLib.calculateATR(history.slice(-Math.min(history.length, 60)), 5);
-                // STABILITY FIX #5: MUCH stronger hysteresis margin
-                const margin = R / atr < 0.7 ? 3.0 : (R / atr > 1.3 ? 5.0 : 4.0);  // Increased from 1.5/3.0/2.0
+                const margin = R / atr < 0.7 ? 1.5 : (R / atr > 1.3 ? 3.0 : 2.0);
 
-                // STABILITY FIX #3: PREDICTION HOLD TIMER
-                // Don't allow prediction changes within 60 seconds unless overwhelming evidence
-                const timeSinceLastChange = (Date.now() - this.lastPredictionChange) / 1000;
-                const canChangePrediction = timeSinceLastChange > this.predictionHoldSeconds;
-
-                if (!canChangePrediction && this.prediction !== 'WAIT' && this.prediction !== 'NEUTRAL') {
-                    // HOLD current prediction - only update confidence smoothly
-                    finalSignal = this.prediction;
-                    const rawConf = avgConf * (this.prediction === 'UP' ? upVotes / totalVotes : downVotes / totalVotes);
-                    // STABILITY FIX #1: Strong confidence smoothing (0.95/0.05)
-                    finalConfidence = this.confidence > 0
-                        ? this.confidence * 0.95 + rawConf * 0.05
-                        : rawConf;
+                if (this.prediction === 'DOWN') {
+                    if (upVotes > downVotes + margin) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
+                    else { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
+                } else if (this.prediction === 'UP') {
+                    if (downVotes > upVotes + margin) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
+                    else { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
                 } else {
-                    // Can change prediction - use hysteresis
-                    if (this.prediction === 'DOWN') {
-                        if (upVotes > downVotes + margin) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
-                        else { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
-                    } else if (this.prediction === 'UP') {
-                        if (downVotes > upVotes + margin) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
-                        else { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
-                    } else {
-                        // First prediction or WAIT state
-                        if (upVotes > downVotes + margin) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
-                        else if (downVotes > upVotes + margin) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
-                    }
-
-                    // STABILITY FIX #1: Apply confidence smoothing even on prediction changes
-                    if (this.confidence > 0 && finalSignal !== 'NEUTRAL') {
-                        finalConfidence = this.confidence * 0.90 + finalConfidence * 0.10;  // Slightly less aggressive when changing
-                    }
+                    if (upVotes > downVotes) { finalSignal = 'UP'; finalConfidence = avgConf * (upVotes / totalVotes); }
+                    else if (downVotes > upVotes) { finalSignal = 'DOWN'; finalConfidence = avgConf * (downVotes / totalVotes); }
                 }
+            }
+
+            // 🎯 PROPHET FIX #1: CONSENSUS BONUS (Unlocks 80-90% confidence)
+            if (totalVotes > 0 && finalSignal !== 'NEUTRAL') {
+                const winningVotes = finalSignal === 'UP' ? upVotes : downVotes;
+                const losingVotes = finalSignal === 'UP' ? downVotes : upVotes;
+                const consensus = (winningVotes - losingVotes) / totalVotes;
+
+                if (consensus >= 0.50) {
+                    const consensusBonus = 1.0 + (consensus - 0.50) * 2.0; // Up to 2.0x boost
+                    finalConfidence *= consensusBonus;
+                    log(`🎯 CONSENSUS BONUS: ${(consensusBonus * 100 - 100).toFixed(1)}% boost (${winningVotes}/${totalVotes} agree)`, this.asset);
+                }
+
+                // TUNE #2: EARLY SIGNAL BOOST (0-3 mins)
+                if (elapsed < 180) {
+                    finalConfidence *= 1.15; // 15% boost for early signals
+                    log(`🚀 EARLY SIGNAL BOOST: +15% confidence`, this.asset);
+                }
+
+                finalConfidence = Math.min(0.95, finalConfidence); // Cap at 95%
             }
 
             // FORCED PREDICTION
             if (elapsed >= 180 && finalSignal === 'NEUTRAL') {
-                convictionThreshold = 0.82;  // Lower for trending (easier to be confident)
-                advisoryThreshold = 0.68;
-            } else if (regime === 'VOLATILE') {
-                convictionThreshold = 0.85;
-                advisoryThreshold = 0.70;
+                if (force > 0) { finalSignal = 'UP'; finalConfidence = 0.6 + (absForce / (atr * 3)); }
+                else { finalSignal = 'DOWN'; finalConfidence = 0.6 + (absForce / (atr * 3)); }
+                finalConfidence = Math.min(0.75, finalConfidence);
             }
 
-            // REGIME PERSISTENCE (Smooth out regime flips)
-            this.regimeHistory.push(regime);
-            if (this.regimeHistory.length > 5) this.regimeHistory.shift();
-            const stableRegime = this.regimeHistory.length >= 3
-                ? (this.regimeHistory.slice(-3).every(r => r === regime) ? regime : this.regimeHistory[0])
-                : regime;
+            // === THRESHOLD DETERMINATION (Regime-Aware) ===
+            // 🎯 PROPHET FIX #2: FIXED THRESHOLDS (No regime chaos)
+            let tier = 'NONE';
+            const convictionThreshold = 0.75; // FIXED at 75% (Lowered from 77%)
+            const advisoryThreshold = 0.65;   // FIXED at 65%
 
-            // Multi-Timeframe Confirmation (less aggressive penalty)
-            const longTrend = history.length > 300 ? (currentPrice - history[0].p) : 0;
-            const trendDir = longTrend > 0 ? 'UP' : 'DOWN';
+            if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
+            else if (finalConfidence >= advisoryThreshold) tier = 'ADVISORY';
 
-            if (Math.abs(longTrend) > atr * 5 && finalSignal !== trendDir && finalSignal !== 'NEUTRAL') {
-                finalConfidence *= 0.92; // REDUCED penalty (was 0.85)
-            }
-
-            // Adjust based on track record (less aggressive)
-            if (this.stats.total < 24) {
-                convictionThreshold = 0.80;  // Lower for new bot
-                advisoryThreshold = 0.65;
-            }
-            if (this.winStreak > 3) {
-                convictionThreshold = 0.82;  // Slightly lower on win streak
-            }
-            if (this.lossStreak > 1) {
-                convictionThreshold = 0.90;  // Higher on loss streak (was 0.99)
-                advisoryThreshold = 0.75;
-            }
-
-            // Penalize poor win rate (less aggressive)
+            // Penalize poor win rate
             if (this.stats.total > 10) {
                 const winRate = this.stats.wins / this.stats.total;
-                if (winRate < 0.5) finalConfidence *= 0.92;  // Less harsh (was 0.85)
+                if (winRate < 0.5) finalConfidence *= 0.85;
             }
 
             // === CROSS-MARKET VALIDATION ===
-            // REAL-WORLD FIX: REMOVED contrarian penalty - assets can move independently
             const allPredictions = ASSETS.map(a => Brains[a].prediction);
             const upCount = allPredictions.filter(p => p === 'UP').length;
             const downCount = allPredictions.filter(p => p === 'DOWN').length;
 
             if ((finalSignal === 'UP' && downCount > upCount + 1) ||
                 (finalSignal === 'DOWN' && upCount > downCount + 1)) {
-                log(`📊 Contrarian (${upCount}U/${downCount}D) - Independent move`, this.asset);
+                finalConfidence *= 0.75; // Contrarian to market consensus
+                log(`⚠️ Contrarian (${upCount}U/${downCount}D)`, this.asset);
             }
 
             if (trendBias) finalConfidence *= trendBias;
-
-            // 🛡️ SAFETY GATE #2: MARKET ODDS PROTECTION (Prevent Suicide Bets)
-            // NEVER bet against overwhelming market consensus (>95%)
-            // If market is 99% Yes and we want to bet No, that's statistical suicide
-            const market = currentMarkets[this.asset];
-            if (market && finalSignal !== 'NEUTRAL' && finalSignal !== 'WAIT') {
-                const oppositeSideOdds = finalSignal === 'UP' ? market.noPrice : market.yesPrice;
-
-                // BLOCK: If market is >95% on opposite side
-                if (oppositeSideOdds > 0.95) {
-                    const timeLeft = INTERVAL_SECONDS - elapsed;
-                    log(`🛑 SUICIDE BET BLOCKED: Market ${(oppositeSideOdds * 100).toFixed(1)}% against ${finalSignal} with ${Math.floor(timeLeft / 60)}:${(timeLeft % 60).toString().padStart(2, '0')} left`, this.asset);
-                    finalSignal = 'WAIT';
-                    finalConfidence = 0;
-                    tier = 'NONE';
-                }
-            }
-
-            // 🛡️ SAFETY GATE #3: RAPID MOVE PROTECTION (Prevent Late Entry)
-            // If price moved >15% already and market priced it in, don't enter
-            const priceChange = Math.abs((currentPrice - startPrice) / startPrice);
-            if (priceChange > 0.15 && elapsed < 300) {  // >15% move in first 5 min
-                const market = currentMarkets[this.asset];
-                if (market && finalSignal !== 'NEUTRAL' && finalSignal !== 'WAIT') {
-                    const dominantOdds = Math.max(market.yesPrice, market.noPrice);
-                    // If market already priced it in (>75% odds), too late to enter
-                    if (dominantOdds > 0.75) {
-                        const timeLeft = INTERVAL_SECONDS - elapsed;
-                        log(`🛑 RAPID MOVE: ${(priceChange * 100).toFixed(1)}% in ${Math.floor(elapsed / 60)}m, market ${(dominantOdds * 100).toFixed(1)}% - too late to enter`, this.asset);
-                        finalSignal = 'WAIT';
-                        finalConfidence = 0;
-                        tier = 'NONE';
-                    }
-                }
-            }
 
             // Determine tier
             if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
@@ -1101,10 +785,16 @@ class SupremeBrain {
                 }
             }
 
-            // REAL-WORLD FIX: REMOVED CONFIDENCE DECAY
-            // The decay system was killing signals every few seconds in choppy markets
-            // Real markets have temporary reversals - this doesn't mean the prediction is wrong
-            // Confidence should come from MODEL agreement, not price micromovement validation
+            // LIVE CONFIDENCE DECAY
+            if (this.lastSignal && this.lastSignal.type !== 'NEUTRAL') {
+                const priceDelta = currentPrice - checkpointPrices[this.asset];
+                if ((this.lastSignal.type === 'UP' && priceDelta < -atr * 3) ||
+                    (this.lastSignal.type === 'DOWN' && priceDelta > atr * 3)) {
+                    finalConfidence *= 0.5;
+                    tier = 'NONE';
+                    log(`⚠️ CONFIDENCE DECAY: Signal invalidated`, this.asset);
+                }
+            }
 
             // Track vote history
             this.voteHistory.push({ up: upVotes, down: downVotes, time: Date.now() });
@@ -1118,16 +808,7 @@ class SupremeBrain {
                 if (prevLeader !== currLeader) voteFlips++;
             }
             const voteStability = this.voteHistory.length > 1 ? 1 - (voteFlips / (this.voteHistory.length - 1)) : 0;
-
-            // REAL-WORLD FIX: Also calculate REAL prediction stability (what user actually sees)
-            const predictionFlips = this.predictionHistory.filter((p, i) =>
-                i > 0 && p !== this.predictionHistory[i - 1] && p !== 'WAIT' && this.predictionHistory[i - 1] !== 'WAIT'
-            ).length;
-            const realStability = this.predictionHistory.length > 1
-                ? 1 - (predictionFlips / (this.predictionHistory.length - 1))
-                : 1;
-
-            this.voteTrendScore = realStability;  // Use REAL stability, not vote stability
+            this.voteTrendScore = voteStability;
 
             // === DEBOUNCE & STABILITY ===
             if (finalSignal !== this.prediction) {
@@ -1150,41 +831,20 @@ class SupremeBrain {
                         .join(', ');
 
                     this.lastSignal = { type: finalSignal, conf: finalConfidence, tier, time: Date.now(), modelVotes, reasons };
-                    this.predictionHistory.push(finalSignal); // Track actual predictions for stability calc
                     this.stabilityCounter = 0;
 
-                    // REAL-WORLD FIX: EARLY CYCLE COMMITMENT
-                    // Commit within first 60 seconds at 70%+ confidence
-                    // Original requirement (CONVICTION/ADVISORY in 5 min) was never reached
-                    if (!this.cycleCommitted && elapsed < 60 && finalConfidence >= 0.70) {
-                        const market = currentMarkets[this.asset];
-                        if (market) {
-                            const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-                            // Check market has direction (not 50/50 coin flip)
-                            const marketHasDirection = (currentOdds >= 0.55 || currentOdds <= 0.45);
-
-                            if (marketHasDirection) {
-                                this.cycleCommitted = true;
-                                this.committedDirection = finalSignal;
-                                this.commitTime = Date.now();
-                                log(`💎 CYCLE COMMITMENT: ${finalSignal} @ ${tier} tier, ${(finalConfidence * 100).toFixed(1)}% conf, ${(currentOdds * 100).toFixed(1)}% odds (LOCKED FOR CYCLE)`, this.asset);
-                            } else {
-                                log(`⏸️ 50/50 market (${(currentOdds * 100).toFixed(1)}% odds) - waiting for direction`, this.asset);
-                            }
-                        }
-                    }
-
-                    // SAFETY NET: If 50/50 market persists beyond 60s, commit anyway to prevent flip-flopping
-                    if (!this.cycleCommitted && elapsed >= 60 && elapsed < 90 && finalSignal !== 'NEUTRAL') {
+                    // CYCLE COMMITMENT: Lock direction for real-world trading
+                    // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
+                    // 🎯 PROPHET FIX #3: SMART COMMITMENT (80% threshold + first 60s only)
+                    if (!this.cycleCommitted && elapsed < 60 && finalConfidence >= 0.80) {
                         this.cycleCommitted = true;
                         this.committedDirection = finalSignal;
                         this.commitTime = Date.now();
-                        log(`💎 LATE COMMITMENT: ${finalSignal} @ ${tier} tier (market was 50/50, committing to prevent flip-flop)`, this.asset);
+                        log(`🔒 SMART COMMITMENT to ${finalSignal} at ${(finalConfidence * 100).toFixed(1)}% (${elapsed}s)`, this.asset);
                     }
 
                     // CONVICTION LOCK: High confidence + Reasonable odds (anti-whipsaw)
-                    // REAL-WORLD FIX: Lowered confidence requirement from 96% to 85%
-                    if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.85) {
+                    if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.96) {
                         const market = currentMarkets[this.asset];
                         if (market) {
                             const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
@@ -1195,120 +855,41 @@ class SupremeBrain {
                                 this.lockedDirection = finalSignal;
                                 this.lockTime = Date.now();
                                 this.lockConfidence = finalConfidence;
-                                this.lockTimestamp = Date.now();  // STABILITY FIX #6
                                 log(`🔒 CONVICTION LOCKED: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% confidence, ${(currentOdds * 100).toFixed(1)}% odds`, this.asset);
                             } else {
                                 log(`⚠️ High confidence (${(finalConfidence * 100).toFixed(1)}%) but odds too rich (${(currentOdds * 100).toFixed(1)}%) - skipping lock`, this.asset);
                             }
                         }
                     }
-
-                    // STABILITY FIX #3: Track prediction change timestamp
-                    if (this.prediction !== finalSignal) {
-                        this.lastPredictionChange = Date.now();
-                    }
                 }
             } else {
-                // === VISUAL STABILIZATION (The "Peace of Mind" Layer) ===
-                // Decouple raw model volatility from user-facing signals when locked
-
-                // 1. If Locked, STAY Locked visually (Ironclad Conviction with Hysteresis)
-                if (this.convictionLocked) {
-                    // STABILITY FIX #6: ENFORCE conviction lock for full 5 minutes
-                    const lockAge = (Date.now() - this.lockTimestamp) / 1000;
-
-                    if (lockAge < 300) {  // Force lock for 5 minutes
-                        tier = 'CONVICTION';
-                        finalSignal = this.lockedDirection;
-                        // DON'T let confidence drop below 90% while locked
-                        finalConfidence = Math.max(0.90, finalConfidence);
-
-                        if (finalConfidence < 0.93) {
-                            log(`⚠️ Lock weakening (${(finalConfidence * 100).toFixed(1)}%), but forced to hold for ${(300 - lockAge).toFixed(0)}s more`, this.asset);
-                        }
-                    } else {
-                        // Lock expired after 5 minutes
-                        // HYSTERESIS: Only break lock if confidence crashes below 80% (Catastrophic failure)
-                        if (finalConfidence < 0.80) {
-                            this.convictionLocked = false;
-                            log(`💥 LOCK BROKEN: Confidence crashed to ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
-                        } else {
-                            // LOCK HOLDS (Even if 81%, 82%, 83%...)
-                            tier = 'CONVICTION';
-                            finalSignal = this.lockedDirection; // Ensure direction matches lock
-
-                            // WARNING SYSTEM: If confidence dips into Buffer Zone (80-85%)
-                            if (finalConfidence < 0.85) {
-                                log(`⚠️ WARNING: Confidence weakening (${(finalConfidence * 100).toFixed(1)}%), but lock holds`, this.asset);
-                                // We allow confidence to show 80-85% here so user sees the warning
-                                // But Tier stays CONVICTION
-                            } else {
-                                // Strong lock - enforce 85% floor visually
-                                finalConfidence = Math.max(finalConfidence, 0.85);
-                            }
-                        }
-                    }
-                }
-
-                // 2. If Committed, maintain floor (Ironclad Commitment)
-                if (this.cycleCommitted) {
-                    finalSignal = this.committedDirection;
-                    // Never drop below ADVISORY once committed
-                    if (tier === 'NONE') tier = 'ADVISORY';
-
-                    // If we are holding against the tide, show resilience (min 70%)
-                    // This prevents the user from seeing "51% confidence" when we are committed
-                    if (finalConfidence < 0.70) finalConfidence = 0.70;
-                }
-
-                // 3. Apply Smoothed State
                 this.confidence = finalConfidence;
                 this.tier = tier;
-                this.prediction = finalSignal;
-
                 this.stabilityCounter = 0;
                 this.pendingSignal = null;
-
                 if (this.lastSignal) {
                     this.lastSignal.conf = finalConfidence;
                     this.lastSignal.tier = tier;
                 }
             }
 
-            // 🛡️ FIX #3: CORRECTED EDGE CALCULATION
-            // Edge = (Your Confidence - Market's Price for YOUR side) * 100
-            // Example: 90% confidence on UP, market says UP is 60% → Edge = 30%
-            // If market says UP is 99%, you need >99% confidence for positive edge
+            // EDGE CALCULATION
             if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
                 const market = currentMarkets[this.asset];
-                const ourSideOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
-                const oppositeSideOdds = this.prediction === 'UP' ? market.noPrice : market.yesPrice;
-
-                // TRUE edge calculation
-                this.edge = (this.confidence - ourSideOdds) * 100;
-
-                // WARNING: If betting against extreme odds (opposite > 90%)
-                if (oppositeSideOdds > 0.90 && this.edge > 0) {
-                    log(`⚠️ HIGH-RISK BET: Opposite side ${(oppositeSideOdds * 100).toFixed(1)}%, our confidence ${(this.confidence * 100).toFixed(1)}%, edge ${this.edge.toFixed(1)}%`, this.asset);
-                }
+                const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+                this.edge = (this.confidence - marketProb) * 100;
             } else {
                 this.edge = 0;
             }
 
-            // Check if this is a sniper-grade opportunity and alert if criteria met
-            if (NotificationManager.shouldSendAlert(this, this.asset)) {
-                NotificationManager.sendAlert(this.asset, this);
-            }
-
-            // 🐛 CYCLE HISTORY: Record snapshot every 10 seconds
-            const now = Date.now();
-            // Reuse elapsed variable from top of update() method
-
-            // Record snapshot every 10 seconds (to keep history manageable)
-            if (!this.lastSnapshotTime || (now - this.lastSnapshotTime) >= 10000) {
+            // Record snapshot every 10 seconds
+            const elapsed_for_snapshot = checkpointPrices[this.asset]
+                ? Math.floor((Date.now() - (getCurrentCheckpoint() * 1000)) / 1000)
+                : 0;
+            if (!this.lastSnapshotTime || (Date.now() - this.lastSnapshotTime) >= 10000) {
                 this.currentCycleHistory.push({
-                    timestamp: new Date(now).toISOString(),
-                    elapsed: elapsed,
+                    timestamp: new Date().toISOString(),
+                    elapsed: elapsed_for_snapshot,
                     prediction: this.prediction,
                     confidence: this.confidence,
                     tier: this.tier,
@@ -1323,9 +904,7 @@ class SupremeBrain {
                         no: currentMarkets[this.asset].noPrice
                     } : null
                 });
-                this.lastSnapshotTime = now;
-
-                // Keep history limited to prevent memory issues (max 100 snapshots per cycle)
+                this.lastSnapshotTime = Date.now();
                 if (this.currentCycleHistory.length > 100) {
                     this.currentCycleHistory.shift();
                 }
@@ -1426,74 +1005,71 @@ class SupremeBrain {
                         }
                     }
                 }
-                // Track recent form (last 10)
-                this.recentOutcomes.push(isWin);
-                if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
-
-                // 🎯 RECALCULATE CACHED WEIGHTS (Learning Loop)
-                // This is where the bot gets smarter over time
-                for (const [model, stats] of Object.entries(this.modelAccuracy)) {
-                    if (stats.total < 10) {
-                        // Not enough data yet, keep default weight
-                        this.cachedWeights[model] = 1.0;
-                    } else {
-                        // Calculate accuracy for this model
-                        const accuracy = stats.wins / stats.total;
-                        // Boost high-accuracy models (>60%), penalize low-accuracy (<40%)
-                        // Range: 0.2 to 2.0
-                        this.cachedWeights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
-                    }
-                }
-
-                // SMART MEMORY: Update the pattern that generated this signal (if any)
-                if (this.lastSignal && this.lastSignal.patternId) {
-                    const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
-                    if (pIndex !== -1) {
-                        memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
-                        memoryPatterns[this.asset][pIndex].matchCount++;
-                        if (isWin) {
-                            memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
-                        }
-                        // Persist update to Redis if available
-                        if (redisAvailable && redis) {
-                            redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
-                        }
-                    }
-                }
-
-                // Save pattern to Historian
-                const history = priceHistory[this.asset];
-                if (history.length >= 10) {
-                    const recent = history.slice(-10).map(x => x.p);
-                    const base = recent[0];
-                    const vector = recent.map(p => (p - base) / base);
-                    savePattern(this.asset, vector, actual);
-                }
-
-                this.lockState = 'NEUTRAL';
-                this.lockStrength = 0;
-                this.lastSignal = null;
-                this.prediction = 'WAIT';
-                this.tier = 'NONE';
-                this.stabilityCounter = 0;
-                this.pendingSignal = null;
-
-                // Reset conviction lock for new cycle
-                this.convictionLocked = false;
-                this.lockedDirection = null;
-                this.lockTime = null;
-                this.lockConfidence = 0;
-                this.voteHistory = [];
-
-                // Reset cycle commitment for new cycle
-                this.cycleCommitted = false;
-                this.committedDirection = null;
-                this.commitTime = null;
             }
+
+            // Update cached weights from modelAccuracy
+            for (const [model, stats] of Object.entries(this.modelAccuracy)) {
+                if (stats.total < 10) {
+                    this.cachedWeights[model] = 1.0;
+                } else {
+                    const accuracy = stats.wins / stats.total;
+                    this.cachedWeights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
+                }
+            }
+
+            // Track recent form (last 10)
+            this.recentOutcomes.push(isWin);
+            if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
+
+            // 🎯 PROPHET FIX #4: PATTERN LEARNING
+            if (this.lastSignal && this.lastSignal.patternId) {
+                const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
+                if (pIndex !== -1) {
+                    memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
+                    memoryPatterns[this.asset][pIndex].matchCount++;
+                    if (isWin) {
+                        memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
+                    }
+                    // Persist update to Redis if available
+                    if (redisAvailable && redis) {
+                        redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
+                    }
+                }
+            }
+
+            // Save pattern to Historian
+            const history = priceHistory[this.asset];
+            if (history.length >= 10) {
+                const recent = history.slice(-10).map(x => x.p);
+                const base = recent[0];
+                const vector = recent.map(p => (p - base) / base);
+                savePattern(this.asset, vector, actual);
+            }
+
+            this.lockState = 'NEUTRAL';
+            this.lockStrength = 0;
+            this.lastSignal = null;
+            this.prediction = 'WAIT';
+            this.tier = 'NONE';
+            this.stabilityCounter = 0;
+            this.pendingSignal = null;
+
+            // Reset conviction lock for new cycle
+            this.convictionLocked = false;
+            this.lockedDirection = null;
+            this.lockTime = null;
+            this.lockConfidence = 0;
+            this.voteHistory = [];
+
+            // Reset cycle commitment for new cycle
+            this.cycleCommitted = false;
+            this.committedDirection = null;
+            this.commitTime = null;
         }
     }
-
 }
+
+
 const Brains = {};
 ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
 
@@ -1519,9 +1095,9 @@ function connectWebSocket() {
                     livePrices[asset] = parseFloat(msg.payload.value);
                     const now = Date.now();
                     lastUpdateTimestamp = now;
-                    livePriceTimestamps[asset] = now; // Per-asset timestamp
                     priceHistory[asset].push({ t: now, p: msg.payload.value });
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
+                    livePriceTimestamps[asset] = now;
                 }
             }
             if (msg.topic === 'crypto_prices' && msg.type === 'update') {
@@ -1531,9 +1107,9 @@ function connectWebSocket() {
                     livePrices[asset] = parseFloat(msg.payload.value);
                     const now = Date.now();
                     lastUpdateTimestamp = now;
-                    livePriceTimestamps[asset] = now; // Per-asset timestamp
                     priceHistory[asset].push({ t: now, p: msg.payload.value });
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
+                    livePriceTimestamps[asset] = now;
                 }
             }
         } catch (e) { }
@@ -1748,7 +1324,7 @@ app.get('/', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PolyProphet - LIVE</title>
+    <title>Supreme Deity Oracle - LIVE</title>
     <meta charset="UTF-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -1866,210 +1442,16 @@ app.get('/', (req, res) => {
             background: rgba(0,150,255,0.5);
             transform: scale(1.05);
         }
-        .personal-note {
-            background: rgba(255,100,0,0.15);
-            border: 2px solid rgba(255,100,0,0.4);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 800px;
-            text-align: center;
-            font-size: 0.95em;
-            line-height: 1.6;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .personal-note strong { color: #ff6644; }
-        .usage-guide {
-            background: rgba(0,0,0,0.5);
-            border: 2px solid rgba(0,200,255,0.4);
-            border-radius: 12px;
-            padding: 20px;
-            margin: 20px auto;
-            max-width: 1000px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        .usage-guide h2 {
-            color: #00ccff;
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        .usage-guide .step {
-            background: rgba(255,255,255,0.05);
-            padding: 12px;
-            margin: 10px 0;
-            border-left: 4px solid #00ff88;
-            border-radius: 6px;
-        }
-        .usage-guide .step-number {
-            color: #00ff88;
-            font-weight: bold;
-            margin-right: 8px;
-        }
-        .usage-guide .tip {
-            background: rgba(255,200,0,0.1);
-            border-left: 4px solid #ffcc00;
-            padding: 10px;
-            margin: 15px 0;
-            border-radius: 6px;
-            font-size: 0.9em;
-        }
-        .usage-guide .tip::before {
-            content: "💡 ";
-            font-size: 1.2em;
-        }
-        .toggle-guide {
-            background: rgba(0,150,255,0.3);
-            border: 1px solid #0096ff;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9em;
-            margin: 10px auto;
-            display: block;
-            transition: all 0.3s;
-        }
-        .toggle-guide:hover {
-            background: rgba(0,150,255,0.5);
-            transform: scale(1.05);
-        }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>🔮 PolyProphet</h1>
+        <h1>🔮 SUPREME DEITY ORACLE</h1>
         <div class="status-bar">
             ✅ <strong>LIVE</strong> | Next Checkpoint: <span class="countdown" id="countdown">--:--</span> | <span id="last-update">Loading...</span>
+            <button onclick="exportData()" style="margin-left: 20px; padding: 5px 10px; background: #0096ff; border: none; border-radius: 4px; color: white; cursor: pointer;">💾 Export Data</button>
         </div>
     </div>
-    
-    <div class="personal-note">
-        <strong>If you're here, then I trust you.</strong> DO NOT SHARE THIS TO ANYONE ELSE OR TELL ANYONE ELSE ABOUT THIS. Don't lose my trust. Only the people that need to know have this, please keep it that way.<br><br>
-        <em>love, jeed ❤️</em>
-    </div>
-    
-    <button class="toggle-guide" onclick="toggleSettings()">
-        ⚙️ Notification Settings (Click to Configure)
-    </button>
-    
-    <button class="toggle-guide" onclick="document.getElementById('guide').style.display = document.getElementById('guide').style.display === 'none' ? 'block' : 'none'">
-        📖 How to Use PolyProphet (Click to Show/Hide)
-    </button>
-    
-    <!-- SETTINGS PANEL MODAL -->
-    <div id="overlay" onclick="toggleSettings()" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 999;"></div>
-    
-    <div id="settingsPanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #1a1a2e; padding: 30px; border-radius: 12px; border: 2px solid #0096ff; z-index: 1000; max-width: 700px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 0 50px rgba(0,150,255,0.3);">
-        <h2 style="color: #00ccff; text-align: center;">⚙️ Notification Settings</h2>
-        
-        <!-- Gmail Configuration -->
-        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h3 style="color: #fff;">📧 Gmail Configuration</h3>
-            <div id="gmailStatus" style="margin-bottom: 10px; color: #888;">Status: <span id="gmailStatusText">Not configured</span></div>
-            <input type="text" id="gmailUser" placeholder="your-email@gmail.com" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #0a0a12; color: white; width: calc(100% - 18px); margin-bottom: 8px;">
-            <input type="password" id="gmailPassword" placeholder="Gmail App Password (16 chars)" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #0a0a12; color: white; width: calc(100% - 18px); margin-bottom: 8px;">
-            <button onclick="saveGmailCreds()" style="background: #00ff88; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Save Gmail</button>
-            <small style="display: block; margin-top: 8px; color: #888;">Get App Password: <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: #00ccff;">Google Account</a></small>
-        </div>
-        
-        <!-- Twilio Configuration -->
-        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h3 style="color: #fff;">📱 Twilio Configuration</h3>
-            <div id="twilioStatus" style="margin-bottom: 10px; color: #888;">Status: <span id="twilioStatusText">Not configured</span></div>
-            <input type="text" id="twilioSid" placeholder="Account SID (AC...)" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #0a0a12; color: white; width: calc(100% - 18px); margin-bottom: 8px;">
-            <input type="password" id="twilioToken" placeholder="Auth Token" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #0a0a12; color: white; width: calc(100% - 18px); margin-bottom: 8px;">
-            <input type="text" id="twilioPhone" placeholder="Twilio Phone (+1234567890)" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #0a0a12; color: white; width: calc(100% - 18px); margin-bottom: 8px;">
-            <button onclick="saveTwilioCreds()" style="background: #00ff88; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Save Twilio</button>
-            <small style="display: block; margin-top: 8px; color: #888;">Sign up: <a href="https://twilio.com/try-twilio" target="_blank" style="color: #00ccff;">Twilio Free Trial</a></small>
-        </div>
-        
-        <!-- Your Contact Info -->
-        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h3 style="color: #fff;">👤 Your Contact Info</h3>
-            <div style="margin: 10px 0;">
-                <label style="display: block; margin-bottom: 5px;">Email to Receive Alerts:</label>
-                <input type="email" id="userEmail" placeholder="your@email.com" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #0a0a12; color: white; width: 60%;">
-                <button onclick="saveEmail()" style="background: #0096ff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-left: 8px;">Save</button>
-                <button onclick="testEmail()" style="background: #ffaa00; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-left: 8px;">Test</button>
-                <div id="userEmailStatus" style="margin-top: 5px; color: #888;">Not set</div>
-            </div>
-            <div style="margin: 10px 0;">
-                <label style="display: block; margin-bottom: 5px;">Phone to Receive SMS:</label>
-                <input type="tel" id="userPhone" placeholder="+1234567890" style="padding: 8px; border-radius: 4px; border: 1px solid #444; background: #0a0a12; color: white; width: 60%;">
-                <button onclick="savePhone()" style="background: #0096ff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-left: 8px;">Save</button>
-                <button onclick="testSMS()" style="background: #ffaa00; color: black; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin-left: 8px;">Test</button>
-                <div id="userPhoneStatus" style="margin-top: 5px; color: #888;">Not set</div>
-            </div>
-        </div>
-        
-        <!-- Browser Notifications -->
-        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h3 style="color: #fff;">🔔 Browser Notifications</h3>
-            <button onclick="enableBrowser()" style="background: #0096ff; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Enable Browser Alerts</button>
-            <div id="browserStatus" style="margin-top: 8px; color: #888;">Click to enable</div>
-        </div>
-        
-        <!-- Alert Preferences -->
-        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin: 15px 0;">
-            <h3 style="color: #fff;">🎯 When to Alert Me</h3>
-            <label style="display: block; margin: 8px 0;"><input type="checkbox" id="alertSniper" onchange="updatePrefs()" checked> Sniper Opportunities (90%+ Conviction) ⭐ Recommended</label>
-            <label style="display: block; margin: 8px 0;"><input type="checkbox" id="alertStandard" onchange="updatePrefs()"> Standard Conviction (85%+)</label>
-        </div>
-        
-        <button onclick="toggleSettings()" style="width: 100%; margin-top: 15px; background: #444; color: white; padding: 10px; border: none; border-radius: 4px; cursor: pointer;">Close</button>
-    </div>
-    
-    <div id="guide" class="usage-guide" style="display: none;">
-        <h2>💰 How to Turn Your Money into More Money</h2>
-        
-        <div class="step">
-            <span class="step-number">STEP 1:</span> <strong>Watch the Predictions</strong><br>
-            Each card shows a crypto (BTC, ETH, SOL, XRP). The bot predicts if it will go <strong style="color: #00ff00;">UP</strong> or <strong style="color: #ff0044;">DOWN</strong> in the next 15 minutes.
-        </div>
-        
-        <div class="step">
-            <span class="step-number">STEP 2:</span> <strong>Check the Confidence %</strong><br>
-            Higher % = More confident. Look for <strong>70%+</strong> predictions. The bot uses 8 AI models to analyze the market.
-        </div>
-        
-        <div class="step">
-            <span class="step-number">STEP 3:</span> <strong>Understand the Tiers</strong><br>
-            🔴 <strong>CONVICTION</strong> (85%+) = Strongest signal, highest confidence<br>
-            🟠 <strong>ADVISORY</strong> (70-84%) = Good signal, moderate confidence<br>
-            ⚫ <strong>NONE</strong> (<70%) = Weak signal, wait for better setup
-        </div>
-        
-        <div class="step">
-            <span class="step-number">STEP 4:</span> <strong>Click "View on Polymarket"</strong><br>
-            When you see a CONVICTION or ADVISORY signal, click the blue link to open the market on Polymarket.
-        </div>
-        
-        <div class="step">
-            <span class="step-number">STEP 5:</span> <strong>Place Your Bet</strong><br>
-            On Polymarket, buy shares for the direction shown (UP or DOWN). Use 2-5% of your bankroll per trade to stay safe.
-        </div>
-        
-        <div class="tip">
-            <strong>Pro Tip:</strong> Wait for the CONVICTION tier (🔴) or watch for the 🔒 LOCKED status. When locked, the bot is highly confident and won't change its mind.
-        </div>
-        
-        <div class="tip">
-            <strong>Important:</strong> The countdown shows time until the next cycle. Act fast when you see a strong signal in the first 5 minutes of a new cycle.
-        </div>
-        
-        <div class="tip">
-            <strong>Risk Management:</strong> Never bet everything on one prediction. Start small (£10-20), let it compound. This is how you turn £10 into £1,000+.
-        </div>
-        
-        <div class="step">
-            <span class="step-number">WINNING FORMULA:</span><br>
-            ✅ High confidence (80%+)<br>
-            ✅ CONVICTION or ADVISORY tier<br>
-            ✅ Early in the cycle (first 5 min)<br>
-            ✅ Check Win Rate (aim for assets with 60%+ win rate)
-        </div>
-    </div>
-    
     <div id="dashboard" class="grid">
         <div class="loading">Loading oracle data...</div>
     </div>
@@ -2083,6 +1465,18 @@ app.get('/', (req, res) => {
                 const dashboard = document.getElementById('dashboard');
                 const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
                 
+                // Helper function for safe HTML generation
+                function getMarketLinkHtml(market) {
+                    if (!market || !market.marketUrl) return '';
+                    return \`
+                        <div style="text-align: center; margin-top: 15px;">
+                            <a href="\${market.marketUrl}" target="_blank" class="market-link">
+                                📊 View on Polymarket →
+                            </a>
+                        </div>
+                    \`;
+                }
+
                 dashboard.innerHTML = assets.map(asset => {
                     const d = data[asset];
                     if (!d) return '';
@@ -2105,6 +1499,9 @@ app.get('/', (req, res) => {
                             
                             <div style="text-align: center; margin: 10px 0;">
                                 <span class="tier \${d.tier}">\${d.tier}</span>
+                                <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.8;">
+                                    Thresholds: <strong>\${(d.thresholds.conviction * 100).toFixed(0)}%</strong> / <strong>\${(d.thresholds.advisory * 100).toFixed(0)}%</strong>
+                                </div>
                             </div>
                             
                             <div class="price-display">
@@ -2140,10 +1537,13 @@ app.get('/', (req, res) => {
                                 <a href="\${d.market.marketUrl}" target="_blank" class="market-link">
                                     📊 View on Polymarket →
                                 </a>
-                                <button onclick="exportCycle('\${asset}')" style="background: #ff9900; color: black; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; margin-left: 8px; font-weight: bold;">
-                                    🐛 Export Debug
-                                </button>
                             </div>\` : ''}
+                            
+                            <div style="text-align: center; margin-top: 10px;">
+                                <button onclick="exportCycle('\${asset}')" style="padding: 4px 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: #aaa; cursor: pointer; font-size: 0.8em;">
+                                    📥 Export Last Cycle
+                                </button>
+                            </div>
                         </div>
                     \`;
                 }).join('');
@@ -2159,198 +1559,22 @@ app.get('/', (req, res) => {
                     minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
                 
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-            } catch (e) {
-                document.getElementById('dashboard').innerHTML = \`
-                    <div class="loading" style="color: #ff4444;">
-                        ❌ Error loading data: \${e.message}
-                    </div>
-                \`;
             }
         }
         
-        // Initial load
-        fetchData();
-        
-        // Auto-refresh every 1 second
-        setInterval(fetchData, 1000);
-        
-        // ==================== SETTINGS PANEL FUNCTIONS ====================
-        
-        function toggleSettings() {
-            const panel = document.getElementById('settingsPanel');
-            const overlay = document.getElementById('overlay');
-            const isVisible = panel.style.display === 'block';
-            panel.style.display = isVisible ? 'none' : 'block';
-            overlay.style.display = isVisible ? 'none' : 'block';
-            if (!isVisible) loadPreferences();
+        function exportData() {
+            window.open('/api/export', '_blank');
         }
-        
-        async function loadPreferences() {
-            try {
-                const res = await fetch('/api/preferences');
-                const prefs = await res.json();
-                
-                // Update status indicators
-                document.getElementById('gmailStatusText').textContent = prefs.gmailConfigured ? '✅ Configured' : 'Not configured';
-                document.getElementById('gmailStatusText').style.color = prefs.gmailConfigured ? '#00ff88' : '#888';
-                
-                document.getElementById('twilioStatusText').textContent = prefs.twilioConfigured ? '✅ Configured' : 'Not configured';
-                document.getElementById('twilioStatusText').style.color = prefs.twilioConfigured ? '#00ff88' : '#888';
-                
-                document.getElementById('userEmailStatus').textContent = prefs.email || 'Not set';
-                document.getElementById('userPhoneStatus').textContent = prefs.phone || 'Not set';
-                
-                // Update checkboxes
-                document.getElementById('alertSniper').checked = prefs.alertOnSniper !== false;
-                document.getElementById('alertStandard').checked = prefs.alertOnStandard === true;
-            } catch (e) {
-                console.error('Failed to load preferences:', e);
-            }
-        }
-        
-        async function saveGmailCreds() {
-            const gmailUser = document.getElementById('gmailUser').value;
-            const gmailPassword = document.getElementById('gmailPassword').value;
-            
-            if (!gmailUser || !gmailPassword) {
-                alert('Please enter both email and app password');
-                return;
-            }
-            
-            const res = await fetch('/api/save-gmail-credentials', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ gmailUser, gmailPassword })
-            });
-            
-            const result = await res.json();
-            if (result.success) {
-                alert('✅ Gmail configured successfully!');
-                document.getElementById('gmailUser').value = '';
-                document.getElementById('gmailPassword').value = '';
-                loadPreferences();
-            } else {
-                alert('❌ Failed to configure Gmail. Check credentials.');
-            }
-        }
-        
-        async function saveTwilioCreds() {
-            const twilioSid = document.getElementById('twilioSid').value;
-            const twilioToken = document.getElementById('twilioToken').value;
-            const twilioPhone = document.getElementById('twilioPhone').value;
-            
-            if (!twilioSid || !twilioToken || !twilioPhone) {
-                alert('Please enter SID, Token, and Phone');
-                return;
-            }
-            
-            const res = await fetch('/api/save-twilio-credentials', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ twilioSid, twilioToken, twilioPhone })
-            });
-            
-            const result = await res.json();
-            if (result.success) {
-                alert('✅ Twilio configured successfully!');
-                document.getElementById('twilioSid').value = '';
-                document.getElementById('twilioToken').value = '';
-                document.getElementById('twilioPhone').value = '';
-                loadPreferences();
-            } else {
-                alert('❌ Failed to configure Twilio. Check credentials.');
-            }
-        }
-        
-        async function saveEmail() {
-            const email = document.getElementById('userEmail').value;
-            if (!email) {
-                alert('Please enter an email');
-                return;
-            }
-            await fetch('/api/save-email', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ email })
-            });
-            alert('✅ Email saved!');
-            loadPreferences();
-        }
-        
-        async function savePhone() {
-            const phone = document.getElementById('userPhone').value;
-            if (!phone) {
-                alert('Please enter a phone number');
-                return;
-            }
-            await fetch('/api/save-phone', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ phone })
-            });
-            alert('✅ Phone saved!');
-            loadPreferences();
-        }
-        
-        async function testEmail() {
-            const res = await fetch('/api/test-email', { method: 'POST' });
-            if (res.ok) {
-                alert('✅ Test email sent! Check your inbox.');
-            } else {
-                const err = await res.json();
-                alert('❌ Error: ' + (err.error || 'Email not configured'));
-            }
-        }
-        
-        async function testSMS() {
-            const res = await fetch('/api/test-sms', { method: 'POST' });
-            if (res.ok) {
-                alert('✅ Test SMS sent!');
-            } else {
-                const err = await res.json();
-                alert('❌ Error: ' + (err.error || 'SMS not configured'));
-            }
-        }
-        
-        async function enableBrowser() {
-            if (!('Notification' in window)) {
-                alert('❌ Browser notifications not supported');
-                return;
-            }
-            
-            const permission = await Notification.requestPermission();
-            if (permission === 'granted') {
-                document.getElementById('browserStatus').textContent = '✅ Enabled';
-                document.getElementById('browserStatus').style.color = '#00ff88';
-                new Notification('🔔 Browser Alerts Enabled', {
-                    body: 'You will now receive sniper opportunity alerts!',
-                    icon: '/icon.png'
-                });
-            } else {
-                alert('❌ Permission denied');
-            }
-        }
-        
-        async function updatePrefs() {
-            const alertOnSniper = document.getElementById('alertSniper').checked;
-            const alertOnStandard = document.getElementById('alertStandard').checked;
-            
-            await fetch('/api/update-preferences', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    alertOnSniper,
-                    alertOnStandard,
-                    enableEmail: true,
-                    enableSMS: true
-                })
-            });
-        }
-        
+
         async function exportCycle(asset) {
             try {
                 const res = await fetch('/api/export-last-cycle?asset=' + asset);
                 const data = await res.json();
+                
+                if (data.error) {
+                    alert('❌ ' + data.error);
+                    return;
+                }
                 
                 const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
                 const url = URL.createObjectURL(blob);
@@ -2362,11 +1586,17 @@ app.get('/', (req, res) => {
                 document.body.removeChild(a);
                 URL.revokeObjectURL(url);
                 
-                alert('✅ Exported ' + asset + ' cycle data to JSON file!');
+                alert('✅ Exported ' + asset + ' cycle!');
             } catch (e) {
                 alert('❌ Export failed: ' + e.message);
             }
         }
+        
+        // Initial load
+        fetchData();
+        
+        // Auto-refresh every 1 second
+        setInterval(fetchData, 1000);
     </script>
 </body>
 </html>
@@ -2397,194 +1627,52 @@ app.get('/api/state', (req, res) => {
 
             // FINAL SEVEN METRICS
             kellySize: Brains[a].getKellySize(),
-            calibration: Brains[a].calibrationBuckets
+            calibration: Brains[a].calibrationBuckets,
+            newsState: Brains[a].newsState,
+            kellySize: Brains[a].getKellySize(),
+            calibration: Brains[a].calibrationBuckets,
+            newsState: Brains[a].newsState,
+            thresholds: { conviction: 0.75, advisory: 0.65 }
         };
     });
     res.json(response);
 });
 
-// ==================== NOTIFICATION API ENDPOINTS ====================
+app.get('/api/export', (req, res) => {
+    const exportData = {
+        timestamp: Date.now(),
+        assets: {}
+    };
 
-app.get('/api/preferences', (req, res) => {
-    // Return preferences but hide sensitive credentials (only show if configured)
-    res.json({
-        email: userPreferences.email,
-        phone: userPreferences.phone,
-        gmailConfigured: !!(userPreferences.gmailUser && userPreferences.gmailPassword),
-        twilioConfigured: !!(userPreferences.twilioSid && userPreferences.twilioToken && userPreferences.twilioPhone),
-        enableEmail: userPreferences.enableEmail,
-        enableSMS: userPreferences.enableSMS,
-        enableBrowser: userPreferences.enableBrowser,
-        alertOnSniper: userPreferences.alertOnSniper,
-        alertOnStandard: userPreferences.alertOnStandard
+    ASSETS.forEach(a => {
+        exportData.assets[a] = {
+            prediction: Brains[a].prediction,
+            confidence: Brains[a].confidence,
+            tier: Brains[a].tier,
+            stats: Brains[a].stats,
+            history: Brains[a].voteHistory,
+            patterns: memoryPatterns[a] ? memoryPatterns[a].length : 0
+        };
     });
+
+    res.header('Content-Type', 'application/json');
+    res.send(JSON.stringify(exportData, null, 2));
 });
 
-app.post('/api/save-email', async (req, res) => {
-    userPreferences.email = req.body.email;
-    if (redisAvailable && redis) await redis.set('prefs:email', req.body.email);
-    log(`📧 Email saved: ${req.body.email}`);
-    res.json({ success: true });
-});
-
-app.post('/api/remove-email', async (req, res) => {
-    userPreferences.email = null;
-    if (redisAvailable && redis) await redis.del('prefs:email');
-    log('📧 Email removed');
-    res.json({ success: true });
-});
-
-app.post('/api/save-phone', async (req, res) => {
-    userPreferences.phone = req.body.phone;
-    if (redisAvailable && redis) await redis.set('prefs:phone', req.body.phone);
-    log(`📱 Phone saved: ${req.body.phone}`);
-    res.json({ success: true });
-});
-
-app.post('/api/remove-phone', async (req, res) => {
-    userPreferences.phone = null;
-    if (redisAvailable && redis) await redis.del('prefs:phone');
-    log('📱 Phone removed');
-    res.json({ success: true });
-});
-
-app.post('/api/test-email', async (req, res) => {
-    if (!emailTransporter || !userPreferences.email) {
-        return res.status(400).json({ error: 'Email not configured' });
-    }
-    try {
-        await emailTransporter.sendMail({
-            from: process.env.GMAIL_USER,
-            to: userPreferences.email,
-            subject: '🧪 PolyProphet Test',
-            text: 'This is a test notification from PolyProphet Supreme. If you received this, email alerts are working!'
-        });
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.post('/api/test-sms', async (req, res) => {
-    if (!twilioClient || !userPreferences.phone) {
-        return res.status(400).json({ error: 'SMS not configured' });
-    }
-    try {
-        await twilioClient.messages.create({
-            body: '🧪 PolyProphet Test SMS - Alerts working!',
-            from: process.env.TWILIO_PHONE,
-            to: userPreferences.phone
-        });
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.get('/api/alert-history', (req, res) => {
-    res.json(alertHistory);
-});
-
-app.post('/api/update-preferences', async (req, res) => {
-    const { alertOnSniper, alertOnStandard, enableEmail, enableSMS } = req.body;
-
-    if (alertOnSniper !== undefined) userPreferences.alertOnSniper = alertOnSniper;
-    if (alertOnStandard !== undefined) userPreferences.alertOnStandard = alertOnStandard;
-    if (enableEmail !== undefined) userPreferences.enableEmail = enableEmail;
-    if (enableSMS !== undefined) userPreferences.enableSMS = enableSMS;
-
-    if (redisAvailable && redis) {
-        await redis.set('prefs:config', JSON.stringify({
-            alertOnSniper: userPreferences.alertOnSniper,
-            alertOnStandard: userPreferences.alertOnStandard,
-            enableEmail: userPreferences.enableEmail,
-            enableSMS: userPreferences.enableSMS
-        }));
-    }
-
-    log('⚙️ Preferences updated');
-    res.json({ success: true });
-});
-
-app.get('/api/system-alerts', (req, res) => {
-    res.json(systemAlerts);
-});
-
-// ==================== CREDENTIAL CONFIGURATION ENDPOINTS ====================
-
-app.post('/api/save-gmail-credentials', async (req, res) => {
-    const { gmailUser, gmailPassword } = req.body;
-
-    userPreferences.gmailUser = gmailUser;
-    userPreferences.gmailPassword = gmailPassword;
-
-    // Save to Redis
-    if (redisAvailable && redis) {
-        await redis.set('creds:gmailUser', gmailUser);
-        await redis.set('creds:gmailPassword', gmailPassword);
-    }
-
-    // Re-initialize email transporter
-    const success = initEmailTransporter();
-
-    log(`📧 Gmail credentials ${success ? 'saved and activated' : 'saved but failed to activate'}`);
-    res.json({ success });
-});
-
-app.post('/api/save-twilio-credentials', async (req, res) => {
-    const { twilioSid, twilioToken, twilioPhone } = req.body;
-
-    userPreferences.twilioSid = twilioSid;
-    userPreferences.twilioToken = twilioToken;
-    userPreferences.twilioPhone = twilioPhone;
-
-    // Save to Redis
-    if (redisAvailable && redis) {
-        await redis.set('creds:twilioSid', twilioSid);
-        await redis.set('creds:twilioToken', twilioToken);
-        await redis.set('creds:twilioPhone', twilioPhone);
-    }
-
-    // Re-initialize Twilio client
-    const success = initTwilioClient();
-
-    log(`📱 Twilio credentials ${success ? 'saved and activated' : 'saved but failed to activate'}`);
-    res.json({ success });
-});
-
-//After line 2527, add:
 app.get('/api/export-last-cycle', (req, res) => {
     const asset = req.query.asset || 'BTC';
     const brain = Brains[asset];
 
-    if (!brain.lastCompletedCycle) {
-        return res.status(404).json({
-            error: 'No completed cycle yet',
-            message: 'Wait 15 minutes for first cycle'
-        });
+    if (!brain || !brain.lastCompletedCycle) {
+        return res.json({ error: 'No cycle data available for ' + asset });
     }
 
     res.json({
-        asset,
+        asset: asset,
         cycle: brain.lastCompletedCycle,
         modelWeights: brain.cachedWeights,
         stats: brain.stats
     });
-});
-
-// Service Worker for Browser Notifications
-app.get('/sw.js', (req, res) => {
-    res.setHeader('Content-Type', 'application/javascript');
-    res.send(`
-        self.addEventListener('push', event => {
-            const data = event.data.json();
-            self.registration.showNotification(data.title, {
-                body: data.body,
-                icon: '/icon.png',
-                badge: '/badge.png'
-            });
-        });
-    `);
 });
 
 // ==================== CHECKPOINT LOGIC ====================
@@ -2609,22 +1697,6 @@ setInterval(() => {
                 if (checkpointPrices[a] && livePrices[a]) {
                     Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
                     log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
-
-                    // 🐛 CYCLE HISTORY: Save completed cycle for export
-                    if (Brains[a].currentCycleHistory.length > 0) {
-                        Brains[a].lastCompletedCycle = {
-                            checkpointStart: cp - INTERVAL_SECONDS,
-                            checkpointEnd: cp,
-                            startPrice: checkpointPrices[a],
-                            endPrice: livePrices[a],
-                            outcome: livePrices[a] > checkpointPrices[a] ? 'UP' : 'DOWN',
-                            snapshots: [...Brains[a].currentCycleHistory]
-                        };
-                        // Clear current cycle history for new cycle
-                        Brains[a].currentCycleHistory = [];
-                        Brains[a].cycleStartTime = Date.now();
-                        log(`💾 Saved cycle history (${Brains[a].lastCompletedCycle.snapshots.length} snapshots)`, a);
-                    }
                 }
 
                 // Update checkpoints for the NEW cycle with FRESH price
@@ -2633,6 +1705,20 @@ setInterval(() => {
 
                 // Mark this checkpoint as evaluated
                 lastEvaluatedCheckpoint[a] = cp;
+
+                // Save completed cycle
+                if (Brains[a].currentCycleHistory.length > 0) {
+                    Brains[a].lastCompletedCycle = {
+                        checkpointStart: cp - INTERVAL_SECONDS,
+                        checkpointEnd: cp,
+                        startPrice: checkpointPrices[a],
+                        endPrice: livePrices[a],
+                        outcome: livePrices[a] > checkpointPrices[a] ? 'UP' : 'DOWN',
+                        snapshots: [...Brains[a].currentCycleHistory]
+                    };
+                    Brains[a].currentCycleHistory = [];
+                    log(`💾 Saved cycle history (${Brains[a].lastCompletedCycle.snapshots.length} snapshots)`, a);
+                }
 
                 log(`🔄 NEW Checkpoint: $${checkpointPrices[a]?.toFixed(2) || 'pending'}`, a);
             }
@@ -2681,44 +1767,6 @@ async function startup() {
 
     await initPatternStorage();
     await loadState();
-
-    // Load notification preferences and credentials from Redis
-    if (redisAvailable && redis) {
-        try {
-            // Load user contact info
-            userPreferences.email = await redis.get('prefs:email');
-            userPreferences.phone = await redis.get('prefs:phone');
-
-            // Load credentials
-            const gmailUser = await redis.get('creds:gmailUser');
-            const gmailPassword = await redis.get('creds:gmailPassword');
-            const twilioSid = await redis.get('creds:twilioSid');
-            const twilioToken = await redis.get('creds:twilioToken');
-            const twilioPhone = await redis.get('creds:twilioPhone');
-
-            if (gmailUser) userPreferences.gmailUser = gmailUser;
-            if (gmailPassword) userPreferences.gmailPassword = gmailPassword;
-            if (twilioSid) userPreferences.twilioSid = twilioSid;
-            if (twilioToken) userPreferences.twilioToken = twilioToken;
-            if (twilioPhone) userPreferences.twilioPhone = twilioPhone;
-
-            // Re-initialize transporters if credentials found
-            if (gmailUser && gmailPassword) initEmailTransporter();
-            if (twilioSid && twilioToken && twilioPhone) initTwilioClient();
-
-            // Load toggles
-            const config = await redis.get('prefs:config');
-            if (config) {
-                const parsed = JSON.parse(config);
-                Object.assign(userPreferences, parsed);
-            }
-
-            log('📧 Notification preferences and credentials loaded');
-        } catch (e) {
-            log(`⚠️ Failed to load notification preferences: ${e.message}`);
-        }
-    }
-
     connectWebSocket();
 
     setInterval(() => ASSETS.forEach(a => Brains[a].update()), 1000);
