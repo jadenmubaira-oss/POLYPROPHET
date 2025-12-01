@@ -698,10 +698,12 @@ class SupremeBrain {
                 const losingVotes = finalSignal === 'UP' ? downVotes : upVotes;
                 const consensus = (winningVotes - losingVotes) / totalVotes;
 
-                if (consensus >= 0.25) { // Lowered to capture more valid trades (was 0.50)
-                    const consensusBonus = 1.0 + (consensus - 0.50) * 2.0; // Up to 2.0x boost
+                if (consensus >= 0.25) { // Lowered to capture more valid trades
+                    // 🔧 REAL-WORLD FIX #1: Linear boost from 1.0x (25% consensus) to 2.0x (100% consensus)
+                    // OLD BUG: Formula penalized 25-50% consensus with multipliers <1.0
+                    const consensusBonus = 1.0 + (consensus - 0.25) * (1.0 / 0.75);
                     finalConfidence *= consensusBonus;
-                    log(`🎯 CONSENSUS BONUS: ${(consensusBonus * 100 - 100).toFixed(1)}% boost (${winningVotes}/${totalVotes} agree)`, this.asset);
+                    log(`🎯 CONSENSUS BONUS: ${((consensusBonus - 1.0) * 100).toFixed(1)}% boost (${winningVotes}/${totalVotes} agree, ${(consensus*100).toFixed(0)}% consensus)`, this.asset);
                 }
 
                 // TUNE #2: EARLY SIGNAL BOOST (0-3 mins)
@@ -758,6 +760,19 @@ class SupremeBrain {
             }
 
             if (trendBias) finalConfidence *= trendBias;
+
+            // 🔧 REAL-WORLD FIX #3: Directional Sanity Check
+            // Prevents false CONVICTION in range-bound markets
+            const priceDelta = currentPrice - checkpointPrices[this.asset];
+            const deltaPercent = (priceDelta / checkpointPrices[this.asset]) * 100;
+
+            if (Math.abs(deltaPercent) < 0.05 && finalSignal !== 'NEUTRAL') {
+                // Price barely moved (<0.05%) - penalize directional CONVICTION
+                if (finalConfidence >= convictionThreshold) {
+                    finalConfidence *= 0.85; // 15% penalty for low-movement predictions
+                    log(`⚠️ Low price movement (${deltaPercent.toFixed(3)}%) - reducing confidence to ${(finalConfidence*100).toFixed(1)}%`, this.asset);
+                }
+            }
 
             // Determine tier
             if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
@@ -848,8 +863,9 @@ class SupremeBrain {
 
                     // CYCLE COMMITMENT: Lock direction for real-world trading
                     // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
-                    // 🎯 PROPHET FIX #3: SMART COMMITMENT (80% threshold + first 60s only)
-                    if (!this.cycleCommitted && elapsed < 60 && finalConfidence >= 0.80) {
+                    // 🎯 PROPHET FIX #3: SMART COMMITMENT (75% threshold + first 60s only)
+                    // 🔧 REAL-WORLD FIX #2: Lowered from 80% to 75% (achieved only 25% commitment rate at 80%)
+                    if (!this.cycleCommitted && elapsed < 60 && finalConfidence >= 0.75) {
                         this.cycleCommitted = true;
                         this.committedDirection = finalSignal;
                         this.commitTime = Date.now();
