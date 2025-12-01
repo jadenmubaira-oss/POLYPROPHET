@@ -1650,6 +1650,21 @@ app.get('/api/state', (req, res) => {
         const recentTotal = Brains[a].recentOutcomes.length;
         const recentAccuracy = recentTotal > 0 ? (recentWins / recentTotal) * 100 : 0;
 
+        // 🔧 BUG FIX: Calculate ACTUAL adaptive thresholds (not hardcoded)
+        const history = priceHistory[a];
+        const regime = history && history.length >= 60 ? MathLib.getMarketRegime(history) : 'UNKNOWN';
+        let convictionThreshold, advisoryThreshold;
+        if (regime === 'VOLATILE') {
+            convictionThreshold = 0.82;
+            advisoryThreshold = 0.72;
+        } else if (regime === 'CHOPPY') {
+            convictionThreshold = 0.70;
+            advisoryThreshold = 0.60;
+        } else {
+            convictionThreshold = 0.75;
+            advisoryThreshold = 0.65;
+        }
+
         response[a] = {
             prediction: Brains[a].prediction,
             confidence: Brains[a].confidence,
@@ -1676,7 +1691,8 @@ app.get('/api/state', (req, res) => {
             kellySize: Brains[a].getKellySize(),
             calibration: Brains[a].calibrationBuckets,
             newsState: Brains[a].newsState,
-            thresholds: { conviction: 0.75, advisory: 0.65 }
+            regime: regime, // NEW: Show current regime
+            thresholds: { conviction: convictionThreshold, advisory: advisoryThreshold } // 🔧 FIXED: Now dynamic!
         };
     });
     res.json(response);
