@@ -902,6 +902,16 @@ class SupremeBrain {
                             }
                         }
                     }
+                    return 1;
+                })();
+
+                if (this.stabilityCounter >= requiredStability) {
+                    this.prediction = finalSignal;
+                    this.confidence = finalConfidence;
+                    this.tier = tier;
+                    this.stabilityCounter = 0;
+                    this.pendingSignal = null;
+                    log(`✅ PREDICTION FLIP: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
                 }
             } else {
                 this.confidence = finalConfidence;
