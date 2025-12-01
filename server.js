@@ -1608,7 +1608,7 @@ app.get('/', (req, res) => {
     </script>
 </body>
 </html>
-    \`);
+    `);
 });
 
 app.get('/api/state', (req, res) => {
@@ -1647,7 +1647,7 @@ app.get('/api/state', (req, res) => {
 app.get('/api/export', (req, res) => {
     const asset = req.query.asset || 'BTC';
     if (!Brains[asset]) return res.status(404).send('Asset not found');
-    
+
     // Convert current cycle history to CSV
     const history = Brains[asset].currentCycleHistory || [];
     if (history.length === 0) return res.send('No data available');
@@ -1671,7 +1671,7 @@ app.get('/api/export', (req, res) => {
     ].join(','));
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename = ${ asset } _history.csv`);
+    res.setHeader('Content-Disposition', `attachment; filename = ${asset} _history.csv`);
     res.send([headers.join(','), ...rows].join('\n'));
 });
 
@@ -1696,7 +1696,7 @@ setInterval(() => {
                 // Use CONFIRMED fresh prices for accurate outcome evaluation
                 if (checkpointPrices[a] && livePrices[a]) {
                     Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
-                    log(`📊 Evaluated checkpoint ${ cp - INTERVAL_SECONDS } (fresh data)`, a);
+                    log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
                 }
 
                 // Update checkpoints for the NEW cycle with FRESH price
@@ -1706,7 +1706,7 @@ setInterval(() => {
                 // Mark this checkpoint as evaluated
                 lastEvaluatedCheckpoint[a] = cp;
 
-                log(`🔄 NEW Checkpoint: $${ checkpointPrices[a]?.toFixed(2) || 'pending' } `, a);
+                log(`🔄 NEW Checkpoint: $${checkpointPrices[a]?.toFixed(2) || 'pending'} `, a);
             }
         }
     });
@@ -1765,7 +1765,7 @@ async function startup() {
     setInterval(fetchFundingRates, 300000);
 
     server.listen(PORT, () => {
-        log(`⚡ SUPREME DEITY SERVER ONLINE on port ${ PORT } `);
+        log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);
         log(`🌐 Access at: http://localhost:${PORT}`);
     });
 }
