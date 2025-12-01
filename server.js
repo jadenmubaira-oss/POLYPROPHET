@@ -699,9 +699,10 @@ class SupremeBrain {
                 const consensus = (winningVotes - losingVotes) / totalVotes;
 
                 if (consensus >= 0.25) { // Lowered to capture more valid trades
-                    // 🔧 REAL-WORLD FIX #1: Linear boost from 1.0x (25% consensus) to 2.0x (100% consensus)
-                    // OLD BUG: Formula penalized 25-50% consensus with multipliers <1.0
-                    const consensusBonus = 1.0 + (consensus - 0.25) * (1.0 / 0.75);
+                    // 🔧 PROPHET ADJUSTMENT: Dampened boost to prevent "False Convictions"
+                    // OLD: 1.0 + (consensus - 0.25) * (1.0 / 0.75) -> Too aggressive (33% boost at 50% consensus)
+                    // NEW: 1.0 + (consensus - 0.25) * 0.66 -> Safer (16% boost at 50% consensus)
+                    const consensusBonus = 1.0 + (consensus - 0.25) * 0.66;
                     finalConfidence *= consensusBonus;
                     log(`🎯 CONSENSUS BONUS: ${((consensusBonus - 1.0) * 100).toFixed(1)}% boost (${winningVotes}/${totalVotes} agree, ${(consensus * 100).toFixed(0)}% consensus)`, this.asset);
                 }
@@ -728,16 +729,15 @@ class SupremeBrain {
             let convictionThreshold, advisoryThreshold;
 
             // Adapt thresholds based on market regime for optimal trade frequency + quality
-            // 🔧 PINNACLE UPDATE: Raised thresholds to ensure 85%+ accuracy (Quality > Quantity)
             if (regime === 'VOLATILE') {
-                convictionThreshold = 0.87; // Very high bar in volatile markets
-                advisoryThreshold = 0.77;
+                convictionThreshold = 0.82; // Higher bar in volatile markets (avoid whipsaws)
+                advisoryThreshold = 0.72;
             } else if (regime === 'CHOPPY') {
-                convictionThreshold = 0.75; // Standard bar in choppy markets
-                advisoryThreshold = 0.65;
+                convictionThreshold = 0.70; // Lower bar in choppy markets (capture subtle edges)
+                advisoryThreshold = 0.60;
             } else { // TRENDING or UNKNOWN
-                convictionThreshold = 0.80; // 🎯 PINNACLE BASELINE: 80% (was 75%)
-                advisoryThreshold = 0.70;
+                convictionThreshold = 0.75; // Standard thresholds (optimal baseline)
+                advisoryThreshold = 0.65;
             }
 
             if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
@@ -762,28 +762,23 @@ class SupremeBrain {
 
             if (trendBias) finalConfidence *= trendBias;
 
-            // 🔧 PINNACLE FIX: SYMMETRIC Directional Watchdog
-            // Filters noise in range-bound markets WITHOUT creating directional bias
-            const priceDelta = currentPrice - checkpointPrices[this.asset];
-            const deltaPercent = (priceDelta / checkpointPrices[this.asset]) * 100;
-
-            if (Math.abs(deltaPercent) < 0.05 && finalSignal !== 'NEUTRAL') {
-                // Price barely moved (<0.05%) - penalize confidence SYMMETRICALLY
-                if (finalConfidence >= convictionThreshold) {
-                    finalConfidence *= 0.85; // 15% penalty for low-movement predictions
-                    log(`⚠️ Low price movement (${deltaPercent.toFixed(3)}%) - reducing confidence to ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
-                }
-            }
-
-            // Determine tier (with MEGA_CONVICTION support)
-            if (finalConfidence >= 0.90) tier = 'MEGA_CONVICTION'; // 🏆 GOD TIER
-            else if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
+            // Determine tier
+            if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
             else if (finalConfidence >= advisoryThreshold) tier = 'ADVISORY';
 
             // TIER LOCK
             if (this.tier === 'CONVICTION' && tier === 'ADVISORY' && this.prediction === finalSignal) {
                 tier = 'CONVICTION';
                 finalConfidence = Math.max(finalConfidence, convictionThreshold);
+            }
+
+            // 💎 PROPHET FIX #2: CYCLE COMMITMENT TRIGGER (The "Iron Hand")
+            // If we hit CONVICTION tier, we COMMIT to this direction for the rest of the cycle.
+            if (!this.cycleCommitted && tier === 'CONVICTION' && finalSignal !== 'NEUTRAL') {
+                this.cycleCommitted = true;
+                this.committedDirection = finalSignal;
+                this.commitTime = Date.now();
+                log(`💎 CYCLE COMMITMENT ACTIVATED: Locked to ${finalSignal} for remainder of cycle`, this.asset);
             }
 
             // === CYCLE COMMITMENT LOCK (Real-World Trading Mode) ===
@@ -860,28 +855,6 @@ class SupremeBrain {
                         .map(([m]) => m)
                         .join(', ');
 
-                    this.lastSignal = { type: finalSignal, conf: finalConfidence, tier, time: Date.now(), modelVotes, reasons };
-                    this.stabilityCounter = 0;
-
-                    // CYCLE COMMITMENT: Lock direction for real-world trading
-                    // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
-                    // 🎯 PINNACLE UPDATE: SMART COMMITMENT V2
-                    // Requires 80% confidence (Quality) OR 90% (God Tier)
-                    if (!this.cycleCommitted && elapsed < 60) {
-                        if (finalConfidence >= 0.80) { // Raised from 75% to 80%
-                            this.cycleCommitted = true;
-                            this.megaConviction = (finalConfidence >= 0.90);
-                            log(`💎 COMMITTED: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% ${this.megaConviction ? '(MEGA)' : ''}`, this.asset);
-                        }
-                    }
-
-                    // Legacy check for structure (will be true if above block triggered)
-                    if (this.cycleCommitted && !this.committedDirection) {
-                        this.committedDirection = finalSignal;
-                        this.commitTime = Date.now();
-                    }
-
-                    // Fallback for existing logic flow
 
 
                     // CONVICTION LOCK: High confidence + Reasonable odds (anti-whipsaw)
