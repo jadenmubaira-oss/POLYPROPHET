@@ -85,7 +85,6 @@ let currentMarkets = {};
 let lastUpdateTimestamp = Date.now();
 let fearGreedIndex = 50;
 let fundingRates = {};
-let livePriceTimestamps = {}; // Per-asset price timestamps for accurate staleness detection
 
 // Initialize State
 ASSETS.forEach(asset => {
@@ -96,7 +95,6 @@ ASSETS.forEach(asset => {
     livePrices[asset] = null;
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
-    livePriceTimestamps[asset] = 0;
 });
 
 // Logging
@@ -297,7 +295,7 @@ async function savePattern(asset, vector, outcome) {
                 // If matched enough times, check win rate
                 if (p.matchCount >= 5) {
                     const winRate = p.wins / p.matchCount;
-                    return winRate >= 0.55; // Keep only 55%+ win rate patterns (OPTIMIZED for £1M goal)
+                    return winRate >= 0.40; // Keep only 40%+ win rate patterns
                 }
                 return true; // Keep unproven recent patterns
             }
@@ -401,8 +399,7 @@ class SupremeBrain {
         };
 
         // FINAL SEVEN: REGIME PERSISTENCE
-        // FINAL SEVEN: REGIME PERSISTENCE (Removed to prevent memory leak)
-        // this.regimeHistory = [];
+        this.regimeHistory = [];
 
         // FINAL SEVEN: NEWS AWARENESS (Placeholder)
         this.newsState = 'NEUTRAL'; // NEUTRAL, NEGATIVE, POSITIVE
@@ -445,15 +442,8 @@ class SupremeBrain {
             volume: { wins: 0, total: 0 }
         };
 
-        // Cycle history tracking
+        // EXPORT HISTORY TRACKER
         this.currentCycleHistory = [];
-        this.lastCompletedCycle = null;
-        this.lastSnapshotTime = 0;
-        // Cached weights
-        this.cachedWeights = {
-            genesis: 1.0, physicist: 1.0, orderbook: 1.0, historian: 1.0,
-            correlation: 1.0, macro: 1.0, funding: 1.0, volume: 1.0
-        };
     }
 
     async update() {
@@ -672,6 +662,17 @@ class SupremeBrain {
             const downVotes = votes.DOWN;
             const totalVotes = upVotes + downVotes;
 
+            // CONSENSUS BONUS (The "Prophet" Multiplier)
+            // If models are highly aligned, boost confidence
+            if (totalVotes > 0) {
+                const voteRatio = Math.max(upVotes, downVotes) / totalVotes;
+                if (voteRatio > 0.8) {
+                    // 80%+ agreement = 1.2x confidence boost
+                    totalConfidence *= 1.2;
+                    log(`✨ CONSENSUS BONUS: High agreement (${(voteRatio * 100).toFixed(0)}%)`, this.asset);
+                }
+            }
+
             let finalSignal = 'NEUTRAL';
             let finalConfidence = 0;
 
@@ -692,30 +693,6 @@ class SupremeBrain {
                 }
             }
 
-            // 🎯 PROPHET FIX #1: CONSENSUS BONUS (Unlocks 80-90% confidence)
-            if (totalVotes > 0 && finalSignal !== 'NEUTRAL') {
-                const winningVotes = finalSignal === 'UP' ? upVotes : downVotes;
-                const losingVotes = finalSignal === 'UP' ? downVotes : upVotes;
-                const consensus = (winningVotes - losingVotes) / totalVotes;
-
-                if (consensus >= 0.25) { // Lowered to capture more valid trades
-                    // 🔧 PROPHET ADJUSTMENT: Dampened boost to prevent "False Convictions"
-                    // OLD: 1.0 + (consensus - 0.25) * (1.0 / 0.75) -> Too aggressive (33% boost at 50% consensus)
-                    // NEW: 1.0 + (consensus - 0.25) * 0.66 -> Safer (16% boost at 50% consensus)
-                    const consensusBonus = 1.0 + (consensus - 0.25) * 0.66;
-                    finalConfidence *= consensusBonus;
-                    log(`🎯 CONSENSUS BONUS: ${((consensusBonus - 1.0) * 100).toFixed(1)}% boost (${winningVotes}/${totalVotes} agree, ${(consensus * 100).toFixed(0)}% consensus)`, this.asset);
-                }
-
-                // TUNE #2: EARLY SIGNAL BOOST (0-3 mins)
-                if (elapsed < 180) {
-                    finalConfidence *= 1.15; // 15% boost for early signals
-                    log(`🚀 EARLY SIGNAL BOOST: +15% confidence`, this.asset);
-                }
-
-                finalConfidence = Math.min(0.95, finalConfidence); // Cap at 95%
-            }
-
             // FORCED PREDICTION
             if (elapsed >= 180 && finalSignal === 'NEUTRAL') {
                 if (force > 0) { finalSignal = 'UP'; finalConfidence = 0.6 + (absForce / (atr * 3)); }
@@ -724,24 +701,53 @@ class SupremeBrain {
             }
 
             // === THRESHOLD DETERMINATION (Regime-Aware) ===
-            // 🎯 PROPHET ENHANCEMENT: ADAPTIVE THRESHOLDS (Regime-Optimized for Frequency)
+            // 🎯 AGGRESSIVE PROPHECY MODE: Optimized for £10→£1M Goal
+            // Goal: Frequent, early predictions with acceptable accuracy
             let tier = 'NONE';
-            let convictionThreshold, advisoryThreshold;
+            let convictionThreshold = 0.70; // Realistic for early predictions
+            let advisoryThreshold = 0.50;   // Allow more exploration
 
-            // Adapt thresholds based on market regime for optimal trade frequency + quality
-            if (regime === 'VOLATILE') {
-                convictionThreshold = 0.82; // Higher bar in volatile markets (avoid whipsaws)
-                advisoryThreshold = 0.72;
-            } else if (regime === 'CHOPPY') {
-                convictionThreshold = 0.70; // Lower bar in choppy markets (capture subtle edges)
-                advisoryThreshold = 0.60;
-            } else { // TRENDING or UNKNOWN
-                convictionThreshold = 0.75; // Standard thresholds (optimal baseline)
-                advisoryThreshold = 0.65;
+            if (regime === 'CHOPPY') {
+                convictionThreshold = 0.72; // Slightly higher in choppy markets
+                advisoryThreshold = 0.52;
+            } else if (regime === 'TRENDING') {
+                convictionThreshold = 0.65; // Lower in clear trends
+                advisoryThreshold = 0.48;
+            } else if (regime === 'VOLATILE') {
+                convictionThreshold = 0.70; // Default
+                advisoryThreshold = 0.50;
             }
 
-            if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
-            else if (finalConfidence >= advisoryThreshold) tier = 'ADVISORY';
+            // REGIME PERSISTENCE (Smooth out regime flips)
+            this.regimeHistory.push(regime);
+            if (this.regimeHistory.length > 5) this.regimeHistory.shift();
+            const stableRegime = this.regimeHistory.length >= 3
+                ? (this.regimeHistory.slice(-3).every(r => r === regime) ? regime : this.regimeHistory[0])
+                : regime;
+
+            // Multi-Timeframe Confirmation
+            const longTrend = history.length > 300 ? (currentPrice - history[0].p) : 0;
+            const trendDir = longTrend > 0 ? 'UP' : 'DOWN';
+
+            if (Math.abs(longTrend) > atr * 5 && finalSignal !== trendDir && finalSignal !== 'NEUTRAL') {
+                finalConfidence *= 0.85; // Penalty for counter-trend
+            }
+
+            // Adjust based on track record
+            if (this.stats.total < 24) {
+                // New brain: be more aggressive to gather data
+                convictionThreshold *= 0.95; // 5% easier
+                advisoryThreshold *= 0.90;   // 10% easier
+            }
+            if (this.winStreak > 3) {
+                // Hot streak: slightly more conservative
+                convictionThreshold *= 1.05;
+            }
+            if (this.lossStreak > 1) {
+                // Cold streak: much more conservative
+                convictionThreshold *= 1.15;
+                advisoryThreshold *= 1.10;
+            }
 
             // Penalize poor win rate
             if (this.stats.total > 10) {
@@ -762,6 +768,17 @@ class SupremeBrain {
 
             if (trendBias) finalConfidence *= trendBias;
 
+            // 🔥 EARLY PREDICTION BOOST (The "Prophet" Advantage)
+            // Boost confidence for early predictions to enable frequent trading
+            if (elapsed < 180 && finalSignal !== 'NEUTRAL') {
+                const earlyBoost = 1.30; // 30% boost for first 3 minutes
+                finalConfidence *= earlyBoost;
+                log(`⚡ EARLY BOOST: +${((earlyBoost - 1) * 100).toFixed(0)}% (elapsed: ${elapsed}s)`, this.asset);
+            }
+
+            // CAP CONFIDENCE (prevent >100% from Consensus Bonus + Early Boost)
+            finalConfidence = Math.min(1.0, finalConfidence);
+
             // Determine tier
             if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
             else if (finalConfidence >= advisoryThreshold) tier = 'ADVISORY';
@@ -770,15 +787,6 @@ class SupremeBrain {
             if (this.tier === 'CONVICTION' && tier === 'ADVISORY' && this.prediction === finalSignal) {
                 tier = 'CONVICTION';
                 finalConfidence = Math.max(finalConfidence, convictionThreshold);
-            }
-
-            // 💎 PROPHET FIX #2: CYCLE COMMITMENT TRIGGER (The "Iron Hand")
-            // If we hit CONVICTION tier, we COMMIT to this direction for the rest of the cycle.
-            if (!this.cycleCommitted && tier === 'CONVICTION' && finalSignal !== 'NEUTRAL') {
-                this.cycleCommitted = true;
-                this.committedDirection = finalSignal;
-                this.commitTime = Date.now();
-                log(`💎 CYCLE COMMITMENT ACTIVATED: Locked to ${finalSignal} for remainder of cycle`, this.asset);
             }
 
             // === CYCLE COMMITMENT LOCK (Real-World Trading Mode) ===
@@ -824,6 +832,25 @@ class SupremeBrain {
             this.voteHistory.push({ up: upVotes, down: downVotes, time: Date.now() });
             if (this.voteHistory.length > 10) this.voteHistory.shift();
 
+            // EXPORT HISTORY SNAPSHOT
+            if (currentMarkets[this.asset]) {
+                this.currentCycleHistory.push({
+                    timestamp: new Date().toISOString(),
+                    elapsed,
+                    prediction: finalSignal,
+                    confidence: finalConfidence,
+                    tier,
+                    edge: this.edge,
+                    locked: this.convictionLocked,
+                    committed: this.cycleCommitted,
+                    currentPrice: currentPrice,
+                    checkpointPrice: startPrice,
+                    marketOdds: { yes: currentMarkets[this.asset].yesPrice, no: currentMarkets[this.asset].noPrice },
+                    votes: votes,
+                    modelVotes: modelVotes // Track individual votes
+                });
+            }
+
             // Calculate vote stability
             let voteFlips = 0;
             for (let i = 1; i < this.voteHistory.length; i++) {
@@ -840,22 +867,22 @@ class SupremeBrain {
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
                 const requiredStability = (() => {
-                    if (finalConfidence >= 0.85) return 2; // Fast path for high conviction
                     if (elapsed < 180) return 5;
                     if (elapsed < 600) return 3;
-                    return 1;
-                })();
-                if (this.stabilityCounter >= requiredStability) {
-                    this.prediction = finalSignal;
-                    this.confidence = finalConfidence;
-                    this.tier = tier;
-
-                    const reasons = Object.entries(modelVotes)
-                        .filter(([_, v]) => v === finalSignal)
-                        .map(([m]) => m)
-                        .join(', ');
-
-
+                    // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
+                    if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
+                        const market = currentMarkets[this.asset];
+                        // Only commit if we have reasonable odds (otherwise wait for better entry)
+                        if (market) {
+                            const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+                            if (currentOdds <= 0.85 || tier === 'CONVICTION') {
+                                this.cycleCommitted = true;
+                                this.committedDirection = finalSignal;
+                                this.commitTime = Date.now();
+                                log(`💎 CYCLE COMMITMENT: ${finalSignal} @${tier} tier, ${(currentOdds * 100).toFixed(1)}% odds (LOCKED FOR CYCLE)`, this.asset);
+                            }
+                        }
+                    }
 
                     // CONVICTION LOCK: High confidence + Reasonable odds (anti-whipsaw)
                     if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.96) {
@@ -896,33 +923,13 @@ class SupremeBrain {
                 this.edge = 0;
             }
 
-            // Record snapshot every 10 seconds
-            const elapsed_for_snapshot = checkpointPrices[this.asset]
-                ? Math.floor((Date.now() - (getCurrentCheckpoint() * 1000)) / 1000)
-                : 0;
-            if (!this.lastSnapshotTime || (Date.now() - this.lastSnapshotTime) >= 10000) {
-                this.currentCycleHistory.push({
-                    timestamp: new Date().toISOString(),
-                    elapsed: elapsed_for_snapshot,
-                    prediction: this.prediction,
-                    confidence: this.confidence,
-                    tier: this.tier,
-                    edge: this.edge,
-                    votes: { ...this.ensembleVotes },
-                    locked: this.convictionLocked,
-                    committed: this.cycleCommitted,
-                    currentPrice: livePrices[this.asset],
-                    checkpointPrice: checkpointPrices[this.asset],
-                    marketOdds: currentMarkets[this.asset] ? {
-                        yes: currentMarkets[this.asset].yesPrice,
-                        no: currentMarkets[this.asset].noPrice
-                    } : null
-                });
-                this.lastSnapshotTime = Date.now();
-                if (this.currentCycleHistory.length > 100) {
-                    this.currentCycleHistory.shift();
-                }
-            }
+            // CRITICAL: Save signal state for UI display
+            this.lastSignal = {
+                type: finalSignal,
+                confidence: finalConfidence,
+                tier: tier,
+                modelVotes: modelVotes
+            };
 
         } catch (e) {
             log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
@@ -1019,70 +1026,61 @@ class SupremeBrain {
                         }
                     }
                 }
-            }
+                // Track recent form (last 10)
+                this.recentOutcomes.push(isWin);
+                if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
 
-            // Update cached weights from modelAccuracy
-            for (const [model, stats] of Object.entries(this.modelAccuracy)) {
-                if (stats.total < 10) {
-                    this.cachedWeights[model] = 1.0;
-                } else {
-                    const accuracy = stats.wins / stats.total;
-                    this.cachedWeights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
-                }
-            }
-
-            // Track recent form (last 10)
-            this.recentOutcomes.push(isWin);
-            if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
-
-            // 🎯 PROPHET FIX #4: PATTERN LEARNING
-            if (this.lastSignal && this.lastSignal.patternId) {
-                const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
-                if (pIndex !== -1) {
-                    memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
-                    memoryPatterns[this.asset][pIndex].matchCount++;
-                    if (isWin) {
-                        memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
-                    }
-                    // Persist update to Redis if available
-                    if (redisAvailable && redis) {
-                        redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
+                // SMART MEMORY: Update the pattern that generated this signal (if any)
+                if (this.lastSignal && this.lastSignal.patternId) {
+                    const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
+                    if (pIndex !== -1) {
+                        memoryPatterns[this.asset][pIndex].wasCorrect = isWin;
+                        memoryPatterns[this.asset][pIndex].matchCount++;
+                        if (isWin) {
+                            memoryPatterns[this.asset][pIndex].wins = (memoryPatterns[this.asset][pIndex].wins || 0) + 1;
+                        }
+                        // Persist update to Redis if available
+                        if (redisAvailable && redis) {
+                            redis.set(`patterns:${this.asset}`, JSON.stringify(memoryPatterns[this.asset])).catch(e => { });
+                        }
                     }
                 }
+
+                // Save pattern to Historian
+                const history = priceHistory[this.asset];
+                if (history.length >= 10) {
+                    const recent = history.slice(-10).map(x => x.p);
+                    const base = recent[0];
+                    const vector = recent.map(p => (p - base) / base);
+                    savePattern(this.asset, vector, actual);
+                }
+
+                this.lockState = 'NEUTRAL';
+                this.lockStrength = 0;
+                this.lastSignal = null;
+                this.prediction = 'WAIT';
+                this.tier = 'NONE';
+                this.stabilityCounter = 0;
+                this.pendingSignal = null;
+
+                // Reset conviction lock for new cycle
+                this.convictionLocked = false;
+                this.lockedDirection = null;
+                this.lockTime = null;
+                this.lockConfidence = 0;
+                this.voteHistory = [];
+
+                // Reset cycle commitment for new cycle
+                this.cycleCommitted = false;
+                this.committedDirection = null;
+                this.commitTime = null;
+
+                // Clear export history for new cycle
+                this.currentCycleHistory = [];
             }
-
-            // Save pattern to Historian
-            const history = priceHistory[this.asset];
-            if (history.length >= 10) {
-                const recent = history.slice(-10).map(x => x.p);
-                const base = recent[0];
-                const vector = recent.map(p => (p - base) / base);
-                savePattern(this.asset, vector, actual);
-            }
-
-            this.lockState = 'NEUTRAL';
-            this.lockStrength = 0;
-            this.lastSignal = null;
-            this.prediction = 'WAIT';
-            this.tier = 'NONE';
-            this.stabilityCounter = 0;
-            this.pendingSignal = null;
-
-            // Reset conviction lock for new cycle
-            this.convictionLocked = false;
-            this.lockedDirection = null;
-            this.lockTime = null;
-            this.lockConfidence = 0;
-            this.voteHistory = [];
-
-            // Reset cycle commitment for new cycle
-            this.cycleCommitted = false;
-            this.committedDirection = null;
-            this.commitTime = null;
         }
     }
 }
-
 
 const Brains = {};
 ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
@@ -1106,30 +1104,22 @@ function connectWebSocket() {
                 const map = { 'btc/usd': 'BTC', 'eth/usd': 'ETH', 'sol/usd': 'SOL', 'xrp/usd': 'XRP' };
                 const asset = map[msg.payload.symbol];
                 if (asset) {
-                    const price = parseFloat(msg.payload.value);
-                    if (!isNaN(price)) {
-                        livePrices[asset] = price;
-                        const now = Date.now();
-                        lastUpdateTimestamp = now;
-                        priceHistory[asset].push({ t: now, p: price });
-                        if (priceHistory[asset].length > 500) priceHistory[asset].shift();
-                        livePriceTimestamps[asset] = now;
-                    }
+                    livePrices[asset] = parseFloat(msg.payload.value);
+                    const now = Date.now();
+                    lastUpdateTimestamp = now;
+                    priceHistory[asset].push({ t: now, p: msg.payload.value });
+                    if (priceHistory[asset].length > 500) priceHistory[asset].shift();
                 }
             }
             if (msg.topic === 'crypto_prices' && msg.type === 'update') {
                 const map = { btcusdt: 'BTC', ethusdt: 'ETH', solusdt: 'SOL', xrpusdt: 'XRP' };
                 const asset = map[msg.payload.symbol];
                 if (asset && !livePrices[asset]) {
-                    const price = parseFloat(msg.payload.value);
-                    if (!isNaN(price)) {
-                        livePrices[asset] = price;
-                        const now = Date.now();
-                        lastUpdateTimestamp = now;
-                        priceHistory[asset].push({ t: now, p: price });
-                        if (priceHistory[asset].length > 500) priceHistory[asset].shift();
-                        livePriceTimestamps[asset] = now;
-                    }
+                    livePrices[asset] = parseFloat(msg.payload.value);
+                    const now = Date.now();
+                    lastUpdateTimestamp = now;
+                    priceHistory[asset].push({ t: now, p: msg.payload.value });
+                    if (priceHistory[asset].length > 500) priceHistory[asset].shift();
                 }
             }
         } catch (e) { }
@@ -1268,15 +1258,7 @@ async function saveState() {
         },
         // FINAL SEVEN: PERSISTENCE
         calibration: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].calibrationBuckets }), {}),
-        // PROPHET FIX: Persist Cycle Commitment
-        commitment: ASSETS.reduce((acc, a) => ({
-            ...acc,
-            [a]: {
-                committed: Brains[a].cycleCommitted,
-                direction: Brains[a].committedDirection,
-                time: Brains[a].commitTime
-            }
-        }), {})
+        regime: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].regimeHistory }), {})
     };
 
     // Save to Redis if available
@@ -1329,15 +1311,9 @@ async function loadState() {
                     }
                 }
 
-                // FINAL SEVEN: RESTORE CALIBRATION & COMMITMENT
+                // FINAL SEVEN: RESTORE CALIBRATION & REGIME
                 if (state.calibration) ASSETS.forEach(a => { if (state.calibration[a]) Brains[a].calibrationBuckets = state.calibration[a]; });
-                if (state.commitment) ASSETS.forEach(a => {
-                    if (state.commitment[a]) {
-                        Brains[a].cycleCommitted = state.commitment[a].committed;
-                        Brains[a].committedDirection = state.commitment[a].direction;
-                        Brains[a].commitTime = state.commitment[a].time;
-                    }
-                });
+                if (state.regime) ASSETS.forEach(a => { if (state.regime[a]) Brains[a].regimeHistory = state.regime[a]; });
 
                 log('💾 State Restored from Redis');
                 return;
@@ -1483,7 +1459,6 @@ app.get('/', (req, res) => {
         <h1>🔮 SUPREME DEITY ORACLE</h1>
         <div class="status-bar">
             ✅ <strong>LIVE</strong> | Next Checkpoint: <span class="countdown" id="countdown">--:--</span> | <span id="last-update">Loading...</span>
-            <button onclick="exportData()" style="margin-left: 20px; padding: 5px 10px; background: #0096ff; border: none; border-radius: 4px; color: white; cursor: pointer;">💾 Export Data</button>
         </div>
     </div>
     <div id="dashboard" class="grid">
@@ -1499,6 +1474,30 @@ app.get('/', (req, res) => {
                 const dashboard = document.getElementById('dashboard');
                 const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
                 
+                // Helper function for safe HTML generation
+                function getMarketLinkHtml(market) {
+                    if (!market || !market.marketUrl) return '';
+                    return \`
+                        <div style="text-align: center; margin-top: 15px;">
+                            <a href="\${market.marketUrl}" target="_blank" class="market-link">
+                                📊 View on Polymarket →
+                            </a>
+                        </div>
+                    \`;
+                }
+
+                // Helper to format votes
+                function formatVotes(votes) {
+                    if (!votes) return '<span style="color:#666">None</span>';
+                    const up = Object.entries(votes).filter(([k,v]) => v === 'UP').map(([k]) => k).join(', ');
+                    const down = Object.entries(votes).filter(([k,v]) => v === 'DOWN').map(([k]) => k).join(', ');
+                    
+                    let html = '';
+                    if (up) html += \`<div style="color:#00ff00; font-size:0.8em">UP: \${up}</div>\`;
+                    if (down) html += \`<div style="color:#ff0044; font-size:0.8em">DOWN: \${down}</div>\`;
+                    return html || '<span style="color:#666">Neutral</span>';
+                }
+
                 dashboard.innerHTML = assets.map(asset => {
                     const d = data[asset];
                     if (!d) return '';
@@ -1506,11 +1505,6 @@ app.get('/', (req, res) => {
                     const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(1) : '0.0';
                     const convWinRate = d.stats.convictionTotal > 0 ? ((d.stats.convictionWins / d.stats.convictionTotal) * 100).toFixed(1) : '0.0';
                     
-                    // Model Votes Formatter
-                    const mv = d.modelVotes || {};
-                    const upVotes = Object.entries(mv).filter(([k,v]) => v === 'UP').map(([k]) => k).join(', ') || 'None';
-                    const downVotes = Object.entries(mv).filter(([k,v]) => v === 'DOWN').map(([k]) => k).join(', ') || 'None';
-
                     return \`
                         <div class="asset-card \${d.locked ? 'locked' : ''}">
                             <div class="asset-header">
@@ -1526,12 +1520,10 @@ app.get('/', (req, res) => {
                             
                             <div style="text-align: center; margin: 10px 0;">
                                 <span class="tier \${d.tier}">\${d.tier}</span>
-                                <div style="font-size: 0.8em; margin-top: 5px; opacity: 0.8;">
-                                    Thresholds: <strong>\${(d.thresholds.conviction * 100).toFixed(0)}%</strong> / <strong>\${(d.thresholds.advisory * 100).toFixed(0)}%</strong>
-                                </div>
-                                \${d.committed ? \`<div style="font-size: 0.85em; margin-top: 8px; padding: 6px; background: rgba(255,0,100,0.2); border-radius: 4px; border: 1px solid #ff0066;">
-                                    💎 COMMITTED to \${d.committedDirection}
-                                </div>\` : \`<div style="font-size: 0.85em; margin-top: 8px; color: #888;">Not committed</div>\`}
+                            </div>
+
+                            <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; margin:10px 0;">
+                                \${formatVotes(d.modelVotes)}
                             </div>
                             
                             <div class="price-display">
@@ -1561,13 +1553,6 @@ app.get('/', (req, res) => {
                                     <span>Market Odds:</span>
                                     <strong>Y:\${d.market ? (d.market.yesPrice * 100).toFixed(1) : 'N/A'}% / N:\${d.market ? (d.market.noPrice * 100).toFixed(1) : 'N/A'}%</strong>
                                 </div>
-                                <div class="stat-row" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
-                                    <div style="font-size: 0.8em; color: #aaa;">Model Votes:</div>
-                                    <div style="font-size: 0.75em;">
-                                        <span style="color: #00ff00;">UP: \${upVotes}</span><br>
-                                        <span style="color: #ff0044;">DOWN: \${downVotes}</span>
-                                    </div>
-                                </div>
                             </div>
                             
                             \${d.market && d.market.marketUrl ? \`<div style="text-align: center; margin-top: 15px;">
@@ -1577,9 +1562,9 @@ app.get('/', (req, res) => {
                             </div>\` : ''}
                             
                             <div style="text-align: center; margin-top: 10px;">
-                                <button onclick="exportCycle('\${asset}')" style="padding: 4px 8px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: #aaa; cursor: pointer; font-size: 0.8em;">
-                                    📥 Export Last Cycle
-                                </button>
+                                <a href="/api/export?asset=\${asset}" target="_blank" style="font-size: 0.8em; color: #aaa; text-decoration: none; border: 1px solid #555; padding: 2px 8px; border-radius: 4px;">
+                                    📥 Download CSV
+                                </a>
                             </div>
                         </div>
                     \`;
@@ -1597,38 +1582,11 @@ app.get('/', (req, res) => {
                 
                 document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
             } catch (e) {
-                console.error('Fetch error:', e);
-                document.getElementById('last-update').textContent = 'Error: ' + e.message;
-            }
-        }
-        
-        function exportData() {
-            window.open('/api/export', '_blank');
-        }
-
-        async function exportCycle(asset) {
-            try {
-                const res = await fetch('/api/export-last-cycle?asset=' + asset);
-                const data = await res.json();
-                
-                if (data.error) {
-                    alert('❌ ' + data.error);
-                    return;
-                }
-                
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = asset + '_cycle_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                
-                alert('✅ Exported ' + asset + ' cycle!');
-            } catch (e) {
-                alert('❌ Export failed: ' + e.message);
+                document.getElementById('dashboard').innerHTML = \`
+                    <div class="loading" style="color: #ff4444;">
+                        ❌ Error loading data: \${e.message}
+                    </div>
+                \`;
             }
         }
         
@@ -1640,7 +1598,7 @@ app.get('/', (req, res) => {
     </script>
 </body>
 </html>
-    `);
+    \`);
 });
 
 app.get('/api/state', (req, res) => {
@@ -1649,21 +1607,6 @@ app.get('/api/state', (req, res) => {
         const recentWins = Brains[a].recentOutcomes.filter(Boolean).length;
         const recentTotal = Brains[a].recentOutcomes.length;
         const recentAccuracy = recentTotal > 0 ? (recentWins / recentTotal) * 100 : 0;
-
-        // 🔧 BUG FIX: Calculate ACTUAL adaptive thresholds (not hardcoded)
-        const history = priceHistory[a];
-        const regime = history && history.length >= 60 ? MathLib.getMarketRegime(history) : 'UNKNOWN';
-        let convictionThreshold, advisoryThreshold;
-        if (regime === 'VOLATILE') {
-            convictionThreshold = 0.82;
-            advisoryThreshold = 0.72;
-        } else if (regime === 'CHOPPY') {
-            convictionThreshold = 0.70;
-            advisoryThreshold = 0.60;
-        } else {
-            convictionThreshold = 0.75;
-            advisoryThreshold = 0.65;
-        }
 
         response[a] = {
             prediction: Brains[a].prediction,
@@ -1677,62 +1620,49 @@ app.get('/api/state', (req, res) => {
             market: currentMarkets[a],
             locked: Brains[a].convictionLocked,
             voteStability: Brains[a].voteTrendScore,
-            recentAccuracy: recentAccuracy.toFixed(1),
-            recentTotal: recentTotal,
-
-            // UI TRANSPARENCY (NEW)
-            committed: Brains[a].cycleCommitted,
-            committedDirection: Brains[a].committedDirection,
-            commitTime: Brains[a].commitTime,
-            lastSignal: Brains[a].lastSignal,
-            modelVotes: Brains[a].lastSignal?.modelVotes || {},
+            recentAccuracy: recentAccuracy.toFixed(1),  // Last 10 predictions accuracy
+            recentTotal: recentTotal,  // How many of the last 10 we have
 
             // FINAL SEVEN METRICS
             kellySize: Brains[a].getKellySize(),
             calibration: Brains[a].calibrationBuckets,
             newsState: Brains[a].newsState,
-            regime: regime, // NEW: Show current regime
-            thresholds: { conviction: convictionThreshold, advisory: advisoryThreshold } // 🔧 FIXED: Now dynamic!
+            modelVotes: Brains[a].lastSignal ? Brains[a].lastSignal.modelVotes : {} // Send model votes to UI
         };
     });
     res.json(response);
 });
 
+// EXPORT ENDPOINT (New Feature)
 app.get('/api/export', (req, res) => {
-    const exportData = {
-        timestamp: Date.now(),
-        assets: {}
-    };
-
-    ASSETS.forEach(a => {
-        exportData.assets[a] = {
-            prediction: Brains[a].prediction,
-            confidence: Brains[a].confidence,
-            tier: Brains[a].tier,
-            stats: Brains[a].stats,
-            history: Brains[a].voteHistory,
-            patterns: memoryPatterns[a] ? memoryPatterns[a].length : 0
-        };
-    });
-
-    res.header('Content-Type', 'application/json');
-    res.send(JSON.stringify(exportData, null, 2));
-});
-
-app.get('/api/export-last-cycle', (req, res) => {
     const asset = req.query.asset || 'BTC';
-    const brain = Brains[asset];
+    if (!Brains[asset]) return res.status(404).send('Asset not found');
+    
+    // Convert current cycle history to CSV
+    const history = Brains[asset].currentCycleHistory || [];
+    if (history.length === 0) return res.send('No data available');
 
-    if (!brain || !brain.lastCompletedCycle) {
-        return res.json({ error: 'No cycle data available for ' + asset });
-    }
+    const headers = ['Timestamp', 'Elapsed', 'Prediction', 'Confidence', 'Tier', 'Edge', 'Locked', 'Committed', 'Price', 'Checkpoint', 'YesOdds', 'NoOdds', 'VotesUP', 'VotesDOWN'];
+    const rows = history.map(h => [
+        h.timestamp,
+        h.elapsed,
+        h.prediction,
+        h.confidence.toFixed(4),
+        h.tier,
+        h.edge.toFixed(2),
+        h.locked,
+        h.committed,
+        h.currentPrice,
+        h.checkpointPrice,
+        h.marketOdds?.yes || 0,
+        h.marketOdds?.no || 0,
+        h.votes?.UP || 0,
+        h.votes?.DOWN || 0
+    ].join(','));
 
-    res.json({
-        asset: asset,
-        cycle: brain.lastCompletedCycle,
-        modelWeights: brain.cachedWeights,
-        stats: brain.stats
-    });
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename = ${ asset } _history.csv`);
+    res.send([headers.join(','), ...rows].join('\n'));
 });
 
 // ==================== CHECKPOINT LOGIC ====================
@@ -1745,10 +1675,10 @@ setInterval(() => {
         if (now >= cp && now < cp + 5) {
             if (lastEvaluatedCheckpoint[a] !== cp) {
 
-                // CRITICAL: Ensure we have FRESH price data (within 3 seconds) - PER-ASSET CHECK
-                const dataAge = Date.now() - livePriceTimestamps[a];
+                // CRITICAL: Ensure we have FRESH price data (within 3 seconds)
+                const dataAge = Date.now() - lastUpdateTimestamp;
                 if (dataAge > 3000) {
-                    log(`⚠️ Checkpoint skipped - stale data for ${a} (${(dataAge / 1000).toFixed(1)}s old)`, a);
+                    log(`⚠️ Checkpoint skipped - stale data(${(dataAge / 1000).toFixed(1)}s old)`, a);
                     return;
                 }
 
@@ -1756,7 +1686,7 @@ setInterval(() => {
                 // Use CONFIRMED fresh prices for accurate outcome evaluation
                 if (checkpointPrices[a] && livePrices[a]) {
                     Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
-                    log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
+                    log(`📊 Evaluated checkpoint ${ cp - INTERVAL_SECONDS } (fresh data)`, a);
                 }
 
                 // Update checkpoints for the NEW cycle with FRESH price
@@ -1766,21 +1696,7 @@ setInterval(() => {
                 // Mark this checkpoint as evaluated
                 lastEvaluatedCheckpoint[a] = cp;
 
-                // Save completed cycle
-                if (Brains[a].currentCycleHistory.length > 0) {
-                    Brains[a].lastCompletedCycle = {
-                        checkpointStart: cp - INTERVAL_SECONDS,
-                        checkpointEnd: cp,
-                        startPrice: checkpointPrices[a],
-                        endPrice: livePrices[a],
-                        outcome: livePrices[a] > checkpointPrices[a] ? 'UP' : 'DOWN',
-                        snapshots: [...Brains[a].currentCycleHistory]
-                    };
-                    Brains[a].currentCycleHistory = [];
-                    log(`💾 Saved cycle history (${Brains[a].lastCompletedCycle.snapshots.length} snapshots)`, a);
-                }
-
-                log(`🔄 NEW Checkpoint: $${checkpointPrices[a]?.toFixed(2) || 'pending'}`, a);
+                log(`🔄 NEW Checkpoint: $${ checkpointPrices[a]?.toFixed(2) || 'pending' } `, a);
             }
         }
     });
@@ -1839,7 +1755,7 @@ async function startup() {
     setInterval(fetchFundingRates, 300000);
 
     server.listen(PORT, () => {
-        log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT}`);
+        log(`⚡ SUPREME DEITY SERVER ONLINE on port ${ PORT } `);
         log(`🌐 Access at: http://localhost:${PORT}`);
     });
 }
