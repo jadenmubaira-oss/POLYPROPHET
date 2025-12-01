@@ -704,18 +704,18 @@ class SupremeBrain {
             // 🎯 AGGRESSIVE PROPHECY MODE: Optimized for £10→£1M Goal
             // Goal: Frequent, early predictions with acceptable accuracy
             let tier = 'NONE';
-            let convictionThreshold = 0.70; // Realistic for early predictions
-            let advisoryThreshold = 0.50;   // Allow more exploration
+            let convictionThreshold = 0.60; // CRYSTAL BALL MODE: Ultra-aggressive
+            let advisoryThreshold = 0.45;   // Maximum exploration
 
             if (regime === 'CHOPPY') {
-                convictionThreshold = 0.72; // Slightly higher in choppy markets
-                advisoryThreshold = 0.52;
+                convictionThreshold = 0.62; // Still aggressive in choppy
+                advisoryThreshold = 0.47;
             } else if (regime === 'TRENDING') {
-                convictionThreshold = 0.65; // Lower in clear trends
-                advisoryThreshold = 0.48;
+                convictionThreshold = 0.55; // Very low in clear trends (Crystal Ball)
+                advisoryThreshold = 0.42;
             } else if (regime === 'VOLATILE') {
-                convictionThreshold = 0.70; // Default
-                advisoryThreshold = 0.50;
+                convictionThreshold = 0.60; // Default
+                advisoryThreshold = 0.45;
             }
 
             // REGIME PERSISTENCE (Smooth out regime flips)
@@ -771,7 +771,7 @@ class SupremeBrain {
             // 🔥 EARLY PREDICTION BOOST (The "Prophet" Advantage)
             // Boost confidence for early predictions to enable frequent trading
             if (elapsed < 180 && finalSignal !== 'NEUTRAL') {
-                const earlyBoost = 1.30; // 30% boost for first 3 minutes
+                const earlyBoost = 1.50; // 50% boost for first 3 minutes (MAXIMUM CRYSTAL BALL)
                 finalConfidence *= earlyBoost;
                 log(`⚡ EARLY BOOST: +${((earlyBoost - 1) * 100).toFixed(0)}% (elapsed: ${elapsed}s)`, this.asset);
             }
@@ -779,9 +779,28 @@ class SupremeBrain {
             // CAP CONFIDENCE (prevent >100% from Consensus Bonus + Early Boost)
             finalConfidence = Math.min(1.0, finalConfidence);
 
-            // Determine tier
-            if (finalConfidence >= convictionThreshold) tier = 'CONVICTION';
-            else if (finalConfidence >= advisoryThreshold) tier = 'ADVISORY';
+            // === SMOOTHING (The "Pinball" Fix) ===
+            // Apply Exponential Moving Average (EMA) to dampen noise
+            // Alpha 0.2 = 20% new value, 80% old value (very smooth)
+            if (this.confidence > 0) {
+                finalConfidence = (finalConfidence * 0.2) + (this.confidence * 0.8);
+            }
+
+            // Determine tier with HYSTERESIS (prevent flickering)
+            // Must drop 3% below threshold to lose tier (More responsive than 5%)
+            let newTier = 'NONE';
+            if (finalConfidence >= convictionThreshold) newTier = 'CONVICTION';
+            else if (finalConfidence >= advisoryThreshold) newTier = 'ADVISORY';
+
+            // Hysteresis check
+            if (this.tier === 'CONVICTION' && newTier !== 'CONVICTION') {
+                if (finalConfidence > (convictionThreshold - 0.03)) newTier = 'CONVICTION'; // Hold tier
+            }
+            if (this.tier === 'ADVISORY' && newTier === 'NONE') {
+                if (finalConfidence > (advisoryThreshold - 0.03)) newTier = 'ADVISORY'; // Hold tier
+            }
+
+            tier = newTier;
 
             // TIER LOCK
             if (this.tier === 'CONVICTION' && tier === 'ADVISORY' && this.prediction === finalSignal) {
@@ -867,8 +886,8 @@ class SupremeBrain {
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
                 const requiredStability = (() => {
-                    if (elapsed < 180) return 5;
-                    if (elapsed < 600) return 3;
+                    if (elapsed < 180) return 3; // CRYSTAL BALL: Faster locks
+                    if (elapsed < 600) return 2;
                     // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
                     if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
                         const market = currentMarkets[this.asset];
