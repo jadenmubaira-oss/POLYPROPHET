@@ -704,18 +704,18 @@ class SupremeBrain {
             // 🎯 AGGRESSIVE PROPHECY MODE: Optimized for £10→£1M Goal
             // Goal: Frequent, early predictions with acceptable accuracy
             let tier = 'NONE';
-            let convictionThreshold = 0.60; // CRYSTAL BALL MODE: Ultra-aggressive
-            let advisoryThreshold = 0.45;   // Maximum exploration
+            let convictionThreshold = 0.75; // PEACE OF MIND: High accuracy required
+            let advisoryThreshold = 0.60;   // Only trade when confident
 
             if (regime === 'CHOPPY') {
-                convictionThreshold = 0.62; // Still aggressive in choppy
-                advisoryThreshold = 0.47;
+                convictionThreshold = 0.80; // Very cautious in choppy markets
+                advisoryThreshold = 0.65;
             } else if (regime === 'TRENDING') {
-                convictionThreshold = 0.55; // Very low in clear trends (Crystal Ball)
-                advisoryThreshold = 0.42;
+                convictionThreshold = 0.70; // Lower in clear trends (but still high)
+                advisoryThreshold = 0.55;
             } else if (regime === 'VOLATILE') {
-                convictionThreshold = 0.60; // Default
-                advisoryThreshold = 0.45;
+                convictionThreshold = 0.75; // Default
+                advisoryThreshold = 0.60;
             }
 
             // REGIME PERSISTENCE (Smooth out regime flips)
@@ -771,7 +771,7 @@ class SupremeBrain {
             // 🔥 EARLY PREDICTION BOOST (The "Prophet" Advantage)
             // Boost confidence for early predictions to enable frequent trading
             if (elapsed < 180 && finalSignal !== 'NEUTRAL') {
-                const earlyBoost = 1.50; // 50% boost for first 3 minutes (MAXIMUM CRYSTAL BALL)
+                const earlyBoost = 1.20; // 20% boost (PEACE OF MIND: Modest boost)
                 finalConfidence *= earlyBoost;
                 log(`⚡ EARLY BOOST: +${((earlyBoost - 1) * 100).toFixed(0)}% (elapsed: ${elapsed}s)`, this.asset);
             }
@@ -886,8 +886,8 @@ class SupremeBrain {
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
                 const requiredStability = (() => {
-                    if (elapsed < 180) return 3; // CRYSTAL BALL: Faster locks
-                    if (elapsed < 600) return 2;
+                    if (elapsed < 180) return 5; // PEACE OF MIND: Confirm before locking
+                    if (elapsed < 600) return 3;
                     // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
                     if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
                         const market = currentMarkets[this.asset];
