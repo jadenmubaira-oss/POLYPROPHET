@@ -471,6 +471,16 @@ class SupremeBrain {
                     weights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
                 }
             }
+
+            // SNIPER MODE: Boost Leading Indicators in First 3 Minutes
+            if (elapsed < 180) {
+                weights.orderbook = (weights.orderbook || 1.0) * 1.5;
+                weights.physicist = (weights.physicist || 1.0) * 1.5;
+                weights.genesis = (weights.genesis || 1.0) * 1.3;
+                // Reduce laggy indicators
+                weights.volume = (weights.volume || 1.0) * 0.7;
+                weights.macro = (weights.macro || 1.0) * 0.7;
+            }
             const modelVotes = {}; // Track who voted what for learning
 
             // TRINITY UPGRADE: REGIME AWARENESS (Moved Up for Normalization)
@@ -749,6 +759,25 @@ class SupremeBrain {
                 advisoryThreshold *= 1.10;
             }
 
+            // SNIPER MODE: Dynamic Thresholds based on Odds (Value Betting)
+            // If odds are cheap (e.g. 0.30), we need less confidence to take the bet (High EV)
+            // If odds are expensive (e.g. 0.80), we need MORE confidence
+            const marketOdds = finalSignal === 'UP' ? (currentMarkets[this.asset]?.yesPrice || 0.5) : (currentMarkets[this.asset]?.noPrice || 0.5);
+            const oddsAdjustment = (0.5 - marketOdds) * 0.2; // +/- 0.10 adjustment
+            convictionThreshold -= oddsAdjustment;
+            advisoryThreshold -= oddsAdjustment;
+
+            // REALITY CHECK: Kill confidence if price moves against us
+            // If we predict UP but price drops > 2*ATR from entry, kill it
+            if (this.prediction === 'UP' && (startPrice - currentPrice) > atr * 2) {
+                finalConfidence *= 0.5; // Nuke confidence
+                log(`⚠️ REALITY CHECK: Price moving against UP prediction`, this.asset);
+            }
+            if (this.prediction === 'DOWN' && (currentPrice - startPrice) > atr * 2) {
+                finalConfidence *= 0.5; // Nuke confidence
+                log(`⚠️ REALITY CHECK: Price moving against DOWN prediction`, this.asset);
+            }
+
             // Penalize poor win rate
             if (this.stats.total > 10) {
                 const winRate = this.stats.wins / this.stats.total;
@@ -771,7 +800,7 @@ class SupremeBrain {
             // 🔥 EARLY PREDICTION BOOST (The "Prophet" Advantage)
             // Boost confidence for early predictions to enable frequent trading
             if (elapsed < 180 && finalSignal !== 'NEUTRAL') {
-                const earlyBoost = 1.20; // 20% boost (PEACE OF MIND: Modest boost)
+                const earlyBoost = 1.35; // SNIPER MODE: Aggressive but validated
                 finalConfidence *= earlyBoost;
                 log(`⚡ EARLY BOOST: +${((earlyBoost - 1) * 100).toFixed(0)}% (elapsed: ${elapsed}s)`, this.asset);
             }
