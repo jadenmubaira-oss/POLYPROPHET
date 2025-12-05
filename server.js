@@ -103,21 +103,99 @@ ASSETS.forEach(asset => {
     marketOddsHistory[asset] = [];
 });
 
-// ==================== TRADE EXECUTOR (Paper & Live) ====================
+// ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
+const CONFIG = {
+    // API Keys
+    POLYMARKET_API_KEY: process.env.POLYMARKET_API_KEY || '019aed53-b71a-7065-9115-c35883302725',
+    POLYMARKET_SECRET: process.env.POLYMARKET_SECRET || 'V83h0eNxG3q01pO8Fo8FGVwGt2axzhVM-emscfT-VYU=',
+    POLYMARKET_PASSPHRASE: process.env.POLYMARKET_PASSPHRASE || '69ab26964415369000386c9df6f9a69b6909a56f216959467da4eb843d8acae7',
+    POLYMARKET_ADDRESS: process.env.POLYMARKET_ADDRESS || '0xcd03c2a5d1008205205f66a6541e9ea6ecdd1c59',
+    POLYMARKET_PRIVATE_KEY: process.env.POLYMARKET_PRIVATE_KEY || '0x0a9e6f3f2e3011b91c40706193a9088dc440c40350b1ce30af2bcad362e10ec0',
+    POLYMARKET_PROXY_KEY: process.env.POLYMARKET_PROXY_KEY || 'LDTP2NJOB7KDA2HW7OWHP2HX472OGV5H',
+
+    // Core Trading Settings
+    TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
+    PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '1000'),
+    LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '1000'),  // Configurable live balance
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.10'),
+    MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
+
+    // ==================== MULTI-MODE SYSTEM ====================
+    MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
+
+    // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
+    ORACLE: {
+        enabled: true,
+        minConsensus: 0.85,      // 85%+ of models agree
+        minConfidence: 0.92,     // 92%+ confidence required
+        minEdge: 15,             // 15%+ edge over market
+        requireTrending: true,   // Skip choppy markets
+        requireMomentum: true,   // Price moving our way
+        maxOdds: 0.70,           // Only buy at ≤70%
+        minStability: 5          // 5 ticks stable
+    },
+
+    // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
+    ARBITRAGE: {
+        enabled: true,
+        minMispricing: 0.15,     // 15%+ difference between fair value and odds
+        targetProfit: 0.50,      // Exit at 50% profit
+        maxHoldTime: 600,        // Exit after 10 mins max
+        stopLoss: 0.30           // Exit at 30% loss
+    },
+
+    // MODE 3: SCALP 🎯 - Buy ultra-cheap, exit at 2-3x
+    SCALP: {
+        enabled: true,
+        maxEntryPrice: 0.20,     // Only buy under 20¢
+        targetMultiple: 2.0,     // Exit at 2x
+        requireLean: true,       // Must lean (>55%) our direction
+        exitBeforeEnd: 120       // Exit 2 mins before checkpoint
+    },
+
+    // MODE 4: UNCERTAINTY 🌊 - Trade volatility/reversion
+    UNCERTAINTY: {
+        enabled: true,
+        extremeThreshold: 0.80,  // Entry when odds >80% or <20%
+        volatilityMin: 0.02,     // Minimum ATR ratio
+        targetReversion: 0.60,   // Exit when odds hit 60%/40%
+        stopLoss: 0.25           // Exit at 25% loss
+    },
+
+    // MODE 5: MOMENTUM 🚀 - Ride strong mid-cycle trends
+    MOMENTUM: {
+        enabled: true,
+        minElapsed: 300,         // Only after 5 mins
+        breakoutThreshold: 0.03, // 3% price breakout
+        minConsensus: 0.75,      // 75%+ model agreement
+        exitOnReversal: true,    // Exit on first reversal sign
+        exitBeforeEnd: 180       // Exit 3 mins before checkpoint
+    },
+
+    // Risk Management
+    RISK: {
+        maxTotalExposure: 0.30,  // Max 30% of bankroll at risk
+        globalStopLoss: 0.20,   // -20% day = stop trading
+        cooldownAfterLoss: 300   // 5 min cooldown after loss
+    }
+};
+
+// ==================== ENHANCED TRADE EXECUTOR (Multi-Position) ====================
 class TradeExecutor {
     constructor() {
-        this.mode = process.env.TRADE_MODE || 'PAPER';
-        this.paperBalance = parseFloat(process.env.PAPER_BALANCE || '1000');
-        this.positions = {}; // { asset: { side: 'UP', size: 100, entryPrice: 0.5 } }
+        this.mode = CONFIG.TRADE_MODE;
+        this.paperBalance = CONFIG.PAPER_BALANCE;
+        this.startingBalance = CONFIG.PAPER_BALANCE;
+        this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
         this.wallet = null;
-        this.apiKey = process.env.POLYMARKET_API_KEY;
-        this.apiSecret = process.env.POLYMARKET_SECRET;
-        this.apiPassphrase = process.env.POLYMARKET_PASSPHRASE;
+        this.tradeHistory = [];
+        this.lastLossTime = 0;         // For cooldown tracking
+        this.todayPnL = 0;             // Daily P/L tracking
 
-        if (process.env.POLYMARKET_PRIVATE_KEY) {
+        if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
-                this.wallet = new ethers.Wallet(process.env.POLYMARKET_PRIVATE_KEY, provider);
+                this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
                 log(`✅ Wallet Loaded: ${this.wallet.address.substring(0, 6)}...`);
             } catch (e) {
                 log(`⚠️ Wallet Load Failed: ${e.message}`);
@@ -126,55 +204,455 @@ class TradeExecutor {
         log(`💰 Trade Executor Initialized in ${this.mode} mode. Balance: $${this.paperBalance}`);
     }
 
-    async executeTrade(asset, direction, confidence, price, market) {
-        if (!market) return;
-        const side = direction === 'UP' ? 'BUY' : 'SELL'; // Simplified: UP = Buy YES, DOWN = Buy NO (or Sell YES)
-        // Actually, Polymarket is Binary. UP = YES, DOWN = NO.
-        // We will buy YES tokens for UP, and NO tokens for DOWN.
+    reloadWallet() {
+        this.mode = CONFIG.TRADE_MODE;
+        if (CONFIG.POLYMARKET_PRIVATE_KEY) {
+            try {
+                const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
+                this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
+                log(`✅ Wallet Reloaded: ${this.wallet.address.substring(0, 6)}...`);
+                return true;
+            } catch (e) { return false; }
+        }
+        return false;
+    }
+
+    // Count active positions for an asset
+    getPositionCount(asset) {
+        return Object.keys(this.positions).filter(k => k.startsWith(asset)).length;
+    }
+
+    // Calculate total exposure
+    getTotalExposure() {
+        return Object.values(this.positions).reduce((sum, p) => sum + p.size, 0);
+    }
+
+    // Check if in cooldown after loss
+    isInCooldown() {
+        if (this.lastLossTime === 0) return false;
+        return (Date.now() - this.lastLossTime) < (CONFIG.RISK.cooldownAfterLoss * 1000);
+    }
+
+    // ENTRY: Execute a trade for any mode
+    async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
+        if (!market) return null;
+
+        // Check cooldown
+        if (this.isInCooldown()) {
+            log(`⏳ In cooldown after loss - skipping trade`, asset);
+            return null;
+        }
+
+        // Check max positions per asset
+        if (this.getPositionCount(asset) >= CONFIG.MAX_POSITIONS_PER_ASSET) {
+            log(`⚠️ Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) reached for ${asset}`, asset);
+            return null;
+        }
+
+        // Check total exposure
+        const totalExposure = this.getTotalExposure();
+        // BUG FIX: Use configurable LIVE_BALANCE instead of hardcoded 1000
+        const bankroll = this.mode === 'LIVE' ? (CONFIG.LIVE_BALANCE || 1000) : this.paperBalance;
+        if (totalExposure / bankroll > CONFIG.RISK.maxTotalExposure) {
+            log(`⚠️ Max total exposure (${CONFIG.RISK.maxTotalExposure * 100}%) reached`, asset);
+            return null;
+        }
+
+        // Calculate position size (mode-specific)
+        let size;
+        switch (mode) {
+            case 'ORACLE':
+                size = Math.min(bankroll * 0.10, bankroll * (confidence * 0.15));
+                break;
+            case 'SCALP':
+                size = bankroll * 0.05; // Smaller for scalps
+                break;
+            case 'ARBITRAGE':
+            case 'UNCERTAINTY':
+            case 'MOMENTUM':
+                size = bankroll * 0.05;
+                break;
+            default:
+                size = bankroll * 0.05;
+        }
+
+        if (size < 5) return null; // Min trade size
+
         const tokenType = direction === 'UP' ? 'YES' : 'NO';
-        const priceToBuy = direction === 'UP' ? market.yesPrice : market.noPrice;
+        const positionId = `${asset}_${Date.now()}`;
 
-        // Kelly Size (already calculated in Brain, but we cap it here)
-        const bankroll = this.mode === 'LIVE' ? 1000 : this.paperBalance; // Mock live bankroll for now
-        const size = Math.min(bankroll * 0.10, bankroll * (confidence * 0.2)); // Cap at 10% or Kelly
+        // Determine targets based on mode
+        let target, stopLoss;
+        switch (mode) {
+            case 'ORACLE':
+                target = null; // Hold to resolution
+                stopLoss = null;
+                break;
+            case 'SCALP':
+                target = entryPrice * CONFIG.SCALP.targetMultiple;
+                stopLoss = entryPrice * 0.5;
+                break;
+            case 'ARBITRAGE':
+                target = entryPrice * (1 + CONFIG.ARBITRAGE.targetProfit);
+                stopLoss = entryPrice * (1 - CONFIG.ARBITRAGE.stopLoss);
+                break;
+            case 'UNCERTAINTY':
+                target = direction === 'UP' ? CONFIG.UNCERTAINTY.targetReversion : (1 - CONFIG.UNCERTAINTY.targetReversion);
+                stopLoss = entryPrice * (1 - CONFIG.UNCERTAINTY.stopLoss);
+                break;
+            case 'MOMENTUM':
+                target = null; // Exit on reversal
+                stopLoss = entryPrice * 0.8;
+                break;
+        }
 
-        if (size < 5) return; // Min trade size
-
-        log(`🚀 EXECUTING ${this.mode} TRADE: ${asset} ${tokenType} @ ${priceToBuy} (Size: $${size.toFixed(2)})`);
+        log(``, asset);
+        log(`🎯 ═══════════════════════════════════════`, asset);
+        log(`🎯 ${mode} TRADE ENTRY`, asset);
+        log(`🎯 Direction: ${direction} (${tokenType})`, asset);
+        log(`🎯 Entry: ${(entryPrice * 100).toFixed(1)}¢`, asset);
+        log(`🎯 Size: $${size.toFixed(2)}`, asset);
+        if (target) log(`🎯 Target: ${(target * 100).toFixed(1)}¢`, asset);
+        if (stopLoss) log(`🎯 Stop: ${(stopLoss * 100).toFixed(1)}¢`, asset);
+        log(`🎯 ═══════════════════════════════════════`, asset);
 
         if (this.mode === 'PAPER') {
             this.paperBalance -= size;
-            this.positions[asset] = { type: tokenType, size: size, entry: priceToBuy, time: Date.now() };
-            log(`📝 PAPER FILL: Bought ${asset} ${tokenType} - New Balance: $${this.paperBalance.toFixed(2)}`);
-        } else if (this.mode === 'LIVE' && this.wallet) {
-            // LIVE TRADE IMPLEMENTATION
-            // 1. Get Token ID
-            // 2. Sign Order
-            // 3. Post to CLOB
-            try {
-                // LIVE TRADE IMPLEMENTATION
-                // 1. Get Token ID from currentMarkets
-                const marketData = currentMarkets[asset];
-                if (!marketData || !marketData.tokenIds) {
-                    log(`❌ LIVE TRADE FAILED: No Token IDs found for ${asset}`);
-                    return;
-                }
+            this.positions[positionId] = {
+                asset,
+                mode,
+                side: direction,
+                tokenType,
+                size,
+                entry: entryPrice,
+                time: Date.now(),
+                target,
+                stopLoss,
+                shares: size / entryPrice
+            };
 
-                // 2. Sign Order (EIP-712) - Placeholder for full implementation
-                // We need the specific Token ID: YES or NO
-                const tokenId = tokenType === 'YES' ? marketData.tokenIds.yes : marketData.tokenIds.no;
+            this.tradeHistory.push({
+                id: positionId,
+                asset,
+                mode,
+                side: direction,
+                entry: entryPrice,
+                size,
+                time: Date.now(),
+                status: 'OPEN'
+            });
 
-                log(`⚠️ LIVE TRADING: Would buy ${tokenType} (Token ID: ${tokenId}) - SDK Integration Pending`);
-                // Actual Ethers.js signing would go here
+            log(`📝 PAPER FILL: Bought ${(size / entryPrice).toFixed(1)} shares @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+            return positionId;
+        }
 
-            } catch (e) {
-                log(`❌ LIVE TRADE FAILED: ${e.message}`);
+        // LIVE TRADING MODE
+        if (this.mode === 'LIVE') {
+            log(`🔴 LIVE TRADE REQUESTED - ${mode} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+            log(`⚠️ LIVE TRADING SDK NOT YET INTEGRATED - Trade logged but not executed`, asset);
+
+            // Store position for tracking purposes (will need manual execution)
+            this.positions[positionId] = {
+                asset,
+                mode,
+                side: direction,
+                tokenType,
+                size,
+                entry: entryPrice,
+                time: Date.now(),
+                target,
+                stopLoss,
+                shares: size / entryPrice,
+                isLive: true,
+                status: 'PENDING_MANUAL_EXECUTION'
+            };
+
+            this.tradeHistory.push({
+                id: positionId,
+                asset,
+                mode,
+                side: direction,
+                entry: entryPrice,
+                size,
+                time: Date.now(),
+                status: 'LIVE_PENDING'
+            });
+
+            return positionId;
+        }
+
+        return null;
+    }
+
+    // EXIT: Close a position
+    closePosition(positionId, exitPrice, reason) {
+        const pos = this.positions[positionId];
+        if (!pos) return;
+
+        const pnl = (exitPrice - pos.entry) * pos.shares;
+        const pnlPercent = ((exitPrice / pos.entry) - 1) * 100;
+
+        this.paperBalance += pos.size + pnl;
+        this.todayPnL += pnl;
+
+        const emoji = pnl >= 0 ? '✅' : '❌';
+        log(``, pos.asset);
+        log(`${emoji} ═══════════════════════════════════════`, pos.asset);
+        log(`${emoji} ${pos.mode} TRADE EXIT: ${reason}`, pos.asset);
+        log(`${emoji} Direction: ${pos.side}`, pos.asset);
+        log(`${emoji} Entry: ${(pos.entry * 100).toFixed(1)}¢ → Exit: ${(exitPrice * 100).toFixed(1)}¢`, pos.asset);
+        log(`${emoji} P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)`, pos.asset);
+        log(`${emoji} Balance: $${this.paperBalance.toFixed(2)}`, pos.asset);
+        log(`${emoji} ═══════════════════════════════════════`, pos.asset);
+
+        // Update trade history
+        const trade = this.tradeHistory.find(t => t.id === positionId);
+        if (trade) {
+            trade.exit = exitPrice;
+            trade.pnl = pnl;
+            trade.pnlPercent = pnlPercent;
+            trade.status = 'CLOSED';
+            trade.closeTime = Date.now();
+            trade.reason = reason;
+        }
+
+        // Cooldown on loss
+        if (pnl < 0) {
+            this.lastLossTime = Date.now();
+        }
+
+        delete this.positions[positionId];
+        return pnl;
+    }
+
+    // Check all positions for exit conditions
+    checkExits(asset, currentPrice, elapsed, yesPrice, noPrice) {
+        const now = Date.now();
+        const timeToEnd = INTERVAL_SECONDS - elapsed;
+
+        Object.entries(this.positions).forEach(([id, pos]) => {
+            if (pos.asset !== asset) return;
+
+            const currentOdds = pos.side === 'UP' ? yesPrice : noPrice;
+
+            // Check mode-specific exits
+            switch (pos.mode) {
+                case 'SCALP':
+                    // Exit at target
+                    if (currentOdds >= pos.target) {
+                        this.closePosition(id, currentOdds, 'TARGET HIT');
+                        return;
+                    }
+                    // Exit before end
+                    if (timeToEnd <= CONFIG.SCALP.exitBeforeEnd) {
+                        this.closePosition(id, currentOdds, 'TIME EXIT (before resolution)');
+                        return;
+                    }
+                    break;
+
+                case 'ARBITRAGE':
+                    // Exit at target
+                    if (currentOdds >= pos.target) {
+                        this.closePosition(id, currentOdds, 'ARBITRAGE TARGET');
+                        return;
+                    }
+                    // Max hold time
+                    if (now - pos.time > CONFIG.ARBITRAGE.maxHoldTime * 1000) {
+                        this.closePosition(id, currentOdds, 'MAX HOLD TIME');
+                        return;
+                    }
+                    break;
+
+                case 'UNCERTAINTY':
+                    // Exit at reversion target
+                    if (pos.side === 'UP' && currentOdds >= pos.target) {
+                        this.closePosition(id, currentOdds, 'REVERSION TARGET');
+                        return;
+                    }
+                    if (pos.side === 'DOWN' && currentOdds <= (1 - CONFIG.UNCERTAINTY.targetReversion)) {
+                        this.closePosition(id, currentOdds, 'REVERSION TARGET');
+                        return;
+                    }
+                    break;
+
+                case 'MOMENTUM':
+                    // BUG FIX: Add reversal detection (CONFIG.MOMENTUM.exitOnReversal was not implemented)
+                    if (CONFIG.MOMENTUM.exitOnReversal) {
+                        // Detect reversal: odds moving against our position
+                        const oddsMovingAgainst = (pos.side === 'UP' && currentOdds < pos.entry * 0.9) ||
+                            (pos.side === 'DOWN' && currentOdds > pos.entry * 1.1);
+                        if (oddsMovingAgainst) {
+                            this.closePosition(id, currentOdds, 'REVERSAL DETECTED');
+                            return;
+                        }
+                    }
+                    // Exit before end
+                    if (timeToEnd <= CONFIG.MOMENTUM.exitBeforeEnd) {
+                        this.closePosition(id, currentOdds, 'TIME EXIT');
+                        return;
+                    }
+                    break;
+            }
+
+            // Universal stop loss (all modes except ORACLE)
+            if (pos.mode !== 'ORACLE' && pos.stopLoss && currentOdds <= pos.stopLoss) {
+                this.closePosition(id, currentOdds, 'STOP LOSS');
+            }
+        });
+    }
+
+    // Close all positions at checkpoint resolution
+    resolveOraclePositions(asset, finalOutcome, yesPrice, noPrice) {
+        Object.entries(this.positions).forEach(([id, pos]) => {
+            if (pos.asset !== asset || pos.mode !== 'ORACLE') return;
+
+            const won = (pos.side === finalOutcome);
+            const exitPrice = won ? 1.0 : 0.0; // Binary resolution
+            this.closePosition(id, exitPrice, won ? 'ORACLE WIN' : 'ORACLE LOSS');
+        });
+    }
+}
+
+// ==================== OPPORTUNITY DETECTOR ====================
+class OpportunityDetector {
+    constructor() {
+        this.lastScans = {};
+    }
+
+    // MODE 2: ARBITRAGE - Detect mispriced odds
+    detectArbitrage(asset, confidence, yesPrice, noPrice, side) {
+        if (!CONFIG.ARBITRAGE.enabled) return null;
+
+        const fairValue = side === 'UP' ? confidence : (1 - confidence);
+        const marketOdds = side === 'UP' ? yesPrice : noPrice;
+        const mispricing = fairValue - marketOdds;
+
+        if (mispricing >= CONFIG.ARBITRAGE.minMispricing) {
+            return {
+                mode: 'ARBITRAGE',
+                direction: side,
+                entry: marketOdds,
+                edge: mispricing * 100,
+                reason: `Odds mispriced by ${(mispricing * 100).toFixed(1)}%`
+            };
+        }
+        return null;
+    }
+
+    // MODE 3: SCALP - Detect ultra-cheap entry
+    detectScalp(asset, confidence, yesPrice, noPrice) {
+        if (!CONFIG.SCALP.enabled) return null;
+
+        // Calculate expectation for each side
+        const yesExpect = confidence;
+        const noExpect = 1 - confidence;
+
+        // Check YES side
+        if (yesPrice <= CONFIG.SCALP.maxEntryPrice) {
+            if (!CONFIG.SCALP.requireLean || yesExpect > 0.55) {
+                return {
+                    mode: 'SCALP',
+                    direction: 'UP',
+                    entry: yesPrice,
+                    target: yesPrice * CONFIG.SCALP.targetMultiple,
+                    reason: `YES at ${(yesPrice * 100).toFixed(0)}¢ (lean: ${(yesExpect * 100).toFixed(0)}%)`
+                };
             }
         }
+
+        // Check NO side
+        if (noPrice <= CONFIG.SCALP.maxEntryPrice) {
+            if (!CONFIG.SCALP.requireLean || noExpect > 0.55) {
+                return {
+                    mode: 'SCALP',
+                    direction: 'DOWN',
+                    entry: noPrice,
+                    target: noPrice * CONFIG.SCALP.targetMultiple,
+                    reason: `NO at ${(noPrice * 100).toFixed(0)}¢ (lean: ${(noExpect * 100).toFixed(0)}%)`
+                };
+            }
+        }
+
+        return null;
+    }
+
+    // MODE 4: UNCERTAINTY - Trade volatility/extreme odds
+    detectUncertainty(asset, yesPrice, noPrice, volatility, regime) {
+        if (!CONFIG.UNCERTAINTY.enabled) return null;
+        if (volatility < CONFIG.UNCERTAINTY.volatilityMin) return null;
+
+        // Extreme YES odds - bet on reversion (buy NO)
+        if (yesPrice >= CONFIG.UNCERTAINTY.extremeThreshold && regime !== 'TRENDING') {
+            return {
+                mode: 'UNCERTAINTY',
+                direction: 'DOWN',
+                entry: noPrice,
+                reason: `YES extreme (${(yesPrice * 100).toFixed(0)}%), betting on reversion`
+            };
+        }
+
+        // Extreme NO odds - bet on reversion (buy YES)
+        if (noPrice >= CONFIG.UNCERTAINTY.extremeThreshold && regime !== 'TRENDING') {
+            return {
+                mode: 'UNCERTAINTY',
+                direction: 'UP',
+                entry: yesPrice,
+                reason: `NO extreme (${(noPrice * 100).toFixed(0)}%), betting on reversion`
+            };
+        }
+
+        return null;
+    }
+
+    // MODE 5: MOMENTUM - Ride strong trends
+    detectMomentum(asset, elapsed, priceHistory, votes, consensusRatio, force, atr) {
+        if (!CONFIG.MOMENTUM.enabled) return null;
+        if (elapsed < CONFIG.MOMENTUM.minElapsed) return null;
+
+        // Check consensus
+        if (consensusRatio < CONFIG.MOMENTUM.minConsensus) return null;
+
+        // Check for breakout (BUG FIX: removed *100, breakoutThreshold 0.03 means 3% of ATR)
+        const breakout = Math.abs(force) / atr;
+        if (breakout < CONFIG.MOMENTUM.breakoutThreshold) return null;
+
+        const direction = force > 0 ? 'UP' : 'DOWN';
+        return {
+            mode: 'MOMENTUM',
+            direction,
+            reason: `Breakout detected: ${(breakout).toFixed(1)}x ATR, ${(consensusRatio * 100).toFixed(0)}% consensus`
+        };
+    }
+
+    // Scan all modes and return best opportunity
+    scanAll(asset, data) {
+        const opportunities = [];
+
+        // Arbitrage
+        const arb = this.detectArbitrage(asset, data.confidence, data.yesPrice, data.noPrice, data.prediction);
+        if (arb) opportunities.push({ ...arb, priority: 2 });
+
+        // Scalp
+        const scalp = this.detectScalp(asset, data.confidence, data.yesPrice, data.noPrice);
+        if (scalp) opportunities.push({ ...scalp, priority: 3 });
+
+        // Uncertainty
+        const unc = this.detectUncertainty(asset, data.yesPrice, data.noPrice, data.volatility, data.regime);
+        if (unc) opportunities.push({ ...unc, priority: 4 });
+
+        // Momentum
+        const mom = this.detectMomentum(asset, data.elapsed, data.history, data.votes, data.consensusRatio, data.force, data.atr);
+        if (mom) opportunities.push({ ...mom, priority: 5 });
+
+        // Sort by priority (lower = higher priority)
+        opportunities.sort((a, b) => a.priority - b.priority);
+
+        return opportunities;
     }
 }
 
 const tradeExecutor = new TradeExecutor();
+const opportunityDetector = new OpportunityDetector();
 
 // Logging
 function log(msg, asset = null) {
@@ -858,14 +1336,14 @@ class SupremeBrain {
             }
 
             // MOMENTUM BOOST: Help reach Conviction if moving right way
-            if (tier === 'ADVISORY' && finalConfidence > 0.60) { // Lowered from 0.65 to catch more
+            // Note: tier isn't assigned yet, so check confidence range directly
+            if (finalConfidence > 0.55 && finalConfidence < 0.70) { // Advisory range
                 // If we are close to 0.70 and price is moving in our favor
                 if ((finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0)) {
                     finalConfidence += 0.05; // Stronger nudge (+5%)
+                    log(`🚀 MOMENTUM BOOST: +5% (price moving in our favor)`, this.asset);
                 }
             }
-
-            // Penalize poor win rate
 
             // Penalize poor win rate
             if (this.stats.total > 10) {
@@ -1003,47 +1481,25 @@ class SupremeBrain {
                 if (finalSignal === this.pendingSignal) this.stabilityCounter++;
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
-                const requiredStability = (() => {
-                    if (elapsed < 180) return 3; // SNIPER MODE: Faster confirmation (was 5)
-                    if (elapsed < 600) return 3;
-                    // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
-                    if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
-                        const market = currentMarkets[this.asset];
-                        // Only commit if we have reasonable odds (otherwise wait for better entry)
-                        if (market) {
-                            const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-                            if (currentOdds <= 0.85 || tier === 'CONVICTION') {
-                                this.cycleCommitted = true;
-                                this.committedDirection = finalSignal;
-                                this.commitTime = Date.now();
-                                log(`💎 CYCLE COMMITMENT: ${finalSignal} @${tier} tier, ${(currentOdds * 100).toFixed(1)}% odds (LOCKED FOR CYCLE)`, this.asset);
-                            }
+                // Calculate required stability (FIXED: Simple calculation, no side effects)
+                let requiredStability = 3;
+                if (elapsed < 180) requiredStability = 3; // SNIPER MODE: Faster confirmation
+                else if (elapsed < 600) requiredStability = 3;
+                else requiredStability = 2; // Late cycle = faster
+
+                // Cycle commitment (moved outside IIFE)
+                if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
+                    const market = currentMarkets[this.asset];
+                    if (market) {
+                        const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+                        if (currentOdds <= 0.85 || tier === 'CONVICTION') {
+                            this.cycleCommitted = true;
+                            this.committedDirection = finalSignal;
+                            this.commitTime = Date.now();
+                            log(`💎 CYCLE COMMITMENT: ${finalSignal} @${tier} tier, ${(currentOdds * 100).toFixed(1)}% odds (LOCKED FOR CYCLE)`, this.asset);
                         }
                     }
-
-                    // CONVICTION LOCK: High confidence + Reasonable odds (anti-whipsaw)
-                    if (!this.convictionLocked && tier === 'CONVICTION' && elapsed < 300 && finalConfidence >= 0.96) {
-                        const market = currentMarkets[this.asset];
-                        if (market) {
-                            const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-
-                            // Lock if odds show value (<=85% to allow some premium for conviction)
-                            if (currentOdds <= 0.85) {
-                                this.convictionLocked = true;
-                                this.lockedDirection = finalSignal;
-                                this.lockTime = Date.now();
-                                this.lockConfidence = finalConfidence;
-                                log(`🔒 CONVICTION LOCKED: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% confidence, ${(currentOdds * 100).toFixed(1)}% odds`, this.asset);
-
-                                // TRIGGER TRADE EXECUTION
-                                tradeExecutor.executeTrade(this.asset, finalSignal, finalConfidence, currentPrice, market);
-                            } else {
-                                log(`⚠️ High confidence (${(finalConfidence * 100).toFixed(1)}%) but odds too rich (${(currentOdds * 100).toFixed(1)}%) - skipping lock`, this.asset);
-                            }
-                        }
-                    }
-                    return 1;
-                })();
+                }
 
                 if (this.stabilityCounter >= requiredStability) {
                     this.prediction = finalSignal;
@@ -1061,6 +1517,88 @@ class SupremeBrain {
                 if (this.lastSignal) {
                     this.lastSignal.conf = finalConfidence;
                     this.lastSignal.tier = tier;
+                }
+            }
+
+            // ==================== MULTI-MODE TRADING SYSTEM ====================
+            // CRITICAL: This section is NOW OUTSIDE the debounce logic (BUG FIX)
+
+            // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
+            if (CONFIG.ORACLE.enabled && !this.convictionLocked && tier === 'CONVICTION' && elapsed < 300) {
+                const market = currentMarkets[this.asset];
+                if (market) {
+                    const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+                    const consensusVotes = Math.max(votes.UP, votes.DOWN);
+                    const consensusRatio = totalVotes > 0 ? consensusVotes / totalVotes : 0;
+                    const edgePercent = (finalConfidence - currentOdds) * 100;
+                    const priceMovingRight = (finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0);
+                    const isTrending = regime === 'TRENDING';
+                    const stabilityMet = this.stabilityCounter >= CONFIG.ORACLE.minStability || this.prediction === finalSignal;
+
+                    log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Conf=${(finalConfidence * 100).toFixed(0)}% Edge=${edgePercent.toFixed(1)}% Regime=${regime}`, this.asset);
+
+                    const oracleChecks = {
+                        consensus: consensusRatio >= CONFIG.ORACLE.minConsensus,
+                        confidence: finalConfidence >= CONFIG.ORACLE.minConfidence,
+                        edge: edgePercent >= CONFIG.ORACLE.minEdge,
+                        regime: !CONFIG.ORACLE.requireTrending || isTrending,
+                        momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
+                        odds: currentOdds <= CONFIG.ORACLE.maxOdds,
+                        stability: stabilityMet
+                    };
+
+                    const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
+
+                    if (failedChecks.length === 0) {
+                        this.convictionLocked = true;
+                        this.lockedDirection = finalSignal;
+                        this.lockTime = Date.now();
+                        this.lockConfidence = finalConfidence;
+
+                        log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
+                        log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
+
+                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market);
+                    } else {
+                        log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
+                    }
+                }
+            }
+
+            // MULTI-MODE SCANNING (Only if Multi-Mode is enabled)
+            if (CONFIG.MULTI_MODE_ENABLED && currentMarkets[this.asset]) {
+                const market = currentMarkets[this.asset];
+                const yesPrice = market.yesPrice;
+                const noPrice = market.noPrice;
+
+                // Check exit conditions for existing positions
+                tradeExecutor.checkExits(this.asset, currentPrice, elapsed, yesPrice, noPrice);
+
+                // Scan for new opportunities (only if not already in ORACLE trade)
+                if (!this.convictionLocked) {
+                    const opportunities = opportunityDetector.scanAll(this.asset, {
+                        confidence: finalConfidence,
+                        prediction: finalSignal,
+                        yesPrice,
+                        noPrice,
+                        volatility: atr / currentPrice,
+                        regime,
+                        elapsed,
+                        history: history,
+                        votes,
+                        consensusRatio: totalVotes > 0 ? Math.max(votes.UP, votes.DOWN) / totalVotes : 0,
+                        force,
+                        atr
+                    });
+
+                    // Execute best opportunity (first in list after priority sort)
+                    if (opportunities.length > 0) {
+                        const opp = opportunities[0];
+                        log(`📡 ${opp.mode} OPPORTUNITY: ${opp.direction} - ${opp.reason}`, this.asset);
+
+                        const entryPrice = opp.direction === 'UP' ? yesPrice : noPrice;
+                        tradeExecutor.executeTrade(this.asset, opp.direction, opp.mode, finalConfidence, entryPrice, market);
+                    }
                 }
             }
 
@@ -1771,17 +2309,57 @@ app.get('/api/state', (req, res) => {
             market: currentMarkets[a],
             locked: Brains[a].convictionLocked,
             voteStability: Brains[a].voteTrendScore,
-            recentAccuracy: recentAccuracy.toFixed(1),  // Last 10 predictions accuracy
-            recentTotal: recentTotal,  // How many of the last 10 we have
-
-            // FINAL SEVEN METRICS
+            recentAccuracy: recentAccuracy.toFixed(1),
+            recentTotal: recentTotal,
             kellySize: Brains[a].getKellySize(),
             calibration: Brains[a].calibrationBuckets,
             newsState: Brains[a].newsState,
-            modelVotes: Brains[a].lastSignal ? Brains[a].lastSignal.modelVotes : {} // Send model votes to UI
+            modelVotes: Brains[a].lastSignal ? Brains[a].lastSignal.modelVotes : {}
         };
     });
+
+    // Add trading system data
+    response._trading = {
+        mode: CONFIG.TRADE_MODE,
+        balance: tradeExecutor.paperBalance,
+        todayPnL: tradeExecutor.todayPnL,
+        positions: tradeExecutor.positions,
+        positionCount: Object.keys(tradeExecutor.positions).length,
+        tradeHistory: tradeExecutor.tradeHistory.slice(-20), // Last 20 trades
+        modes: {
+            ORACLE: CONFIG.ORACLE.enabled,
+            ARBITRAGE: CONFIG.ARBITRAGE.enabled,
+            SCALP: CONFIG.SCALP.enabled,
+            UNCERTAINTY: CONFIG.UNCERTAINTY.enabled,
+            MOMENTUM: CONFIG.MOMENTUM.enabled
+        },
+        inCooldown: tradeExecutor.isInCooldown()
+    };
+
     res.json(response);
+});
+
+// Trading API - Get detailed trade data
+app.get('/api/trades', (req, res) => {
+    res.json({
+        mode: CONFIG.TRADE_MODE,
+        balance: tradeExecutor.paperBalance,
+        startingBalance: tradeExecutor.startingBalance,
+        todayPnL: tradeExecutor.todayPnL,
+        totalReturn: ((tradeExecutor.paperBalance / tradeExecutor.startingBalance) - 1) * 100,
+        positions: tradeExecutor.positions,
+        tradeHistory: tradeExecutor.tradeHistory,
+        modes: {
+            ORACLE: { ...CONFIG.ORACLE },
+            ARBITRAGE: { ...CONFIG.ARBITRAGE },
+            SCALP: { ...CONFIG.SCALP },
+            UNCERTAINTY: { ...CONFIG.UNCERTAINTY },
+            MOMENTUM: { ...CONFIG.MOMENTUM }
+        },
+        risk: CONFIG.RISK,
+        inCooldown: tradeExecutor.isInCooldown(),
+        lastLossTime: tradeExecutor.lastLossTime
+    });
 });
 
 // EXPORT ENDPOINT (New Feature)
@@ -1814,6 +2392,501 @@ app.get('/api/export', (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename = ${asset} _history.csv`);
     res.send([headers.join(','), ...rows].join('\n'));
+});
+
+// ==================== SETTINGS API ====================
+app.use(express.json()); // Enable JSON body parsing
+
+// Get current settings (masked for security)
+app.get('/api/settings', (req, res) => {
+    res.json({
+        // Masked keys (show first/last 4 chars only)
+        POLYMARKET_API_KEY: CONFIG.POLYMARKET_API_KEY ? `${CONFIG.POLYMARKET_API_KEY.substring(0, 8)}...${CONFIG.POLYMARKET_API_KEY.slice(-4)}` : '',
+        POLYMARKET_SECRET: CONFIG.POLYMARKET_SECRET ? '****HIDDEN****' : '',
+        POLYMARKET_PASSPHRASE: CONFIG.POLYMARKET_PASSPHRASE ? '****HIDDEN****' : '',
+        POLYMARKET_ADDRESS: CONFIG.POLYMARKET_ADDRESS,
+        POLYMARKET_PRIVATE_KEY: CONFIG.POLYMARKET_PRIVATE_KEY ? '****HIDDEN****' : '',
+        POLYMARKET_PROXY_KEY: CONFIG.POLYMARKET_PROXY_KEY ? `${CONFIG.POLYMARKET_PROXY_KEY.substring(0, 4)}...` : '',
+
+        // Trading settings (fully visible)
+        TRADE_MODE: CONFIG.TRADE_MODE,
+        PAPER_BALANCE: CONFIG.PAPER_BALANCE,
+        MAX_POSITION_SIZE: CONFIG.MAX_POSITION_SIZE,
+        CONVICTION_THRESHOLD: CONFIG.CONVICTION_THRESHOLD,
+        ADVISORY_THRESHOLD: CONFIG.ADVISORY_THRESHOLD,
+        EARLY_BOOST: CONFIG.EARLY_BOOST,
+        REALITY_CHECK_ATR: CONFIG.REALITY_CHECK_ATR,
+        MOMENTUM_BOOST: CONFIG.MOMENTUM_BOOST,
+
+        // Status
+        walletLoaded: !!tradeExecutor.wallet,
+        walletAddress: tradeExecutor.wallet ? tradeExecutor.wallet.address : null,
+        currentBalance: tradeExecutor.paperBalance,
+        positions: tradeExecutor.positions,
+        tradeHistory: tradeExecutor.tradeHistory || []
+    });
+});
+
+// Update settings
+app.post('/api/settings', (req, res) => {
+    const updates = req.body;
+    let reloadRequired = false;
+
+    // Update CONFIG
+    for (const [key, value] of Object.entries(updates)) {
+        if (CONFIG.hasOwnProperty(key)) {
+            CONFIG[key] = value;
+            log(`⚙️ Setting updated: ${key}`);
+
+            // Check if wallet reload needed
+            if (['POLYMARKET_API_KEY', 'POLYMARKET_SECRET', 'POLYMARKET_PASSPHRASE', 'POLYMARKET_PRIVATE_KEY', 'TRADE_MODE'].includes(key)) {
+                reloadRequired = true;
+            }
+        }
+    }
+
+    // Reload wallet if needed
+    if (reloadRequired) {
+        tradeExecutor.reloadWallet();
+    }
+
+    res.json({ success: true, message: 'Settings updated', reloadRequired });
+});
+
+// Settings UI page
+app.get('/settings', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Settings - Supreme Deity Oracle</title>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1 { text-align: center; margin-bottom: 30px; font-size: 2.5em; }
+        .card {
+            background: rgba(0,0,0,0.4);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 2px solid rgba(255,255,255,0.1);
+        }
+        .card h2 { margin-bottom: 20px; color: #4fc3f7; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #aaa; }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: white;
+            font-size: 14px;
+        }
+        input:focus, select:focus { border-color: #4fc3f7; outline: none; }
+        .btn {
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-right: 10px;
+        }
+        .btn-primary { background: #4fc3f7; color: #000; }
+        .btn-primary:hover { background: #81d4fa; transform: scale(1.05); }
+        .btn-danger { background: #ff4444; color: white; }
+        .btn-danger:hover { background: #ff6666; }
+        .btn-success { background: #00c853; color: white; }
+        .btn-success:hover { background: #00e676; }
+        .status { padding: 10px; border-radius: 8px; margin-top: 15px; }
+        .status.success { background: rgba(0,200,100,0.3); border: 1px solid #00c853; }
+        .status.error { background: rgba(255,0,0,0.3); border: 1px solid #ff4444; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .back-link { display: inline-block; margin-bottom: 20px; color: #4fc3f7; text-decoration: none; }
+        .back-link:hover { text-decoration: underline; }
+        .mode-toggle {
+            display: flex;
+            gap: 10px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .mode-btn.active { border-color: #00c853; background: rgba(0,200,100,0.3); }
+        .mode-btn.paper.active { border-color: #ff9800; background: rgba(255,150,0,0.3); }
+        .mode-btn.live.active { border-color: #ff0066; background: rgba(255,0,100,0.3); }
+        .wallet-status {
+            padding: 15px;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-link">← Back to Dashboard</a>
+        <h1>⚙️ Settings</h1>
+        
+        <div class="card">
+            <h2>🔄 Trading Mode</h2>
+            <div class="mode-toggle">
+                <button class="mode-btn paper" onclick="setMode('PAPER')">📝 PAPER TRADING</button>
+                <button class="mode-btn live" onclick="setMode('LIVE')">🔴 LIVE TRADING</button>
+            </div>
+            <div class="wallet-status" id="walletStatus">Loading...</div>
+        </div>
+        
+        <div class="card">
+            <h2>💰 Trading Parameters</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Paper Balance ($)</label>
+                    <input type="number" id="PAPER_BALANCE" value="1000">
+                </div>
+                <div class="form-group">
+                    <label>Max Position Size (%)</label>
+                    <input type="number" id="MAX_POSITION_SIZE" value="10" step="1" min="1" max="25">
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>🎯 Sniper Mode Thresholds</h2>
+            <div class="grid">
+                <div class="form-group">
+                    <label>Conviction Threshold</label>
+                    <input type="number" id="CONVICTION_THRESHOLD" value="0.70" step="0.05" min="0.5" max="0.95">
+                </div>
+                <div class="form-group">
+                    <label>Advisory Threshold</label>
+                    <input type="number" id="ADVISORY_THRESHOLD" value="0.55" step="0.05" min="0.3" max="0.7">
+                </div>
+                <div class="form-group">
+                    <label>Early Boost Multiplier</label>
+                    <input type="number" id="EARLY_BOOST" value="1.35" step="0.05" min="1.0" max="1.5">
+                </div>
+                <div class="form-group">
+                    <label>Reality Check (ATR Multiple)</label>
+                    <input type="number" id="REALITY_CHECK_ATR" value="4" step="1" min="2" max="6">
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>🔑 API Keys</h2>
+            <div class="form-group">
+                <label>Polymarket API Key</label>
+                <input type="text" id="POLYMARKET_API_KEY" placeholder="019aed53-b71a-7065-9115-c35883302725">
+            </div>
+            <div class="form-group">
+                <label>Polymarket Secret</label>
+                <input type="password" id="POLYMARKET_SECRET" placeholder="Enter secret...">
+            </div>
+            <div class="form-group">
+                <label>Polymarket Passphrase</label>
+                <input type="password" id="POLYMARKET_PASSPHRASE" placeholder="Enter passphrase...">
+            </div>
+            <div class="form-group">
+                <label>Wallet Address</label>
+                <input type="text" id="POLYMARKET_ADDRESS" placeholder="0x...">
+            </div>
+            <div class="form-group">
+                <label>Private Key (⚠️ SENSITIVE)</label>
+                <input type="password" id="POLYMARKET_PRIVATE_KEY" placeholder="Enter private key...">
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <button class="btn btn-primary" onclick="saveSettings()">💾 Save All Settings</button>
+            <button class="btn btn-danger" onclick="resetSettings()">🔄 Reset to Defaults</button>
+        </div>
+        
+        <div id="statusMessage" class="status" style="display: none;"></div>
+    </div>
+    
+    <script>
+        let currentSettings = {};
+        
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                currentSettings = await res.json();
+                
+                // Populate form
+                document.getElementById('PAPER_BALANCE').value = currentSettings.PAPER_BALANCE || 1000;
+                document.getElementById('MAX_POSITION_SIZE').value = (currentSettings.MAX_POSITION_SIZE || 0.10) * 100;
+                document.getElementById('CONVICTION_THRESHOLD').value = currentSettings.CONVICTION_THRESHOLD || 0.70;
+                document.getElementById('ADVISORY_THRESHOLD').value = currentSettings.ADVISORY_THRESHOLD || 0.55;
+                document.getElementById('EARLY_BOOST').value = currentSettings.EARLY_BOOST || 1.35;
+                document.getElementById('REALITY_CHECK_ATR').value = currentSettings.REALITY_CHECK_ATR || 4;
+                document.getElementById('POLYMARKET_ADDRESS').value = currentSettings.POLYMARKET_ADDRESS || '';
+                
+                // Update mode buttons
+                document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+                if (currentSettings.TRADE_MODE === 'PAPER') {
+                    document.querySelector('.mode-btn.paper').classList.add('active');
+                } else {
+                    document.querySelector('.mode-btn.live').classList.add('active');
+                }
+                
+                // Wallet status
+                const walletStatus = document.getElementById('walletStatus');
+                if (currentSettings.walletLoaded) {
+                    walletStatus.innerHTML = \`✅ Wallet Connected: <strong>\${currentSettings.walletAddress}</strong><br>
+                        Mode: <strong>\${currentSettings.TRADE_MODE}</strong> | 
+                        Balance: <strong>$\${currentSettings.currentBalance?.toFixed(2) || '0.00'}</strong>\`;
+                } else {
+                    walletStatus.innerHTML = '⚠️ No wallet loaded. Enter private key and save to connect.';
+                }
+            } catch (e) {
+                showStatus('Error loading settings: ' + e.message, 'error');
+            }
+        }
+        
+        async function setMode(mode) {
+            try {
+                await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ TRADE_MODE: mode })
+                });
+                loadSettings();
+                showStatus(\`Mode changed to \${mode}\`, 'success');
+            } catch (e) {
+                showStatus('Error: ' + e.message, 'error');
+            }
+        }
+        
+        async function saveSettings() {
+            const updates = {};
+            
+            // Collect non-empty values
+            const fields = ['POLYMARKET_API_KEY', 'POLYMARKET_SECRET', 'POLYMARKET_PASSPHRASE', 
+                            'POLYMARKET_ADDRESS', 'POLYMARKET_PRIVATE_KEY'];
+            fields.forEach(id => {
+                const val = document.getElementById(id).value;
+                if (val && val.length > 0 && !val.includes('****')) {
+                    updates[id] = val;
+                }
+            });
+            
+            // Numeric fields
+            updates.PAPER_BALANCE = parseFloat(document.getElementById('PAPER_BALANCE').value);
+            updates.MAX_POSITION_SIZE = parseFloat(document.getElementById('MAX_POSITION_SIZE').value) / 100;
+            updates.CONVICTION_THRESHOLD = parseFloat(document.getElementById('CONVICTION_THRESHOLD').value);
+            updates.ADVISORY_THRESHOLD = parseFloat(document.getElementById('ADVISORY_THRESHOLD').value);
+            updates.EARLY_BOOST = parseFloat(document.getElementById('EARLY_BOOST').value);
+            updates.REALITY_CHECK_ATR = parseInt(document.getElementById('REALITY_CHECK_ATR').value);
+            
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                const result = await res.json();
+                showStatus('Settings saved successfully!', 'success');
+                loadSettings();
+            } catch (e) {
+                showStatus('Error: ' + e.message, 'error');
+            }
+        }
+        
+        function resetSettings() {
+            if (confirm('Reset all settings to defaults?')) {
+                location.reload();
+            }
+        }
+        
+        function showStatus(msg, type) {
+            const el = document.getElementById('statusMessage');
+            el.textContent = msg;
+            el.className = 'status ' + type;
+            el.style.display = 'block';
+            setTimeout(() => el.style.display = 'none', 5000);
+        }
+        
+        loadSettings();
+        setInterval(loadSettings, 10000);
+    </script>
+</body>
+</html>
+    `);
+});
+
+// ==================== BEGINNER'S GUIDE PAGE ====================
+app.get('/guide', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Supreme Oracle - Beginner's Guide</title>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #0a0a1a; color: #e0e0e0; line-height: 1.7; }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        h1 { color: #ffd700; text-align: center; margin: 30px 0; font-size: 2.5em; }
+        h2 { color: #00ff88; margin: 40px 0 20px; padding-bottom: 10px; border-bottom: 2px solid #333; }
+        h3 { color: #88ccff; margin: 25px 0 15px; }
+        .card { background: rgba(0,0,0,0.5); border: 1px solid #333; border-radius: 12px; padding: 25px; margin: 20px 0; }
+        .mode-card { border-left: 4px solid #ffd700; }
+        .mode-card.oracle { border-left-color: #9933ff; }
+        .mode-card.arb { border-left-color: #00ff88; }
+        .mode-card.scalp { border-left-color: #ff6633; }
+        .mode-card.unc { border-left-color: #3399ff; }
+        .mode-card.mom { border-left-color: #ff33cc; }
+        .emoji { font-size: 1.5em; margin-right: 10px; }
+        .highlight { background: rgba(255,215,0,0.1); padding: 2px 8px; border-radius: 4px; color: #ffd700; }
+        .term { color: #00ff88; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
+        th { background: rgba(0,255,136,0.1); color: #00ff88; }
+        .tip { background: rgba(0,136,255,0.1); border-left: 4px solid #0088ff; padding: 15px; margin: 20px 0; }
+        .warning { background: rgba(255,102,0,0.1); border-left: 4px solid #ff6600; padding: 15px; margin: 20px 0; }
+        nav { background: rgba(0,0,0,0.8); padding: 15px; margin-bottom: 30px; text-align: center; }
+        nav a { color: #88ccff; text-decoration: none; margin: 0 20px; font-size: 1.1em; }
+        nav a:hover { color: #00ff88; }
+        .back-link { display: inline-block; color: #ffd700; text-decoration: none; margin: 30px 0; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">📊 Dashboard</a>
+        <a href="/settings">⚙️ Settings</a>
+        <a href="/guide">📚 Guide</a>
+    </nav>
+    
+    <div class="container">
+        <h1>🔮 Supreme Oracle - Beginner's Guide</h1>
+        
+        <div class="card">
+            <h2>📖 What Is This Bot?</h2>
+            <p>The Supreme Oracle is an <span class="term">AI-powered prediction bot</span> for <span class="highlight">Polymarket BTC/ETH price markets</span>. It analyzes price movements using 8 machine learning models and automatically trades when it identifies profitable opportunities.</p>
+        </div>
+        
+        <h2>🎯 The 5 Trading Modes</h2>
+        <p>The bot operates in 5 different modes simultaneously, each looking for different types of profitable opportunities:</p>
+        
+        <div class="card mode-card oracle">
+            <h3><span class="emoji">🔮</span> ORACLE Mode</h3>
+            <p><strong>Strategy:</strong> Predict the final UP/DOWN outcome with near-certainty.</p>
+            <p><strong>When it trades:</strong> Only when ALL 8 models agree, confidence is 92%+, and there's a 15%+ edge over market odds.</p>
+            <p><strong>Expected trades:</strong> 1-5 per day (very selective)</p>
+            <p><strong>Target accuracy:</strong> 85%+</p>
+        </div>
+        
+        <div class="card mode-card arb">
+            <h3><span class="emoji">📊</span> ARBITRAGE Mode</h3>
+            <p><strong>Strategy:</strong> Buy when the market odds are significantly different from our calculated fair value.</p>
+            <p><strong>Example:</strong> If we calculate 60% probability but market shows 40% odds, buy at 40¢ and sell when odds correct to ~55¢.</p>
+            <p><strong>Exit:</strong> At 50% profit OR after 10 minutes maximum hold time.</p>
+        </div>
+        
+        <div class="card mode-card scalp">
+            <h3><span class="emoji">🎯</span> SCALP Mode</h3>
+            <p><strong>Strategy:</strong> Buy ultra-cheap options (under 20¢) and exit at 2x profit.</p>
+            <p><strong>Example:</strong> Buy at 10¢, sell at 20¢ = 100% profit!</p>
+            <p><strong>Safety:</strong> Exits before resolution to avoid total loss.</p>
+        </div>
+        
+        <div class="card mode-card unc">
+            <h3><span class="emoji">🌊</span> UNCERTAINTY Mode</h3>
+            <p><strong>Strategy:</strong> When odds are extreme (80%+), bet on reversion toward 50/50.</p>
+            <p><strong>Example:</strong> YES at 85¢ → market gets uncertain → YES drops to 60¢. We buy NO and profit!</p>
+            <p><strong>Only works in:</strong> Choppy, uncertain markets (NOT trending markets).</p>
+        </div>
+        
+        <div class="card mode-card mom">
+            <h3><span class="emoji">🚀</span> MOMENTUM Mode</h3>
+            <p><strong>Strategy:</strong> Ride strong trends when price breaks out mid-cycle.</p>
+            <p><strong>Entry:</strong> After 5 minutes, when clear breakout + 75%+ model agreement.</p>
+            <p><strong>Exit:</strong> First sign of reversal OR 3 minutes before checkpoint.</p>
+        </div>
+        
+        <h2>📊 Understanding the Dashboard</h2>
+        
+        <table>
+            <tr><th>Metric</th><th>What It Means</th><th>Good Values</th></tr>
+            <tr><td><span class="term">Prediction</span></td><td>The bot's current prediction for price direction</td><td>UP or DOWN (not NEUTRAL)</td></tr>
+            <tr><td><span class="term">Confidence</span></td><td>How certain the bot is about its prediction (0-100%)</td><td>70%+ for trading</td></tr>
+            <tr><td><span class="term">Tier</span></td><td>Trade quality level based on confidence</td><td>CONVICTION (best) or ADVISORY</td></tr>
+            <tr><td><span class="term">Edge</span></td><td>Our advantage over market odds</td><td>10%+ is excellent</td></tr>
+            <tr><td><span class="term">Win Rate</span></td><td>Historical accuracy of predictions</td><td>55%+ is profitable</td></tr>
+            <tr><td><span class="term">Vote Stability</span></td><td>How consistent the models are in agreeing</td><td>80%+ means strong signal</td></tr>
+            <tr><td><span class="term">Market Odds</span></td><td>Current YES/NO prices on Polymarket</td><td>Lower odds = more profit potential</td></tr>
+        </table>
+        
+        <h2>💰 How Trades Work</h2>
+        
+        <div class="card">
+            <h3>Entry</h3>
+            <p>When conditions are met for any mode, the bot automatically:</p>
+            <ol style="margin-left: 20px; margin-top: 10px;">
+                <li>Calculates optimal position size (never more than 10% of balance)</li>
+                <li>Sets target prices and stop losses</li>
+                <li>Executes the trade</li>
+            </ol>
+        </div>
+        
+        <div class="card">
+            <h3>Exit</h3>
+            <p>Trades are closed automatically when:</p>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li>Target price is hit (profit!)</li>
+                <li>Stop loss is triggered (limiting losses)</li>
+                <li>Maximum hold time reached</li>
+                <li>Before checkpoint resolution (for non-Oracle modes)</li>
+            </ul>
+        </div>
+        
+        <div class="warning">
+            <h3>⚠️ Important: Paper vs Live Trading</h3>
+            <p>The bot defaults to <span class="term">PAPER</span> mode (simulated trading). This is for testing. To use real money, change <code>TRADE_MODE</code> to <code>LIVE</code> in settings after thoroughly testing.</p>
+        </div>
+        
+        <h2>🔗 API Endpoints</h2>
+        <table>
+            <tr><th>Endpoint</th><th>Description</th></tr>
+            <tr><td><code>/api/state</code></td><td>Current bot state, predictions, and positions</td></tr>
+            <tr><td><code>/api/trades</code></td><td>Detailed trade history and P/L</td></tr>
+            <tr><td><code>/api/settings</code></td><td>Current configuration</td></tr>
+            <tr><td><code>/api/export?asset=BTC</code></td><td>Download CSV of prediction history</td></tr>
+        </table>
+        
+        <div class="tip">
+            <h3>💡 Pro Tips</h3>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li>Watch for 🔮🔮🔮 ORACLE MODE ACTIVATED in logs - these are the highest confidence trades</li>
+                <li>SCALP mode works best when one side has very low odds (under 20¢)</li>
+                <li>The bot has a 5-minute cooldown after losses to prevent emotional revenge trading</li>
+                <li>Check <code>/api/trades</code> regularly to monitor performance</li>
+            </ul>
+        </div>
+        
+        <a href="/" class="back-link">← Back to Dashboard</a>
+    </div>
+</body>
+</html>
+    `);
 });
 
 // ==================== CHECKPOINT LOGIC ====================
