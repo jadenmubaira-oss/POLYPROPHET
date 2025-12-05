@@ -2266,6 +2266,9 @@ async function loadState() {
 
 // Home route - UNIFIED ALL-IN-ONE DASHBOARD
 app.get('/', (req, res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
     res.send(`
 <!DOCTYPE html>
 <html>
@@ -2496,6 +2499,7 @@ app.get('/', (req, res) => {
         </div>
     </div>
     <script>
+        console.log('SCRIPT STARTING v2');
         let currentData = null;
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
@@ -2503,13 +2507,25 @@ app.get('/', (req, res) => {
         
         async function fetchData() {
             try {
+                console.log('fetchData called');
                 const res = await fetch('/api/state');
                 currentData = await res.json();
+                console.log('Data received:', Object.keys(currentData));
                 updateUI(currentData);
-            } catch (e) { console.error(e); }
+            } catch (e) { console.error('Fetch error:', e); }
         }
         
         function updateUI(data) {
+            console.log('updateUI called');
+            // Always update countdown first
+            const now = Math.floor(Date.now() / 1000);
+            const next = now - (now % 900) + 900;
+            const remaining = next - now;
+            document.getElementById('countdown').textContent = Math.floor(remaining / 60) + ':' + (remaining % 60).toString().padStart(2, '0');
+            console.log('Countdown updated:', remaining);
+            
+            if (!data) { console.error('No data received'); return; }
+            
             const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
             let html = '';
             assets.forEach(asset => {
@@ -2590,10 +2606,6 @@ app.get('/', (req, res) => {
                     document.getElementById('tradeHistory').innerHTML = histHtml;
                 } else { document.getElementById('tradeHistory').innerHTML = '<div class="no-positions">No trades yet</div>'; }
             }
-            const now = Math.floor(Date.now() / 1000);
-            const next = now - (now % 900) + 900;
-            const remaining = next - now;
-            document.getElementById('countdown').textContent = Math.floor(remaining / 60) + ':' + (remaining % 60).toString().padStart(2, '0');
         }
         
         async function loadWallet() {
@@ -2635,14 +2647,14 @@ app.get('/', (req, res) => {
                 if (data.RISK) { document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.30) * 100; document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.20) * 100; document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 300; }
             } catch (e) { console.error(e); }
         }
-        function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
+        function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function setMode(mode) {
-            if (mode === 'LIVE' && !confirm('⚠️ LIVE MODE\\n\\nReal orders will be placed!\\nReal USDC will be used!\\nLosses are REAL!\\n\\nContinue?')) return;
+            if (mode === 'LIVE' && !confirm('WARNING: LIVE MODE - Real orders, real USDC, real losses! Continue?')) return;
             try {
                 await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ TRADE_MODE: mode }) });
                 fetchData();
                 const status = document.getElementById('settingsStatus');
-                status.textContent = mode === 'LIVE' ? '🔴 LIVE MODE ENABLED' : '📝 Paper mode enabled';
+                status.textContent = mode === 'LIVE' ? 'LIVE MODE ENABLED' : 'Paper mode enabled';
                 status.className = 'status-msg ' + (mode === 'LIVE' ? 'error' : 'success');
             } catch (e) {}
         }
@@ -2665,12 +2677,13 @@ app.get('/', (req, res) => {
             if (privateKey) updates.POLYMARKET_PRIVATE_KEY = privateKey;
             try {
                 await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
-                document.getElementById('settingsStatus').textContent = '✅ All settings saved to Redis!';
+                document.getElementById('settingsStatus').textContent = '✅ All settings saved!';
                 document.getElementById('settingsStatus').className = 'status-msg success';
+                fetchData();
             } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Error saving'; document.getElementById('settingsStatus').className = 'status-msg error'; }
         }
         async function resetPaperBalance() {
-            if (!confirm('Reset paper balance to $' + document.getElementById('paperBalance').value + '?\n\nThis will close all positions and reset P/L.')) return;
+            if (!confirm('Reset paper balance? This will close all positions and reset P/L.')) return;
             try {
                 const newBalance = parseFloat(document.getElementById('paperBalance').value);
                 await fetch('/api/reset-balance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance: newBalance }) });
