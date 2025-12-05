@@ -9,6 +9,12 @@ const path = require('path');
 const cors = require('cors');
 const Redis = require('ioredis');
 const auth = require('basic-auth');
+require('dotenv').config();
+const { ethers } = require('ethers');
+
+// POLYMARKET CONFIG
+const POLY_EXCHANGE = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"; // Mainnet Exchange
+const POLY_CHAIN_ID = 137; // Polygon
 
 // Initialize App
 const app = express();
@@ -96,6 +102,79 @@ ASSETS.forEach(asset => {
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
 });
+
+// ==================== TRADE EXECUTOR (Paper & Live) ====================
+class TradeExecutor {
+    constructor() {
+        this.mode = process.env.TRADE_MODE || 'PAPER';
+        this.paperBalance = parseFloat(process.env.PAPER_BALANCE || '1000');
+        this.positions = {}; // { asset: { side: 'UP', size: 100, entryPrice: 0.5 } }
+        this.wallet = null;
+        this.apiKey = process.env.POLYMARKET_API_KEY;
+        this.apiSecret = process.env.POLYMARKET_SECRET;
+        this.apiPassphrase = process.env.POLYMARKET_PASSPHRASE;
+
+        if (process.env.POLYMARKET_PRIVATE_KEY) {
+            try {
+                const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
+                this.wallet = new ethers.Wallet(process.env.POLYMARKET_PRIVATE_KEY, provider);
+                log(`✅ Wallet Loaded: ${this.wallet.address.substring(0, 6)}...`);
+            } catch (e) {
+                log(`⚠️ Wallet Load Failed: ${e.message}`);
+            }
+        }
+        log(`💰 Trade Executor Initialized in ${this.mode} mode. Balance: $${this.paperBalance}`);
+    }
+
+    async executeTrade(asset, direction, confidence, price, market) {
+        if (!market) return;
+        const side = direction === 'UP' ? 'BUY' : 'SELL'; // Simplified: UP = Buy YES, DOWN = Buy NO (or Sell YES)
+        // Actually, Polymarket is Binary. UP = YES, DOWN = NO.
+        // We will buy YES tokens for UP, and NO tokens for DOWN.
+        const tokenType = direction === 'UP' ? 'YES' : 'NO';
+        const priceToBuy = direction === 'UP' ? market.yesPrice : market.noPrice;
+
+        // Kelly Size (already calculated in Brain, but we cap it here)
+        const bankroll = this.mode === 'LIVE' ? 1000 : this.paperBalance; // Mock live bankroll for now
+        const size = Math.min(bankroll * 0.10, bankroll * (confidence * 0.2)); // Cap at 10% or Kelly
+
+        if (size < 5) return; // Min trade size
+
+        log(`🚀 EXECUTING ${this.mode} TRADE: ${asset} ${tokenType} @ ${priceToBuy} (Size: $${size.toFixed(2)})`);
+
+        if (this.mode === 'PAPER') {
+            this.paperBalance -= size;
+            this.positions[asset] = { type: tokenType, size: size, entry: priceToBuy, time: Date.now() };
+            log(`📝 PAPER FILL: Bought ${asset} ${tokenType} - New Balance: $${this.paperBalance.toFixed(2)}`);
+        } else if (this.mode === 'LIVE' && this.wallet) {
+            // LIVE TRADE IMPLEMENTATION
+            // 1. Get Token ID
+            // 2. Sign Order
+            // 3. Post to CLOB
+            try {
+                // LIVE TRADE IMPLEMENTATION
+                // 1. Get Token ID from currentMarkets
+                const marketData = currentMarkets[asset];
+                if (!marketData || !marketData.tokenIds) {
+                    log(`❌ LIVE TRADE FAILED: No Token IDs found for ${asset}`);
+                    return;
+                }
+
+                // 2. Sign Order (EIP-712) - Placeholder for full implementation
+                // We need the specific Token ID: YES or NO
+                const tokenId = tokenType === 'YES' ? marketData.tokenIds.yes : marketData.tokenIds.no;
+
+                log(`⚠️ LIVE TRADING: Would buy ${tokenType} (Token ID: ${tokenId}) - SDK Integration Pending`);
+                // Actual Ethers.js signing would go here
+
+            } catch (e) {
+                log(`❌ LIVE TRADE FAILED: ${e.message}`);
+            }
+        }
+    }
+}
+
+const tradeExecutor = new TradeExecutor();
 
 // Logging
 function log(msg, asset = null) {
@@ -714,8 +793,8 @@ class SupremeBrain {
             // 🎯 AGGRESSIVE PROPHECY MODE: Optimized for £10→£1M Goal
             // Goal: Frequent, early predictions with acceptable accuracy
             let tier = 'NONE';
-            let convictionThreshold = 0.75; // PEACE OF MIND: High accuracy required
-            let advisoryThreshold = 0.60;   // Only trade when confident
+            let convictionThreshold = 0.70; // SNIPER MODE: Balanced Base (was 0.75)
+            let advisoryThreshold = 0.55;   // Easier entry (was 0.60)
 
             if (regime === 'CHOPPY') {
                 convictionThreshold = 0.80; // Very cautious in choppy markets
@@ -768,15 +847,25 @@ class SupremeBrain {
             advisoryThreshold -= oddsAdjustment;
 
             // REALITY CHECK: Kill confidence if price moves against us
-            // If we predict UP but price drops > 2*ATR from entry, kill it
-            if (this.prediction === 'UP' && (startPrice - currentPrice) > atr * 2) {
+            // If we predict UP but price drops > 4*ATR from entry, kill it (Widened from 3*ATR for Volatility)
+            if (this.prediction === 'UP' && (startPrice - currentPrice) > atr * 4) {
                 finalConfidence *= 0.5; // Nuke confidence
                 log(`⚠️ REALITY CHECK: Price moving against UP prediction`, this.asset);
             }
-            if (this.prediction === 'DOWN' && (currentPrice - startPrice) > atr * 2) {
+            if (this.prediction === 'DOWN' && (currentPrice - startPrice) > atr * 4) {
                 finalConfidence *= 0.5; // Nuke confidence
                 log(`⚠️ REALITY CHECK: Price moving against DOWN prediction`, this.asset);
             }
+
+            // MOMENTUM BOOST: Help reach Conviction if moving right way
+            if (tier === 'ADVISORY' && finalConfidence > 0.60) { // Lowered from 0.65 to catch more
+                // If we are close to 0.70 and price is moving in our favor
+                if ((finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0)) {
+                    finalConfidence += 0.05; // Stronger nudge (+5%)
+                }
+            }
+
+            // Penalize poor win rate
 
             // Penalize poor win rate
             if (this.stats.total > 10) {
@@ -915,7 +1004,7 @@ class SupremeBrain {
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
                 const requiredStability = (() => {
-                    if (elapsed < 180) return 5; // PEACE OF MIND: Confirm before locking
+                    if (elapsed < 180) return 3; // SNIPER MODE: Faster confirmation (was 5)
                     if (elapsed < 600) return 3;
                     // Once we reach CONVICTION or ADVISORY in first 5 minutes, we're COMMITTED
                     if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
@@ -945,6 +1034,9 @@ class SupremeBrain {
                                 this.lockTime = Date.now();
                                 this.lockConfidence = finalConfidence;
                                 log(`🔒 CONVICTION LOCKED: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% confidence, ${(currentOdds * 100).toFixed(1)}% odds`, this.asset);
+
+                                // TRIGGER TRADE EXECUTION
+                                tradeExecutor.executeTrade(this.asset, finalSignal, finalConfidence, currentPrice, market);
                             } else {
                                 log(`⚠️ High confidence (${(finalConfidence * 100).toFixed(1)}%) but odds too rich (${(currentOdds * 100).toFixed(1)}%) - skipping lock`, this.asset);
                             }
@@ -1254,7 +1346,8 @@ async function fetchCurrentMarkets() {
                 noPrice,
                 marketUrl: `https://polymarket.com/event/${eventData.slug}`,
                 volume: market.volume24hr || 0,
-                lastUpdated: Date.now()
+                lastUpdated: Date.now(),
+                tokenIds: { yes: tokenIds[0], no: tokenIds[1] } // Store Token IDs for trading
             };
 
             log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}% | NO ${(noPrice * 100).toFixed(1)}%`, asset);
