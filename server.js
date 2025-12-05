@@ -12,9 +12,28 @@ const auth = require('basic-auth');
 require('dotenv').config();
 const { ethers } = require('ethers');
 
+// Polymarket CLOB Client for Live Trading
+let ClobClient = null;
+try {
+    ClobClient = require('@polymarket/clob-client').ClobClient;
+} catch (e) {
+    console.log('⚠️ @polymarket/clob-client not installed - LIVE trading will not work');
+    console.log('   Run: npm install @polymarket/clob-client');
+}
+
 // POLYMARKET CONFIG
 const POLY_EXCHANGE = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E"; // Mainnet Exchange
 const POLY_CHAIN_ID = 137; // Polygon
+
+// USDC on Polygon (for wallet transfers)
+const USDC_ADDRESS = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
+const USDC_DECIMALS = 6;
+const USDC_ABI = [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function transfer(address to, uint256 amount) returns (bool)",
+    "function decimals() view returns (uint8)",
+    "function symbol() view returns (string)"
+];
 
 // Initialize App
 const app = express();
@@ -346,39 +365,112 @@ class TradeExecutor {
             return positionId;
         }
 
-        // LIVE TRADING MODE
+        // LIVE TRADING MODE - ACTUAL EXECUTION
         if (this.mode === 'LIVE') {
-            log(`🔴 LIVE TRADE REQUESTED - ${mode} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
-            log(`⚠️ LIVE TRADING SDK NOT YET INTEGRATED - Trade logged but not executed`, asset);
+            log(`🔴 LIVE TRADE EXECUTION - ${mode} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
 
-            // Store position for tracking purposes (will need manual execution)
-            this.positions[positionId] = {
-                asset,
-                mode,
-                side: direction,
-                tokenType,
-                size,
-                entry: entryPrice,
-                time: Date.now(),
-                target,
-                stopLoss,
-                shares: size / entryPrice,
-                isLive: true,
-                status: 'PENDING_MANUAL_EXECUTION'
-            };
+            // Check if CLOB Client is available
+            if (!ClobClient) {
+                log(`❌ LIVE TRADING FAILED: @polymarket/clob-client not installed`, asset);
+                log(`   Run: npm install @polymarket/clob-client`, asset);
+                return null;
+            }
 
-            this.tradeHistory.push({
-                id: positionId,
-                asset,
-                mode,
-                side: direction,
-                entry: entryPrice,
-                size,
-                time: Date.now(),
-                status: 'LIVE_PENDING'
-            });
+            // Check if we have the required credentials
+            if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
+                log(`❌ LIVE TRADING FAILED: Missing API credentials`, asset);
+                return null;
+            }
 
-            return positionId;
+            if (!this.wallet) {
+                log(`❌ LIVE TRADING FAILED: No wallet loaded`, asset);
+                return null;
+            }
+
+            // Get Token ID for the market
+            if (!market.tokenIds) {
+                log(`❌ LIVE TRADING FAILED: No token IDs for market`, asset);
+                return null;
+            }
+
+            const tokenId = tokenType === 'YES' ? market.tokenIds.yes : market.tokenIds.no;
+
+            try {
+                // Initialize CLOB Client
+                const clobClient = new ClobClient(
+                    'https://clob.polymarket.com',
+                    POLY_CHAIN_ID,
+                    this.wallet,
+                    undefined, // No L1 signer needed
+                    {
+                        key: CONFIG.POLYMARKET_API_KEY,
+                        secret: CONFIG.POLYMARKET_SECRET,
+                        passphrase: CONFIG.POLYMARKET_PASSPHRASE
+                    }
+                );
+
+                // Calculate shares to buy
+                const shares = Math.floor((size / entryPrice) * 1e6) / 1e6; // 6 decimal precision
+
+                log(`📝 Placing order: BUY ${shares.toFixed(2)} shares of ${tokenType} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+
+                // Create and submit limit order
+                const order = await clobClient.createOrder({
+                    tokenID: tokenId,
+                    price: entryPrice,
+                    size: shares,
+                    side: 'BUY',
+                    feeRateBps: 0
+                });
+
+                const response = await clobClient.postOrder(order);
+
+                if (response && response.orderID) {
+                    log(`✅ LIVE ORDER PLACED: ${response.orderID}`, asset);
+                    log(`🎯 Status: ${response.status || 'SUBMITTED'}`, asset);
+
+                    // Store position with order details
+                    this.positions[positionId] = {
+                        asset,
+                        mode,
+                        side: direction,
+                        tokenType,
+                        size,
+                        entry: entryPrice,
+                        time: Date.now(),
+                        target,
+                        stopLoss,
+                        shares,
+                        isLive: true,
+                        status: 'LIVE_OPEN',
+                        orderID: response.orderID,
+                        tokenId: tokenId
+                    };
+
+                    this.tradeHistory.push({
+                        id: positionId,
+                        asset,
+                        mode,
+                        side: direction,
+                        entry: entryPrice,
+                        size,
+                        shares,
+                        time: Date.now(),
+                        status: 'LIVE_OPEN',
+                        orderID: response.orderID
+                    });
+
+                    return positionId;
+                } else {
+                    log(`❌ Order submission failed: ${JSON.stringify(response)}`, asset);
+                    return null;
+                }
+
+            } catch (e) {
+                log(`❌ LIVE TRADE ERROR: ${e.message}`, asset);
+                log(`   Full error: ${JSON.stringify(e)}`, asset);
+                return null;
+            }
         }
 
         return null;
@@ -510,6 +602,102 @@ class TradeExecutor {
             const exitPrice = won ? 1.0 : 0.0; // Binary resolution
             this.closePosition(id, exitPrice, won ? 'ORACLE WIN' : 'ORACLE LOSS');
         });
+    }
+
+    // ==================== WALLET MANAGEMENT ====================
+
+    // Get live USDC balance from Polygon
+    async getUSDCBalance() {
+        if (!this.wallet) {
+            return { success: false, error: 'No wallet loaded', balance: 0 };
+        }
+        try {
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, this.wallet);
+            const balance = await usdcContract.balanceOf(this.wallet.address);
+            const formatted = parseFloat(ethers.formatUnits(balance, USDC_DECIMALS));
+            return {
+                success: true,
+                balance: formatted,
+                balanceRaw: balance.toString(),
+                address: this.wallet.address
+            };
+        } catch (e) {
+            log(`⚠️ Balance fetch error: ${e.message}`);
+            return { success: false, error: e.message, balance: 0 };
+        }
+    }
+
+    // Get MATIC balance (for gas)
+    async getMATICBalance() {
+        if (!this.wallet) {
+            return { success: false, error: 'No wallet loaded', balance: 0 };
+        }
+        try {
+            const balance = await this.wallet.provider.getBalance(this.wallet.address);
+            const formatted = parseFloat(ethers.formatEther(balance));
+            return { success: true, balance: formatted };
+        } catch (e) {
+            return { success: false, error: e.message, balance: 0 };
+        }
+    }
+
+    // Transfer USDC to another address
+    async transferUSDC(toAddress, amount) {
+        if (!this.wallet) {
+            return { success: false, error: 'No wallet loaded' };
+        }
+
+        // Validate address
+        if (!ethers.isAddress(toAddress)) {
+            return { success: false, error: 'Invalid destination address' };
+        }
+
+        // Validate amount
+        if (amount <= 0) {
+            return { success: false, error: 'Amount must be positive' };
+        }
+
+        try {
+            log(`💸 Initiating transfer of $${amount} USDC to ${toAddress.substring(0, 8)}...`);
+
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, this.wallet);
+            const amountWei = ethers.parseUnits(amount.toString(), USDC_DECIMALS);
+
+            // Check balance first
+            const balance = await usdcContract.balanceOf(this.wallet.address);
+            if (balance < amountWei) {
+                return { success: false, error: 'Insufficient USDC balance' };
+            }
+
+            // Execute transfer
+            const tx = await usdcContract.transfer(toAddress, amountWei);
+            log(`📤 Transfer TX submitted: ${tx.hash}`);
+
+            // Wait for confirmation
+            const receipt = await tx.wait();
+            log(`✅ Transfer confirmed in block ${receipt.blockNumber}`);
+
+            return {
+                success: true,
+                txHash: tx.hash,
+                blockNumber: receipt.blockNumber,
+                amount: amount,
+                to: toAddress,
+                explorerUrl: `https://polygonscan.com/tx/${tx.hash}`
+            };
+        } catch (e) {
+            log(`❌ Transfer failed: ${e.message}`);
+            return { success: false, error: e.message };
+        }
+    }
+
+    // Get wallet info summary
+    getWalletInfo() {
+        return {
+            loaded: !!this.wallet,
+            address: this.wallet ? this.wallet.address : null,
+            mode: this.mode
+        };
     }
 }
 
@@ -1964,6 +2152,26 @@ async function loadState() {
     // Try Redis first
     if (redisAvailable && redis) {
         try {
+            // LOAD PERSISTED SETTINGS FIRST (survives restarts!)
+            const savedSettings = await redis.get('deity:settings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                // Apply persisted settings to CONFIG
+                for (const [key, value] of Object.entries(settings)) {
+                    if (CONFIG.hasOwnProperty(key) && value !== undefined && value !== null) {
+                        CONFIG[key] = value;
+                    }
+                }
+                log('⚙️ Settings restored from Redis');
+
+                // Reload wallet with restored settings
+                tradeExecutor.mode = CONFIG.TRADE_MODE;
+                tradeExecutor.paperBalance = CONFIG.PAPER_BALANCE;
+                if (CONFIG.POLYMARKET_PRIVATE_KEY) {
+                    tradeExecutor.reloadWallet();
+                }
+            }
+
             const stored = await redis.get('deity:state');
             if (stored) {
                 const state = JSON.parse(stored);
@@ -2394,6 +2602,55 @@ app.get('/api/export', (req, res) => {
     res.send([headers.join(','), ...rows].join('\n'));
 });
 
+// ==================== WALLET API ====================
+
+// Get wallet info and balances
+app.get('/api/wallet', async (req, res) => {
+    try {
+        const walletInfo = tradeExecutor.getWalletInfo();
+        const usdcBalance = await tradeExecutor.getUSDCBalance();
+        const maticBalance = await tradeExecutor.getMATICBalance();
+
+        res.json({
+            loaded: walletInfo.loaded,
+            address: walletInfo.address,
+            mode: walletInfo.mode,
+            usdc: usdcBalance,
+            matic: maticBalance,
+            depositAddress: walletInfo.address // Same address to receive funds
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Get just the balance (for frequent polling)
+app.get('/api/wallet/balance', async (req, res) => {
+    try {
+        const usdc = await tradeExecutor.getUSDCBalance();
+        const matic = await tradeExecutor.getMATICBalance();
+        res.json({ usdc, matic });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Transfer USDC to external address
+app.post('/api/wallet/transfer', async (req, res) => {
+    try {
+        const { to, amount } = req.body;
+
+        if (!to || !amount) {
+            return res.status(400).json({ success: false, error: 'Missing "to" address or "amount"' });
+        }
+
+        const result = await tradeExecutor.transferUSDC(to, parseFloat(amount));
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // ==================== SETTINGS API ====================
 app.use(express.json()); // Enable JSON body parsing
 
@@ -2411,12 +2668,18 @@ app.get('/api/settings', (req, res) => {
         // Trading settings (fully visible)
         TRADE_MODE: CONFIG.TRADE_MODE,
         PAPER_BALANCE: CONFIG.PAPER_BALANCE,
+        LIVE_BALANCE: CONFIG.LIVE_BALANCE,
         MAX_POSITION_SIZE: CONFIG.MAX_POSITION_SIZE,
-        CONVICTION_THRESHOLD: CONFIG.CONVICTION_THRESHOLD,
-        ADVISORY_THRESHOLD: CONFIG.ADVISORY_THRESHOLD,
-        EARLY_BOOST: CONFIG.EARLY_BOOST,
-        REALITY_CHECK_ATR: CONFIG.REALITY_CHECK_ATR,
-        MOMENTUM_BOOST: CONFIG.MOMENTUM_BOOST,
+        MAX_POSITIONS_PER_ASSET: CONFIG.MAX_POSITIONS_PER_ASSET,
+        MULTI_MODE_ENABLED: CONFIG.MULTI_MODE_ENABLED,
+
+        // Mode Configs
+        ORACLE: CONFIG.ORACLE,
+        ARBITRAGE: CONFIG.ARBITRAGE,
+        SCALP: CONFIG.SCALP,
+        UNCERTAINTY: CONFIG.UNCERTAINTY,
+        MOMENTUM: CONFIG.MOMENTUM,
+        RISK: CONFIG.RISK,
 
         // Status
         walletLoaded: !!tradeExecutor.wallet,
@@ -2428,7 +2691,7 @@ app.get('/api/settings', (req, res) => {
 });
 
 // Update settings
-app.post('/api/settings', (req, res) => {
+app.post('/api/settings', async (req, res) => {
     const updates = req.body;
     let reloadRequired = false;
 
@@ -2450,7 +2713,29 @@ app.post('/api/settings', (req, res) => {
         tradeExecutor.reloadWallet();
     }
 
-    res.json({ success: true, message: 'Settings updated', reloadRequired });
+    // PERSIST SETTINGS TO REDIS (survives restarts!)
+    if (redisAvailable && redis) {
+        try {
+            const persistedSettings = {
+                POLYMARKET_API_KEY: CONFIG.POLYMARKET_API_KEY,
+                POLYMARKET_SECRET: CONFIG.POLYMARKET_SECRET,
+                POLYMARKET_PASSPHRASE: CONFIG.POLYMARKET_PASSPHRASE,
+                POLYMARKET_ADDRESS: CONFIG.POLYMARKET_ADDRESS,
+                POLYMARKET_PRIVATE_KEY: CONFIG.POLYMARKET_PRIVATE_KEY,
+                POLYMARKET_PROXY_KEY: CONFIG.POLYMARKET_PROXY_KEY,
+                TRADE_MODE: CONFIG.TRADE_MODE,
+                PAPER_BALANCE: CONFIG.PAPER_BALANCE,
+                LIVE_BALANCE: CONFIG.LIVE_BALANCE,
+                MAX_POSITION_SIZE: CONFIG.MAX_POSITION_SIZE
+            };
+            await redis.set('deity:settings', JSON.stringify(persistedSettings));
+            log('💾 Settings persisted to Redis');
+        } catch (e) {
+            log(`⚠️ Failed to persist settings: ${e.message}`);
+        }
+    }
+
+    res.json({ success: true, message: 'Settings updated and persisted', reloadRequired });
 });
 
 // Settings UI page
@@ -2662,6 +2947,26 @@ app.get('/settings', (req, res) => {
         }
         
         async function setMode(mode) {
+            // SAFEGUARD: Require confirmation for LIVE mode
+            if (mode === 'LIVE') {
+                const confirmed = confirm(
+                    '⚠️ WARNING: LIVE TRADING MODE ⚠️\\n\\n' +
+                    'You are about to enable REAL MONEY trading!\\n\\n' +
+                    '• Real orders will be placed on Polymarket\\n' +
+                    '• Real USDC will be used from your wallet\\n' +
+                    '• Losses are REAL and IRREVERSIBLE\\n\\n' +
+                    'Make sure:\\n' +
+                    '• Your API credentials are correct\\n' +
+                    '• Your wallet has USDC and MATIC for gas\\n' +
+                    '• You understand the risks\\n\\n' +
+                    'Click OK to enable LIVE trading, or Cancel to stay in PAPER mode.'
+                );
+                if (!confirmed) {
+                    showStatus('Stayed in PAPER mode', 'success');
+                    return;
+                }
+            }
+            
             try {
                 await fetch('/api/settings', {
                     method: 'POST',
@@ -2669,7 +2974,12 @@ app.get('/settings', (req, res) => {
                     body: JSON.stringify({ TRADE_MODE: mode })
                 });
                 loadSettings();
-                showStatus(\`Mode changed to \${mode}\`, 'success');
+                
+                if (mode === 'LIVE') {
+                    showStatus('🔴 LIVE MODE ENABLED - Real trades will be executed!', 'error');
+                } else {
+                    showStatus('📝 Paper mode enabled - Simulated trading', 'success');
+                }
             } catch (e) {
                 showStatus('Error: ' + e.message, 'error');
             }
@@ -2884,6 +3194,223 @@ app.get('/guide', (req, res) => {
         
         <a href="/" class="back-link">← Back to Dashboard</a>
     </div>
+</body>
+</html>
+    `);
+});
+
+// ==================== WALLET MANAGEMENT PAGE ====================
+app.get('/wallet', (req, res) => {
+    res.send(`
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wallet - Supreme Oracle</title>
+    <meta charset="UTF-8">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: white; min-height: 100vh; }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { text-align: center; margin: 30px 0; font-size: 2.5em; color: #ffd700; }
+        .card { background: rgba(0,0,0,0.5); border: 1px solid #333; border-radius: 12px; padding: 25px; margin: 20px 0; }
+        .balance-card { border-left: 4px solid #00ff88; }
+        .transfer-card { border-left: 4px solid #ff6633; }
+        .deposit-card { border-left: 4px solid #3399ff; }
+        h2 { color: #00ff88; margin-bottom: 20px; }
+        .balance { font-size: 3em; font-weight: bold; color: #ffd700; margin: 20px 0; text-align: center; }
+        .balance-label { font-size: 0.9em; color: #888; text-align: center; }
+        .address { font-family: monospace; background: rgba(0,0,0,0.5); padding: 15px; border-radius: 8px; word-break: break-all; font-size: 0.9em; margin: 10px 0; }
+        .copy-btn { background: #3399ff; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-top: 10px; }
+        .copy-btn:hover { background: #2277dd; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; color: #aaa; font-weight: bold; }
+        input { width: 100%; padding: 15px; border: 2px solid #333; border-radius: 8px; background: rgba(0,0,0,0.4); color: white; font-size: 16px; }
+        input:focus { border-color: #ff6633; outline: none; }
+        .btn { width: 100%; padding: 15px; border: none; border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+        .btn-transfer { background: linear-gradient(135deg, #ff6633 0%, #ff4400 100%); color: white; }
+        .btn-transfer:hover { transform: scale(1.02); box-shadow: 0 5px 20px rgba(255,100,50,0.4); }
+        .btn-transfer:disabled { background: #555; cursor: not-allowed; transform: none; }
+        .status { padding: 15px; border-radius: 8px; margin-top: 15px; display: none; }
+        .status.success { background: rgba(0,255,136,0.2); border: 1px solid #00ff88; display: block; }
+        .status.error { background: rgba(255,0,0,0.2); border: 1px solid #ff4444; display: block; }
+        .status.loading { background: rgba(255,200,0,0.2); border: 1px solid #ffc800; display: block; }
+        nav { background: rgba(0,0,0,0.8); padding: 15px; text-align: center; }
+        nav a { color: #88ccff; text-decoration: none; margin: 0 20px; font-size: 1.1em; }
+        nav a:hover { color: #00ff88; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px; }
+        .gas-warning { color: #ff9900; font-size: 0.9em; margin-top: 10px; }
+        .tx-link { color: #00ff88; text-decoration: none; }
+        .tx-link:hover { text-decoration: underline; }
+        .refresh-btn { background: #444; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9em; }
+        .refresh-btn:hover { background: #555; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">📊 Dashboard</a>
+        <a href="/settings">⚙️ Settings</a>
+        <a href="/wallet">💰 Wallet</a>
+        <a href="/guide">📚 Guide</a>
+    </nav>
+    
+    <div class="container">
+        <h1>💰 Wallet Management</h1>
+        
+        <div class="card balance-card">
+            <h2>💵 Live Balances <button class="refresh-btn" onclick="loadWallet()">🔄 Refresh</button></h2>
+            <div class="grid">
+                <div>
+                    <div class="balance" id="usdcBalance">--</div>
+                    <div class="balance-label">USDC (Trading)</div>
+                </div>
+                <div>
+                    <div class="balance" id="maticBalance" style="font-size:1.5em; color:#8b5cf6;">--</div>
+                    <div class="balance-label">MATIC (Gas)</div>
+                </div>
+            </div>
+            <p class="gas-warning" id="gasWarning" style="display:none;">⚠️ Low MATIC balance! You need MATIC to pay for transaction gas fees.</p>
+        </div>
+        
+        <div class="card deposit-card">
+            <h2>📥 Deposit (Receive USDC)</h2>
+            <p style="color:#aaa; margin-bottom:15px;">Send USDC (Polygon network) to this address:</p>
+            <div class="address" id="depositAddress">Loading...</div>
+            <button class="copy-btn" onclick="copyAddress()">📋 Copy Address</button>
+            <p style="color:#888; font-size:0.85em; margin-top:15px;">⚠️ Only send USDC on <strong>Polygon</strong> network. Sending on other networks will result in loss of funds!</p>
+        </div>
+        
+        <div class="card transfer-card">
+            <h2>📤 Withdraw (Send USDC)</h2>
+            <form id="transferForm" onsubmit="handleTransfer(event)">
+                <div class="form-group">
+                    <label>Destination Address</label>
+                    <input type="text" id="toAddress" placeholder="0x..." required>
+                </div>
+                <div class="form-group">
+                    <label>Amount (USDC)</label>
+                    <input type="number" id="amount" placeholder="0.00" step="0.01" min="0.01" required>
+                </div>
+                <button type="submit" class="btn btn-transfer" id="transferBtn">💸 Send USDC</button>
+            </form>
+            <div class="status" id="transferStatus"></div>
+        </div>
+    </div>
+    
+    <script>
+        let walletData = null;
+        
+        async function loadWallet() {
+            try {
+                const res = await fetch('/api/wallet');
+                walletData = await res.json();
+                
+                if (!walletData.loaded) {
+                    document.getElementById('usdcBalance').textContent = 'No Wallet';
+                    document.getElementById('maticBalance').textContent = '--';
+                    document.getElementById('depositAddress').textContent = 'Wallet not loaded. Add private key in Settings.';
+                    return;
+                }
+                
+                // Update balances
+                if (walletData.usdc.success) {
+                    document.getElementById('usdcBalance').textContent = '$' + walletData.usdc.balance.toFixed(2);
+                } else {
+                    document.getElementById('usdcBalance').textContent = 'Error';
+                }
+                
+                if (walletData.matic.success) {
+                    document.getElementById('maticBalance').textContent = walletData.matic.balance.toFixed(4) + ' MATIC';
+                    // Show warning if low MATIC
+                    if (walletData.matic.balance < 0.01) {
+                        document.getElementById('gasWarning').style.display = 'block';
+                    } else {
+                        document.getElementById('gasWarning').style.display = 'none';
+                    }
+                }
+                
+                // Update deposit address
+                document.getElementById('depositAddress').textContent = walletData.address;
+                
+            } catch (e) {
+                console.error('Error loading wallet:', e);
+            }
+        }
+        
+        function copyAddress() {
+            const address = document.getElementById('depositAddress').textContent;
+            navigator.clipboard.writeText(address).then(() => {
+                alert('Address copied to clipboard!');
+            });
+        }
+        
+        async function handleTransfer(e) {
+            e.preventDefault();
+            
+            const to = document.getElementById('toAddress').value.trim();
+            const amount = parseFloat(document.getElementById('amount').value);
+            const btn = document.getElementById('transferBtn');
+            const status = document.getElementById('transferStatus');
+            
+            // Validate
+            if (!to.startsWith('0x') || to.length !== 42) {
+                status.className = 'status error';
+                status.textContent = '❌ Invalid Ethereum address';
+                return;
+            }
+            
+            if (amount <= 0) {
+                status.className = 'status error';
+                status.textContent = '❌ Amount must be positive';
+                return;
+            }
+            
+            // Confirm
+            if (!confirm('Are you sure you want to send $' + amount + ' USDC to ' + to + '?')) {
+                return;
+            }
+            
+            // Execute
+            btn.disabled = true;
+            btn.textContent = '⏳ Processing...';
+            status.className = 'status loading';
+            status.textContent = '🔄 Submitting transaction...';
+            
+            try {
+                const res = await fetch('/api/wallet/transfer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to, amount })
+                });
+                
+                const result = await res.json();
+                
+                if (result.success) {
+                    status.className = 'status success';
+                    status.innerHTML = '✅ Transfer successful! <br><a href="' + result.explorerUrl + '" target="_blank" class="tx-link">View on PolygonScan →</a>';
+                    // Clear form
+                    document.getElementById('toAddress').value = '';
+                    document.getElementById('amount').value = '';
+                    // Refresh balance
+                    setTimeout(loadWallet, 2000);
+                } else {
+                    status.className = 'status error';
+                    status.textContent = '❌ ' + result.error;
+                }
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = '❌ Network error: ' + e.message;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '💸 Send USDC';
+        }
+        
+        // Initial load
+        loadWallet();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadWallet, 30000);
+    </script>
 </body>
 </html>
     `);
