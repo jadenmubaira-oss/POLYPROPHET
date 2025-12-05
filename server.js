@@ -2426,6 +2426,7 @@ app.get('/', (req, res) => {
                 <div class="form-group"><label>Paper Balance ($)</label><input type="number" id="paperBalance" value="1000"></div>
                 <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" value="10" min="1" max="25"></div>
             </div>
+            <button class="btn" onclick="resetPaperBalance()" style="width:100%;margin-bottom:15px;background:#ff6600;">🔄 Reset Paper Balance to Starting Value</button>
             
             <!-- MODE CONFIGURATIONS -->
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;cursor:pointer;" onclick="toggleModeConfig()">🎯 Mode Configuration ▼</h4>
@@ -2668,6 +2669,16 @@ app.get('/', (req, res) => {
                 document.getElementById('settingsStatus').className = 'status-msg success';
             } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Error saving'; document.getElementById('settingsStatus').className = 'status-msg error'; }
         }
+        async function resetPaperBalance() {
+            if (!confirm('Reset paper balance to $' + document.getElementById('paperBalance').value + '?\n\nThis will close all positions and reset P/L.')) return;
+            try {
+                const newBalance = parseFloat(document.getElementById('paperBalance').value);
+                await fetch('/api/reset-balance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance: newBalance }) });
+                document.getElementById('settingsStatus').textContent = '✅ Paper balance reset to $' + newBalance;
+                document.getElementById('settingsStatus').className = 'status-msg success';
+                fetchData();
+            } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Reset failed'; document.getElementById('settingsStatus').className = 'status-msg error'; }
+        }
         
         fetchData(); loadWallet(); loadSettings();
         setInterval(fetchData, 1000);
@@ -2870,6 +2881,27 @@ app.get('/api/settings', (req, res) => {
         positions: tradeExecutor.positions,
         tradeHistory: tradeExecutor.tradeHistory || []
     });
+});
+
+// Reset paper balance endpoint
+app.post('/api/reset-balance', async (req, res) => {
+    const { balance } = req.body;
+    const newBalance = parseFloat(balance) || 1000;
+
+    // Reset trade executor
+    tradeExecutor.paperBalance = newBalance;
+    tradeExecutor.startingBalance = newBalance;
+    tradeExecutor.positions = {};
+    tradeExecutor.tradeHistory = [];
+    tradeExecutor.todayPnL = 0;
+    tradeExecutor.lastLossTime = 0;
+
+    // Update config
+    CONFIG.PAPER_BALANCE = newBalance;
+
+    log(`🔄 Paper balance reset to $${newBalance}`);
+
+    res.json({ success: true, balance: newBalance });
 });
 
 // Update settings

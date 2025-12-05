@@ -1,6 +1,24 @@
+# Dependencies
 node_modules/
-*.log
+
+# Environment variables (NEVER COMMIT!)
 .env
-deity_state.json
-patterns/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
