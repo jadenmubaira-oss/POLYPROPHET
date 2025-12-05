@@ -1205,10 +1205,10 @@ class SupremeBrain {
                 return;
             }
 
-            // FINAL SEVEN: CALCULATE MODEL WEIGHTS (Adaptive Learning)
+            // PROPHET-LEVEL: FAST ADAPTIVE LEARNING (accelerated from 10 to 5 trades)
             const weights = {};
             for (const [model, stats] of Object.entries(this.modelAccuracy)) {
-                if (stats.total < 10) weights[model] = 1.0; // Default weight
+                if (stats.total < 5) weights[model] = 1.0; // Default weight - FASTER learning (was 10)
                 else {
                     const accuracy = stats.wins / stats.total;
                     // Boost high accuracy (>60%), penalize low accuracy (<40%)
@@ -1790,7 +1790,39 @@ class SupremeBrain {
                 }
             }
 
+            // ==================== LATE CYCLE OPPORTUNITY DETECTION ====================
+            // User Request: "odds can revert back to 50/50 in final few mins allowing another opportunity"
+            // This detects when odds return to near 50/50 late in cycle with high confidence
+            if (currentMarkets[this.asset] && elapsed >= 540 && elapsed <= 780) { // 9-13 min window
+                const market = currentMarkets[this.asset];
+                const yesP = market.yesPrice;
+                const noP = market.noPrice;
+
+                // Check if odds are near 50/50 (between 40%-60%)
+                const isNear5050 = yesP >= 0.40 && yesP <= 0.60;
+
+                // Check if we have strong confidence that overrides the uncertainty
+                const hasStrongSignal = finalConfidence >= 0.75 && tier !== 'NONE';
+
+                // Check if we already have a position for this asset
+                const hasExistingPosition = tradeExecutor.getPositionCount(this.asset) > 0;
+
+                if (isNear5050 && hasStrongSignal && !hasExistingPosition) {
+                    const lateEntryPrice = finalSignal === 'UP' ? yesP : noP;
+                    const lateEdge = (finalConfidence - lateEntryPrice) * 100;
+
+                    if (lateEdge >= 10) { // Only if 10%+ edge
+                        log(`⚡ LATE CYCLE OPPORTUNITY: Odds at ${(yesP * 100).toFixed(0)}% (near 50/50), confidence ${(finalConfidence * 100).toFixed(0)}%`, this.asset);
+                        log(`🎯 LATE ENTRY: ${finalSignal} @ ${(lateEntryPrice * 100).toFixed(1)}¢ with ${lateEdge.toFixed(1)}% edge`, this.asset);
+
+                        // Execute as ORACLE trade (hold to resolution)
+                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, lateEntryPrice, market);
+                    }
+                }
+            }
+
             // EDGE CALCULATION
+
             if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
                 const market = currentMarkets[this.asset];
                 const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
@@ -2225,278 +2257,312 @@ async function loadState() {
 
 // ==================== API & SERVER ====================
 
-// Home route - LIVE DASHBOARD
+// Home route - UNIFIED ALL-IN-ONE DASHBOARD
 app.get('/', (req, res) => {
     res.send(`
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Supreme Deity Oracle - LIVE</title>
+    <title>🔮 Supreme Oracle - Prophet Trading System</title>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
-            color: white;
-            padding: 20px;
-            min-height: 100vh;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .header h1 { font-size: 2.5em; margin-bottom: 10px; }
-        .status-bar {
-            background: rgba(0,255,0,0.2);
-            padding: 10px 20px;
-            border-radius: 8px;
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        .asset-card {
-            background: rgba(0,0,0,0.4);
-            border-radius: 12px;
-            padding: 20px;
-            border: 2px solid rgba(255,255,255,0.1);
-            transition: all 0.3s;
-        }
-        .asset-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.3); }
-        .asset-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-        .asset-name { font-size: 1.8em; font-weight: bold; }
-        .prediction {
-            font-size: 3em;
-            font-weight: bold;
-            text-align: center;
-            margin: 15px 0;
-            text-shadow: 0 0 20px currentColor;
-        }
-        .prediction.UP { color: #00ff00; }
-        .prediction.DOWN { color: #ff0044; }
-        .prediction.WAIT { color: #ffaa00; }
-        .confidence {
-            text-align: center;
-            font-size: 1.3em;
-            margin: 10px 0;
-        }
-        .tier {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 0.9em;
-        }
-        .tier.CONVICTION { background: #ff0066; }
-        .tier.ADVISORY { background: #ff9900; }
-        .tier.NONE { background: #555; }
-        .stats {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid rgba(255,255,255,0.2);
-        }
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-            font-size: 0.9em;
-        }
-        .locked {
-            background: rgba(255,0,100,0.3);
-            border: 2px solid #ff0066;
-            animation: pulse 2s infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(255,0,100,0.5); }
-            50% { box-shadow: 0 0 40px rgba(255,0,100,0.8); }
-        }
-        .price-display {
-            text-align: center;
-            margin: 10px 0;
-            font-size: 1.1em;
-        }
-        .loading { text-align: center; padding: 50px; font-size: 1.5em; }
-        .countdown {
-            font-size: 2em;
-            font-weight: bold;
-            color: #00ff00;
-            text-shadow: 0 0 10px #00ff00;
-        }
-        .market-link {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 8px 16px;
-            background: rgba(0,150,255,0.3);
-            border: 1px solid #0096ff;
-            border-radius: 6px;
-            color: #4fc3f7;
-            text-decoration: none;
-            font-size: 0.85em;
-            transition: all 0.3s;
-        }
-        .market-link:hover {
-            background: rgba(0,150,255,0.5);
-            transform: scale(1.05);
-        }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0a0f1c 0%, #1a1f3c 50%, #0d1225 100%); color: #e0e8ff; min-height: 100vh; }
+        .nav { background: rgba(0,0,0,0.6); padding: 12px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(100,150,255,0.2); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
+        .nav-brand { font-size: 1.4em; font-weight: bold; color: #ffd700; }
+        .nav-links { display: flex; gap: 10px; flex-wrap: wrap; }
+        .nav-btn { background: rgba(100,150,255,0.2); border: 1px solid rgba(100,150,255,0.3); color: #88ccff; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 0.9em; transition: all 0.3s; }
+        .nav-btn:hover { background: rgba(100,150,255,0.4); transform: scale(1.05); }
+        .nav-btn.live { background: rgba(255,0,100,0.3); border-color: #ff0066; color: #ff88aa; }
+        .nav-btn.paper { background: rgba(255,150,0,0.3); border-color: #ff9800; color: #ffcc80; }
+        .status-bar { background: linear-gradient(90deg, rgba(0,255,100,0.1), rgba(0,200,255,0.1)); padding: 10px 25px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 1px solid rgba(0,255,100,0.2); }
+        .countdown { font-size: 1.6em; font-weight: bold; color: #00ff88; text-shadow: 0 0 15px #00ff88; }
+        .balance-display .amount { color: #ffd700; font-weight: bold; }
+        .mode-badge { padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 0.8em; }
+        .mode-badge.PAPER { background: #ff9800; color: #000; }
+        .mode-badge.LIVE { background: #ff0066; color: #fff; animation: pulse 2s infinite; }
+        .main-container { padding: 15px; max-width: 1500px; margin: 0 auto; }
+        .predictions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .asset-card { background: linear-gradient(145deg, rgba(20,30,60,0.9), rgba(10,20,40,0.95)); border-radius: 14px; padding: 18px; border: 2px solid rgba(100,150,255,0.15); transition: all 0.3s; }
+        .asset-card:hover { transform: translateY(-3px); border-color: rgba(100,150,255,0.4); box-shadow: 0 8px 30px rgba(0,100,255,0.2); }
+        .asset-card.locked { border-color: #ff0066; box-shadow: 0 0 25px rgba(255,0,100,0.3); }
+        .asset-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .asset-name { font-size: 1.5em; font-weight: bold; }
+        .asset-price { color: #88ccff; font-size: 0.9em; }
+        .prediction { text-align: center; margin: 15px 0; }
+        .prediction-value { font-size: 3em; font-weight: bold; text-shadow: 0 0 25px currentColor; }
+        .prediction-value.UP { color: #00ff88; }
+        .prediction-value.DOWN { color: #ff4466; }
+        .prediction-value.WAIT { color: #ffaa00; font-size: 2em; }
+        .confidence-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin: 12px 0 8px; overflow: hidden; }
+        .confidence-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+        .confidence-fill.high { background: linear-gradient(90deg, #00ff88, #00cc66); }
+        .confidence-fill.medium { background: linear-gradient(90deg, #ffaa00, #ff8800); }
+        .confidence-fill.low { background: linear-gradient(90deg, #ff4466, #cc2244); }
+        .tier { display: inline-block; padding: 4px 12px; border-radius: 15px; font-weight: bold; font-size: 0.8em; }
+        .tier.CONVICTION { background: linear-gradient(90deg, #ff0066, #cc0055); }
+        .tier.ADVISORY { background: linear-gradient(90deg, #ff9900, #cc7700); }
+        .tier.NONE { background: #444; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
+        .stat { text-align: center; }
+        .stat-label { font-size: 0.7em; color: #888; text-transform: uppercase; }
+        .stat-value { font-size: 1em; font-weight: bold; color: #88ccff; }
+        .market-link { display: block; text-align: center; margin-top: 12px; color: #4fc3f7; text-decoration: none; font-size: 0.8em; }
+        .trading-panel { background: linear-gradient(145deg, rgba(20,30,60,0.9), rgba(10,20,40,0.95)); border-radius: 14px; padding: 20px; border: 2px solid rgba(100,150,255,0.15); }
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .panel-title { font-size: 1.2em; font-weight: bold; color: #ffd700; }
+        .positions-list { max-height: 180px; overflow-y: auto; }
+        .position-item { display: flex; justify-content: space-between; padding: 8px 12px; background: rgba(0,0,0,0.3); border-radius: 6px; margin-bottom: 6px; font-size: 0.9em; }
+        .no-positions { text-align: center; color: #666; padding: 15px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        .modal-overlay.active { display: flex; }
+        .modal { background: linear-gradient(145deg, #1a2040, #0d1530); border-radius: 16px; padding: 25px; max-width: 650px; width: 92%; max-height: 85vh; overflow-y: auto; border: 2px solid rgba(100,150,255,0.3); box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; }
+        .modal-title { font-size: 1.3em; font-weight: bold; color: #ffd700; }
+        .modal-close { background: none; border: none; font-size: 1.5em; color: #888; cursor: pointer; }
+        .modal-close:hover { color: #ff4466; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 6px; color: #88ccff; font-weight: bold; font-size: 0.85em; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 2px solid rgba(100,150,255,0.2); border-radius: 8px; background: rgba(0,0,0,0.4); color: #fff; font-size: 0.95em; }
+        .form-group input:focus { border-color: #4fc3f7; outline: none; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 0.95em; font-weight: bold; cursor: pointer; transition: all 0.3s; }
+        .btn-primary { background: linear-gradient(90deg, #4fc3f7, #2196f3); color: #fff; }
+        .btn-primary:hover { transform: scale(1.02); box-shadow: 0 4px 15px rgba(33,150,243,0.4); }
+        .btn-danger { background: linear-gradient(90deg, #ff4466, #cc2244); color: #fff; }
+        .mode-toggle { display: flex; gap: 10px; margin-bottom: 15px; }
+        .mode-toggle button { flex: 1; padding: 12px; border: 2px solid rgba(255,255,255,0.2); border-radius: 8px; background: rgba(0,0,0,0.3); color: #fff; cursor: pointer; font-weight: bold; }
+        .mode-toggle button.active.paper { border-color: #ff9800; background: rgba(255,150,0,0.3); }
+        .mode-toggle button.active.live { border-color: #ff0066; background: rgba(255,0,100,0.3); }
+        .wallet-balances { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .balance-card { text-align: center; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px; }
+        .balance-amount { font-size: 1.8em; font-weight: bold; color: #ffd700; }
+        .balance-label { color: #888; font-size: 0.85em; margin-top: 4px; }
+        .address-box { background: rgba(0,0,0,0.4); padding: 12px; border-radius: 8px; font-family: monospace; font-size: 0.8em; word-break: break-all; margin-bottom: 12px; }
+        .guide-section { margin-bottom: 20px; }
+        .guide-section h3 { color: #00ff88; margin-bottom: 8px; font-size: 1.1em; }
+        .guide-section p { color: #aaa; line-height: 1.5; font-size: 0.9em; }
+        .mode-card { padding: 12px; background: rgba(0,0,0,0.3); border-radius: 8px; margin-bottom: 8px; border-left: 3px solid; font-size: 0.9em; }
+        .mode-card.oracle { border-color: #9933ff; }
+        .mode-card.arb { border-color: #00ff88; }
+        .mode-card.scalp { border-color: #ff6600; }
+        .status-msg { padding: 10px; border-radius: 6px; margin-top: 12px; text-align: center; display: none; font-size: 0.9em; }
+        .status-msg.success { background: rgba(0,255,100,0.2); border: 1px solid #00ff88; display: block; }
+        .status-msg.error { background: rgba(255,0,0,0.2); border: 1px solid #ff4466; display: block; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
+        @media (max-width: 768px) { .nav { flex-direction: column; gap: 10px; } .status-bar { flex-direction: column; text-align: center; } .predictions-grid { grid-template-columns: 1fr; } .form-grid, .wallet-balances { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: repeat(2, 1fr); } }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🔮 SUPREME DEITY ORACLE</h1>
-        <div class="status-bar">
-            ✅ <strong>LIVE</strong> | Next Checkpoint: <span class="countdown" id="countdown">--:--</span> | <span id="last-update">Loading...</span>
+    <nav class="nav">
+        <div class="nav-brand">🔮 Supreme Oracle</div>
+        <div class="nav-links">
+            <button class="nav-btn" onclick="openModal('walletModal')">💰 Wallet</button>
+            <button class="nav-btn" onclick="openModal('settingsModal')">⚙️ Settings</button>
+            <button class="nav-btn" onclick="openModal('guideModal')">📚 Guide</button>
+            <button class="nav-btn" id="modeBtn">📝 PAPER</button>
+        </div>
+    </nav>
+    <div class="status-bar">
+        <div><span style="color:#888;">Next:</span> <span class="countdown" id="countdown">--:--</span></div>
+        <div class="balance-display">Balance: <span class="amount" id="balance">$0.00</span> <span style="color:#888;margin-left:8px;">P/L:</span> <span id="pnl" style="color:#00ff88;">$0.00</span></div>
+        <span class="mode-badge" id="modeBadge">PAPER</span>
+    </div>
+    <div class="main-container">
+        <div class="predictions-grid" id="predictionsGrid"><div style="text-align:center;padding:40px;color:#666;">Loading predictions...</div></div>
+        <div class="trading-panel">
+            <div class="panel-header"><span class="panel-title">📊 Active Positions</span><span id="positionCount">0 positions</span></div>
+            <div class="positions-list" id="positionsList"><div class="no-positions">No active positions</div></div>
         </div>
     </div>
-    <div id="dashboard" class="grid">
-        <div class="loading">Loading oracle data...</div>
+    <!-- WALLET MODAL -->
+    <div class="modal-overlay" id="walletModal">
+        <div class="modal">
+            <div class="modal-header"><span class="modal-title">💰 Wallet</span><button class="modal-close" onclick="closeModal('walletModal')">×</button></div>
+            <div class="wallet-balances">
+                <div class="balance-card"><div class="balance-amount" id="usdcBalance">$0.00</div><div class="balance-label">USDC (Trading)</div></div>
+                <div class="balance-card"><div class="balance-amount" id="maticBalance" style="color:#8b5cf6;">0.00</div><div class="balance-label">MATIC (Gas)</div></div>
+            </div>
+            <h4 style="margin-bottom:8px;color:#00ff88;font-size:0.95em;">📥 Deposit Address</h4>
+            <div class="address-box" id="depositAddress">Loading...</div>
+            <button class="btn btn-primary" onclick="copyAddress()" style="width:100%;margin-bottom:15px;">📋 Copy Address</button>
+            <h4 style="margin-bottom:10px;color:#ff9900;font-size:0.95em;">📤 Withdraw USDC</h4>
+            <div class="form-group"><label>Destination</label><input type="text" id="withdrawTo" placeholder="0x..."></div>
+            <div class="form-group"><label>Amount</label><input type="number" id="withdrawAmount" placeholder="0.00" step="0.01"></div>
+            <button class="btn btn-danger" onclick="handleWithdraw()" style="width:100%;">💸 Send</button>
+            <div class="status-msg" id="withdrawStatus"></div>
+        </div>
     </div>
-    
+    <!-- SETTINGS MODAL -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header"><span class="modal-title">⚙️ Settings</span><button class="modal-close" onclick="closeModal('settingsModal')">×</button></div>
+            <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">🔄 Trading Mode</h4>
+            <div class="mode-toggle">
+                <button class="paper" id="paperBtn" onclick="setMode('PAPER')">📝 PAPER</button>
+                <button class="live" id="liveBtn" onclick="setMode('LIVE')">🔴 LIVE</button>
+            </div>
+            <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">💰 Parameters</h4>
+            <div class="form-grid">
+                <div class="form-group"><label>Paper Balance ($)</label><input type="number" id="paperBalance" value="1000"></div>
+                <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" value="10" min="1" max="25"></div>
+            </div>
+            <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">🔑 API Credentials</h4>
+            <div class="form-group"><label>API Key</label><input type="text" id="apiKey" placeholder="019aed53-..."></div>
+            <div class="form-group"><label>Secret</label><input type="password" id="apiSecret" placeholder="Enter secret..."></div>
+            <div class="form-group"><label>Passphrase</label><input type="password" id="apiPassphrase" placeholder="Enter passphrase..."></div>
+            <div class="form-group"><label>Private Key (⚠️)</label><input type="password" id="privateKey" placeholder="0x..."></div>
+            <button class="btn btn-primary" onclick="saveSettings()" style="width:100%;">💾 Save Settings</button>
+            <div class="status-msg" id="settingsStatus"></div>
+        </div>
+    </div>
+    <!-- GUIDE MODAL -->
+    <div class="modal-overlay" id="guideModal">
+        <div class="modal">
+            <div class="modal-header"><span class="modal-title">📚 Guide</span><button class="modal-close" onclick="closeModal('guideModal')">×</button></div>
+            <div class="guide-section"><h3>🎯 What Is This?</h3><p>AI prediction bot for Polymarket 15-min crypto markets. 8 ML models predict BTC, ETH, SOL, XRP direction.</p></div>
+            <div class="guide-section"><h3>🔮 Trading Modes</h3>
+                <div class="mode-card oracle"><strong>ORACLE 🔮</strong> - Hold to resolution @ 92%+ confidence</div>
+                <div class="mode-card arb"><strong>ARBITRAGE 📊</strong> - Buy mispriced odds, sell when corrected</div>
+                <div class="mode-card scalp"><strong>SCALP 🎯</strong> - Buy under 20¢, exit at 2x</div>
+            </div>
+            <div class="guide-section"><h3>📊 Dashboard</h3><p><strong>Prediction:</strong> UP/DOWN direction<br><strong>Confidence:</strong> 0-100% certainty<br><strong>Tier:</strong> CONVICTION (best) or ADVISORY<br><strong>Edge:</strong> Advantage over market</p></div>
+            <div class="guide-section"><h3>⚠️ Paper vs Live</h3><p><strong>PAPER:</strong> Simulated - no risk<br><strong>LIVE:</strong> Real money - needs USDC + MATIC</p></div>
+        </div>
+    </div>
     <script>
+        let currentData = null;
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); }));
+        
         async function fetchData() {
             try {
                 const res = await fetch('/api/state');
-                const data = await res.json();
-                
-                const dashboard = document.getElementById('dashboard');
-                const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
-                
-                // Helper function for safe HTML generation
-                function getMarketLinkHtml(market) {
-                    if (!market || !market.marketUrl) return '';
-                    return \`
-                        <div style="text-align: center; margin-top: 15px;">
-                            <a href="\${market.marketUrl}" target="_blank" class="market-link">
-                                📊 View on Polymarket →
-                            </a>
-                        </div>
-                    \`;
-                }
-
-                // Helper to format votes
-                function formatVotes(votes) {
-                    if (!votes) return '<span style="color:#666">None</span>';
-                    const up = Object.entries(votes).filter(([k,v]) => v === 'UP').map(([k]) => k).join(', ');
-                    const down = Object.entries(votes).filter(([k,v]) => v === 'DOWN').map(([k]) => k).join(', ');
-                    
-                    let html = '';
-                    if (up) html += \`<div style="color:#00ff00; font-size:0.8em">UP: \${up}</div>\`;
-                    if (down) html += \`<div style="color:#ff0044; font-size:0.8em">DOWN: \${down}</div>\`;
-                    return html || '<span style="color:#666">Neutral</span>';
-                }
-
-                dashboard.innerHTML = assets.map(asset => {
-                    const d = data[asset];
-                    if (!d) return '';
-                    
-                    const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(1) : '0.0';
-                    const convWinRate = d.stats.convictionTotal > 0 ? ((d.stats.convictionWins / d.stats.convictionTotal) * 100).toFixed(1) : '0.0';
-                    
-                    return \`
-                        <div class="asset-card \${d.locked ? 'locked' : ''}">
-                            <div class="asset-header">
-                                <div class="asset-name">\${asset}</div>
-                                <div>\${d.locked ? '🔒 LOCKED' : ''}</div>
-                            </div>
-                            
-                            <div class="prediction \${d.prediction}">\${d.prediction}</div>
-                            
-                            <div class="confidence">
-                                <strong>\${(d.confidence * 100).toFixed(1)}%</strong> confidence
-                            </div>
-                            
-                            <div style="text-align: center; margin: 10px 0;">
-                                <span class="tier \${d.tier}">\${d.tier}</span>
-                            </div>
-
-                            <div style="background:rgba(0,0,0,0.3); padding:10px; border-radius:8px; margin:10px 0;">
-                                \${formatVotes(d.modelVotes)}
-                            </div>
-                            
-                            <div class="price-display">
-                                Live: <strong>$\${d.live ? d.live.toFixed(2) : 'N/A'}</strong><br>
-                                Checkpoint: <strong>$\${d.checkpoint ? d.checkpoint.toFixed(2) : 'N/A'}</strong><br>
-                                Edge: <strong>\${d.edge ? d.edge.toFixed(2) : '0'}%</strong>
-                            </div>
-                            
-                            <div class="stats">
-                                <div class="stat-row">
-                                    <span>Win Rate:</span>
-                                    <strong>\${winRate}% (\${d.stats.wins}/\${d.stats.total})</strong>
-                                </div>
-                                <div class="stat-row">
-                                    <span>Conviction Rate:</span>
-                                    <strong>\${convWinRate}% (\${d.stats.convictionWins}/\${d.stats.convictionTotal})</strong>
-                                </div>
-                                <div class="stat-row">
-                                    <span>Recent (L10):</span>
-                                    <strong>\${d.recentAccuracy}% (\${d.recentTotal} trades)</strong>
-                                </div>
-                                <div class="stat-row">
-                                    <span>Vote Stability:</span>
-                                    <strong>\${(d.voteStability * 100).toFixed(0)}%</strong>
-                                </div>
-                                <div class="stat-row">
-                                    <span>Market Odds:</span>
-                                    <strong>Y:\${d.market ? (d.market.yesPrice * 100).toFixed(1) : 'N/A'}% / N:\${d.market ? (d.market.noPrice * 100).toFixed(1) : 'N/A'}%</strong>
-                                </div>
-                            </div>
-                            
-                            \${d.market && d.market.marketUrl ? \`<div style="text-align: center; margin-top: 15px;">
-                                <a href="\${d.market.marketUrl}" target="_blank" class="market-link">
-                                    📊 View on Polymarket →
-                                </a>
-                            </div>\` : ''}
-                            
-                            <div style="text-align: center; margin-top: 10px;">
-                                <a href="/api/export?asset=\${asset}" target="_blank" style="font-size: 0.8em; color: #aaa; text-decoration: none; border: 1px solid #555; padding: 2px 8px; border-radius: 4px;">
-                                    📥 Download CSV
-                                </a>
-                            </div>
-                        </div>
-                    \`;
-                }).join('');
-                
-                // Update countdown timer
-                const now = Math.floor(Date.now() / 1000);
-                const interval = 900; // 15 minutes in seconds
-                const nextCheckpoint = now - (now % interval) + interval;
-                const timeLeft = nextCheckpoint - now;
-                const minutes = Math.floor(timeLeft / 60);
-                const seconds = timeLeft % 60;
-                document.getElementById('countdown').textContent = 
-                    minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
-                
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
-            } catch (e) {
-                document.getElementById('dashboard').innerHTML = \`
-                    <div class="loading" style="color: #ff4444;">
-                        ❌ Error loading data: \${e.message}
-                    </div>
-                \`;
-            }
+                currentData = await res.json();
+                updateUI(currentData);
+            } catch (e) { console.error(e); }
         }
         
-        // Initial load
-        fetchData();
+        function updateUI(data) {
+            const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
+            let html = '';
+            assets.forEach(asset => {
+                const d = data[asset];
+                if (!d) return;
+                const conf = (d.confidence * 100).toFixed(0);
+                const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
+                const price = d.live ? d.live.toLocaleString('en-US', {maximumFractionDigits: d.live > 100 ? 0 : 2}) : '--';
+                const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(2) : 0;
+                const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(0) : '--';
+                const marketUrl = d.market?.marketUrl || '#';
+                html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
+                    '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
+                    '<div class="prediction"><div class="prediction-value ' + d.prediction + '">' + d.prediction + '</div></div>' +
+                    '<div class="confidence-bar"><div class="confidence-fill ' + confClass + '" style="width:' + conf + '%"></div></div>' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + d.tier + '">' + d.tier + (d.locked ? ' 🔒' : '') + '</span></div>' +
+                    '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
+                    '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(1) : '0') + '%</div></div>' +
+                    '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + (d.market ? (d.market.yesPrice * 100).toFixed(0) + '¢' : '--') + '</div></div>' +
+                    '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + (d.market ? (d.market.noPrice * 100).toFixed(0) + '¢' : '--') + '</div></div></div>' +
+                    '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
+            });
+            document.getElementById('predictionsGrid').innerHTML = html;
+            const t = data._trading;
+            if (t) {
+                document.getElementById('balance').textContent = '$' + t.balance.toFixed(2);
+                document.getElementById('pnl').textContent = (t.todayPnL >= 0 ? '+' : '') + '$' + t.todayPnL.toFixed(2);
+                document.getElementById('pnl').style.color = t.todayPnL >= 0 ? '#00ff88' : '#ff4466';
+                document.getElementById('modeBadge').textContent = t.mode;
+                document.getElementById('modeBadge').className = 'mode-badge ' + t.mode;
+                document.getElementById('modeBtn').textContent = t.mode === 'LIVE' ? '🔴 LIVE' : '📝 PAPER';
+                document.getElementById('modeBtn').className = 'nav-btn ' + t.mode.toLowerCase();
+                document.getElementById('positionCount').textContent = t.positionCount + ' positions';
+                document.getElementById('paperBtn').className = t.mode === 'PAPER' ? 'paper active' : 'paper';
+                document.getElementById('liveBtn').className = t.mode === 'LIVE' ? 'live active' : 'live';
+                const positions = Object.entries(t.positions);
+                if (positions.length > 0) {
+                    let posHtml = '';
+                    positions.forEach(([id, p]) => { posHtml += '<div class="position-item"><span>' + p.asset + ' ' + p.side + '</span><span>$' + p.size.toFixed(2) + '</span></div>'; });
+                    document.getElementById('positionsList').innerHTML = posHtml;
+                } else { document.getElementById('positionsList').innerHTML = '<div class="no-positions">No active positions</div>'; }
+            }
+            const now = Math.floor(Date.now() / 1000);
+            const next = now - (now % 900) + 900;
+            const remaining = next - now;
+            document.getElementById('countdown').textContent = Math.floor(remaining / 60) + ':' + (remaining % 60).toString().padStart(2, '0');
+        }
         
-        // Auto-refresh every 1 second
+        async function loadWallet() {
+            try {
+                const res = await fetch('/api/wallet');
+                const data = await res.json();
+                if (data.usdc?.success) document.getElementById('usdcBalance').textContent = '$' + data.usdc.balance.toFixed(2);
+                if (data.matic?.success) document.getElementById('maticBalance').textContent = data.matic.balance.toFixed(4);
+                if (data.address) document.getElementById('depositAddress').textContent = data.address;
+            } catch (e) {}
+        }
+        function copyAddress() { navigator.clipboard.writeText(document.getElementById('depositAddress').textContent).then(() => alert('Copied!')); }
+        async function handleWithdraw() {
+            const to = document.getElementById('withdrawTo').value.trim();
+            const amount = parseFloat(document.getElementById('withdrawAmount').value);
+            const status = document.getElementById('withdrawStatus');
+            if (!to || !amount) { status.textContent = '❌ Fill all fields'; status.className = 'status-msg error'; return; }
+            if (!confirm('Send $' + amount + ' USDC to ' + to + '?')) return;
+            try {
+                const res = await fetch('/api/wallet/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, amount }) });
+                const result = await res.json();
+                if (result.success) { status.innerHTML = '✅ Sent! <a href="' + result.explorerUrl + '" target="_blank" style="color:#00ff88;">View TX</a>'; status.className = 'status-msg success'; loadWallet(); }
+                else { status.textContent = '❌ ' + result.error; status.className = 'status-msg error'; }
+            } catch (e) { status.textContent = '❌ Network error'; status.className = 'status-msg error'; }
+        }
+        
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                document.getElementById('paperBalance').value = data.PAPER_BALANCE || 1000;
+                document.getElementById('maxPosition').value = (data.MAX_POSITION_SIZE || 0.1) * 100;
+            } catch (e) {}
+        }
+        async function setMode(mode) {
+            if (mode === 'LIVE' && !confirm('⚠️ LIVE MODE\\n\\nReal orders will be placed!\\nReal USDC will be used!\\nLosses are REAL!\\n\\nContinue?')) return;
+            try {
+                await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ TRADE_MODE: mode }) });
+                fetchData();
+                const status = document.getElementById('settingsStatus');
+                status.textContent = mode === 'LIVE' ? '🔴 LIVE MODE ENABLED' : '📝 Paper mode enabled';
+                status.className = 'status-msg ' + (mode === 'LIVE' ? 'error' : 'success');
+            } catch (e) {}
+        }
+        async function saveSettings() {
+            const updates = { PAPER_BALANCE: parseFloat(document.getElementById('paperBalance').value), MAX_POSITION_SIZE: parseFloat(document.getElementById('maxPosition').value) / 100 };
+            const apiKey = document.getElementById('apiKey').value;
+            const apiSecret = document.getElementById('apiSecret').value;
+            const apiPassphrase = document.getElementById('apiPassphrase').value;
+            const privateKey = document.getElementById('privateKey').value;
+            if (apiKey) updates.POLYMARKET_API_KEY = apiKey;
+            if (apiSecret) updates.POLYMARKET_SECRET = apiSecret;
+            if (apiPassphrase) updates.POLYMARKET_PASSPHRASE = apiPassphrase;
+            if (privateKey) updates.POLYMARKET_PRIVATE_KEY = privateKey;
+            try {
+                await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
+                document.getElementById('settingsStatus').textContent = '✅ Settings saved!';
+                document.getElementById('settingsStatus').className = 'status-msg success';
+            } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Error'; document.getElementById('settingsStatus').className = 'status-msg error'; }
+        }
+        
+        fetchData(); loadWallet(); loadSettings();
         setInterval(fetchData, 1000);
+        setInterval(loadWallet, 30000);
     </script>
 </body>
 </html>
     `);
 });
+
+
 
 app.get('/api/state', (req, res) => {
     const response = {};
