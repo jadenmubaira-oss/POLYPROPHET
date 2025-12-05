@@ -38,6 +38,7 @@ const USDC_ABI = [
 // Initialize App
 const app = express();
 app.use(cors());
+app.use(express.json()); // CRITICAL: Parse JSON bodies BEFORE any routes
 
 // ==================== PASSWORD PROTECTION ====================
 app.use((req, res, next) => {
@@ -336,6 +337,7 @@ class TradeExecutor {
         log(`🎯 ═══════════════════════════════════════`, asset);
 
         if (this.mode === 'PAPER') {
+            const balanceBefore = this.paperBalance;
             this.paperBalance -= size;
             this.positions[positionId] = {
                 asset,
@@ -362,6 +364,7 @@ class TradeExecutor {
             });
 
             log(`📝 PAPER FILL: Bought ${(size / entryPrice).toFixed(1)} shares @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+            log(`💰 Balance: $${balanceBefore.toFixed(2)} → $${this.paperBalance.toFixed(2)} (-$${size.toFixed(2)})`, asset);
             return positionId;
         }
 
@@ -1201,6 +1204,10 @@ class SupremeBrain {
             const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
 
             if (!currentPrice || !startPrice || history.length < 10) {
+                // DIAGNOSTIC: Log why prediction is not running
+                if (!currentPrice) log(`⚠️ No live price available`, this.asset);
+                if (!startPrice) log(`⚠️ No checkpoint price (waiting for cycle)`, this.asset);
+                if (history.length < 10) log(`⚠️ Insufficient history (${history.length}/10)`, this.asset);
                 this.isProcessing = false;
                 return;
             }
@@ -2366,7 +2373,12 @@ app.get('/', (req, res) => {
     </nav>
     <div class="status-bar">
         <div><span style="color:#888;">Next:</span> <span class="countdown" id="countdown">--:--</span></div>
-        <div class="balance-display">Balance: <span class="amount" id="balance">$0.00</span> <span style="color:#888;margin-left:8px;">P/L:</span> <span id="pnl" style="color:#00ff88;">$0.00</span></div>
+        <div class="balance-display">
+            <span style="color:#888;">Paper:</span> <span class="amount" id="balance">$0.00</span>
+            <span style="color:#888;margin-left:15px;">Live USDC:</span> <span class="amount" id="liveBalance" style="color:#00ff88;">$0.00</span>
+            <span style="color:#888;margin-left:15px;">P/L:</span> <span id="pnl" style="color:#00ff88;">$0.00</span>
+            <span style="color:#888;margin-left:15px;">W/L:</span> <span id="winLoss" style="color:#ffd700;">0/0</span>
+        </div>
         <span class="mode-badge" id="modeBadge">PAPER</span>
     </div>
     <div class="main-container">
@@ -2374,6 +2386,10 @@ app.get('/', (req, res) => {
         <div class="trading-panel">
             <div class="panel-header"><span class="panel-title">📊 Active Positions</span><span id="positionCount">0 positions</span></div>
             <div class="positions-list" id="positionsList"><div class="no-positions">No active positions</div></div>
+        </div>
+        <div class="trading-panel" style="margin-top:15px;">
+            <div class="panel-header"><span class="panel-title">📜 Trade History</span><span id="historyCount">0 trades</span></div>
+            <div class="positions-list" id="tradeHistory"><div class="no-positions">No trades yet</div></div>
         </div>
     </div>
     <!-- WALLET MODAL -->
@@ -2394,26 +2410,73 @@ app.get('/', (req, res) => {
             <div class="status-msg" id="withdrawStatus"></div>
         </div>
     </div>
-    <!-- SETTINGS MODAL -->
+    <!-- SETTINGS MODAL (ENHANCED with Mode Config) -->
     <div class="modal-overlay" id="settingsModal">
-        <div class="modal">
+        <div class="modal" style="max-width:750px;">
             <div class="modal-header"><span class="modal-title">⚙️ Settings</span><button class="modal-close" onclick="closeModal('settingsModal')">×</button></div>
+            
             <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">🔄 Trading Mode</h4>
             <div class="mode-toggle">
                 <button class="paper" id="paperBtn" onclick="setMode('PAPER')">📝 PAPER</button>
                 <button class="live" id="liveBtn" onclick="setMode('LIVE')">🔴 LIVE</button>
             </div>
-            <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">💰 Parameters</h4>
+            
+            <h4 style="margin:15px 0 10px;color:#ffd700;font-size:0.95em;">💰 Core Parameters</h4>
             <div class="form-grid">
                 <div class="form-group"><label>Paper Balance ($)</label><input type="number" id="paperBalance" value="1000"></div>
                 <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" value="10" min="1" max="25"></div>
             </div>
+            
+            <!-- MODE CONFIGURATIONS -->
+            <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;cursor:pointer;" onclick="toggleModeConfig()">🎯 Mode Configuration ▼</h4>
+            <div id="modeConfigPanel" style="display:none;background:rgba(0,0,0,0.3);border-radius:8px;padding:12px;margin-bottom:15px;">
+                <!-- ORACLE -->
+                <div style="margin-bottom:12px;padding:10px;background:rgba(153,51,255,0.1);border-left:3px solid #9933ff;border-radius:4px;">
+                    <strong style="color:#9933ff;">🔮 ORACLE</strong>
+                    <label style="float:right;color:#888;"><input type="checkbox" id="oracleEnabled" checked> Enabled</label>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Min Consensus</label><input type="number" id="oracleConsensus" value="0.85" step="0.05" min="0.5" max="1"></div>
+                        <div class="form-group"><label>Min Confidence</label><input type="number" id="oracleConfidence" value="0.92" step="0.02" min="0.5" max="1"></div>
+                        <div class="form-group"><label>Min Edge (%)</label><input type="number" id="oracleEdge" value="15" min="5" max="50"></div>
+                        <div class="form-group"><label>Max Odds</label><input type="number" id="oracleMaxOdds" value="0.70" step="0.05" min="0.3" max="0.9"></div>
+                    </div>
+                </div>
+                <!-- SCALP -->
+                <div style="margin-bottom:12px;padding:10px;background:rgba(255,102,0,0.1);border-left:3px solid #ff6600;border-radius:4px;">
+                    <strong style="color:#ff6600;">🎯 SCALP</strong>
+                    <label style="float:right;color:#888;"><input type="checkbox" id="scalpEnabled" checked> Enabled</label>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Max Entry (¢)</label><input type="number" id="scalpMaxEntry" value="20" min="5" max="40"></div>
+                        <div class="form-group"><label>Target Multiple</label><input type="number" id="scalpTarget" value="2.0" step="0.5" min="1.5" max="5"></div>
+                    </div>
+                </div>
+                <!-- ARBITRAGE -->
+                <div style="margin-bottom:12px;padding:10px;background:rgba(0,255,136,0.1);border-left:3px solid #00ff88;border-radius:4px;">
+                    <strong style="color:#00ff88;">📊 ARBITRAGE</strong>
+                    <label style="float:right;color:#888;"><input type="checkbox" id="arbEnabled" checked> Enabled</label>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Min Mispricing</label><input type="number" id="arbMispricing" value="0.15" step="0.05" min="0.05" max="0.5"></div>
+                        <div class="form-group"><label>Target Profit</label><input type="number" id="arbTarget" value="0.50" step="0.1" min="0.1" max="1"></div>
+                        <div class="form-group"><label>Stop Loss</label><input type="number" id="arbStopLoss" value="0.30" step="0.05" min="0.1" max="0.5"></div>
+                    </div>
+                </div>
+                <!-- RISK -->
+                <div style="padding:10px;background:rgba(255,0,100,0.1);border-left:3px solid #ff0066;border-radius:4px;">
+                    <strong style="color:#ff0066;">⚠️ RISK MANAGEMENT</strong>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Max Exposure (%)</label><input type="number" id="riskMaxExposure" value="30" min="10" max="100"></div>
+                        <div class="form-group"><label>Daily Stop (%)</label><input type="number" id="riskStopLoss" value="20" min="5" max="50"></div>
+                        <div class="form-group"><label>Loss Cooldown (s)</label><input type="number" id="riskCooldown" value="300" min="60" max="900"></div>
+                    </div>
+                </div>
+            </div>
+            
             <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">🔑 API Credentials</h4>
             <div class="form-group"><label>API Key</label><input type="text" id="apiKey" placeholder="019aed53-..."></div>
             <div class="form-group"><label>Secret</label><input type="password" id="apiSecret" placeholder="Enter secret..."></div>
             <div class="form-group"><label>Passphrase</label><input type="password" id="apiPassphrase" placeholder="Enter passphrase..."></div>
             <div class="form-group"><label>Private Key (⚠️)</label><input type="password" id="privateKey" placeholder="0x..."></div>
-            <button class="btn btn-primary" onclick="saveSettings()" style="width:100%;">💾 Save Settings</button>
+            <button class="btn btn-primary" onclick="saveAllSettings()" style="width:100%;">💾 Save All Settings</button>
             <div class="status-msg" id="settingsStatus"></div>
         </div>
     </div>
@@ -2474,6 +2537,15 @@ app.get('/', (req, res) => {
                 document.getElementById('balance').textContent = '$' + t.balance.toFixed(2);
                 document.getElementById('pnl').textContent = (t.todayPnL >= 0 ? '+' : '') + '$' + t.todayPnL.toFixed(2);
                 document.getElementById('pnl').style.color = t.todayPnL >= 0 ? '#00ff88' : '#ff4466';
+                
+                // Calculate and display win/loss stats
+                const allTrades = t.tradeHistory || [];
+                const closedT = allTrades.filter(tr => tr.status === 'CLOSED');
+                const winsCount = closedT.filter(tr => tr.pnl >= 0).length;
+                const lossCount = closedT.length - winsCount;
+                document.getElementById('winLoss').textContent = winsCount + '/' + lossCount;
+                document.getElementById('winLoss').style.color = winsCount >= lossCount ? '#00ff88' : '#ff4466';
+                
                 document.getElementById('modeBadge').textContent = t.mode;
                 document.getElementById('modeBadge').className = 'mode-badge ' + t.mode;
                 document.getElementById('modeBtn').textContent = t.mode === 'LIVE' ? '🔴 LIVE' : '📝 PAPER';
@@ -2484,9 +2556,38 @@ app.get('/', (req, res) => {
                 const positions = Object.entries(t.positions);
                 if (positions.length > 0) {
                     let posHtml = '';
-                    positions.forEach(([id, p]) => { posHtml += '<div class="position-item"><span>' + p.asset + ' ' + p.side + '</span><span>$' + p.size.toFixed(2) + '</span></div>'; });
+                    positions.forEach(([id, p]) => { 
+                        const timeHeld = Math.floor((Date.now() - p.time) / 1000);
+                        const mins = Math.floor(timeHeld / 60);
+                        const secs = timeHeld % 60;
+                        const color = p.side === 'UP' ? '#00ff88' : '#ff4466';
+                        posHtml += '<div class="position-item"><span style="color:' + color + '"><strong>' + p.asset + '</strong> ' + p.side + ' <span style="color:#888;font-size:0.8em;">(' + p.mode + ')</span></span><span>$' + p.size.toFixed(2) + ' @ ' + (p.entry * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span></div>'; 
+                    });
                     document.getElementById('positionsList').innerHTML = posHtml;
                 } else { document.getElementById('positionsList').innerHTML = '<div class="no-positions">No active positions</div>'; }
+                
+                // Trade History display with prices
+                const trades = t.tradeHistory || [];
+                const closedTrades = trades.filter(tr => tr.status === 'CLOSED');
+                const wins = closedTrades.filter(tr => tr.pnl >= 0).length;
+                const losses = closedTrades.length - wins;
+                const winRate = closedTrades.length > 0 ? ((wins / closedTrades.length) * 100).toFixed(0) : '--';
+                document.getElementById('historyCount').textContent = closedTrades.length + ' trades | ' + winRate + '% win rate';
+                if (trades.length > 0) {
+                    let histHtml = '';
+                    trades.slice(-10).reverse().forEach(tr => {
+                        const emoji = tr.status === 'OPEN' ? '⏳' : (tr.pnl >= 0 ? '✅' : '❌');
+                        const pnlColor = tr.pnl >= 0 ? '#00ff88' : '#ff4466';
+                        let details = '';
+                        if (tr.status === 'CLOSED') {
+                            details = (tr.entry * 100).toFixed(0) + '¢→' + (tr.exit * 100).toFixed(0) + '¢ ' + (tr.pnl >= 0 ? '+' : '') + '$' + tr.pnl.toFixed(2);
+                        } else {
+                            details = 'Entry: ' + (tr.entry * 100).toFixed(0) + '¢ | $' + tr.size.toFixed(2);
+                        }
+                        histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + tr.asset + '</strong> ' + tr.side + ' <span style="color:#888;font-size:0.8em;">(' + tr.mode + ')</span></span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
+                    });
+                    document.getElementById('tradeHistory').innerHTML = histHtml;
+                } else { document.getElementById('tradeHistory').innerHTML = '<div class="no-positions">No trades yet</div>'; }
             }
             const now = Math.floor(Date.now() / 1000);
             const next = now - (now % 900) + 900;
@@ -2498,7 +2599,10 @@ app.get('/', (req, res) => {
             try {
                 const res = await fetch('/api/wallet');
                 const data = await res.json();
-                if (data.usdc?.success) document.getElementById('usdcBalance').textContent = '$' + data.usdc.balance.toFixed(2);
+                if (data.usdc?.success) {
+                    document.getElementById('usdcBalance').textContent = '$' + data.usdc.balance.toFixed(2);
+                    document.getElementById('liveBalance').textContent = '$' + data.usdc.balance.toFixed(2);
+                }
                 if (data.matic?.success) document.getElementById('maticBalance').textContent = data.matic.balance.toFixed(4);
                 if (data.address) document.getElementById('depositAddress').textContent = data.address;
             } catch (e) {}
@@ -2524,8 +2628,13 @@ app.get('/', (req, res) => {
                 const data = await res.json();
                 document.getElementById('paperBalance').value = data.PAPER_BALANCE || 1000;
                 document.getElementById('maxPosition').value = (data.MAX_POSITION_SIZE || 0.1) * 100;
-            } catch (e) {}
+                if (data.ORACLE) { document.getElementById('oracleEnabled').checked = data.ORACLE.enabled !== false; document.getElementById('oracleConsensus').value = data.ORACLE.minConsensus || 0.85; document.getElementById('oracleConfidence').value = data.ORACLE.minConfidence || 0.92; document.getElementById('oracleEdge').value = data.ORACLE.minEdge || 15; document.getElementById('oracleMaxOdds').value = data.ORACLE.maxOdds || 0.70; }
+                if (data.SCALP) { document.getElementById('scalpEnabled').checked = data.SCALP.enabled !== false; document.getElementById('scalpMaxEntry').value = (data.SCALP.maxEntryPrice || 0.20) * 100; document.getElementById('scalpTarget').value = data.SCALP.targetMultiple || 2.0; }
+                if (data.ARBITRAGE) { document.getElementById('arbEnabled').checked = data.ARBITRAGE.enabled !== false; document.getElementById('arbMispricing').value = data.ARBITRAGE.minMispricing || 0.15; document.getElementById('arbTarget').value = data.ARBITRAGE.targetProfit || 0.50; document.getElementById('arbStopLoss').value = data.ARBITRAGE.stopLoss || 0.30; }
+                if (data.RISK) { document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.30) * 100; document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.20) * 100; document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 300; }
+            } catch (e) { console.error(e); }
         }
+        function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function setMode(mode) {
             if (mode === 'LIVE' && !confirm('⚠️ LIVE MODE\\n\\nReal orders will be placed!\\nReal USDC will be used!\\nLosses are REAL!\\n\\nContinue?')) return;
             try {
@@ -2536,8 +2645,15 @@ app.get('/', (req, res) => {
                 status.className = 'status-msg ' + (mode === 'LIVE' ? 'error' : 'success');
             } catch (e) {}
         }
-        async function saveSettings() {
-            const updates = { PAPER_BALANCE: parseFloat(document.getElementById('paperBalance').value), MAX_POSITION_SIZE: parseFloat(document.getElementById('maxPosition').value) / 100 };
+        async function saveAllSettings() {
+            const updates = { 
+                PAPER_BALANCE: parseFloat(document.getElementById('paperBalance').value), 
+                MAX_POSITION_SIZE: parseFloat(document.getElementById('maxPosition').value) / 100,
+                ORACLE: { enabled: document.getElementById('oracleEnabled').checked, minConsensus: parseFloat(document.getElementById('oracleConsensus').value), minConfidence: parseFloat(document.getElementById('oracleConfidence').value), minEdge: parseFloat(document.getElementById('oracleEdge').value), maxOdds: parseFloat(document.getElementById('oracleMaxOdds').value), requireTrending: true, requireMomentum: true, minStability: 5 },
+                SCALP: { enabled: document.getElementById('scalpEnabled').checked, maxEntryPrice: parseFloat(document.getElementById('scalpMaxEntry').value) / 100, targetMultiple: parseFloat(document.getElementById('scalpTarget').value), requireLean: true, exitBeforeEnd: 120 },
+                ARBITRAGE: { enabled: document.getElementById('arbEnabled').checked, minMispricing: parseFloat(document.getElementById('arbMispricing').value), targetProfit: parseFloat(document.getElementById('arbTarget').value), stopLoss: parseFloat(document.getElementById('arbStopLoss').value), maxHoldTime: 600 },
+                RISK: { maxTotalExposure: parseFloat(document.getElementById('riskMaxExposure').value) / 100, globalStopLoss: parseFloat(document.getElementById('riskStopLoss').value) / 100, cooldownAfterLoss: parseInt(document.getElementById('riskCooldown').value) }
+            };
             const apiKey = document.getElementById('apiKey').value;
             const apiSecret = document.getElementById('apiSecret').value;
             const apiPassphrase = document.getElementById('apiPassphrase').value;
@@ -2548,9 +2664,9 @@ app.get('/', (req, res) => {
             if (privateKey) updates.POLYMARKET_PRIVATE_KEY = privateKey;
             try {
                 await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
-                document.getElementById('settingsStatus').textContent = '✅ Settings saved!';
+                document.getElementById('settingsStatus').textContent = '✅ All settings saved to Redis!';
                 document.getElementById('settingsStatus').className = 'status-msg success';
-            } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Error'; document.getElementById('settingsStatus').className = 'status-msg error'; }
+            } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Error saving'; document.getElementById('settingsStatus').className = 'status-msg error'; }
         }
         
         fetchData(); loadWallet(); loadSettings();
@@ -2718,7 +2834,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
 });
 
 // ==================== SETTINGS API ====================
-app.use(express.json()); // Enable JSON body parsing
+// NOTE: express.json() is now at top of file (after cors())
 
 // Get current settings (masked for security)
 app.get('/api/settings', (req, res) => {
@@ -2783,16 +2899,27 @@ app.post('/api/settings', async (req, res) => {
     if (redisAvailable && redis) {
         try {
             const persistedSettings = {
+                // API Credentials
                 POLYMARKET_API_KEY: CONFIG.POLYMARKET_API_KEY,
                 POLYMARKET_SECRET: CONFIG.POLYMARKET_SECRET,
                 POLYMARKET_PASSPHRASE: CONFIG.POLYMARKET_PASSPHRASE,
                 POLYMARKET_ADDRESS: CONFIG.POLYMARKET_ADDRESS,
                 POLYMARKET_PRIVATE_KEY: CONFIG.POLYMARKET_PRIVATE_KEY,
                 POLYMARKET_PROXY_KEY: CONFIG.POLYMARKET_PROXY_KEY,
+                // Core Trading
                 TRADE_MODE: CONFIG.TRADE_MODE,
                 PAPER_BALANCE: CONFIG.PAPER_BALANCE,
                 LIVE_BALANCE: CONFIG.LIVE_BALANCE,
-                MAX_POSITION_SIZE: CONFIG.MAX_POSITION_SIZE
+                MAX_POSITION_SIZE: CONFIG.MAX_POSITION_SIZE,
+                MAX_POSITIONS_PER_ASSET: CONFIG.MAX_POSITIONS_PER_ASSET,
+                MULTI_MODE_ENABLED: CONFIG.MULTI_MODE_ENABLED,
+                // Mode Configurations (NOW PERSISTED!)
+                ORACLE: CONFIG.ORACLE,
+                ARBITRAGE: CONFIG.ARBITRAGE,
+                SCALP: CONFIG.SCALP,
+                UNCERTAINTY: CONFIG.UNCERTAINTY,
+                MOMENTUM: CONFIG.MOMENTUM,
+                RISK: CONFIG.RISK
             };
             await redis.set('deity:settings', JSON.stringify(persistedSettings));
             log('💾 Settings persisted to Redis');
