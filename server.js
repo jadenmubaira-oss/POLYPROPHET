@@ -305,20 +305,33 @@ class TradeExecutor {
 
     // ENTRY: Execute a trade for any mode
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
-        if (!market) return null;
+        log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+        
+        if (!market) {
+            log(`❌ TRADE BLOCKED: No market data for ${asset}`, asset);
+            return null;
+        }
+        
+        if (!market.tokenIds) {
+            log(`❌ TRADE BLOCKED: No token IDs for ${asset} market`, asset);
+            return null;
+        }
 
         // ENTRY PRICE GUARD: Never buy at extreme prices (prevents 99c/100c momentum bug)
-        if (entryPrice >= 0.98) {
-            log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
-            return null;
-        }
-        if (entryPrice <= 0.02) {
-            log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
-            return null;
+        // MANUAL TRADES BYPASS THIS - user knows what they're doing
+        if (!options.manualTrade) {
+            if (entryPrice >= 0.98) {
+                log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
+                return null;
+            }
+            if (entryPrice <= 0.02) {
+                log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
+                return null;
+            }
         }
 
-        // Check cooldown
-        if (this.isInCooldown()) {
+        // Check cooldown - MANUAL TRADES BYPASS COOLDOWN
+        if (!options.manualTrade && this.isInCooldown()) {
             log(`⏳ In cooldown after loss - skipping trade`, asset);
             return null;
         }
@@ -344,24 +357,35 @@ class TradeExecutor {
         }
 
         // Calculate position size (mode-specific)
+        // CRITICAL FIX: Manual trades use user-specified size
         let size;
-        switch (mode) {
-            case 'ORACLE':
-                size = Math.min(bankroll * 0.10, bankroll * (confidence * 0.15));
-                break;
-            case 'SCALP':
-                size = bankroll * 0.05; // Smaller for scalps
-                break;
-            case 'ARBITRAGE':
-            case 'UNCERTAINTY':
-            case 'MOMENTUM':
-                size = bankroll * 0.05;
-                break;
-            default:
-                size = bankroll * 0.05;
+        if (options.manualSize && options.manualSize > 0) {
+            size = options.manualSize;
+            log(`📝 Using manual size: $${size.toFixed(2)}`, asset);
+        } else {
+            switch (mode) {
+                case 'ORACLE':
+                    size = Math.min(bankroll * 0.10, bankroll * (confidence * 0.15));
+                    break;
+                case 'SCALP':
+                    size = bankroll * 0.05; // Smaller for scalps
+                    break;
+                case 'ARBITRAGE':
+                case 'UNCERTAINTY':
+                case 'MOMENTUM':
+                    size = bankroll * 0.05;
+                    break;
+                default:
+                    size = bankroll * 0.05;
+            }
         }
 
-        if (size < 5) return null; // Min trade size
+        // Min trade size: $1 for manual, $5 for auto
+        const minSize = options.manualTrade ? 1 : 5;
+        if (size < minSize) {
+            log(`❌ TRADE BLOCKED: Size $${size.toFixed(2)} below minimum $${minSize}`, asset);
+            return null;
+        }
 
         const tokenType = direction === 'UP' ? 'YES' : 'NO';
         const positionId = `${asset}_${Date.now()}`;
@@ -565,7 +589,21 @@ class TradeExecutor {
 
             } catch (e) {
                 log(`❌ LIVE TRADE ERROR: ${e.message}`, asset);
-                log(`   Full error: ${JSON.stringify(e)}`, asset);
+                // Log stack trace for debugging
+                if (e.stack) {
+                    const stackLines = e.stack.split('\n').slice(0, 3).join('\n');
+                    log(`   Stack: ${stackLines}`, asset);
+                }
+                // Check for specific known errors
+                if (e.message.includes('signTypedData') || e.message.includes('_signTypedData')) {
+                    log(`   FIX: ethers v6 compatibility issue - wallet._signTypedData wrapper may be missing`, asset);
+                }
+                if (e.message.includes('ENOTFOUND') || e.message.includes('ECONNREFUSED')) {
+                    log(`   FIX: Network/DNS issue - check internet connection`, asset);
+                }
+                if (e.message.includes('401') || e.message.includes('403') || e.message.includes('Unauthorized')) {
+                    log(`   FIX: API credentials may be invalid - check API key, secret, passphrase`, asset);
+                }
                 return null;
             }
         }
@@ -697,7 +735,13 @@ class TradeExecutor {
     async manualBuy(asset, direction, size) {
         const market = currentMarkets[asset];
         if (!market) {
+            log(`❌ MANUAL BUY FAILED: No market data for ${asset}`, asset);
             return { success: false, error: 'No market data for ' + asset };
+        }
+        
+        if (!market.tokenIds) {
+            log(`❌ MANUAL BUY FAILED: No token IDs for ${asset}`, asset);
+            return { success: false, error: 'No token IDs for market - try refreshing' };
         }
 
         const entryPrice = direction === 'UP' ? market.yesPrice : market.noPrice;
@@ -706,12 +750,18 @@ class TradeExecutor {
 
         log(`📝 MANUAL BUY: ${asset} ${direction} $${size} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
 
-        const positionId = await this.executeTrade(asset, direction, 'MANUAL', confidence, entryPrice, market, { manualTrade: true });
+        // CRITICAL FIX: Pass manual size through options
+        const positionId = await this.executeTrade(asset, direction, 'MANUAL', confidence, entryPrice, market, { 
+            manualTrade: true,
+            manualSize: size
+        });
 
         if (positionId) {
+            log(`✅ MANUAL BUY SUCCESS: Position ${positionId}`, asset);
             return { success: true, positionId, entryPrice };
         } else {
-            return { success: false, error: 'Trade execution failed' };
+            log(`❌ MANUAL BUY FAILED: executeTrade returned null - check logs`, asset);
+            return { success: false, error: 'Trade execution failed - check logs for details' };
         }
     }
 
