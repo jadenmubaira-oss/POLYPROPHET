@@ -223,13 +223,13 @@ class TradeExecutor {
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Loading wallet from key: ${keyPreview}...`);
                 const baseWallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-                
+
                 // CRITICAL FIX: Polymarket CLOB client expects ethers v5's _signTypedData
                 // but ethers v6 renamed it to signTypedData. Create compatibility wrapper.
                 baseWallet._signTypedData = async (domain, types, value) => {
                     return await baseWallet.signTypedData(domain, types, value);
                 };
-                
+
                 this.wallet = baseWallet;
                 log(`✅ Wallet Loaded: ${this.wallet.address}`);
             } catch (e) {
@@ -251,12 +251,12 @@ class TradeExecutor {
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Reloading wallet from key: ${keyPreview}...`);
                 const baseWallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-                
+
                 // CRITICAL FIX: Polymarket CLOB client expects ethers v5's _signTypedData
                 baseWallet._signTypedData = async (domain, types, value) => {
                     return await baseWallet.signTypedData(domain, types, value);
                 };
-                
+
                 this.wallet = baseWallet;
                 log(`✅ Wallet Reloaded: ${this.wallet.address}`);
                 return true;
@@ -306,40 +306,28 @@ class TradeExecutor {
     // ENTRY: Execute a trade for any mode
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
-        
+
         if (!market) {
             log(`❌ TRADE BLOCKED: No market data for ${asset}`, asset);
-            return null;
+            return { success: false, error: 'No market data available' };
         }
-        
+
         if (!market.tokenIds) {
             log(`❌ TRADE BLOCKED: No token IDs for ${asset} market`, asset);
-            return null;
+            return { success: false, error: 'No token IDs - market not tradeable yet' };
         }
 
-        // ENTRY PRICE GUARD: Never buy at extreme prices (prevents 99c/100c momentum bug)
-        // MANUAL TRADES BYPASS THIS - user knows what they're doing
-        if (!options.manualTrade) {
-            if (entryPrice >= 0.98) {
-                log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
-                return null;
-            }
-            if (entryPrice <= 0.02) {
-                log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
-                return null;
-            }
-        }
+        // ENTRY PRICE GUARD: REMOVED - Bot learns from all trades, even at extreme prices
+        // The bot's learning loop will naturally penalize bad patterns
+        // User requested: allow 2¢-99¢ trades if confident
 
-        // Check cooldown - MANUAL TRADES BYPASS COOLDOWN
-        if (!options.manualTrade && this.isInCooldown()) {
-            log(`⏳ In cooldown after loss - skipping trade`, asset);
-            return null;
-        }
+        // COOLDOWN: REMOVED - Bot learns from each trade/decision
+        // User requested: no cooldown as long as bot is learning
 
         // Check max positions per asset
         if (this.getPositionCount(asset) >= CONFIG.MAX_POSITIONS_PER_ASSET) {
             log(`⚠️ Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) reached for ${asset}`, asset);
-            return null;
+            return { success: false, error: `Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) for ${asset}` };
         }
 
         // Refresh LIVE balance if needed
@@ -353,7 +341,7 @@ class TradeExecutor {
         const bankroll = this.mode === 'LIVE' ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE || 1000) : this.paperBalance;
         if (totalExposure / bankroll > CONFIG.RISK.maxTotalExposure) {
             log(`⚠️ Max total exposure (${CONFIG.RISK.maxTotalExposure * 100}%) reached`, asset);
-            return null;
+            return { success: false, error: `Max exposure (${(CONFIG.RISK.maxTotalExposure * 100).toFixed(0)}%) reached` };
         }
 
         // Calculate position size (mode-specific)
@@ -380,11 +368,12 @@ class TradeExecutor {
             }
         }
 
-        // Min trade size: $1 for manual, $5 for auto
-        const minSize = options.manualTrade ? 1 : 5;
-        if (size < minSize) {
-            log(`❌ TRADE BLOCKED: Size $${size.toFixed(2)} below minimum $${minSize}`, asset);
-            return null;
+        // MINIMUM ORDER SIZE: $0.50 floor (aggressive mode for small balances)
+        // User requested: allow trades with $5-10 balance (5% of $10 = $0.50)
+        const minDollars = 0.50;
+        if (size < minDollars) {
+            log(`❌ TRADE BLOCKED: $${size.toFixed(2)} below $${minDollars} minimum`, asset);
+            return { success: false, error: `Minimum order size is $${minDollars}` };
         }
 
         const tokenType = direction === 'UP' ? 'YES' : 'NO';
@@ -454,7 +443,7 @@ class TradeExecutor {
 
             log(`📝 PAPER FILL: Bought ${(size / entryPrice).toFixed(1)} shares @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
             log(`💰 Balance: $${balanceBefore.toFixed(2)} → $${this.paperBalance.toFixed(2)} (-$${size.toFixed(2)})`, asset);
-            return positionId;
+            return { success: true, positionId, mode: 'PAPER' };
         }
 
         // LIVE TRADING MODE - ACTUAL EXECUTION
@@ -465,24 +454,24 @@ class TradeExecutor {
             if (!ClobClient) {
                 log(`❌ LIVE TRADING FAILED: @polymarket/clob-client not installed`, asset);
                 log(`   Run: npm install @polymarket/clob-client`, asset);
-                return null;
+                return { success: false, error: 'CLOB client not installed. Run: npm install @polymarket/clob-client' };
             }
 
             // Check if we have the required credentials
             if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
                 log(`❌ LIVE TRADING FAILED: Missing API credentials`, asset);
-                return null;
+                return { success: false, error: 'Missing API credentials (key/secret/passphrase)' };
             }
 
             if (!this.wallet) {
                 log(`❌ LIVE TRADING FAILED: No wallet loaded`, asset);
-                return null;
+                return { success: false, error: 'No wallet loaded. Add private key in Settings.' };
             }
 
             // Get Token ID for the market
             if (!market.tokenIds) {
                 log(`❌ LIVE TRADING FAILED: No token IDs for market`, asset);
-                return null;
+                return { success: false, error: 'No token IDs for this market yet' };
             }
 
             const tokenId = tokenType === 'YES' ? market.tokenIds.yes : market.tokenIds.no;
@@ -538,7 +527,7 @@ class TradeExecutor {
                                     break;
                                 } else if (['CANCELLED', 'EXPIRED', 'REJECTED'].includes(fillStatus.toUpperCase())) {
                                     log(`❌ Order ${fillStatus} - trade failed`, asset);
-                                    return null;
+                                    return { success: false, error: `Order was ${fillStatus}` };
                                 }
                             }
                             log(`⏳ Fill check ${attempt}/3: ${fillStatus}`, asset);
@@ -581,10 +570,10 @@ class TradeExecutor {
                         orderID: response.orderID
                     });
 
-                    return positionId;
+                    return { success: true, positionId, mode: 'LIVE' };
                 } else {
                     log(`❌ Order submission failed: ${JSON.stringify(response)}`, asset);
-                    return null;
+                    return { success: false, error: 'Order submission failed - check API credentials' };
                 }
 
             } catch (e) {
@@ -604,11 +593,11 @@ class TradeExecutor {
                 if (e.message.includes('401') || e.message.includes('403') || e.message.includes('Unauthorized')) {
                     log(`   FIX: API credentials may be invalid - check API key, secret, passphrase`, asset);
                 }
-                return null;
+                return { success: false, error: e.message };
             }
         }
 
-        return null;
+        return { success: false, error: 'Unknown mode - not PAPER or LIVE' };
     }
 
     // LIVE MODE: Execute sell order to close position
@@ -738,7 +727,7 @@ class TradeExecutor {
             log(`❌ MANUAL BUY FAILED: No market data for ${asset}`, asset);
             return { success: false, error: 'No market data for ' + asset };
         }
-        
+
         if (!market.tokenIds) {
             log(`❌ MANUAL BUY FAILED: No token IDs for ${asset}`, asset);
             return { success: false, error: 'No token IDs for market - try refreshing' };
@@ -750,18 +739,19 @@ class TradeExecutor {
 
         log(`📝 MANUAL BUY: ${asset} ${direction} $${size} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
 
-        // CRITICAL FIX: Pass manual size through options
-        const positionId = await this.executeTrade(asset, direction, 'MANUAL', confidence, entryPrice, market, { 
+        // executeTrade now returns object with success/error
+        const result = await this.executeTrade(asset, direction, 'MANUAL', confidence, entryPrice, market, {
             manualTrade: true,
             manualSize: size
         });
 
-        if (positionId) {
-            log(`✅ MANUAL BUY SUCCESS: Position ${positionId}`, asset);
-            return { success: true, positionId, entryPrice };
+        if (result && result.success) {
+            log(`✅ MANUAL BUY SUCCESS: Position ${result.positionId}`, asset);
+            return { success: true, positionId: result.positionId, entryPrice };
         } else {
-            log(`❌ MANUAL BUY FAILED: executeTrade returned null - check logs`, asset);
-            return { success: false, error: 'Trade execution failed - check logs for details' };
+            const errorMsg = result?.error || 'Unknown error';
+            log(`❌ MANUAL BUY FAILED: ${errorMsg}`, asset);
+            return { success: false, error: errorMsg };
         }
     }
 
@@ -892,8 +882,8 @@ class TradeExecutor {
                     break;
             }
 
-            // Universal stop loss (all modes except ORACLE)
-            if (pos.mode !== 'ORACLE' && pos.stopLoss && currentOdds <= pos.stopLoss) {
+            // Universal stop loss (all modes except ORACLE and MANUAL - user controls manual trades)
+            if (pos.mode !== 'ORACLE' && pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
                 this.closePosition(id, currentOdds, 'STOP LOSS');
             }
         });
@@ -1050,10 +1040,8 @@ class OpportunityDetector {
     detectArbitrage(asset, confidence, yesPrice, noPrice, side, elapsed = 0) {
         if (!CONFIG.ARBITRAGE.enabled) return null;
 
-        // BUG FIX: Don't enter in last 2 minutes (prevents cycle crossover)
-        if (elapsed > 780) { // 13+ minutes into 15-min cycle
-            return null;
-        }
+        // LATE CYCLE CUTOFF: REMOVED - User requested late entries if confident
+        // Bot learns from all trades, even late-cycle ones
 
         const fairValue = side === 'UP' ? confidence : (1 - confidence);
         const marketOdds = side === 'UP' ? yesPrice : noPrice;
@@ -1141,10 +1129,8 @@ class OpportunityDetector {
         if (!CONFIG.MOMENTUM.enabled) return null;
         if (elapsed < CONFIG.MOMENTUM.minElapsed) return null;
 
-        // BUG FIX: Don't enter in last 3 minutes (prevents cycle crossover)
-        if (elapsed > 720) { // 12+ minutes into 15-min cycle
-            return null;
-        }
+        // LATE CYCLE CUTOFF: REMOVED - User requested late entries if confident
+        // Bot learns from all trades, even late-cycle ones
 
         // Check consensus
         if (consensusRatio < CONFIG.MOMENTUM.minConsensus) return null;
