@@ -2292,20 +2292,20 @@ ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
 function connectWebSocket() {
     log('🔌 Attempting WebSocket connection to Polymarket...');
     const ws = new WebSocket(WS_ENDPOINT);
-    
+
     ws.on('open', () => {
         log('✅ Connected to Polymarket WS');
-        
+
         // Subscribe to Chainlink price feed (PRIMARY source)
         const chainlinkSub = { action: 'subscribe', subscriptions: [{ topic: 'crypto_prices_chainlink', type: '*' }] };
         ws.send(JSON.stringify(chainlinkSub));
         log('📡 Subscribed to crypto_prices_chainlink');
-        
+
         // Backup price feed subscription
         const pricesSub = { action: 'subscribe', subscriptions: [{ topic: 'crypto_prices', type: 'update', filters: 'btcusdt,ethusdt,solusdt,xrpusdt' }] };
         ws.send(JSON.stringify(pricesSub));
         log('📡 Subscribed to crypto_prices backup');
-        
+
         // Keep-alive ping every 30 seconds
         setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
@@ -2313,14 +2313,14 @@ function connectWebSocket() {
             }
         }, 30000);
     });
-    
+
     ws.on('message', (data) => {
         try {
             const str = data.toString();
             if (str === 'PONG') return;
-            
+
             const msg = JSON.parse(str);
-            
+
             // Debug first few messages to understand structure
             if (!global.wsMessageCount) global.wsMessageCount = 0;
             if (global.wsMessageCount < 5) {
@@ -2338,7 +2338,7 @@ function connectWebSocket() {
                     lastUpdateTimestamp = now;
                     priceHistory[asset].push({ t: now, p: price });
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
-                    
+
                     // Log first price for each asset
                     if (!global.firstPriceLogged) global.firstPriceLogged = {};
                     if (!global.firstPriceLogged[asset]) {
@@ -2358,16 +2358,16 @@ function connectWebSocket() {
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
                 }
             }
-        } catch (e) { 
+        } catch (e) {
             log(`⚠️ WS Parse Error: ${e.message}`);
         }
     });
-    
+
     ws.on('close', (code, reason) => {
         log(`⚠️ WS Disconnected (code: ${code}, reason: ${reason}). Reconnecting in 5s...`);
         setTimeout(connectWebSocket, 5000);
     });
-    
+
     ws.on('error', (e) => {
         log(`❌ WS Error: ${e.message}`);
         // Error will trigger close event, which handles reconnection
@@ -2492,7 +2492,7 @@ async function fetchLivePrices() {
         // These are aggregated from multiple exchanges, similar to Chainlink's approach
         const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd';
         const data = await fetchJSON(url);
-        
+
         if (data) {
             const priceMap = {
                 BTC: data.bitcoin?.usd,
@@ -2500,22 +2500,22 @@ async function fetchLivePrices() {
                 SOL: data.solana?.usd,
                 XRP: data.ripple?.usd
             };
-            
+
             const now = Date.now();
             for (const [asset, price] of Object.entries(priceMap)) {
                 if (price && price > 0) {
                     // Only update if we don't have a recent WebSocket price
-                    const lastWsUpdate = priceHistory[asset]?.length > 0 ? 
+                    const lastWsUpdate = priceHistory[asset]?.length > 0 ?
                         priceHistory[asset][priceHistory[asset].length - 1]?.t : 0;
                     const wsAge = now - lastWsUpdate;
-                    
+
                     // Use HTTP price if WebSocket data is stale (>10s) or missing
                     if (!livePrices[asset] || wsAge > 10000) {
                         livePrices[asset] = price;
                         lastUpdateTimestamp = now;
                         priceHistory[asset].push({ t: now, p: price });
                         if (priceHistory[asset].length > 500) priceHistory[asset].shift();
-                        
+
                         // Log only first fetch per asset (avoid spam)
                         if (!global.httpPriceLogged) global.httpPriceLogged = {};
                         if (!global.httpPriceLogged[asset]) {
@@ -2529,7 +2529,7 @@ async function fetchLivePrices() {
     } catch (e) {
         log(`⚠️ CoinGecko fetch failed: ${e.message}`);
     }
-    
+
     // CRITICAL: Initialize checkpoints if we have prices but no checkpoints
     const cp = getCurrentCheckpoint();
     for (const asset of ASSETS) {
@@ -2915,6 +2915,7 @@ app.get('/', (req, res) => {
             try {
                 console.log('fetchData called');
                 const res = await fetch('/api/state');
+                if (!res.ok) { console.error('API error:', res.status); return; }
                 currentData = await res.json();
                 console.log('Data received:', Object.keys(currentData));
                 updateUI(currentData);
@@ -2922,49 +2923,51 @@ app.get('/', (req, res) => {
         }
         
         function updateUI(data) {
-            console.log('updateUI called');
-            // Always update countdown first
-            const now = Math.floor(Date.now() / 1000);
-            const next = now - (now % 900) + 900;
-            const remaining = next - now;
-            document.getElementById('countdown').textContent = Math.floor(remaining / 60) + ':' + (remaining % 60).toString().padStart(2, '0');
-            console.log('Countdown updated:', remaining);
-            
-            if (!data) { console.error('No data received'); return; }
-            
-            const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
-            let html = '';
-            assets.forEach(asset => {
-                const d = data[asset];
-                if (!d) return;
-                const conf = (d.confidence * 100).toFixed(0);
-                const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
-                // XRP needs more decimals since price is ~$2 vs BTC ~$100k
-                const priceDecimals = asset === 'XRP' ? 4 : 2;
-                const price = d.live ? d.live.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
-                const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(3) : 0;
-                const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(0) : '--';
-                const marketUrl = d.market?.marketUrl || '#';
-                const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
-                // Rolling W/L tracker for last 10 predictions
-                const recentOutcomes = d.recentOutcomes || [];
-                let wlTracker = '';
-                for (let i = 0; i < 10; i++) {
-                    if (i < recentOutcomes.length) {
-                        wlTracker += recentOutcomes[i] ? '<span style="color:#00ff88;">✓</span>' : '<span style="color:#ff4466;">✗</span>';
-                    } else {
-                        wlTracker += '<span style="color:#444;">○</span>';
-                    }
-                }
-                const recentWins = recentOutcomes.filter(Boolean).length;
-                const recentTotal = recentOutcomes.length;
-                const yesOdds = d.market ? (d.market.yesPrice * 100).toFixed(1) : '--';
-                const noOdds = d.market ? (d.market.noPrice * 100).toFixed(1) : '--';
+            try {
+                console.log('updateUI called');
+                // Always update countdown first
+                const now = Math.floor(Date.now() / 1000);
+                const next = now - (now % 900) + 900;
+                const remaining = next - now;
+                document.getElementById('countdown').textContent = Math.floor(remaining / 60) + ':' + (remaining % 60).toString().padStart(2, '0');
+                
+                if (!data) { console.error('No data received'); return; }
+                
+                const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
+                let html = '';
+                assets.forEach(asset => {
+                    try {
+                        const d = data[asset];
+                        if (!d) { console.log('No data for', asset); return; }
+                        const conf = ((d.confidence || 0) * 100).toFixed(0);
+                        const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
+                        // XRP needs more decimals since price is ~$2 vs BTC ~$100k
+                        const priceDecimals = asset === 'XRP' ? 4 : 2;
+                        const price = d.live ? d.live.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
+                        const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(3) : 0;
+                        const stats = d.stats || { total: 0, wins: 0 };
+                        const winRate = stats.total > 0 ? ((stats.wins / stats.total) * 100).toFixed(0) : '--';
+                        const marketUrl = d.market?.marketUrl || '#';
+                        const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
+                        // Rolling W/L tracker for last 10 predictions
+                        const recentOutcomes = d.recentOutcomes || [];
+                        let wlTracker = '';
+                        for (let i = 0; i < 10; i++) {
+                            if (i < recentOutcomes.length) {
+                                wlTracker += recentOutcomes[i] ? '<span style="color:#00ff88;">✓</span>' : '<span style="color:#ff4466;">✗</span>';
+                            } else {
+                                wlTracker += '<span style="color:#444;">○</span>';
+                            }
+                        }
+                        const recentWins = recentOutcomes.filter(Boolean).length;
+                        const recentTotal = recentOutcomes.length;
+                        const yesOdds = d.market && d.market.yesPrice ? (d.market.yesPrice * 100).toFixed(1) : '--';
+                        const noOdds = d.market && d.market.noPrice ? (d.market.noPrice * 100).toFixed(1) : '--';
                 html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
                     '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
-                    '<div class="prediction"><div class="prediction-value ' + d.prediction + '">' + d.prediction + '</div></div>' +
+                    '<div class="prediction"><div class="prediction-value ' + (d.prediction || 'WAIT') + '">' + (d.prediction || 'WAIT') + '</div></div>' +
                     '<div class="confidence-bar"><div class="confidence-fill ' + confClass + '" style="width:' + conf + '%"></div></div>' +
-                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + d.tier + '">' + d.tier + (d.locked ? ' 🔒' : '') + '</span></div>' +
+                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + (d.tier || 'NONE') + '">' + (d.tier || 'NONE') + (d.locked ? ' 🔒' : '') + '</span></div>' +
                     '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;margin-top:8px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
                     '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
                     '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
@@ -2972,73 +2975,70 @@ app.get('/', (req, res) => {
                     '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + noOdds + '¢</div></div></div>' +
                     '<div style="text-align:center;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:8px;font-size:1.1em;letter-spacing:2px;"><span style="color:#888;font-size:0.7em;display:block;margin-bottom:2px;">Last 10: ' + recentWins + '/' + recentTotal + '</span>' + wlTracker + '</div>' +
                     '<div style="display:flex;gap:8px;margin-top:10px;">' +
-                    '<button onclick="manualBuy(\'' + asset + '\', \'UP\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#00ff88,#00cc66);border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer;font-size:0.85em;">📈 BUY UP<br><small>' + yesOdds + '¢</small></button>' +
-                    '<button onclick="manualBuy(\'' + asset + '\', \'DOWN\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#ff4466,#cc2244);border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;font-size:0.85em;">📉 BUY DOWN<br><small>' + noOdds + '¢</small></button>' +
+                    '<button onclick="manualBuy(\\'' + asset + '\\', \\'UP\\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#00ff88,#00cc66);border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer;font-size:0.85em;">📈 BUY UP<br><small>' + yesOdds + '¢</small></button>' +
+                    '<button onclick="manualBuy(\\'' + asset + '\\', \\'DOWN\\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#ff4466,#cc2244);border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;font-size:0.85em;">📉 BUY DOWN<br><small>' + noOdds + '¢</small></button>' +
                     '</div>' +
                     '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
-            });
-            document.getElementById('predictionsGrid').innerHTML = html;
-            const t = data._trading;
-            if (t) {
-                document.getElementById('balance').textContent = '$' + t.balance.toFixed(2);
-                document.getElementById('pnl').textContent = (t.todayPnL >= 0 ? '+' : '') + '$' + t.todayPnL.toFixed(2);
-                document.getElementById('pnl').style.color = t.todayPnL >= 0 ? '#00ff88' : '#ff4466';
-                
-                // Calculate and display win/loss stats
-                const allTrades = t.tradeHistory || [];
-                const closedT = allTrades.filter(tr => tr.status === 'CLOSED');
-                const winsCount = closedT.filter(tr => tr.pnl >= 0).length;
-                const lossCount = closedT.length - winsCount;
-                document.getElementById('winLoss').textContent = winsCount + '/' + lossCount;
-                document.getElementById('winLoss').style.color = winsCount >= lossCount ? '#00ff88' : '#ff4466';
-                
-                document.getElementById('modeBadge').textContent = t.mode;
-                document.getElementById('modeBadge').className = 'mode-badge ' + t.mode;
-                document.getElementById('modeBtn').textContent = t.mode === 'LIVE' ? '🔴 LIVE' : '📝 PAPER';
-                document.getElementById('modeBtn').className = 'nav-btn ' + t.mode.toLowerCase();
-                document.getElementById('positionCount').textContent = t.positionCount + ' positions';
-                document.getElementById('paperBtn').className = t.mode === 'PAPER' ? 'paper active' : 'paper';
-                document.getElementById('liveBtn').className = t.mode === 'LIVE' ? 'live active' : 'live';
-                const positions = Object.entries(t.positions);
-                if (positions.length > 0) {
-                    let posHtml = '';
-                    positions.forEach(([id, p]) => { 
-                        const timeHeld = Math.floor((Date.now() - p.time) / 1000);
-                        const mins = Math.floor(timeHeld / 60);
-                        const secs = timeHeld % 60;
-                        const color = p.side === 'UP' ? '#00ff88' : '#ff4466';
-                        const modeEmoji = p.mode === 'ORACLE' ? '🔮' : p.mode === 'SCALP' ? '🎯' : p.mode === 'ARBITRAGE' ? '📊' : p.mode === 'MANUAL' ? '✋' : '⚡';
-                        const modeColor = p.mode === 'ORACLE' ? '#9933ff' : p.mode === 'SCALP' ? '#ff6600' : p.mode === 'ARBITRAGE' ? '#00ff88' : p.mode === 'MANUAL' ? '#ffd700' : '#ffaa00';
-                        posHtml += '<div class="position-item" style="flex-wrap:wrap;"><div style="display:flex;justify-content:space-between;width:100%;align-items:center;"><span style="color:' + color + '"><strong>' + p.asset + '</strong> ' + p.side + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.85em;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;">' + modeEmoji + ' ' + p.mode + '</span><span>$' + p.size.toFixed(2) + ' @ ' + (p.entry * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span><button onclick="manualSell(\'' + id + '\')" style="padding:4px 10px;background:#ff4466;border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.8em;font-weight:bold;">SELL</button></div></div>'; 
-                    });
-                    document.getElementById('positionsList').innerHTML = posHtml;
-                } else { document.getElementById('positionsList').innerHTML = '<div class="no-positions">No active positions</div>'; }
-                
-                // Trade History display with prices
-                const trades = t.tradeHistory || [];
-                const closedTrades = trades.filter(tr => tr.status === 'CLOSED');
-                const wins = closedTrades.filter(tr => tr.pnl >= 0).length;
-                const losses = closedTrades.length - wins;
-                const winRate = closedTrades.length > 0 ? ((wins / closedTrades.length) * 100).toFixed(0) : '--';
-                document.getElementById('historyCount').textContent = closedTrades.length + ' trades | ' + winRate + '% win rate';
-                if (trades.length > 0) {
-                    let histHtml = '';
-                    trades.slice(-10).reverse().forEach(tr => {
-                        const emoji = tr.status === 'OPEN' ? '⏳' : (tr.pnl >= 0 ? '✅' : '❌');
-                        const pnlColor = tr.pnl >= 0 ? '#00ff88' : '#ff4466';
-                        let details = '';
-                        if (tr.status === 'CLOSED') {
-                            details = (tr.entry * 100).toFixed(0) + '¢→' + (tr.exit * 100).toFixed(0) + '¢ ' + (tr.pnl >= 0 ? '+' : '') + '$' + tr.pnl.toFixed(2);
-                        } else {
-                            details = 'Entry: ' + (tr.entry * 100).toFixed(0) + '¢ | $' + tr.size.toFixed(2);
-                        }
-                        const modeEmoji = tr.mode === 'ORACLE' ? '🔮' : tr.mode === 'SCALP' ? '🎯' : tr.mode === 'ARBITRAGE' ? '📊' : '⚡';
-                        const modeColor = tr.mode === 'ORACLE' ? '#9933ff' : tr.mode === 'SCALP' ? '#ff6600' : tr.mode === 'ARBITRAGE' ? '#00ff88' : '#ffaa00';
-                        histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + tr.asset + '</strong> ' + tr.side + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.8em;background:rgba(0,0,0,0.3);padding:2px 5px;border-radius:3px;">' + modeEmoji + ' ' + tr.mode + '</span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
-                    });
-                    document.getElementById('tradeHistory').innerHTML = histHtml;
-                } else { document.getElementById('tradeHistory').innerHTML = '<div class="no-positions">No trades yet</div>'; }
-            }
+                    } catch (assetErr) { console.error('Error rendering asset:', asset, assetErr); }
+                });
+                document.getElementById('predictionsGrid').innerHTML = html || '<div style="text-align:center;padding:40px;color:#ff6666;">Error loading predictions</div>';
+                const t = data._trading;
+                if (t) {
+                    document.getElementById('balance').textContent = '$' + (t.balance || 0).toFixed(2);
+                    document.getElementById('pnl').textContent = ((t.todayPnL || 0) >= 0 ? '+' : '') + '$' + (t.todayPnL || 0).toFixed(2);
+                    document.getElementById('pnl').style.color = (t.todayPnL || 0) >= 0 ? '#00ff88' : '#ff4466';
+                    const allTrades = t.tradeHistory || [];
+                    const closedT = allTrades.filter(tr => tr.status === 'CLOSED');
+                    const winsCount = closedT.filter(tr => (tr.pnl || 0) >= 0).length;
+                    const lossCount = closedT.length - winsCount;
+                    document.getElementById('winLoss').textContent = winsCount + '/' + lossCount;
+                    document.getElementById('winLoss').style.color = winsCount >= lossCount ? '#00ff88' : '#ff4466';
+                    document.getElementById('modeBadge').textContent = t.mode || 'PAPER';
+                    document.getElementById('modeBadge').className = 'mode-badge ' + (t.mode || 'PAPER');
+                    document.getElementById('modeBtn').textContent = t.mode === 'LIVE' ? '🔴 LIVE' : '📝 PAPER';
+                    document.getElementById('modeBtn').className = 'nav-btn ' + (t.mode || 'paper').toLowerCase();
+                    document.getElementById('positionCount').textContent = (t.positionCount || 0) + ' positions';
+                    document.getElementById('paperBtn').className = t.mode === 'PAPER' ? 'paper active' : 'paper';
+                    document.getElementById('liveBtn').className = t.mode === 'LIVE' ? 'live active' : 'live';
+                    const positions = Object.entries(t.positions || {});
+                    if (positions.length > 0) {
+                        let posHtml = '';
+                        positions.forEach(([id, p]) => { 
+                            const timeHeld = Math.floor((Date.now() - (p.time || Date.now())) / 1000);
+                            const mins = Math.floor(timeHeld / 60);
+                            const secs = timeHeld % 60;
+                            const color = p.side === 'UP' ? '#00ff88' : '#ff4466';
+                            const modeEmoji = p.mode === 'ORACLE' ? '🔮' : p.mode === 'SCALP' ? '🎯' : p.mode === 'ARBITRAGE' ? '📊' : p.mode === 'MANUAL' ? '✋' : '⚡';
+                            const modeColor = p.mode === 'ORACLE' ? '#9933ff' : p.mode === 'SCALP' ? '#ff6600' : p.mode === 'ARBITRAGE' ? '#00ff88' : p.mode === 'MANUAL' ? '#ffd700' : '#ffaa00';
+                            posHtml += '<div class="position-item" style="flex-wrap:wrap;"><div style="display:flex;justify-content:space-between;width:100%;align-items:center;"><span style="color:' + color + '"><strong>' + (p.asset || '?') + '</strong> ' + (p.side || '?') + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.85em;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;">' + modeEmoji + ' ' + (p.mode || '?') + '</span><span>$' + (p.size || 0).toFixed(2) + ' @ ' + ((p.entry || 0) * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span><button onclick="manualSell(\\'' + id + '\\')" style="padding:4px 10px;background:#ff4466;border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.8em;font-weight:bold;">SELL</button></div></div>'; 
+                        });
+                        document.getElementById('positionsList').innerHTML = posHtml;
+                    } else { document.getElementById('positionsList').innerHTML = '<div class="no-positions">No active positions</div>'; }
+                    const trades = t.tradeHistory || [];
+                    const closedTrades = trades.filter(tr => tr.status === 'CLOSED');
+                    const wins = closedTrades.filter(tr => (tr.pnl || 0) >= 0).length;
+                    const losses = closedTrades.length - wins;
+                    const winRate = closedTrades.length > 0 ? ((wins / closedTrades.length) * 100).toFixed(0) : '--';
+                    document.getElementById('historyCount').textContent = closedTrades.length + ' trades | ' + winRate + '% win rate';
+                    if (trades.length > 0) {
+                        let histHtml = '';
+                        trades.slice(-10).reverse().forEach(tr => {
+                            const emoji = tr.status === 'OPEN' ? '⏳' : ((tr.pnl || 0) >= 0 ? '✅' : '❌');
+                            const pnlColor = (tr.pnl || 0) >= 0 ? '#00ff88' : '#ff4466';
+                            let details = '';
+                            if (tr.status === 'CLOSED') {
+                                details = ((tr.entry || 0) * 100).toFixed(0) + '¢→' + ((tr.exit || 0) * 100).toFixed(0) + '¢ ' + ((tr.pnl || 0) >= 0 ? '+' : '') + '$' + (tr.pnl || 0).toFixed(2);
+                            } else {
+                                details = 'Entry: ' + ((tr.entry || 0) * 100).toFixed(0) + '¢ | $' + (tr.size || 0).toFixed(2);
+                            }
+                            const modeEmoji = tr.mode === 'ORACLE' ? '🔮' : tr.mode === 'SCALP' ? '🎯' : tr.mode === 'ARBITRAGE' ? '📊' : '⚡';
+                            const modeColor = tr.mode === 'ORACLE' ? '#9933ff' : tr.mode === 'SCALP' ? '#ff6600' : tr.mode === 'ARBITRAGE' ? '#00ff88' : '#ffaa00';
+                            histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + (tr.asset || '?') + '</strong> ' + (tr.side || '?') + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.8em;background:rgba(0,0,0,0.3);padding:2px 5px;border-radius:3px;">' + modeEmoji + ' ' + (tr.mode || '?') + '</span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
+                        });
+                        document.getElementById('tradeHistory').innerHTML = histHtml;
+                    } else { document.getElementById('tradeHistory').innerHTML = '<div class="no-positions">No trades yet</div>'; }
+                }
+            } catch (err) { console.error('updateUI error:', err); }
         }
         
         async function loadWallet() {
@@ -4342,14 +4342,14 @@ async function startup() {
 
     fetchFearGreedIndex();
     fetchFundingRates();
-    
+
     // CRITICAL: Fetch live prices immediately via HTTP (WebSocket may not connect)
     await fetchLivePrices();
     log('📈 Initial prices fetched via HTTP fallback');
-    
+
     // Periodic price refresh (every 5 seconds if WebSocket fails)
     setInterval(fetchLivePrices, 5000);
-    
+
     setInterval(fetchFearGreedIndex, 300000);
     setInterval(fetchFundingRates, 300000);
 
