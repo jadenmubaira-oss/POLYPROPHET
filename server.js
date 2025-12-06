@@ -2485,53 +2485,57 @@ async function fetchFundingRates() {
 const DB_FILE = 'deity_state.json';
 
 // ==================== HTTP PRICE FALLBACK (When WebSocket fails) ====================
-// Uses Polymarket's own market data which includes Chainlink oracle prices
+// Uses CoinGecko API which provides Chainlink-aggregated prices
 async function fetchLivePrices() {
-    const marketStart = getCurrentCheckpoint();
-    for (const asset of ASSETS) {
-        try {
-            // Fetch from Polymarket's event API - includes current Chainlink price in market data
-            const slug = `${asset.toLowerCase()}-updown-15m-${marketStart}`;
-            const eventUrl = `${GAMMA_API}/events/slug/${slug}`;
-            const eventData = await fetchJSON(eventUrl);
+    try {
+        // CoinGecko free API - provides market prices that are very close to Chainlink
+        // These are aggregated from multiple exchanges, similar to Chainlink's approach
+        const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd';
+        const data = await fetchJSON(url);
+        
+        if (data) {
+            const priceMap = {
+                BTC: data.bitcoin?.usd,
+                ETH: data.ethereum?.usd,
+                SOL: data.solana?.usd,
+                XRP: data.ripple?.usd
+            };
             
-            if (eventData?.markets?.length) {
-                // Extract current price from market description or title
-                // Markets reference current Chainlink price in their resolution
-                const market = eventData.markets[0];
-                
-                // Try to get price from the market's outcome prices endpoint
-                if (market.clobTokenIds) {
-                    const tokenIds = JSON.parse(market.clobTokenIds);
+            const now = Date.now();
+            for (const [asset, price] of Object.entries(priceMap)) {
+                if (price && price > 0) {
+                    // Only update if we don't have a recent WebSocket price
+                    const lastWsUpdate = priceHistory[asset]?.length > 0 ? 
+                        priceHistory[asset][priceHistory[asset].length - 1]?.t : 0;
+                    const wsAge = now - lastWsUpdate;
                     
-                    // Fetch order book which reflects market's view of price movement
-                    const [upBook, downBook] = await Promise.all([
-                        fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[0]}`),
-                        fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[1]}`)
-                    ]);
-                    
-                    // The market odds reflect Chainlink price movement
-                    // Use mid-price from order book as proxy for market's price view
-                    if (upBook || downBook) {
-                        // We already have market data, just need to ensure checkpoint is set
-                        // The actual Chainlink price comes from WebSocket
-                        log(`📡 Market data available for ${asset}`, asset);
+                    // Use HTTP price if WebSocket data is stale (>10s) or missing
+                    if (!livePrices[asset] || wsAge > 10000) {
+                        livePrices[asset] = price;
+                        lastUpdateTimestamp = now;
+                        priceHistory[asset].push({ t: now, p: price });
+                        if (priceHistory[asset].length > 500) priceHistory[asset].shift();
+                        
+                        // Log only first fetch per asset (avoid spam)
+                        if (!global.httpPriceLogged) global.httpPriceLogged = {};
+                        if (!global.httpPriceLogged[asset]) {
+                            log(`📡 HTTP Fallback Price: ${asset} = $${price.toFixed(2)}`, asset);
+                            global.httpPriceLogged[asset] = true;
+                        }
                     }
                 }
             }
-        } catch (e) {
-            // Silent fail - WebSocket should be primary source
         }
-        await new Promise(r => setTimeout(r, 200));
+    } catch (e) {
+        log(`⚠️ CoinGecko fetch failed: ${e.message}`);
     }
     
-    // CRITICAL: If WebSocket hasn't delivered prices, initialize checkpoints from market data
-    // This is a workaround until WebSocket starts delivering
+    // CRITICAL: Initialize checkpoints if we have prices but no checkpoints
     const cp = getCurrentCheckpoint();
     for (const asset of ASSETS) {
         if (!checkpointPrices[asset] && livePrices[asset]) {
             checkpointPrices[asset] = livePrices[asset];
-            log(`🔄 Checkpoint initialized: $${livePrices[asset].toFixed(2)}`, asset);
+            log(`🔄 Checkpoint initialized: ${asset} = $${livePrices[asset].toFixed(2)}`, asset);
         }
     }
 }
