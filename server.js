@@ -467,13 +467,13 @@ class TradeExecutor {
 
             try {
                 // Initialize CLOB Client
+                // CRITICAL FIX: creds is 4th param (not 5th), and use apiKey not key
                 const clobClient = new ClobClient(
                     'https://clob.polymarket.com',
                     POLY_CHAIN_ID,
                     this.wallet,
-                    undefined, // No L1 signer needed
                     {
-                        key: CONFIG.POLYMARKET_API_KEY,
+                        apiKey: CONFIG.POLYMARKET_API_KEY,
                         secret: CONFIG.POLYMARKET_SECRET,
                         passphrase: CONFIG.POLYMARKET_PASSPHRASE
                     }
@@ -597,13 +597,13 @@ class TradeExecutor {
         }
 
         try {
+            // CRITICAL FIX: creds is 4th param (not 5th), and use apiKey not key
             const clobClient = new ClobClient(
                 'https://clob.polymarket.com',
                 POLY_CHAIN_ID,
                 this.wallet,
-                undefined,
                 {
-                    key: CONFIG.POLYMARKET_API_KEY,
+                    apiKey: CONFIG.POLYMARKET_API_KEY,
                     secret: CONFIG.POLYMARKET_SECRET,
                     passphrase: CONFIG.POLYMARKET_PASSPHRASE
                 }
