@@ -217,8 +217,8 @@ class TradeExecutor {
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
-                // Use Alchemy's reliable public RPC (polygon-rpc.com was failing)
-                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                // Use reliable public Polygon RPC (Alchemy demo endpoint is rate-limited)
+                const provider = new ethers.JsonRpcProvider('https://polygon.llamarpc.com');
                 // DEBUG: Log private key prefix to verify correct key is loaded
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Loading wallet from key: ${keyPreview}...`);
@@ -239,7 +239,7 @@ class TradeExecutor {
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 // Use same RPC as constructor
-                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                const provider = new ethers.JsonRpcProvider('https://polygon.llamarpc.com');
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Reloading wallet from key: ${keyPreview}...`);
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
@@ -1863,6 +1863,11 @@ class SupremeBrain {
             let newTier = 'NONE';
             if (finalConfidence >= convictionThreshold) newTier = 'CONVICTION';
             else if (finalConfidence >= advisoryThreshold) newTier = 'ADVISORY';
+
+            // DIAGNOSTIC: Log every 30 seconds to see why we're not hitting CONVICTION
+            if (elapsed % 30 < 2) {
+                log(`📊 DIAG: Conf=${(finalConfidence * 100).toFixed(1)}% ConvThresh=${(convictionThreshold * 100).toFixed(1)}% AdvThresh=${(advisoryThreshold * 100).toFixed(1)}% Tier=${newTier} Elapsed=${elapsed}s Locked=${this.convictionLocked}`, this.asset);
+            }
 
             // Hysteresis check
             if (this.tier === 'CONVICTION' && newTier !== 'CONVICTION') {
