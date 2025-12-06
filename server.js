@@ -217,12 +217,20 @@ class TradeExecutor {
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
-                // Use reliable public Polygon RPC (Alchemy demo endpoint is rate-limited)
-                const provider = new ethers.JsonRpcProvider('https://polygon.llamarpc.com');
+                // CRITICAL FIX: Use Alchemy public RPC (llamarpc fails DNS on Render)
+                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
                 // DEBUG: Log private key prefix to verify correct key is loaded
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Loading wallet from key: ${keyPreview}...`);
-                this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
+                const baseWallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
+                
+                // CRITICAL FIX: Polymarket CLOB client expects ethers v5's _signTypedData
+                // but ethers v6 renamed it to signTypedData. Create compatibility wrapper.
+                baseWallet._signTypedData = async (domain, types, value) => {
+                    return await baseWallet.signTypedData(domain, types, value);
+                };
+                
+                this.wallet = baseWallet;
                 log(`✅ Wallet Loaded: ${this.wallet.address}`);
             } catch (e) {
                 log(`⚠️ Wallet Load Failed: ${e.message}`);
@@ -238,11 +246,18 @@ class TradeExecutor {
         this.mode = CONFIG.TRADE_MODE;
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
-                // Use same RPC as constructor
-                const provider = new ethers.JsonRpcProvider('https://polygon.llamarpc.com');
+                // CRITICAL FIX: Use Alchemy public RPC (llamarpc fails DNS on Render)
+                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Reloading wallet from key: ${keyPreview}...`);
-                this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
+                const baseWallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
+                
+                // CRITICAL FIX: Polymarket CLOB client expects ethers v5's _signTypedData
+                baseWallet._signTypedData = async (domain, types, value) => {
+                    return await baseWallet.signTypedData(domain, types, value);
+                };
+                
+                this.wallet = baseWallet;
                 log(`✅ Wallet Reloaded: ${this.wallet.address}`);
                 return true;
             } catch (e) {
@@ -889,9 +904,9 @@ class TradeExecutor {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
 
-        // Multiple RPC providers for fallback
+        // Multiple RPC providers for fallback - Alchemy first (most reliable on Render)
         const rpcEndpoints = [
-            'https://polygon.llamarpc.com',
+            'https://polygon-mainnet.g.alchemy.com/v2/demo',
             'https://polygon-rpc.com',
             'https://rpc.ankr.com/polygon',
             'https://1rpc.io/matic'
