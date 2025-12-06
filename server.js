@@ -234,6 +234,17 @@ class TradeExecutor {
             log(`⚠️ No POLYMARKET_PRIVATE_KEY found in environment!`);
         }
         log(`💰 Trade Executor Initialized in ${this.mode} mode. Balance: $${this.paperBalance}`);
+
+        // DEBUG: Log credential sources to verify env vars are loaded
+        const apiKeySource = process.env.POLYMARKET_API_KEY ? 'ENV' : 'FALLBACK';
+        const secretSource = process.env.POLYMARKET_SECRET ? 'ENV' : 'FALLBACK';
+        const passphraseSource = process.env.POLYMARKET_PASSPHRASE ? 'ENV' : 'FALLBACK';
+        const privateKeySource = process.env.POLYMARKET_PRIVATE_KEY ? 'ENV' : 'FALLBACK';
+        log(`🔐 API Credentials Source:`);
+        log(`   API Key: ${CONFIG.POLYMARKET_API_KEY?.substring(0, 12)}... [${apiKeySource}]`);
+        log(`   Secret: ${CONFIG.POLYMARKET_SECRET?.substring(0, 12)}... [${secretSource}]`);
+        log(`   Passphrase: ${CONFIG.POLYMARKET_PASSPHRASE?.substring(0, 12)}... [${passphraseSource}]`);
+        log(`   Private Key: ${CONFIG.POLYMARKET_PRIVATE_KEY?.substring(0, 12)}... [${privateKeySource}]`);
     }
 
     reloadWallet() {
@@ -561,8 +572,15 @@ class TradeExecutor {
 
                     return { success: true, positionId, mode: 'LIVE' };
                 } else {
-                    log(`❌ Order submission failed: ${JSON.stringify(response)}`, asset);
-                    return { success: false, error: 'Order submission failed - check API credentials' };
+                    const errorDetail = response ? JSON.stringify(response) : 'No response';
+                    log(`❌ Order submission failed: ${errorDetail}`, asset);
+                    // Return more specific error based on response
+                    let errorMsg = 'Order submission failed';
+                    if (response?.error) errorMsg = response.error;
+                    else if (response?.message) errorMsg = response.message;
+                    else if (typeof response === 'string') errorMsg = response;
+                    else errorMsg = `API rejected: ${errorDetail.substring(0, 100)}`;
+                    return { success: false, error: errorMsg };
                 }
 
             } catch (e) {
