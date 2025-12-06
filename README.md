@@ -112,6 +112,10 @@ Click one button to configure all modes:
 | `POST /api/wallet/transfer` | Send USDC to external address |
 | `GET /api/export?asset=BTC` | Download prediction history as CSV |
 | `POST /api/reset-balance` | Reset paper balance and positions |
+| `GET /api/pending-sells` | List sell orders that failed and need retry |
+| `POST /api/manual-buy` | Manual buy: `{ asset, direction, size }` |
+| `POST /api/manual-sell` | Manual sell: `{ positionId }` |
+| `POST /api/retry-sell` | Retry failed sell: `{ tokenId, asset }` |
 
 ---
 
@@ -120,12 +124,14 @@ Click one button to configure all modes:
 | Guard | Protection |
 |-------|------------|
 | **Order Fill Verification** | 3 retries over 6 seconds to confirm fills |
+| **Sell Order Retry** | 5 retry attempts with 3-second delays - never leaves shares stuck |
+| **Pending Sells Tracker** | Failed sells go to `/api/pending-sells` for manual intervention |
 | **Entry Price Guard** | Blocks trades at ≥98¢ or ≤2¢ |
 | **Late Cycle Guard** | Arb: 13min, Momentum: 12min cutoffs |
 | **Stale Data Guard** | Requires data < 3 seconds old |
 | **Real Balance** | Uses actual USDC for position sizing |
 | **Cycle Lock** | Prevents prediction flip-flopping |
-| **Sell Order Execution** | Actually sells shares when closing LIVE positions |
+| **Manual Trading** | UI buttons for BUY UP/DOWN per asset + SELL per position |
 
 ---
 

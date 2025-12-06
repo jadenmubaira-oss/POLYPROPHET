@@ -602,22 +602,123 @@ class TradeExecutor {
         }
     }
 
+    // CRITICAL: Sell with retry logic - keeps trying until sold or max attempts
+    async executeSellOrderWithRetry(position, maxAttempts = 5, delayMs = 3000) {
+        log(`🔄 SELL RETRY: Starting sell attempts for ${position.asset} (max ${maxAttempts} attempts)`, position.asset);
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            log(`📤 Sell attempt ${attempt}/${maxAttempts}...`, position.asset);
+
+            const result = await this.executeSellOrder(position);
+
+            if (result.success) {
+                log(`✅ SELL SUCCESS on attempt ${attempt}: ${result.orderID}`, position.asset);
+                // Remove from pending sells if it was there
+                if (this.pendingSells) {
+                    delete this.pendingSells[position.asset + '_' + position.tokenId];
+                }
+                return result;
+            }
+
+            if (attempt < maxAttempts) {
+                log(`⏳ Sell failed, waiting ${delayMs / 1000}s before retry...`, position.asset);
+                await new Promise(r => setTimeout(r, delayMs));
+            }
+        }
+
+        // All attempts failed - add to pending sells for manual intervention
+        log(`❌ SELL FAILED after ${maxAttempts} attempts - position added to pending sells!`, position.asset);
+        if (!this.pendingSells) this.pendingSells = {};
+        this.pendingSells[position.asset + '_' + position.tokenId] = {
+            ...position,
+            failedAt: Date.now(),
+            attempts: maxAttempts
+        };
+
+        return { success: false, error: `Failed after ${maxAttempts} attempts`, needsManualIntervention: true };
+    }
+
+    // Get pending sells that need manual intervention
+    getPendingSells() {
+        return this.pendingSells || {};
+    }
+
+    // Manual sell - for UI button
+    async manualSell(positionId) {
+        const pos = this.positions[positionId];
+        if (!pos) {
+            // Check pending sells
+            for (const [key, pending] of Object.entries(this.pendingSells || {})) {
+                if (key.startsWith(positionId) || pending.tokenId === positionId) {
+                    const result = await this.executeSellOrderWithRetry(pending, 3, 2000);
+                    if (result.success) {
+                        delete this.pendingSells[key];
+                    }
+                    return result;
+                }
+            }
+            return { success: false, error: 'Position not found' };
+        }
+
+        if (!pos.isLive || this.mode !== 'LIVE') {
+            // Paper mode - just close it
+            const market = currentMarkets[pos.asset];
+            const exitPrice = pos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+            this.closePosition(positionId, exitPrice, 'MANUAL SELL');
+            return { success: true, paper: true };
+        }
+
+        // Live mode - execute with retry
+        const result = await this.executeSellOrderWithRetry(pos, 3, 2000);
+        if (result.success) {
+            const market = currentMarkets[pos.asset];
+            const exitPrice = pos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+            this.closePosition(positionId, exitPrice, 'MANUAL SELL');
+        }
+        return result;
+    }
+
+    // Manual buy - for UI button
+    async manualBuy(asset, direction, size) {
+        const market = currentMarkets[asset];
+        if (!market) {
+            return { success: false, error: 'No market data for ' + asset };
+        }
+
+        const entryPrice = direction === 'UP' ? market.yesPrice : market.noPrice;
+        const brain = Brains[asset];
+        const confidence = brain ? brain.confidence : 0.5;
+
+        log(`📝 MANUAL BUY: ${asset} ${direction} $${size} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+
+        const positionId = await this.executeTrade(asset, direction, 'MANUAL', confidence, entryPrice, market, { manualTrade: true });
+
+        if (positionId) {
+            return { success: true, positionId, entryPrice };
+        } else {
+            return { success: false, error: 'Trade execution failed' };
+        }
+    }
+
     // EXIT: Close a position
     closePosition(positionId, exitPrice, reason) {
         const pos = this.positions[positionId];
         if (!pos) return;
 
-        // LIVE MODE: Execute actual sell order
+        // LIVE MODE: Execute actual sell order WITH RETRY
         if (pos.isLive && this.mode === 'LIVE') {
-            log(`📤 Executing LIVE sell order for ${pos.asset} ${pos.side}...`, pos.asset);
-            this.executeSellOrder(pos).then(result => {
+            log(`📤 Executing LIVE sell order with retry for ${pos.asset} ${pos.side}...`, pos.asset);
+            // Use async retry - don't block
+            this.executeSellOrderWithRetry(pos, 5, 3000).then(result => {
                 if (result.success) {
                     log(`✅ Live sell executed: ${result.orderID}`, pos.asset);
+                } else if (result.needsManualIntervention) {
+                    log(`🚨 MANUAL INTERVENTION REQUIRED: ${pos.asset} sell failed - check /api/pending-sells`, pos.asset);
                 } else {
-                    log(`⚠️ Live sell issue: ${result.error} - shares may remain open`, pos.asset);
+                    log(`⚠️ Live sell issue: ${result.error}`, pos.asset);
                 }
             }).catch(e => {
-                log(`❌ Live sell failed: ${e.message}`, pos.asset);
+                log(`❌ Live sell retry failed: ${e.message}`, pos.asset);
             });
         }
 
@@ -2753,6 +2854,8 @@ app.get('/', (req, res) => {
                 }
                 const recentWins = recentOutcomes.filter(Boolean).length;
                 const recentTotal = recentOutcomes.length;
+                const yesOdds = d.market ? (d.market.yesPrice * 100).toFixed(1) : '--';
+                const noOdds = d.market ? (d.market.noPrice * 100).toFixed(1) : '--';
                 html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
                     '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
                     '<div class="prediction"><div class="prediction-value ' + d.prediction + '">' + d.prediction + '</div></div>' +
@@ -2761,9 +2864,13 @@ app.get('/', (req, res) => {
                     '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;margin-top:8px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
                     '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
                     '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
-                    '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + (d.market ? (d.market.yesPrice * 100).toFixed(1) + '¢' : '--') + '</div></div>' +
-                    '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + (d.market ? (d.market.noPrice * 100).toFixed(1) + '¢' : '--') + '</div></div></div>' +
+                    '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + yesOdds + '¢</div></div>' +
+                    '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + noOdds + '¢</div></div></div>' +
                     '<div style="text-align:center;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:8px;font-size:1.1em;letter-spacing:2px;"><span style="color:#888;font-size:0.7em;display:block;margin-bottom:2px;">Last 10: ' + recentWins + '/' + recentTotal + '</span>' + wlTracker + '</div>' +
+                    '<div style="display:flex;gap:8px;margin-top:10px;">' +
+                    '<button onclick="manualBuy(\'' + asset + '\', \'UP\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#00ff88,#00cc66);border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer;font-size:0.85em;">📈 BUY UP<br><small>' + yesOdds + '¢</small></button>' +
+                    '<button onclick="manualBuy(\'' + asset + '\', \'DOWN\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#ff4466,#cc2244);border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;font-size:0.85em;">📉 BUY DOWN<br><small>' + noOdds + '¢</small></button>' +
+                    '</div>' +
                     '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
             });
             document.getElementById('predictionsGrid').innerHTML = html;
@@ -2796,9 +2903,9 @@ app.get('/', (req, res) => {
                         const mins = Math.floor(timeHeld / 60);
                         const secs = timeHeld % 60;
                         const color = p.side === 'UP' ? '#00ff88' : '#ff4466';
-                        const modeEmoji = p.mode === 'ORACLE' ? '🔮' : p.mode === 'SCALP' ? '🎯' : p.mode === 'ARBITRAGE' ? '📊' : '⚡';
-                        const modeColor = p.mode === 'ORACLE' ? '#9933ff' : p.mode === 'SCALP' ? '#ff6600' : p.mode === 'ARBITRAGE' ? '#00ff88' : '#ffaa00';
-                        posHtml += '<div class="position-item"><span style="color:' + color + '"><strong>' + p.asset + '</strong> ' + p.side + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.85em;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;">' + modeEmoji + ' ' + p.mode + '</span><span>$' + p.size.toFixed(2) + ' @ ' + (p.entry * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span></div>'; 
+                        const modeEmoji = p.mode === 'ORACLE' ? '🔮' : p.mode === 'SCALP' ? '🎯' : p.mode === 'ARBITRAGE' ? '📊' : p.mode === 'MANUAL' ? '✋' : '⚡';
+                        const modeColor = p.mode === 'ORACLE' ? '#9933ff' : p.mode === 'SCALP' ? '#ff6600' : p.mode === 'ARBITRAGE' ? '#00ff88' : p.mode === 'MANUAL' ? '#ffd700' : '#ffaa00';
+                        posHtml += '<div class="position-item" style="flex-wrap:wrap;"><div style="display:flex;justify-content:space-between;width:100%;align-items:center;"><span style="color:' + color + '"><strong>' + p.asset + '</strong> ' + p.side + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.85em;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;">' + modeEmoji + ' ' + p.mode + '</span><span>$' + p.size.toFixed(2) + ' @ ' + (p.entry * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span><button onclick="manualSell(\'' + id + '\')" style="padding:4px 10px;background:#ff4466;border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.8em;font-weight:bold;">SELL</button></div></div>'; 
                     });
                     document.getElementById('positionsList').innerHTML = posHtml;
                 } else { document.getElementById('positionsList').innerHTML = '<div class="no-positions">No active positions</div>'; }
@@ -2931,6 +3038,65 @@ app.get('/', (req, res) => {
             } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Reset failed'; document.getElementById('settingsStatus').className = 'status-msg error'; }
         }
         
+        // MANUAL TRADING FUNCTIONS
+        async function manualBuy(asset, direction) {
+            const size = prompt('Enter trade size in $ (e.g. 10):', '10');
+            if (!size) return;
+            const sizeNum = parseFloat(size);
+            if (isNaN(sizeNum) || sizeNum < 1) {
+                alert('Size must be at least $1');
+                return;
+            }
+            
+            const mode = currentData?._trading?.mode || 'PAPER';
+            if (mode === 'LIVE' && !confirm('⚠️ LIVE MODE: This will place a REAL order with $' + sizeNum.toFixed(2) + '. Continue?')) {
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/manual-buy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset, direction, size: sizeNum })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ Buy order placed: ' + asset + ' ' + direction + ' @ ' + (result.entryPrice * 100).toFixed(1) + '¢');
+                    fetchData();
+                } else {
+                    alert('❌ Buy failed: ' + result.error);
+                }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        async function manualSell(positionId) {
+            const mode = currentData?._trading?.mode || 'PAPER';
+            const pos = currentData?._trading?.positions?.[positionId];
+            
+            if (mode === 'LIVE' && !confirm('⚠️ LIVE MODE: This will SELL your ' + (pos?.asset || 'unknown') + ' position. Continue?')) {
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/manual-sell', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ positionId })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ Sell order executed' + (result.paper ? ' (paper)' : ''));
+                    fetchData();
+                } else {
+                    alert('❌ Sell failed: ' + result.error + (result.needsManualIntervention ? '\\n\\nCheck /api/pending-sells for stuck positions.' : ''));
+                }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
         fetchData(); loadWallet(); loadSettings();
         setInterval(fetchData, 1000);
         setInterval(loadWallet, 30000);
@@ -3013,6 +3179,83 @@ app.get('/api/trades', (req, res) => {
         inCooldown: tradeExecutor.isInCooldown(),
         lastLossTime: tradeExecutor.lastLossTime
     });
+});
+
+// ==================== MANUAL TRADING API ====================
+
+// Get pending sells that need manual intervention
+app.get('/api/pending-sells', (req, res) => {
+    res.json({
+        pendingSells: tradeExecutor.getPendingSells(),
+        count: Object.keys(tradeExecutor.getPendingSells()).length
+    });
+});
+
+// Manual buy - place a trade manually via UI
+app.post('/api/manual-buy', async (req, res) => {
+    const { asset, direction, size } = req.body;
+
+    if (!asset || !direction || !size) {
+        return res.status(400).json({ success: false, error: 'Missing asset, direction, or size' });
+    }
+
+    if (!['BTC', 'ETH', 'SOL', 'XRP'].includes(asset)) {
+        return res.status(400).json({ success: false, error: 'Invalid asset' });
+    }
+
+    if (!['UP', 'DOWN'].includes(direction)) {
+        return res.status(400).json({ success: false, error: 'Direction must be UP or DOWN' });
+    }
+
+    const sizeNum = parseFloat(size);
+    if (isNaN(sizeNum) || sizeNum < 1) {
+        return res.status(400).json({ success: false, error: 'Size must be at least $1' });
+    }
+
+    try {
+        const result = await tradeExecutor.manualBuy(asset, direction, sizeNum);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// Manual sell - close a position manually via UI
+app.post('/api/manual-sell', async (req, res) => {
+    const { positionId } = req.body;
+
+    if (!positionId) {
+        return res.status(400).json({ success: false, error: 'Missing positionId' });
+    }
+
+    try {
+        const result = await tradeExecutor.manualSell(positionId);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// Retry a failed sell
+app.post('/api/retry-sell', async (req, res) => {
+    const { tokenId, asset } = req.body;
+
+    const pendingSells = tradeExecutor.getPendingSells();
+    const key = asset + '_' + tokenId;
+
+    if (!pendingSells[key]) {
+        return res.status(404).json({ success: false, error: 'Pending sell not found' });
+    }
+
+    try {
+        const result = await tradeExecutor.executeSellOrderWithRetry(pendingSells[key], 3, 2000);
+        if (result.success) {
+            delete tradeExecutor.pendingSells[key];
+        }
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 // EXPORT ENDPOINT (New Feature)
