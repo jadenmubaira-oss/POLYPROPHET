@@ -211,6 +211,8 @@ class TradeExecutor {
         this.tradeHistory = [];
         this.lastLossTime = 0;         // For cooldown tracking
         this.todayPnL = 0;             // Daily P/L tracking
+        this.cachedLiveBalance = 0;    // Cached USDC balance for LIVE mode
+        this.lastBalanceFetch = 0;     // Timestamp of last balance fetch
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
@@ -253,9 +255,38 @@ class TradeExecutor {
         return (Date.now() - this.lastLossTime) < (CONFIG.RISK.cooldownAfterLoss * 1000);
     }
 
+    // Refresh cached LIVE balance (call every 30s or before trades)
+    async refreshLiveBalance() {
+        if (this.mode !== 'LIVE' || !this.wallet) return;
+
+        // Only refresh if cache is older than 30 seconds
+        if (Date.now() - this.lastBalanceFetch < 30000 && this.cachedLiveBalance > 0) return;
+
+        try {
+            const result = await this.getUSDCBalance();
+            if (result.success) {
+                this.cachedLiveBalance = result.balance;
+                this.lastBalanceFetch = Date.now();
+                log(`💰 Live balance updated: $${this.cachedLiveBalance.toFixed(2)}`);
+            }
+        } catch (e) {
+            log(`⚠️ Balance refresh failed: ${e.message}`);
+        }
+    }
+
     // ENTRY: Execute a trade for any mode
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         if (!market) return null;
+
+        // ENTRY PRICE GUARD: Never buy at extreme prices (prevents 99c/100c momentum bug)
+        if (entryPrice >= 0.98) {
+            log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
+            return null;
+        }
+        if (entryPrice <= 0.02) {
+            log(`⚠️ Entry price too extreme (${(entryPrice * 100).toFixed(0)}¢) - skipping`, asset);
+            return null;
+        }
 
         // Check cooldown
         if (this.isInCooldown()) {
@@ -269,10 +300,15 @@ class TradeExecutor {
             return null;
         }
 
+        // Refresh LIVE balance if needed
+        if (this.mode === 'LIVE') {
+            await this.refreshLiveBalance();
+        }
+
         // Check total exposure
         const totalExposure = this.getTotalExposure();
-        // BUG FIX: Use configurable LIVE_BALANCE instead of hardcoded 1000
-        const bankroll = this.mode === 'LIVE' ? (CONFIG.LIVE_BALANCE || 1000) : this.paperBalance;
+        // Use REAL wallet balance for LIVE mode, paper balance for PAPER
+        const bankroll = this.mode === 'LIVE' ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE || 1000) : this.paperBalance;
         if (totalExposure / bankroll > CONFIG.RISK.maxTotalExposure) {
             log(`⚠️ Max total exposure (${CONFIG.RISK.maxTotalExposure * 100}%) reached`, asset);
             return null;
@@ -726,8 +762,13 @@ class OpportunityDetector {
     }
 
     // MODE 2: ARBITRAGE - Detect mispriced odds
-    detectArbitrage(asset, confidence, yesPrice, noPrice, side) {
+    detectArbitrage(asset, confidence, yesPrice, noPrice, side, elapsed = 0) {
         if (!CONFIG.ARBITRAGE.enabled) return null;
+
+        // BUG FIX: Don't enter in last 2 minutes (prevents cycle crossover)
+        if (elapsed > 780) { // 13+ minutes into 15-min cycle
+            return null;
+        }
 
         const fairValue = side === 'UP' ? confidence : (1 - confidence);
         const marketOdds = side === 'UP' ? yesPrice : noPrice;
@@ -815,6 +856,11 @@ class OpportunityDetector {
         if (!CONFIG.MOMENTUM.enabled) return null;
         if (elapsed < CONFIG.MOMENTUM.minElapsed) return null;
 
+        // BUG FIX: Don't enter in last 3 minutes (prevents cycle crossover)
+        if (elapsed > 720) { // 12+ minutes into 15-min cycle
+            return null;
+        }
+
         // Check consensus
         if (consensusRatio < CONFIG.MOMENTUM.minConsensus) return null;
 
@@ -835,7 +881,7 @@ class OpportunityDetector {
         const opportunities = [];
 
         // Arbitrage
-        const arb = this.detectArbitrage(asset, data.confidence, data.yesPrice, data.noPrice, data.prediction);
+        const arb = this.detectArbitrage(asset, data.confidence, data.yesPrice, data.noPrice, data.prediction, data.elapsed);
         if (arb) opportunities.push({ ...arb, priority: 2 });
 
         // Scalp
@@ -2439,6 +2485,13 @@ app.get('/', (req, res) => {
                 <button class="live" id="liveBtn" onclick="setMode('LIVE')">🔴 LIVE</button>
             </div>
             
+            <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
+            <div style="display:flex;gap:10px;margin-bottom:15px;">
+                <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
+                <button onclick="applyPreset('BALANCED')" style="flex:1;padding:12px;border:2px solid #ffaa00;border-radius:8px;background:rgba(255,170,0,0.15);color:#ffaa00;cursor:pointer;font-weight:bold;">⚖️ Balanced<br><small style="font-weight:normal;opacity:0.7;">Medium Risk</small></button>
+                <button onclick="applyPreset('AGGRESSIVE')" style="flex:1;padding:12px;border:2px solid #ff4466;border-radius:8px;background:rgba(255,68,102,0.15);color:#ff4466;cursor:pointer;font-weight:bold;">🔥 Aggressive<br><small style="font-weight:normal;opacity:0.7;">High Risk</small></button>
+            </div>
+            
             <h4 style="margin:15px 0 10px;color:#ffd700;font-size:0.95em;">💰 Core Parameters</h4>
             <div class="form-grid">
                 <div class="form-group"><label>Paper Balance ($)</label><input type="number" id="paperBalance" value="1000"></div>
@@ -2552,11 +2605,13 @@ app.get('/', (req, res) => {
                 const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(2) : 0;
                 const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(0) : '--';
                 const marketUrl = d.market?.marketUrl || '#';
+                const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {maximumFractionDigits: d.checkpoint > 100 ? 0 : 2}) : '--';
                 html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
                     '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
                     '<div class="prediction"><div class="prediction-value ' + d.prediction + '">' + d.prediction + '</div></div>' +
                     '<div class="confidence-bar"><div class="confidence-fill ' + confClass + '" style="width:' + conf + '%"></div></div>' +
                     '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + d.tier + '">' + d.tier + (d.locked ? ' 🔒' : '') + '</span></div>' +
+                    '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;margin-top:8px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
                     '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
                     '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(1) : '0') + '%</div></div>' +
                     '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + (d.market ? (d.market.yesPrice * 100).toFixed(0) + '¢' : '--') + '</div></div>' +
@@ -2667,6 +2722,22 @@ app.get('/', (req, res) => {
             } catch (e) { console.error(e); }
         }
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
+        async function applyPreset(preset) {
+            const presets = {
+                CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
+                BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
+                AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
+            };
+            const p = presets[preset];
+            if (!p) return;
+            try {
+                await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
+                loadSettings();
+                const status = document.getElementById('settingsStatus');
+                status.textContent = '✅ ' + preset + ' preset applied!';
+                status.className = 'status-msg success';
+            } catch (e) { console.error(e); }
+        }
         async function setMode(mode) {
             if (mode === 'LIVE' && !confirm('WARNING: LIVE MODE - Real orders, real USDC, real losses! Continue?')) return;
             try {
