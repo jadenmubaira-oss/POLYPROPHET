@@ -607,6 +607,21 @@ class TradeExecutor {
         });
     }
 
+    // Close ALL positions at cycle end (not just ORACLE)
+    resolveAllPositions(asset, finalOutcome, yesPrice, noPrice) {
+        Object.entries(this.positions).forEach(([id, pos]) => {
+            if (pos.asset !== asset) return;
+
+            const won = (pos.side === finalOutcome);
+            const exitPrice = won ? 1.0 : 0.0; // Binary resolution
+
+            // All modes resolve at cycle end
+            const reason = won ? `${pos.mode} WIN ✅` : `${pos.mode} LOSS ❌`;
+            log(`🏁 CYCLE END: ${pos.asset} ${pos.side} -> Outcome: ${finalOutcome}`, asset);
+            this.closePosition(id, exitPrice, reason);
+        });
+    }
+
     // ==================== WALLET MANAGEMENT ====================
 
     // Get live USDC balance from Polygon
@@ -2578,7 +2593,9 @@ app.get('/', (req, res) => {
                         const mins = Math.floor(timeHeld / 60);
                         const secs = timeHeld % 60;
                         const color = p.side === 'UP' ? '#00ff88' : '#ff4466';
-                        posHtml += '<div class="position-item"><span style="color:' + color + '"><strong>' + p.asset + '</strong> ' + p.side + ' <span style="color:#888;font-size:0.8em;">(' + p.mode + ')</span></span><span>$' + p.size.toFixed(2) + ' @ ' + (p.entry * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span></div>'; 
+                        const modeEmoji = p.mode === 'ORACLE' ? '🔮' : p.mode === 'SCALP' ? '🎯' : p.mode === 'ARBITRAGE' ? '📊' : '⚡';
+                        const modeColor = p.mode === 'ORACLE' ? '#9933ff' : p.mode === 'SCALP' ? '#ff6600' : p.mode === 'ARBITRAGE' ? '#00ff88' : '#ffaa00';
+                        posHtml += '<div class="position-item"><span style="color:' + color + '"><strong>' + p.asset + '</strong> ' + p.side + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.85em;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;">' + modeEmoji + ' ' + p.mode + '</span><span>$' + p.size.toFixed(2) + ' @ ' + (p.entry * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span></div>'; 
                     });
                     document.getElementById('positionsList').innerHTML = posHtml;
                 } else { document.getElementById('positionsList').innerHTML = '<div class="no-positions">No active positions</div>'; }
@@ -2601,7 +2618,9 @@ app.get('/', (req, res) => {
                         } else {
                             details = 'Entry: ' + (tr.entry * 100).toFixed(0) + '¢ | $' + tr.size.toFixed(2);
                         }
-                        histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + tr.asset + '</strong> ' + tr.side + ' <span style="color:#888;font-size:0.8em;">(' + tr.mode + ')</span></span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
+                        const modeEmoji = tr.mode === 'ORACLE' ? '🔮' : tr.mode === 'SCALP' ? '🎯' : tr.mode === 'ARBITRAGE' ? '📊' : '⚡';
+                        const modeColor = tr.mode === 'ORACLE' ? '#9933ff' : tr.mode === 'SCALP' ? '#ff6600' : tr.mode === 'ARBITRAGE' ? '#00ff88' : '#ffaa00';
+                        histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + tr.asset + '</strong> ' + tr.side + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.8em;background:rgba(0,0,0,0.3);padding:2px 5px;border-radius:3px;">' + modeEmoji + ' ' + tr.mode + '</span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
                     });
                     document.getElementById('tradeHistory').innerHTML = histHtml;
                 } else { document.getElementById('tradeHistory').innerHTML = '<div class="no-positions">No trades yet</div>'; }
@@ -3674,6 +3693,14 @@ setInterval(() => {
                 // Evaluate the JUST FINISHED cycle
                 // Use CONFIRMED fresh prices for accurate outcome evaluation
                 if (checkpointPrices[a] && livePrices[a]) {
+                    // CRITICAL: Determine final outcome and resolve ALL positions
+                    const finalOutcome = livePrices[a] >= checkpointPrices[a] ? 'UP' : 'DOWN';
+                    const yesPrice = currentMarkets[a]?.yesPrice || 0.5;
+                    const noPrice = currentMarkets[a]?.noPrice || 0.5;
+
+                    // Close ALL open positions at cycle end with binary resolution
+                    tradeExecutor.resolveAllPositions(a, finalOutcome, yesPrice, noPrice);
+
                     Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
                     log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
                 }
