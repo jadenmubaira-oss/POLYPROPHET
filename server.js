@@ -144,15 +144,16 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
+    // FIX: Lowered thresholds to enable actual trading (was too strict!)
     ORACLE: {
         enabled: true,
-        minConsensus: 0.85,      // 85%+ of models agree
-        minConfidence: 0.92,     // 92%+ confidence required
-        minEdge: 15,             // 15%+ edge over market
-        requireTrending: true,   // Skip choppy markets
-        requireMomentum: true,   // Price moving our way
-        maxOdds: 0.70,           // Only buy at ≤70%
-        minStability: 5          // 5 ticks stable
+        minConsensus: 0.70,      // 70%+ of models agree (was 85%)
+        minConfidence: 0.75,     // 75%+ confidence required (was 92%!)
+        minEdge: 8,              // 8%+ edge over market (was 15%)
+        requireTrending: false,  // Allow all regimes (was true - blocked most!)
+        requireMomentum: false,  // Don't require perfect timing (was true)
+        maxOdds: 0.85,           // Buy at ≤85% (was 70%)
+        minStability: 3          // 3 ticks stable (was 5)
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -1719,10 +1720,10 @@ class SupremeBrain {
             finalConfidence = Math.min(1.0, finalConfidence);
 
             // === SMOOTHING (The "Pinball" Fix) ===
-            // Apply Exponential Moving Average (EMA) to dampen noise
-            // Alpha 0.2 = 20% new value, 80% old value (very smooth)
+            // FIX: Reduced smoothing from 20/80 to 50/50 (was suppressing new signals!)
+            // Alpha 0.5 = 50% new value, 50% old value (balanced)
             if (this.confidence > 0) {
-                finalConfidence = (finalConfidence * 0.2) + (this.confidence * 0.8);
+                finalConfidence = (finalConfidence * 0.5) + (this.confidence * 0.5);
             }
 
             // Determine tier with HYSTERESIS (prevent flickering)
@@ -2079,6 +2080,10 @@ class SupremeBrain {
                 }
             }
 
+            // FIX: Track recent form OUTSIDE modelVotes block (was never updating!)
+            this.recentOutcomes.push(isWin);
+            if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
+
             // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
             if (this.lastSignal && this.lastSignal.modelVotes) {
                 for (const [model, vote] of Object.entries(this.lastSignal.modelVotes)) {
@@ -2089,9 +2094,6 @@ class SupremeBrain {
                         }
                     }
                 }
-                // Track recent form (last 10)
-                this.recentOutcomes.push(isWin);
-                if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
 
                 // SMART MEMORY: Update the pattern that generated this signal (if any)
                 if (this.lastSignal && this.lastSignal.patternId) {
@@ -3708,6 +3710,14 @@ app.get('/wallet', (req, res) => {
             <div class="address" id="depositAddress">Loading...</div>
             <button class="copy-btn" onclick="copyAddress()">📋 Copy Address</button>
             <p style="color:#888; font-size:0.85em; margin-top:15px;">⚠️ Only send USDC on <strong>Polygon</strong> network. Sending on other networks will result in loss of funds!</p>
+            <div style="margin-top:15px; padding:12px; background:rgba(255,150,0,0.1); border-radius:8px; border-left:3px solid #ff9900;">
+                <p style="color:#ff9900; font-size:0.9em; margin:0;"><strong>💡 Important:</strong></p>
+                <p style="color:#aaa; font-size:0.85em; margin:5px 0 0;">
+                    • <strong style="color:#ffd700;">USDC</strong> = Trading balance (what you trade with)<br>
+                    • <strong style="color:#8b5cf6;">POL/MATIC</strong> = Gas fees only (pays transaction costs)<br>
+                    You need BOTH: USDC for trading + small POL/MATIC for gas (~0.1 POL is enough).
+                </p>
+            </div>
         </div>
         
         <div class="card transfer-card">
