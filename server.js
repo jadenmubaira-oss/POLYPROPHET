@@ -468,6 +468,35 @@ class TradeExecutor {
                     log(`✅ LIVE ORDER PLACED: ${response.orderID}`, asset);
                     log(`🎯 Status: ${response.status || 'SUBMITTED'}`, asset);
 
+                    // FAILSAFE: Verify order fill with retry logic
+                    let fillStatus = 'UNVERIFIED';
+                    let actualShares = shares;
+                    for (let attempt = 1; attempt <= 3; attempt++) {
+                        await new Promise(r => setTimeout(r, 2000));
+                        try {
+                            const orderStatus = await clobClient.getOrder(response.orderID);
+                            if (orderStatus) {
+                                fillStatus = orderStatus.status || 'UNKNOWN';
+                                if (['FILLED', 'MATCHED', 'LIVE'].includes(fillStatus.toUpperCase())) {
+                                    log(`✅ Order CONFIRMED: ${fillStatus}`, asset);
+                                    if (orderStatus.size_matched) {
+                                        actualShares = parseFloat(orderStatus.size_matched);
+                                    }
+                                    break;
+                                } else if (['CANCELLED', 'EXPIRED', 'REJECTED'].includes(fillStatus.toUpperCase())) {
+                                    log(`❌ Order ${fillStatus} - trade failed`, asset);
+                                    return null;
+                                }
+                            }
+                            log(`⏳ Fill check ${attempt}/3: ${fillStatus}`, asset);
+                        } catch (pollErr) {
+                            log(`⚠️ Fill check ${attempt}/3 failed: ${pollErr.message}`, asset);
+                        }
+                    }
+                    if (fillStatus === 'UNVERIFIED') {
+                        log(`⚠️ Order fill unconfirmed after 6s - tracking with caution`, asset);
+                    }
+
                     // Store position with order details
                     this.positions[positionId] = {
                         asset,
@@ -515,10 +544,68 @@ class TradeExecutor {
         return null;
     }
 
+    // LIVE MODE: Execute sell order to close position
+    async executeSellOrder(position) {
+        if (!ClobClient || !this.wallet || !position.tokenId) {
+            log(`⚠️ Cannot execute live sell - missing CLOB client, wallet, or tokenId`, position.asset);
+            return { success: false, error: 'Missing requirements' };
+        }
+
+        try {
+            const clobClient = new ClobClient(
+                'https://clob.polymarket.com',
+                POLY_CHAIN_ID,
+                this.wallet,
+                undefined,
+                {
+                    key: CONFIG.POLYMARKET_API_KEY,
+                    secret: CONFIG.POLYMARKET_SECRET,
+                    passphrase: CONFIG.POLYMARKET_PASSPHRASE
+                }
+            );
+
+            // Sell at market price (low price to ensure fill)
+            const sellPrice = 0.01;
+            const order = await clobClient.createOrder({
+                tokenID: position.tokenId,
+                price: sellPrice,
+                size: position.shares,
+                side: 'SELL',
+                feeRateBps: 0
+            });
+
+            const response = await clobClient.postOrder(order);
+            if (response && response.orderID) {
+                log(`📤 LIVE SELL ORDER: ${response.orderID}`, position.asset);
+                return { success: true, orderID: response.orderID };
+            } else {
+                log(`❌ Sell order failed: ${JSON.stringify(response)}`, position.asset);
+                return { success: false, error: 'Order rejected' };
+            }
+        } catch (e) {
+            log(`❌ Live sell error: ${e.message}`, position.asset);
+            return { success: false, error: e.message };
+        }
+    }
+
     // EXIT: Close a position
     closePosition(positionId, exitPrice, reason) {
         const pos = this.positions[positionId];
         if (!pos) return;
+
+        // LIVE MODE: Execute actual sell order
+        if (pos.isLive && this.mode === 'LIVE') {
+            log(`📤 Executing LIVE sell order for ${pos.asset} ${pos.side}...`, pos.asset);
+            this.executeSellOrder(pos).then(result => {
+                if (result.success) {
+                    log(`✅ Live sell executed: ${result.orderID}`, pos.asset);
+                } else {
+                    log(`⚠️ Live sell issue: ${result.error} - shares may remain open`, pos.asset);
+                }
+            }).catch(e => {
+                log(`❌ Live sell failed: ${e.message}`, pos.asset);
+            });
+        }
 
         const pnl = (exitPrice - pos.entry) * pos.shares;
         const pnlPercent = ((exitPrice / pos.entry) - 1) * 100;
@@ -2601,11 +2688,11 @@ app.get('/', (req, res) => {
                 if (!d) return;
                 const conf = (d.confidence * 100).toFixed(0);
                 const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
-                const price = d.live ? d.live.toLocaleString('en-US', {maximumFractionDigits: d.live > 100 ? 0 : 2}) : '--';
-                const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(2) : 0;
+                const price = d.live ? d.live.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '--';
+                const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(3) : 0;
                 const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(0) : '--';
                 const marketUrl = d.market?.marketUrl || '#';
-                const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {maximumFractionDigits: d.checkpoint > 100 ? 0 : 2}) : '--';
+                const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '--';
                 html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
                     '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
                     '<div class="prediction"><div class="prediction-value ' + d.prediction + '">' + d.prediction + '</div></div>' +
@@ -2613,9 +2700,9 @@ app.get('/', (req, res) => {
                     '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + d.tier + '">' + d.tier + (d.locked ? ' 🔒' : '') + '</span></div>' +
                     '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;margin-top:8px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
                     '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
-                    '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(1) : '0') + '%</div></div>' +
-                    '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + (d.market ? (d.market.yesPrice * 100).toFixed(0) + '¢' : '--') + '</div></div>' +
-                    '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + (d.market ? (d.market.noPrice * 100).toFixed(0) + '¢' : '--') + '</div></div></div>' +
+                    '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
+                    '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + (d.market ? (d.market.yesPrice * 100).toFixed(1) + '¢' : '--') + '</div></div>' +
+                    '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + (d.market ? (d.market.noPrice * 100).toFixed(1) + '¢' : '--') + '</div></div></div>' +
                     '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
             });
             document.getElementById('predictionsGrid').innerHTML = html;
