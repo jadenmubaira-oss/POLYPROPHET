@@ -770,18 +770,36 @@ class TradeExecutor {
         }
     }
 
-    // Get MATIC balance (for gas)
+    // Get MATIC/POL balance (for gas) - with multiple RPC fallbacks
     async getMATICBalance() {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
-        try {
-            const balance = await this.wallet.provider.getBalance(this.wallet.address);
-            const formatted = parseFloat(ethers.formatEther(balance));
-            return { success: true, balance: formatted };
-        } catch (e) {
-            return { success: false, error: e.message, balance: 0 };
+        
+        // Multiple RPC providers for fallback
+        const rpcEndpoints = [
+            'https://polygon.llamarpc.com',
+            'https://polygon-rpc.com',
+            'https://rpc.ankr.com/polygon',
+            'https://1rpc.io/matic'
+        ];
+        
+        for (const rpc of rpcEndpoints) {
+            try {
+                const provider = new ethers.JsonRpcProvider(rpc);
+                const balance = await provider.getBalance(this.wallet.address);
+                const formatted = parseFloat(ethers.formatEther(balance));
+                log(`✅ MATIC Balance fetched via ${rpc}: ${formatted.toFixed(4)}`);
+                return { success: true, balance: formatted };
+            } catch (e) {
+                log(`⚠️ RPC ${rpc} failed: ${e.message}`);
+                continue; // Try next RPC
+            }
         }
+        
+        // All RPCs failed
+        log(`❌ All RPC providers failed for MATIC balance`);
+        return { success: false, error: 'All RPC providers failed', balance: 0 };
     }
 
     // Transfer USDC to another address
