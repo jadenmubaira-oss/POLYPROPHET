@@ -245,9 +245,9 @@ class TradeExecutor {
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
                 log(`✅ Wallet Reloaded: ${this.wallet.address}`);
                 return true;
-            } catch (e) { 
+            } catch (e) {
                 log(`⚠️ Wallet Reload Failed: ${e.message}`);
-                return false; 
+                return false;
             }
         }
         return false;
@@ -2376,20 +2376,33 @@ async function loadState() {
             const savedSettings = await redis.get('deity:settings');
             if (savedSettings) {
                 const settings = JSON.parse(savedSettings);
-                // Apply persisted settings to CONFIG
+
+                // CRITICAL: These keys should NEVER be overwritten from Redis
+                // Environment variables ALWAYS take priority for security
+                const protectedKeys = [
+                    'POLYMARKET_PRIVATE_KEY',
+                    'POLYMARKET_API_KEY',
+                    'POLYMARKET_SECRET',
+                    'POLYMARKET_PASSPHRASE',
+                    'POLYMARKET_ADDRESS'
+                ];
+
+                // Apply persisted settings to CONFIG (except protected keys)
                 for (const [key, value] of Object.entries(settings)) {
                     if (CONFIG.hasOwnProperty(key) && value !== undefined && value !== null) {
+                        if (protectedKeys.includes(key)) {
+                            log(`🔒 Skipping Redis override for ${key} (env var takes priority)`);
+                            continue; // Skip - use env var instead
+                        }
                         CONFIG[key] = value;
                     }
                 }
-                log('⚙️ Settings restored from Redis');
+                log('⚙️ Settings restored from Redis (credentials from env)');
 
-                // Reload wallet with restored settings
+                // Reload wallet with ENV credentials (not Redis!)
                 tradeExecutor.mode = CONFIG.TRADE_MODE;
                 tradeExecutor.paperBalance = CONFIG.PAPER_BALANCE;
-                if (CONFIG.POLYMARKET_PRIVATE_KEY) {
-                    tradeExecutor.reloadWallet();
-                }
+                // Note: reloadWallet() is NOT called here - wallet was already loaded from env at startup
             }
 
             const stored = await redis.get('deity:state');
