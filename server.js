@@ -219,11 +219,17 @@ class TradeExecutor {
             try {
                 // Use Alchemy's reliable public RPC (polygon-rpc.com was failing)
                 const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                // DEBUG: Log private key prefix to verify correct key is loaded
+                const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
+                log(`🔑 Loading wallet from key: ${keyPreview}...`);
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-                log(`✅ Wallet Loaded: ${this.wallet.address.substring(0, 6)}...${this.wallet.address.slice(-4)}`);
+                log(`✅ Wallet Loaded: ${this.wallet.address}`);
             } catch (e) {
                 log(`⚠️ Wallet Load Failed: ${e.message}`);
+                log(`🔑 Key starts with: ${CONFIG.POLYMARKET_PRIVATE_KEY?.substring(0, 10) || 'UNDEFINED'}`);
             }
+        } else {
+            log(`⚠️ No POLYMARKET_PRIVATE_KEY found in environment!`);
         }
         log(`💰 Trade Executor Initialized in ${this.mode} mode. Balance: $${this.paperBalance}`);
     }
@@ -232,11 +238,17 @@ class TradeExecutor {
         this.mode = CONFIG.TRADE_MODE;
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
-                const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
+                // Use same RPC as constructor
+                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
+                log(`🔑 Reloading wallet from key: ${keyPreview}...`);
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-                log(`✅ Wallet Reloaded: ${this.wallet.address.substring(0, 6)}...`);
+                log(`✅ Wallet Reloaded: ${this.wallet.address}`);
                 return true;
-            } catch (e) { return false; }
+            } catch (e) { 
+                log(`⚠️ Wallet Reload Failed: ${e.message}`);
+                return false; 
+            }
         }
         return false;
     }
@@ -775,7 +787,7 @@ class TradeExecutor {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
-        
+
         // Multiple RPC providers for fallback
         const rpcEndpoints = [
             'https://polygon.llamarpc.com',
@@ -783,7 +795,7 @@ class TradeExecutor {
             'https://rpc.ankr.com/polygon',
             'https://1rpc.io/matic'
         ];
-        
+
         for (const rpc of rpcEndpoints) {
             try {
                 const provider = new ethers.JsonRpcProvider(rpc);
@@ -796,7 +808,7 @@ class TradeExecutor {
                 continue; // Try next RPC
             }
         }
-        
+
         // All RPCs failed
         log(`❌ All RPC providers failed for MATIC balance`);
         return { success: false, error: 'All RPC providers failed', balance: 0 };
