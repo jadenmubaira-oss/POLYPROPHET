@@ -2688,11 +2688,25 @@ app.get('/', (req, res) => {
                 if (!d) return;
                 const conf = (d.confidence * 100).toFixed(0);
                 const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
-                const price = d.live ? d.live.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '--';
+                // XRP needs more decimals since price is ~$2 vs BTC ~$100k
+                const priceDecimals = asset === 'XRP' ? 4 : 2;
+                const price = d.live ? d.live.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
                 const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(3) : 0;
                 const winRate = d.stats.total > 0 ? ((d.stats.wins / d.stats.total) * 100).toFixed(0) : '--';
                 const marketUrl = d.market?.marketUrl || '#';
-                const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '--';
+                const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
+                // Rolling W/L tracker for last 10 predictions
+                const recentOutcomes = d.recentOutcomes || [];
+                let wlTracker = '';
+                for (let i = 0; i < 10; i++) {
+                    if (i < recentOutcomes.length) {
+                        wlTracker += recentOutcomes[i] ? '<span style="color:#00ff88;">✓</span>' : '<span style="color:#ff4466;">✗</span>';
+                    } else {
+                        wlTracker += '<span style="color:#444;">○</span>';
+                    }
+                }
+                const recentWins = recentOutcomes.filter(Boolean).length;
+                const recentTotal = recentOutcomes.length;
                 html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
                     '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
                     '<div class="prediction"><div class="prediction-value ' + d.prediction + '">' + d.prediction + '</div></div>' +
@@ -2703,6 +2717,7 @@ app.get('/', (req, res) => {
                     '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
                     '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + (d.market ? (d.market.yesPrice * 100).toFixed(1) + '¢' : '--') + '</div></div>' +
                     '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + (d.market ? (d.market.noPrice * 100).toFixed(1) + '¢' : '--') + '</div></div></div>' +
+                    '<div style="text-align:center;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:8px;font-size:1.1em;letter-spacing:2px;"><span style="color:#888;font-size:0.7em;display:block;margin-bottom:2px;">Last 10: ' + recentWins + '/' + recentTotal + '</span>' + wlTracker + '</div>' +
                     '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
             });
             document.getElementById('predictionsGrid').innerHTML = html;
@@ -2902,6 +2917,7 @@ app.get('/api/state', (req, res) => {
             voteStability: Brains[a].voteTrendScore,
             recentAccuracy: recentAccuracy.toFixed(1),
             recentTotal: recentTotal,
+            recentOutcomes: Brains[a].recentOutcomes, // Rolling W/L for UI display
             kellySize: Brains[a].getKellySize(),
             calibration: Brains[a].calibrationBuckets,
             newsState: Brains[a].newsState,
