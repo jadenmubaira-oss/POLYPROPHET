@@ -217,9 +217,10 @@ class TradeExecutor {
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
-                const provider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
+                // Use Alchemy's reliable public RPC (polygon-rpc.com was failing)
+                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-                log(`✅ Wallet Loaded: ${this.wallet.address.substring(0, 6)}...`);
+                log(`✅ Wallet Loaded: ${this.wallet.address.substring(0, 6)}...${this.wallet.address.slice(-4)}`);
             } catch (e) {
                 log(`⚠️ Wallet Load Failed: ${e.message}`);
             }
