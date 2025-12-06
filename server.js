@@ -218,19 +218,13 @@ class TradeExecutor {
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 // CRITICAL FIX: Use Alchemy public RPC (llamarpc fails DNS on Render)
-                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                // NOTE: Using ethers v5 syntax (required by @polymarket/clob-client)
+                const provider = new ethers.providers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
                 // DEBUG: Log private key prefix to verify correct key is loaded
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Loading wallet from key: ${keyPreview}...`);
-                const baseWallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-
-                // CRITICAL FIX: Polymarket CLOB client expects ethers v5's _signTypedData
-                // but ethers v6 renamed it to signTypedData. Create compatibility wrapper.
-                baseWallet._signTypedData = async (domain, types, value) => {
-                    return await baseWallet.signTypedData(domain, types, value);
-                };
-
-                this.wallet = baseWallet;
+                this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
+                // NOTE: ethers v5 natively has _signTypedData - no wrapper needed
                 log(`✅ Wallet Loaded: ${this.wallet.address}`);
             } catch (e) {
                 log(`⚠️ Wallet Load Failed: ${e.message}`);
@@ -247,17 +241,12 @@ class TradeExecutor {
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 // CRITICAL FIX: Use Alchemy public RPC (llamarpc fails DNS on Render)
-                const provider = new ethers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                // NOTE: Using ethers v5 syntax (required by @polymarket/clob-client)
+                const provider = new ethers.providers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Reloading wallet from key: ${keyPreview}...`);
-                const baseWallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-
-                // CRITICAL FIX: Polymarket CLOB client expects ethers v5's _signTypedData
-                baseWallet._signTypedData = async (domain, types, value) => {
-                    return await baseWallet.signTypedData(domain, types, value);
-                };
-
-                this.wallet = baseWallet;
+                this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
+                // NOTE: ethers v5 natively has _signTypedData - no wrapper needed
                 log(`✅ Wallet Reloaded: ${this.wallet.address}`);
                 return true;
             } catch (e) {
@@ -925,7 +914,7 @@ class TradeExecutor {
         try {
             const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, this.wallet);
             const balance = await usdcContract.balanceOf(this.wallet.address);
-            const formatted = parseFloat(ethers.formatUnits(balance, USDC_DECIMALS));
+            const formatted = parseFloat(ethers.utils.formatUnits(balance, USDC_DECIMALS));
             return {
                 success: true,
                 balance: formatted,
@@ -954,9 +943,9 @@ class TradeExecutor {
 
         for (const rpc of rpcEndpoints) {
             try {
-                const provider = new ethers.JsonRpcProvider(rpc);
+                const provider = new ethers.providers.JsonRpcProvider(rpc);
                 const balance = await provider.getBalance(this.wallet.address);
-                const formatted = parseFloat(ethers.formatEther(balance));
+                const formatted = parseFloat(ethers.utils.formatEther(balance));
                 log(`✅ MATIC Balance fetched via ${rpc}: ${formatted.toFixed(4)}`);
                 return { success: true, balance: formatted };
             } catch (e) {
@@ -977,7 +966,7 @@ class TradeExecutor {
         }
 
         // Validate address
-        if (!ethers.isAddress(toAddress)) {
+        if (!ethers.utils.isAddress(toAddress)) {
             return { success: false, error: 'Invalid destination address' };
         }
 
@@ -990,7 +979,7 @@ class TradeExecutor {
             log(`💸 Initiating transfer of $${amount} USDC to ${toAddress.substring(0, 8)}...`);
 
             const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, this.wallet);
-            const amountWei = ethers.parseUnits(amount.toString(), USDC_DECIMALS);
+            const amountWei = ethers.utils.parseUnits(amount.toString(), USDC_DECIMALS);
 
             // Check balance first
             const balance = await usdcContract.balanceOf(this.wallet.address);
