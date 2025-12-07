@@ -1081,25 +1081,47 @@ class TradeExecutor {
 
     // ==================== WALLET MANAGEMENT ====================
 
-    // Get live USDC balance from Polygon
+    // Get live USDC balance from Polygon - with multiple RPC fallbacks
     async getUSDCBalance() {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
-        try {
-            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, this.wallet);
-            const balance = await usdcContract.balanceOf(this.wallet.address);
-            const formatted = parseFloat(ethers.utils.formatUnits(balance, USDC_DECIMALS));
-            return {
-                success: true,
-                balance: formatted,
-                balanceRaw: balance.toString(),
-                address: this.wallet.address
-            };
-        } catch (e) {
-            log(`⚠️ Balance fetch error: ${e.message}`);
-            return { success: false, error: e.message, balance: 0 };
+
+        // Multiple RPC providers for fallback (same as getMATICBalance)
+        const rpcEndpoints = [
+            'https://polygon-rpc.com',           // Fast, no rate limits
+            'https://rpc.ankr.com/polygon',      // Reliable public RPC
+            'https://1rpc.io/matic',             // Privacy-focused
+            'https://polygon-mainnet.g.alchemy.com/v2/demo'  // Alchemy demo (often times out)
+        ];
+
+        for (const rpc of rpcEndpoints) {
+            try {
+                const provider = createDirectProvider(rpc);
+                const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
+                const balance = await usdcContract.balanceOf(this.wallet.address);
+                const formatted = parseFloat(ethers.utils.formatUnits(balance, USDC_DECIMALS));
+
+                // Don't log success every time - only on first fetch or if we had errors
+                if (rpc !== rpcEndpoints[0]) {
+                    log(`✅ USDC Balance fetched via ${rpc}: $${formatted.toFixed(2)}`);
+                }
+
+                return {
+                    success: true,
+                    balance: formatted,
+                    balanceRaw: balance.toString(),
+                    address: this.wallet.address
+                };
+            } catch (e) {
+                log(`⚠️ RPC ${rpc} failed for USDC: ${e.message.substring(0, 50)}...`);
+                continue; // Try next RPC
+            }
         }
+
+        // All RPCs failed
+        log(`❌ All RPC providers failed for USDC balance`);
+        return { success: false, error: 'All RPC providers failed', balance: 0 };
     }
 
     // Get MATIC/POL balance (for gas) - with multiple RPC fallbacks
