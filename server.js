@@ -82,6 +82,13 @@ const USDC_ABI = [
     "function symbol() view returns (string)"
 ];
 
+// CTF (Conditional Token Framework) - For redeeming resolved positions
+const CTF_ADDRESS = "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045";
+const CTF_ABI = [
+    "function balanceOf(address owner, uint256 id) view returns (uint256)",
+    "function redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets) external"
+];
+
 // Initialize App
 const app = express();
 app.use(cors());
@@ -414,9 +421,8 @@ class TradeExecutor {
             }
         }
 
-        // MINIMUM ORDER SIZE: $0.50 floor (aggressive mode for small balances)
-        // User requested: allow trades with $5-10 balance (5% of $10 = $0.50)
-        const minDollars = 0.50;
+        // MINIMUM ORDER SIZE: $1.10 floor (Polymarket requires $1 minimum + fee buffer)
+        const minDollars = 1.10;
         if (size < minDollars) {
             log(`❌ TRADE BLOCKED: $${size.toFixed(2)} below $${minDollars} minimum`, asset);
             return { success: false, error: `Minimum order size is $${minDollars}` };
@@ -872,6 +878,12 @@ class TradeExecutor {
             this.lastLossTime = Date.now();
         }
 
+        // Add WINNING live positions to redemption queue for later claiming
+        // Only if position has a tokenId (live trade) and won (exitPrice = 1.0)
+        if (pos.isLive && pos.tokenId && exitPrice >= 0.99) {
+            this.addToRedemptionQueue(pos);
+        }
+
         delete this.positions[positionId];
         return pnl;
     }
@@ -1090,6 +1102,98 @@ class TradeExecutor {
             address: this.wallet ? this.wallet.address : null,
             mode: this.mode
         };
+    }
+
+    // ==================== REDEMPTION SYSTEM ====================
+    // Track resolved positions that need redemption
+    // Note: This stores token IDs from closed positions for later redemption
+
+    // Add a position to redemption queue after cycle resolution
+    addToRedemptionQueue(position) {
+        if (!this.redemptionQueue) this.redemptionQueue = [];
+        if (position && position.tokenId) {
+            this.redemptionQueue.push({
+                tokenId: position.tokenId,
+                asset: position.asset,
+                side: position.side,
+                addedAt: Date.now(),
+                shares: position.shares || 0
+            });
+            log(`📋 Added to redemption queue: ${position.asset} ${position.side}`, position.asset);
+        }
+    }
+
+    // Get redemption queue
+    getRedemptionQueue() {
+        return this.redemptionQueue || [];
+    }
+
+    // Check and redeem any resolved positions
+    async checkAndRedeemPositions() {
+        if (!this.wallet) {
+            return { success: false, error: 'No wallet loaded' };
+        }
+
+        const queue = this.redemptionQueue || [];
+        if (queue.length === 0) {
+            return { success: true, message: 'No positions to redeem', redeemed: 0 };
+        }
+
+        log(`🔍 Checking ${queue.length} positions for redemption...`);
+        let redeemed = 0;
+        let failed = 0;
+
+        try {
+            // Use direct provider to avoid proxy issues
+            const provider = createDirectProvider('https://polygon-rpc.com');
+            const wallet = this.wallet.connect(provider);
+            const ctfContract = new ethers.Contract(CTF_ADDRESS, CTF_ABI, wallet);
+
+            for (let i = queue.length - 1; i >= 0; i--) {
+                const item = queue[i];
+
+                try {
+                    // Check if we have any balance of this token
+                    const balance = await ctfContract.balanceOf(wallet.address, item.tokenId);
+
+                    if (balance.gt(0)) {
+                        log(`💰 Found ${ethers.utils.formatUnits(balance, 0)} redeemable tokens for ${item.asset}`, item.asset);
+                        // Has balance - this position can potentially be redeemed
+                        // Note: Full redemption requires conditionId which is complex
+                        // For now, just log that redemption is available
+                        log(`✅ Position ${item.asset} ${item.side} has redeemable balance. Use Polymarket website to redeem.`, item.asset);
+                    } else {
+                        // No balance - either already redeemed or market not resolved
+                        log(`ℹ️ No balance found for ${item.asset} ${item.side} token - may already be redeemed`, item.asset);
+                        // Remove from queue
+                        queue.splice(i, 1);
+                        redeemed++;
+                    }
+                } catch (e) {
+                    log(`⚠️ Error checking token ${item.asset}: ${e.message}`, item.asset);
+                    failed++;
+                }
+            }
+
+            this.redemptionQueue = queue;
+            return {
+                success: true,
+                message: `Checked ${queue.length + redeemed} positions`,
+                redeemed,
+                failed,
+                remaining: queue.length
+            };
+
+        } catch (e) {
+            log(`❌ Redemption check failed: ${e.message}`);
+            return { success: false, error: e.message };
+        }
+    }
+
+    // Clear redemption queue
+    clearRedemptionQueue() {
+        this.redemptionQueue = [];
+        log(`🗑️ Redemption queue cleared`);
     }
 }
 
@@ -3493,6 +3597,44 @@ app.post('/api/retry-sell', async (req, res) => {
         res.status(500).json({ success: false, error: e.message });
     }
 });
+
+// ==================== REDEMPTION ENDPOINTS ====================
+
+// Get redemption queue
+app.get('/api/redemption-queue', (req, res) => {
+    res.json({
+        success: true,
+        queue: tradeExecutor.getRedemptionQueue(),
+        count: tradeExecutor.getRedemptionQueue().length
+    });
+});
+
+// Trigger redemption check
+app.post('/api/check-redemptions', async (req, res) => {
+    try {
+        const result = await tradeExecutor.checkAndRedeemPositions();
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// Clear redemption queue
+app.post('/api/clear-redemption-queue', (req, res) => {
+    tradeExecutor.clearRedemptionQueue();
+    res.json({ success: true, message: 'Queue cleared' });
+});
+
+// Periodic redemption check - runs every 5 minutes
+setInterval(async () => {
+    if (tradeExecutor.mode === 'LIVE' && tradeExecutor.wallet) {
+        const queue = tradeExecutor.getRedemptionQueue();
+        if (queue.length > 0) {
+            log(`🔄 Auto-checking ${queue.length} positions for redemption...`);
+            await tradeExecutor.checkAndRedeemPositions();
+        }
+    }
+}, 5 * 60 * 1000); // Every 5 minutes
 
 // EXPORT ENDPOINT (New Feature)
 app.get('/api/export', (req, res) => {
