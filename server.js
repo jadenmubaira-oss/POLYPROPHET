@@ -13,11 +13,11 @@ require('dotenv').config();
 const { ethers } = require('ethers');
 const axios = require('axios');
 const { HttpsProxyAgent } = require('https-proxy-agent');
+const https = require('https');
 
 // ==================== PROXY CONFIGURATION ====================
 // Set PROXY_URL in environment to bypass Cloudflare WAF on Render
-// Example: PROXY_URL=http://user:pass@proxy.example.com:8080
-// Free options: webshare.io free tier, or residential proxy services
+// This uses GLOBAL agent override - affects ALL Node.js HTTPS requests
 const PROXY_URL = process.env.PROXY_URL;
 let proxyAgent = null;
 
@@ -25,23 +25,25 @@ if (PROXY_URL) {
     try {
         proxyAgent = new HttpsProxyAgent(PROXY_URL);
 
-        // Configure axios defaults
+        // CRITICAL: Override Node.js global HTTPS agent
+        // This forces ALL HTTPS requests (including clob-client's internal axios) through proxy
+        https.globalAgent = proxyAgent;
+
+        // Also override HTTP agent for any HTTP requests
+        const HttpProxyAgent = require('https-proxy-agent').HttpProxyAgent ||
+            require('http-proxy-agent').HttpProxyAgent;
+        if (HttpProxyAgent) {
+            http.globalAgent = new HttpProxyAgent(PROXY_URL);
+        }
+
+        // Configure axios defaults as backup
         axios.defaults.httpsAgent = proxyAgent;
         axios.defaults.httpAgent = proxyAgent;
         axios.defaults.proxy = false;
 
-        // Add interceptor to inject agent into CLOB API requests
-        axios.interceptors.request.use((config) => {
-            if (config.url && config.url.includes('polymarket.com')) {
-                config.httpsAgent = proxyAgent;
-                config.httpAgent = proxyAgent;
-                config.proxy = false;
-            }
-            return config;
-        }, (error) => Promise.reject(error));
-
         const maskedUrl = PROXY_URL.replace(/\/\/.*:.*@/, '//***:***@');
-        console.log(`✅ Proxy configured for CLOB API: ${maskedUrl}`);
+        console.log(`✅ GLOBAL PROXY ACTIVE: All HTTPS requests routed through ${maskedUrl}`);
+        console.log(`   Original https.globalAgent overridden with proxy agent`);
     } catch (e) {
         console.log(`⚠️ Proxy configuration failed: ${e.message}`);
     }
