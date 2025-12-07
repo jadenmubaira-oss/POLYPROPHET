@@ -16,42 +16,27 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const https = require('https');
 
 // ==================== PROXY CONFIGURATION ====================
-// Set PROXY_URL in environment to bypass Cloudflare WAF on Render
-// SELECTIVE PROXY: Only routes Polymarket CLOB requests through proxy
-// Other requests (Alchemy, etc) go direct
+// GLOBAL PROXY: All HTTPS requests go through proxy (required for clob-client)
+// Alchemy requests are handled separately with direct connection
 const PROXY_URL = process.env.PROXY_URL;
 let proxyAgent = null;
+const originalAgent = https.globalAgent; // Save original for Alchemy
 
 if (PROXY_URL) {
     try {
         proxyAgent = new HttpsProxyAgent(PROXY_URL);
 
-        // MONKEY-PATCH axios.create to inject proxy for Polymarket
-        // This catches the CLOB client's internal axios creation
-        const originalCreate = axios.create.bind(axios);
-        axios.create = function (config = {}) {
-            if (config.baseURL && config.baseURL.includes('polymarket.com')) {
-                config.httpsAgent = proxyAgent;
-                config.httpAgent = proxyAgent;
-                config.proxy = false;
-                console.log(`🔄 Proxy injected for axios instance: ${config.baseURL}`);
-            }
-            return originalCreate(config);
-        };
+        // CRITICAL: Override global HTTPS agent for ALL requests
+        // This is the ONLY way to force clob-client to use proxy
+        https.globalAgent = proxyAgent;
 
-        // Also add request interceptor for direct axios calls
-        axios.interceptors.request.use((config) => {
-            if (config.url && config.url.includes('polymarket.com')) {
-                config.httpsAgent = proxyAgent;
-                config.httpAgent = proxyAgent;
-                config.proxy = false;
-            }
-            return config;
-        }, (error) => Promise.reject(error));
+        // Also set axios defaults
+        axios.defaults.httpsAgent = proxyAgent;
+        axios.defaults.proxy = false;
 
         const maskedUrl = PROXY_URL.replace(/\/\/.*:.*@/, '//***:***@');
-        console.log(`✅ SELECTIVE PROXY: Polymarket CLOB requests routed through ${maskedUrl}`);
-        console.log(`   Other services (Alchemy, etc) use direct connection`);
+        console.log(`✅ GLOBAL PROXY ACTIVE: ALL HTTPS via ${maskedUrl}`);
+        console.log(`   Alchemy calls will use explicit direct agent`);
     } catch (e) {
         console.log(`⚠️ Proxy configuration failed: ${e.message}`);
     }
@@ -59,6 +44,9 @@ if (PROXY_URL) {
     console.log('ℹ️ No PROXY_URL set - CLOB requests will use direct connection');
     console.log('   To bypass Cloudflare on Render, set PROXY_URL in environment');
 }
+
+// Export for use in Alchemy calls
+const directAgent = originalAgent;
 
 // Polymarket CLOB Client for Live Trading
 let ClobClient = null;
