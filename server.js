@@ -17,7 +17,8 @@ const https = require('https');
 
 // ==================== PROXY CONFIGURATION ====================
 // Set PROXY_URL in environment to bypass Cloudflare WAF on Render
-// This uses GLOBAL agent override - affects ALL Node.js HTTPS requests
+// SELECTIVE PROXY: Only routes Polymarket CLOB requests through proxy
+// Other requests (Alchemy, etc) go direct
 const PROXY_URL = process.env.PROXY_URL;
 let proxyAgent = null;
 
@@ -25,21 +26,32 @@ if (PROXY_URL) {
     try {
         proxyAgent = new HttpsProxyAgent(PROXY_URL);
 
-        // CRITICAL: Override Node.js global HTTPS agent
-        // This forces ALL HTTPS requests (including clob-client's internal axios) through proxy
-        https.globalAgent = proxyAgent;
+        // MONKEY-PATCH axios.create to inject proxy for Polymarket
+        // This catches the CLOB client's internal axios creation
+        const originalCreate = axios.create.bind(axios);
+        axios.create = function (config = {}) {
+            if (config.baseURL && config.baseURL.includes('polymarket.com')) {
+                config.httpsAgent = proxyAgent;
+                config.httpAgent = proxyAgent;
+                config.proxy = false;
+                console.log(`🔄 Proxy injected for axios instance: ${config.baseURL}`);
+            }
+            return originalCreate(config);
+        };
 
-        // Also use the HTTPS proxy agent for HTTP (it handles both)
-        http.globalAgent = proxyAgent;
-
-        // Configure axios defaults as backup
-        axios.defaults.httpsAgent = proxyAgent;
-        axios.defaults.httpAgent = proxyAgent;
-        axios.defaults.proxy = false;
+        // Also add request interceptor for direct axios calls
+        axios.interceptors.request.use((config) => {
+            if (config.url && config.url.includes('polymarket.com')) {
+                config.httpsAgent = proxyAgent;
+                config.httpAgent = proxyAgent;
+                config.proxy = false;
+            }
+            return config;
+        }, (error) => Promise.reject(error));
 
         const maskedUrl = PROXY_URL.replace(/\/\/.*:.*@/, '//***:***@');
-        console.log(`✅ GLOBAL PROXY ACTIVE: All HTTPS requests routed through ${maskedUrl}`);
-        console.log(`   Original https.globalAgent overridden with proxy agent`);
+        console.log(`✅ SELECTIVE PROXY: Polymarket CLOB requests routed through ${maskedUrl}`);
+        console.log(`   Other services (Alchemy, etc) use direct connection`);
     } catch (e) {
         console.log(`⚠️ Proxy configuration failed: ${e.message}`);
     }
