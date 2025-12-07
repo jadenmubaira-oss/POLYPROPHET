@@ -48,6 +48,17 @@ if (PROXY_URL) {
 // Export for use in Alchemy calls
 const directAgent = originalAgent;
 
+// Helper: Create a JsonRpcProvider that bypasses the global proxy
+// Required because Alchemy/RPC calls timeout through the proxy
+function createDirectProvider(rpcUrl) {
+    // Temporarily restore original agent for this provider
+    const savedAgent = https.globalAgent;
+    https.globalAgent = originalAgent;
+    const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+    https.globalAgent = savedAgent; // Restore proxy agent
+    return provider;
+}
+
 // Polymarket CLOB Client for Live Trading
 let ClobClient = null;
 try {
@@ -252,9 +263,9 @@ class TradeExecutor {
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
-                // CRITICAL FIX: Use Alchemy public RPC (llamarpc fails DNS on Render)
+                // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
                 // NOTE: Using ethers v5 syntax (required by @polymarket/clob-client)
-                const provider = new ethers.providers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                const provider = createDirectProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
                 // DEBUG: Log private key prefix to verify correct key is loaded
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Loading wallet from key: ${keyPreview}...`);
@@ -286,9 +297,9 @@ class TradeExecutor {
         this.mode = CONFIG.TRADE_MODE;
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
-                // CRITICAL FIX: Use Alchemy public RPC (llamarpc fails DNS on Render)
+                // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
                 // NOTE: Using ethers v5 syntax (required by @polymarket/clob-client)
-                const provider = new ethers.providers.JsonRpcProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
+                const provider = createDirectProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
                 const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
                 log(`🔑 Reloading wallet from key: ${keyPreview}...`);
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
@@ -1006,7 +1017,7 @@ class TradeExecutor {
 
         for (const rpc of rpcEndpoints) {
             try {
-                const provider = new ethers.providers.JsonRpcProvider(rpc);
+                const provider = createDirectProvider(rpc);
                 const balance = await provider.getBalance(this.wallet.address);
                 const formatted = parseFloat(ethers.utils.formatEther(balance));
                 log(`✅ MATIC Balance fetched via ${rpc}: ${formatted.toFixed(4)}`);
