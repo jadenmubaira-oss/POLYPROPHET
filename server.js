@@ -1081,79 +1081,88 @@ class TradeExecutor {
 
     // ==================== WALLET MANAGEMENT ====================
 
-    // Get live USDC balance from Polygon - with multiple RPC fallbacks
+    // Get live USDC balance from Polygon - RACE all RPCs for maximum speed
     async getUSDCBalance() {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
 
-        // Multiple RPC providers for fallback (same as getMATICBalance)
+        const walletAddress = this.wallet.address;
         const rpcEndpoints = [
-            'https://polygon-rpc.com',           // Fast, no rate limits
-            'https://rpc.ankr.com/polygon',      // Reliable public RPC
-            'https://1rpc.io/matic',             // Privacy-focused
-            'https://polygon-mainnet.g.alchemy.com/v2/demo'  // Alchemy demo (often times out)
+            'https://polygon-rpc.com',
+            'https://rpc.ankr.com/polygon',
+            'https://1rpc.io/matic',
+            'https://polygon-mainnet.g.alchemy.com/v2/demo'
         ];
 
-        for (const rpc of rpcEndpoints) {
-            try {
-                const provider = createDirectProvider(rpc);
-                const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
-                const balance = await usdcContract.balanceOf(this.wallet.address);
-                const formatted = parseFloat(ethers.utils.formatUnits(balance, USDC_DECIMALS));
+        // Race all RPCs - first successful one wins
+        const racePromises = rpcEndpoints.map(async (rpc) => {
+            const provider = createDirectProvider(rpc);
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
+            const balance = await usdcContract.balanceOf(walletAddress);
+            const formatted = parseFloat(ethers.utils.formatUnits(balance, USDC_DECIMALS));
+            return { rpc, balance: formatted, balanceRaw: balance.toString() };
+        });
 
-                // Don't log success every time - only on first fetch or if we had errors
-                if (rpc !== rpcEndpoints[0]) {
-                    log(`✅ USDC Balance fetched via ${rpc}: $${formatted.toFixed(2)}`);
-                }
+        // Add a 5-second timeout
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('All RPCs timed out (5s)')), 5000)
+        );
 
-                return {
-                    success: true,
-                    balance: formatted,
-                    balanceRaw: balance.toString(),
-                    address: this.wallet.address
-                };
-            } catch (e) {
-                log(`⚠️ RPC ${rpc} failed for USDC: ${e.message.substring(0, 50)}...`);
-                continue; // Try next RPC
-            }
+        try {
+            const result = await Promise.race([
+                Promise.any(racePromises),
+                timeoutPromise
+            ]);
+            return {
+                success: true,
+                balance: result.balance,
+                balanceRaw: result.balanceRaw,
+                address: walletAddress
+            };
+        } catch (e) {
+            log(`⚠️ USDC balance fetch failed: ${e.message}`);
+            return { success: false, error: e.message, balance: 0 };
         }
-
-        // All RPCs failed
-        log(`❌ All RPC providers failed for USDC balance`);
-        return { success: false, error: 'All RPC providers failed', balance: 0 };
     }
 
-    // Get MATIC/POL balance (for gas) - with multiple RPC fallbacks
+    // Get MATIC/POL balance (for gas) - RACE all RPCs for maximum speed
     async getMATICBalance() {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
 
-        // Multiple RPC providers for fallback - Alchemy first (most reliable on Render)
+        const walletAddress = this.wallet.address;
         const rpcEndpoints = [
-            'https://polygon-mainnet.g.alchemy.com/v2/demo',
             'https://polygon-rpc.com',
             'https://rpc.ankr.com/polygon',
-            'https://1rpc.io/matic'
+            'https://1rpc.io/matic',
+            'https://polygon-mainnet.g.alchemy.com/v2/demo'
         ];
 
-        for (const rpc of rpcEndpoints) {
-            try {
-                const provider = createDirectProvider(rpc);
-                const balance = await provider.getBalance(this.wallet.address);
-                const formatted = parseFloat(ethers.utils.formatEther(balance));
-                log(`✅ MATIC Balance fetched via ${rpc}: ${formatted.toFixed(4)}`);
-                return { success: true, balance: formatted };
-            } catch (e) {
-                log(`⚠️ RPC ${rpc} failed: ${e.message}`);
-                continue; // Try next RPC
-            }
-        }
+        // Race all RPCs - first successful one wins
+        const racePromises = rpcEndpoints.map(async (rpc) => {
+            const provider = createDirectProvider(rpc);
+            const balance = await provider.getBalance(walletAddress);
+            const formatted = parseFloat(ethers.utils.formatEther(balance));
+            return { rpc, balance: formatted };
+        });
 
-        // All RPCs failed
-        log(`❌ All RPC providers failed for MATIC balance`);
-        return { success: false, error: 'All RPC providers failed', balance: 0 };
+        // Add a 5-second timeout
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('All RPCs timed out (5s)')), 5000)
+        );
+
+        try {
+            const result = await Promise.race([
+                Promise.any(racePromises),
+                timeoutPromise
+            ]);
+            return { success: true, balance: result.balance };
+        } catch (e) {
+            log(`⚠️ MATIC balance fetch failed: ${e.message}`);
+            return { success: false, error: e.message, balance: 0 };
+        }
     }
 
     // Transfer USDC to another address
@@ -3824,12 +3833,16 @@ app.get('/api/export', (req, res) => {
 
 // ==================== WALLET API ====================
 
-// Get wallet info and balances
+// Get wallet info and balances - PARALLEL fetch for speed
 app.get('/api/wallet', async (req, res) => {
     try {
         const walletInfo = tradeExecutor.getWalletInfo();
-        const usdcBalance = await tradeExecutor.getUSDCBalance();
-        const maticBalance = await tradeExecutor.getMATICBalance();
+
+        // Fetch USDC and MATIC in parallel for maximum speed
+        const [usdcBalance, maticBalance] = await Promise.all([
+            tradeExecutor.getUSDCBalance(),
+            tradeExecutor.getMATICBalance()
+        ]);
 
         res.json({
             loaded: walletInfo.loaded,
@@ -3844,11 +3857,13 @@ app.get('/api/wallet', async (req, res) => {
     }
 });
 
-// Get just the balance (for frequent polling)
+// Get just the balance (for frequent polling) - PARALLEL fetch
 app.get('/api/wallet/balance', async (req, res) => {
     try {
-        const usdc = await tradeExecutor.getUSDCBalance();
-        const matic = await tradeExecutor.getMATICBalance();
+        const [usdc, matic] = await Promise.all([
+            tradeExecutor.getUSDCBalance(),
+            tradeExecutor.getMATICBalance()
+        ]);
         res.json({ usdc, matic });
     } catch (e) {
         res.status(500).json({ error: e.message });
