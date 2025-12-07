@@ -126,7 +126,7 @@ Click one button to configure all modes:
 | **Order Fill Verification** | 3 retries over 6 seconds to confirm fills |
 | **Sell Order Retry** | 5 retry attempts with 3-second delays - never leaves shares stuck |
 | **Pending Sells Tracker** | Failed sells go to `/api/pending-sells` for manual intervention |
-| **Entry Price Guard** | Blocks trades at ≥98¢ or ≤2¢ |
+| **Smart Position Sizing** | Min $1.10, max 30% of bankroll |
 | **Late Cycle Guard** | Arb: 13min, Momentum: 12min cutoffs |
 | **Stale Data Guard** | Requires data < 3 seconds old |
 | **Real Balance** | Uses actual USDC for position sizing |
@@ -139,7 +139,7 @@ Click one button to configure all modes:
 
 ```
 POLYPROPHET-main/
-├── server.js          # Main application (3,900+ lines)
+├── server.js          # Main application (4,750+ lines)
 ├── package.json       # Dependencies
 ├── .env               # Configuration (API keys, etc.)
 ├── .env.example       # Template for .env
@@ -171,12 +171,14 @@ The key is:
 
 ## 📜 Recent Updates
 
+- ✅ **Smart Position Sizing** - Min $1.10, max 30% bankroll, blocks trades if balance too low
+- ✅ **Pre-Cycle-End Exit** - Non-ORACLE positions close 30s before checkpoint
+- ✅ **Global Stop Loss** - Halts trading at 20% daily loss (resets each day)
+- ✅ **One-Per-Cycle Limits** - All modes limited to 1 trade per asset per cycle
+- ✅ **Balance Resilience** - Caches last known good balance to prevent $0 flash
+- ✅ **Redemption Queue** - Tracks winning positions for later redemption
 - ✅ **Live Trading Failsafes** - Order fill verification, retry logic, sell orders
-- ✅ **Increased Decimal Precision** - Shows 2 decimals for prices, 1 for odds
 - ✅ **Beginner Presets** - Safe, Balanced, Aggressive one-click configs
-- ✅ **Checkpoint Price Display** - Gold-highlighted in each asset card
-- ✅ **Position Auto-Close** - All positions resolve at cycle end
-- ✅ **Trade Mode Badges** - Colored badges showing ORACLE/SCALP/etc.
 
 ---
 

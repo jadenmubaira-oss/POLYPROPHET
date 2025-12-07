@@ -265,6 +265,7 @@ class TradeExecutor {
         this.tradeHistory = [];
         this.lastLossTime = 0;         // For cooldown tracking
         this.todayPnL = 0;             // Daily P/L tracking
+        this.lastDayReset = Date.now(); // Track when we last reset daily P/L
         this.cachedLiveBalance = 0;    // Cached USDC balance for LIVE mode
         this.lastGoodBalance = 0;      // Last known successful balance (prevents $0 flash)
         this.lastBalanceFetch = 0;     // Timestamp of last balance fetch
@@ -336,6 +337,23 @@ class TradeExecutor {
     isInCooldown() {
         if (this.lastLossTime === 0) return false;
         return (Date.now() - this.lastLossTime) < (CONFIG.RISK.cooldownAfterLoss * 1000);
+    }
+
+    // 🔄 CRITICAL: Reset daily P/L at the start of each new day
+    // This prevents global stop loss from permanently halting trading
+    resetDailyPnL() {
+        const now = new Date();
+        const lastReset = new Date(this.lastDayReset);
+
+        // Check if it's a new day (different date)
+        if (now.toDateString() !== lastReset.toDateString()) {
+            const previousPnL = this.todayPnL;
+            this.todayPnL = 0;
+            this.lastDayReset = Date.now();
+            log(`🔄 NEW DAY: Daily P/L reset (was $${previousPnL.toFixed(2)})`);
+            return true;
+        }
+        return false;
     }
 
     // Refresh cached LIVE balance (call every 30s or before trades)
@@ -414,6 +432,9 @@ class TradeExecutor {
             log(`⚠️ Max total exposure (${CONFIG.RISK.maxTotalExposure * 100}%) reached`, asset);
             return { success: false, error: `Max exposure (${(CONFIG.RISK.maxTotalExposure * 100).toFixed(0)}%) reached` };
         }
+
+        // 🔄 DAILY P/L RESET: Check if new day and reset if needed
+        this.resetDailyPnL();
 
         // 🛑 GLOBAL STOP LOSS: Halt trading if day loss exceeds threshold
         const maxDayLoss = bankroll * CONFIG.RISK.globalStopLoss;
