@@ -29,12 +29,8 @@ if (PROXY_URL) {
         // This forces ALL HTTPS requests (including clob-client's internal axios) through proxy
         https.globalAgent = proxyAgent;
 
-        // Also override HTTP agent for any HTTP requests
-        const HttpProxyAgent = require('https-proxy-agent').HttpProxyAgent ||
-            require('http-proxy-agent').HttpProxyAgent;
-        if (HttpProxyAgent) {
-            http.globalAgent = new HttpProxyAgent(PROXY_URL);
-        }
+        // Also use the HTTPS proxy agent for HTTP (it handles both)
+        http.globalAgent = proxyAgent;
 
         // Configure axios defaults as backup
         axios.defaults.httpsAgent = proxyAgent;
