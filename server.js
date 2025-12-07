@@ -11,6 +11,44 @@ const Redis = require('ioredis');
 const auth = require('basic-auth');
 require('dotenv').config();
 const { ethers } = require('ethers');
+const axios = require('axios');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+
+// ==================== PROXY CONFIGURATION ====================
+// Set PROXY_URL in environment to bypass Cloudflare WAF on Render
+// Example: PROXY_URL=http://user:pass@proxy.example.com:8080
+// Free options: webshare.io free tier, or residential proxy services
+const PROXY_URL = process.env.PROXY_URL;
+let proxyAgent = null;
+
+if (PROXY_URL) {
+    try {
+        proxyAgent = new HttpsProxyAgent(PROXY_URL);
+
+        // Configure axios defaults
+        axios.defaults.httpsAgent = proxyAgent;
+        axios.defaults.httpAgent = proxyAgent;
+        axios.defaults.proxy = false;
+
+        // Add interceptor to inject agent into CLOB API requests
+        axios.interceptors.request.use((config) => {
+            if (config.url && config.url.includes('polymarket.com')) {
+                config.httpsAgent = proxyAgent;
+                config.httpAgent = proxyAgent;
+                config.proxy = false;
+            }
+            return config;
+        }, (error) => Promise.reject(error));
+
+        const maskedUrl = PROXY_URL.replace(/\/\/.*:.*@/, '//***:***@');
+        console.log(`✅ Proxy configured for CLOB API: ${maskedUrl}`);
+    } catch (e) {
+        console.log(`⚠️ Proxy configuration failed: ${e.message}`);
+    }
+} else {
+    console.log('ℹ️ No PROXY_URL set - CLOB requests will use direct connection');
+    console.log('   To bypass Cloudflare on Render, set PROXY_URL in environment');
+}
 
 // Polymarket CLOB Client for Live Trading
 let ClobClient = null;
@@ -1133,26 +1171,67 @@ class OpportunityDetector {
         return null;
     }
 
-    // MODE 5: MOMENTUM - Ride strong trends
-    detectMomentum(asset, elapsed, priceHistory, votes, consensusRatio, force, atr) {
+    // MODE 5: MOMENTUM - Ride strong trends (ENHANCED with smart gates)
+    detectMomentum(asset, elapsed, priceHistory, votes, consensusRatio, force, atr, market = null) {
         if (!CONFIG.MOMENTUM.enabled) return null;
         if (elapsed < CONFIG.MOMENTUM.minElapsed) return null;
 
-        // LATE CYCLE CUTOFF: REMOVED - User requested late entries if confident
-        // Bot learns from all trades, even late-cycle ones
-
-        // Check consensus
+        // SMART GATE 1: Check consensus
         if (consensusRatio < CONFIG.MOMENTUM.minConsensus) return null;
 
-        // Check for breakout (BUG FIX: removed *100, breakoutThreshold 0.03 means 3% of ATR)
+        // SMART GATE 2: Check for meaningful breakout
+        if (!atr || atr <= 0) return null; // Safety check
         const breakout = Math.abs(force) / atr;
         if (breakout < CONFIG.MOMENTUM.breakoutThreshold) return null;
 
         const direction = force > 0 ? 'UP' : 'DOWN';
+
+        // SMART GATE 3: Odds must lean in our direction (CRITICAL)
+        // If we think UP, yesPrice should be > 40%. If DOWN, noPrice should be > 40%
+        if (market) {
+            const yesP = market.yesPrice || 0.5;
+            const noP = market.noPrice || 0.5;
+
+            if (direction === 'UP' && yesP < 0.40) {
+                // Market says <40% chance of UP - don't fight it
+                return null;
+            }
+            if (direction === 'DOWN' && noP < 0.40) {
+                // Market says <40% chance of DOWN - don't fight it
+                return null;
+            }
+
+            // SMART GATE 4: Expected value check - is entry price favorable?
+            // Don't buy YES at >80% or NO at >80% (poor risk/reward)
+            const entryPrice = direction === 'UP' ? yesP : noP;
+            if (entryPrice > 0.80) {
+                return null; // Price too high, minimal upside
+            }
+            if (entryPrice < 0.05) {
+                return null; // Price too low, probably losing bet
+            }
+
+            // SMART GATE 5: Calculate expected ROI
+            // If we win, we get $1. Entry cost is entryPrice.
+            // Expected ROI = (1 - entryPrice) / entryPrice
+            const expectedROI = (1 - entryPrice) / entryPrice;
+            if (expectedROI < 0.15) {
+                return null; // Less than 15% expected gain - not worth it
+            }
+        }
+
+        // SMART GATE 6: Enough time remaining?
+        // Need at least 3 minutes to profit before cycle ends
+        const cycleLength = 900; // 15 minutes
+        const timeRemaining = cycleLength - elapsed;
+        if (timeRemaining < 180) { // Less than 3 minutes
+            return null; // Too close to checkpoint
+        }
+
         return {
             mode: 'MOMENTUM',
             direction,
-            reason: `Breakout detected: ${(breakout).toFixed(1)}x ATR, ${(consensusRatio * 100).toFixed(0)}% consensus`
+            reason: `Breakout ${(breakout).toFixed(1)}x ATR, ${(consensusRatio * 100).toFixed(0)}% cons, ${Math.floor(timeRemaining / 60)}m left`
         };
     }
 
@@ -1172,8 +1251,9 @@ class OpportunityDetector {
         const unc = this.detectUncertainty(asset, data.yesPrice, data.noPrice, data.volatility, data.regime);
         if (unc) opportunities.push({ ...unc, priority: 4 });
 
-        // Momentum
-        const mom = this.detectMomentum(asset, data.elapsed, data.history, data.votes, data.consensusRatio, data.force, data.atr);
+        // Momentum (pass market data for odds alignment check)
+        const market = { yesPrice: data.yesPrice, noPrice: data.noPrice };
+        const mom = this.detectMomentum(asset, data.elapsed, data.history, data.votes, data.consensusRatio, data.force, data.atr, market);
         if (mom) opportunities.push({ ...mom, priority: 5 });
 
         // Sort by priority (lower = higher priority)
@@ -2544,58 +2624,34 @@ async function fetchFundingRates() {
 // ==================== PERSISTENCE (REDIS-BACKED) ====================
 const DB_FILE = 'deity_state.json';
 
-// ==================== HTTP PRICE FALLBACK (When WebSocket fails) ====================
-// Uses CoinGecko API which provides Chainlink-aggregated prices
-async function fetchLivePrices() {
-    try {
-        // CoinGecko free API - provides market prices that are very close to Chainlink
-        // These are aggregated from multiple exchanges, similar to Chainlink's approach
-        const url = 'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,ripple&vs_currencies=usd';
-        const data = await fetchJSON(url);
+// ==================== PRICE VALIDATION (Chainlink-Only) ====================
+// Polymarket outcomes are determined by Chainlink - DO NOT use other price sources!
+async function validatePrices() {
+    const now = Date.now();
+    let staleAssets = [];
 
-        if (data) {
-            const priceMap = {
-                BTC: data.bitcoin?.usd,
-                ETH: data.ethereum?.usd,
-                SOL: data.solana?.usd,
-                XRP: data.ripple?.usd
-            };
+    for (const asset of ASSETS) {
+        const lastPriceTime = priceHistory[asset]?.length > 0 ?
+            priceHistory[asset][priceHistory[asset].length - 1]?.t : 0;
+        const age = now - lastPriceTime;
 
-            const now = Date.now();
-            for (const [asset, price] of Object.entries(priceMap)) {
-                if (price && price > 0) {
-                    // Only update if we don't have a recent WebSocket price
-                    const lastWsUpdate = priceHistory[asset]?.length > 0 ?
-                        priceHistory[asset][priceHistory[asset].length - 1]?.t : 0;
-                    const wsAge = now - lastWsUpdate;
-
-                    // Use HTTP price if WebSocket data is stale (>10s) or missing
-                    if (!livePrices[asset] || wsAge > 10000) {
-                        livePrices[asset] = price;
-                        lastUpdateTimestamp = now;
-                        priceHistory[asset].push({ t: now, p: price });
-                        if (priceHistory[asset].length > 500) priceHistory[asset].shift();
-
-                        // Log only first fetch per asset (avoid spam)
-                        if (!global.httpPriceLogged) global.httpPriceLogged = {};
-                        if (!global.httpPriceLogged[asset]) {
-                            log(`📡 HTTP Fallback Price: ${asset} = $${price.toFixed(2)}`, asset);
-                            global.httpPriceLogged[asset] = true;
-                        }
-                    }
-                }
-            }
+        // Warn if Chainlink WS hasn't sent data in >30 seconds
+        if (!livePrices[asset] || age > 30000) {
+            staleAssets.push(asset);
         }
-    } catch (e) {
-        log(`⚠️ CoinGecko fetch failed: ${e.message}`);
     }
 
-    // CRITICAL: Initialize checkpoints if we have prices but no checkpoints
+    if (staleAssets.length > 0) {
+        log(`⚠️ CHAINLINK STALE: ${staleAssets.join(', ')} - No WS data for >30s. DO NOT TRADE!`);
+        log(`   Waiting for Chainlink WS to reconnect...`);
+    }
+
+    // CRITICAL: Initialize checkpoints if we have Chainlink prices but no checkpoints
     const cp = getCurrentCheckpoint();
     for (const asset of ASSETS) {
         if (!checkpointPrices[asset] && livePrices[asset]) {
             checkpointPrices[asset] = livePrices[asset];
-            log(`🔄 Checkpoint initialized: ${asset} = $${livePrices[asset].toFixed(2)}`, asset);
+            log(`🔄 Checkpoint initialized from Chainlink: ${asset} = $${livePrices[asset].toFixed(2)}`, asset);
         }
     }
 }
@@ -4403,12 +4459,12 @@ async function startup() {
     fetchFearGreedIndex();
     fetchFundingRates();
 
-    // CRITICAL: Fetch live prices immediately via HTTP (WebSocket may not connect)
-    await fetchLivePrices();
-    log('📈 Initial prices fetched via HTTP fallback');
+    // CHAINLINK-ONLY: Validate prices (no external HTTP sources)
+    await validatePrices();
+    log('📈 Waiting for Chainlink WS prices (no HTTP fallback)');
 
-    // Periodic price refresh (every 5 seconds if WebSocket fails)
-    setInterval(fetchLivePrices, 5000);
+    // Periodic price validation (every 5 seconds - warns if stale, does NOT fetch external data)
+    setInterval(validatePrices, 5000);
 
     setInterval(fetchFearGreedIndex, 300000);
     setInterval(fetchFundingRates, 300000);
