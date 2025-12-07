@@ -515,14 +515,21 @@ class TradeExecutor {
                 // Initialize CLOB Client
                 // CRITICAL FIX: creds is 4th param (not 5th)
                 // ApiKeyCreds interface uses 'key' not 'apiKey'
+                // SANITIZE: Remove any non-printable ASCII characters from credentials
+                const sanitizedPassphrase = CONFIG.POLYMARKET_PASSPHRASE.replace(/[^\x20-\x7E]/g, '');
+
+                if (sanitizedPassphrase !== CONFIG.POLYMARKET_PASSPHRASE) {
+                    log(`⚠️ Passphrase had invalid chars removed. Original length: ${CONFIG.POLYMARKET_PASSPHRASE.length}, New: ${sanitizedPassphrase.length}`, asset);
+                }
+
                 const clobClient = new ClobClient(
                     'https://clob.polymarket.com',
                     POLY_CHAIN_ID,
                     this.wallet,
                     {
-                        key: CONFIG.POLYMARKET_API_KEY,
-                        secret: CONFIG.POLYMARKET_SECRET,
-                        passphrase: CONFIG.POLYMARKET_PASSPHRASE
+                        key: CONFIG.POLYMARKET_API_KEY.replace(/[^\x20-\x7E]/g, ''),
+                        secret: CONFIG.POLYMARKET_SECRET.replace(/[^\x20-\x7E]/g, ''),
+                        passphrase: sanitizedPassphrase
                     }
                 );
 
@@ -653,14 +660,15 @@ class TradeExecutor {
         try {
             // CRITICAL FIX: creds is 4th param (not 5th)
             // ApiKeyCreds interface uses 'key' not 'apiKey'
+            // SANITIZE: Remove any non-printable ASCII characters from credentials
             const clobClient = new ClobClient(
                 'https://clob.polymarket.com',
                 POLY_CHAIN_ID,
                 this.wallet,
                 {
-                    key: CONFIG.POLYMARKET_API_KEY,
-                    secret: CONFIG.POLYMARKET_SECRET,
-                    passphrase: CONFIG.POLYMARKET_PASSPHRASE
+                    key: CONFIG.POLYMARKET_API_KEY.replace(/[^\x20-\x7E]/g, ''),
+                    secret: CONFIG.POLYMARKET_SECRET.replace(/[^\x20-\x7E]/g, ''),
+                    passphrase: CONFIG.POLYMARKET_PASSPHRASE.replace(/[^\x20-\x7E]/g, '')
                 }
             );
 
