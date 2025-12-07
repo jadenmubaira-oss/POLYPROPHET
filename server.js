@@ -266,6 +266,7 @@ class TradeExecutor {
         this.lastLossTime = 0;         // For cooldown tracking
         this.todayPnL = 0;             // Daily P/L tracking
         this.cachedLiveBalance = 0;    // Cached USDC balance for LIVE mode
+        this.lastGoodBalance = 0;      // Last known successful balance (prevents $0 flash)
         this.lastBalanceFetch = 0;     // Timestamp of last balance fetch
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
@@ -341,18 +342,35 @@ class TradeExecutor {
     async refreshLiveBalance() {
         if (this.mode !== 'LIVE' || !this.wallet) return;
 
-        // Only refresh if cache is older than 30 seconds
-        if (Date.now() - this.lastBalanceFetch < 30000 && this.cachedLiveBalance > 0) return;
+        // Only refresh if cache is older than 30 seconds AND we have cached balance
+        // If we have NO cached balance, always try to fetch
+        const cacheValid = Date.now() - this.lastBalanceFetch < 30000 && this.cachedLiveBalance > 0;
+        if (cacheValid) return;
+
+        // Keep track of last KNOWN GOOD balance (never $0 unless truly empty)
+        const lastGoodBalance = this.cachedLiveBalance || this.lastGoodBalance || 0;
 
         try {
             const result = await this.getUSDCBalance();
-            if (result.success) {
+            if (result.success && result.balance !== undefined) {
                 this.cachedLiveBalance = result.balance;
+                this.lastGoodBalance = result.balance; // Store as known good
                 this.lastBalanceFetch = Date.now();
                 log(`💰 Live balance updated: $${this.cachedLiveBalance.toFixed(2)}`);
+            } else {
+                // Fetch returned but wasn't successful - keep last known good
+                log(`⚠️ Balance fetch returned failure, using last known: $${lastGoodBalance.toFixed(2)}`);
+                if (lastGoodBalance > 0) {
+                    this.cachedLiveBalance = lastGoodBalance;
+                }
             }
         } catch (e) {
             log(`⚠️ Balance refresh failed: ${e.message}`);
+            // CRITICAL: Use last known good balance instead of leaving at 0
+            if (lastGoodBalance > 0) {
+                this.cachedLiveBalance = lastGoodBalance;
+                log(`   Using last known balance: $${lastGoodBalance.toFixed(2)}`);
+            }
         }
     }
 
@@ -397,6 +415,13 @@ class TradeExecutor {
             return { success: false, error: `Max exposure (${(CONFIG.RISK.maxTotalExposure * 100).toFixed(0)}%) reached` };
         }
 
+        // 🛑 GLOBAL STOP LOSS: Halt trading if day loss exceeds threshold
+        const maxDayLoss = bankroll * CONFIG.RISK.globalStopLoss;
+        if (this.todayPnL < -maxDayLoss) {
+            log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of bankroll`, asset);
+            return { success: false, error: `Global stop loss triggered - trading halted for the day` };
+        }
+
         // Calculate position size (mode-specific)
         // CRITICAL FIX: Manual trades use user-specified size
         let size;
@@ -404,24 +429,58 @@ class TradeExecutor {
             size = options.manualSize;
             log(`📝 Using manual size: $${size.toFixed(2)}`, asset);
         } else {
+            // SMART SIZING: Scale percentage based on bankroll
+            // For small bankrolls: use minimum viable size
+            // For large bankrolls: use percentage-based sizing
+            const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
+            const MAX_FRACTION = 0.30; // Never risk more than 30% on one trade
+
+            // Calculate base percentage
+            let basePct;
             switch (mode) {
                 case 'ORACLE':
-                    size = Math.min(bankroll * 0.10, bankroll * (confidence * 0.15));
+                    basePct = Math.min(0.15, confidence * 0.15); // Up to 15% at max confidence
                     break;
                 case 'SCALP':
-                    size = bankroll * 0.05; // Smaller for scalps
+                    basePct = 0.08; // 8% for scalps - quick in/out
                     break;
                 case 'ARBITRAGE':
                 case 'UNCERTAINTY':
+                    basePct = 0.08;
+                    break;
                 case 'MOMENTUM':
-                    size = bankroll * 0.05;
+                    basePct = 0.10; // 10% for momentum - confident trades
                     break;
                 default:
-                    size = bankroll * 0.05;
+                    basePct = 0.08;
+            }
+
+            // Calculate size based on actual bankroll
+            size = bankroll * basePct;
+
+            // SMART MINIMUM: Ensure we meet $1.10 minimum
+            // If percentage-based size is too small, use minimum (if affordable)
+            if (size < MIN_ORDER) {
+                if (bankroll >= MIN_ORDER * 1.5) {
+                    // Have enough for minimum + buffer, use minimum
+                    size = MIN_ORDER;
+                    log(`📊 Size bumped to minimum $${MIN_ORDER} (bankroll: $${bankroll.toFixed(2)})`, asset);
+                } else {
+                    // Too small to trade safely
+                    log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
+                    return { success: false, error: `Need at least $${(MIN_ORDER * 1.5).toFixed(2)} to trade` };
+                }
+            }
+
+            // CAP: Never risk more than MAX_FRACTION of bankroll
+            const maxSize = bankroll * MAX_FRACTION;
+            if (size > maxSize) {
+                size = maxSize;
+                log(`📊 Size capped to ${(MAX_FRACTION * 100).toFixed(0)}% of bankroll: $${size.toFixed(2)}`, asset);
             }
         }
 
-        // MINIMUM ORDER SIZE: $1.10 floor (Polymarket requires $1 minimum + fee buffer)
+        // FINAL MINIMUM CHECK: Polymarket requires $1 minimum
         const minDollars = 1.10;
         if (size < minDollars) {
             log(`❌ TRADE BLOCKED: $${size.toFixed(2)} below $${minDollars} minimum`, asset);
@@ -957,6 +1016,15 @@ class TradeExecutor {
                     break;
             }
 
+            // 🔴 CRITICAL: FORCE EXIT 30 SECONDS BEFORE CYCLE END
+            // For LIVE trading: exit early to guarantee sell execution and avoid resolution edge cases
+            // ORACLE mode holds to resolution (binary win/loss), all other modes exit early
+            if (timeToEnd <= 30 && pos.mode !== 'ORACLE') {
+                log(`⏰ PRE-RESOLUTION EXIT: ${pos.mode} ${pos.side} position closing at ${(currentOdds * 100).toFixed(1)}%`, pos.asset);
+                this.closePosition(id, currentOdds, 'PRE-RESOLUTION EXIT (30s)');
+                return;
+            }
+
             // Universal stop loss (all modes except ORACLE and MANUAL - user controls manual trades)
             if (pos.mode !== 'ORACLE' && pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
                 this.closePosition(id, currentOdds, 'STOP LOSS');
@@ -1201,11 +1269,38 @@ class TradeExecutor {
 class OpportunityDetector {
     constructor() {
         this.lastScans = {};
+        // Track trades per cycle per asset per mode to prevent duplicate entries
+        this.tradesThisCycle = {}; // { 'BTC_MOMENTUM': timestamp, ... }
+        this.currentCycleStart = 0;
+    }
+
+    // Check and reset cycle tracking
+    checkCycleReset() {
+        const now = Math.floor(Date.now() / 1000);
+        const cycleStart = now - (now % 900); // 15 min cycles
+        if (cycleStart !== this.currentCycleStart) {
+            this.tradesThisCycle = {}; // Reset at new cycle
+            this.currentCycleStart = cycleStart;
+        }
+    }
+
+    // Check if already traded this mode+asset this cycle
+    hasTraded(asset, mode) {
+        this.checkCycleReset();
+        return !!this.tradesThisCycle[`${asset}_${mode}`];
+    }
+
+    // Mark as traded
+    markTraded(asset, mode) {
+        this.checkCycleReset();
+        this.tradesThisCycle[`${asset}_${mode}`] = Date.now();
     }
 
     // MODE 2: ARBITRAGE - Detect mispriced odds
     detectArbitrage(asset, confidence, yesPrice, noPrice, side, elapsed = 0) {
         if (!CONFIG.ARBITRAGE.enabled) return null;
+        // ONE TRADE PER CYCLE PER ASSET
+        if (this.hasTraded(asset, 'ARBITRAGE')) return null;
 
         // LATE CYCLE CUTOFF: REMOVED - User requested late entries if confident
         // Bot learns from all trades, even late-cycle ones
@@ -1229,6 +1324,8 @@ class OpportunityDetector {
     // MODE 3: SCALP - Detect ultra-cheap entry
     detectScalp(asset, confidence, yesPrice, noPrice) {
         if (!CONFIG.SCALP.enabled) return null;
+        // ONE TRADE PER CYCLE PER ASSET
+        if (this.hasTraded(asset, 'SCALP')) return null;
 
         // Calculate expectation for each side
         const yesExpect = confidence;
@@ -1266,6 +1363,8 @@ class OpportunityDetector {
     // MODE 4: UNCERTAINTY - Trade volatility/extreme odds
     detectUncertainty(asset, yesPrice, noPrice, volatility, regime) {
         if (!CONFIG.UNCERTAINTY.enabled) return null;
+        // ONE TRADE PER CYCLE PER ASSET
+        if (this.hasTraded(asset, 'UNCERTAINTY')) return null;
         if (volatility < CONFIG.UNCERTAINTY.volatilityMin) return null;
 
         // Extreme YES odds - bet on reversion (buy NO)
@@ -1295,6 +1394,12 @@ class OpportunityDetector {
     detectMomentum(asset, elapsed, priceHistory, votes, consensusRatio, force, atr, market = null) {
         if (!CONFIG.MOMENTUM.enabled) return null;
         if (elapsed < CONFIG.MOMENTUM.minElapsed) return null;
+
+        // ONE MOMENTUM TRADE PER CYCLE PER ASSET
+        // User feedback: Momentum was firing too frequently
+        if (this.hasTraded(asset, 'MOMENTUM')) {
+            return null; // Already traded momentum this cycle for this asset
+        }
 
         // SMART GATE 1: Check consensus
         if (consensusRatio < CONFIG.MOMENTUM.minConsensus) return null;
@@ -2338,7 +2443,12 @@ class SupremeBrain {
                         log(`📡 ${opp.mode} OPPORTUNITY: ${opp.direction} - ${opp.reason}`, this.asset);
 
                         const entryPrice = opp.direction === 'UP' ? yesPrice : noPrice;
-                        tradeExecutor.executeTrade(this.asset, opp.direction, opp.mode, finalConfidence, entryPrice, market);
+                        const result = await tradeExecutor.executeTrade(this.asset, opp.direction, opp.mode, finalConfidence, entryPrice, market);
+
+                        // Mark as traded if successful to prevent duplicate trades this cycle
+                        if (result && result.success) {
+                            opportunityDetector.markTraded(this.asset, opp.mode);
+                        }
                     }
                 }
             }
@@ -2346,7 +2456,8 @@ class SupremeBrain {
             // ==================== LATE CYCLE OPPORTUNITY DETECTION ====================
             // User Request: "odds can revert back to 50/50 in final few mins allowing another opportunity"
             // This detects when odds return to near 50/50 late in cycle with high confidence
-            if (currentMarkets[this.asset] && elapsed >= 540 && elapsed <= 780) { // 9-13 min window
+            // MUST CHECK: Only if ORACLE mode is enabled
+            if (CONFIG.ORACLE.enabled && currentMarkets[this.asset] && elapsed >= 540 && elapsed <= 780) { // 9-13 min window
                 const market = currentMarkets[this.asset];
                 const yesP = market.yesPrice;
                 const noP = market.noPrice;
