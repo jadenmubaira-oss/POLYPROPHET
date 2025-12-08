@@ -607,6 +607,25 @@ Options:
 2. Clear browser cache
 3. Try incognito mode
 
+#### ❌ "SyntaxError: Invalid or unexpected token" in Browser Console
+
+**Problem**: Dashboard won't load, predictions don't appear, buttons unresponsive.
+
+**Cause**: Template literal escape bug in JavaScript sent to browser. When Node.js processes template literals (backticks), `\n` becomes a physical newline, breaking JavaScript string syntax.
+
+**Solution** (Fixed 2025-12-08):
+In `server.js`, search for any `alert()` or string containing `\n` inside a template literal and change:
+- `'\n\n'` → `'\\n\\n'` (double escape the backslash)
+
+Example fix at line 3788:
+```javascript
+// WRONG: \n becomes physical newline
+alert('❌ Error' + (flag ? '\n\nDetails' : ''));
+
+// CORRECT: \\n sends literal \n to browser  
+alert('❌ Error' + (flag ? '\\n\\nDetails' : ''));
+```
+
 ### Performance Optimization
 
 | Issue | Solution |
