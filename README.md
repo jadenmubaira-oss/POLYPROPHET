@@ -235,7 +235,7 @@ npm install express ethers@5 ioredis @polymarket/clob-client axios https-proxy-a
 ```
 
 ### 3. Create server.js
-The main file (~4,900 lines) contains:
+The main file (~5,000+ lines) contains:
 - Express server with basic auth
 - WebSocket connection to Polymarket (Chainlink price feed)
 - 8-model ensemble prediction engine
@@ -251,6 +251,130 @@ Copy the environment variables section above and fill in your credentials.
 ```bash
 npm start
 ```
+
+---
+
+## 🧬 Complete System Architecture (For Recreation)
+
+This section documents the entire bot architecture for anyone wanting to understand, audit, or recreate the system from scratch.
+
+### Core Goal
+**Turn £10 into £1,000,000** through strategic compounding on Polymarket's 15-minute crypto checkpoint markets. Only trade CONVICTION tier signals with 95%+ target accuracy.
+
+### Data Flow
+```
+Chainlink WebSocket → priceHistory → SupremeBrain → Prediction → TradeExecutor → Polymarket CLOB
+         ↓                               ↓
+   checkpointPrices              8-Model Ensemble Voting
+                                        ↓
+                                 Confidence + Tier Assignment
+                                        ↓
+                                 Trade Decision (if passes thresholds)
+```
+
+### The 8 Prediction Models
+
+| # | Model | Logic | Weight Range |
+|---|-------|-------|--------------|
+| 1 | **Genesis Protocol** | Early cycle momentum detection using Kalman-filtered force vs ATR | 2-12% |
+| 2 | **Physicist** | Velocity/acceleration derivatives with fakeout detection | 10-20% |
+| 3 | **Order Book** | Market odds velocity + orderflow imbalance + extreme reversion | 5-15% |
+| 4 | **Historian** | DTW pattern matching against past cycles (Redis-persisted) | 8-18% |
+| 5 | **BTC Correlation** | Cross-asset momentum (alts follow BTC) | 5-12% |
+| 6 | **Macro** | Fear & Greed Index sentiment overlay | 3-8% |
+| 7 | **Funding Rates** | Binance perpetual futures sentiment | 3-10% |
+| 8 | **Volume Analysis** | Volume anomaly detection vs recent average | 5-12% |
+
+### Adaptive Learning Loop
+After each 15-minute cycle:
+1. Evaluate outcome (was final price > or < checkpoint?)
+2. Record each model's vote vs actual outcome
+3. Recalculate weights: accurate models get higher weights (up to 2x), inaccurate get penalized (down to 0.2x)
+4. Store pattern in Historian for future matching
+5. Update regime awareness (TRENDING/CHOPPY/VOLATILE)
+
+### Key Classes
+
+| Class | Purpose |
+|-------|---------|
+| `TradeExecutor` | Position management, live/paper trading, balance caching, sell retry, pending sells recovery |
+| `SupremeBrain` | Per-asset prediction engine with 8-model ensemble, Kalman filters, adaptive weights |
+| `OpportunityDetector` | Multi-mode scanning (ORACLE/ARBITRAGE/SCALP/UNCERTAINTY/MOMENTUM) |
+| `MathLib` | Technical analysis (ATR, derivatives, DTW, regime detection) |
+| `KalmanFilter` | Noise reduction for price and derivative smoothing |
+
+### Failsafe Mechanisms
+
+| Failsafe | Implementation |
+|----------|----------------|
+| **Order Fill Verification** | 3 retries over 6s after placing order |
+| **Sell Retry** | 5 attempts with 3s delays before marking as pendingSell |
+| **Pending Sells Recovery** | Stores tokenId, conditionId, PolygonScan link, manual instructions |
+| **Global Stop Loss** | Halts trading at 20% daily loss (resets each day) |
+| **Balance Caching** | Caches last known balance, never shows $0 flash |
+| **Chainlink Heartbeat** | 60s timeout triggers auto-reconnect |
+| **Cycle Commitment Lock** | Once committed to a direction in first 5min, cannot flip |
+| **Late Cycle Guard** | ARBITRAGE: 13min, MOMENTUM: 12min cutoffs |
+| **Stale Data Guard** | Requires price data < 3s old for trading |
+
+### API Credential Flow
+```
+Environment Variables (.env)
+         ↓
+CONFIG object (with .trim() sanitization)
+         ↓
+ClobClient initialization (4 params: URL, chainId, wallet, {key, secret, passphrase})
+         ↓
+Redis persistence (credentials masked, overwritten by env vars on load)
+```
+
+### UI Components
+- **Dashboard** (`/`): 4 asset cards, positions panel, trade history, nav with Wallet/Settings/Guide/Recovery
+- **Settings** (`/settings`): Mode toggles, parameter config, API credentials
+- **Guide** (`/guide`): Comprehensive documentation of all 5 trading modes
+- **Recovery Modal**: Failed sells with retry buttons and manual recovery instructions
+
+### Environment Variables Reference
+
+```env
+# REQUIRED for Live Trading
+POLYMARKET_API_KEY=xxx        # From polymarket.com/api
+POLYMARKET_SECRET=xxx         # API secret
+POLYMARKET_PASSPHRASE=xxx     # API passphrase
+POLYMARKET_ADDRESS=0x...       # Your wallet address
+POLYMARKET_PRIVATE_KEY=0x...   # Your wallet private key
+
+# REQUIRED
+TRADE_MODE=PAPER              # PAPER or LIVE
+AUTH_USERNAME=admin           # Dashboard login
+AUTH_PASSWORD=changeme        # Dashboard password
+
+# OPTIONAL
+PAPER_BALANCE=1000            # Starting paper balance
+LIVE_BALANCE=1000             # Fallback balance for LIVE mode
+MAX_POSITION_SIZE=0.10        # Max 10% per trade
+REDIS_URL=redis://...         # For state persistence
+PROXY_URL=http://...          # For cloud deployments (bypass Cloudflare)
+```
+
+### Prompt to Recreate This Bot
+
+If feeding to an AI to recreate:
+
+> Create a Node.js trading bot for Polymarket's 15-minute cryptocurrency checkpoint markets. The bot should:
+>
+> 1. Connect to Polymarket's Chainlink WebSocket for real-time BTC/ETH/SOL/XRP prices
+> 2. Track checkpoint prices at :00/:15/:30/:45 minute boundaries
+> 3. Implement an 8-model ensemble prediction engine (Genesis Protocol, Physicist, Order Book, Historian, BTC Correlation, Macro, Funding, Volume) with adaptive weights that learn from outcomes
+> 4. Support 5 trading modes: ORACLE (hold to resolution), ARBITRAGE (mispricing), SCALP (cheap entry), UNCERTAINTY (reversion), MOMENTUM (mid-cycle trends)
+> 5. Include TradeExecutor class with paper/live trading, sell retry logic with 5 attempts, pending sells recovery with full redemption info
+> 6. Use Kalman filters for noise reduction, detect market regimes (trending/choppy/volatile)
+> 7. Include cycle commitment lock to prevent prediction flip-flopping
+> 8. Have a web dashboard with real-time updates, settings modal, wallet management, and recovery page
+> 9. Support Redis for persistence with memory fallback
+> 10. Use proxy agent for CLOB client (bypass Cloudflare), direct agent for RPC calls
+> 11. Target 95%+ accuracy on CONVICTION tier trades for £10 to £1,000,000 compounding strategy
+
 
 ---
 

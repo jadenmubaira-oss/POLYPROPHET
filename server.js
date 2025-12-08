@@ -3443,15 +3443,21 @@ app.get('/', (req, res) => {
                 
                 if (!data) { console.error('No data received'); return; }
                 
+                // RENDER PREDICTION CARDS
                 const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
                 let html = '';
                 assets.forEach(asset => {
                     try {
                         const d = data[asset];
-                        if (!d) { console.log('No data for', asset); return; }
+                        // Handle missing data gracefully - show waiting card
+                        if (!d || (!d.live && !d.checkpoint)) {
+                            html += '<div class="asset-card"><div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price" style="color:#888;">Awaiting data...</span></div>' +
+                                '<div class="prediction"><div class="prediction-value WAIT" style="font-size:1.5em;">⏳ WAITING</div></div>' +
+                                '<div style="text-align:center;color:#666;padding:20px;">Waiting for Chainlink price feed...</div></div>';
+                            return;
+                        }
                         const conf = ((d.confidence || 0) * 100).toFixed(0);
                         const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
-                        // XRP needs more decimals since price is ~$2 vs BTC ~$100k
                         const priceDecimals = asset === 'XRP' ? 4 : 2;
                         const price = d.live ? d.live.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
                         const change = d.checkpoint && d.live ? (((d.live / d.checkpoint) - 1) * 100).toFixed(3) : 0;
@@ -3459,7 +3465,6 @@ app.get('/', (req, res) => {
                         const winRate = stats.total > 0 ? ((stats.wins / stats.total) * 100).toFixed(0) : '--';
                         const marketUrl = d.market?.marketUrl || '#';
                         const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
-                        // Rolling W/L tracker for last 10 predictions
                         const recentOutcomes = d.recentOutcomes || [];
                         let wlTracker = '';
                         for (let i = 0; i < 10; i++) {
@@ -3473,25 +3478,26 @@ app.get('/', (req, res) => {
                         const recentTotal = recentOutcomes.length;
                         const yesOdds = d.market && d.market.yesPrice ? (d.market.yesPrice * 100).toFixed(1) : '--';
                         const noOdds = d.market && d.market.noPrice ? (d.market.noPrice * 100).toFixed(1) : '--';
-                html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
-                    '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
-                    '<div class="prediction"><div class="prediction-value ' + (d.prediction || 'WAIT') + '">' + (d.prediction || 'WAIT') + '</div></div>' +
-                    '<div class="confidence-bar"><div class="confidence-fill ' + confClass + '" style="width:' + conf + '%"></div></div>' +
-                    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + (d.tier || 'NONE') + '">' + (d.tier || 'NONE') + (d.locked ? ' 🔒' : '') + '</span></div>' +
-                    '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;margin-top:8px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
-                    '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
-                    '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
-                    '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + yesOdds + '¢</div></div>' +
-                    '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + noOdds + '¢</div></div></div>' +
-                    '<div style="text-align:center;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:8px;font-size:1.1em;letter-spacing:2px;"><span style="color:#888;font-size:0.7em;display:block;margin-bottom:2px;">Last 10: ' + recentWins + '/' + recentTotal + '</span>' + wlTracker + '</div>' +
-                    '<div style="display:flex;gap:8px;margin-top:10px;">' +
-                    '<button onclick="manualBuy(\\'' + asset + '\\', \\'UP\\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#00ff88,#00cc66);border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer;font-size:0.85em;">📈 BUY UP<br><small>' + yesOdds + '¢</small></button>' +
-                    '<button onclick="manualBuy(\\'' + asset + '\\', \\'DOWN\\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#ff4466,#cc2244);border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;font-size:0.85em;">📉 BUY DOWN<br><small>' + noOdds + '¢</small></button>' +
-                    '</div>' +
-                    '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
+                        html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
+                            '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
+                            '<div class="prediction"><div class="prediction-value ' + (d.prediction || 'WAIT') + '">' + (d.prediction || 'WAIT') + '</div></div>' +
+                            '<div class="confidence-bar"><div class="confidence-fill ' + confClass + '" style="width:' + conf + '%"></div></div>' +
+                            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + (d.tier || 'NONE') + '">' + (d.tier || 'NONE') + (d.locked ? ' 🔒' : '') + '</span></div>' +
+                            '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;margin-top:8px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
+                            '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
+                            '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
+                            '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + yesOdds + '¢</div></div>' +
+                            '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + noOdds + '¢</div></div></div>' +
+                            '<div style="text-align:center;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:8px;font-size:1.1em;letter-spacing:2px;"><span style="color:#888;font-size:0.7em;display:block;margin-bottom:2px;">Last 10: ' + recentWins + '/' + recentTotal + '</span>' + wlTracker + '</div>' +
+                            '<div style="display:flex;gap:8px;margin-top:10px;">' +
+                            '<button onclick="manualBuy(\'' + asset + '\', \'UP\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#00ff88,#00cc66);border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer;font-size:0.85em;">📈 BUY UP<br><small>' + yesOdds + '¢</small></button>' +
+                            '<button onclick="manualBuy(\'' + asset + '\', \'DOWN\')" style="flex:1;padding:8px;background:linear-gradient(135deg,#ff4466,#cc2244);border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;font-size:0.85em;">📉 BUY DOWN<br><small>' + noOdds + '¢</small></button>' +
+                            '</div>' +
+                            '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
                     } catch (assetErr) { console.error('Error rendering asset:', asset, assetErr); }
                 });
                 document.getElementById('predictionsGrid').innerHTML = html || '<div style="text-align:center;padding:40px;color:#ff6666;">Error loading predictions</div>';
+                
                 const t = data._trading;
                 if (t) {
                     document.getElementById('balance').textContent = '$' + (t.balance || 0).toFixed(2);
