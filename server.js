@@ -773,8 +773,22 @@ class TradeExecutor {
                 }
             );
 
-            // Sell at market price (low price to ensure fill)
-            const sellPrice = 0.01;
+            // 🔮 DYNAMIC SELL PRICE: Fetch best bid for better fills
+            let sellPrice = 0.01; // Fallback minimum
+            try {
+                const orderbook = await clobClient.getOrderBook(position.tokenId);
+                if (orderbook && orderbook.bids && orderbook.bids.length > 0) {
+                    // Sort bids descending and take best (highest) bid
+                    const sortedBids = [...orderbook.bids].sort((a, b) => parseFloat(b.price) - parseFloat(a.price));
+                    const bestBid = parseFloat(sortedBids[0].price);
+                    // Sell slightly below best bid to ensure fill
+                    sellPrice = Math.max(0.01, bestBid - 0.01);
+                    log(`📊 Best bid: ${(bestBid * 100).toFixed(1)}¢, selling at ${(sellPrice * 100).toFixed(1)}¢`, position.asset);
+                }
+            } catch (obErr) {
+                log(`⚠️ Orderbook fetch failed, using minimum price: ${obErr.message}`, position.asset);
+            }
+
             const order = await clobClient.createOrder({
                 tokenID: position.tokenId,
                 price: sellPrice,
@@ -3771,7 +3785,7 @@ app.get('/', (req, res) => {
                     alert('✅ Sell order executed' + (result.paper ? ' (paper)' : ''));
                     fetchData();
                 } else {
-                    alert('❌ Sell failed: ' + result.error + (result.needsManualIntervention ? '\n\nCheck /api/pending-sells for stuck positions.' : ''));
+                    alert('❌ Sell failed: ' + result.error + (result.needsManualIntervention ? '\\n\\nCheck /api/pending-sells for stuck positions.' : ''));
                 }
             } catch (e) {
                 alert('❌ Error: ' + e.message);
