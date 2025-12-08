@@ -266,19 +266,68 @@ const CONFIG = {
 };
 
 // ==================== TELEGRAM NOTIFICATION HELPER ====================
-async function sendTelegramNotification(message) {
+async function sendTelegramNotification(message, silent = false) {
     if (!CONFIG.TELEGRAM.enabled || !CONFIG.TELEGRAM.botToken || !CONFIG.TELEGRAM.chatId) return;
     try {
         const url = `https://api.telegram.org/bot${CONFIG.TELEGRAM.botToken}/sendMessage`;
         await axios.post(url, {
             chat_id: CONFIG.TELEGRAM.chatId,
             text: message,
-            parse_mode: 'HTML'
+            parse_mode: 'HTML',
+            disable_notification: silent
         }, { timeout: 5000 });
         log(`📱 Telegram notification sent`);
     } catch (e) {
         log(`⚠️ Telegram notification failed: ${e.message}`);
     }
+}
+
+// 📱 TELEGRAM: Styled notification builders
+function telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target) {
+    const emoji = direction === 'UP' ? '📈' : '📉';
+    const modeEmoji = mode === 'ORACLE' ? '🔮' : mode === 'SCALP' ? '🎯' : mode === 'ARBITRAGE' ? '📊' : mode === 'MOMENTUM' ? '🚀' : '🌊';
+    let msg = `${modeEmoji} <b>NEW ${mode} TRADE</b> ${emoji}\n`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b> ${direction}\n`;
+    msg += `💰 Entry: <code>${(entryPrice * 100).toFixed(1)}¢</code>\n`;
+    msg += `💵 Size: <code>$${size.toFixed(2)}</code>\n`;
+    if (stopLoss) msg += `🛑 Stop: <code>${(stopLoss * 100).toFixed(1)}¢</code>\n`;
+    if (target) msg += `🎯 Target: <code>${(target * 100).toFixed(1)}¢</code>\n`;
+    msg += `━━━━━━━━━━━━━━━━━`;
+    return msg;
+}
+
+function telegramTradeClose(asset, direction, mode, entryPrice, exitPrice, pnl, pnlPercent, reason, balance) {
+    const won = pnl >= 0;
+    const emoji = won ? '✅' : '❌';
+    const modeEmoji = mode === 'ORACLE' ? '🔮' : mode === 'SCALP' ? '🎯' : mode === 'ARBITRAGE' ? '📊' : mode === 'MOMENTUM' ? '🚀' : '🌊';
+    let msg = `${emoji} <b>${mode} ${direction} CLOSED</b> ${emoji}\n`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b>\n`;
+    msg += `📊 Entry: <code>${(entryPrice * 100).toFixed(1)}¢</code> → Exit: <code>${(exitPrice * 100).toFixed(1)}¢</code>\n`;
+    msg += `${won ? '💰' : '💸'} P/L: <b>${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</b> (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)\n`;
+    msg += `📋 Reason: ${reason}\n`;
+    msg += `💼 Balance: <code>$${balance.toFixed(2)}</code>\n`;
+    msg += `━━━━━━━━━━━━━━━━━`;
+    return msg;
+}
+
+function telegramSystemAlert(title, message, emoji = '⚠️') {
+    let msg = `${emoji} <b>${title}</b> ${emoji}\n`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    msg += `${message}\n`;
+    msg += `━━━━━━━━━━━━━━━━━`;
+    return msg;
+}
+
+function telegramServerStatus(status, details = '') {
+    const emoji = status === 'ONLINE' ? '🟢' : status === 'OFFLINE' ? '🔴' : '🟡';
+    let msg = `${emoji} <b>SERVER ${status}</b>\n`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    msg += `🕐 Time: ${new Date().toLocaleString()}\n`;
+    if (details) msg += `📋 ${details}\n`;
+    msg += `━━━━━━━━━━━━━━━━━`;
+    return msg;
 }
 
 // ==================== ENHANCED TRADE EXECUTOR (Multi-Position) ====================
@@ -582,13 +631,7 @@ class TradeExecutor {
         log(`🎯 ═══════════════════════════════════════`, asset);
 
         // 📱 TELEGRAM NOTIFICATION: Trade opened
-        sendTelegramNotification(
-            `🎯 <b>NEW ${mode} TRADE</b>\\n` +
-            `${asset} ${direction} @ ${(entryPrice * 100).toFixed(1)}¢\\n` +
-            `Size: $${size.toFixed(2)}` +
-            (stopLoss ? `\\nStop: ${(stopLoss * 100).toFixed(1)}¢` : '') +
-            (target ? `\\nTarget: ${(target * 100).toFixed(1)}¢` : '')
-        );
+        sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target));
 
         if (this.mode === 'PAPER') {
             const balanceBefore = this.paperBalance;
@@ -1019,13 +1062,7 @@ class TradeExecutor {
         log(`${emoji} ═══════════════════════════════════════`, pos.asset);
 
         // 📱 TELEGRAM NOTIFICATION: Trade closed
-        sendTelegramNotification(
-            `${emoji} <b>${pos.mode} ${pos.side}</b> ${pos.asset}\\n` +
-            `Entry: ${(pos.entry * 100).toFixed(1)}¢ → Exit: ${(exitPrice * 100).toFixed(1)}¢\\n` +
-            `P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)\\n` +
-            `Reason: ${reason}\\n` +
-            `Balance: $${this.paperBalance.toFixed(2)}`
-        );
+        sendTelegramNotification(telegramTradeClose(pos.asset, pos.side, pos.mode, pos.entry, exitPrice, pnl, pnlPercent, reason, this.paperBalance));
 
         // Update trade history
         const trade = this.tradeHistory.find(t => t.id === positionId);
@@ -3387,6 +3424,14 @@ app.get('/', (req, res) => {
                         </div>
                         <small style="color:#888;">Higher = more trades, lower thresholds (quality still protected)</small>
                     </div>
+                    <div style="margin-top:10px;padding:8px;background:rgba(255,0,0,0.1);border-radius:4px;border:1px solid rgba(255,0,0,0.3);">
+                        <label style="color:#ff6666;display:block;margin-bottom:6px;"><input type="checkbox" id="oracleStopLossEnabled"> 🛑 Enable Emergency Stop Loss</label>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <label style="color:#888;font-size:0.85em;min-width:70px;">Loss %:</label>
+                            <input type="number" id="oracleStopLoss" value="25" min="10" max="50" step="5" style="width:80px;padding:5px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;">
+                            <small style="color:#888;">Exit ORACLE trades if they drop this much (default: hold to resolution)</small>
+                        </div>
+                    </div>
                 </div>
                 <!-- SCALP -->
                 <div style="margin-bottom:12px;padding:10px;background:rgba(255,102,0,0.1);border-left:3px solid #ff6600;border-radius:4px;">
@@ -3692,6 +3737,9 @@ app.get('/', (req, res) => {
                     const aggression = data.ORACLE.aggression || 50;
                     document.getElementById('oracleAggression').value = aggression;
                     document.getElementById('aggressionValue').textContent = aggression + '%';
+                    // 🛑 ORACLE STOP LOSS
+                    document.getElementById('oracleStopLossEnabled').checked = data.ORACLE.stopLossEnabled || false;
+                    document.getElementById('oracleStopLoss').value = (data.ORACLE.stopLoss || 0.25) * 100;
                 }
                 if (data.SCALP) { document.getElementById('scalpEnabled').checked = data.SCALP.enabled !== false; document.getElementById('scalpMaxEntry').value = (data.SCALP.maxEntryPrice || 0.20) * 100; document.getElementById('scalpTarget').value = data.SCALP.targetMultiple || 2.0; }
                 if (data.ARBITRAGE) { document.getElementById('arbEnabled').checked = data.ARBITRAGE.enabled !== false; document.getElementById('arbMispricing').value = data.ARBITRAGE.minMispricing || 0.15; document.getElementById('arbTarget').value = data.ARBITRAGE.targetProfit || 0.50; document.getElementById('arbStopLoss').value = data.ARBITRAGE.stopLoss || 0.30; }
@@ -3769,7 +3817,9 @@ app.get('/', (req, res) => {
                     maxOdds: parseFloat(document.getElementById('oracleMaxOdds').value), 
                     requireTrending: false, 
                     requireMomentum: false, 
-                    minStability: 3 
+                    minStability: 3,
+                    stopLossEnabled: document.getElementById('oracleStopLossEnabled').checked,
+                    stopLoss: parseFloat(document.getElementById('oracleStopLoss').value) / 100
                 },
                 SCALP: { enabled: document.getElementById('scalpEnabled').checked, maxEntryPrice: parseFloat(document.getElementById('scalpMaxEntry').value) / 100, targetMultiple: parseFloat(document.getElementById('scalpTarget').value), requireLean: true, exitBeforeEnd: 120 },
                 ARBITRAGE: { enabled: document.getElementById('arbEnabled').checked, minMispricing: parseFloat(document.getElementById('arbMispricing').value), targetProfit: parseFloat(document.getElementById('arbTarget').value), stopLoss: parseFloat(document.getElementById('arbStopLoss').value), maxHoldTime: 600 },
@@ -4159,6 +4209,14 @@ app.post('/api/toggle-stop-loss-override', (req, res) => {
     CONFIG.RISK.globalStopLossOverride = !CONFIG.RISK.globalStopLossOverride;
     const status = CONFIG.RISK.globalStopLossOverride ? 'BYPASSED' : 'ACTIVE';
     log(`🔓 Global Stop Loss Override: ${status}`);
+
+    // 📱 Telegram notification
+    if (CONFIG.RISK.globalStopLossOverride) {
+        sendTelegramNotification(telegramSystemAlert('⚠️ Stop Loss Override', 'Global stop loss has been BYPASSED. Trading will continue even after exceeding daily loss limit.'));
+    } else {
+        sendTelegramNotification(telegramSystemAlert('✅ Stop Loss Restored', 'Global stop loss is now ACTIVE. Trading will halt at 20% daily loss.'));
+    }
+
     res.json({
         success: true,
         override: CONFIG.RISK.globalStopLossOverride,
@@ -4386,6 +4444,9 @@ app.post('/api/settings', async (req, res) => {
             log(`⚠️ Failed to persist settings: ${e.message}`);
         }
     }
+
+    // 📱 Telegram: Silent notification for settings update (won't ding user's phone)
+    sendTelegramNotification(telegramSystemAlert('⚙️ Settings Updated', `${Object.keys(req.body).join(', ')} values changed`), true);
 
     res.json({ success: true, message: 'Settings updated and persisted', reloadRequired });
 });
@@ -5220,6 +5281,12 @@ async function startup() {
     server.listen(PORT, () => {
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);
         log(`🌐 Access at: http://localhost:${PORT}`);
+
+        // 📱 Telegram: Server Online notification
+        sendTelegramNotification(telegramServerStatus('online', {
+            mode: CONFIG.TRADE_MODE,
+            balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : null
+        }));
     });
 }
 
