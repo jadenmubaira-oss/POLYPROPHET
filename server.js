@@ -3377,15 +3377,19 @@ app.get('/', (req, res) => {
     </div>
     <!-- GUIDE MODAL -->
     <div class="modal-overlay" id="guideModal">
-        <div class="modal">
+        <div class="modal" style="max-height:90vh;overflow-y:auto;">
             <div class="modal-header"><span class="modal-title">📚 Guide</span><button class="modal-close" onclick="closeModal('guideModal')">×</button></div>
             <div class="guide-section"><h3>🎯 What Is This?</h3><p>AI prediction bot for Polymarket 15-min crypto markets. 8 ML models predict BTC, ETH, SOL, XRP direction.</p></div>
-            <div class="guide-section"><h3>🔮 Trading Modes</h3>
-                <div class="mode-card oracle"><strong>ORACLE 🔮</strong> - Hold to resolution @ 92%+ confidence</div>
-                <div class="mode-card arb"><strong>ARBITRAGE 📊</strong> - Buy mispriced odds, sell when corrected</div>
-                <div class="mode-card scalp"><strong>SCALP 🎯</strong> - Buy under 20¢, exit at 2x</div>
+            <div class="guide-section"><h3>🔮 The 5 Trading Modes</h3>
+                <div class="mode-card oracle"><strong>ORACLE 🔮</strong> - Hold to resolution @ 92%+ confidence, 15%+ edge. Highest accuracy trades.</div>
+                <div class="mode-card arb"><strong>ARBITRAGE 📊</strong> - Buy mispriced odds, sell when market corrects. Exit at 50% profit or 10min.</div>
+                <div class="mode-card scalp"><strong>SCALP 🎯</strong> - Buy under 20¢, exit at 2x profit. Exits before resolution for safety.</div>
+                <div class="mode-card" style="border-left:3px solid #3399ff;"><strong>UNCERTAINTY 🌊</strong> - When odds hit 80%+, bet on reversion to 50/50. Works in choppy markets.</div>
+                <div class="mode-card" style="border-left:3px solid #ff33cc;"><strong>MOMENTUM 🚀</strong> - Ride breakouts mid-cycle. Entry after 5min with 75%+ model agreement.</div>
             </div>
+            <div class="guide-section"><h3>🎚️ Oracle Aggression</h3><p><strong>0%:</strong> Conservative - base thresholds<br><strong>50%:</strong> Balanced - 15% threshold reduction<br><strong>100%:</strong> Aggressive - 30% reduction, max opportunities<br>Access: Settings → Mode Config → ORACLE</p></div>
             <div class="guide-section"><h3>📊 Dashboard</h3><p><strong>Prediction:</strong> UP/DOWN direction<br><strong>Confidence:</strong> 0-100% certainty<br><strong>Tier:</strong> CONVICTION (best) or ADVISORY<br><strong>Edge:</strong> Advantage over market</p></div>
+            <div class="guide-section"><h3>🔄 Failed Sells Recovery</h3><p>If sell fails after 5 retries, saved with recovery info at <code>/api/pending-sells</code>. Includes tokenId, conditionId, marketSlug, PolygonScan link, and manual redemption instructions.</p></div>
             <div class="guide-section"><h3>⚠️ Paper vs Live</h3><p><strong>PAPER:</strong> Simulated - no risk<br><strong>LIVE:</strong> Real money - needs USDC + MATIC</p></div>
         </div>
     </div>
