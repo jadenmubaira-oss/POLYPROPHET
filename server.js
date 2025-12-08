@@ -207,7 +207,9 @@ const CONFIG = {
         requireTrending: false,  // Allow all regimes (was true - blocked most!)
         requireMomentum: false,  // Don't require perfect timing (was true)
         maxOdds: 0.85,           // Buy at ≤85% (was 70%)
-        minStability: 3          // 3 ticks stable (was 5)
+        minStability: 3,         // 3 ticks stable (was 5)
+        stopLoss: 0.25,          // 🛡️ NEW: Optional 25% stop loss protection
+        stopLossEnabled: false   // 🛡️ NEW: Off by default (pure hold-to-resolution)
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -253,8 +255,31 @@ const CONFIG = {
         globalStopLoss: 0.20,   // -20% day = stop trading
         globalStopLossOverride: false, // 🔓 Set to true to bypass global stop loss
         cooldownAfterLoss: 300   // 5 min cooldown after loss
+    },
+
+    // ==================== TELEGRAM NOTIFICATIONS ====================
+    TELEGRAM: {
+        enabled: false,
+        botToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
+        chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
     }
 };
+
+// ==================== TELEGRAM NOTIFICATION HELPER ====================
+async function sendTelegramNotification(message) {
+    if (!CONFIG.TELEGRAM.enabled || !CONFIG.TELEGRAM.botToken || !CONFIG.TELEGRAM.chatId) return;
+    try {
+        const url = `https://api.telegram.org/bot${CONFIG.TELEGRAM.botToken}/sendMessage`;
+        await axios.post(url, {
+            chat_id: CONFIG.TELEGRAM.chatId,
+            text: message,
+            parse_mode: 'HTML'
+        }, { timeout: 5000 });
+        log(`📱 Telegram notification sent`);
+    } catch (e) {
+        log(`⚠️ Telegram notification failed: ${e.message}`);
+    }
+}
 
 // ==================== ENHANCED TRADE EXECUTOR (Multi-Position) ====================
 class TradeExecutor {
@@ -520,7 +545,13 @@ class TradeExecutor {
         switch (mode) {
             case 'ORACLE':
                 target = null; // Hold to resolution
-                stopLoss = null;
+                // 🛡️ ORACLE STOP LOSS: Optional emergency protection
+                if (CONFIG.ORACLE.stopLossEnabled && CONFIG.ORACLE.stopLoss > 0) {
+                    stopLoss = entryPrice * (1 - CONFIG.ORACLE.stopLoss);
+                    log(`🛡️ ORACLE STOP LOSS SET: ${(stopLoss * 100).toFixed(1)}¢ (${(CONFIG.ORACLE.stopLoss * 100).toFixed(0)}% protection)`, asset);
+                } else {
+                    stopLoss = null; // Pure hold-to-resolution (default)
+                }
                 break;
             case 'SCALP':
                 target = entryPrice * CONFIG.SCALP.targetMultiple;
@@ -549,6 +580,15 @@ class TradeExecutor {
         if (target) log(`🎯 Target: ${(target * 100).toFixed(1)}¢`, asset);
         if (stopLoss) log(`🎯 Stop: ${(stopLoss * 100).toFixed(1)}¢`, asset);
         log(`🎯 ═══════════════════════════════════════`, asset);
+
+        // 📱 TELEGRAM NOTIFICATION: Trade opened
+        sendTelegramNotification(
+            `🎯 <b>NEW ${mode} TRADE</b>\\n` +
+            `${asset} ${direction} @ ${(entryPrice * 100).toFixed(1)}¢\\n` +
+            `Size: $${size.toFixed(2)}` +
+            (stopLoss ? `\\nStop: ${(stopLoss * 100).toFixed(1)}¢` : '') +
+            (target ? `\\nTarget: ${(target * 100).toFixed(1)}¢` : '')
+        );
 
         if (this.mode === 'PAPER') {
             const balanceBefore = this.paperBalance;
@@ -978,6 +1018,15 @@ class TradeExecutor {
         log(`${emoji} Balance: $${this.paperBalance.toFixed(2)}`, pos.asset);
         log(`${emoji} ═══════════════════════════════════════`, pos.asset);
 
+        // 📱 TELEGRAM NOTIFICATION: Trade closed
+        sendTelegramNotification(
+            `${emoji} <b>${pos.mode} ${pos.side}</b> ${pos.asset}\\n` +
+            `Entry: ${(pos.entry * 100).toFixed(1)}¢ → Exit: ${(exitPrice * 100).toFixed(1)}¢\\n` +
+            `P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)\\n` +
+            `Reason: ${reason}\\n` +
+            `Balance: $${this.paperBalance.toFixed(2)}`
+        );
+
         // Update trade history
         const trade = this.tradeHistory.find(t => t.id === positionId);
         if (trade) {
@@ -1082,9 +1131,13 @@ class TradeExecutor {
                 return;
             }
 
-            // Universal stop loss (all modes except ORACLE and MANUAL - user controls manual trades)
-            if (pos.mode !== 'ORACLE' && pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
-                this.closePosition(id, currentOdds, 'STOP LOSS');
+            // Universal stop loss check
+            // - MANUAL trades: Never auto-close (user controls)
+            // - ORACLE trades: Only close if stopLoss is explicitly set (via stopLossEnabled)
+            // - Other modes: Always respect stopLoss
+            if (pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
+                const reason = pos.mode === 'ORACLE' ? 'ORACLE EMERGENCY STOP LOSS' : 'STOP LOSS';
+                this.closePosition(id, currentOdds, reason);
             }
         });
     }
@@ -3255,6 +3308,7 @@ app.get('/', (req, res) => {
             <span style="color:#888;margin-left:15px;">Live USDC:</span> <span class="amount" id="liveBalance" style="color:#00ff88;">$0.00</span>
             <span style="color:#888;margin-left:15px;">P/L:</span> <span id="pnl" style="color:#00ff88;">$0.00</span>
             <span style="color:#888;margin-left:15px;">W/L:</span> <span id="winLoss" style="color:#ffd700;">0/0</span>
+            <button id="resumeTradingBtn" onclick="toggleStopLossOverride()" style="margin-left:15px;padding:4px 10px;border-radius:4px;border:1px solid #ff9900;background:transparent;color:#ff9900;cursor:pointer;font-size:0.75em;display:none;">🔓 Resume Trading</button>
         </div>
         <span class="mode-badge" id="modeBadge">PAPER</span>
     </div>
@@ -3382,6 +3436,18 @@ app.get('/', (req, res) => {
                         <div class="form-group"><label>Loss Cooldown (s)</label><input type="number" id="riskCooldown" value="300" min="60" max="900"></div>
                     </div>
                 </div>
+            </div>
+            
+            <h4 style="margin:15px 0 10px;color:#00bcd4;font-size:0.95em;">📱 Telegram Notifications</h4>
+            <div style="padding:10px;background:rgba(0,188,212,0.1);border-left:3px solid #00bcd4;border-radius:4px;margin-bottom:15px;">
+                <label style="color:#888;display:block;margin-bottom:8px;">
+                    <input type="checkbox" id="telegramEnabled"> Enable Telegram Notifications
+                </label>
+                <div class="form-grid">
+                    <div class="form-group"><label>Bot Token</label><input type="password" id="telegramToken" placeholder="123456789:ABC-DEF..."></div>
+                    <div class="form-group"><label>Chat ID</label><input type="text" id="telegramChatId" placeholder="123456789"></div>
+                </div>
+                <small style="color:#666;display:block;margin-top:8px;">Create bot via @BotFather. Get Chat ID via @userinfobot. Receive trade alerts in real-time.</small>
             </div>
             
             <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">🔑 API Credentials</h4>
@@ -3643,7 +3709,24 @@ app.get('/', (req, res) => {
                     document.getElementById('momConsensus').value = data.MOMENTUM.minConsensus || 0.75;
                     document.getElementById('momExitBefore').value = data.MOMENTUM.exitBeforeEnd || 180;
                 }
-                if (data.RISK) { document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.30) * 100; document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.20) * 100; document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 300; }
+                if (data.RISK) { 
+                    document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.30) * 100; 
+                    document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.20) * 100; 
+                    document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 300;
+                    // Show resume button if stop loss override is active or P/L is very negative
+                    const resumeBtn = document.getElementById('resumeTradingBtn');
+                    if (resumeBtn) {
+                        const needsResume = data.RISK.globalStopLossOverride || false;
+                        resumeBtn.style.display = needsResume ? 'none' : 'inline-block';
+                        resumeBtn.textContent = needsResume ? '✅ Override Active' : '🔓 Resume Trading';
+                    }
+                }
+                // 📱 TELEGRAM SETTINGS
+                if (data.TELEGRAM) {
+                    document.getElementById('telegramEnabled').checked = data.TELEGRAM.enabled || false;
+                    // Don't populate token (security) - only show if set
+                    if (data.TELEGRAM.chatId) document.getElementById('telegramChatId').value = data.TELEGRAM.chatId;
+                }
             } catch (e) { console.error(e); }
         }
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
@@ -3715,6 +3798,16 @@ app.get('/', (req, res) => {
             if (apiSecret) updates.POLYMARKET_SECRET = apiSecret;
             if (apiPassphrase) updates.POLYMARKET_PASSPHRASE = apiPassphrase;
             if (privateKey) updates.POLYMARKET_PRIVATE_KEY = privateKey;
+            
+            // 📱 TELEGRAM SETTINGS
+            const telegramToken = document.getElementById('telegramToken').value;
+            const telegramChatId = document.getElementById('telegramChatId').value;
+            updates.TELEGRAM = {
+                enabled: document.getElementById('telegramEnabled').checked,
+                botToken: telegramToken || undefined,
+                chatId: telegramChatId || undefined
+            };
+            
             try {
                 await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
                 document.getElementById('settingsStatus').textContent = '✅ All settings saved!';
@@ -3854,6 +3947,19 @@ app.get('/', (req, res) => {
                 } else {
                     alert('❌ Retry failed: ' + result.error);
                 }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        // 🔓 TOGGLE GLOBAL STOP LOSS OVERRIDE (Resume Trading)
+        async function toggleStopLossOverride() {
+            if (!confirm('Override global stop loss and resume trading?\\n\\nThis bypasses the 20% daily loss protection. Use with caution.')) return;
+            try {
+                const res = await fetch('/api/toggle-stop-loss-override', { method: 'POST' });
+                const result = await res.json();
+                alert(result.message);
+                fetchData();
             } catch (e) {
                 alert('❌ Error: ' + e.message);
             }
@@ -4187,6 +4293,13 @@ app.get('/api/settings', (req, res) => {
         UNCERTAINTY: CONFIG.UNCERTAINTY,
         MOMENTUM: CONFIG.MOMENTUM,
         RISK: CONFIG.RISK,
+
+        // 📱 Telegram (chatId visible, token masked)
+        TELEGRAM: {
+            enabled: CONFIG.TELEGRAM?.enabled || false,
+            botToken: CONFIG.TELEGRAM?.botToken ? '****HIDDEN****' : '',
+            chatId: CONFIG.TELEGRAM?.chatId || ''
+        },
 
         // Status
         walletLoaded: !!tradeExecutor.wallet,
