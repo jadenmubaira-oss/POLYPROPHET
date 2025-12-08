@@ -4596,6 +4596,42 @@ app.get('/guide', (req, res) => {
             </ul>
         </div>
         
+        <h2>🎚️ Oracle Aggression System</h2>
+        
+        <div class="card">
+            <p>Control how frequently Oracle mode generates predictions with the <span class="term">Aggression Slider</span> (0-100%):</p>
+            
+            <table>
+                <tr><th>Aggression</th><th>Effect</th><th>Best For</th></tr>
+                <tr><td><strong>0% (Conservative)</strong></td><td>Base thresholds unchanged</td><td>High accuracy, fewer trades</td></tr>
+                <tr><td><strong>50% (Balanced)</strong></td><td>15% threshold reduction</td><td>Default operation</td></tr>
+                <tr><td><strong>100% (Aggressive)</strong></td><td>30% threshold reduction</td><td>Maximum opportunities</td></tr>
+            </table>
+            
+            <div class="tip" style="margin-top: 15px;">
+                <strong>Quality Protection:</strong> Even at 100% aggression, core quality gates remain active. Predictions are more frequent but still validated.
+            </div>
+            
+            <p style="margin-top: 15px;">Access: <strong>Settings → Mode Configuration → 🔮 ORACLE</strong></p>
+        </div>
+        
+        <h2>🔄 Failed Sells Recovery</h2>
+        
+        <div class="card">
+            <p>If a sell order fails after 5 retries, it's saved with complete recovery info:</p>
+            
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li><span class="term">tokenId</span> - Position token identifier</li>
+                <li><span class="term">conditionId</span> - Market condition ID</li>
+                <li><span class="term">marketSlug</span> - Human-readable market name</li>
+                <li><span class="term">polygonscanUrl</span> - View token on PolygonScan</li>
+                <li><span class="term">redemptionInstructions</span> - Step-by-step recovery guide</li>
+            </ul>
+            
+            <p style="margin-top: 15px;">View at: <code>/api/pending-sells</code> or in the Trading section of the dashboard.</p>
+        </div>
+        
+
         <a href="/" class="back-link">← Back to Dashboard</a>
     </div>
 </body>

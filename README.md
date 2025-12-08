@@ -254,6 +254,269 @@ npm start
 
 ---
 
+## 🚀 Deployment Guide
+
+### Local Development
+
+```bash
+# Clone and setup
+git clone https://github.com/YOUR_USERNAME/POLYPROPHET.git
+cd POLYPROPHET-main
+
+# Install dependencies
+npm install
+
+# Create .env file
+copy .env.example .env
+# Edit .env with your credentials
+
+# Start development server
+npm start
+# or with nodemon for auto-reload:
+npx nodemon server.js
+```
+
+Dashboard available at: `http://localhost:3000`
+
+---
+
+### Deploy to Render (Recommended)
+
+[Render](https://render.com) provides free tier hosting with easy setup:
+
+#### Step 1: Prepare Repository
+
+1. Push your code to GitHub:
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit"
+   git remote add origin https://github.com/YOUR_USERNAME/POLYPROPHET.git
+   git push -u origin main
+   ```
+
+2. Ensure `package.json` has start script:
+   ```json
+   {
+     "scripts": {
+       "start": "node server.js"
+     }
+   }
+   ```
+
+#### Step 2: Create Render Web Service
+
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Click **New** → **Web Service**
+3. Connect your GitHub repository
+4. Configure:
+   - **Name**: `polyprophet`
+   - **Runtime**: Node
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Instance Type**: Free (or paid for better performance)
+
+#### Step 3: Configure Environment Variables
+
+In Render dashboard → **Environment** tab, add:
+
+| Variable | Value |
+|----------|-------|
+| `AUTH_USERNAME` | your-username |
+| `AUTH_PASSWORD` | your-secure-password |
+| `TRADE_MODE` | PAPER |
+| `PAPER_BALANCE` | 1000 |
+| `MAX_POSITION_SIZE` | 0.10 |
+| `POLYMARKET_API_KEY` | your-api-key |
+| `POLYMARKET_SECRET` | your-secret |
+| `POLYMARKET_PASSPHRASE` | your-passphrase |
+| `POLYMARKET_ADDRESS` | 0xYourAddress |
+| `POLYMARKET_PRIVATE_KEY` | 0xYourKey |
+| `PROXY_URL` | (see troubleshooting) |
+
+#### Step 4: Add Redis (Optional but Recommended)
+
+1. In Render, click **New** → **Redis**
+2. Create free Redis instance
+3. Copy the internal URL
+4. Add to environment: `REDIS_URL=redis://...`
+
+#### Step 5: Deploy
+
+Click **Deploy** - Render will build and start your service.
+
+Your bot will be live at: `https://polyprophet.onrender.com`
+
+---
+
+### Deploy to Heroku
+
+```bash
+# Login to Heroku
+heroku login
+
+# Create app
+heroku create polyprophet
+
+# Add Redis
+heroku addons:create heroku-redis:hobby-dev
+
+# Set environment variables
+heroku config:set AUTH_USERNAME=admin
+heroku config:set AUTH_PASSWORD=your-password
+heroku config:set TRADE_MODE=PAPER
+# ... add all other variables
+
+# Deploy
+git push heroku main
+```
+
+---
+
+### Deploy to VPS (DigitalOcean, AWS, etc.)
+
+```bash
+# SSH into your server
+ssh user@your-server
+
+# Install Node.js 18+
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt-get install -y nodejs
+
+# Clone repository
+git clone https://github.com/YOUR_USERNAME/POLYPROPHET.git
+cd POLYPROPHET-main
+
+# Install dependencies
+npm install
+
+# Create .env file
+nano .env
+# Paste your configuration
+
+# Install PM2 for process management
+sudo npm install -g pm2
+
+# Start with PM2
+pm2 start server.js --name polyprophet
+
+# Auto-restart on reboot
+pm2 startup
+pm2 save
+
+# View logs
+pm2 logs polyprophet
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### ❌ "Cloudflare 403 Error" on Render
+
+**Problem**: Polymarket CLOB API blocks requests from cloud providers.
+
+**Solution**: Use a proxy service:
+```env
+PROXY_URL=http://your-proxy-service:port
+```
+
+Options:
+- [IPRoyal](https://iproyal.com/) - Residential proxies
+- [Bright Data](https://brightdata.com/) - Enterprise proxies
+- [Oxylabs](https://oxylabs.io/) - Datacenter proxies
+
+#### ❌ "ethers timeout" or "Network Error"
+
+**Problem**: RPC calls timing out on cloud platforms.
+
+**Solution**: The bot already bypasses proxy for ethers.js calls. If issues persist:
+1. Check Polygon RPC status at [Alchemy Status](https://status.alchemy.com/)
+2. Try different RPC endpoints in server.js
+
+#### ❌ "WebSocket connection failed"
+
+**Problem**: Chainlink WebSocket not connecting.
+
+**Solution**: 
+1. Check internet connectivity
+2. Bot auto-reconnects after 60 seconds of no data
+3. Check logs for specific error messages
+
+#### ❌ "Order placement failed"
+
+**Problem**: Live trading orders not executing.
+
+**Solutions**:
+1. Verify API credentials are correct
+2. Check wallet has USDC (for trading) and MATIC (for gas)
+3. Minimum order size is $1.10
+4. Check Polymarket API status
+
+#### ❌ "Balance showing as 0"
+
+**Problem**: Live balance not fetching correctly.
+
+**Solutions**:
+1. Verify `POLYMARKET_PRIVATE_KEY` is correct
+2. Check wallet address matches private key
+3. Bot caches last known balance - wait for refresh
+4. Try `/api/wallet` endpoint to force refresh
+
+#### ❌ "Redis connection error"
+
+**Problem**: Redis not connecting (optional persistence).
+
+**Solution**: 
+- Bot works without Redis (uses memory)
+- Check `REDIS_URL` format
+- Verify Redis is running
+
+#### ❌ "401 Unauthorized" on dashboard
+
+**Problem**: Can't access the web interface.
+
+**Solution**:
+1. Check `AUTH_USERNAME` and `AUTH_PASSWORD` are set
+2. Clear browser cache
+3. Try incognito mode
+
+### Performance Optimization
+
+| Issue | Solution |
+|-------|----------|
+| Slow predictions | Reduce number of assets tracked |
+| Memory issues | Add Redis for state persistence |
+| High latency | Use paid Render/Heroku tier |
+| Missed cycles | Ensure stable internet connection |
+
+### Logs and Debugging
+
+```bash
+# View recent logs (local)
+# All logs appear in terminal
+
+# View logs on Render
+# Dashboard → Logs tab
+
+# View logs on Heroku
+heroku logs --tail
+
+# View logs with PM2
+pm2 logs polyprophet --lines 100
+```
+
+### Getting Help
+
+1. Check the `/guide` page in the dashboard
+2. Review API at `/api/state` for current bot state
+3. Export cycle data at `/api/export?asset=BTC`
+4. Check pending sells at `/api/pending-sells`
+
+---
+
 ## 📜 Recent Updates
 
 - ✅ **Oracle Aggression Slider** - Control prediction frequency (0-100%)
