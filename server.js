@@ -3227,6 +3227,7 @@ app.get('/', (req, res) => {
             <button class="nav-btn" onclick="openModal('walletModal')">💰 Wallet</button>
             <button class="nav-btn" onclick="openModal('settingsModal')">⚙️ Settings</button>
             <button class="nav-btn" onclick="openModal('guideModal')">📚 Guide</button>
+            <button class="nav-btn" onclick="openModal('pendingSellsModal'); loadPendingSells();">🔄 Recovery</button>
             <button class="nav-btn" id="modeBtn">📝 PAPER</button>
         </div>
     </nav>
@@ -3391,6 +3392,26 @@ app.get('/', (req, res) => {
             <div class="guide-section"><h3>📊 Dashboard</h3><p><strong>Prediction:</strong> UP/DOWN direction<br><strong>Confidence:</strong> 0-100% certainty<br><strong>Tier:</strong> CONVICTION (best) or ADVISORY<br><strong>Edge:</strong> Advantage over market</p></div>
             <div class="guide-section"><h3>🔄 Failed Sells Recovery</h3><p>If sell fails after 5 retries, saved with recovery info at <code>/api/pending-sells</code>. Includes tokenId, conditionId, marketSlug, PolygonScan link, and manual redemption instructions.</p></div>
             <div class="guide-section"><h3>⚠️ Paper vs Live</h3><p><strong>PAPER:</strong> Simulated - no risk<br><strong>LIVE:</strong> Real money - needs USDC + MATIC</p></div>
+        </div>
+    </div>
+    <!-- PENDING SELLS / RECOVERY MODAL -->
+    <div class="modal-overlay" id="pendingSellsModal">
+        <div class="modal" style="max-width:850px;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header"><span class="modal-title">🔄 Pending Sells / Recovery</span><button class="modal-close" onclick="closeModal('pendingSellsModal')">×</button></div>
+            <div style="padding:10px;background:rgba(255,150,0,0.1);border-radius:8px;margin-bottom:15px;border-left:3px solid #ff9900;">
+                <p style="color:#ff9900;margin:0;font-size:0.9em;">⚠️ <strong>Failed Sells</strong>: These positions failed to sell after 5 retries. Use the info below to manually recover your funds.</p>
+            </div>
+            <div id="pendingSellsList" style="min-height:100px;"><div style="text-align:center;color:#666;padding:30px;">Loading...</div></div>
+            <div style="margin-top:15px;padding:12px;background:rgba(0,0,0,0.3);border-radius:8px;">
+                <h4 style="color:#00ff88;margin-bottom:8px;font-size:0.95em;">📖 Manual Recovery Steps</h4>
+                <ol style="color:#aaa;font-size:0.85em;margin-left:20px;line-height:1.6;">
+                    <li>Go to <a href="https://polymarket.com/portfolio" target="_blank" style="color:#4fc3f7;">polymarket.com/portfolio</a></li>
+                    <li>Find the position in your "Open Positions"</li>
+                    <li>Click "Sell" and manually complete the transaction</li>
+                    <li>Or wait for market resolution and redeem winning shares</li>
+                </ol>
+            </div>
+            <p style="color:#666;font-size:0.8em;margin-top:10px;text-align:center;">Auto-updates every 10 seconds | API: <code>/api/pending-sells</code></p>
         </div>
     </div>
     <script>
@@ -3741,9 +3762,77 @@ app.get('/', (req, res) => {
             }
         }
         
+        // PENDING SELLS / RECOVERY FUNCTIONS
+        async function loadPendingSells() {
+            try {
+                const res = await fetch('/api/pending-sells');
+                const data = await res.json();
+                const container = document.getElementById('pendingSellsList');
+                
+                if (!data.pendingSells || Object.keys(data.pendingSells).length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:30px;color:#00ff88;"><span style="font-size:2em;">✅</span><br><br>No pending sells! All positions sold successfully.</div>';
+                    return;
+                }
+                
+                let html = '<div style="color:#888;font-size:0.85em;margin-bottom:10px;">Found <strong style="color:#ff9900;">' + data.count + '</strong> pending sell(s)</div>';
+                
+                for (const [key, ps] of Object.entries(data.pendingSells)) {
+                    const failTime = new Date(ps.failedAt).toLocaleString();
+                    html += '<div style="background:rgba(255,0,0,0.1);border:1px solid #ff4466;border-radius:8px;padding:15px;margin-bottom:12px;">';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+                    html += '<span style="font-weight:bold;color:#ff4466;font-size:1.1em;">❌ ' + (ps.asset || 'Unknown') + ' - ' + (ps.side || '?') + '</span>';
+                    html += '<span style="color:#888;font-size:0.8em;">Failed: ' + failTime + '</span>';
+                    html += '</div>';
+                    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.85em;">';
+                    html += '<div><span style="color:#888;">Size:</span> <strong>$' + (ps.size || 0).toFixed(2) + '</strong></div>';
+                    html += '<div><span style="color:#888;">Entry:</span> <strong>' + ((ps.entry || 0) * 100).toFixed(1) + '¢</strong></div>';
+                    html += '<div><span style="color:#888;">Token ID:</span> <code style="font-size:0.75em;background:rgba(0,0,0,0.3);padding:2px 5px;border-radius:3px;">' + (ps.tokenId ? ps.tokenId.substring(0,20) + '...' : 'N/A') + '</code></div>';
+                    html += '<div><span style="color:#888;">Condition ID:</span> <code style="font-size:0.75em;background:rgba(0,0,0,0.3);padding:2px 5px;border-radius:3px;">' + (ps.conditionId ? ps.conditionId.substring(0,20) + '...' : 'N/A') + '</code></div>';
+                    html += '</div>';
+                    html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">';
+                    if (ps.marketUrl) html += '<a href="' + ps.marketUrl + '" target="_blank" style="padding:6px 12px;background:#4fc3f7;color:#000;border-radius:5px;text-decoration:none;font-size:0.8em;font-weight:bold;">📊 View Market</a>';
+                    if (ps.polygonscanUrl) html += '<a href="' + ps.polygonscanUrl + '" target="_blank" style="padding:6px 12px;background:#8b5cf6;color:#fff;border-radius:5px;text-decoration:none;font-size:0.8em;font-weight:bold;">🔍 PolygonScan</a>';
+                    html += '<button onclick="retrySell(\'' + key + '\')" style="padding:6px 12px;background:#ff6600;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:0.8em;font-weight:bold;">🔄 Retry Sell</button>';
+                    html += '</div>';
+                    if (ps.redemptionInstructions) {
+                        html += '<details style="margin-top:10px;"><summary style="color:#ffd700;cursor:pointer;font-size:0.85em;">📖 Manual Recovery Instructions</summary>';
+                        html += '<div style="margin-top:8px;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;font-size:0.8em;color:#aaa;white-space:pre-wrap;">' + ps.redemptionInstructions + '</div>';
+                        html += '</details>';
+                    }
+                    html += '</div>';
+                }
+                
+                container.innerHTML = html;
+            } catch (e) {
+                document.getElementById('pendingSellsList').innerHTML = '<div style="text-align:center;padding:20px;color:#ff4466;">❌ Error loading: ' + e.message + '</div>';
+            }
+        }
+        
+        async function retrySell(key) {
+            const [asset, tokenId] = key.split('_');
+            if (!confirm('Retry selling ' + asset + ' position?')) return;
+            try {
+                const res = await fetch('/api/retry-sell', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset, tokenId })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ Sell successful!');
+                    loadPendingSells();
+                } else {
+                    alert('❌ Retry failed: ' + result.error);
+                }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
         fetchData(); loadWallet(); loadSettings();
         setInterval(fetchData, 1000);
         setInterval(loadWallet, 30000);
+        setInterval(loadPendingSells, 10000); // Auto-refresh pending sells every 10s
     </script>
 </body>
 </html>
