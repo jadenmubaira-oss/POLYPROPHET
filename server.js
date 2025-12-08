@@ -251,6 +251,7 @@ const CONFIG = {
     RISK: {
         maxTotalExposure: 0.30,  // Max 30% of bankroll at risk
         globalStopLoss: 0.20,   // -20% day = stop trading
+        globalStopLossOverride: false, // 🔓 Set to true to bypass global stop loss
         cooldownAfterLoss: 300   // 5 min cooldown after loss
     }
 };
@@ -438,10 +439,12 @@ class TradeExecutor {
         this.resetDailyPnL();
 
         // 🛑 GLOBAL STOP LOSS: Halt trading if day loss exceeds threshold
+        // Can be bypassed with CONFIG.RISK.globalStopLossOverride = true
         const maxDayLoss = bankroll * CONFIG.RISK.globalStopLoss;
-        if (this.todayPnL < -maxDayLoss) {
+        if (!CONFIG.RISK.globalStopLossOverride && this.todayPnL < -maxDayLoss) {
             log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of bankroll`, asset);
-            return { success: false, error: `Global stop loss triggered - trading halted for the day` };
+            log(`   To override: Set RISK.globalStopLossOverride = true in Settings`, asset);
+            return { success: false, error: `Global stop loss triggered - trading halted for the day. Override available in Settings.` };
         }
 
         // Calculate position size (mode-specific)
@@ -3496,7 +3499,14 @@ app.get('/', (req, res) => {
                             '<a href="' + marketUrl + '" target="_blank" class="market-link">Polymarket →</a></div>';
                     } catch (assetErr) { console.error('Error rendering asset:', asset, assetErr); }
                 });
-                document.getElementById('predictionsGrid').innerHTML = html || '<div style="text-align:center;padding:40px;color:#ff6666;">Error loading predictions</div>';
+                console.log('HTML built for ' + assets.length + ' assets, length: ' + html.length);
+                const grid = document.getElementById('predictionsGrid');
+                if (grid) {
+                    grid.innerHTML = html || '<div style="text-align:center;padding:40px;color:#ff6666;">No prediction data available</div>';
+                    console.log('Grid updated successfully');
+                } else {
+                    console.error('predictionsGrid element not found!');
+                }
                 
                 const t = data._trading;
                 if (t) {
@@ -4022,6 +4032,18 @@ app.post('/api/check-redemptions', async (req, res) => {
 app.post('/api/clear-redemption-queue', (req, res) => {
     tradeExecutor.clearRedemptionQueue();
     res.json({ success: true, message: 'Queue cleared' });
+});
+
+// 🔓 Toggle Global Stop Loss Override
+app.post('/api/toggle-stop-loss-override', (req, res) => {
+    CONFIG.RISK.globalStopLossOverride = !CONFIG.RISK.globalStopLossOverride;
+    const status = CONFIG.RISK.globalStopLossOverride ? 'BYPASSED' : 'ACTIVE';
+    log(`🔓 Global Stop Loss Override: ${status}`);
+    res.json({
+        success: true,
+        override: CONFIG.RISK.globalStopLossOverride,
+        message: `Global stop loss is now ${status}. Trading will ${CONFIG.RISK.globalStopLossOverride ? 'continue even after 20% daily loss' : 'halt at 20% daily loss'}.`
+    });
 });
 
 // Periodic redemption check - runs every 5 minutes
