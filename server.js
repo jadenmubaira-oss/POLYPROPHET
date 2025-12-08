@@ -200,6 +200,7 @@ const CONFIG = {
     // FIX: Lowered thresholds to enable actual trading (was too strict!)
     ORACLE: {
         enabled: true,
+        aggression: 50,          // 🔮 NEW: 0-100 scale (0=conservative, 100=aggressive)
         minConsensus: 0.70,      // 70%+ of models agree (was 85%)
         minConfidence: 0.75,     // 75%+ confidence required (was 92%!)
         minEdge: 8,              // 8%+ edge over market (was 15%)
@@ -817,13 +818,31 @@ class TradeExecutor {
             }
         }
 
-        // All attempts failed - add to pending sells for manual intervention
+        // 🔮 ENHANCED: All attempts failed - add to pending sells with COMPLETE redemption info
         log(`❌ SELL FAILED after ${maxAttempts} attempts - position added to pending sells!`, position.asset);
         if (!this.pendingSells) this.pendingSells = {};
+
+        // Get market info for additional context
+        const market = currentMarkets[position.asset] || {};
+
         this.pendingSells[position.asset + '_' + position.tokenId] = {
             ...position,
             failedAt: Date.now(),
-            attempts: maxAttempts
+            attempts: maxAttempts,
+            // 🔮 COMPLETE REDEMPTION INFO
+            marketSlug: market.slug || 'unknown',
+            marketUrl: market.slug ? `https://polymarket.com/event/${market.slug}` : null,
+            conditionId: market.conditionId || position.conditionId || null,
+            polygonscanUrl: position.tokenId ? `https://polygonscan.com/token/0x4D97DCd97eC945f40cF65F87097ACe5EA0476045?a=${position.tokenId}` : null,
+            ctfContract: '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045', // CTF Token Address
+            usdcContract: USDC_ADDRESS,
+            redemptionInstructions: [
+                '1. Go to PolygonScan link above',
+                '2. Connect your wallet that holds the shares',
+                '3. If market resolved in your favor, use "redeemPositions" on CTF contract',
+                '4. If still active, manually sell on Polymarket.com',
+                '5. Keep tokenId and conditionId for reference'
+            ]
         };
 
         return { success: false, error: `Failed after ${maxAttempts} attempts`, needsManualIntervention: true };
@@ -2433,12 +2452,22 @@ class SupremeBrain {
                     const isTrending = regime === 'TRENDING';
                     const stabilityMet = this.stabilityCounter >= CONFIG.ORACLE.minStability || this.prediction === finalSignal;
 
-                    log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Conf=${(finalConfidence * 100).toFixed(0)}% Edge=${edgePercent.toFixed(1)}% Regime=${regime}`, this.asset);
+                    // 🔮 AGGRESSION SCALING: Higher aggression = lower thresholds = more trades
+                    // Range: 0 (conservative) to 100 (aggressive)
+                    // At 100%, thresholds drop by 30% (e.g., 70% consensus becomes 49%)
+                    const aggression = (CONFIG.ORACLE.aggression || 50) / 100; // 0.0 to 1.0
+                    const aggressionMultiplier = 1 - (aggression * 0.3); // 1.0 to 0.7
+
+                    const adjustedMinConsensus = CONFIG.ORACLE.minConsensus * aggressionMultiplier;
+                    const adjustedMinConfidence = CONFIG.ORACLE.minConfidence * aggressionMultiplier;
+                    const adjustedMinEdge = CONFIG.ORACLE.minEdge * aggressionMultiplier;
+
+                    log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Conf=${(finalConfidence * 100).toFixed(0)}% Edge=${edgePercent.toFixed(1)}% Aggression=${Math.round(aggression * 100)}%`, this.asset);
 
                     const oracleChecks = {
-                        consensus: consensusRatio >= CONFIG.ORACLE.minConsensus,
-                        confidence: finalConfidence >= CONFIG.ORACLE.minConfidence,
-                        edge: edgePercent >= CONFIG.ORACLE.minEdge,
+                        consensus: consensusRatio >= adjustedMinConsensus,
+                        confidence: finalConfidence >= adjustedMinConfidence,
+                        edge: edgePercent >= adjustedMinEdge,
                         regime: !CONFIG.ORACLE.requireTrending || isTrending,
                         momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
                         odds: currentOdds <= CONFIG.ORACLE.maxOdds,
@@ -2712,12 +2741,25 @@ ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
 
 // ==================== DATA FETCHING ====================
 
+// 🔮 CHAINLINK STABILITY: Track last data received for timeout-based reconnection
+let lastChainlinkDataTime = Date.now();
+let activeWebSocket = null;
+let wsHeartbeatInterval = null;
+let wsTimeoutInterval = null;
+
 function connectWebSocket() {
     log('🔌 Attempting WebSocket connection to Polymarket...');
+
+    // Clear any existing intervals
+    if (wsHeartbeatInterval) clearInterval(wsHeartbeatInterval);
+    if (wsTimeoutInterval) clearInterval(wsTimeoutInterval);
+
     const ws = new WebSocket(WS_ENDPOINT);
+    activeWebSocket = ws;
 
     ws.on('open', () => {
         log('✅ Connected to Polymarket WS');
+        lastChainlinkDataTime = Date.now(); // Reset on connection
 
         // Subscribe to Chainlink price feed (PRIMARY source)
         const chainlinkSub = { action: 'subscribe', subscriptions: [{ topic: 'crypto_prices_chainlink', type: '*' }] };
@@ -2730,11 +2772,22 @@ function connectWebSocket() {
         log('📡 Subscribed to crypto_prices backup');
 
         // Keep-alive ping every 30 seconds
-        setInterval(() => {
+        wsHeartbeatInterval = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send('PING');
             }
         }, 30000);
+
+        // 🔮 CHAINLINK STABILITY: Check for stale data every 15 seconds
+        wsTimeoutInterval = setInterval(() => {
+            const staleMs = Date.now() - lastChainlinkDataTime;
+            if (staleMs > 60000 && ws.readyState === WebSocket.OPEN) {
+                log(`⚠️ CHAINLINK TIMEOUT: No data for ${Math.floor(staleMs / 1000)}s - forcing reconnection...`);
+                ws.close(4000, 'Stale data timeout');
+            } else if (staleMs > 30000 && staleMs <= 60000) {
+                log(`⚠️ Chainlink data stale: ${Math.floor(staleMs / 1000)}s since last update`);
+            }
+        }, 15000);
     });
 
     ws.on('message', (data) => {
@@ -2759,6 +2812,7 @@ function connectWebSocket() {
                     livePrices[asset] = price;
                     const now = Date.now();
                     lastUpdateTimestamp = now;
+                    lastChainlinkDataTime = now; // 🔮 Update heartbeat timestamp
                     priceHistory[asset].push({ t: now, p: price });
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
 
@@ -2774,10 +2828,11 @@ function connectWebSocket() {
                 const map = { btcusdt: 'BTC', ethusdt: 'ETH', solusdt: 'SOL', xrpusdt: 'XRP' };
                 const asset = map[msg.payload?.symbol];
                 if (asset && !livePrices[asset] && msg.payload?.value) {
-                    livePrices[asset] = parseFloat(msg.payload.value);
+                    const price = parseFloat(msg.payload.value);
+                    livePrices[asset] = price;
                     const now = Date.now();
                     lastUpdateTimestamp = now;
-                    priceHistory[asset].push({ t: now, p: msg.payload.value });
+                    priceHistory[asset].push({ t: now, p: price }); // 🔮 FIX: Parse to float
                     if (priceHistory[asset].length > 500) priceHistory[asset].shift();
                 }
             }
@@ -2788,6 +2843,9 @@ function connectWebSocket() {
 
     ws.on('close', (code, reason) => {
         log(`⚠️ WS Disconnected (code: ${code}, reason: ${reason}). Reconnecting in 5s...`);
+        // Clear intervals on close
+        if (wsHeartbeatInterval) clearInterval(wsHeartbeatInterval);
+        if (wsTimeoutInterval) clearInterval(wsTimeoutInterval);
         setTimeout(connectWebSocket, 5000);
     });
 
@@ -3249,6 +3307,14 @@ app.get('/', (req, res) => {
                         <div class="form-group"><label>Min Edge (%)</label><input type="number" id="oracleEdge" value="15" min="5" max="50"></div>
                         <div class="form-group"><label>Max Odds</label><input type="number" id="oracleMaxOdds" value="0.70" step="0.05" min="0.3" max="0.9"></div>
                     </div>
+                    <div class="form-group" style="margin-top:10px;">
+                        <label>🔮 Aggression (0=Conservative, 100=Aggressive)</label>
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <input type="range" id="oracleAggression" min="0" max="100" value="50" style="flex:1;" oninput="document.getElementById('aggressionValue').textContent=this.value+'%'">
+                            <span id="aggressionValue" style="color:#ffd700;font-weight:bold;min-width:40px;">50%</span>
+                        </div>
+                        <small style="color:#888;">Higher = more trades, lower thresholds (quality still protected)</small>
+                    </div>
                 </div>
                 <!-- SCALP -->
                 <div style="margin-bottom:12px;padding:10px;background:rgba(255,102,0,0.1);border-left:3px solid #ff6600;border-radius:4px;">
@@ -3267,6 +3333,26 @@ app.get('/', (req, res) => {
                         <div class="form-group"><label>Min Mispricing</label><input type="number" id="arbMispricing" value="0.15" step="0.05" min="0.05" max="0.5"></div>
                         <div class="form-group"><label>Target Profit</label><input type="number" id="arbTarget" value="0.50" step="0.1" min="0.1" max="1"></div>
                         <div class="form-group"><label>Stop Loss</label><input type="number" id="arbStopLoss" value="0.30" step="0.05" min="0.1" max="0.5"></div>
+                    </div>
+                </div>
+                <!-- UNCERTAINTY -->
+                <div style="margin-bottom:12px;padding:10px;background:rgba(51,153,255,0.1);border-left:3px solid #3399ff;border-radius:4px;">
+                    <strong style="color:#3399ff;">🌊 UNCERTAINTY</strong>
+                    <label style="float:right;color:#888;"><input type="checkbox" id="uncEnabled" checked> Enabled</label>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Extreme Threshold</label><input type="number" id="uncThreshold" value="0.80" step="0.05" min="0.6" max="0.95"></div>
+                        <div class="form-group"><label>Target Reversion</label><input type="number" id="uncTarget" value="0.60" step="0.05" min="0.4" max="0.7"></div>
+                        <div class="form-group"><label>Stop Loss</label><input type="number" id="uncStopLoss" value="0.25" step="0.05" min="0.1" max="0.5"></div>
+                    </div>
+                </div>
+                <!-- MOMENTUM -->
+                <div style="margin-bottom:12px;padding:10px;background:rgba(255,51,204,0.1);border-left:3px solid #ff33cc;border-radius:4px;">
+                    <strong style="color:#ff33cc;">🚀 MOMENTUM</strong>
+                    <label style="float:right;color:#888;"><input type="checkbox" id="momEnabled" checked> Enabled</label>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Min Elapsed (s)</label><input type="number" id="momMinElapsed" value="300" min="60" max="600"></div>
+                        <div class="form-group"><label>Min Consensus</label><input type="number" id="momConsensus" value="0.75" step="0.05" min="0.5" max="1"></div>
+                        <div class="form-group"><label>Exit Before End (s)</label><input type="number" id="momExitBefore" value="180" min="60" max="300"></div>
                     </div>
                 </div>
                 <!-- RISK -->
@@ -3426,12 +3512,14 @@ app.get('/', (req, res) => {
                             const pnlColor = (tr.pnl || 0) >= 0 ? '#00ff88' : '#ff4466';
                             let details = '';
                             if (tr.status === 'CLOSED') {
-                                details = ((tr.entry || 0) * 100).toFixed(0) + '¢→' + ((tr.exit || 0) * 100).toFixed(0) + '¢ ' + ((tr.pnl || 0) >= 0 ? '+' : '') + '$' + (tr.pnl || 0).toFixed(2);
+                                // 🔮 ENHANCED: Now shows $spent @ entry→exit +PnL
+                                const spent = (tr.size || 0).toFixed(2);
+                                details = '$' + spent + ' @ ' + ((tr.entry || 0) * 100).toFixed(0) + '¢→' + ((tr.exit || 0) * 100).toFixed(0) + '¢ ' + ((tr.pnl || 0) >= 0 ? '+' : '') + '$' + (tr.pnl || 0).toFixed(2);
                             } else {
                                 details = 'Entry: ' + ((tr.entry || 0) * 100).toFixed(0) + '¢ | $' + (tr.size || 0).toFixed(2);
                             }
-                            const modeEmoji = tr.mode === 'ORACLE' ? '🔮' : tr.mode === 'SCALP' ? '🎯' : tr.mode === 'ARBITRAGE' ? '📊' : '⚡';
-                            const modeColor = tr.mode === 'ORACLE' ? '#9933ff' : tr.mode === 'SCALP' ? '#ff6600' : tr.mode === 'ARBITRAGE' ? '#00ff88' : '#ffaa00';
+                            const modeEmoji = tr.mode === 'ORACLE' ? '🔮' : tr.mode === 'SCALP' ? '🎯' : tr.mode === 'ARBITRAGE' ? '📊' : tr.mode === 'UNCERTAINTY' ? '🌊' : tr.mode === 'MOMENTUM' ? '🚀' : '⚡';
+                            const modeColor = tr.mode === 'ORACLE' ? '#9933ff' : tr.mode === 'SCALP' ? '#ff6600' : tr.mode === 'ARBITRAGE' ? '#00ff88' : tr.mode === 'UNCERTAINTY' ? '#3399ff' : tr.mode === 'MOMENTUM' ? '#ff33cc' : '#ffaa00';
                             histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + (tr.asset || '?') + '</strong> ' + (tr.side || '?') + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.8em;background:rgba(0,0,0,0.3);padding:2px 5px;border-radius:3px;">' + modeEmoji + ' ' + (tr.mode || '?') + '</span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
                         });
                         document.getElementById('tradeHistory').innerHTML = histHtml;
@@ -3473,9 +3561,33 @@ app.get('/', (req, res) => {
                 const data = await res.json();
                 document.getElementById('paperBalance').value = data.PAPER_BALANCE || 1000;
                 document.getElementById('maxPosition').value = (data.MAX_POSITION_SIZE || 0.1) * 100;
-                if (data.ORACLE) { document.getElementById('oracleEnabled').checked = data.ORACLE.enabled !== false; document.getElementById('oracleConsensus').value = data.ORACLE.minConsensus || 0.85; document.getElementById('oracleConfidence').value = data.ORACLE.minConfidence || 0.92; document.getElementById('oracleEdge').value = data.ORACLE.minEdge || 15; document.getElementById('oracleMaxOdds').value = data.ORACLE.maxOdds || 0.70; }
+                if (data.ORACLE) { 
+                    document.getElementById('oracleEnabled').checked = data.ORACLE.enabled !== false; 
+                    document.getElementById('oracleConsensus').value = data.ORACLE.minConsensus || 0.85; 
+                    document.getElementById('oracleConfidence').value = data.ORACLE.minConfidence || 0.92; 
+                    document.getElementById('oracleEdge').value = data.ORACLE.minEdge || 15; 
+                    document.getElementById('oracleMaxOdds').value = data.ORACLE.maxOdds || 0.70;
+                    // 🔮 ORACLE AGGRESSION
+                    const aggression = data.ORACLE.aggression || 50;
+                    document.getElementById('oracleAggression').value = aggression;
+                    document.getElementById('aggressionValue').textContent = aggression + '%';
+                }
                 if (data.SCALP) { document.getElementById('scalpEnabled').checked = data.SCALP.enabled !== false; document.getElementById('scalpMaxEntry').value = (data.SCALP.maxEntryPrice || 0.20) * 100; document.getElementById('scalpTarget').value = data.SCALP.targetMultiple || 2.0; }
                 if (data.ARBITRAGE) { document.getElementById('arbEnabled').checked = data.ARBITRAGE.enabled !== false; document.getElementById('arbMispricing').value = data.ARBITRAGE.minMispricing || 0.15; document.getElementById('arbTarget').value = data.ARBITRAGE.targetProfit || 0.50; document.getElementById('arbStopLoss').value = data.ARBITRAGE.stopLoss || 0.30; }
+                // 🌊 UNCERTAINTY MODE
+                if (data.UNCERTAINTY) {
+                    document.getElementById('uncEnabled').checked = data.UNCERTAINTY.enabled !== false;
+                    document.getElementById('uncThreshold').value = data.UNCERTAINTY.extremeThreshold || 0.80;
+                    document.getElementById('uncTarget').value = data.UNCERTAINTY.targetReversion || 0.60;
+                    document.getElementById('uncStopLoss').value = data.UNCERTAINTY.stopLoss || 0.25;
+                }
+                // 🚀 MOMENTUM MODE
+                if (data.MOMENTUM) {
+                    document.getElementById('momEnabled').checked = data.MOMENTUM.enabled !== false;
+                    document.getElementById('momMinElapsed').value = data.MOMENTUM.minElapsed || 300;
+                    document.getElementById('momConsensus').value = data.MOMENTUM.minConsensus || 0.75;
+                    document.getElementById('momExitBefore').value = data.MOMENTUM.exitBeforeEnd || 180;
+                }
                 if (data.RISK) { document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.30) * 100; document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.20) * 100; document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 300; }
             } catch (e) { console.error(e); }
         }
@@ -3510,9 +3622,34 @@ app.get('/', (req, res) => {
             const updates = { 
                 PAPER_BALANCE: parseFloat(document.getElementById('paperBalance').value), 
                 MAX_POSITION_SIZE: parseFloat(document.getElementById('maxPosition').value) / 100,
-                ORACLE: { enabled: document.getElementById('oracleEnabled').checked, minConsensus: parseFloat(document.getElementById('oracleConsensus').value), minConfidence: parseFloat(document.getElementById('oracleConfidence').value), minEdge: parseFloat(document.getElementById('oracleEdge').value), maxOdds: parseFloat(document.getElementById('oracleMaxOdds').value), requireTrending: true, requireMomentum: true, minStability: 5 },
+                ORACLE: { 
+                    enabled: document.getElementById('oracleEnabled').checked, 
+                    aggression: parseInt(document.getElementById('oracleAggression').value),
+                    minConsensus: parseFloat(document.getElementById('oracleConsensus').value), 
+                    minConfidence: parseFloat(document.getElementById('oracleConfidence').value), 
+                    minEdge: parseFloat(document.getElementById('oracleEdge').value), 
+                    maxOdds: parseFloat(document.getElementById('oracleMaxOdds').value), 
+                    requireTrending: false, 
+                    requireMomentum: false, 
+                    minStability: 3 
+                },
                 SCALP: { enabled: document.getElementById('scalpEnabled').checked, maxEntryPrice: parseFloat(document.getElementById('scalpMaxEntry').value) / 100, targetMultiple: parseFloat(document.getElementById('scalpTarget').value), requireLean: true, exitBeforeEnd: 120 },
                 ARBITRAGE: { enabled: document.getElementById('arbEnabled').checked, minMispricing: parseFloat(document.getElementById('arbMispricing').value), targetProfit: parseFloat(document.getElementById('arbTarget').value), stopLoss: parseFloat(document.getElementById('arbStopLoss').value), maxHoldTime: 600 },
+                UNCERTAINTY: {
+                    enabled: document.getElementById('uncEnabled').checked,
+                    extremeThreshold: parseFloat(document.getElementById('uncThreshold').value),
+                    targetReversion: parseFloat(document.getElementById('uncTarget').value),
+                    stopLoss: parseFloat(document.getElementById('uncStopLoss').value),
+                    volatilityMin: 0.02
+                },
+                MOMENTUM: {
+                    enabled: document.getElementById('momEnabled').checked,
+                    minElapsed: parseInt(document.getElementById('momMinElapsed').value),
+                    minConsensus: parseFloat(document.getElementById('momConsensus').value),
+                    exitBeforeEnd: parseInt(document.getElementById('momExitBefore').value),
+                    breakoutThreshold: 0.03,
+                    exitOnReversal: true
+                },
                 RISK: { maxTotalExposure: parseFloat(document.getElementById('riskMaxExposure').value) / 100, globalStopLoss: parseFloat(document.getElementById('riskStopLoss').value) / 100, cooldownAfterLoss: parseInt(document.getElementById('riskCooldown').value) }
             };
             const apiKey = document.getElementById('apiKey').value;
