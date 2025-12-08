@@ -3526,7 +3526,7 @@ app.get('/', (req, res) => {
                             const color = p.side === 'UP' ? '#00ff88' : '#ff4466';
                             const modeEmoji = p.mode === 'ORACLE' ? '🔮' : p.mode === 'SCALP' ? '🎯' : p.mode === 'ARBITRAGE' ? '📊' : p.mode === 'MANUAL' ? '✋' : '⚡';
                             const modeColor = p.mode === 'ORACLE' ? '#9933ff' : p.mode === 'SCALP' ? '#ff6600' : p.mode === 'ARBITRAGE' ? '#00ff88' : p.mode === 'MANUAL' ? '#ffd700' : '#ffaa00';
-                            posHtml += '<div class="position-item" style="flex-wrap:wrap;"><div style="display:flex;justify-content:space-between;width:100%;align-items:center;"><span style="color:' + color + '"><strong>' + (p.asset || '?') + '</strong> ' + (p.side || '?') + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.85em;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;">' + modeEmoji + ' ' + (p.mode || '?') + '</span><span>$' + (p.size || 0).toFixed(2) + ' @ ' + ((p.entry || 0) * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span><button onclick="manualSell(\\'' + id + '\\')" style="padding:4px 10px;background:#ff4466;border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.8em;font-weight:bold;">SELL</button></div></div>'; 
+                            posHtml += '<div class="position-item" style="flex-wrap:wrap;"><div style="display:flex;justify-content:space-between;width:100%;align-items:center;"><span style="color:' + color + '"><strong>' + (p.asset || '?') + '</strong> ' + (p.side || '?') + '</span><span style="color:' + modeColor + ';font-weight:bold;font-size:0.85em;background:rgba(0,0,0,0.3);padding:2px 6px;border-radius:4px;">' + modeEmoji + ' ' + (p.mode || '?') + '</span><span>$' + (p.size || 0).toFixed(2) + ' @ ' + ((p.entry || 0) * 100).toFixed(0) + '¢ <span style="color:#888;font-size:0.8em;">' + mins + 'm' + secs + 's</span></span><button onclick="manualSell(\'' + id + '\')" style="padding:4px 10px;background:#ff4466;border:none;border-radius:4px;color:#fff;cursor:pointer;font-size:0.8em;font-weight:bold;">SELL</button></div></div>'; 
                         });
                         document.getElementById('positionsList').innerHTML = posHtml;
                     } else { document.getElementById('positionsList').innerHTML = '<div class="no-positions">No active positions</div>'; }
@@ -3761,7 +3761,7 @@ app.get('/', (req, res) => {
                     alert('✅ Sell order executed' + (result.paper ? ' (paper)' : ''));
                     fetchData();
                 } else {
-                    alert('❌ Sell failed: ' + result.error + (result.needsManualIntervention ? '\\n\\nCheck /api/pending-sells for stuck positions.' : ''));
+                    alert('❌ Sell failed: ' + result.error + (result.needsManualIntervention ? '\n\nCheck /api/pending-sells for stuck positions.' : ''));
                 }
             } catch (e) {
                 alert('❌ Error: ' + e.message);
@@ -4438,9 +4438,9 @@ app.get('/settings', (req, res) => {
                 // Wallet status
                 const walletStatus = document.getElementById('walletStatus');
                 if (currentSettings.walletLoaded) {
-                    walletStatus.innerHTML = \`✅ Wallet Connected: <strong>\${currentSettings.walletAddress}</strong><br>
-                        Mode: <strong>\${currentSettings.TRADE_MODE}</strong> | 
-                        Balance: <strong>$\${currentSettings.currentBalance?.toFixed(2) || '0.00'}</strong>\`;
+                    walletStatus.innerHTML = '✅ Wallet Connected: <strong>' + currentSettings.walletAddress + '</strong><br>' +
+                        'Mode: <strong>' + currentSettings.TRADE_MODE + '</strong> | ' +
+                        'Balance: <strong>$' + (currentSettings.currentBalance?.toFixed(2) || '0.00') + '</strong>';
                 } else {
                     walletStatus.innerHTML = '⚠️ No wallet loaded. Enter private key and save to connect.';
                 }
@@ -4453,15 +4453,15 @@ app.get('/settings', (req, res) => {
             // SAFEGUARD: Require confirmation for LIVE mode
             if (mode === 'LIVE') {
                 const confirmed = confirm(
-                    '⚠️ WARNING: LIVE TRADING MODE ⚠️\\n\\n' +
-                    'You are about to enable REAL MONEY trading!\\n\\n' +
-                    '• Real orders will be placed on Polymarket\\n' +
-                    '• Real USDC will be used from your wallet\\n' +
-                    '• Losses are REAL and IRREVERSIBLE\\n\\n' +
-                    'Make sure:\\n' +
-                    '• Your API credentials are correct\\n' +
-                    '• Your wallet has USDC and MATIC for gas\\n' +
-                    '• You understand the risks\\n\\n' +
+                    '⚠️ WARNING: LIVE TRADING MODE ⚠️\n\n' +
+                    'You are about to enable REAL MONEY trading!\n\n' +
+                    '• Real orders will be placed on Polymarket\n' +
+                    '• Real USDC will be used from your wallet\n' +
+                    '• Losses are REAL and IRREVERSIBLE\n\n' +
+                    'Make sure:\n' +
+                    '• Your API credentials are correct\n' +
+                    '• Your wallet has USDC and MATIC for gas\n' +
+                    '• You understand the risks\n\n' +
                     'Click OK to enable LIVE trading, or Cancel to stay in PAPER mode.'
                 );
                 if (!confirmed) {
