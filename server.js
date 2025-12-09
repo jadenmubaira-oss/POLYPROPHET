@@ -346,6 +346,15 @@ class TradeExecutor {
         this.lastGoodBalance = 0;      // Last known successful balance (prevents $0 flash)
         this.lastBalanceFetch = 0;     // Timestamp of last balance fetch
 
+        // 💰 GAS ESTIMATION & LOW BALANCE ALERTS
+        this.cachedMATICBalance = 0;   // Cached MATIC/POL balance
+        this.lastMATICFetch = 0;       // Timestamp of last MATIC fetch
+        this.lastLowBalanceAlert = 0;  // Prevent alert spam (1 per hour)
+        this.lastLowGasAlert = 0;      // Prevent gas alert spam (1 per hour)
+        this.GAS_PER_TRADE = 0.005;    // Approximate MATIC cost per Polymarket trade
+        this.LOW_GAS_THRESHOLD = 0.05; // Alert when MATIC below this (~10 trades)
+        this.LOW_USDC_THRESHOLD = 5;   // Alert when USDC below this
+
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
@@ -465,6 +474,96 @@ class TradeExecutor {
                 this.cachedLiveBalance = lastGoodBalance;
                 log(`   Using last known balance: $${lastGoodBalance.toFixed(2)}`);
             }
+        }
+    }
+
+    // 💰 Refresh cached MATIC balance (for gas estimation)
+    async refreshMATICBalance() {
+        if (this.mode !== 'LIVE' || !this.wallet) return;
+
+        // Only refresh if cache is older than 60 seconds
+        const cacheValid = Date.now() - this.lastMATICFetch < 60000 && this.cachedMATICBalance > 0;
+        if (cacheValid) return;
+
+        try {
+            const result = await this.getMATICBalance();
+            if (result.success && result.balance !== undefined) {
+                this.cachedMATICBalance = result.balance;
+                this.lastMATICFetch = Date.now();
+                log(`⛽ MATIC balance updated: ${this.cachedMATICBalance.toFixed(4)} POL`);
+            }
+        } catch (e) {
+            log(`⚠️ MATIC refresh failed: ${e.message}`);
+        }
+    }
+
+    // 📊 Calculate estimated trades remaining based on gas
+    getEstimatedTradesRemaining() {
+        if (this.mode !== 'LIVE') {
+            return { gas: Infinity, usdc: Infinity };
+        }
+        const gasTradesRemaining = this.cachedMATICBalance > 0
+            ? Math.floor(this.cachedMATICBalance / this.GAS_PER_TRADE)
+            : 0;
+        const usdcTradesRemaining = this.cachedLiveBalance > 0
+            ? Math.floor(this.cachedLiveBalance / 1.10) // Min trade size is $1.10
+            : 0;
+        return { gas: gasTradesRemaining, usdc: usdcTradesRemaining };
+    }
+
+    // 🚨 Check for low balances and send alerts (call periodically)
+    async checkLowBalances() {
+        if (this.mode !== 'LIVE' || !this.wallet) return;
+
+        await this.refreshLiveBalance();
+        await this.refreshMATICBalance();
+
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+
+        // Check low USDC
+        if (this.cachedLiveBalance < this.LOW_USDC_THRESHOLD &&
+            this.cachedLiveBalance > 0 &&
+            (now - this.lastLowBalanceAlert) > ONE_HOUR) {
+
+            this.lastLowBalanceAlert = now;
+            const tradesLeft = this.getEstimatedTradesRemaining();
+            log(`🚨 LOW USDC BALANCE: $${this.cachedLiveBalance.toFixed(2)} (~${tradesLeft.usdc} trades remaining)`);
+
+            sendTelegramNotification(telegramSystemAlert('⚠️ LOW USDC BALANCE',
+                `Balance: $${this.cachedLiveBalance.toFixed(2)}\nEstimated Trades Left: ${tradesLeft.usdc}\n\nDeposit more USDC to continue trading.`
+            ));
+        }
+
+        // Check low MATIC (gas)
+        if (this.cachedMATICBalance < this.LOW_GAS_THRESHOLD &&
+            this.cachedMATICBalance > 0 &&
+            (now - this.lastLowGasAlert) > ONE_HOUR) {
+
+            this.lastLowGasAlert = now;
+            const tradesLeft = this.getEstimatedTradesRemaining();
+            log(`⛽ LOW GAS BALANCE: ${this.cachedMATICBalance.toFixed(4)} MATIC (~${tradesLeft.gas} trades remaining)`);
+
+            sendTelegramNotification(telegramSystemAlert('⛽ LOW GAS BALANCE',
+                `MATIC/POL: ${this.cachedMATICBalance.toFixed(4)}\nEstimated Trades Left: ${tradesLeft.gas}\n\nDeposit more MATIC/POL for gas fees.`
+            ));
+        }
+
+        // Critical: Out of money entirely
+        if (this.cachedLiveBalance <= 0 && (now - this.lastLowBalanceAlert) > ONE_HOUR) {
+            this.lastLowBalanceAlert = now;
+            log(`🚫 OUT OF USDC: Trading halted!`);
+            sendTelegramNotification(telegramSystemAlert('🚫 OUT OF USDC',
+                `Your USDC balance is $0.\nTrading is halted until you deposit funds.`
+            ));
+        }
+
+        if (this.cachedMATICBalance <= 0 && (now - this.lastLowGasAlert) > ONE_HOUR) {
+            this.lastLowGasAlert = now;
+            log(`🚫 OUT OF GAS: Trading halted!`);
+            sendTelegramNotification(telegramSystemAlert('🚫 OUT OF GAS',
+                `Your MATIC/POL balance is 0.\nTrading is halted - no gas for transactions.`
+            ));
         }
     }
 
@@ -3345,6 +3444,7 @@ app.get('/', (req, res) => {
             <span style="color:#888;margin-left:15px;">Live USDC:</span> <span class="amount" id="liveBalance" style="color:#00ff88;">$0.00</span>
             <span style="color:#888;margin-left:15px;">P/L:</span> <span id="pnl" style="color:#00ff88;">$0.00</span>
             <span style="color:#888;margin-left:15px;">W/L:</span> <span id="winLoss" style="color:#ffd700;">0/0</span>
+            <span style="color:#888;margin-left:15px;">⛽</span> <span id="estimatedTrades" style="color:#ff9900;" title="Estimated trades remaining (Gas | USDC)">-- | --</span>
             <button id="resumeTradingBtn" onclick="toggleStopLossOverride()" style="margin-left:15px;padding:4px 10px;border-radius:4px;border:1px solid #ff9900;background:transparent;color:#ff9900;cursor:pointer;font-size:0.75em;display:none;">🔓 Resume Trading</button>
         </div>
         <span class="mode-badge" id="modeBadge">PAPER</span>
@@ -3644,6 +3744,26 @@ app.get('/', (req, res) => {
                     const lossCount = closedT.length - winsCount;
                     document.getElementById('winLoss').textContent = winsCount + '/' + lossCount;
                     document.getElementById('winLoss').style.color = winsCount >= lossCount ? '#00ff88' : '#ff4466';
+                    // Update live USDC balance
+                    if (t.liveBalance !== undefined) {
+                        document.getElementById('liveBalance').textContent = '$' + (t.liveBalance || 0).toFixed(2);
+                    }
+                    // Update estimated trades remaining (Gas | USDC)
+                    if (t.estimatedTradesRemaining) {
+                        const etr = t.estimatedTradesRemaining;
+                        const gasText = etr.gas === Infinity ? '∞' : (etr.gas || 0);
+                        const usdcText = etr.usdc === Infinity ? '∞' : (etr.usdc || 0);
+                        const etEl = document.getElementById('estimatedTrades');
+                        etEl.textContent = gasText + ' | ' + usdcText;
+                        // Color warning if low
+                        if (etr.gas !== Infinity && etr.gas < 10) {
+                            etEl.style.color = '#ff4466';
+                        } else if (etr.gas !== Infinity && etr.gas < 25) {
+                            etEl.style.color = '#ff9900';
+                        } else {
+                            etEl.style.color = '#00ff88';
+                        }
+                    }
                     document.getElementById('modeBadge').textContent = t.mode || 'PAPER';
                     document.getElementById('modeBadge').className = 'mode-badge ' + (t.mode || 'PAPER');
                     document.getElementById('modeBtn').textContent = t.mode === 'LIVE' ? '🔴 LIVE' : '📝 PAPER';
@@ -4060,6 +4180,9 @@ app.get('/api/state', (req, res) => {
     response._trading = {
         mode: CONFIG.TRADE_MODE,
         balance: tradeExecutor.paperBalance,
+        liveBalance: tradeExecutor.cachedLiveBalance,
+        maticBalance: tradeExecutor.cachedMATICBalance,
+        estimatedTradesRemaining: tradeExecutor.getEstimatedTradesRemaining(),
         todayPnL: tradeExecutor.todayPnL,
         positions: tradeExecutor.positions,
         positionCount: Object.keys(tradeExecutor.positions).length,
@@ -4286,7 +4409,8 @@ app.get('/api/wallet', async (req, res) => {
             mode: walletInfo.mode,
             usdc: usdcBalance,
             matic: maticBalance,
-            depositAddress: walletInfo.address // Same address to receive funds
+            depositAddress: walletInfo.address, // Same address to receive funds
+            estimatedTradesRemaining: tradeExecutor.getEstimatedTradesRemaining()
         });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -5277,6 +5401,11 @@ async function startup() {
 
     setInterval(fetchFearGreedIndex, 300000);
     setInterval(fetchFundingRates, 300000);
+
+    // 💰 Periodic balance monitoring (every 5 minutes) - alerts on low gas/USDC
+    setInterval(() => tradeExecutor.checkLowBalances(), 300000);
+    // Initial check after 30 seconds (give server time to start)
+    setTimeout(() => tradeExecutor.checkLowBalances(), 30000);
 
     server.listen(PORT, () => {
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);
