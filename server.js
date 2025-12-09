@@ -442,8 +442,9 @@ class TradeExecutor {
     }
 
     // Refresh cached LIVE balance (call every 30s or before trades)
+    // NOTE: Refreshes regardless of mode - user wants to see wallet balance even in PAPER mode
     async refreshLiveBalance() {
-        if (this.mode !== 'LIVE' || !this.wallet) return;
+        if (!this.wallet) return;
 
         // Only refresh if cache is older than 30 seconds AND we have cached balance
         // If we have NO cached balance, always try to fetch
@@ -478,8 +479,9 @@ class TradeExecutor {
     }
 
     // 💰 Refresh cached MATIC balance (for gas estimation)
+    // NOTE: Refreshes regardless of mode - user wants to see wallet balance even in PAPER mode
     async refreshMATICBalance() {
-        if (this.mode !== 'LIVE' || !this.wallet) return;
+        if (!this.wallet) return;
 
         // Only refresh if cache is older than 60 seconds
         const cacheValid = Date.now() - this.lastMATICFetch < 60000 && this.cachedMATICBalance > 0;
@@ -498,8 +500,9 @@ class TradeExecutor {
     }
 
     // 📊 Calculate estimated trades remaining based on gas
+    // Always returns cached values - Infinity means wallet not loaded
     getEstimatedTradesRemaining() {
-        if (this.mode !== 'LIVE') {
+        if (!this.wallet) {
             return { gas: Infinity, usdc: Infinity };
         }
         const gasTradesRemaining = this.cachedMATICBalance > 0
@@ -512,11 +515,15 @@ class TradeExecutor {
     }
 
     // 🚨 Check for low balances and send alerts (call periodically)
+    // NOTE: Always monitors wallet, but only sends alerts in LIVE mode
     async checkLowBalances() {
-        if (this.mode !== 'LIVE' || !this.wallet) return;
+        if (!this.wallet) return;
 
         await this.refreshLiveBalance();
         await this.refreshMATICBalance();
+
+        // Only send alerts if in LIVE mode (don't spam during paper testing)
+        if (this.mode !== 'LIVE') return;
 
         const now = Date.now();
         const ONE_HOUR = 60 * 60 * 1000;
