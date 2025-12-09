@@ -200,16 +200,17 @@ const CONFIG = {
     // FIX: Lowered thresholds to enable actual trading (was too strict!)
     ORACLE: {
         enabled: true,
-        aggression: 50,          // 🔮 NEW: 0-100 scale (0=conservative, 100=aggressive)
-        minConsensus: 0.70,      // 70%+ of models agree (was 85%)
-        minConfidence: 0.75,     // 75%+ confidence required (was 92%!)
-        minEdge: 8,              // 8%+ edge over market (was 15%)
-        requireTrending: false,  // Allow all regimes (was true - blocked most!)
-        requireMomentum: false,  // Don't require perfect timing (was true)
-        maxOdds: 0.85,           // Buy at ≤85% (was 70%)
-        minStability: 3,         // 3 ticks stable (was 5)
-        stopLoss: 0.25,          // 🛡️ NEW: Optional 25% stop loss protection
-        stopLossEnabled: false   // 🛡️ NEW: Off by default (pure hold-to-resolution)
+        aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
+        minElapsedSeconds: 60,   // 🕐 NEW: Don't trade in first 60s - wait for confidence to build
+        minConsensus: 0.70,      // 70%+ of models agree
+        minConfidence: 0.75,     // 75%+ confidence required
+        minEdge: 8,              // 8%+ edge over market
+        requireTrending: false,  // Allow all regimes
+        requireMomentum: false,  // Don't require perfect timing
+        maxOdds: 0.85,           // Buy at ≤85%
+        minStability: 3,         // 3 ticks stable
+        stopLoss: 0.25,          // 🛡️ Optional 25% stop loss protection
+        stopLossEnabled: false   // 🛡️ Off by default (pure hold-to-resolution)
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -262,6 +263,15 @@ const CONFIG = {
         enabled: false,
         botToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
+    },
+
+    // ==================== PER-ASSET TRADING CONTROLS ====================
+    // Enable/disable individual assets and limit trades per cycle
+    ASSET_CONTROLS: {
+        BTC: { enabled: true, maxTradesPerCycle: 1 },
+        ETH: { enabled: true, maxTradesPerCycle: 1 },
+        SOL: { enabled: true, maxTradesPerCycle: 1 },
+        XRP: { enabled: true, maxTradesPerCycle: 1 }
     }
 };
 
@@ -355,6 +365,10 @@ class TradeExecutor {
         this.LOW_GAS_THRESHOLD = 0.05; // Alert when MATIC below this (~10 trades)
         this.LOW_USDC_THRESHOLD = 5;   // Alert when USDC below this
 
+        // 📊 CYCLE TRADE TRACKING - Max trades per cycle per asset
+        this.cycleTradeCount = {};     // { 'BTC': 1, 'ETH': 0, ... }
+        this.currentCycleStart = 0;    // Timestamp of current cycle start
+
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
@@ -422,6 +436,34 @@ class TradeExecutor {
     isInCooldown() {
         if (this.lastLossTime === 0) return false;
         return (Date.now() - this.lastLossTime) < (CONFIG.RISK.cooldownAfterLoss * 1000);
+    }
+
+    // 🔒 Check if asset trading is enabled
+    isAssetEnabled(asset) {
+        return CONFIG.ASSET_CONTROLS?.[asset]?.enabled !== false;
+    }
+
+    // 📊 Get max trades per cycle for an asset
+    getMaxTradesPerCycle(asset) {
+        return CONFIG.ASSET_CONTROLS?.[asset]?.maxTradesPerCycle || 1;
+    }
+
+    // 📊 Get current cycle trade count for an asset
+    getCycleTradeCount(asset) {
+        // Check if we're in a new cycle
+        const now = Math.floor(Date.now() / 1000);
+        const cycleStart = now - (now % 900); // 15 min cycles
+        if (cycleStart !== this.currentCycleStart) {
+            this.cycleTradeCount = {}; // Reset counts for new cycle
+            this.currentCycleStart = cycleStart;
+        }
+        return this.cycleTradeCount[asset] || 0;
+    }
+
+    // 📊 Increment cycle trade count for an asset
+    incrementCycleTradeCount(asset) {
+        this.getCycleTradeCount(asset); // Ensure cycle is current
+        this.cycleTradeCount[asset] = (this.cycleTradeCount[asset] || 0) + 1;
     }
 
     // 🔄 CRITICAL: Reset daily P/L at the start of each new day
@@ -572,6 +614,15 @@ class TradeExecutor {
                 `Your MATIC/POL balance is 0.\nTrading is halted - no gas for transactions.`
             ));
         }
+
+        // 🔄 RESET ALERTS: If balances recovered, allow new alerts after 1 hour
+        // This prevents "alert forever" after user funds the wallet
+        if (this.cachedLiveBalance >= this.LOW_USDC_THRESHOLD * 2) {
+            this.lastLowBalanceAlert = 0; // Reset - can alert again if drops
+        }
+        if (this.cachedMATICBalance >= this.LOW_GAS_THRESHOLD * 2) {
+            this.lastLowGasAlert = 0; // Reset - can alert again if drops
+        }
     }
 
     // ENTRY: Execute a trade for any mode
@@ -586,6 +637,20 @@ class TradeExecutor {
         if (!market.tokenIds) {
             log(`❌ TRADE BLOCKED: No token IDs for ${asset} market`, asset);
             return { success: false, error: 'No token IDs - market not tradeable yet' };
+        }
+
+        // 🔒 ASSET TRADING ENABLED CHECK
+        if (!this.isAssetEnabled(asset)) {
+            log(`⏸️ TRADE BLOCKED: Trading disabled for ${asset}`, asset);
+            return { success: false, error: `Trading disabled for ${asset}` };
+        }
+
+        // 📊 MAX TRADES PER CYCLE CHECK
+        const cycleTradeCount = this.getCycleTradeCount(asset);
+        const maxTrades = this.getMaxTradesPerCycle(asset);
+        if (cycleTradeCount >= maxTrades) {
+            log(`⚠️ TRADE BLOCKED: Max trades (${maxTrades}) reached for ${asset} this cycle`, asset);
+            return { success: false, error: `Max trades (${maxTrades}) per cycle reached for ${asset}` };
         }
 
         // ENTRY PRICE GUARD: REMOVED - Bot learns from all trades, even at extreme prices
@@ -768,6 +833,10 @@ class TradeExecutor {
 
             log(`📝 PAPER FILL: Bought ${(size / entryPrice).toFixed(1)} shares @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
             log(`💰 Balance: $${balanceBefore.toFixed(2)} → $${this.paperBalance.toFixed(2)} (-$${size.toFixed(2)})`, asset);
+
+            // 📊 Track cycle trade count
+            this.incrementCycleTradeCount(asset);
+
             return { success: true, positionId, mode: 'PAPER' };
         }
 
@@ -903,6 +972,9 @@ class TradeExecutor {
                         orderID: response.orderID
                     });
 
+                    // 📊 Track cycle trade count
+                    this.incrementCycleTradeCount(asset);
+
                     return { success: true, positionId, mode: 'LIVE' };
                 } else {
                     const errorDetail = response ? JSON.stringify(response) : 'No response';
@@ -1001,6 +1073,7 @@ class TradeExecutor {
     }
 
     // CRITICAL: Sell with retry logic - keeps trying until sold or max attempts
+    // 🔄 EXPONENTIAL BACKOFF: 3s, 6s, 12s, 24s, 48s (doubles each attempt)
     async executeSellOrderWithRetry(position, maxAttempts = 5, delayMs = 3000) {
         log(`🔄 SELL RETRY: Starting sell attempts for ${position.asset} (max ${maxAttempts} attempts)`, position.asset);
 
@@ -1019,8 +1092,10 @@ class TradeExecutor {
             }
 
             if (attempt < maxAttempts) {
-                log(`⏳ Sell failed, waiting ${delayMs / 1000}s before retry...`, position.asset);
-                await new Promise(r => setTimeout(r, delayMs));
+                // EXPONENTIAL BACKOFF: 3s, 6s, 12s, 24s, 48s
+                const backoffDelay = delayMs * Math.pow(2, attempt - 1);
+                log(`⏳ Sell failed, waiting ${(backoffDelay / 1000).toFixed(0)}s before retry (exponential backoff)...`, position.asset);
+                await new Promise(r => setTimeout(r, backoffDelay));
             }
         }
 
@@ -2489,15 +2564,11 @@ class SupremeBrain {
 
             if (trendBias) finalConfidence *= trendBias;
 
-            // 🔥 EARLY PREDICTION BOOST (The "Prophet" Advantage)
-            // Boost confidence for early predictions to enable frequent trading
-            if (elapsed < 180 && finalSignal !== 'NEUTRAL') {
-                const earlyBoost = 1.35; // SNIPER MODE: Aggressive but validated
-                finalConfidence *= earlyBoost;
-                log(`⚡ EARLY BOOST: +${((earlyBoost - 1) * 100).toFixed(0)}% (elapsed: ${elapsed}s)`, this.asset);
-            }
+            // 🚫 EARLY BOOST REMOVED - User feedback: trading too early (first 15-20s)
+            // Let confidence build naturally instead of artificially inflating it
+            // The minElapsedSeconds config now prevents premature trading
 
-            // CAP CONFIDENCE (prevent >100% from Consensus Bonus + Early Boost)
+            // CAP CONFIDENCE (prevent >100%)
             finalConfidence = Math.min(1.0, finalConfidence);
 
             // === SMOOTHING (The "Pinball" Fix) ===
@@ -2654,7 +2725,9 @@ class SupremeBrain {
             // CRITICAL: This section is NOW OUTSIDE the debounce logic (BUG FIX)
 
             // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-            if (CONFIG.ORACLE.enabled && !this.convictionLocked && tier === 'CONVICTION' && elapsed < 300) {
+            // 🕐 minElapsedSeconds: Wait for confidence to build before trading
+            const minElapsed = CONFIG.ORACLE.minElapsedSeconds || 60;
+            if (CONFIG.ORACLE.enabled && !this.convictionLocked && tier === 'CONVICTION' && elapsed >= minElapsed && elapsed < 300) {
                 const market = currentMarkets[this.asset];
                 if (market) {
                     const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
@@ -3602,6 +3675,46 @@ app.get('/', (req, res) => {
                 <small style="color:#666;display:block;margin-top:8px;">Create bot via @BotFather. Get Chat ID via @userinfobot. Receive trade alerts in real-time.</small>
             </div>
             
+            <h4 style="margin:15px 0 10px;color:#ff9900;font-size:0.95em;">🎛️ Per-Asset Trading Controls</h4>
+            <div style="padding:12px;background:rgba(255,153,0,0.1);border-left:3px solid #ff9900;border-radius:4px;margin-bottom:15px;">
+                <small style="color:#888;display:block;margin-bottom:12px;">Enable/disable trading for individual assets and set max trades per cycle</small>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
+                        <span style="color:#ffd700;">₿ BTC</span>
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="btcEnabled" checked> Enabled
+                            <input type="number" id="btcMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
+                        </label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
+                        <span style="color:#627eea;">Ξ ETH</span>
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="ethEnabled" checked> Enabled
+                            <input type="number" id="ethMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
+                        </label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
+                        <span style="color:#14f195;">◎ SOL</span>
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="solEnabled" checked> Enabled
+                            <input type="number" id="solMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
+                        </label>
+                    </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
+                        <span style="color:#23292f;">✕ XRP</span>
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="xrpEnabled" checked> Enabled
+                            <input type="number" id="xrpMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
+                        </label>
+                    </div>
+                </div>
+                <div style="margin-top:12px;">
+                    <label style="color:#888;display:block;margin-bottom:6px;">🕐 Min Wait Before Trading (seconds)</label>
+                    <input type="number" id="minElapsedSeconds" value="60" min="0" max="300" step="10" style="width:100%;padding:8px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;">
+                    <small style="color:#666;display:block;margin-top:4px;">Bot will wait this many seconds before trading in each cycle (prevents premature trades)</small>
+                </div>
+            </div>
+            
             <h4 style="margin-bottom:10px;color:#ffd700;font-size:0.95em;">🔑 API Credentials</h4>
             <div class="form-group"><label>API Key</label><input type="text" id="apiKey" placeholder="019aed53-..."></div>
             <div class="form-group"><label>Secret</label><input type="password" id="apiSecret" placeholder="Enter secret..."></div>
@@ -3902,6 +4015,29 @@ app.get('/', (req, res) => {
                     // Don't populate token (security) - only show if set
                     if (data.TELEGRAM.chatId) document.getElementById('telegramChatId').value = data.TELEGRAM.chatId;
                 }
+                // 🎛️ PER-ASSET CONTROLS
+                if (data.ASSET_CONTROLS) {
+                    if (data.ASSET_CONTROLS.BTC) {
+                        document.getElementById('btcEnabled').checked = data.ASSET_CONTROLS.BTC.enabled !== false;
+                        document.getElementById('btcMaxTrades').value = data.ASSET_CONTROLS.BTC.maxTradesPerCycle || 1;
+                    }
+                    if (data.ASSET_CONTROLS.ETH) {
+                        document.getElementById('ethEnabled').checked = data.ASSET_CONTROLS.ETH.enabled !== false;
+                        document.getElementById('ethMaxTrades').value = data.ASSET_CONTROLS.ETH.maxTradesPerCycle || 1;
+                    }
+                    if (data.ASSET_CONTROLS.SOL) {
+                        document.getElementById('solEnabled').checked = data.ASSET_CONTROLS.SOL.enabled !== false;
+                        document.getElementById('solMaxTrades').value = data.ASSET_CONTROLS.SOL.maxTradesPerCycle || 1;
+                    }
+                    if (data.ASSET_CONTROLS.XRP) {
+                        document.getElementById('xrpEnabled').checked = data.ASSET_CONTROLS.XRP.enabled !== false;
+                        document.getElementById('xrpMaxTrades').value = data.ASSET_CONTROLS.XRP.maxTradesPerCycle || 1;
+                    }
+                }
+                // 🕐 MIN ELAPSED SECONDS
+                if (data.ORACLE && data.ORACLE.minElapsedSeconds !== undefined) {
+                    document.getElementById('minElapsedSeconds').value = data.ORACLE.minElapsedSeconds;
+                }
             } catch (e) { console.error(e); }
         }
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
@@ -3984,6 +4120,17 @@ app.get('/', (req, res) => {
                 botToken: telegramToken || undefined,
                 chatId: telegramChatId || undefined
             };
+            
+            // 🎛️ PER-ASSET CONTROLS
+            updates.ASSET_CONTROLS = {
+                BTC: { enabled: document.getElementById('btcEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('btcMaxTrades').value) || 1 },
+                ETH: { enabled: document.getElementById('ethEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('ethMaxTrades').value) || 1 },
+                SOL: { enabled: document.getElementById('solEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('solMaxTrades').value) || 1 },
+                XRP: { enabled: document.getElementById('xrpEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('xrpMaxTrades').value) || 1 }
+            };
+            
+            // 🕐 MIN ELAPSED SECONDS (add to ORACLE config)
+            updates.ORACLE.minElapsedSeconds = parseInt(document.getElementById('minElapsedSeconds').value) || 60;
             
             try {
                 await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) });
