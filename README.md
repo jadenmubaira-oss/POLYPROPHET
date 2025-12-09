@@ -1156,6 +1156,29 @@ The goal is 95%+ accuracy on CONVICTION tier trades to enable compounding from �
 
 ---
 
+## 📝 Recent Updates
+
+### December 2025 - Oracle-Level Verification
+
+**Settings Persistence Fix**
+- ✅ `ASSET_CONTROLS` now properly saved/loaded from Redis
+- ✅ `TELEGRAM` settings now persist across devices
+- ✅ All settings sync between phone, desktop, and server restarts
+
+**UI Improvements**
+- ✅ Guide modal tabs fixed (Trading Modes, Settings Explained, Risk Controls now display content)
+- ✅ XRP color changed from dark `#23292f` to visible `#00d4ff`
+- ✅ Comprehensive beginner-friendly settings guide integrated directly into dashboard
+
+**Verified Systems**
+- ✅ 8-model ensemble with adaptive weights
+- ✅ 12 failsafes (buy retry, sell retry, pending sells recovery, etc.)
+- ✅ 7 anti-manipulation protections (conviction lock, cycle commitment, etc.)
+- ✅ Full learning system (model accuracy tracking, pattern memory)
+- ✅ Mid-cycle checkpoint continuation after server restart
+
+---
+
 ## 📁 Project Structure
 
 ```

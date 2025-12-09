@@ -3759,7 +3759,7 @@ app.get('/', (req, res) => {
             </div>
             
             <!-- TRADING MODES TAB -->
-            <div id="guide-modes" class="guide-content" style="display:none;">
+            <div id="guide-modes" class="guide-content">
                 <div class="guide-section" style="border-left:3px solid #9933ff;padding-left:12px;margin-bottom:15px;">
                     <h3>🔮 ORACLE Mode (Recommended)</h3>
                     <p><strong>What it does:</strong> Makes high-confidence predictions and holds until the market resolves.</p>
@@ -3815,7 +3815,7 @@ app.get('/', (req, res) => {
             </div>
             
             <!-- SETTINGS EXPLAINED TAB -->
-            <div id="guide-settings" class="guide-content" style="display:none;">
+            <div id="guide-settings" class="guide-content">
                 <div class="guide-section">
                     <h3>💰 Core Parameters</h3>
                     <p><strong>Paper Balance ($):</strong> Your fake practice money. Only used in PAPER mode.</p>
@@ -3851,7 +3851,7 @@ app.get('/', (req, res) => {
             </div>
             
             <!-- RISK CONTROLS TAB -->
-            <div id="guide-risk" class="guide-content" style="display:none;">
+            <div id="guide-risk" class="guide-content">
                 <div class="guide-section" style="border-left:3px solid #ff0066;padding-left:12px;margin-bottom:15px;">
                     <h3>⚠️ Risk Management Settings</h3>
                     <p><strong>Max Exposure (%):</strong> Maximum % of your money in active trades at once. If 30%, you can never have more than 30% at risk simultaneously.</p>
