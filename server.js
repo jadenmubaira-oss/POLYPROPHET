@@ -3724,24 +3724,183 @@ app.get('/', (req, res) => {
             <div class="status-msg" id="settingsStatus"></div>
         </div>
     </div>
-    <!-- GUIDE MODAL -->
+    <!-- GUIDE MODAL (ENHANCED with Settings Explanations) -->
     <div class="modal-overlay" id="guideModal">
-        <div class="modal" style="max-height:90vh;overflow-y:auto;">
-            <div class="modal-header"><span class="modal-title">📚 Guide</span><button class="modal-close" onclick="closeModal('guideModal')">×</button></div>
-            <div class="guide-section"><h3>🎯 What Is This?</h3><p>AI prediction bot for Polymarket 15-min crypto markets. 8 ML models predict BTC, ETH, SOL, XRP direction.</p></div>
-            <div class="guide-section"><h3>🔮 The 5 Trading Modes</h3>
-                <div class="mode-card oracle"><strong>ORACLE 🔮</strong> - Hold to resolution @ 92%+ confidence, 15%+ edge. Highest accuracy trades.</div>
-                <div class="mode-card arb"><strong>ARBITRAGE 📊</strong> - Buy mispriced odds, sell when market corrects. Exit at 50% profit or 10min.</div>
-                <div class="mode-card scalp"><strong>SCALP 🎯</strong> - Buy under 20¢, exit at 2x profit. Exits before resolution for safety.</div>
-                <div class="mode-card" style="border-left:3px solid #3399ff;"><strong>UNCERTAINTY 🌊</strong> - When odds hit 80%+, bet on reversion to 50/50. Works in choppy markets.</div>
-                <div class="mode-card" style="border-left:3px solid #ff33cc;"><strong>MOMENTUM 🚀</strong> - Ride breakouts mid-cycle. Entry after 5min with 75%+ model agreement.</div>
+        <div class="modal" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header"><span class="modal-title">📚 Complete Guide & Settings Help</span><button class="modal-close" onclick="closeModal('guideModal')">×</button></div>
+            
+            <!-- TAB NAVIGATION -->
+            <div style="display:flex;gap:5px;margin-bottom:15px;border-bottom:1px solid #333;padding-bottom:10px;">
+                <button onclick="showGuideTab('basics')" class="guide-tab active" id="tab-basics">🎯 Basics</button>
+                <button onclick="showGuideTab('modes')" class="guide-tab" id="tab-modes">🔮 Trading Modes</button>
+                <button onclick="showGuideTab('settings')" class="guide-tab" id="tab-settings">⚙️ Settings Explained</button>
+                <button onclick="showGuideTab('risk')" class="guide-tab" id="tab-risk">⚠️ Risk Controls</button>
             </div>
-            <div class="guide-section"><h3>🎚️ Oracle Aggression</h3><p><strong>0%:</strong> Conservative - base thresholds<br><strong>50%:</strong> Balanced - 15% threshold reduction<br><strong>100%:</strong> Aggressive - 30% reduction, max opportunities<br>Access: Settings → Mode Config → ORACLE</p></div>
-            <div class="guide-section"><h3>📊 Dashboard</h3><p><strong>Prediction:</strong> UP/DOWN direction<br><strong>Confidence:</strong> 0-100% certainty<br><strong>Tier:</strong> CONVICTION (best) or ADVISORY<br><strong>Edge:</strong> Advantage over market</p></div>
-            <div class="guide-section"><h3>🔄 Failed Sells Recovery</h3><p>If sell fails after 5 retries, saved with recovery info at <code>/api/pending-sells</code>. Includes tokenId, conditionId, marketSlug, PolygonScan link, and manual redemption instructions.</p></div>
-            <div class="guide-section"><h3>⚠️ Paper vs Live</h3><p><strong>PAPER:</strong> Simulated - no risk<br><strong>LIVE:</strong> Real money - needs USDC + MATIC</p></div>
+            
+            <!-- BASICS TAB -->
+            <div id="guide-basics" class="guide-content active">
+                <div class="guide-section"><h3>🎯 What Is This Bot?</h3><p>An AI prediction bot for Polymarket's 15-minute crypto checkpoint markets. It uses 8 machine learning models to predict whether BTC, ETH, SOL, or XRP will go UP or DOWN in each 15-minute window.</p></div>
+                <div class="guide-section"><h3>📊 Reading the Dashboard</h3>
+                    <p><strong>Prediction:</strong> The direction the bot thinks the price will go (UP = 📈 green, DOWN = 📉 red)</p>
+                    <p><strong>Confidence:</strong> How sure the bot is (0-100%). Higher = more certain.</p>
+                    <p><strong>Tier:</strong> CONVICTION = best quality trade, ADVISORY = lower confidence</p>
+                    <p><strong>Edge:</strong> Your advantage over the market odds. +15% edge means you have 15% better odds than what the market offers.</p>
+                </div>
+                <div class="guide-section"><h3>⚠️ Paper vs Live Mode</h3>
+                    <p><strong>📝 PAPER:</strong> Practice mode with fake money. Safe to experiment!</p>
+                    <p><strong>🔴 LIVE:</strong> Real money trading. Needs USDC (for trades) + MATIC (for gas fees) in your wallet.</p>
+                </div>
+                <div class="guide-section"><h3>🚀 Quick Start Presets</h3>
+                    <p>In Settings, use these presets instead of configuring manually:</p>
+                    <p>🛡️ <strong>Safe:</strong> Fewer trades, higher accuracy. Best for beginners.</p>
+                    <p>⚖️ <strong>Balanced:</strong> Mix of trades and accuracy. Good all-rounder.</p>
+                    <p>🔥 <strong>Aggressive:</strong> More trades, lower thresholds. Higher risk/reward.</p>
+                </div>
+            </div>
+            
+            <!-- TRADING MODES TAB -->
+            <div id="guide-modes" class="guide-content" style="display:none;">
+                <div class="guide-section" style="border-left:3px solid #9933ff;padding-left:12px;margin-bottom:15px;">
+                    <h3>🔮 ORACLE Mode (Recommended)</h3>
+                    <p><strong>What it does:</strong> Makes high-confidence predictions and holds until the market resolves.</p>
+                    <p><strong>Best for:</strong> Maximum accuracy. This is your main money-maker.</p>
+                    <p><strong>Settings explained:</strong></p>
+                    <ul style="color:#aaa;font-size:0.9em;">
+                        <li><strong>Min Consensus:</strong> What % of the 8 AI brains must agree (0.85 = 7 out of 8)</li>
+                        <li><strong>Min Confidence:</strong> How sure the bot must be (0.92 = 92% certainty)</li>
+                        <li><strong>Min Edge:</strong> The minimum profit advantage over market odds (15 = 15%)</li>
+                        <li><strong>Max Odds:</strong> Won't buy if shares cost more than this (0.70 = 70¢)</li>
+                        <li><strong>Aggression:</strong> 0% = very picky, 100% = more trades with lower thresholds</li>
+                    </ul>
+                </div>
+                <div class="guide-section" style="border-left:3px solid #ff6600;padding-left:12px;margin-bottom:15px;">
+                    <h3>🎯 SCALP Mode</h3>
+                    <p><strong>What it does:</strong> Buys cheap shares and sells when they double in price.</p>
+                    <p><strong>Best for:</strong> Quick profits on volatile markets.</p>
+                    <ul style="color:#aaa;font-size:0.9em;">
+                        <li><strong>Max Entry (¢):</strong> Only buy shares cheaper than this (20 = 20 cents)</li>
+                        <li><strong>Target Multiple:</strong> Sell when price hits this multiple (2.0 = double your money)</li>
+                    </ul>
+                </div>
+                <div class="guide-section" style="border-left:3px solid #00ff88;padding-left:12px;margin-bottom:15px;">
+                    <h3>📊 ARBITRAGE Mode</h3>
+                    <p><strong>What it does:</strong> Exploits when the market price is "wrong" vs what the bot thinks.</p>
+                    <p><strong>Best for:</strong> Profiting from market inefficiencies.</p>
+                    <ul style="color:#aaa;font-size:0.9em;">
+                        <li><strong>Min Mispricing:</strong> How wrong the market must be (0.15 = 15% difference)</li>
+                        <li><strong>Target Profit:</strong> Sell when this much of the gap closes (0.50 = 50%)</li>
+                        <li><strong>Stop Loss:</strong> Exit if trade goes against you by this much</li>
+                    </ul>
+                </div>
+                <div class="guide-section" style="border-left:3px solid #3399ff;padding-left:12px;margin-bottom:15px;">
+                    <h3>🌊 UNCERTAINTY Mode</h3>
+                    <p><strong>What it does:</strong> Bets that extreme odds (80%+) will revert back toward 50/50.</p>
+                    <p><strong>Best for:</strong> Choppy, unpredictable markets.</p>
+                    <ul style="color:#aaa;font-size:0.9em;">
+                        <li><strong>Extreme Threshold:</strong> How lopsided odds must be (0.80 = 80%+ one way)</li>
+                        <li><strong>Target Reversion:</strong> Exit when odds return to this level (0.60 = 60%)</li>
+                        <li><strong>Stop Loss:</strong> Exit if odds keep going extreme</li>
+                    </ul>
+                </div>
+                <div class="guide-section" style="border-left:3px solid #ff33cc;padding-left:12px;">
+                    <h3>🚀 MOMENTUM Mode</h3>
+                    <p><strong>What it does:</strong> Rides strong price trends mid-cycle.</p>
+                    <p><strong>Best for:</strong> Trending markets with clear direction.</p>
+                    <ul style="color:#aaa;font-size:0.9em;">
+                        <li><strong>Min Elapsed (s):</strong> Wait this long before trading (300 = 5 minutes)</li>
+                        <li><strong>Min Consensus:</strong> Model agreement needed (0.75 = 75%)</li>
+                        <li><strong>Exit Before End (s):</strong> Sell this long before cycle ends (180 = 3 min)</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- SETTINGS EXPLAINED TAB -->
+            <div id="guide-settings" class="guide-content" style="display:none;">
+                <div class="guide-section">
+                    <h3>💰 Core Parameters</h3>
+                    <p><strong>Paper Balance ($):</strong> Your fake practice money. Only used in PAPER mode.</p>
+                    <p><strong>Max Position (%):</strong> Maximum % of your money to risk on ONE trade. If you have $100 and this is 10%, the bot won't bet more than $10 on any single trade.</p>
+                </div>
+                <div class="guide-section">
+                    <h3>🎛️ Per-Asset Controls</h3>
+                    <p><strong>Enable/Disable:</strong> Turn trading on/off for each coin (BTC, ETH, SOL, XRP)</p>
+                    <p><strong>Max Trades /cycle:</strong> Limit how many trades per 15-minute period per coin. Default is 1 to prevent overtrading.</p>
+                    <p><strong>Min Wait Before Trading:</strong> How many seconds to wait after a cycle starts before allowing trades. Default 60s prevents premature trades from noisy early data.</p>
+                </div>
+                <div class="guide-section">
+                    <h3>📱 Telegram Notifications</h3>
+                    <p>Get trade alerts on your phone! Setup:</p>
+                    <ol style="color:#aaa;font-size:0.9em;">
+                        <li>Message @BotFather on Telegram, send /newbot</li>
+                        <li>Copy the token it gives you → paste in "Bot Token" field</li>
+                        <li>Message @userinfobot → it replies with your ID number</li>
+                        <li>Paste that number in "Chat ID" field</li>
+                    </ol>
+                </div>
+                <div class="guide-section">
+                    <h3>📋 Settings Cheat Sheet</h3>
+                    <table style="width:100%;font-size:0.85em;border-collapse:collapse;">
+                        <tr style="background:rgba(0,0,0,0.3);"><th style="padding:8px;text-align:left;">Setting</th><th>Safe Value</th><th>Aggressive</th><th>What It Does</th></tr>
+                        <tr><td style="padding:6px;">Min Consensus</td><td>0.90</td><td>0.75</td><td>More agreement = fewer trades</td></tr>
+                        <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Min Confidence</td><td>0.92</td><td>0.70</td><td>More certainty = fewer trades</td></tr>
+                        <tr><td style="padding:6px;">Min Edge</td><td>20%</td><td>10%</td><td>Bigger edge = fewer trades</td></tr>
+                        <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Max Position</td><td>10%</td><td>25%</td><td>Larger = more $ per trade</td></tr>
+                        <tr><td style="padding:6px;">Daily Stop</td><td>15%</td><td>30%</td><td>Lower = stops losses earlier</td></tr>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- RISK CONTROLS TAB -->
+            <div id="guide-risk" class="guide-content" style="display:none;">
+                <div class="guide-section" style="border-left:3px solid #ff0066;padding-left:12px;margin-bottom:15px;">
+                    <h3>⚠️ Risk Management Settings</h3>
+                    <p><strong>Max Exposure (%):</strong> Maximum % of your money in active trades at once. If 30%, you can never have more than 30% at risk simultaneously.</p>
+                    <p><strong>Daily Stop (%):</strong> Stop trading if you lose this much in one day. At 20%, if your $100 drops to $80, trading halts to prevent further damage. This is your circuit breaker!</p>
+                    <p><strong>Loss Cooldown (s):</strong> Wait time after each loss before trading again. Prevents "revenge trading".</p>
+                </div>
+                <div class="guide-section">
+                    <h3>🛡️ Built-in Protections</h3>
+                    <p>The bot has 12 automatic failsafes:</p>
+                    <ul style="color:#aaa;font-size:0.9em;">
+                        <li>✅ 3x retry on buy orders</li>
+                        <li>✅ 5x retry with increasing delays on sell orders</li>
+                        <li>✅ Failed sells saved with recovery info</li>
+                        <li>✅ Daily P/L reset at midnight</li>
+                        <li>✅ Low balance alerts (USDC + MATIC)</li>
+                        <li>✅ Stale data detection (auto-reconnects)</li>
+                        <li>✅ Conviction lock (prevents flip-flopping)</li>
+                        <li>✅ Reality check (nukes bad predictions)</li>
+                    </ul>
+                </div>
+                <div class="guide-section">
+                    <h3>🔄 Failed Sells Recovery</h3>
+                    <p>If a sell fails after 5 retries:</p>
+                    <ol style="color:#aaa;font-size:0.9em;">
+                        <li>Position saved with complete recovery info</li>
+                        <li>Use "Retry Sell" in Recovery modal</li>
+                        <li>Or manually sell at <a href="https://polymarket.com/portfolio" target="_blank" style="color:#4fc3f7;">polymarket.com/portfolio</a></li>
+                        <li>Or wait for market resolution and redeem</li>
+                    </ol>
+                </div>
+            </div>
         </div>
     </div>
+    <style>
+        .guide-tab { padding:8px 12px; background:rgba(0,0,0,0.3); border:1px solid #333; border-radius:6px; color:#888; cursor:pointer; font-size:0.85em; transition:all 0.2s; }
+        .guide-tab:hover { background:rgba(255,255,255,0.1); color:#fff; }
+        .guide-tab.active { background:rgba(0,200,100,0.2); border-color:#00ff88; color:#00ff88; }
+        .guide-content { display:none; }
+        .guide-content.active { display:block; }
+    </style>
+    <script>
+        function showGuideTab(tab) {
+            document.querySelectorAll('.guide-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.guide-tab').forEach(t => t.classList.remove('active'));
+            document.getElementById('guide-' + tab).classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+    </script>
+
     <!-- PENDING SELLS / RECOVERY MODAL -->
     <div class="modal-overlay" id="pendingSellsModal">
         <div class="modal" style="max-width:850px;max-height:90vh;overflow-y:auto;">
@@ -4637,6 +4796,9 @@ app.get('/api/settings', (req, res) => {
             chatId: CONFIG.TELEGRAM?.chatId || ''
         },
 
+        // 🎛️ Per-Asset Trading Controls
+        ASSET_CONTROLS: CONFIG.ASSET_CONTROLS,
+
         // Status
         walletLoaded: !!tradeExecutor.wallet,
         walletAddress: tradeExecutor.wallet ? tradeExecutor.wallet.address : null,
@@ -4714,7 +4876,11 @@ app.post('/api/settings', async (req, res) => {
                 SCALP: CONFIG.SCALP,
                 UNCERTAINTY: CONFIG.UNCERTAINTY,
                 MOMENTUM: CONFIG.MOMENTUM,
-                RISK: CONFIG.RISK
+                RISK: CONFIG.RISK,
+                // 📱 Telegram Settings
+                TELEGRAM: CONFIG.TELEGRAM,
+                // 🎛️ Per-Asset Trading Controls
+                ASSET_CONTROLS: CONFIG.ASSET_CONTROLS
             };
             await redis.set('deity:settings', JSON.stringify(persistedSettings));
             log('💾 Settings persisted to Redis');
