@@ -3701,7 +3701,7 @@ app.get('/', (req, res) => {
                         </label>
                     </div>
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
-                        <span style="color:#23292f;">✕ XRP</span>
+                        <span style="color:#00d4ff;">✕ XRP</span>
                         <label style="display:flex;align-items:center;gap:8px;">
                             <input type="checkbox" id="xrpEnabled" checked> Enabled
                             <input type="number" id="xrpMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
