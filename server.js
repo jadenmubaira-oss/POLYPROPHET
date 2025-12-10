@@ -255,7 +255,8 @@ const CONFIG = {
         maxTotalExposure: 0.30,  // Max 30% of bankroll at risk
         globalStopLoss: 0.20,   // -20% day = stop trading
         globalStopLossOverride: false, // 🔓 Set to true to bypass global stop loss
-        cooldownAfterLoss: 300   // 5 min cooldown after loss
+        cooldownAfterLoss: 300,  // 5 min cooldown after loss
+        noTradeDetection: true   // 🎲 Refuse to trade in genuinely random markets (disable to force trades)
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -2502,6 +2503,18 @@ class SupremeBrain {
                 ? (this.regimeHistory.slice(-3).every(r => r === regime) ? regime : this.regimeHistory[0])
                 : regime;
 
+            // 🔮 NO-TRADE DETECTION: Genuinely random markets = don't gamble
+            // If CHOPPY AND low vote differential AND confidence below 60%, REFUSE TO TRADE
+            // Can be disabled from UI via CONFIG.RISK.noTradeDetection
+            const voteDifferential = Math.abs(upVotes - downVotes) / (totalVotes || 1);
+            const isGenuinelyRandom = stableRegime === 'CHOPPY' && voteDifferential < 0.3 && finalConfidence < 0.60;
+
+            if (CONFIG.RISK.noTradeDetection && isGenuinelyRandom) {
+                finalSignal = 'NEUTRAL';
+                finalConfidence = 0;
+                log(`🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.`, this.asset);
+            }
+
             // Multi-Timeframe Confirmation
             const longTrend = history.length > 300 ? (currentPrice - history[0].p) : 0;
             const trendDir = longTrend > 0 ? 'UP' : 'DOWN';
@@ -2794,8 +2807,7 @@ class SupremeBrain {
                 const yesPrice = market.yesPrice;
                 const noPrice = market.noPrice;
 
-                // Check exit conditions for existing positions
-                tradeExecutor.checkExits(this.asset, currentPrice, elapsed, yesPrice, noPrice);
+                // NOTE: checkExits is now called in main loop (L5796) - no need to call here
 
                 // Scan for new opportunities (only if not already in ORACLE trade)
                 if (!this.convictionLocked) {
@@ -5039,6 +5051,15 @@ app.get('/settings', (req, res) => {
                     <label>Reality Check (ATR Multiple)</label>
                     <input type="number" id="REALITY_CHECK_ATR" value="4" step="1" min="2" max="6">
                 </div>
+                <div class="form-group" style="grid-column: span 2;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="NO_TRADE_DETECTION" checked style="width: 20px; height: 20px;">
+                        <span>🎲 No-Trade Detection (Skip genuinely random markets)</span>
+                    </label>
+                    <small style="color: #888; display: block; margin-top: 5px;">
+                        When enabled, refuses to trade in choppy markets with weak signals. Disable to force trades in all conditions.
+                    </small>
+                </div>
             </div>
         </div>
         
@@ -5090,6 +5111,9 @@ app.get('/settings', (req, res) => {
                 document.getElementById('EARLY_BOOST').value = currentSettings.EARLY_BOOST || 1.35;
                 document.getElementById('REALITY_CHECK_ATR').value = currentSettings.REALITY_CHECK_ATR || 4;
                 document.getElementById('POLYMARKET_ADDRESS').value = currentSettings.POLYMARKET_ADDRESS || '';
+                
+                // No-Trade Detection checkbox
+                document.getElementById('NO_TRADE_DETECTION').checked = currentSettings.RISK?.noTradeDetection !== false;
                 
                 // Update mode buttons
                 document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
@@ -5172,6 +5196,12 @@ app.get('/settings', (req, res) => {
             updates.ADVISORY_THRESHOLD = parseFloat(document.getElementById('ADVISORY_THRESHOLD').value);
             updates.EARLY_BOOST = parseFloat(document.getElementById('EARLY_BOOST').value);
             updates.REALITY_CHECK_ATR = parseInt(document.getElementById('REALITY_CHECK_ATR').value);
+            
+            // Risk settings (include noTradeDetection)
+            updates.RISK = {
+                ...currentSettings.RISK,
+                noTradeDetection: document.getElementById('NO_TRADE_DETECTION').checked
+            };
             
             try {
                 const res = await fetch('/api/settings', {
