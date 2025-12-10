@@ -293,7 +293,10 @@ async function sendTelegramNotification(message, silent = false) {
 }
 
 // 📱 TELEGRAM: Styled notification builders
-function telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target) {
+// Dashboard URL for quick access
+const DASHBOARD_URL = process.env.RENDER_EXTERNAL_URL || 'https://polyprophet.onrender.com/';
+
+function telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market = null) {
     const emoji = direction === 'UP' ? '📈' : '📉';
     const modeEmoji = mode === 'ORACLE' ? '🔮' : mode === 'SCALP' ? '🎯' : mode === 'ARBITRAGE' ? '📊' : mode === 'MOMENTUM' ? '🚀' : '🌊';
     let msg = `${modeEmoji} <b>NEW ${mode} TRADE</b> ${emoji}\n`;
@@ -303,11 +306,14 @@ function telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, t
     msg += `💵 Size: <code>$${size.toFixed(2)}</code>\n`;
     if (stopLoss) msg += `🛑 Stop: <code>${(stopLoss * 100).toFixed(1)}¢</code>\n`;
     if (target) msg += `🎯 Target: <code>${(target * 100).toFixed(1)}¢</code>\n`;
-    msg += `━━━━━━━━━━━━━━━━━`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    // Add clickable links
+    if (market?.marketUrl) msg += `🔗 <a href="${market.marketUrl}">View on Polymarket</a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
     return msg;
 }
 
-function telegramTradeClose(asset, direction, mode, entryPrice, exitPrice, pnl, pnlPercent, reason, balance) {
+function telegramTradeClose(asset, direction, mode, entryPrice, exitPrice, pnl, pnlPercent, reason, balance, market = null) {
     const won = pnl >= 0;
     const emoji = won ? '✅' : '❌';
     const modeEmoji = mode === 'ORACLE' ? '🔮' : mode === 'SCALP' ? '🎯' : mode === 'ARBITRAGE' ? '📊' : mode === 'MOMENTUM' ? '🚀' : '🌊';
@@ -318,7 +324,10 @@ function telegramTradeClose(asset, direction, mode, entryPrice, exitPrice, pnl, 
     msg += `${won ? '💰' : '💸'} P/L: <b>${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</b> (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)\n`;
     msg += `📋 Reason: ${reason}\n`;
     msg += `💼 Balance: <code>$${balance.toFixed(2)}</code>\n`;
-    msg += `━━━━━━━━━━━━━━━━━`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    // Add clickable links
+    if (market?.marketUrl) msg += `🔗 <a href="${market.marketUrl}">View on Polymarket</a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
     return msg;
 }
 
@@ -801,8 +810,8 @@ class TradeExecutor {
         if (stopLoss) log(`🎯 Stop: ${(stopLoss * 100).toFixed(1)}¢`, asset);
         log(`🎯 ═══════════════════════════════════════`, asset);
 
-        // 📱 TELEGRAM NOTIFICATION: Trade opened
-        sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target));
+        // 📱 TELEGRAM NOTIFICATION: Trade opened (with market links)
+        sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market));
 
         if (this.mode === 'PAPER') {
             const balanceBefore = this.paperBalance;
@@ -1242,8 +1251,9 @@ class TradeExecutor {
         log(`${emoji} Balance: $${this.paperBalance.toFixed(2)}`, pos.asset);
         log(`${emoji} ═══════════════════════════════════════`, pos.asset);
 
-        // 📱 TELEGRAM NOTIFICATION: Trade closed
-        sendTelegramNotification(telegramTradeClose(pos.asset, pos.side, pos.mode, pos.entry, exitPrice, pnl, pnlPercent, reason, this.paperBalance));
+        // 📱 TELEGRAM NOTIFICATION: Trade closed (with market links)
+        const market = currentMarkets[pos.asset];
+        sendTelegramNotification(telegramTradeClose(pos.asset, pos.side, pos.mode, pos.entry, exitPrice, pnl, pnlPercent, reason, this.paperBalance, market));
 
         // Update trade history
         const trade = this.tradeHistory.find(t => t.id === positionId);
@@ -2852,12 +2862,12 @@ class SupremeBrain {
                 }
             }
 
-            // EDGE CALCULATION
-
-            if (currentMarkets[this.asset] && this.prediction !== 'WAIT') {
+            // EDGE CALCULATION - Use CURRENT cycle values, not stale ones
+            // BUG FIX: Was using this.confidence (previous) instead of finalConfidence (current)
+            if (currentMarkets[this.asset] && finalSignal !== 'NEUTRAL') {
                 const market = currentMarkets[this.asset];
-                const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
-                this.edge = (this.confidence - marketProb) * 100;
+                const marketProb = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+                this.edge = (finalConfidence - marketProb) * 100;
             } else {
                 this.edge = 0;
             }
@@ -5623,19 +5633,32 @@ setInterval(() => {
     const cp = now - (now % INTERVAL_SECONDS);
 
     ASSETS.forEach(a => {
-        // CRITICAL FIX #1 & #3: Only process within checkpoint window WITH FRESH DATA
+        // Process within checkpoint window (first 5 seconds of new cycle)
         if (now >= cp && now < cp + 5) {
             if (lastEvaluatedCheckpoint[a] !== cp) {
 
-                // CRITICAL: Ensure we have FRESH price data (within 3 seconds)
+                // Check data freshness but DO NOT BLOCK - locks MUST reset!
                 const dataAge = Date.now() - lastUpdateTimestamp;
-                if (dataAge > 3000) {
-                    log(`⚠️ Checkpoint skipped - stale data(${(dataAge / 1000).toFixed(1)}s old)`, a);
-                    return;
+                const isStale = dataAge > 3000;
+
+                if (isStale) {
+                    log(`⚠️ STALE DATA WARNING: ${(dataAge / 1000).toFixed(1)}s old - using last known prices`, a);
                 }
 
-                // Evaluate the JUST FINISHED cycle
-                // Use CONFIRMED fresh prices for accurate outcome evaluation
+                // 🔮 CRITICAL: ALWAYS reset locks at cycle end to prevent dormancy
+                // This was the bug - stale data was blocking lock reset!
+                Brains[a].convictionLocked = false;
+                Brains[a].lockedDirection = null;
+                Brains[a].lockTime = null;
+                Brains[a].lockConfidence = 0;
+                Brains[a].cycleCommitted = false;
+                Brains[a].committedDirection = null;
+                Brains[a].commitTime = null;
+                Brains[a].lockState = 'NEUTRAL';
+                Brains[a].lockStrength = 0;
+                log(`🔓 LOCKS RESET for new cycle`, a);
+
+                // Evaluate the JUST FINISHED cycle (use last known prices if stale)
                 if (checkpointPrices[a] && livePrices[a]) {
                     // CRITICAL: Determine final outcome and resolve ALL positions
                     const finalOutcome = livePrices[a] >= checkpointPrices[a] ? 'UP' : 'DOWN';
@@ -5645,13 +5668,36 @@ setInterval(() => {
                     // Close ALL open positions at cycle end with binary resolution
                     tradeExecutor.resolveAllPositions(a, finalOutcome, yesPrice, noPrice);
 
-                    Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
-                    log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
+                    // Only run full evaluation if data is fresh (for accurate learning)
+                    if (!isStale) {
+                        Brains[a].evaluateOutcome(livePrices[a], checkpointPrices[a]);
+                        log(`📊 Evaluated checkpoint ${cp - INTERVAL_SECONDS} (fresh data)`, a);
+                    } else {
+                        log(`⚠️ Skipping learning evaluation (stale data) but positions resolved`, a);
+                    }
                 }
 
-                // Update checkpoints for the NEW cycle with FRESH price
+                // Update checkpoints for the NEW cycle
                 previousCheckpointPrices[a] = checkpointPrices[a];
                 checkpointPrices[a] = livePrices[a];
+
+                // Clear brain state for new cycle
+                Brains[a].lastSignal = null;
+                Brains[a].prediction = 'WAIT';
+                Brains[a].tier = 'NONE';
+                Brains[a].stabilityCounter = 0;
+                Brains[a].pendingSignal = null;
+                Brains[a].voteHistory = [];
+                Brains[a].currentCycleHistory = [];
+
+                // 🔄 EXPLICIT RESET: Clear trade counts for new cycle
+                // This ensures trade limits reset even if internal checks fail
+                tradeExecutor.cycleTradeCount[a] = 0;
+                tradeExecutor.currentCycleStart = cp;
+
+                // 🔄 EXPLICIT RESET: Clear opportunity detector's cycle tracking
+                opportunityDetector.tradesThisCycle = {};
+                opportunityDetector.currentCycleStart = cp;
 
                 // Mark this checkpoint as evaluated
                 lastEvaluatedCheckpoint[a] = cp;
