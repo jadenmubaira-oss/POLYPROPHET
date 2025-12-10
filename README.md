@@ -1177,6 +1177,18 @@ The goal is 95%+ accuracy on CONVICTION tier trades to enable compounding from �
 - ✅ Full learning system (model accuracy tracking, pattern memory)
 - ✅ Mid-cycle checkpoint continuation after server restart
 
+### December 10, 2025 - Critical Bug Fixes
+
+**🚨 CRITICAL: Trading Dormancy Fixed**
+- `checkExits()` function was NEVER being called - now runs every second
+- SCALP targets, stop losses, pre-resolution exits now actually work
+- Stale data guard no longer blocks cycle lock resets
+
+**Additional Fixes**
+- Edge calculation now uses current cycle's `finalConfidence` (was using stale values)
+- Telegram notifications include clickable links to Polymarket and Dashboard
+- Explicit cycle trade count reset at checkpoint boundaries
+
 ---
 
 ## 📁 Project Structure

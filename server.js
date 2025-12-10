@@ -5751,7 +5751,22 @@ async function startup() {
     await loadState();
     connectWebSocket();
 
-    setInterval(() => ASSETS.forEach(a => Brains[a].update()), 1000);
+    // 🔮 MAIN UPDATE LOOP: Every second, update brains AND check exit conditions
+    setInterval(() => {
+        ASSETS.forEach(a => {
+            Brains[a].update();
+
+            // 🔴 CRITICAL: Check exit conditions for all positions
+            // This was MISSING - checkExits was never called!
+            const now = Math.floor(Date.now() / 1000);
+            const elapsed = now % INTERVAL_SECONDS;
+            const market = currentMarkets[a];
+            if (market) {
+                tradeExecutor.checkExits(a, livePrices[a], elapsed, market.yesPrice, market.noPrice);
+            }
+        });
+    }, 1000);
+
     setInterval(saveState, 5000);
     setInterval(fetchCurrentMarkets, 2000);
 
