@@ -148,9 +148,9 @@ function broadcastUpdate() {
         prices: livePrices,
         checkpointPrices: checkpointPrices,
         tradeMode: CONFIG.TRADE_MODE,
-        balance: tradeExecutor ? (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.liveBalance) : 0,
+        balance: tradeExecutor ? (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance) : 0,
         todayPnL: tradeExecutor ? tradeExecutor.todayPnL : 0,
-        positions: tradeExecutor ? tradeExecutor.openPositions : [],
+        positions: tradeExecutor ? Object.values(tradeExecutor.positions) : [],
         trades: tradeExecutor ? tradeExecutor.tradeHistory.slice(-20) : []
     };
 
@@ -2769,9 +2769,10 @@ class SupremeBrain {
 
             // 🔮 ORACLE: SUPREME CONFIDENCE ENFORCEMENT
             if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
+                const blockedConfidence = finalConfidence; // Store before zeroing
                 finalSignal = 'NEUTRAL'; // Hard block sub-75% confidence
                 finalConfidence = 0;
-                log(`🔮 SUPREME MODE: Blocked (${(finalConfidence * 100).toFixed(1)}% < 75%)`, this.asset);
+                log(`🔮 SUPREME MODE: Blocked (${(blockedConfidence * 100).toFixed(1)}% < 75%)`, this.asset);
             }
 
             // Penalize poor win rate
@@ -4525,11 +4526,29 @@ app.get('/', (req, res) => {
                 }
                 // 🎛️ PER-ASSET CONTROLS
                 if (data.ASSET_CONTROLS) {
-                        document.getElementById('solMaxTrades').value = data.ASSET_CONTROLS.SOL.maxTradesPerCycle || 1;
+                    if (data.ASSET_CONTROLS.BTC) {
+                        const btcEnabledEl = document.getElementById('btcEnabled');
+                        const btcMaxEl = document.getElementById('btcMaxTrades');
+                        if (btcEnabledEl) btcEnabledEl.checked = data.ASSET_CONTROLS.BTC.enabled !== false;
+                        if (btcMaxEl) btcMaxEl.value = data.ASSET_CONTROLS.BTC.maxTradesPerCycle || 1;
+                    }
+                    if (data.ASSET_CONTROLS.ETH) {
+                        const ethEnabledEl = document.getElementById('ethEnabled');
+                        const ethMaxEl = document.getElementById('ethMaxTrades');
+                        if (ethEnabledEl) ethEnabledEl.checked = data.ASSET_CONTROLS.ETH.enabled !== false;
+                        if (ethMaxEl) ethMaxEl.value = data.ASSET_CONTROLS.ETH.maxTradesPerCycle || 1;
+                    }
+                    if (data.ASSET_CONTROLS.SOL) {
+                        const solEnabledEl = document.getElementById('solEnabled');
+                        const solMaxEl = document.getElementById('solMaxTrades');
+                        if (solEnabledEl) solEnabledEl.checked = data.ASSET_CONTROLS.SOL.enabled !== false;
+                        if (solMaxEl) solMaxEl.value = data.ASSET_CONTROLS.SOL.maxTradesPerCycle || 1;
                     }
                     if (data.ASSET_CONTROLS.XRP) {
-                        document.getElementById('xrpEnabled').checked = data.ASSET_CONTROLS.XRP.enabled !== false;
-                        document.getElementById('xrpMaxTrades').value = data.ASSET_CONTROLS.XRP.maxTradesPerCycle || 1;
+                        const xrpEnabledEl = document.getElementById('xrpEnabled');
+                        const xrpMaxEl = document.getElementById('xrpMaxTrades');
+                        if (xrpEnabledEl) xrpEnabledEl.checked = data.ASSET_CONTROLS.XRP.enabled !== false;
+                        if (xrpMaxEl) xrpMaxEl.value = data.ASSET_CONTROLS.XRP.maxTradesPerCycle || 1;
                     }
                 }
                 // 🕐 MIN ELAPSED SECONDS
