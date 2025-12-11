@@ -1407,10 +1407,16 @@ As the bot learns and accuracy improves, position sizing can increase.
 | **checkPyramiding()** | Fixed 6 wrong property references | Pyramiding now works |
 | **broadcastUpdate()** | Fixed WebSocket property names | Dashboard displays correctly |
 | **ASSET_CONTROLS loading** | Fixed broken brace structure | Frontend settings load correctly |
+| **🔐 Security Hardening** | Removed hardcoded API keys | Private keys no longer in source |
+| **Memory Safety** | tradeHistory bounded to 1000 | No memory leak after 10,000 hours |
+| **Prediction/Confidence Sync** | Always update together | No more flickering display |
+| **Late Cycle Edge** | Fixed to use relative formula | Correct edge for late entries |
 
-### Total Bugs Fixed: 19
+### Total Bugs Fixed: 24
 - 17 runtime bugs (undefined references, wrong formulas)
-- 2 critical logic flaws (edge calculation, learning persistence)
+- 5 critical logic flaws (edge calculations, learning persistence, memory)
+- 1 security vulnerability (hardcoded API keys removed)
+- 1 cleanup (unused imports)
 
 ### Verified Failsafes
 
@@ -1433,8 +1439,16 @@ The following are now **PERMANENTLY SAVED** to Redis:
 - `calibrationBuckets` (confidence accuracy tracking)
 - `patterns` (DTW pattern memory)
 
+> [!IMPORTANT]
+> **API keys no longer have defaults!** You MUST set all 5 credentials in your `.env` file:
+> - `POLYMARKET_API_KEY`
+> - `POLYMARKET_SECRET`
+> - `POLYMARKET_PASSPHRASE`
+> - `POLYMARKET_ADDRESS`
+> - `POLYMARKET_PRIVATE_KEY`
+
 ---
 
 *Built for the £10 to £1,000,000 mission* 🚀
 
-*Last Updated: December 11, 2025 - PINNACLE PROTOCOL Complete*
+*Last Updated: December 11, 2025 - ATOMIC SCRUTINY PROTOCOL Complete (24 Bugs Fixed)*

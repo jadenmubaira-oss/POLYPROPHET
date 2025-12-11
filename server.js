@@ -4,8 +4,6 @@
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
-const fs = require('fs');
-const path = require('path');
 const cors = require('cors');
 const Redis = require('ioredis');
 const auth = require('basic-auth');
@@ -250,11 +248,12 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
-    POLYMARKET_API_KEY: (process.env.POLYMARKET_API_KEY || '019aed53-b71a-7065-9115-c35883302725').trim(),
-    POLYMARKET_SECRET: (process.env.POLYMARKET_SECRET || 'V83h0eNxG3q01pO8Fo8FGVwGt2axzhVM-emscfT-VYU=').trim(),
-    POLYMARKET_PASSPHRASE: (process.env.POLYMARKET_PASSPHRASE || '69ab26964415369000386c9df6f9a69b6909a56f216959467da4eb843d8acae7').trim(),
-    POLYMARKET_ADDRESS: (process.env.POLYMARKET_ADDRESS || '0xcd03c2a5d1008205205f66a6541e9ea6ecdd1c59').trim(),
-    POLYMARKET_PRIVATE_KEY: (process.env.POLYMARKET_PRIVATE_KEY || '0x0a9e6f3f2e3011b91c40706193a9088dc440c40350b1ce30af2bcad362e10ec0').trim(),
+    // CRITICAL: NO DEFAULTS - user MUST set these in .env
+    POLYMARKET_API_KEY: (process.env.POLYMARKET_API_KEY || '').trim(),
+    POLYMARKET_SECRET: (process.env.POLYMARKET_SECRET || '').trim(),
+    POLYMARKET_PASSPHRASE: (process.env.POLYMARKET_PASSPHRASE || '').trim(),
+    POLYMARKET_ADDRESS: (process.env.POLYMARKET_ADDRESS || '').trim(),
+    POLYMARKET_PRIVATE_KEY: (process.env.POLYMARKET_PRIVATE_KEY || '').trim(),
 
     // Core Trading Settings
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
@@ -2958,10 +2957,21 @@ class SupremeBrain {
                     if (market && finalSignal !== 'NEUTRAL') {
                         const marketProb = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
                         this.edge = marketProb > 0 ? ((finalConfidence - marketProb) / marketProb) * 100 : 0;
+                    } else {
+                        this.edge = 0; // Zero edge for NEUTRAL
                     }
                     this.stabilityCounter = 0;
                     this.pendingSignal = null;
                     log(`✅ PREDICTION FLIP: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
+                } else {
+                    // PINNACLE FIX: ALWAYS update confidence/tier even during debounce
+                    // This prevents the flicker where prediction and confidence are out of sync
+                    this.confidence = finalConfidence;
+                    this.tier = tier;
+                    // If going to NEUTRAL, zero the edge
+                    if (finalSignal === 'NEUTRAL') {
+                        this.edge = 0;
+                    }
                 }
             } else {
                 this.confidence = finalConfidence;
@@ -3102,7 +3112,8 @@ class SupremeBrain {
 
                 if (isNear5050 && hasStrongSignal && !hasExistingPosition) {
                     const lateEntryPrice = finalSignal === 'UP' ? yesP : noP;
-                    const lateEdge = (finalConfidence - lateEntryPrice) * 100;
+                    // BUG FIX #24: Use RELATIVE edge formula like all other edge calculations
+                    const lateEdge = lateEntryPrice > 0 ? ((finalConfidence - lateEntryPrice) / lateEntryPrice) * 100 : 0;
 
                     if (lateEdge >= 10) { // Only if 10%+ edge
                         log(`⚡ LATE CYCLE OPPORTUNITY: Odds at ${(yesP * 100).toFixed(0)}% (near 50/50), confidence ${(finalConfidence * 100).toFixed(0)}%`, this.asset);
