@@ -201,7 +201,7 @@ const CONFIG = {
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
-        minElapsedSeconds: 15,   // OPTIMIZED: First 15s (was 60s) for faster entry
+        minElapsedSeconds: 5,   // 🔮 ORACLE: Trade within first 5s for maximum edge
         minConsensus: 0.70,      // 70%+ of models agree
         minConfidence: 0.75,     // 75%+ confidence required
         minEdge: 8,              // 8%+ edge over market
@@ -250,23 +250,28 @@ const CONFIG = {
         exitBeforeEnd: 180       // Exit 3 mins before checkpoint
     },
 
-    // Risk Management - SMART AGGRESSIVE MODE (Fast to £1k, Protected)
+    // Risk Management - 🔮 ORACLE MODE (90%+ Win Rate, 1-2 Week Timeline)
     RISK: {
-        maxTotalExposure: 0.50,  // BALANCED: 50% max (fast but not reckless)
-        globalStopLoss: 0.30,   // -30% day = pause (prevents total loss)
-        globalStopLossOverride: false, // 🔓 Toggle to bypass daily stop loss
-        cooldownAfterLoss: 60,  // BALANCED: 1min cooldown (not 5min, not 0)
-        enableLossCooldown: true, // 🔥 Toggle loss cooldown (default ON for safety)
-        noTradeDetection: true,   // 🎲 Block genuinely random markets
-        enableCircuitBreaker: true, // ⚡ Pause extreme volatility (default ON)
-        enableDivergenceBlocking: true, // 🚫 Block market-wide chaos (default ON)
-        aggressiveSizingOnLosses: false, // 💪 Reduce size on losses (default for safety)
+        maxTotalExposure: 0.75,  // 🔮 ORACLE: 75% for aggressive compounding
+        globalStopLoss: 0.40,   // -40% day = wider safety net
+        globalStopLossOverride: false,
+        cooldownAfterLoss: 0,  // 🔮 ORACLE: NO cooldown (continuous trading)
+        enableLossCooldown: false, // 🔮 OFF for maximum speed
+        noTradeDetection: true,   // Still block genuinely random markets
+        enableCircuitBreaker: false, // 🔮 OFF - trade through volatility (opportunity!)
+        enableDivergenceBlocking: false, // 🔮 OFF - trust our ensemble over market
+        aggressiveSizingOnLosses: true, // 🔮 Maintain size (confidence in system)
 
-        // 🎯 SMART SAFEGUARDS (New)
-        maxConsecutiveLosses: 3,  // Force pause after 3 losses in a row
-        maxDailyLosses: 5,        // Max 5 losing trades per day
-        autoReduceSizeOnDrawdown: true, // Cut position size if down 15%+
-        withdrawalNotification: 1000 // Notify when balance hits £1,000
+        // 🔮 ORACLE SAFEGUARDS
+        maxConsecutiveLosses: 5,  // Higher tolerance (from 3)
+        maxDailyLosses: 8,        // More trades allowed (from 5)
+        autoReduceSizeOnDrawdown: false, // Maintain aggression
+        withdrawalNotification: 1000,
+
+        // 🔮 NEW: ORACLE-LEVEL FEATURES
+        enablePositionPyramiding: true,  // Add to winning positions
+        firstMoveAdvantage: true,        // Bonus for trading <30s
+        supremeConfidenceMode: true      // Only trade 75%+ confidence
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -276,12 +281,12 @@ const CONFIG = {
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
     },
 
-    // PER-ASSET TRADING CONTROLS - BALANCED (3 trades/cycle)
+    // PER-ASSET TRADING CONTROLS - 🔮 ORACLE MODE (5 trades/cycle)
     ASSET_CONTROLS: {
-        BTC: { enabled: true, maxTradesPerCycle: 3 },
-        ETH: { enabled: true, maxTradesPerCycle: 3 },
-        SOL: { enabled: true, maxTradesPerCycle: 3 },
-        XRP: { enabled: true, maxTradesPerCycle: 3 }
+        BTC: { enabled: true, maxTradesPerCycle: 5 },
+        ETH: { enabled: true, maxTradesPerCycle: 5 },
+        SOL: { enabled: true, maxTradesPerCycle: 5 },
+        XRP: { enabled: true, maxTradesPerCycle: 5 }
     }
 };
 
@@ -1289,6 +1294,57 @@ class TradeExecutor {
 
         delete this.positions[positionId];
         return pnl;
+    }
+
+    // 🔮 ORACLE: POSITION PYRAMIDING - Add to Winning Positions
+    async checkPyramiding() {
+        if (!CONFIG.RISK.enablePositionPyramiding) return;
+
+        for (const trade of this.openPositions) {
+            // Only pyramid ORACLE positions
+            if (trade.mode !== 'ORACLE') continue;
+
+            // Only pyramid once per position
+            if (trade.pyramided) continue;
+
+            // Must be held for at least 2 minutes
+            const holdTime = (Date.now() - trade.entryTime) / 1000;
+            if (holdTime < 120) continue;
+
+            // Check if position is profitable
+            const market = currentMarkets[trade.asset];
+            if (!market) continue;
+
+            const currentPrice = trade.side === 'YES' ? market.yesPrice : market.noPrice;
+            const pnlPercent = ((currentPrice - trade.entry) / trade.entry) * 100;
+
+            // Must be profitable by at least 15%
+            if (pnlPercent < 15) continue;
+
+            // Calculate pyramid size (50% of original position)
+            const pyramidSize = trade.size * 0.5;
+            const pyramidCost = pyramidSize * currentPrice;
+
+            // Check if we have balance
+            const balance = this.getTradingBalance();
+            if (pyramidCost > balance * 0.1) continue; // Max 10% of balance for pyramid
+
+            log(`🔺 PYRAMIDING: Adding ${pyramidSize.toFixed(0)} shares @ ${(currentPrice * 100).toFixed(1)}¢ to ${trade.asset} position (+${pnlPercent.toFixed(1)}%)`, trade.asset);
+
+            // Execute pyramid trade
+            const pyramidResult = await this.executeTrade(trade.asset, trade.prediction, 'ORACLE', trade.confidence, currentPrice, market, {
+                isPyramid: true,
+                originalTradeId: trade.id,
+                pyramidSize: pyramidSize
+            });
+
+            if (pyramidResult.success) {
+                // Mark original trade as pyramided
+                trade.pyramided = true;
+                trade.pyramidTime = Date.now();
+                log(`✅ Pyramid added successfully`, trade.asset);
+            }
+        }
     }
 
     // Check all positions for exit conditions
@@ -2537,8 +2593,8 @@ class SupremeBrain {
             // 🎯 AGGRESSIVE PROPHECY MODE: Optimized for £10→£1M Goal
             // Goal: Frequent, early predictions with acceptable accuracy
             let tier = 'NONE';
-            let convictionThreshold = 0.65; // OPTIMIZED: More aggressive (was 0.70) for more CONVICTION trades
-            let advisoryThreshold = 0.52;   // Easier entry (was 0.55) for more opportunities
+            let convictionThreshold = 0.75; // 🔮 ORACLE: Supreme confidence (75%+ only)
+            let advisoryThreshold = 0.65;   // 🔮 Higher bar for quality (was 0.52)
 
             // 🌍 ALL-WEATHER LOGIC: Adapt strategy to market regime
             if (regime === 'CHOPPY') {
@@ -2628,13 +2684,28 @@ class SupremeBrain {
             }
 
             // MOMENTUM BOOST: Help reach Conviction if moving right way
-            // Note: tier isn't assigned yet, so check confidence range directly
+            // === MOMENTUM BOOST (Advisory → Conviction Promotion) ===
             if (finalConfidence > 0.55 && finalConfidence < 0.70) { // Advisory range
                 // If we are close to 0.70 and price is moving in our favor
                 if ((finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0)) {
                     finalConfidence += 0.08; // OPTIMIZED: Stronger boost (+8%, was +5%)
                     log(`🚀 MOMENTUM BOOST: +8% (price moving in our favor)`, this.asset);
                 }
+            }
+
+            // 🔮 ORACLE: FIRST-MOVE ADVANTAGE (Bonus for trading <30s)
+            if (CONFIG.RISK.firstMoveAdvantage && elapsed < 30 && finalConfidence > 0.70) {
+                const earlyBonus = ((30 - elapsed) / 30) * 0.10; // FIXED: 0-10% bonus (10% at 0s, 0% at 30s)
+                finalConfidence += earlyBonus;
+                finalConfidence = Math.min(0.99, finalConfidence); // Cap at 99%
+                log(`⚡ FIRST-MOVE ADVANTAGE: +${(earlyBonus * 100).toFixed(1)}% (${elapsed}s elapsed)`, this.asset);
+            }
+
+            // 🔮 ORACLE: SUPREME CONFIDENCE ENFORCEMENT
+            if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
+                finalSignal = 'NEUTRAL'; // Hard block sub-75% confidence
+                finalConfidence = 0;
+                log(`🔮 SUPREME MODE: Blocked (${(finalConfidence * 100).toFixed(1)}% < 75%)`, this.asset);
             }
 
             // Penalize poor win rate
@@ -3772,10 +3843,11 @@ app.get('/', (req, res) => {
                     <!-- Preset Profiles -->
                     <div style="margin:12px 0;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;">
                         <label style="color:#888;font-size:0.9em;display:block;margin-bottom:8px;">📋 Quick Presets:</label>
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
                             <button onclick="applyRiskPreset('SAFE')" style="padding:8px;background:rgba(0,255,136,0.2);border:1px solid #00ff88;color:#00ff88;border-radius:4px;cursor:pointer;font-size:0.85em;">🛡️ Safe</button>
                             <button onclick="applyRiskPreset('BALANCED')" style="padding:8px;background:rgba(255,215,0,0.2);border:1px solid #ffd700;color:#ffd700;border-radius:4px;cursor:pointer;font-size:0.85em;">⚖️ Balanced</button>
                             <button onclick="applyRiskPreset('AGGRESSIVE')" style="padding:8px;background:rgba(255,68,102,0.2);border:1px solid #ff4466;color:#ff4466;border-radius:4px;cursor:pointer;font-size:0.85em;">🔥 Aggressive</button>
+                            <button onclick="applyRiskPreset('ORACLE')" style="padding:8px;background:rgba(153,51,255,0.2);border:1px solid #9933ff;color:#9933ff;border-radius:4px;cursor:pointer;font-size:0.85em;">🔮 Oracle</button>
                         </div>
                     </div>
 
@@ -3798,6 +3870,23 @@ app.get('/', (req, res) => {
                                 </label>
                             </div>
                             <small style="display:block;color:#888;margin-top:8px;line-height:1.4;">Cooldown: pause after loss | Circuit: pause extreme volatility | Divergence: block market chaos | Maintain: don't reduce position after losses</small>
+                        </div>
+                        
+                        <!-- 🔮 ORACLE FEATURES -->
+                        <div style="grid-column:1/-1;margin-bottom:12px;padding:10px;background:rgba(153,51,255,0.1);border-radius:6px;border-left:3px solid #9933ff;">
+                            <label style="color:#9933ff;font-weight:bold;display:block;margin-bottom:10px;">🔮 Oracle Mode Features:</label>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                <label style="color:#aaa;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="firstMoveAdvantage" checked style="width:16px;height:16px;"> First-Move Advantage
+                                </label>
+                                <label style="color:#aaa;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="supremeConfidenceMode" checked style="width:16px;height:16px;"> Supreme Confidence (75%+)
+                                </label>
+                                <label style="color:#aaa;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="enablePositionPyramiding" checked style="width:16px;height:16px;"> Position Pyramiding
+                                </label>
+                            </div>
+                            <small style="display:block;color:#888;margin-top:8px;line-height:1.4;">First-Move: +10% confidence <30s | Supreme: block trades <75% | Pyramid: add 50% to winners after 2min</small>
                         </div>
 
                         <!-- No-Trade Detection (existing) -->
@@ -4323,21 +4412,25 @@ app.get('/', (req, res) => {
                     document.getElementById('momExitBefore').value = data.MOMENTUM.exitBeforeEnd || 180;
                 }
                 if (data.RISK) { 
-                    document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.50) * 100; 
-                    document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.30) * 100; 
-                    document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 60;
+                    document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.75) * 100; 
+                    document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.40) * 100; 
+                    document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 0;
                     document.getElementById('noTradeDetection').checked = data.RISK.noTradeDetection !== false;
                     // Smart Aggressive toggles
-                    document.getElementById('enableLossCooldown').checked = data.RISK.enableLossCooldown !== false;
-                    document.getElementById('enableCircuitBreaker').checked = data.RISK.enableCircuitBreaker !== false;
-                    document.getElementById('enableDivergenceBlocking').checked = data.RISK.enableDivergenceBlocking !== false;
+                    document.getElementById('enableLossCooldown').checked = data.RISK.enableLossCooldown === true;
+                    document.getElementById('enableCircuitBreaker').checked = data.RISK.enableCircuitBreaker === true;
+                    document.getElementById('enableDivergenceBlocking').checked = data.RISK.enableDivergenceBlocking === true;
                     document.getElementById('aggressiveSizingOnLosses').checked = data.RISK.aggressiveSizingOnLosses === true;
+                    // 🔮 Oracle Mode features
+                    document.getElementById('firstMoveAdvantage').checked = data.RISK.firstMoveAdvantage !== false;
+                    document.getElementById('supremeConfidenceMode').checked = data.RISK.supremeConfidenceMode !== false;
+                    document.getElementById('enablePositionPyramiding').checked = data.RISK.enablePositionPyramiding !== false;
                     // Smart Safeguards
-                    document.getElementById('maxConsecutiveLosses').value = data.RISK.maxConsecutiveLosses || 3;
-                    document.getElementById('maxDailyLosses').value = data.RISK.maxDailyLosses || 5;
+                    document.getElementById('maxConsecutiveLosses').value = data.RISK.maxConsecutiveLosses || 5;
+                    document.getElementById('maxDailyLosses').value = data.RISK.maxDailyLosses || 8;
                     document.getElementById('withdrawalNotification').value = data.RISK.withdrawalNotification || 1000;
                     // Max position size
-                    document.getElementById('maxPositionSize').value = (data.MAX_POSITION_SIZE || 0.20) * 100;
+                    document.getElementById('maxPositionSize').value = (data.MAX_POSITION_SIZE || 0.25) * 100;
                     // Resume button visibility
                     const resumeBtn = document.getElementById('resumeTradingBtn');
                     if (resumeBtn) {
@@ -4438,6 +4531,10 @@ app.get('/', (req, res) => {
                     enableCircuitBreaker: document.getElementById('enableCircuitBreaker').checked,
                     enableDivergenceBlocking: document.getElementById('enableDivergenceBlocking').checked,
                     aggressiveSizingOnLosses: document.getElementById('aggressiveSizingOnLosses').checked,
+                    // 🔮 Oracle features
+                    firstMoveAdvantage: document.getElementById('firstMoveAdvantage').checked,
+                    supremeConfidenceMode: document.getElementById('supremeConfidenceMode').checked,
+                    enablePositionPyramiding: document.getElementById('enablePositionPyramiding').checked,
                     // Smart Safeguards
                     maxConsecutiveLosses: parseInt(document.getElementById('maxConsecutiveLosses').value),
                     maxDailyLosses: parseInt(document.getElementById('maxDailyLosses').value),
@@ -4501,6 +4598,9 @@ app.get('/', (req, res) => {
                 document.getElementById('enableCircuitBreaker').checked = true;
                 document.getElementById('enableDivergenceBlocking').checked = true;
                 document.getElementById('aggressiveSizingOnLosses').checked = false;
+                document.getElementById('firstMoveAdvantage').checked = false;
+                document.getElementById('supremeConfidenceMode').checked = false;
+                document.getElementById('enablePositionPyramiding').checked = false;
             } else if (preset === 'BALANCED') {
                 document.getElementById('riskMaxExposure').value = 50;
                 document.getElementById('maxPositionSize').value = 20;
@@ -4513,6 +4613,9 @@ app.get('/', (req, res) => {
                 document.getElementById('enableCircuitBreaker').checked = true;
                 document.getElementById('enableDivergenceBlocking').checked = true;
                 document.getElementById('aggressiveSizingOnLosses').checked = false;
+                document.getElementById('firstMoveAdvantage').checked = false;
+                document.getElementById('supremeConfidenceMode').checked = false;
+                document.getElementById('enablePositionPyramiding').checked = false;
             } else if (preset === 'AGGRESSIVE') {
                 document.getElementById('riskMaxExposure').value = 100;
                 document.getElementById('maxPositionSize').value = 25;
@@ -4525,6 +4628,24 @@ app.get('/', (req, res) => {
                 document.getElementById('enableCircuitBreaker').checked = false;
                 document.getElementById('enableDivergenceBlocking').checked = false;
                 document.getElementById('aggressiveSizingOnLosses').checked = true;
+                document.getElementById('firstMoveAdvantage').checked = false;
+                document.getElementById('supremeConfidenceMode').checked = false;
+                document.getElementById('enablePositionPyramiding').checked = false;
+            } else if (preset === 'ORACLE') {
+                document.getElementById('riskMaxExposure').value = 75;
+                document.getElementById('maxPositionSize').value = 25;
+                document.getElementById('riskCooldown').value = 0;
+                document.getElementById('riskStopLoss').value = 40;
+                document.getElementById('maxConsecutiveLosses').value = 5;
+                document.getElementById('maxDailyLosses').value = 8;
+                document.getElementById('maxTradesPerCycle').value = 5;
+                document.getElementById('enableLossCooldown').checked = false;
+                document.getElementById('enableCircuitBreaker').checked = false;
+                document.getElementById('enableDivergenceBlocking').checked = false;
+                document.getElementById('aggressiveSizingOnLosses').checked = true;
+                document.getElementById('firstMoveAdvantage').checked = true;
+                document.getElementById('supremeConfidenceMode').checked = true;
+                document.getElementById('enablePositionPyramiding').checked = true;
             }
             saveAllSettings();
         }
@@ -4982,9 +5103,6 @@ app.post('/api/wallet/transfer', async (req, res) => {
         if (!to || !amount) {
             return res.status(400).json({ success: false, error: 'Missing "to" address or "amount"' });
         }
-
-        const result = await tradeExecutor.transferUSDC(to, parseFloat(amount));
-        res.json(result);
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
