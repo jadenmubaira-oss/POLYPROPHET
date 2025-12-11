@@ -2986,7 +2986,10 @@ class SupremeBrain {
                     const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
                     const consensusVotes = Math.max(votes.UP, votes.DOWN);
                     const consensusRatio = totalVotes > 0 ? consensusVotes / totalVotes : 0;
-                    const edgePercent = (finalConfidence - currentOdds) * 100;
+                    // CRITICAL FIX: Use RELATIVE edge formula (not absolute) AND account for 2% Polymarket fee
+                    const POLYMARKET_FEE = 0.02; // 2% fee on winnings
+                    const effectiveConfidence = finalConfidence * (1 - POLYMARKET_FEE); // Reduce by fee
+                    const edgePercent = currentOdds > 0 ? ((effectiveConfidence - currentOdds) / currentOdds) * 100 : 0;
                     const priceMovingRight = (finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0);
                     const isTrending = regime === 'TRENDING';
                     const stabilityMet = this.stabilityCounter >= CONFIG.ORACLE.minStability || this.prediction === finalSignal;
@@ -3567,7 +3570,10 @@ async function saveState() {
         },
         // FINAL SEVEN: PERSISTENCE
         calibration: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].calibrationBuckets }), {}),
-        regime: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].regimeHistory }), {})
+        regime: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].regimeHistory }), {}),
+        // PINNACLE: Model accuracy (THE LEARNING!) - MUST be persisted
+        modelAccuracy: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].modelAccuracy }), {}),
+        recentOutcomes: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].recentOutcomes }), {})
     };
 
     // Save to Redis if available
@@ -3657,7 +3663,11 @@ async function loadState() {
                 if (state.calibration) ASSETS.forEach(a => { if (state.calibration[a]) Brains[a].calibrationBuckets = state.calibration[a]; });
                 if (state.regime) ASSETS.forEach(a => { if (state.regime[a]) Brains[a].regimeHistory = state.regime[a]; });
 
-                log('💾 State Restored from Redis');
+                // PINNACLE: RESTORE MODEL ACCURACY (THE LEARNING!) - CRITICAL FOR GENUINE EVOLUTION
+                if (state.modelAccuracy) ASSETS.forEach(a => { if (state.modelAccuracy[a]) Brains[a].modelAccuracy = state.modelAccuracy[a]; });
+                if (state.recentOutcomes) ASSETS.forEach(a => { if (state.recentOutcomes[a]) Brains[a].recentOutcomes = state.recentOutcomes[a]; });
+
+                log('💾 State Restored from Redis (including model learning!)');
                 return;
             }
         } catch (e) {
