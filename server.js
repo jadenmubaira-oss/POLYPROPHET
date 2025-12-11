@@ -5843,8 +5843,40 @@ app.get('/guide', (req, res) => {
             <div class="tip" style="margin-top: 15px;">
                 <strong>Quality Protection:</strong> Even at 100% aggression, core quality gates remain active. Predictions are more frequent but still validated.
             </div>
-            
+        
             <p style="margin-top: 15px;">Access: <strong>Settings → Mode Configuration → 🔮 ORACLE</strong></p>
+        </div>
+        
+        <h2>🔮 Oracle Mode Features (PINNACLE)</h2>
+        
+        <div class="card mode-card oracle">
+            <h3>⚡ First-Move Advantage</h3>
+            <p><strong>What:</strong> +0-10% confidence bonus for trades within first 30 seconds of cycle.</p>
+            <p><strong>Why:</strong> Early entry = better odds before market catches up.</p>
+            <p><strong>Enable:</strong> Settings → Risk Management → Oracle Mode Features → First-Move Advantage</p>
+        </div>
+        
+        <div class="card mode-card oracle">
+            <h3>👑 Supreme Confidence Mode</h3>
+            <p><strong>What:</strong> Blocks ALL trades below 75% confidence.</p>
+            <p><strong>Why:</strong> Only trades with highest conviction execute.</p>
+            <p><strong>Enable:</strong> Settings → Risk Management → Oracle Mode Features → Supreme Confidence</p>
+        </div>
+        
+        <div class="card mode-card oracle">
+            <h3>📈 Position Pyramiding</h3>
+            <p><strong>What:</strong> Adds 50% more capital to winning Oracle positions (held >2min, +15% profit).</p>
+            <p><strong>Why:</strong> Compound winners while they're winning.</p>
+            <p><strong>Enable:</strong> Settings → Risk Management → Oracle Mode Features → Position Pyramiding</p>
+        </div>
+        
+        <div class="tip">
+            <h3>🎯 Recommended Oracle Settings</h3>
+            <ul style="margin-left: 20px; margin-top: 10px;">
+                <li><strong>For 90%+ Win Rate:</strong> Enable Supreme Confidence + First-Move Advantage</li>
+                <li><strong>For Maximum Compounding:</strong> Also enable Position Pyramiding</li>
+                <li><strong>Quick Setup:</strong> Click "🔮 Oracle" preset in Risk Management</li>
+            </ul>
         </div>
         
         <h2>🔄 Failed Sells Recovery</h2>
