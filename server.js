@@ -3107,10 +3107,11 @@ class SupremeBrain {
 
             // EDGE CALCULATION - Use CURRENT cycle values, not stale ones
             // BUG FIX: Was using this.confidence (previous) instead of finalConfidence (current)
+            // BUG FIX 2: Must use RELATIVE formula ((conf-market)/market) like lines 2954/2967
             if (currentMarkets[this.asset] && finalSignal !== 'NEUTRAL') {
                 const market = currentMarkets[this.asset];
                 const marketProb = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-                this.edge = (finalConfidence - marketProb) * 100;
+                this.edge = marketProb > 0 ? ((finalConfidence - marketProb) / marketProb) * 100 : 0;
             } else {
                 this.edge = 0;
             }
