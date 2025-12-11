@@ -201,7 +201,7 @@ const CONFIG = {
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
-        minElapsedSeconds: 60,   // 🕐 NEW: Don't trade in first 60s - wait for confidence to build
+        minElapsedSeconds: 15,   // OPTIMIZED: First 15s (was 60s) for faster entry
         minConsensus: 0.70,      // 70%+ of models agree
         minConfidence: 0.75,     // 75%+ confidence required
         minEdge: 8,              // 8%+ edge over market
@@ -250,13 +250,23 @@ const CONFIG = {
         exitBeforeEnd: 180       // Exit 3 mins before checkpoint
     },
 
-    // Risk Management
+    // Risk Management - SMART AGGRESSIVE MODE (Fast to £1k, Protected)
     RISK: {
-        maxTotalExposure: 0.30,  // Max 30% of bankroll at risk
-        globalStopLoss: 0.20,   // -20% day = stop trading
-        globalStopLossOverride: false, // 🔓 Set to true to bypass global stop loss
-        cooldownAfterLoss: 300,  // 5 min cooldown after loss
-        noTradeDetection: true   // 🎲 Refuse to trade in genuinely random markets (disable to force trades)
+        maxTotalExposure: 0.50,  // BALANCED: 50% max (fast but not reckless)
+        globalStopLoss: 0.30,   // -30% day = pause (prevents total loss)
+        globalStopLossOverride: false, // 🔓 Toggle to bypass daily stop loss
+        cooldownAfterLoss: 60,  // BALANCED: 1min cooldown (not 5min, not 0)
+        enableLossCooldown: true, // 🔥 Toggle loss cooldown (default ON for safety)
+        noTradeDetection: true,   // 🎲 Block genuinely random markets
+        enableCircuitBreaker: true, // ⚡ Pause extreme volatility (default ON)
+        enableDivergenceBlocking: true, // 🚫 Block market-wide chaos (default ON)
+        aggressiveSizingOnLosses: false, // 💪 Reduce size on losses (default for safety)
+
+        // 🎯 SMART SAFEGUARDS (New)
+        maxConsecutiveLosses: 3,  // Force pause after 3 losses in a row
+        maxDailyLosses: 5,        // Max 5 losing trades per day
+        autoReduceSizeOnDrawdown: true, // Cut position size if down 15%+
+        withdrawalNotification: 1000 // Notify when balance hits £1,000
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -266,13 +276,12 @@ const CONFIG = {
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
     },
 
-    // ==================== PER-ASSET TRADING CONTROLS ====================
-    // Enable/disable individual assets and limit trades per cycle
+    // PER-ASSET TRADING CONTROLS - BALANCED (3 trades/cycle)
     ASSET_CONTROLS: {
-        BTC: { enabled: true, maxTradesPerCycle: 1 },
-        ETH: { enabled: true, maxTradesPerCycle: 1 },
-        SOL: { enabled: true, maxTradesPerCycle: 1 },
-        XRP: { enabled: true, maxTradesPerCycle: 1 }
+        BTC: { enabled: true, maxTradesPerCycle: 3 },
+        ETH: { enabled: true, maxTradesPerCycle: 3 },
+        SOL: { enabled: true, maxTradesPerCycle: 3 },
+        XRP: { enabled: true, maxTradesPerCycle: 3 }
     }
 };
 
@@ -2304,6 +2313,15 @@ class SupremeBrain {
             const smoothV = this.derivKalman.filter(phys.v);
             const isFakeout = (Math.abs(smoothV) > atr && entropy > atr * 4);
 
+            if (bestMatch && bestMatch.score > 0.85) {
+                const vote = bestMatch.outcome;
+                const matchWeight = 2.0 * (bestMatch.score - 0.85) / 0.15; // OPTIMIZED: 2x weight (was 1.0) for historical patterns
+                votes[vote] += matchWeight;
+                modelVotes.pattern = vote;
+                totalConfidence += bestMatch.score * 1.2; // OPTIMIZED: Boost confidence for pattern matches
+                this.lastSignal = this.lastSignal || {}; this.lastSignal.patternId = bestMatch.id;
+            }
+
             if (!isFakeout && Math.abs(phys.v) > atr * 0.5) {
                 const physSignal = phys.v > 0 ? 'UP' : 'DOWN';
                 const physWeight = weights.physicist || 1.0;
@@ -2406,6 +2424,37 @@ class SupremeBrain {
             }
 
             // MODEL 8: VOLUME ANALYSIS
+            // MODEL 9: WHALE DETECTION (Track large orders)
+            const market = currentMarkets[this.asset];
+            if (market && market.yesPrice && market.noPrice) {
+                const spread = Math.abs(market.yesPrice - market.noPrice);
+                const midPrice = (market.yesPrice + market.noPrice) / 2;
+                // Detect whale activity: tight spread + price movement suggests informed trading
+                if (spread < 0.05 && Math.abs(midPrice - 0.5) > 0.15) {
+                    const whaleSignal = midPrice > 0.5 ? 'UP' : 'DOWN';
+                    const whaleWeight = (weights.whale || 1.5); // Whales get priority
+                    votes[whaleSignal] += 1.5 * whaleWeight;
+                    modelVotes.whale = whaleSignal;
+                    totalConfidence += 0.85; // High confidence in whale moves
+                }
+            }
+
+            // MODEL 10: MARKET SENTIMENT (Aggregate market behavior)
+            if (history.length > 10 && vol > 0) {
+                const recentVolatility = MathLib.calculateATR(history.slice(-20), 5);
+                const priceAcceleration = history.length > 3 ?
+                    (history[history.length - 1].p - history[history.length - 3].p) : 0;
+                const sentimentScore = (priceAcceleration / atr) + (vol > 100000 ? 0.3 : 0);
+                const sentimentSignal = sentimentScore > 0 ? 'UP' : 'DOWN';
+                const sentimentWeight = weights.sentiment || 1.0;
+                if (Math.abs(sentimentScore) > 0.2) {
+                    votes[sentimentSignal] += Math.abs(sentimentScore) * sentimentWeight;
+                    modelVotes.sentiment = sentimentSignal;
+                    totalConfidence += 0.70;
+                }
+            }
+
+            // MODEL 8: VOLUME ANALYSIS (MOVED AFTER NEW MODELS)
             const vol = currentMarkets[this.asset]?.volume || 0;
             if (vol > 0 && history.length > 5) {
                 const priceChange = (currentPrice - history[history.length - 5].p) / history[history.length - 5].p;
@@ -2423,15 +2472,21 @@ class SupremeBrain {
                 }
             }
 
-            // === WATCHGUARDS ===
+            // === WATCHGUARDS + VOLATILITY CIRCUIT BREAKER ===
             const lag = Date.now() - (currentMarkets[this.asset]?.lastUpdated || 0);
             this.lagCounter = lag > 15000 ? this.lagCounter + 1 : 0;
             const isLagging = this.lagCounter >= 3;
             const isPanic = MathLib.isPanic(history);
             const isSpoofing = MathLib.isSpoofing(history);
 
-            if (isLagging || isPanic || isSpoofing) {
+            // 🔴 VOLATILITY CIRCUIT BREAKER: Pause if extreme volatility (3x normal ATR)
+            const currentATR = MathLib.calculateATR(history.slice(-30), 5);
+            const normalATR = MathLib.calculateATR(history.slice(-100, -30), 20);
+            const isExtremeVolatility = currentATR > normalATR * 3.0;
+
+            if (isLagging || isPanic || isSpoofing || isExtremeVolatility) {
                 votes.UP = 0; votes.DOWN = 0; totalConfidence = 0;
+                if (isExtremeVolatility) log(`⚠️ CIRCUIT BREAKER: Extreme volatility detected (${(currentATR / normalATR).toFixed(1)}x normal)`, this.asset);
             }
 
             // === DECISION LOGIC ===
@@ -2482,18 +2537,32 @@ class SupremeBrain {
             // 🎯 AGGRESSIVE PROPHECY MODE: Optimized for £10→£1M Goal
             // Goal: Frequent, early predictions with acceptable accuracy
             let tier = 'NONE';
-            let convictionThreshold = 0.70; // SNIPER MODE: Balanced Base (was 0.75)
-            let advisoryThreshold = 0.55;   // Easier entry (was 0.60)
+            let convictionThreshold = 0.65; // OPTIMIZED: More aggressive (was 0.70) for more CONVICTION trades
+            let advisoryThreshold = 0.52;   // Easier entry (was 0.55) for more opportunities
 
+            // 🌍 ALL-WEATHER LOGIC: Adapt strategy to market regime
             if (regime === 'CHOPPY') {
-                convictionThreshold = 0.80; // Very cautious in choppy markets
+                convictionThreshold = 0.80; // Very cautious - use mean reversion
                 advisoryThreshold = 0.65;
+                // Boost pattern matching  +  reduce momentum in choppy markets
+                if (weights.pattern) weights.pattern *= 1.5;
+                if (weights.physicist) weights.physicist *= 0.7;
             } else if (regime === 'TRENDING') {
-                convictionThreshold = 0.70; // Lower in clear trends (but still high)
-                advisoryThreshold = 0.55;
+                convictionThreshold = 0.65; // Aggressive - ride the trend
+                advisoryThreshold = 0.52;
+                // Boost momentum + physicist in trending markets
+                if (weights.physicist) weights.physicist *= 1.3;
+                if (weights.genesis) weights.genesis *= 1.2;
             } else if (regime === 'VOLATILE') {
-                convictionThreshold = 0.75; // Default
+                convictionThreshold = 0.75; // Moderate caution
                 advisoryThreshold = 0.60;
+                // Boost ATR-based models in volatile markets
+                if (weights.historian) weights.historian *= 1.2;
+            } else { // STABLE
+                convictionThreshold = 0.70;
+                advisoryThreshold = 0.55;
+                // Boost pattern matching in stable/predictable markets
+                if (weights.pattern) weights.pattern *= 1.3;
             }
 
             // REGIME PERSISTENCE (Smooth out regime flips)
@@ -2507,7 +2576,7 @@ class SupremeBrain {
             // If CHOPPY AND low vote differential AND confidence below 60%, REFUSE TO TRADE
             // Can be disabled from UI via CONFIG.RISK.noTradeDetection
             const voteDifferential = Math.abs(upVotes - downVotes) / (totalVotes || 1);
-            const isGenuinelyRandom = stableRegime === 'CHOPPY' && voteDifferential < 0.3 && finalConfidence < 0.60;
+            const isGenuinelyRandom = stableRegime === 'CHOPPY' && voteDifferential < 0.25 && finalConfidence < 0.50; // OPTIMIZED: Stricter (only block really bad trades)
 
             if (CONFIG.RISK.noTradeDetection && isGenuinelyRandom) {
                 finalSignal = 'NEUTRAL';
@@ -2563,8 +2632,8 @@ class SupremeBrain {
             if (finalConfidence > 0.55 && finalConfidence < 0.70) { // Advisory range
                 // If we are close to 0.70 and price is moving in our favor
                 if ((finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0)) {
-                    finalConfidence += 0.05; // Stronger nudge (+5%)
-                    log(`🚀 MOMENTUM BOOST: +5% (price moving in our favor)`, this.asset);
+                    finalConfidence += 0.08; // OPTIMIZED: Stronger boost (+8%, was +5%)
+                    log(`🚀 MOMENTUM BOOST: +8% (price moving in our favor)`, this.asset);
                 }
             }
 
@@ -2579,9 +2648,19 @@ class SupremeBrain {
             const upCount = allPredictions.filter(p => p === 'UP').length;
             const downCount = allPredictions.filter(p => p === 'DOWN').length;
 
+            // ULTRA-OPTIMIZED: Block trades only if enabled AND extreme divergence (3+ assets disagree)
+            if (CONFIG.RISK.enableDivergenceBlocking) {
+                if ((finalSignal === 'UP' && downCount >= upCount + 3) ||
+                    (finalSignal === 'DOWN' && upCount >= downCount + 3)) {
+                    finalSignal = 'NEUTRAL'; // BLOCK trade entirely
+                    finalConfidence = 0;
+                    log(`🚫 BLOCKED: Extreme divergence from market (${upCount}U/${downCount}D)`, this.asset);
+                }
+            }
+            // Mild divergence warning (doesn't block, just reduces confidence)
             if ((finalSignal === 'UP' && downCount > upCount + 1) ||
                 (finalSignal === 'DOWN' && upCount > downCount + 1)) {
-                finalConfidence *= 0.75; // Contrarian to market consensus
+                finalConfidence *= 0.75; // Contrarian penalty
                 log(`⚠️ Contrarian (${upCount}U/${downCount}D)`, this.asset);
             }
 
@@ -2595,10 +2674,10 @@ class SupremeBrain {
             finalConfidence = Math.min(1.0, finalConfidence);
 
             // === SMOOTHING (The "Pinball" Fix) ===
-            // FIX: Reduced smoothing from 20/80 to 50/50 (was suppressing new signals!)
-            // Alpha 0.5 = 50% new value, 50% old value (balanced)
+            // ULTRA-OPTIMIZED: 70/30 smoothing (favor new data for faster response)
+            // Alpha 0.7 = 70% new value, 30% old value (responsive)
             if (this.confidence > 0) {
-                finalConfidence = (finalConfidence * 0.5) + (this.confidence * 0.5);
+                finalConfidence = (finalConfidence * 0.70) + (this.confidence * 0.30);
             }
 
             // Determine tier with HYSTERESIS (prevent flickering)
@@ -2706,10 +2785,11 @@ class SupremeBrain {
                 else { this.pendingSignal = finalSignal; this.stabilityCounter = 0; }
 
                 // Calculate required stability (FIXED: Simple calculation, no side effects)
-                let requiredStability = 3;
-                if (elapsed < 180) requiredStability = 3; // SNIPER MODE: Faster confirmation
-                else if (elapsed < 600) requiredStability = 3;
-                else requiredStability = 2; // Late cycle = faster
+                // ULTRA-OPTIMIZED: Instant entry for high-confidence signals
+                let requiredStability = 1; // Instant (was 2) - trust the ensemble
+                if (tier === 'CONVICTION' && finalConfidence >= 0.80) requiredStability = 1; // INSTANT for ultra-high confidence
+                else if (elapsed < 180) requiredStability = 1; // SNIPER: Immediate
+                else requiredStability = 1; // Always instant now
 
                 // Cycle commitment (moved outside IIFE)
                 if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
@@ -2807,7 +2887,8 @@ class SupremeBrain {
                 const yesPrice = market.yesPrice;
                 const noPrice = market.noPrice;
 
-                // NOTE: checkExits is now called in main loop (L5796) - no need to call here
+                // Check exit conditions for existing positions
+                tradeExecutor.checkExits(this.asset, currentPrice, elapsed, yesPrice, noPrice);
 
                 // Scan for new opportunities (only if not already in ORACLE trade)
                 if (!this.convictionLocked) {
@@ -2931,14 +3012,24 @@ class SupremeBrain {
             else if (winRate > 0.65) kellyFraction *= 1.2; // Increase if winning
         }
 
-        // Adjust for loss streaks
-        if (this.lossStreak > 2) kellyFraction *= 0.5;
+        // ULTRA-OPTIMIZED: Aggressive sizing mode (don't reduce on losses)
+        if (this.lossStreak > 2 && !CONFIG.RISK.aggressiveSizingOnLosses) {
+            kellyFraction *= 0.5; // Only reduce if aggressive mode is OFF
+        }
 
-        // Quarter Kelly (conservative)
-        const conservativeKelly = kellyFraction * 0.25;
+        // ULTRA-OPTIMIZED: Dynamic sizing based on market liquidity
+        let maxSize = 0.15; // Default 15%
 
-        // Hard caps: never risk more than 10% of bankroll
-        return Math.max(0, Math.min(conservativeKelly, 0.10));
+        // Reduce size if market is illiquid (thin order book)
+        if (market && market.volume) {
+            if (market.volume < 50000) maxSize = 0.10; // Small market = smaller positions
+            else if (market.volume > 200000) maxSize = 0.20; // Liquid market = larger positions OK
+        }
+
+        // Half Kelly for aggressive compounding
+        const aggressiveKelly = kellyFraction * 0.50;
+
+        return Math.max(0, Math.min(aggressiveKelly, maxSize));
     }
 
     evaluateOutcome(finalPrice, startPrice) {
@@ -2956,13 +3047,13 @@ class SupremeBrain {
                 this.stats.wins++;
                 this.winStreak++;
                 this.lossStreak = 0;
-                this.atrMultiplier = Math.max(1.2, this.atrMultiplier - 0.80);
+                this.atrMultiplier = Math.max(1.0, this.atrMultiplier - 1.2); // OPTIMIZED: Faster adaptation (was -0.80)
                 if (tier === 'CONVICTION') { this.stats.convictionTotal++; this.stats.convictionWins++; }
                 log(`✅ WIN (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
             } else {
                 this.winStreak = 0;
                 this.lossStreak++;
-                this.atrMultiplier = Math.min(3.5, this.atrMultiplier + 2.50);
+                this.atrMultiplier = Math.min(4.0, this.atrMultiplier + 3.5); // OPTIMIZED: Faster caution (was +2.50)
                 if (tier === 'CONVICTION') { this.stats.convictionTotal++; }
                 log(`❌ LOSS (${tier}). Evolving: ATR x${this.atrMultiplier.toFixed(2)}`, this.asset);
             }
@@ -3676,14 +3767,67 @@ app.get('/', (req, res) => {
                 </div>
                 <!-- RISK -->
                 <div style="padding:10px;background:rgba(255,0,100,0.1);border-left:3px solid #ff0066;border-radius:4px;">
-                    <strong style="color:#ff0066;">⚠️ RISK MANAGEMENT</strong>
+                    <strong style="color:#ff0066;">⚠️ RISK MANAGEMENT - SMART AGGRESSIVE MODE</strong>
+                    
+                    <!-- Preset Profiles -->
+                    <div style="margin:12px 0;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;">
+                        <label style="color:#888;font-size:0.9em;display:block;margin-bottom:8px;">📋 Quick Presets:</label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                            <button onclick="applyRiskPreset('SAFE')" style="padding:8px;background:rgba(0,255,136,0.2);border:1px solid #00ff88;color:#00ff88;border-radius:4px;cursor:pointer;font-size:0.85em;">🛡️ Safe</button>
+                            <button onclick="applyRiskPreset('BALANCED')" style="padding:8px;background:rgba(255,215,0,0.2);border:1px solid #ffd700;color:#ffd700;border-radius:4px;cursor:pointer;font-size:0.85em;">⚖️ Balanced</button>
+                            <button onclick="applyRiskPreset('AGGRESSIVE')" style="padding:8px;background:rgba(255,68,102,0.2);border:1px solid #ff4466;color:#ff4466;border-radius:4px;cursor:pointer;font-size:0.85em;">🔥 Aggressive</button>
+                        </div>
+                    </div>
+
                     <div class="form-grid" style="margin-top:8px;">
-                        <div class="form-group"><label>Max Exposure (%)</label><input type="number" id="riskMaxExposure" value="30" min="10" max="100"></div>
-                        <div class="form-group"><label>Daily Stop (%)</label><input type="number" id="riskStopLoss" value="20" min="5" max="50"></div>
-                        <div class="form-group"><label>Loss Cooldown (s)</label><input type="number" id="riskCooldown" value="300" min="60" max="900"></div>
+                        <!-- Safety Toggles -->
+                        <div style="grid-column:1/-1;margin-bottom:12px;padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;">
+                            <label style="color:#ff9966;font-weight:bold;display:block;margin-bottom:10px;">🎯 Safety Features:</label>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                <label style="color:#aaa;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="enableLossCooldown" checked style="width:16px;height:16px;"> Loss Cooldown
+                                </label>
+                                <label style="color:#aaa;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="enableCircuitBreaker" checked style="width:16px;height:16px;"> Circuit Breaker
+                                </label>
+                                <label style="color:#aaa;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="enableDivergenceBlocking" checked style="width:16px;height:16px;"> Divergence Block
+                                </label>
+                                <label style="color:#aaa;display:flex;align-items:center;gap:6px;cursor:pointer;">
+                                    <input type="checkbox" id="aggressiveSizingOnLosses" style="width:16px;height:16px;"> Maintain Size on Loss
+                                </label>
+                            </div>
+                            <small style="display:block;color:#888;margin-top:8px;line-height:1.4;">Cooldown: pause after loss | Circuit: pause extreme volatility | Divergence: block market chaos | Maintain: don't reduce position after losses</small>
+                        </div>
+
+                        <!-- No-Trade Detection (existing) -->
+                        <div style="grid-column:1/-1;margin-bottom:12px;padding:10px;background:rgba(0,0,0,0.2);border-radius:6px;border-left:3px solid #ff9966;">
+                            <label style="color:#ff9966;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:bold;">
+                                <input type="checkbox" id="noTradeDetection" checked style="width:18px;height:18px;"> 
+                                <span>🎲 No-Trade Detection (Capital Protection)</span>
+                            </label>
+                            <small style="display:block;color:#aaa;margin-left:26px;margin-top:4px;line-height:1.4;">When enabled, bot refuses to trade when markets are genuinely random/choppy with no edge. Protects capital from gambling.</small>
+                        </div>
+
+                        <!-- Position Limits -->
+                        <div class="form-group"><label>Max Exposure (%)</label><input type="number" id="riskMaxExposure" value="50" min="10" max="100"></div>
+                        <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPositionSize" value="20" min="5" max="50"></div>
+                        
+                        <!-- Cooldown & Stop Loss -->
+                        <div class="form-group"><label>Loss Cooldown (s)</label><input type="number" id="riskCooldown" value="60" min="0" max="900"></div>
+                        <div class="form-group"><label>Daily Stop (%)</label><input type="number" id="riskStopLoss" value="30" min="5" max="50"></div>
+
+                        <!-- Smart Safeguards -->
+                        <div class="form-group"><label>Max Consecutive Losses</label><input type="number" id="maxConsecutiveLosses" value="3" min="1" max="10"></div>
+                        <div class="form-group"><label>Max Daily Losses</label><input type="number" id="maxDailyLosses" value="5" min="1" max="20"></div>
+                        
+                        <!-- Trades Per Asset -->
+                        <div class="form-group"><label>Trades/Asset/Cycle</label><input type="number" id="maxTradesPerCycle" value="3" min="1" max="10"></div>
+                        <div class="form-group"><label>Withdrawal Alert (£)</label><input type="number" id="withdrawalNotification" value="1000" min="100" max="10000"></div>
                     </div>
                 </div>
             </div>
+            
             
             <h4 style="margin:15px 0 10px;color:#00bcd4;font-size:0.95em;">📱 Telegram Notifications</h4>
             <div style="padding:10px;background:rgba(0,188,212,0.1);border-left:3px solid #00bcd4;border-radius:4px;margin-bottom:15px;">
@@ -4179,10 +4323,22 @@ app.get('/', (req, res) => {
                     document.getElementById('momExitBefore').value = data.MOMENTUM.exitBeforeEnd || 180;
                 }
                 if (data.RISK) { 
-                    document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.30) * 100; 
-                    document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.20) * 100; 
-                    document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 300;
-                    // Show resume button if stop loss override is active or P/L is very negative
+                    document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.50) * 100; 
+                    document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.30) * 100; 
+                    document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 60;
+                    document.getElementById('noTradeDetection').checked = data.RISK.noTradeDetection !== false;
+                    // Smart Aggressive toggles
+                    document.getElementById('enableLossCooldown').checked = data.RISK.enableLossCooldown !== false;
+                    document.getElementById('enableCircuitBreaker').checked = data.RISK.enableCircuitBreaker !== false;
+                    document.getElementById('enableDivergenceBlocking').checked = data.RISK.enableDivergenceBlocking !== false;
+                    document.getElementById('aggressiveSizingOnLosses').checked = data.RISK.aggressiveSizingOnLosses === true;
+                    // Smart Safeguards
+                    document.getElementById('maxConsecutiveLosses').value = data.RISK.maxConsecutiveLosses || 3;
+                    document.getElementById('maxDailyLosses').value = data.RISK.maxDailyLosses || 5;
+                    document.getElementById('withdrawalNotification').value = data.RISK.withdrawalNotification || 1000;
+                    // Max position size
+                    document.getElementById('maxPositionSize').value = (data.MAX_POSITION_SIZE || 0.20) * 100;
+                    // Resume button visibility
                     const resumeBtn = document.getElementById('resumeTradingBtn');
                     if (resumeBtn) {
                         const needsResume = data.RISK.globalStopLossOverride || false;
@@ -4198,16 +4354,6 @@ app.get('/', (req, res) => {
                 }
                 // 🎛️ PER-ASSET CONTROLS
                 if (data.ASSET_CONTROLS) {
-                    if (data.ASSET_CONTROLS.BTC) {
-                        document.getElementById('btcEnabled').checked = data.ASSET_CONTROLS.BTC.enabled !== false;
-                        document.getElementById('btcMaxTrades').value = data.ASSET_CONTROLS.BTC.maxTradesPerCycle || 1;
-                    }
-                    if (data.ASSET_CONTROLS.ETH) {
-                        document.getElementById('ethEnabled').checked = data.ASSET_CONTROLS.ETH.enabled !== false;
-                        document.getElementById('ethMaxTrades').value = data.ASSET_CONTROLS.ETH.maxTradesPerCycle || 1;
-                    }
-                    if (data.ASSET_CONTROLS.SOL) {
-                        document.getElementById('solEnabled').checked = data.ASSET_CONTROLS.SOL.enabled !== false;
                         document.getElementById('solMaxTrades').value = data.ASSET_CONTROLS.SOL.maxTradesPerCycle || 1;
                     }
                     if (data.ASSET_CONTROLS.XRP) {
@@ -4282,8 +4428,29 @@ app.get('/', (req, res) => {
                     breakoutThreshold: 0.03,
                     exitOnReversal: true
                 },
-                RISK: { maxTotalExposure: parseFloat(document.getElementById('riskMaxExposure').value) / 100, globalStopLoss: parseFloat(document.getElementById('riskStopLoss').value) / 100, cooldownAfterLoss: parseInt(document.getElementById('riskCooldown').value) }
-            };
+                RISK: { 
+                    maxTotalExposure: parseFloat(document.getElementById('riskMaxExposure').value) / 100, 
+                    globalStopLoss: parseFloat(document.getElementById('riskStopLoss').value) / 100, 
+                    cooldownAfterLoss: parseInt(document.getElementById('riskCooldown').value),
+                    noTradeDetection: document.getElementById('noTradeDetection').checked,
+                    // Smart Aggressive toggles
+                    enableLossCooldown: document.getElementById('enableLossCooldown').checked,
+                    enableCircuitBreaker: document.getElementById('enableCircuitBreaker').checked,
+                    enableDivergenceBlocking: document.getElementById('enableDivergenceBlocking').checked,
+                    aggressiveSizingOnLosses: document.getElementById('aggressiveSizingOnLosses').checked,
+                    // Smart Safeguards
+                    maxConsecutiveLosses: parseInt(document.getElementById('maxConsecutiveLosses').value),
+                    maxDailyLosses: parseInt(document.getElementById('maxDailyLosses').value),
+                    withdrawalNotification: parseInt(document.getElementById('withdrawalNotification').value)
+                },
+                // Also save maxTradesPerCycle to all assets
+                ASSET_CONTROLS: {
+                    BTC: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) },
+                    ETH: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) },
+                    SOL: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) },
+                    XRP: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) }
+                }
+            }; updates.MAX_POSITION_SIZE = parseFloat(document.getElementById('maxPositionSize').value) / 100;
             const apiKey = document.getElementById('apiKey').value;
             const apiSecret = document.getElementById('apiSecret').value;
             const apiPassphrase = document.getElementById('apiPassphrase').value;
@@ -4320,6 +4487,48 @@ app.get('/', (req, res) => {
                 fetchData();
             } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Error saving'; document.getElementById('settingsStatus').className = 'status-msg error'; }
         }
+        
+        function applyRiskPreset(preset) {
+            if (preset === 'SAFE') {
+                document.getElementById('riskMaxExposure').value = 30;
+                document.getElementById('maxPositionSize').value = 10;
+                document.getElementById('riskCooldown').value = 300;
+                document.getElementById('riskStopLoss').value = 20;
+                document.getElementById('maxConsecutiveLosses').value = 2;
+                document.getElementById('maxDailyLosses').value = 3;
+                document.getElementById('maxTradesPerCycle').value = 1;
+                document.getElementById('enableLossCooldown').checked = true;
+                document.getElementById('enableCircuitBreaker').checked = true;
+                document.getElementById('enableDivergenceBlocking').checked = true;
+                document.getElementById('aggressiveSizingOnLosses').checked = false;
+            } else if (preset === 'BALANCED') {
+                document.getElementById('riskMaxExposure').value = 50;
+                document.getElementById('maxPositionSize').value = 20;
+                document.getElementById('riskCooldown').value = 60;
+                document.getElementById('riskStopLoss').value = 30;
+                document.getElementById('maxConsecutiveLosses').value = 3;
+                document.getElementById('maxDailyLosses').value = 5;
+                document.getElementById('maxTradesPerCycle').value = 3;
+                document.getElementById('enableLossCooldown').checked = true;
+                document.getElementById('enableCircuitBreaker').checked = true;
+                document.getElementById('enableDivergenceBlocking').checked = true;
+                document.getElementById('aggressiveSizingOnLosses').checked = false;
+            } else if (preset === 'AGGRESSIVE') {
+                document.getElementById('riskMaxExposure').value = 100;
+                document.getElementById('maxPositionSize').value = 25;
+                document.getElementById('riskCooldown').value = 0;
+                document.getElementById('riskStopLoss').value = 50;
+                document.getElementById('maxConsecutiveLosses').value = 5;
+                document.getElementById('maxDailyLosses').value = 10;
+                document.getElementById('maxTradesPerCycle').value = 5;
+                document.getElementById('enableLossCooldown').checked = false;
+                document.getElementById('enableCircuitBreaker').checked = false;
+                document.getElementById('enableDivergenceBlocking').checked = false;
+                document.getElementById('aggressiveSizingOnLosses').checked = true;
+            }
+            saveAllSettings();
+        }
+        
         async function resetPaperBalance() {
             if (!confirm('Reset paper balance? This will close all positions and reset P/L.')) return;
             try {
@@ -5196,12 +5405,6 @@ app.get('/settings', (req, res) => {
             updates.ADVISORY_THRESHOLD = parseFloat(document.getElementById('ADVISORY_THRESHOLD').value);
             updates.EARLY_BOOST = parseFloat(document.getElementById('EARLY_BOOST').value);
             updates.REALITY_CHECK_ATR = parseInt(document.getElementById('REALITY_CHECK_ATR').value);
-            
-            // Risk settings (include noTradeDetection)
-            updates.RISK = {
-                ...currentSettings.RISK,
-                noTradeDetection: document.getElementById('NO_TRADE_DETECTION').checked
-            };
             
             try {
                 const res = await fetch('/api/settings', {
