@@ -719,26 +719,6 @@ class TradeExecutor {
         }
     }
 
-    // Estimate remaining trades based on balance and gas
-    getEstimatedTradesRemaining() {
-        if (this.mode === 'PAPER') return { gas: Infinity, usdc: Infinity };
-
-        // Simple estimation for live mode
-        const gasPrice = 30; // Gwei (approx)
-        const gasLimit = 200000; // Trade gas limit
-        const gasCostMATIC = (gasPrice * gasLimit) / 1e9;
-
-        const tradesGas = this.cachedMATICBalance > 0 ? Math.floor(this.cachedMATICBalance / gasCostMATIC) : 0;
-        const tradesUSDC = this.liveBalance > 0 ? Math.floor(this.liveBalance / (CONFIG.MAX_POSITION_SIZE * this.startingBalance)) : 0;
-
-        return { gas: tradesGas, usdc: tradesUSDC };
-    }
-
-    // Check if system is in cooldown
-    isInCooldown() {
-        return Date.now() < (this.cooldownUntil || 0);
-    }
-
     // ENTRY: Execute a trade for any mode
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
@@ -1390,7 +1370,8 @@ class TradeExecutor {
     async checkPyramiding() {
         if (!CONFIG.RISK.enablePositionPyramiding) return;
 
-        for (const trade of this.openPositions) {
+        // Iterate over positions object (not openPositions which doesn't exist)
+        for (const [positionId, trade] of Object.entries(this.positions)) {
             // Only pyramid ORACLE positions
             if (trade.mode !== 'ORACLE') continue;
 
@@ -1398,14 +1379,16 @@ class TradeExecutor {
             if (trade.pyramided) continue;
 
             // Must be held for at least 2 minutes
-            const holdTime = (Date.now() - trade.entryTime) / 1000;
+            // Position uses 'time' not 'entryTime'
+            const holdTime = (Date.now() - trade.time) / 1000;
             if (holdTime < 120) continue;
 
             // Check if position is profitable
             const market = currentMarkets[trade.asset];
             if (!market) continue;
 
-            const currentPrice = trade.side === 'YES' ? market.yesPrice : market.noPrice;
+            // Position uses 'side' with values 'UP'/'DOWN', not 'YES'/'NO'
+            const currentPrice = trade.side === 'UP' ? market.yesPrice : market.noPrice;
             const pnlPercent = ((currentPrice - trade.entry) / trade.entry) * 100;
 
             // Must be profitable by at least 15%
@@ -1415,16 +1398,16 @@ class TradeExecutor {
             const pyramidSize = trade.size * 0.5;
             const pyramidCost = pyramidSize * currentPrice;
 
-            // Check if we have balance
-            const balance = this.getTradingBalance();
+            // Check if we have balance (use correct property)
+            const balance = this.mode === 'PAPER' ? this.paperBalance : this.cachedLiveBalance;
             if (pyramidCost > balance * 0.1) continue; // Max 10% of balance for pyramid
 
             log(`🔺 PYRAMIDING: Adding ${pyramidSize.toFixed(0)} shares @ ${(currentPrice * 100).toFixed(1)}¢ to ${trade.asset} position (+${pnlPercent.toFixed(1)}%)`, trade.asset);
 
-            // Execute pyramid trade
-            const pyramidResult = await this.executeTrade(trade.asset, trade.prediction, 'ORACLE', trade.confidence, currentPrice, market, {
+            // Execute pyramid trade - use trade.side for direction
+            const pyramidResult = await this.executeTrade(trade.asset, trade.side, 'ORACLE', 0.9, currentPrice, market, {
                 isPyramid: true,
-                originalTradeId: trade.id,
+                originalTradeId: positionId,
                 pyramidSize: pyramidSize
             });
 
@@ -2459,15 +2442,6 @@ class SupremeBrain {
             const smoothV = this.derivKalman.filter(phys.v);
             const isFakeout = (Math.abs(smoothV) > atr && entropy > atr * 4);
 
-            if (bestMatch && bestMatch.score > 0.85) {
-                const vote = bestMatch.outcome;
-                const matchWeight = 2.0 * (bestMatch.score - 0.85) / 0.15; // OPTIMIZED: 2x weight (was 1.0) for historical patterns
-                votes[vote] += matchWeight;
-                modelVotes.pattern = vote;
-                totalConfidence += bestMatch.score * 1.2; // OPTIMIZED: Boost confidence for pattern matches
-                this.lastSignal = this.lastSignal || {}; this.lastSignal.patternId = bestMatch.id;
-            }
-
             if (!isFakeout && Math.abs(phys.v) > atr * 0.5) {
                 const physSignal = phys.v > 0 ? 'UP' : 'DOWN';
                 const physWeight = weights.physicist || 1.0;
@@ -2585,6 +2559,9 @@ class SupremeBrain {
                 }
             }
 
+            // Volume variable needed by MODEL 10 - must be defined BEFORE usage
+            const vol = currentMarkets[this.asset]?.volume || 0;
+
             // MODEL 10: MARKET SENTIMENT (Aggregate market behavior)
             if (history.length > 10 && vol > 0) {
                 const recentVolatility = MathLib.calculateATR(history.slice(-20), 5);
@@ -2600,8 +2577,7 @@ class SupremeBrain {
                 }
             }
 
-            // MODEL 8: VOLUME ANALYSIS (MOVED AFTER NEW MODELS)
-            const vol = currentMarkets[this.asset]?.volume || 0;
+            // MODEL 8: VOLUME ANALYSIS (uses vol defined above)
             if (vol > 0 && history.length > 5) {
                 const priceChange = (currentPrice - history[history.length - 5].p) / history[history.length - 5].p;
                 const volSignal = priceChange > 0 ? 'UP' : 'DOWN';
