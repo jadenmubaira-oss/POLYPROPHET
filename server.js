@@ -117,6 +117,76 @@ app.use((req, res, next) => {
 app.use(express.static('public'));
 const server = http.createServer(app);
 
+// ==================== WEBSOCKET SERVER FOR REAL-TIME DASHBOARD ====================
+const wss = new WebSocket.Server({ server });
+let wsClients = new Set();
+
+wss.on('connection', (ws) => {
+    wsClients.add(ws);
+    console.log(`🔌 WebSocket client connected (${wsClients.size} total)`);
+
+    ws.on('close', () => {
+        wsClients.delete(ws);
+        console.log(`🔌 WebSocket client disconnected (${wsClients.size} remaining)`);
+    });
+
+    ws.on('error', (err) => {
+        console.log(`⚠️ WebSocket error: ${err.message}`);
+        wsClients.delete(ws);
+    });
+});
+
+// Broadcast prediction updates to all connected clients
+function broadcastUpdate() {
+    if (wsClients.size === 0) return;
+
+    const update = {
+        type: 'update',
+        timestamp: Date.now(),
+        predictions: {},
+        markets: currentMarkets,
+        prices: livePrices,
+        checkpointPrices: checkpointPrices,
+        tradeMode: CONFIG.TRADE_MODE,
+        balance: tradeExecutor ? (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.liveBalance) : 0,
+        todayPnL: tradeExecutor ? tradeExecutor.todayPnL : 0,
+        positions: tradeExecutor ? tradeExecutor.openPositions : [],
+        trades: tradeExecutor ? tradeExecutor.tradeHistory.slice(-20) : []
+    };
+
+    // Add prediction data from each brain
+    if (typeof Brains !== 'undefined') {
+        ASSETS.forEach(asset => {
+            if (Brains[asset]) {
+                update.predictions[asset] = {
+                    signal: Brains[asset].prediction || 'NEUTRAL',
+                    confidence: Brains[asset].confidence || 0,
+                    tier: Brains[asset].tier || 'NONE',
+                    edge: Brains[asset].edge || 0,
+                    locked: Brains[asset].convictionLocked || false,
+                    committed: Brains[asset].cycleCommitted || false,
+                    lockedDirection: Brains[asset].lockedDirection || null,
+                    stats: Brains[asset].stats || { wins: 0, losses: 0, total: 0 }
+                };
+            }
+        });
+    }
+
+    const message = JSON.stringify(update);
+    wsClients.forEach(client => {
+        if (client.readyState === WebSocket.OPEN) {
+            try {
+                client.send(message);
+            } catch (e) {
+                console.log(`⚠️ WebSocket send error: ${e.message}`);
+            }
+        }
+    });
+}
+
+// Broadcast every second for real-time updates
+setInterval(broadcastUpdate, 1000);
+
 // ==================== REDIS SETUP (FALLBACK-SAFE) ====================
 let redis = null;
 let redisAvailable = false;
@@ -5105,6 +5175,62 @@ app.post('/api/wallet/transfer', async (req, res) => {
         }
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// ==================== STATE API (FOR DASHBOARD) ====================
+// This is the CRITICAL endpoint that the frontend calls for real-time updates
+app.get('/api/state', (req, res) => {
+    try {
+        // Build response in EXACT format frontend expects
+        const state = {
+            _trading: {
+                balance: tradeExecutor ? (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.liveBalance) : CONFIG.PAPER_BALANCE,
+                todayPnL: tradeExecutor ? tradeExecutor.todayPnL : 0,
+                tradeHistory: tradeExecutor ? tradeExecutor.tradeHistory : [],
+                positions: tradeExecutor ? tradeExecutor.openPositions : [],
+                mode: CONFIG.TRADE_MODE
+            }
+        };
+
+        // Add each asset's data in the format frontend expects
+        // Frontend accesses: data[asset].live, data[asset].checkpoint, data[asset].prediction, etc.
+        ASSETS.forEach(asset => {
+            const brain = typeof Brains !== 'undefined' ? Brains[asset] : null;
+            const market = currentMarkets[asset];
+
+            state[asset] = {
+                // Prices
+                live: livePrices[asset] || null,
+                checkpoint: checkpointPrices[asset] || null,
+
+                // Prediction
+                prediction: brain?.prediction || 'NEUTRAL',
+                confidence: brain?.confidence || 0,
+                tier: brain?.tier || 'NONE',
+                edge: brain?.edge || 0,
+                locked: brain?.convictionLocked || false,
+                committed: brain?.cycleCommitted || false,
+                lockedDirection: brain?.lockedDirection || null,
+
+                // Stats
+                stats: brain?.stats || { wins: 0, losses: 0, total: 0 },
+                recentOutcomes: brain?.recentOutcomes || [],
+
+                // Market
+                market: market ? {
+                    yesPrice: market.yesPrice || 0.5,
+                    noPrice: market.noPrice || 0.5,
+                    marketUrl: market.marketUrl || null,
+                    conditionId: market.conditionId || null
+                } : null
+            };
+        });
+
+        res.json(state);
+    } catch (e) {
+        console.error('Error in /api/state:', e);
+        res.status(500).json({ error: e.message });
     }
 });
 
