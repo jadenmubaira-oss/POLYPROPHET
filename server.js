@@ -925,6 +925,9 @@ class TradeExecutor {
                 status: 'OPEN'
             });
 
+            // PINNACLE: Prevent memory leak - keep max 1000 trades in history
+            if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
+
             log(`📝 PAPER FILL: Bought ${(size / entryPrice).toFixed(1)} shares @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
             log(`💰 Balance: $${balanceBefore.toFixed(2)} → $${this.paperBalance.toFixed(2)} (-$${size.toFixed(2)})`, asset);
 
@@ -1065,6 +1068,9 @@ class TradeExecutor {
                         status: 'LIVE_OPEN',
                         orderID: response.orderID
                     });
+
+                    // PINNACLE: Prevent memory leak - keep max 1000 trades in history
+                    if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
 
                     // 📊 Track cycle trade count
                     this.incrementCycleTradeCount(asset);
