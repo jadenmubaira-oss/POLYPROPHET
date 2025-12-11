@@ -719,6 +719,26 @@ class TradeExecutor {
         }
     }
 
+    // Estimate remaining trades based on balance and gas
+    getEstimatedTradesRemaining() {
+        if (this.mode === 'PAPER') return { gas: Infinity, usdc: Infinity };
+
+        // Simple estimation for live mode
+        const gasPrice = 30; // Gwei (approx)
+        const gasLimit = 200000; // Trade gas limit
+        const gasCostMATIC = (gasPrice * gasLimit) / 1e9;
+
+        const tradesGas = this.cachedMATICBalance > 0 ? Math.floor(this.cachedMATICBalance / gasCostMATIC) : 0;
+        const tradesUSDC = this.liveBalance > 0 ? Math.floor(this.liveBalance / (CONFIG.MAX_POSITION_SIZE * this.startingBalance)) : 0;
+
+        return { gas: tradesGas, usdc: tradesUSDC };
+    }
+
+    // Check if system is in cooldown
+    isInCooldown() {
+        return Date.now() < (this.cooldownUntil || 0);
+    }
+
     // ENTRY: Execute a trade for any mode
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
