@@ -2950,6 +2950,12 @@ class SupremeBrain {
                     this.prediction = finalSignal;
                     this.confidence = finalConfidence;
                     this.tier = tier;
+                    // CRITICAL: Calculate and store edge for API/dashboard
+                    const market = currentMarkets[this.asset];
+                    if (market && finalSignal !== 'NEUTRAL') {
+                        const marketProb = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+                        this.edge = marketProb > 0 ? ((finalConfidence - marketProb) / marketProb) * 100 : 0;
+                    }
                     this.stabilityCounter = 0;
                     this.pendingSignal = null;
                     log(`✅ PREDICTION FLIP: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
@@ -2957,6 +2963,12 @@ class SupremeBrain {
             } else {
                 this.confidence = finalConfidence;
                 this.tier = tier;
+                // CRITICAL: Also update edge on same-direction confidence updates
+                const market = currentMarkets[this.asset];
+                if (market && this.prediction !== 'NEUTRAL' && this.prediction !== 'WAIT') {
+                    const marketProb = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+                    this.edge = marketProb > 0 ? ((finalConfidence - marketProb) / marketProb) * 100 : 0;
+                }
                 this.stabilityCounter = 0;
                 this.pendingSignal = null;
                 if (this.lastSignal) {
@@ -5173,64 +5185,12 @@ app.post('/api/wallet/transfer', async (req, res) => {
         if (!to || !amount) {
             return res.status(400).json({ success: false, error: 'Missing "to" address or "amount"' });
         }
+
+        // Execute the transfer
+        const result = await tradeExecutor.transferUSDC(to, parseFloat(amount));
+        res.json(result);
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
-    }
-});
-
-// ==================== STATE API (FOR DASHBOARD) ====================
-// This is the CRITICAL endpoint that the frontend calls for real-time updates
-app.get('/api/state', (req, res) => {
-    try {
-        // Build response in EXACT format frontend expects
-        const state = {
-            _trading: {
-                balance: tradeExecutor ? (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.liveBalance) : CONFIG.PAPER_BALANCE,
-                todayPnL: tradeExecutor ? tradeExecutor.todayPnL : 0,
-                tradeHistory: tradeExecutor ? tradeExecutor.tradeHistory : [],
-                positions: tradeExecutor ? tradeExecutor.openPositions : [],
-                mode: CONFIG.TRADE_MODE
-            }
-        };
-
-        // Add each asset's data in the format frontend expects
-        // Frontend accesses: data[asset].live, data[asset].checkpoint, data[asset].prediction, etc.
-        ASSETS.forEach(asset => {
-            const brain = typeof Brains !== 'undefined' ? Brains[asset] : null;
-            const market = currentMarkets[asset];
-
-            state[asset] = {
-                // Prices
-                live: livePrices[asset] || null,
-                checkpoint: checkpointPrices[asset] || null,
-
-                // Prediction
-                prediction: brain?.prediction || 'NEUTRAL',
-                confidence: brain?.confidence || 0,
-                tier: brain?.tier || 'NONE',
-                edge: brain?.edge || 0,
-                locked: brain?.convictionLocked || false,
-                committed: brain?.cycleCommitted || false,
-                lockedDirection: brain?.lockedDirection || null,
-
-                // Stats
-                stats: brain?.stats || { wins: 0, losses: 0, total: 0 },
-                recentOutcomes: brain?.recentOutcomes || [],
-
-                // Market
-                market: market ? {
-                    yesPrice: market.yesPrice || 0.5,
-                    noPrice: market.noPrice || 0.5,
-                    marketUrl: market.marketUrl || null,
-                    conditionId: market.conditionId || null
-                } : null
-            };
-        });
-
-        res.json(state);
-    } catch (e) {
-        console.error('Error in /api/state:', e);
-        res.status(500).json({ error: e.message });
     }
 });
 
