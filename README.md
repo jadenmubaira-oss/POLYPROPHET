@@ -40,10 +40,12 @@ POLYPROPHET is a sophisticated trading bot that uses **8 machine learning models
 |---------|-------------|
 | **10-Model Ensemble** | Genesis, Physicist, Order Book, Historian, BTC Correlation, Macro, Funding, Volume, Whale Detection, Market Sentiment |
 | **5 Trading Modes** | ORACLE 🔮, ARBITRAGE 📊, SCALP 🎯, UNCERTAINTY 🌊, MOMENTUM 🚀 |
-| **Smart Aggressive Mode** | 3 preset profiles (Safe/Balanced/Aggressive) with full UI control |
+| **TRUE ORACLE Certainty** | 5-component certainty score (0-100) - UNBREAKABLE lock at 80+ certainty |
+| **Manipulation Detection** | Volume divergence, rapid reversals, fake-out pattern detection |
+| **Smart Aggressive Mode** | 4 preset profiles (Safe/Balanced/Aggressive/Oracle) with full UI control |
 | **Adaptive Learning** | Model weights recalibrate based on accuracy, ATR evolution |
 | **Pattern Memory** | DTW pattern matching with 2x priority weight (Redis-persisted) |
-| **Anti-Whipsaw** | Cycle commitment lock prevents prediction flip-flopping |
+| **Anti-Whipsaw** | Cycle commitment lock + TRUE ORACLE lock prevents flip-flopping |
 | **Complete Failsafes** | 5x sell retry, pending sells recovery, circuit breaker, divergence blocking |
 | **Telegram Alerts** | Real-time notifications for trades, withdrawals, system events |
 | **Web Dashboard** | Real-time predictions, positions, trade history, comprehensive settings |

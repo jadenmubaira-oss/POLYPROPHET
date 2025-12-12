@@ -164,7 +164,12 @@ function broadcastUpdate() {
                     locked: Brains[asset].convictionLocked || false,
                     committed: Brains[asset].cycleCommitted || false,
                     lockedDirection: Brains[asset].lockedDirection || null,
-                    stats: Brains[asset].stats || { wins: 0, losses: 0, total: 0 }
+                    stats: Brains[asset].stats || { wins: 0, losses: 0, total: 0 },
+                    // TRUE ORACLE: Certainty system state
+                    certaintyScore: Brains[asset].certaintyScore || 0,
+                    oracleLocked: Brains[asset].oracleLocked || false,
+                    oracleLockPrediction: Brains[asset].oracleLockPrediction || null,
+                    manipulationScore: Brains[asset].manipulationScore || 0
                 };
             }
         });
@@ -2351,6 +2356,24 @@ class SupremeBrain {
 
         // EXPORT HISTORY TRACKER
         this.currentCycleHistory = [];
+
+        // ==================== TRUE ORACLE: CERTAINTY SYSTEM ====================
+        // Meta-awareness: "How confident am I that my confidence is REAL?"
+        this.certaintyScore = 0;                    // 0-100 scale
+        this.certaintyHistory = [];                 // Last 10 readings for stability check
+        this.oracleLocked = false;                  // TRUE ORACLE LOCK - NEVER changes once set
+        this.lockCertainty = 0;                     // Certainty when locked
+        this.oracleLockPrediction = null;           // Direction when locked
+
+        // Certainty Components (each contributes to total certainty)
+        this.modelAgreementHistory = [];            // Last 5 model vote snapshots
+        this.priceConfirmationScore = 0;            // 0-25: Is price moving our way?
+        this.manipulationScore = 0;                 // 0-1: Higher = more manipulation detected
+        this.edgeHistory = [];                      // Last 5 edge calculations for stability
+        this.lastPriceDirection = null;             // Track price movement direction
+
+        // Scalp tracking
+        this.scalpBounceHistory = [];               // Track historical bounces for learning
     }
 
     async update() {
@@ -2850,6 +2873,31 @@ class SupremeBrain {
                 finalConfidence = Math.max(finalConfidence, convictionThreshold);
             }
 
+            // ==================== TRUE ORACLE: CERTAINTY CALCULATION ====================
+            // Calculate meta-awareness: How certain are we that our confidence is REAL?
+            const certainty = this.calculateCertainty(finalSignal, finalConfidence, votes, history, force, atr);
+
+            // ==================== TRUE ORACLE: UNBREAKABLE LOCK ====================
+            // Once certainty reaches 80, the oracle has spoken. NO CHANGES ALLOWED.
+            if (!this.oracleLocked && certainty >= 80 && finalSignal !== 'NEUTRAL') {
+                this.oracleLocked = true;
+                this.oracleLockPrediction = finalSignal;
+                this.lockCertainty = certainty;
+                log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
+                log(`🔮 TRUE ORACLE LOCK: ${finalSignal} @ ${certainty.toFixed(0)} certainty`, this.asset);
+                log(`🔮 This prediction is FINAL and will NOT change this cycle.`, this.asset);
+                log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
+            }
+
+            // IF ORACLE LOCKED: Override EVERYTHING to maintain locked prediction
+            if (this.oracleLocked) {
+                // UNBREAKABLE: No matter what the models say, we hold our position
+                finalSignal = this.oracleLockPrediction;
+                tier = 'CONVICTION';  // Always show as CONVICTION when oracle locked
+                // Confidence can still update for display, but direction is FIXED
+                log(`🔮 ORACLE HOLDING: ${finalSignal} (certainty was ${this.lockCertainty.toFixed(0)}, now ${certainty.toFixed(0)})`, this.asset);
+            }
+
             // === CYCLE COMMITMENT LOCK (Real-World Trading Mode) ===
             // Once committed to a direction, NEVER flip-flop for the entire cycle
             // This mimics real trading: once you buy shares, you can't switch sides
@@ -3156,6 +3204,181 @@ class SupremeBrain {
         return true;
     }
 
+    // ==================== TRUE ORACLE: CERTAINTY CALCULATION ====================
+    // Meta-awareness: Calculate how certain we are that our confidence is REAL
+
+    calculateCertainty(finalSignal, finalConfidence, votes, history, force, atr) {
+        let certainty = 0;
+
+        // === COMPONENT 1: Model Agreement Stability (0-25 points) ===
+        // Not just "models agree NOW" but "have they agreed consistently?"
+        const currentAgreement = finalSignal !== 'NEUTRAL' ? finalSignal : null;
+        this.modelAgreementHistory.push(currentAgreement);
+        if (this.modelAgreementHistory.length > 5) this.modelAgreementHistory.shift();
+
+        if (this.modelAgreementHistory.length >= 3 && currentAgreement) {
+            const consistentCount = this.modelAgreementHistory.filter(a => a === currentAgreement).length;
+            const stability = consistentCount / this.modelAgreementHistory.length;
+            certainty += stability * 25;
+        }
+
+        // === COMPONENT 2: Price Confirmation (0-25 points) ===
+        // Is price actually moving in our predicted direction?
+        const currentPrice = livePrices[this.asset];
+        const checkpointPrice = checkpointPrices[this.asset];
+        if (currentPrice && checkpointPrice && finalSignal !== 'NEUTRAL') {
+            const priceDirection = currentPrice > checkpointPrice ? 'UP' : 'DOWN';
+            const priceChange = Math.abs(currentPrice - checkpointPrice) / checkpointPrice;
+
+            if (priceDirection === finalSignal) {
+                // Price moving our way - add points based on magnitude
+                const confirmStrength = Math.min(1, priceChange / (atr * 3));
+                this.priceConfirmationScore = confirmStrength * 25;
+                certainty += this.priceConfirmationScore;
+            } else if (priceChange > atr * 0.5) {
+                // Price moving against us significantly - reduce certainty
+                certainty -= 10;
+            }
+        }
+
+        // === COMPONENT 3: Manipulation Detection (0-20 points) ===
+        // Detect fake-outs, wash trading, volume divergence
+        this.manipulationScore = this.detectManipulation(history, force, atr);
+        const manipPoints = (1 - this.manipulationScore) * 20;
+        certainty += manipPoints;
+
+        // === COMPONENT 4: Pattern Match Quality (0-15 points) ===
+        // How well does this match winning vs losing patterns?
+        const patternQuality = this.getPatternMatchQuality(history, finalSignal);
+        certainty += patternQuality;
+
+        // === COMPONENT 5: Edge Persistence (0-15 points) ===
+        // Has edge been stable or bouncing wildly?
+        const market = currentMarkets[this.asset];
+        if (market && finalSignal !== 'NEUTRAL') {
+            const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+            const currentEdge = currentOdds > 0 ? ((finalConfidence - currentOdds) / currentOdds) * 100 : 0;
+
+            this.edgeHistory.push(currentEdge);
+            if (this.edgeHistory.length > 5) this.edgeHistory.shift();
+
+            if (this.edgeHistory.length >= 3) {
+                const avgEdge = this.edgeHistory.reduce((a, b) => a + b, 0) / this.edgeHistory.length;
+                const variance = this.edgeHistory.reduce((sum, e) => sum + Math.pow(e - avgEdge, 2), 0) / this.edgeHistory.length;
+                const stdDev = Math.sqrt(variance);
+
+                // Stable edge (low variance) = high points
+                if (stdDev < 5 && avgEdge > 10) {
+                    certainty += 15;
+                } else if (stdDev < 10 && avgEdge > 5) {
+                    certainty += 10;
+                } else if (stdDev < 15) {
+                    certainty += 5;
+                }
+                // High variance = bouncing = no points (already at 0)
+            }
+        }
+
+        // Track certainty history
+        this.certaintyHistory.push(certainty);
+        if (this.certaintyHistory.length > 10) this.certaintyHistory.shift();
+
+        this.certaintyScore = Math.max(0, Math.min(100, certainty));
+        return this.certaintyScore;
+    }
+
+    // Detect manipulation: volume divergence, rapid reversals, wash trading
+    detectManipulation(history, force, atr) {
+        if (!history || history.length < 20) return 0;
+
+        let manipulationIndicators = 0;
+
+        // 1. Volume Divergence: Big price move without volume
+        const recentPrices = history.slice(-10).map(h => h.p);
+        const priceMove = Math.abs(recentPrices[recentPrices.length - 1] - recentPrices[0]);
+        // If price moved > 2 ATR but we don't have volume confirmation, suspicious
+        if (priceMove > atr * 2) {
+            manipulationIndicators += 0.3;
+        }
+
+        // 2. Rapid Reversal: Price spiked then immediately reversed
+        if (history.length >= 5) {
+            const last5 = history.slice(-5).map(h => h.p);
+            const max5 = Math.max(...last5);
+            const min5 = Math.min(...last5);
+            const range5 = max5 - min5;
+            const currentPos = (last5[4] - min5) / range5; // Where is current price in range?
+
+            // If we're near middle of recent range, there was a reversal
+            if (currentPos > 0.3 && currentPos < 0.7 && range5 > atr * 2) {
+                manipulationIndicators += 0.3;
+            }
+        }
+
+        // 3. Extreme Force but no follow-through
+        const absForce = Math.abs(force);
+        if (absForce > atr * 3) {
+            // Check if force is slowing down (derivative decreasing)
+            if (history.length >= 3) {
+                const forces = [];
+                for (let i = history.length - 3; i < history.length - 1; i++) {
+                    forces.push(history[i + 1].p - history[i].p);
+                }
+                const forceDecelerating = Math.abs(forces[1]) < Math.abs(forces[0]) * 0.5;
+                if (forceDecelerating) {
+                    manipulationIndicators += 0.2;
+                }
+            }
+        }
+
+        return Math.min(1, manipulationIndicators);
+    }
+
+    // Get pattern match quality score (0-15)
+    getPatternMatchQuality(history, signal) {
+        if (!history || history.length < 10 || !memoryPatterns[this.asset]) return 7.5; // Neutral
+
+        try {
+            const recent = history.slice(-10).map(x => x.p);
+            const base = recent[0];
+            const vector = recent.map(p => (p - base) / base);
+
+            const patterns = memoryPatterns[this.asset];
+            if (patterns.length === 0) return 7.5;
+
+            let bestMatchScore = 0;
+            let matchToWinner = false;
+
+            for (const pattern of patterns) {
+                if (!pattern.vector || pattern.vector.length !== vector.length) continue;
+
+                // Dynamic Time Warping distance
+                const dist = MathLib.dtwDistance(vector, pattern.vector);
+                const similarity = Math.max(0, 1 - dist);
+
+                if (similarity > bestMatchScore) {
+                    bestMatchScore = similarity;
+                    // Check if this pattern has good track record
+                    if (pattern.wins && pattern.matchCount) {
+                        matchToWinner = (pattern.wins / pattern.matchCount) > 0.6;
+                    }
+                }
+            }
+
+            // High similarity to winning pattern = high points
+            if (bestMatchScore > 0.8 && matchToWinner) {
+                return 15;
+            } else if (bestMatchScore > 0.6 && matchToWinner) {
+                return 12;
+            } else if (bestMatchScore > 0.5) {
+                return 8;
+            }
+            return 5;
+        } catch (e) {
+            return 7.5;
+        }
+    }
+
     // KELLY CRITERION (Enhanced Position Sizing)
     getKellySize() {
         if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
@@ -3293,6 +3516,17 @@ class SupremeBrain {
                 this.cycleCommitted = false;
                 this.committedDirection = null;
                 this.commitTime = null;
+
+                // ==================== TRUE ORACLE: RESET FOR NEW CYCLE ====================
+                this.oracleLocked = false;
+                this.oracleLockPrediction = null;
+                this.lockCertainty = 0;
+                this.certaintyScore = 0;
+                this.certaintyHistory = [];
+                this.modelAgreementHistory = [];
+                this.edgeHistory = [];
+                this.priceConfirmationScore = 0;
+                this.manipulationScore = 0;
 
                 // Clear export history for new cycle
                 this.currentCycleHistory = [];
