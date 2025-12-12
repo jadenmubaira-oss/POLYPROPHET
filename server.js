@@ -113,6 +113,185 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static('public'));
+
+// ==================== DEBUG EXPORT API ====================
+// Returns last 10 cycles of COMPLETE debugging data - EVERY ATOM
+app.get('/api/debug-export', (req, res) => {
+    try {
+        const exportData = {
+            // === META INFO ===
+            exportTime: new Date().toISOString(),
+            serverUptime: process.uptime(),
+            cycleInterval: INTERVAL_SECONDS,
+            nodeVersion: process.version,
+            memoryUsage: process.memoryUsage(),
+
+            // === GLOBAL CONFIG (ALL MODES) ===
+            config: {
+                TRADE_MODE: CONFIG.TRADE_MODE,
+                MULTI_MODE_ENABLED: CONFIG.MULTI_MODE_ENABLED,
+                ORACLE: CONFIG.ORACLE,
+                ARBITRAGE: CONFIG.ARBITRAGE,
+                SCALP: CONFIG.SCALP,
+                UNCERTAINTY: CONFIG.UNCERTAINTY,
+                MOMENTUM: CONFIG.MOMENTUM,
+                RISK: CONFIG.RISK,
+                ASSET_CONTROLS: CONFIG.ASSET_CONTROLS,
+                TELEGRAM_ENABLED: CONFIG.TELEGRAM?.enabled || false
+            },
+
+            // === GLOBAL STATE ===
+            globalState: {
+                fearGreedIndex: typeof fearGreedIndex !== 'undefined' ? fearGreedIndex : null,
+                fundingRates: typeof fundingRates !== 'undefined' ? fundingRates : null,
+                lastUpdateTimestamp: typeof lastUpdateTimestamp !== 'undefined' ? lastUpdateTimestamp : null,
+                redisAvailable: typeof redisAvailable !== 'undefined' ? redisAvailable : false
+            },
+
+            // === TRADE EXECUTOR STATE ===
+            tradeExecutor: typeof tradeExecutor !== 'undefined' ? {
+                mode: tradeExecutor.mode,
+                paperBalance: tradeExecutor.paperBalance,
+                startingBalance: tradeExecutor.startingBalance,
+                todayPnL: tradeExecutor.todayPnL,
+                positions: tradeExecutor.positions,
+                pendingSells: tradeExecutor.pendingSells,
+                tradeHistory: tradeExecutor.tradeHistory.slice(-50), // Last 50 trades
+                dailyLossCount: tradeExecutor.dailyLossCount,
+                consecutiveLosses: tradeExecutor.consecutiveLosses,
+                lastLossTime: tradeExecutor.lastLossTime,
+                tradesThisCycle: tradeExecutor.tradesThisCycle,
+                assetCycleTradeCounts: tradeExecutor.assetCycleTradeCounts,
+                cachedLiveBalance: tradeExecutor.cachedLiveBalance,
+                cachedGasBalance: tradeExecutor.cachedGasBalance
+            } : null,
+
+            // === OPPORTUNITY DETECTOR STATE ===
+            opportunityDetector: typeof opportunityDetector !== 'undefined' ? {
+                tradesThisCycle: opportunityDetector.tradesThisCycle,
+                currentCycleStart: opportunityDetector.currentCycleStart
+            } : null,
+
+            // === PER-ASSET DATA ===
+            assets: {}
+        };
+
+        ASSETS.forEach(asset => {
+            const brain = typeof Brains !== 'undefined' ? Brains[asset] : null;
+
+            exportData.assets[asset] = {
+                // === CURRENT BRAIN STATE (EVERY PROPERTY) ===
+                currentState: brain ? {
+                    // Core prediction
+                    prediction: brain.prediction,
+                    confidence: brain.confidence,
+                    tier: brain.tier,
+                    edge: brain.edge,
+
+                    // TRUE ORACLE: Certainty System
+                    certaintyScore: brain.certaintyScore,
+                    certaintyHistory: brain.certaintyHistory,
+                    oracleLocked: brain.oracleLocked,
+                    lockCertainty: brain.lockCertainty,
+                    oracleLockPrediction: brain.oracleLockPrediction,
+
+                    // Certainty Components
+                    modelAgreementHistory: brain.modelAgreementHistory,
+                    priceConfirmationScore: brain.priceConfirmationScore,
+                    manipulationScore: brain.manipulationScore,
+                    edgeHistory: brain.edgeHistory,
+                    lastPriceDirection: brain.lastPriceDirection,
+
+                    // PINNACLE EVOLUTION
+                    certaintySeries: brain.certaintySeries,
+                    certaintyVelocity: brain.certaintyVelocity,
+                    certaintyAcceleration: brain.certaintyAcceleration,
+                    currentPhase: brain.currentPhase,
+                    phaseThresholdModifier: brain.phaseThresholdModifier,
+                    genesisTraded: brain.genesisTraded,
+                    genesisTradeDirection: brain.genesisTradeDirection,
+                    lastBlackoutPrediction: brain.lastBlackoutPrediction,
+                    blackoutLogged: brain.blackoutLogged,
+                    inBlackout: brain.inBlackout,
+                    correlationBonus: brain.correlationBonus,
+
+                    // Conviction & Commitment
+                    convictionLocked: brain.convictionLocked,
+                    lockedDirection: brain.lockedDirection,
+                    lockTime: brain.lockTime,
+                    lockConfidence: brain.lockConfidence,
+                    cycleCommitted: brain.cycleCommitted,
+                    committedDirection: brain.committedDirection,
+                    commitTime: brain.commitTime,
+
+                    // Stability & Debounce
+                    stabilityCounter: brain.stabilityCounter,
+                    pendingSignal: brain.pendingSignal,
+                    lockState: brain.lockState,
+                    lockStrength: brain.lockStrength,
+
+                    // Vote History
+                    voteHistory: brain.voteHistory,
+                    voteTrendScore: brain.voteTrendScore,
+
+                    // Stats & Streaks
+                    stats: brain.stats,
+                    winStreak: brain.winStreak,
+                    lossStreak: brain.lossStreak,
+                    atrMultiplier: brain.atrMultiplier,
+
+                    // Model Accuracy (Learning)
+                    modelAccuracy: brain.modelAccuracy,
+                    calibrationBuckets: brain.calibrationBuckets,
+                    recentOutcomes: brain.recentOutcomes,
+
+                    // Last Signal
+                    lastSignal: brain.lastSignal,
+
+                    // Processing State
+                    isProcessing: brain.isProcessing,
+
+                    // Scalp Tracking
+                    scalpBounceHistory: brain.scalpBounceHistory
+                } : null,
+
+                // === HISTORICAL CYCLES (Last 10) ===
+                cycleHistory: cycleDebugHistory[asset] || [],
+
+                // === CURRENT PRICES ===
+                livePrice: livePrices[asset],
+                checkpointPrice: checkpointPrices[asset],
+                previousCheckpointPrice: previousCheckpointPrices[asset],
+                lastEvaluatedCheckpoint: lastEvaluatedCheckpoint[asset],
+
+                // === MARKET DATA ===
+                market: currentMarkets[asset],
+                marketOddsHistory: (marketOddsHistory[asset] || []).slice(-50),
+
+                // === PRICE HISTORY (Last 200 points) ===
+                priceHistory: (priceHistory[asset] || []).slice(-200),
+
+                // === MEMORY PATTERNS (if available) ===
+                memoryPatterns: typeof memoryPatterns !== 'undefined' ?
+                    (memoryPatterns[asset] || []).slice(-20) : []
+            };
+        });
+
+        res.json(exportData);
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+    res.json({
+        status: 'ok',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
+
 const server = http.createServer(app);
 
 // ==================== WEBSOCKET SERVER FOR REAL-TIME DASHBOARD ====================
@@ -253,6 +432,13 @@ ASSETS.forEach(asset => {
     livePrices[asset] = null;
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
+});
+
+// ==================== DEBUG EXPORT: CYCLE HISTORY STORAGE ====================
+// Stores last 5 complete cycles of debugging data for each asset
+let cycleDebugHistory = {};
+ASSETS.forEach(asset => {
+    cycleDebugHistory[asset] = []; // Array of cycle objects
 });
 
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
@@ -3712,6 +3898,51 @@ class SupremeBrain {
                     const vector = recent.map(p => (p - base) / base);
                     savePattern(this.asset, vector, actual);
                 }
+
+                // ==================== DEBUG EXPORT: SAVE CYCLE DATA ====================
+                // Store complete cycle data for debugging (last 5 cycles)
+                const cycleSnapshot = {
+                    cycleEndTime: new Date().toISOString(),
+                    cycleStartPrice: startPrice,
+                    cycleEndPrice: finalPrice,
+                    actualOutcome: actual,
+                    prediction: predicted,
+                    wasCorrect: isWin,
+                    tier: tier,
+                    confidence: this.lastSignal?.confidence || 0,
+                    certaintyAtEnd: this.certaintyScore,
+                    certaintyVelocityAtEnd: this.certaintyVelocity,
+                    phaseAtEnd: this.currentPhase,
+                    oracleWasLocked: this.oracleLocked,
+                    oracleLockPrediction: this.oracleLockPrediction,
+                    lockCertainty: this.lockCertainty,
+                    manipulationScore: this.manipulationScore,
+                    correlationBonus: this.correlationBonus,
+                    wasInBlackout: this.inBlackout,
+                    cycleCommitted: this.cycleCommitted,
+                    committedDirection: this.committedDirection,
+                    genesisTraded: this.genesisTraded,
+                    genesisTradeDirection: this.genesisTradeDirection,
+                    stats: { ...this.stats },
+                    winStreak: this.winStreak,
+                    lossStreak: this.lossStreak,
+                    modelVotes: this.lastSignal?.modelVotes || {},
+                    certaintySeries: [...(this.certaintySeries || [])],
+                    modelAgreementHistory: [...(this.modelAgreementHistory || [])],
+                    edgeHistory: [...(this.edgeHistory || [])],
+                    marketOdds: currentMarkets[this.asset] ? {
+                        yesPrice: currentMarkets[this.asset].yesPrice,
+                        noPrice: currentMarkets[this.asset].noPrice
+                    } : null
+                };
+
+                // Add to history (max 10 cycles)
+                if (!cycleDebugHistory[this.asset]) cycleDebugHistory[this.asset] = [];
+                cycleDebugHistory[this.asset].push(cycleSnapshot);
+                if (cycleDebugHistory[this.asset].length > 10) {
+                    cycleDebugHistory[this.asset].shift();
+                }
+                log(`📊 DEBUG: Saved cycle data (${cycleDebugHistory[this.asset].length}/10 cycles stored)`, this.asset);
 
                 this.lockState = 'NEUTRAL';
                 this.lockStrength = 0;
