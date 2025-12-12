@@ -169,7 +169,12 @@ function broadcastUpdate() {
                     certaintyScore: Brains[asset].certaintyScore || 0,
                     oracleLocked: Brains[asset].oracleLocked || false,
                     oracleLockPrediction: Brains[asset].oracleLockPrediction || null,
-                    manipulationScore: Brains[asset].manipulationScore || 0
+                    manipulationScore: Brains[asset].manipulationScore || 0,
+                    // PINNACLE EVOLUTION: Advanced state
+                    certaintyVelocity: Brains[asset].certaintyVelocity || 0,
+                    currentPhase: Brains[asset].currentPhase || 'GENESIS',
+                    correlationBonus: Brains[asset].correlationBonus || 0,
+                    inBlackout: Brains[asset].inBlackout || false
                 };
             }
         });
@@ -2374,6 +2379,29 @@ class SupremeBrain {
 
         // Scalp tracking
         this.scalpBounceHistory = [];               // Track historical bounces for learning
+
+        // ==================== PINNACLE EVOLUTION: NEW SYSTEMS ====================
+
+        // 1. CERTAINTY VELOCITY TRACKING
+        this.certaintySeries = [];                  // Last 5 certainty readings
+        this.certaintyVelocity = 0;                 // Rate of certainty change
+        this.certaintyAcceleration = 0;             // Is velocity increasing?
+
+        // 2. CYCLE PHASE AWARENESS
+        this.currentPhase = 'GENESIS';              // Current cycle phase
+        this.phaseThresholdModifier = 1.0;          // Dynamic threshold adjustment
+
+        // 3. GENESIS WINDOW TRADING
+        this.genesisTraded = false;                 // Has genesis trade been placed?
+        this.genesisTradeDirection = null;          // Direction of genesis trade
+
+        // 4. BLACKOUT ENFORCEMENT
+        this.lastBlackoutPrediction = null;         // Prediction before blackout
+        this.blackoutLogged = false;                // Only log blackout once
+        this.inBlackout = false;                    // Are we in blackout period?
+
+        // 5. CROSS-ASSET ALPHA TRANSFER
+        this.correlationBonus = 0;                  // Bonus from correlated assets
     }
 
     async update() {
@@ -2873,18 +2901,57 @@ class SupremeBrain {
                 finalConfidence = Math.max(finalConfidence, convictionThreshold);
             }
 
+            // ==================== PINNACLE EVOLUTION: PHASE AWARENESS ====================
+            // Know where we are in the cycle - different behavior at different times
+            this.currentPhase = this.getCyclePhase(elapsed);
+
+            // ==================== PINNACLE EVOLUTION: BLACKOUT ENFORCEMENT ====================
+            // In final 60 seconds, NO PREDICTION CHANGES ALLOWED
+            if (this.currentPhase === 'BLACKOUT') {
+                this.inBlackout = true;
+                if (this.lastBlackoutPrediction !== null) {
+                    finalSignal = this.lastBlackoutPrediction;
+                    if (!this.blackoutLogged) {
+                        log(`⬛ BLACKOUT ACTIVE: Holding ${finalSignal} for final 60s - NO CHANGES`, this.asset);
+                        this.blackoutLogged = true;
+                    }
+                }
+                // Skip all further prediction changes during blackout
+            } else {
+                // Store prediction in case we enter blackout
+                this.lastBlackoutPrediction = finalSignal;
+                this.blackoutLogged = false;
+                this.inBlackout = false;
+            }
+
             // ==================== TRUE ORACLE: CERTAINTY CALCULATION ====================
             // Calculate meta-awareness: How certain are we that our confidence is REAL?
             const certainty = this.calculateCertainty(finalSignal, finalConfidence, votes, history, force, atr);
 
-            // ==================== TRUE ORACLE: UNBREAKABLE LOCK ====================
-            // Once certainty reaches 80, the oracle has spoken. NO CHANGES ALLOWED.
-            if (!this.oracleLocked && certainty >= 80 && finalSignal !== 'NEUTRAL') {
+            // ==================== PINNACLE EVOLUTION: CERTAINTY VELOCITY ====================
+            // Track rate of certainty change - is confidence growing or shrinking?
+            const velocityData = this.calculateCertaintyVelocity(certainty);
+
+            // ==================== PINNACLE EVOLUTION: CROSS-ASSET ALPHA ====================
+            // Boost certainty if correlated with BTC's locked prediction
+            const alphaBonus = this.getCrossAssetAlpha(finalSignal);
+            const adjustedCertainty = Math.max(0, Math.min(100, certainty + alphaBonus));
+            this.correlationBonus = alphaBonus;
+
+            // ==================== TRUE ORACLE: DYNAMIC UNBREAKABLE LOCK ====================
+            // Lock threshold adjusts based on velocity and phase
+            const dynamicThreshold = this.getDynamicLockThreshold();
+
+            // Once certainty reaches threshold, the oracle has spoken. NO CHANGES ALLOWED.
+            if (!this.oracleLocked && !this.inBlackout &&
+                adjustedCertainty >= dynamicThreshold && finalSignal !== 'NEUTRAL') {
                 this.oracleLocked = true;
                 this.oracleLockPrediction = finalSignal;
-                this.lockCertainty = certainty;
+                this.lockCertainty = adjustedCertainty;
                 log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
-                log(`🔮 TRUE ORACLE LOCK: ${finalSignal} @ ${certainty.toFixed(0)} certainty`, this.asset);
+                log(`🔮 TRUE ORACLE LOCK: ${finalSignal} @ ${adjustedCertainty.toFixed(0)} certainty`, this.asset);
+                log(`🔮 Threshold: ${dynamicThreshold} | Velocity: ${velocityData.velocity.toFixed(1)} | Phase: ${this.currentPhase}`, this.asset);
+                if (alphaBonus !== 0) log(`🔮 Alpha Bonus: ${alphaBonus > 0 ? '+' : ''}${alphaBonus} (BTC correlation)`, this.asset);
                 log(`🔮 This prediction is FINAL and will NOT change this cycle.`, this.asset);
                 log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
             }
@@ -2895,7 +2962,10 @@ class SupremeBrain {
                 finalSignal = this.oracleLockPrediction;
                 tier = 'CONVICTION';  // Always show as CONVICTION when oracle locked
                 // Confidence can still update for display, but direction is FIXED
-                log(`🔮 ORACLE HOLDING: ${finalSignal} (certainty was ${this.lockCertainty.toFixed(0)}, now ${certainty.toFixed(0)})`, this.asset);
+                // Only log every 30s to reduce spam
+                if (elapsed % 30 < 2) {
+                    log(`🔮 ORACLE HOLDING: ${finalSignal} | Certainty: ${adjustedCertainty.toFixed(0)} | Vel: ${velocityData.velocity.toFixed(1)}`, this.asset);
+                }
             }
 
             // === CYCLE COMMITMENT LOCK (Real-World Trading Mode) ===
@@ -3379,6 +3449,152 @@ class SupremeBrain {
         }
     }
 
+    // ==================== PINNACLE EVOLUTION: NEW METHODS ====================
+
+    // 1. CYCLE PHASE AWARENESS - Know where we are in the 15-minute cycle
+    getCyclePhase(elapsed) {
+        if (elapsed < 60) return 'GENESIS';        // 0-1 min: High uncertainty, best odds
+        if (elapsed < 300) return 'FORMATION';     // 1-5 min: Trend forming
+        if (elapsed < 600) return 'CONFIRMATION';  // 5-10 min: Trend confirmed
+        if (elapsed < 840) return 'RESOLUTION';    // 10-14 min: Die mostly cast
+        return 'BLACKOUT';                         // 14-15 min: NO CHANGES ALLOWED
+    }
+
+    // Dynamic threshold adjustment based on cycle phase
+    getPhaseAdjustedThreshold(phase, baseThreshold) {
+        switch (phase) {
+            case 'GENESIS': return baseThreshold * 1.05;      // Slightly higher bar early (less data)
+            case 'FORMATION': return baseThreshold;           // Normal threshold
+            case 'CONFIRMATION': return baseThreshold * 0.92; // Lower bar mid-cycle (more data)
+            case 'RESOLUTION': return baseThreshold * 0.85;   // Even lower late (trend confirmed)
+            case 'BLACKOUT': return 999;                      // Never trigger new trades
+            default: return baseThreshold;
+        }
+    }
+
+    // 2. CERTAINTY VELOCITY TRACKING - Rate of confidence change
+    calculateCertaintyVelocity(currentCertainty) {
+        this.certaintySeries.push(currentCertainty);
+        if (this.certaintySeries.length > 5) this.certaintySeries.shift();
+
+        if (this.certaintySeries.length >= 2) {
+            const prev = this.certaintySeries[this.certaintySeries.length - 2];
+            this.certaintyVelocity = currentCertainty - prev;
+
+            if (this.certaintySeries.length >= 3) {
+                const prevVel = this.certaintySeries[this.certaintySeries.length - 2] -
+                    this.certaintySeries[this.certaintySeries.length - 3];
+                this.certaintyAcceleration = this.certaintyVelocity - prevVel;
+            }
+        }
+
+        return {
+            velocity: this.certaintyVelocity,
+            acceleration: this.certaintyAcceleration,
+            isGrowing: this.certaintyVelocity > 0,
+            isAccelerating: this.certaintyAcceleration > 0
+        };
+    }
+
+    // Get dynamic lock threshold based on velocity
+    getDynamicLockThreshold() {
+        // Base threshold is 80
+        // If certainty is GROWING (positive velocity), we can lock earlier
+        // If certainty is SHRINKING, require higher threshold
+        let threshold = 80;
+
+        if (this.certaintyVelocity > 5) {
+            threshold -= 8;  // Growing fast = lock at 72
+        } else if (this.certaintyVelocity > 2) {
+            threshold -= 5;  // Growing = lock at 75
+        } else if (this.certaintyVelocity < -3) {
+            threshold += 5;  // Shrinking = require 85
+        }
+
+        // Phase adjustment
+        if (this.currentPhase === 'RESOLUTION') {
+            threshold -= 5;  // Late cycle = lower threshold
+        } else if (this.currentPhase === 'GENESIS') {
+            threshold += 5;  // Early = higher threshold
+        }
+
+        return Math.max(65, Math.min(90, threshold));
+    }
+
+    // 3. CROSS-ASSET ALPHA TRANSFER - Boost from correlated assets
+    getCrossAssetAlpha(finalSignal) {
+        if (this.asset === 'BTC') return 0; // BTC is the leader, no boost
+
+        // Check BTC's state
+        const btcBrain = typeof Brains !== 'undefined' ? Brains['BTC'] : null;
+        if (!btcBrain) return 0;
+
+        const btcCertainty = btcBrain.certaintyScore || 0;
+        const btcDirection = btcBrain.prediction;
+        const btcLocked = btcBrain.oracleLocked || false;
+
+        // Only transfer alpha if BTC is highly certain and locked
+        if (!btcLocked || btcCertainty < 85) return 0;
+
+        // Direction must match for positive alpha
+        if (btcDirection !== finalSignal) return -5; // Penalty for disagreeing with BTC
+
+        // Correlation strength varies by asset
+        if (this.asset === 'ETH') {
+            return 10; // ETH strongly follows BTC
+        } else if (this.asset === 'SOL') {
+            return 7;  // SOL follows but is more volatile
+        } else if (this.asset === 'XRP') {
+            return 4;  // XRP is less correlated
+        }
+
+        return 0;
+    }
+
+    // 4. DYNAMIC SCALP EXPECTED VALUE
+    calculateScalpEV(odds, timeRemaining, atr) {
+        // Historical bounce rate based on current odds
+        const extremeness = Math.abs(odds - 0.5) * 2;
+        let bounceProb = 0;
+
+        if (odds >= 0.95 || odds <= 0.05) bounceProb = 0.45;
+        else if (odds >= 0.90 || odds <= 0.10) bounceProb = 0.35;
+        else if (odds >= 0.85 || odds <= 0.15) bounceProb = 0.25;
+        else bounceProb = 0.15;
+
+        // Adjust for time remaining (more time = more chance of bounce)
+        bounceProb *= Math.min(1, timeRemaining / 600);
+
+        // Adjust for volatility (higher vol = more bounce potential)
+        const normalATR = this.atrMultiplier * 0.002; // Baseline ATR
+        if (atr > 0 && normalATR > 0) {
+            bounceProb *= Math.min(2, 1 + (atr / normalATR) * 0.5);
+        }
+
+        // Expected value calculation
+        // If odds are 95% YES, we buy NO at 5¢
+        // Potential profit if bounces to 50%: ~45¢ (9x)
+        // But more realistically bounces to 20%: ~15¢ (3x)
+        const entryPrice = odds > 0.5 ? (1 - odds) : odds;
+        const targetBounce = 0.35; // Conservative target (not 50%)
+        const potentialProfit = targetBounce - entryPrice;
+        const maxLoss = entryPrice; // If it goes to 0
+
+        const expectedValue = (bounceProb * potentialProfit) - ((1 - bounceProb) * maxLoss * 0.5);
+
+        return {
+            bounceProb: bounceProb,
+            expectedValue: expectedValue,
+            potentialProfit: potentialProfit,
+            shouldTrade: expectedValue > 0.03 && bounceProb > 0.25
+        };
+    }
+
+    // 5. BLACKOUT CHECK - Is trading allowed?
+    isInBlackout(elapsed) {
+        return elapsed >= 840; // Final 60 seconds
+    }
+
     // KELLY CRITERION (Enhanced Position Sizing)
     getKellySize() {
         if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
@@ -3527,6 +3743,19 @@ class SupremeBrain {
                 this.edgeHistory = [];
                 this.priceConfirmationScore = 0;
                 this.manipulationScore = 0;
+
+                // ==================== PINNACLE EVOLUTION: RESET FOR NEW CYCLE ====================
+                this.certaintySeries = [];
+                this.certaintyVelocity = 0;
+                this.certaintyAcceleration = 0;
+                this.currentPhase = 'GENESIS';
+                this.phaseThresholdModifier = 1.0;
+                this.genesisTraded = false;
+                this.genesisTradeDirection = null;
+                this.lastBlackoutPrediction = null;
+                this.blackoutLogged = false;
+                this.inBlackout = false;
+                this.correlationBonus = 0;
 
                 // Clear export history for new cycle
                 this.currentCycleHistory = [];
