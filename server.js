@@ -2949,6 +2949,7 @@ class SupremeBrain {
                 }
 
                 if (this.stabilityCounter >= requiredStability) {
+                    // ATOMIC UPDATE: Prediction + Confidence + Tier all change TOGETHER
                     this.prediction = finalSignal;
                     this.confidence = finalConfidence;
                     this.tier = tier;
@@ -2963,17 +2964,11 @@ class SupremeBrain {
                     this.stabilityCounter = 0;
                     this.pendingSignal = null;
                     log(`✅ PREDICTION FLIP: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
-                } else {
-                    // PINNACLE FIX: ALWAYS update confidence/tier even during debounce
-                    // This prevents the flicker where prediction and confidence are out of sync
-                    this.confidence = finalConfidence;
-                    this.tier = tier;
-                    // If going to NEUTRAL, zero the edge
-                    if (finalSignal === 'NEUTRAL') {
-                        this.edge = 0;
-                    }
                 }
+                // REMOVED: The broken code that updated confidence separately from prediction
+                // That was causing "UP at 0%" and "NEUTRAL at 40%" bugs
             } else {
+                // Signal is SAME as current prediction - safe to update confidence/tier
                 this.confidence = finalConfidence;
                 this.tier = tier;
                 // CRITICAL: Also update edge on same-direction confidence updates
