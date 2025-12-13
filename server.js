@@ -4713,6 +4713,12 @@ app.get('/', (req, res) => {
                 </div>
             </div>
             
+            <!-- DEBUG EXPORT SECTION -->
+            <h4 style="margin:15px 0 10px;color:#ff6600;font-size:0.95em;">📥 Debug Export</h4>
+            <div style="padding:15px;background:rgba(255,102,0,0.1);border-left:3px solid #ff6600;border-radius:4px;margin-bottom:15px;">
+                <p style="color:#aaa;font-size:0.85em;margin-bottom:12px;">Download complete debugging data for last 10 cycles (all assets, predictions, certainty, trades, patterns).</p>
+                <button id="exportDebugBtn" onclick="exportDebug()" style="padding:12px 24px;background:linear-gradient(135deg, #ff6600, #ff9933);border:none;color:#fff;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1em;width:100%;transition:all 0.3s;">📥 Export Debug (10 Cycles)</button>
+            </div>
             
             <h4 style="margin:15px 0 10px;color:#00bcd4;font-size:0.95em;">📱 Telegram Notifications</h4>
             <div style="padding:10px;background:rgba(0,188,212,0.1);border-left:3px solid #00bcd4;border-radius:4px;margin-bottom:15px;">
@@ -4978,6 +4984,37 @@ app.get('/', (req, res) => {
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
         document.querySelectorAll('.modal-overlay').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); }));
+        
+        // ==================== DEBUG EXPORT FUNCTION ====================
+        async function exportDebug() {
+            try {
+                const btn = document.getElementById('exportDebugBtn');
+                if (btn) { btn.textContent = '⏳ Exporting...'; btn.disabled = true; }
+                
+                const res = await fetch('/api/debug-export');
+                if (!res.ok) throw new Error('Export failed: ' + res.status);
+                
+                const data = await res.json();
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'polyprophet_debug_' + new Date().toISOString().replace(/[:.]/g, '-') + '.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                if (btn) { btn.textContent = '📥 Export Debug (10 Cycles)'; btn.disabled = false; }
+                console.log('✅ Debug export downloaded:', Object.keys(data.assets || {}).length, 'assets');
+            } catch (e) {
+                console.error('❌ Export error:', e);
+                alert('Export failed: ' + e.message);
+                const btn = document.getElementById('exportDebugBtn');
+                if (btn) { btn.textContent = '📥 Export Debug (10 Cycles)'; btn.disabled = false; }
+            }
+        }
         
         async function fetchData() {
             try {
