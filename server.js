@@ -462,20 +462,20 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // FIX: Lowered thresholds to enable actual trading (was too strict!)
+    // PINNACLE FIX: Stop losses NOW ENABLED - debug export showed -85% to -100% losses
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
         minElapsedSeconds: 5,   // 🔮 ORACLE: Trade within first 5s for maximum edge
         minConsensus: 0.70,      // 70%+ of models agree
         minConfidence: 0.75,     // 75%+ confidence required
-        minEdge: 8,              // 8%+ edge over market
+        minEdge: 10,             // 🔥 PINNACLE: 10%+ edge (was 8) - no negative EV trades
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
         maxOdds: 0.85,           // Buy at ≤85%
         minStability: 3,         // 3 ticks stable
-        stopLoss: 0.25,          // 🛡️ Optional 25% stop loss protection
-        stopLossEnabled: false   // 🛡️ Off by default (pure hold-to-resolution)
+        stopLoss: 0.20,          // 🛡️ PINNACLE: 20% stop loss - cut losses FAST
+        stopLossEnabled: true    // 🛡️ PINNACLE: NOW ENABLED - debug showed -100% losses!
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
