@@ -3137,18 +3137,30 @@ class SupremeBrain {
             // Lock threshold adjusts based on velocity and phase
             const dynamicThreshold = this.getDynamicLockThreshold();
 
+            // PINNACLE FIX: Genesis must agree with the lock direction
+            // Genesis has 92% accuracy - never lock against it
+            const genesisAgrees = !modelVotes.genesis || modelVotes.genesis === finalSignal;
+
             // Once certainty reaches threshold, the oracle has spoken. NO CHANGES ALLOWED.
+            // CRITICAL: Genesis MUST agree for lock to activate (92% accuracy = trust it)
             if (!this.oracleLocked && !this.inBlackout &&
-                adjustedCertainty >= dynamicThreshold && finalSignal !== 'NEUTRAL') {
+                adjustedCertainty >= dynamicThreshold && finalSignal !== 'NEUTRAL' &&
+                genesisAgrees) {  // NEW: Genesis veto requirement
                 this.oracleLocked = true;
                 this.oracleLockPrediction = finalSignal;
                 this.lockCertainty = adjustedCertainty;
                 log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
                 log(`🔮 TRUE ORACLE LOCK: ${finalSignal} @ ${adjustedCertainty.toFixed(0)} certainty`, this.asset);
                 log(`🔮 Threshold: ${dynamicThreshold} | Velocity: ${velocityData.velocity.toFixed(1)} | Phase: ${this.currentPhase}`, this.asset);
+                log(`🔮 Genesis: ${modelVotes.genesis || 'N/A'} (AGREES ✅)`, this.asset);
                 if (alphaBonus !== 0) log(`🔮 Alpha Bonus: ${alphaBonus > 0 ? '+' : ''}${alphaBonus} (BTC correlation)`, this.asset);
                 log(`🔮 This prediction is FINAL and will NOT change this cycle.`, this.asset);
                 log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
+            } else if (!this.oracleLocked && !this.inBlackout &&
+                adjustedCertainty >= dynamicThreshold && finalSignal !== 'NEUTRAL' &&
+                !genesisAgrees) {
+                // Genesis VETO - don't lock yet
+                log(`🛡️ GENESIS VETO: Would lock ${finalSignal} but genesis says ${modelVotes.genesis}`, this.asset);
             }
 
             // IF ORACLE LOCKED: Override EVERYTHING to maintain locked prediction
