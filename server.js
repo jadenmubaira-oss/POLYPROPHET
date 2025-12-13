@@ -2623,14 +2623,20 @@ class SupremeBrain {
                 }
             }
 
+            // PINNACLE FIX: Model weight overrides based on forensic analysis
+            // Genesis: 92% accuracy - make it DOMINANT (3x multiplier)
+            // Volume: 30% accuracy - WORSE than random, DISABLE it
+            // Historian: 48% accuracy - coin flip, reduce by 50%
+            weights.genesis = (weights.genesis || 1.0) * 3.0;
+            weights.volume = 0;  // DISABLED - 30% accuracy actively hurts predictions
+            weights.historian = (weights.historian || 1.0) * 0.5;
+
             // SNIPER MODE: Boost Leading Indicators in First 3 Minutes
             if (elapsed < 180) {
                 weights.orderbook = (weights.orderbook || 1.0) * 1.5;
                 weights.physicist = (weights.physicist || 1.0) * 1.5;
-                weights.genesis = (weights.genesis || 1.0) * 1.3;
-                // Reduce laggy indicators
-                weights.volume = (weights.volume || 1.0) * 0.7;
-                weights.macro = (weights.macro || 1.0) * 0.7;
+                weights.genesis = (weights.genesis || 1.0) * 1.3;  // Additional early boost
+                weights.macro = (weights.macro || 1.0) * 0.5;
             }
             const modelVotes = {}; // Track who voted what for learning
 
