@@ -2461,7 +2461,10 @@ async function findSimilarPattern(asset, currentVector) {
             }
         });
 
-        if (minDistance < 0.15) {
+        // PINNACLE FIX: Threshold increased from 0.15 to 0.35
+        // Debug export showed: matchCount=0 for ALL patterns - threshold too strict
+        // Loosening enables pattern memory to actually function
+        if (minDistance < 0.35) {
             return bestMatch;
         }
 
@@ -3684,17 +3687,28 @@ class SupremeBrain {
 
     // Get dynamic lock threshold based on velocity
     getDynamicLockThreshold() {
-        // Base threshold is 80
-        // If certainty is GROWING (positive velocity), we can lock earlier
-        // If certainty is SHRINKING, require higher threshold
-        let threshold = 80;
+        // PINNACLE FIX: Base threshold lowered from 80 to 70
+        // Debug export showed: ETH locks at 67-83, SOL at 68-79, XRP at 77-83
+        // BTC never reaches 80 (max 54) - lowering enables more locks
+        let threshold = 70;
+
+        // VOTE RATIO TRIGGER: If models strongly agree, lower threshold further
+        const lastVote = this.voteHistory[this.voteHistory.length - 1];
+        if (lastVote) {
+            const ratio = Math.max(lastVote.up, lastVote.down) / (Math.min(lastVote.up, lastVote.down) || 1);
+            if (ratio > 3.0) {
+                threshold -= 8;  // Strong consensus = lock at 62
+            } else if (ratio > 2.0) {
+                threshold -= 5;  // Good consensus = lock at 65
+            }
+        }
 
         if (this.certaintyVelocity > 5) {
-            threshold -= 8;  // Growing fast = lock at 72
+            threshold -= 8;  // Growing fast = lock at 62 (was 72)
         } else if (this.certaintyVelocity > 2) {
-            threshold -= 5;  // Growing = lock at 75
+            threshold -= 5;  // Growing = lock at 65 (was 75)
         } else if (this.certaintyVelocity < -3) {
-            threshold += 5;  // Shrinking = require 85
+            threshold += 5;  // Shrinking = require 75 (was 85)
         }
 
         // Phase adjustment
@@ -3704,7 +3718,8 @@ class SupremeBrain {
             threshold += 5;  // Early = higher threshold
         }
 
-        return Math.max(65, Math.min(90, threshold));
+        // PINNACLE FIX: Min threshold now 55 (was 65) to capture more locks
+        return Math.max(55, Math.min(85, threshold));
     }
 
     // 3. CROSS-ASSET ALPHA TRANSFER - Boost from correlated assets
