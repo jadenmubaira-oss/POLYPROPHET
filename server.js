@@ -462,20 +462,20 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // PINNACLE FIX: Stop losses NOW ENABLED - debug export showed -85% to -100% losses
+    // DEITY-LEVEL: Balanced thresholds for quality + quantity
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
-        minElapsedSeconds: 5,   // 🔮 ORACLE: Trade within first 5s for maximum edge
-        minConsensus: 0.70,      // 70%+ of models agree
-        minConfidence: 0.75,     // 75%+ confidence required
-        minEdge: 10,             // 🔥 PINNACLE: 10%+ edge (was 8) - no negative EV trades
+        minElapsedSeconds: 60,   // 🔮 DEITY: Wait 60s for data (was 5s - too early!)
+        minConsensus: 0.65,      // 65%+ of models agree (reduced from 70% for more trades)
+        minConfidence: 0.60,     // 60%+ confidence required (reduced from 75% which was paralyzing)
+        minEdge: 5,              // 🔮 DEITY: 5%+ edge (was 10 - blocking too many trades)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.85,           // Buy at ≤85%
-        minStability: 3,         // 3 ticks stable
-        stopLoss: 0.20,          // 🛡️ PINNACLE: 20% stop loss - cut losses FAST
-        stopLossEnabled: true    // 🛡️ PINNACLE: NOW ENABLED - debug showed -100% losses!
+        maxOdds: 0.65,           // Buy at ≤65% (was 85% - too expensive)
+        minStability: 2,         // 2 ticks stable (was 3 - too slow)
+        stopLoss: 0.25,          // 🛡️ 25% stop loss - smart exit only
+        stopLossEnabled: false   // 🛡️ DEITY: DISABLED - use smart stop-loss instead
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -1699,13 +1699,37 @@ class TradeExecutor {
                 return;
             }
 
-            // Universal stop loss check
+            // ==================== DEITY-LEVEL: SMART STOP LOSS ====================
+            // Binary markets resolve to 0¢ or 100¢ - selling at 8¢ locks in -75% loss
+            // Better strategy: hold to resolution unless early enough to recover
+
+            // Universal stop loss check (with smart binary market awareness)
             // - MANUAL trades: Never auto-close (user controls)
-            // - ORACLE trades: Only close if stopLoss is explicitly set (via stopLossEnabled)
-            // - Other modes: Always respect stopLoss
+            // - ORACLE trades: Only if stopLoss is enabled AND smart conditions met
+            // - Other modes: Respect stopLoss but with smart overrides
             if (pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
-                const reason = pos.mode === 'ORACLE' ? 'ORACLE EMERGENCY STOP LOSS' : 'STOP LOSS';
-                this.closePosition(id, currentOdds, reason);
+
+                // SMART CHECK 1: Final 120 seconds - HOLD to resolution (binary is all-or-nothing)
+                if (timeToEnd < 120) {
+                    if (elapsed % 30 < 2) { // Only log every 30s
+                        log(`💎 DIAMOND HANDS: Holding to resolution (${timeToEnd}s left) - binary win/loss pending`, pos.asset);
+                    }
+                    // Don't exit - let it resolve
+                }
+                // SMART CHECK 2: Extreme odds (<15¢) - don't lock in massive loss
+                else if (currentOdds < 0.15) {
+                    log(`⚠️ EXTREME ODDS (${(currentOdds * 100).toFixed(0)}¢): Holding for binary resolution`, pos.asset);
+                    // Don't exit - selling at 8¢ is worse than riding to 0¢ or 100¢
+                }
+                // SMART CHECK 3: Early enough (>300s left) and significant loss - cut for recovery
+                else if (timeToEnd > 300) {
+                    const lossPercent = ((pos.entry - currentOdds) / pos.entry) * 100;
+                    if (lossPercent > 30) {
+                        log(`📉 SMART EXIT: -${lossPercent.toFixed(0)}% loss, ${timeToEnd}s left to recover`, pos.asset);
+                        const reason = pos.mode === 'ORACLE' ? 'ORACLE SMART STOP LOSS' : 'SMART STOP LOSS';
+                        this.closePosition(id, currentOdds, reason);
+                    }
+                }
             }
         });
     }
@@ -2611,25 +2635,60 @@ class SupremeBrain {
                 return;
             }
 
-            // PROPHET-LEVEL: FAST ADAPTIVE LEARNING (accelerated from 10 to 5 trades)
+            // ==================== DEITY-LEVEL: DYNAMIC MODEL WEIGHTING ====================
+            // Models with <50% accuracy are DISABLED - they actively hurt predictions
+            // Models with >70% accuracy get boosted - they are making money
             const weights = {};
+            const MIN_TRADES_FOR_TRUST = 10; // Need sufficient data before adjusting
+
             for (const [model, stats] of Object.entries(this.modelAccuracy)) {
-                if (stats.total < 5) weights[model] = 1.0; // Default weight - FASTER learning (was 10)
-                else {
+                if (stats.total < MIN_TRADES_FOR_TRUST) {
+                    // Not enough data - use default weight
+                    weights[model] = 1.0;
+                } else {
                     const accuracy = stats.wins / stats.total;
-                    // Boost high accuracy (>60%), penalize low accuracy (<40%)
-                    // Range: 0.2 to 2.0
-                    weights[model] = Math.max(0.2, Math.min(2.0, Math.pow(accuracy * 2, 1.5)));
+
+                    // 🚫 KILL SWITCH: <50% accuracy = ZERO weight (worse than coin flip)
+                    if (accuracy < 0.50) {
+                        weights[model] = 0; // DISABLED
+                        log(`🔕 MODEL DISABLED: ${model} (${(accuracy * 100).toFixed(0)}% < 50%)`, this.asset);
+                        continue;
+                    }
+
+                    // ⚠️ PENALTY ZONE: 50-55% = reduced weight (marginal performance)
+                    if (accuracy < 0.55) {
+                        weights[model] = 0.25;
+                        continue;
+                    }
+
+                    // ✅ NORMAL: 55-70% = standard weight based on performance
+                    if (accuracy < 0.70) {
+                        weights[model] = Math.pow(accuracy * 2, 1.3);
+                        continue;
+                    }
+
+                    // 🌟 BOOST: >70% = amplified weight (high performer)
+                    weights[model] = Math.pow(accuracy * 2, 1.5) * 1.5;
                 }
             }
 
-            // PINNACLE FIX: Model weight overrides based on forensic analysis
-            // Genesis: 92% accuracy - make it DOMINANT (3x multiplier)
-            // Volume: 30% accuracy - WORSE than random, DISABLE it
-            // Historian: 48% accuracy - coin flip, reduce by 50%
-            weights.genesis = (weights.genesis || 1.0) * 3.0;
-            weights.volume = 0;  // DISABLED - 30% accuracy actively hurts predictions
-            weights.historian = (weights.historian || 1.0) * 0.5;
+            // ==================== GENESIS SUPREMACY MODE ====================
+            // Genesis historically has 92% accuracy - make it DOMINANT
+            // If Genesis disagrees with ensemble, VETO the prediction
+            const genesisAcc = this.modelAccuracy.genesis;
+            if (genesisAcc.total >= MIN_TRADES_FOR_TRUST) {
+                const genesisAccuracy = genesisAcc.wins / genesisAcc.total;
+                if (genesisAccuracy > 0.80) {
+                    // Genesis is a god-tier model - give it 4x weight
+                    weights.genesis = 4.0;
+                    log(`👑 GENESIS SUPREMACY: ${(genesisAccuracy * 100).toFixed(0)}% accuracy = 4x weight`, this.asset);
+                } else if (genesisAccuracy > 0.70) {
+                    weights.genesis = 3.0;
+                }
+            } else {
+                // Default Genesis weight before we have enough data
+                weights.genesis = 2.5;
+            }
 
             // SNIPER MODE: Boost Leading Indicators in First 3 Minutes
             if (elapsed < 180) {
@@ -3011,19 +3070,29 @@ class SupremeBrain {
             }
 
             // 🔮 ORACLE: FIRST-MOVE ADVANTAGE (Bonus for trading <30s)
-            if (CONFIG.RISK.firstMoveAdvantage && elapsed < 30 && finalConfidence > 0.70) {
-                const earlyBonus = ((30 - elapsed) / 30) * 0.10; // FIXED: 0-10% bonus (10% at 0s, 0% at 30s)
+            if (CONFIG.RISK.firstMoveAdvantage && elapsed < 30 && finalConfidence > 0.60) {
+                const earlyBonus = ((30 - elapsed) / 30) * 0.10; // 0-10% bonus
                 finalConfidence += earlyBonus;
-                finalConfidence = Math.min(0.99, finalConfidence); // Cap at 99%
+                finalConfidence = Math.min(0.99, finalConfidence);
                 log(`⚡ FIRST-MOVE ADVANTAGE: +${(earlyBonus * 100).toFixed(1)}% (${elapsed}s elapsed)`, this.asset);
             }
 
-            // 🔮 ORACLE: SUPREME CONFIDENCE ENFORCEMENT
-            if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
-                const blockedConfidence = finalConfidence; // Store before zeroing
-                finalSignal = 'NEUTRAL'; // Hard block sub-75% confidence
-                finalConfidence = 0;
-                log(`🔮 SUPREME MODE: Blocked (${(blockedConfidence * 100).toFixed(1)}% < 75%)`, this.asset);
+            // ==================== DEITY-LEVEL: CONFIDENCE FLOOR PROTECTION ====================
+            // Prevent confidence death spiral - if models agree, maintain minimum confidence
+            const consensusRatioCheck = totalVotes > 0 ? Math.max(votes.UP, votes.DOWN) / totalVotes : 0;
+            if (consensusRatioCheck >= 0.70 && finalConfidence < 0.25) {
+                log(`🛡️ CONFIDENCE FLOOR: Enforced 25% min (models ${(consensusRatioCheck * 100).toFixed(0)}% agree)`, this.asset);
+                finalConfidence = 0.25;
+            } else if (consensusRatioCheck >= 0.60 && finalConfidence < 0.15) {
+                log(`🛡️ CONFIDENCE FLOOR: Enforced 15% min (models ${(consensusRatioCheck * 100).toFixed(0)}% agree)`, this.asset);
+                finalConfidence = 0.15;
+            }
+
+            // 🔮 ORACLE: SUPREME CONFIDENCE ENFORCEMENT (softened - warn don't block)
+            // DEITY: Instead of blocking, just log warning - let trades happen
+            if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75 && finalConfidence >= 0.50) {
+                log(`🔮 SUPREME MODE: Warning - ${(finalConfidence * 100).toFixed(1)}% < 75% (trade allowed but lower tier)`, this.asset);
+                // Don't block - just reduce tier if needed
             }
 
             // Penalize poor win rate
