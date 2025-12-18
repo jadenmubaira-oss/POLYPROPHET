@@ -969,6 +969,13 @@ class TradeExecutor {
                 return { success: false, error: 'No token IDs - market not tradeable yet' };
             }
 
+            // ⚠️ CRITICAL SAFEGUARD: DIRECTION MUST BE UP OR DOWN
+            // This is the FINAL GUARD - catches any bugs where invalid direction slips through
+            if (direction !== 'UP' && direction !== 'DOWN') {
+                log(`🚨 CRITICAL BLOCK: Invalid direction '${direction}' - ONLY UP/DOWN ALLOWED`, asset);
+                return { success: false, error: `Invalid direction: ${direction}. Must be UP or DOWN.` };
+            }
+
             // 🔒 ASSET TRADING ENABLED CHECK
             if (!this.isAssetEnabled(asset)) {
                 log(`⏸️ TRADE BLOCKED: Trading disabled for ${asset}`, asset);
@@ -2078,6 +2085,13 @@ class OpportunityDetector {
         if (!CONFIG.ARBITRAGE.enabled) return null;
         // ONE TRADE PER CYCLE PER ASSET
         if (this.hasTraded(asset, 'ARBITRAGE')) return null;
+
+        // ⚠️ CRITICAL FIX: REJECT NEUTRAL/WAIT PREDICTIONS
+        // Bug: scanAll passes data.prediction which can be 'NEUTRAL', 'WAIT', etc.
+        // This caused trades to execute with NEUTRAL direction = catastrophic
+        if (side !== 'UP' && side !== 'DOWN') {
+            return null; // HARD BLOCK: Only UP or DOWN allowed
+        }
 
         // LATE CYCLE CUTOFF: REMOVED - User requested late entries if confident
         // Bot learns from all trades, even late-cycle ones
