@@ -462,25 +462,26 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // DEITY-LEVEL: Balanced thresholds for quality + quantity
+    // MOLECULAR RECONSTRUCTION: Tightened thresholds for quality over quantity
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
-        minElapsedSeconds: 60,   // 🔮 DEITY: Wait 60s for data (was 5s - too early!)
-        minConsensus: 0.65,      // 65%+ of models agree (reduced from 70% for more trades)
-        minConfidence: 0.60,     // 60%+ confidence required (reduced from 75% which was paralyzing)
-        minEdge: 5,              // 🔮 DEITY: 5%+ edge (was 10 - blocking too many trades)
+        minElapsedSeconds: 120,  // 🔮 MOLECULAR: Wait 2 min for data to stabilize
+        minConsensus: 0.70,      // 70%+ models must agree (raised from 65%)
+        minConfidence: 0.70,     // 70%+ confidence required (raised from 60%)
+        minEdge: 10,             // 🔮 MOLECULAR: 10%+ edge (raised from 5%)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.65,           // Buy at ≤65% (was 85% - too expensive)
-        minStability: 2,         // 2 ticks stable (was 3 - too slow)
-        stopLoss: 0.25,          // 🛡️ 25% stop loss - smart exit only
-        stopLossEnabled: false   // 🛡️ DEITY: DISABLED - use smart stop-loss instead
+        maxOdds: 0.50,           // 🔮 MOLECULAR: Buy at ≤50¢ (value zone)
+        minStability: 3,         // 3 ticks stable for confidence
+        stopLoss: 0.30,          // 🛡️ 30% stop loss
+        stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
+    // MOLECULAR: DISABLED - Focus on Oracle mode only for now
     ARBITRAGE: {
-        enabled: true,
+        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
         minMispricing: 0.15,     // 15%+ difference between fair value and odds
         targetProfit: 0.50,      // Exit at 50% profit
         maxHoldTime: 600,        // Exit after 10 mins max
@@ -488,8 +489,9 @@ const CONFIG = {
     },
 
     // MODE 3: SCALP 🎯 - Buy ultra-cheap, exit at 2-3x
+    // MOLECULAR: DISABLED - Focus on Oracle mode only for now
     SCALP: {
-        enabled: true,
+        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
         maxEntryPrice: 0.20,     // Only buy under 20¢
         targetMultiple: 2.0,     // Exit at 2x
         requireLean: true,       // Must lean (>55%) our direction
@@ -497,8 +499,9 @@ const CONFIG = {
     },
 
     // MODE 4: UNCERTAINTY 🌊 - Trade volatility/reversion
+    // MOLECULAR: DISABLED - Focus on Oracle mode only for now
     UNCERTAINTY: {
-        enabled: true,
+        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
         extremeThreshold: 0.80,  // Entry when odds >80% or <20%
         volatilityMin: 0.02,     // Minimum ATR ratio
         targetReversion: 0.60,   // Exit when odds hit 60%/40%
@@ -506,8 +509,9 @@ const CONFIG = {
     },
 
     // MODE 5: MOMENTUM 🚀 - Ride strong mid-cycle trends
+    // MOLECULAR: DISABLED - Focus on Oracle mode only for now
     MOMENTUM: {
-        enabled: true,
+        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
         minElapsed: 300,         // Only after 5 mins
         breakoutThreshold: 0.03, // 3% price breakout
         minConsensus: 0.75,      // 75%+ model agreement
@@ -2054,6 +2058,106 @@ class OpportunityDetector {
         return null;
     }
 
+    // ==================== STRATEGIC TRINITY #2: ILLIQUIDITY GAP ====================
+    // MOLECULAR RECONSTRUCTION: Detect Yes + No != 100 for guaranteed profit
+    // When market makers don't keep spread tight, we get FREE MONEY
+    detectIlliquidityGap(asset, yesPrice, noPrice) {
+        if (!CONFIG.ARBITRAGE.enabled) return null; // Uses arbitrage mode toggle
+        if (this.hasTraded(asset, 'ILLIQUIDITY')) return null;
+
+        // Calculate the gap: In a perfect market, Yes + No = $1 (100%)
+        // Any deviation is exploitable
+        const totalOdds = yesPrice + noPrice;
+        const gap = 1 - totalOdds; // Positive = underpriced overall
+
+        // GUARANTEED PROFIT: If gap > 2% (after ~2% Polymarket fee), profit is locked
+        // Example: Yes=45¢, No=45¢, Total=90¢. Gap=10¢. Buy both = guaranteed 10¢ profit per $0.90 spent!
+        if (gap >= 0.03) { // 3% gap minimum (covers fees + profit)
+            log(`💰 ILLIQUIDITY GAP FOUND: Yes=${(yesPrice * 100).toFixed(1)}¢ + No=${(noPrice * 100).toFixed(1)}¢ = ${(totalOdds * 100).toFixed(1)}¢ (Gap: ${(gap * 100).toFixed(1)}%)`, asset);
+            return {
+                mode: 'ILLIQUIDITY',
+                direction: 'BOTH', // Special: buy both YES and NO
+                entry: totalOdds, // Total cost to buy both
+                edge: gap * 100, // Guaranteed profit percentage
+                yesPrice,
+                noPrice,
+                reason: `GUARANTEED ${(gap * 100).toFixed(1)}% profit (Yes+No=${(totalOdds * 100).toFixed(0)}%)`
+            };
+        }
+
+        // NEGATIVE GAP: If Yes + No > 100%, market is overpriced (rare but possible)
+        // Not exploitable for guaranteed profit, but indicates market inefficiency
+        if (gap < -0.05) {
+            log(`⚠️ Negative gap: Yes+No=${(totalOdds * 100).toFixed(1)}% (overpriced by ${(-gap * 100).toFixed(1)}%)`, asset);
+        }
+
+        return null;
+    }
+
+    // ==================== STRATEGIC TRINITY #3: DEATH BOUNCE SCALP ====================
+    // MOLECULAR RECONSTRUCTION: Buy shares <10¢ when market overreacts, sell on bounce
+    // Logic: When one side hits 5¢-10¢, uncertainty spikes often cause 10-15¢ bounce
+    detectDeathBounce(asset, yesPrice, noPrice, elapsed, atr, regime) {
+        if (this.hasTraded(asset, 'DEATH_BOUNCE')) return null;
+
+        // DEATH BOUNCE ZONE: Shares trading at 5-10¢
+        const DEATH_ZONE_MIN = 0.03; // Below 3¢ = too dead, probably stays dead
+        const DEATH_ZONE_MAX = 0.12; // Above 12¢ = not "death" level
+        const BOUNCE_TARGET = 0.18; // Target 18¢ for sell (2-3x profit)
+
+        // Time windows: Best bounces happen in specific periods
+        // Early cycle (0-180s): Too early, odds still forming
+        // Mid cycle (180-600s): GOLDEN WINDOW - uncertainty highest
+        // Late cycle (600-840s): Still ok, but decreasing
+        // Final (840+): Too close to resolution, hold risk high
+        const isGoldenWindow = elapsed >= 180 && elapsed <= 600;
+        const isLateWindow = elapsed > 600 && elapsed <= 780;
+        const windowMultiplier = isGoldenWindow ? 1.2 : (isLateWindow ? 0.9 : 0.5);
+
+        // Volatility check: Higher ATR = more bounce potential
+        const volBonus = (regime === 'VOLATILE') ? 1.3 : (regime === 'CHOPPY') ? 1.1 : 1.0;
+
+        // Check YES side death bounce
+        if (yesPrice >= DEATH_ZONE_MIN && yesPrice <= DEATH_ZONE_MAX) {
+            const potentialProfit = BOUNCE_TARGET - yesPrice;
+            const riskReward = potentialProfit / yesPrice; // e.g., 0.13/0.05 = 2.6x
+            const score = riskReward * windowMultiplier * volBonus;
+
+            if (score >= 1.5) { // Minimum 1.5 score (roughly 2x R:R with good timing)
+                log(`💀 DEATH BOUNCE: YES at ${(yesPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)}`, asset);
+                return {
+                    mode: 'DEATH_BOUNCE',
+                    direction: 'UP',
+                    entry: yesPrice,
+                    target: BOUNCE_TARGET,
+                    stopLoss: Math.max(0.01, yesPrice * 0.5), // 50% stop (still cheap)
+                    reason: `YES ${(yesPrice * 100).toFixed(0)}¢→${(BOUNCE_TARGET * 100).toFixed(0)}¢ (${riskReward.toFixed(1)}x R:R)`
+                };
+            }
+        }
+
+        // Check NO side death bounce
+        if (noPrice >= DEATH_ZONE_MIN && noPrice <= DEATH_ZONE_MAX) {
+            const potentialProfit = BOUNCE_TARGET - noPrice;
+            const riskReward = potentialProfit / noPrice;
+            const score = riskReward * windowMultiplier * volBonus;
+
+            if (score >= 1.5) {
+                log(`💀 DEATH BOUNCE: NO at ${(noPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)}`, asset);
+                return {
+                    mode: 'DEATH_BOUNCE',
+                    direction: 'DOWN',
+                    entry: noPrice,
+                    target: BOUNCE_TARGET,
+                    stopLoss: Math.max(0.01, noPrice * 0.5),
+                    reason: `NO ${(noPrice * 100).toFixed(0)}¢→${(BOUNCE_TARGET * 100).toFixed(0)}¢ (${riskReward.toFixed(1)}x R:R)`
+                };
+            }
+        }
+
+        return null;
+    }
+
     // MODE 3: SCALP - Detect ultra-cheap entry
     detectScalp(asset, confidence, yesPrice, noPrice) {
         if (!CONFIG.SCALP.enabled) return null;
@@ -2196,6 +2300,18 @@ class OpportunityDetector {
     // Scan all modes and return best opportunity
     scanAll(asset, data) {
         const opportunities = [];
+
+        // ==================== STRATEGIC TRINITY: HIGHEST PRIORITY ====================
+
+        // ILLIQUIDITY GAP (Priority 0 - GUARANTEED PROFIT)
+        const illiqGap = this.detectIlliquidityGap(asset, data.yesPrice, data.noPrice);
+        if (illiqGap) opportunities.push({ ...illiqGap, priority: 0 }); // Highest priority - free money!
+
+        // DEATH BOUNCE (Priority 1 - High R:R Scalp)
+        const deathBounce = this.detectDeathBounce(asset, data.yesPrice, data.noPrice, data.elapsed, data.atr, data.regime);
+        if (deathBounce) opportunities.push({ ...deathBounce, priority: 1 });
+
+        // ==================== STANDARD MODES ====================
 
         // Arbitrage
         const arb = this.detectArbitrage(asset, data.confidence, data.yesPrice, data.noPrice, data.prediction, data.elapsed);
@@ -3206,9 +3322,10 @@ class SupremeBrain {
             // Lock threshold adjusts based on velocity and phase
             const dynamicThreshold = this.getDynamicLockThreshold();
 
-            // PINNACLE FIX: Genesis must agree with the lock direction
-            // Genesis has 92% accuracy - never lock against it
-            const genesisAgrees = !modelVotes.genesis || modelVotes.genesis === finalSignal;
+            // MOLECULAR FIX: Genesis MUST be defined AND agree with lock direction
+            // Genesis has 94% accuracy - NEVER lock without it
+            const genesisKnown = modelVotes.genesis !== undefined && modelVotes.genesis !== null;
+            const genesisAgrees = genesisKnown && modelVotes.genesis === finalSignal;
 
             // Once certainty reaches threshold, the oracle has spoken. NO CHANGES ALLOWED.
             // CRITICAL: Genesis MUST agree for lock to activate (92% accuracy = trust it)
@@ -3411,30 +3528,51 @@ class SupremeBrain {
 
                     log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Conf=${(finalConfidence * 100).toFixed(0)}% Edge=${edgePercent.toFixed(1)}% Aggression=${Math.round(aggression * 100)}%`, this.asset);
 
-                    const oracleChecks = {
-                        consensus: consensusRatio >= adjustedMinConsensus,
-                        confidence: finalConfidence >= adjustedMinConfidence,
-                        edge: edgePercent >= adjustedMinEdge,
-                        regime: !CONFIG.ORACLE.requireTrending || isTrending,
-                        momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
-                        odds: currentOdds <= CONFIG.ORACLE.maxOdds,
-                        stability: stabilityMet
-                    };
+                    // ==================== MOLECULAR FIX: HARD BLOCKS (Cannot be bypassed by aggression) ====================
+                    // 1. NEGATIVE EDGE = GUARANTEED LOSS - Never trade!
+                    if (edgePercent < 0) {
+                        log(`🚫 ORACLE HARD BLOCK: Negative edge ${edgePercent.toFixed(1)}% = guaranteed loss`, this.asset);
+                        // Do not trade - fall through to end
+                    }
+                    // 2. GENESIS DISAGREEMENT = 94% accurate model says NO
+                    else if (modelVotes.genesis && modelVotes.genesis !== finalSignal) {
+                        log(`🛡️ ORACLE HARD BLOCK: Genesis (94% accurate) says ${modelVotes.genesis}, not ${finalSignal}`, this.asset);
+                        // Do not trade - fall through to end
+                    }
+                    // 3. MINIMUM HARD FLOOR: Even with max aggression, need 5% absolute edge
+                    else if (edgePercent < 5) {
+                        log(`⚠️ ORACLE HARD BLOCK: Edge ${edgePercent.toFixed(1)}% below 5% minimum floor`, this.asset);
+                        // Do not trade - fall through to end
+                    }
+                    else {
+                        // Safe to proceed with normal checks
 
-                    const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
+                        const oracleChecks = {
+                            consensus: consensusRatio >= adjustedMinConsensus,
+                            confidence: finalConfidence >= adjustedMinConfidence,
+                            edge: edgePercent >= adjustedMinEdge,
+                            regime: !CONFIG.ORACLE.requireTrending || isTrending,
+                            momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
+                            odds: currentOdds <= CONFIG.ORACLE.maxOdds,
+                            stability: stabilityMet
+                        };
 
-                    if (failedChecks.length === 0) {
-                        this.convictionLocked = true;
-                        this.lockedDirection = finalSignal;
-                        this.lockTime = Date.now();
-                        this.lockConfidence = finalConfidence;
+                        const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
 
-                        log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
-                        log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
 
-                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market);
-                    } else {
-                        log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
+                        if (failedChecks.length === 0) {
+                            this.convictionLocked = true;
+                            this.lockedDirection = finalSignal;
+                            this.lockTime = Date.now();
+                            this.lockConfidence = finalConfidence;
+
+                            log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
+                            log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
+
+                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market);
+                        } else {
+                            log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
+                        }
                     }
                 }
             }
@@ -3805,8 +3943,9 @@ class SupremeBrain {
             threshold += 5;  // Early = higher threshold
         }
 
-        // PINNACLE FIX: Min threshold now 55 (was 65) to capture more locks
-        return Math.max(55, Math.min(85, threshold));
+        // MOLECULAR FIX: Min threshold now 80 (was 55) - only lock on HIGH certainty
+        // Max threshold 95 to allow locks on exceptional signals
+        return Math.max(80, Math.min(95, threshold));
     }
 
     // 3. CROSS-ASSET ALPHA TRANSFER - Boost from correlated assets
