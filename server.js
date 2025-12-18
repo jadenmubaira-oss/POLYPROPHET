@@ -488,6 +488,23 @@ const CONFIG = {
         stopLoss: 0.30           // Exit at 30% loss
     },
 
+    // MODE 2B: ILLIQUIDITY GAP 💰 - Guaranteed profit when Yes+No < 100%
+    // MOLECULAR: Uses arbitrage toggle by default, but has own settings
+    ILLIQUIDITY_GAP: {
+        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
+        minGap: 0.03,            // 3% minimum gap (covers fees + profit)
+        maxEntryTotal: 0.97      // Only enter if Yes+No <= 97%
+    },
+
+    // MODE 2C: DEATH BOUNCE 💀 - Buy ultra-cheap shares on overreaction
+    DEATH_BOUNCE: {
+        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
+        minPrice: 0.03,          // 3¢ minimum (below = probably stays dead)
+        maxPrice: 0.12,          // 12¢ maximum (above = not "death" level)
+        targetPrice: 0.18,       // Target 18¢ for exit (2-3x profit)
+        minScore: 1.5            // Minimum R:R score to trigger
+    },
+
     // MODE 3: SCALP 🎯 - Buy ultra-cheap, exit at 2-3x
     // MOLECULAR: DISABLED - Focus on Oracle mode only for now
     SCALP: {
@@ -661,6 +678,10 @@ class TradeExecutor {
         // 📊 CYCLE TRADE TRACKING - Max trades per cycle per asset
         this.cycleTradeCount = {};     // { 'BTC': 1, 'ETH': 0, ... }
         this.currentCycleStart = 0;    // Timestamp of current cycle start
+
+        // 🔒 GOD MODE: TRADE EXECUTION MUTEX - Prevent race conditions
+        // Without this, two trades could pass balance checks simultaneously
+        this.tradeMutex = false;        // Simple mutex lock for trade execution
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
@@ -922,395 +943,414 @@ class TradeExecutor {
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
 
-        if (!market) {
-            log(`❌ TRADE BLOCKED: No market data for ${asset}`, asset);
-            return { success: false, error: 'No market data available' };
+        // 🔒 GOD MODE: MUTEX LOCK - Prevent race conditions
+        // Wait for any concurrent trade execution to complete (max 5s timeout)
+        const mutexTimeout = 5000;
+        const mutexStart = Date.now();
+        while (this.tradeMutex) {
+            if (Date.now() - mutexStart > mutexTimeout) {
+                log(`⚠️ TRADE BLOCKED: Mutex timeout after ${mutexTimeout}ms`, asset);
+                return { success: false, error: 'Trade execution mutex timeout - concurrent trade blocking' };
+            }
+            await new Promise(r => setTimeout(r, 50)); // Wait 50ms between checks
         }
+        this.tradeMutex = true; // Acquire lock
 
-        if (!market.tokenIds) {
-            log(`❌ TRADE BLOCKED: No token IDs for ${asset} market`, asset);
-            return { success: false, error: 'No token IDs - market not tradeable yet' };
-        }
+        // CRITICAL: All trade logic must be in try/finally to ensure mutex release
+        try {
 
-        // 🔒 ASSET TRADING ENABLED CHECK
-        if (!this.isAssetEnabled(asset)) {
-            log(`⏸️ TRADE BLOCKED: Trading disabled for ${asset}`, asset);
-            return { success: false, error: `Trading disabled for ${asset}` };
-        }
+            if (!market) {
+                log(`❌ TRADE BLOCKED: No market data for ${asset}`, asset);
+                return { success: false, error: 'No market data available' };
+            }
 
-        // 📊 MAX TRADES PER CYCLE CHECK
-        const cycleTradeCount = this.getCycleTradeCount(asset);
-        const maxTrades = this.getMaxTradesPerCycle(asset);
-        if (cycleTradeCount >= maxTrades) {
-            log(`⚠️ TRADE BLOCKED: Max trades (${maxTrades}) reached for ${asset} this cycle`, asset);
-            return { success: false, error: `Max trades (${maxTrades}) per cycle reached for ${asset}` };
-        }
+            if (!market.tokenIds) {
+                log(`❌ TRADE BLOCKED: No token IDs for ${asset} market`, asset);
+                return { success: false, error: 'No token IDs - market not tradeable yet' };
+            }
 
-        // ENTRY PRICE GUARD: REMOVED - Bot learns from all trades, even at extreme prices
-        // The bot's learning loop will naturally penalize bad patterns
-        // User requested: allow 2¢-99¢ trades if confident
+            // 🔒 ASSET TRADING ENABLED CHECK
+            if (!this.isAssetEnabled(asset)) {
+                log(`⏸️ TRADE BLOCKED: Trading disabled for ${asset}`, asset);
+                return { success: false, error: `Trading disabled for ${asset}` };
+            }
 
-        // COOLDOWN: REMOVED - Bot learns from each trade/decision
-        // User requested: no cooldown as long as bot is learning
+            // 📊 MAX TRADES PER CYCLE CHECK
+            const cycleTradeCount = this.getCycleTradeCount(asset);
+            const maxTrades = this.getMaxTradesPerCycle(asset);
+            if (cycleTradeCount >= maxTrades) {
+                log(`⚠️ TRADE BLOCKED: Max trades (${maxTrades}) reached for ${asset} this cycle`, asset);
+                return { success: false, error: `Max trades (${maxTrades}) per cycle reached for ${asset}` };
+            }
 
-        // Check max positions per asset
-        if (this.getPositionCount(asset) >= CONFIG.MAX_POSITIONS_PER_ASSET) {
-            log(`⚠️ Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) reached for ${asset}`, asset);
-            return { success: false, error: `Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) for ${asset}` };
-        }
+            // ENTRY PRICE GUARD: REMOVED - Bot learns from all trades, even at extreme prices
+            // The bot's learning loop will naturally penalize bad patterns
+            // User requested: allow 2¢-99¢ trades if confident
 
-        // Refresh LIVE balance if needed
-        if (this.mode === 'LIVE') {
-            await this.refreshLiveBalance();
-        }
+            // COOLDOWN: REMOVED - Bot learns from each trade/decision
+            // User requested: no cooldown as long as bot is learning
 
-        // Check total exposure
-        const totalExposure = this.getTotalExposure();
-        // Use REAL wallet balance for LIVE mode, paper balance for PAPER
-        const bankroll = this.mode === 'LIVE' ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE || 1000) : this.paperBalance;
-        if (totalExposure / bankroll > CONFIG.RISK.maxTotalExposure) {
-            log(`⚠️ Max total exposure (${CONFIG.RISK.maxTotalExposure * 100}%) reached`, asset);
-            return { success: false, error: `Max exposure (${(CONFIG.RISK.maxTotalExposure * 100).toFixed(0)}%) reached` };
-        }
+            // Check max positions per asset
+            if (this.getPositionCount(asset) >= CONFIG.MAX_POSITIONS_PER_ASSET) {
+                log(`⚠️ Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) reached for ${asset}`, asset);
+                return { success: false, error: `Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) for ${asset}` };
+            }
 
-        // 🔄 DAILY P/L RESET: Check if new day and reset if needed
-        this.resetDailyPnL();
+            // Refresh LIVE balance if needed
+            if (this.mode === 'LIVE') {
+                await this.refreshLiveBalance();
+            }
 
-        // 🛑 GLOBAL STOP LOSS: Halt trading if day loss exceeds threshold
-        // Can be bypassed with CONFIG.RISK.globalStopLossOverride = true
-        const maxDayLoss = bankroll * CONFIG.RISK.globalStopLoss;
-        if (!CONFIG.RISK.globalStopLossOverride && this.todayPnL < -maxDayLoss) {
-            log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of bankroll`, asset);
-            log(`   To override: Set RISK.globalStopLossOverride = true in Settings`, asset);
-            return { success: false, error: `Global stop loss triggered - trading halted for the day. Override available in Settings.` };
-        }
+            // Check total exposure
+            const totalExposure = this.getTotalExposure();
+            // Use REAL wallet balance for LIVE mode, paper balance for PAPER
+            const bankroll = this.mode === 'LIVE' ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE || 1000) : this.paperBalance;
+            if (totalExposure / bankroll > CONFIG.RISK.maxTotalExposure) {
+                log(`⚠️ Max total exposure (${CONFIG.RISK.maxTotalExposure * 100}%) reached`, asset);
+                return { success: false, error: `Max exposure (${(CONFIG.RISK.maxTotalExposure * 100).toFixed(0)}%) reached` };
+            }
 
-        // Calculate position size (mode-specific)
-        // CRITICAL FIX: Manual trades use user-specified size
-        let size;
-        if (options.manualSize && options.manualSize > 0) {
-            size = options.manualSize;
-            log(`📝 Using manual size: $${size.toFixed(2)}`, asset);
-        } else {
-            // SMART SIZING: Scale percentage based on bankroll
-            // For small bankrolls: use minimum viable size
-            // For large bankrolls: use percentage-based sizing
-            const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
-            const MAX_FRACTION = 0.30; // Never risk more than 30% on one trade
+            // 🔄 DAILY P/L RESET: Check if new day and reset if needed
+            this.resetDailyPnL();
 
-            // Calculate base percentage
-            let basePct;
+            // 🛑 GLOBAL STOP LOSS: Halt trading if day loss exceeds threshold
+            // Can be bypassed with CONFIG.RISK.globalStopLossOverride = true
+            const maxDayLoss = bankroll * CONFIG.RISK.globalStopLoss;
+            if (!CONFIG.RISK.globalStopLossOverride && this.todayPnL < -maxDayLoss) {
+                log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of bankroll`, asset);
+                log(`   To override: Set RISK.globalStopLossOverride = true in Settings`, asset);
+                return { success: false, error: `Global stop loss triggered - trading halted for the day. Override available in Settings.` };
+            }
+
+            // Calculate position size (mode-specific)
+            // CRITICAL FIX: Manual trades use user-specified size
+            let size;
+            if (options.manualSize && options.manualSize > 0) {
+                size = options.manualSize;
+                log(`📝 Using manual size: $${size.toFixed(2)}`, asset);
+            } else {
+                // SMART SIZING: Scale percentage based on bankroll
+                // For small bankrolls: use minimum viable size
+                // For large bankrolls: use percentage-based sizing
+                const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
+                const MAX_FRACTION = 0.30; // Never risk more than 30% on one trade
+
+                // Calculate base percentage
+                let basePct;
+                switch (mode) {
+                    case 'ORACLE':
+                        basePct = Math.min(0.15, confidence * 0.15); // Up to 15% at max confidence
+                        break;
+                    case 'SCALP':
+                        basePct = 0.08; // 8% for scalps - quick in/out
+                        break;
+                    case 'ARBITRAGE':
+                    case 'UNCERTAINTY':
+                        basePct = 0.08;
+                        break;
+                    case 'MOMENTUM':
+                        basePct = 0.10; // 10% for momentum - confident trades
+                        break;
+                    default:
+                        basePct = 0.08;
+                }
+
+                // Calculate size based on actual bankroll
+                size = bankroll * basePct;
+
+                // SMART MINIMUM: Ensure we meet $1.10 minimum
+                // If percentage-based size is too small, use minimum (if affordable)
+                if (size < MIN_ORDER) {
+                    if (bankroll >= MIN_ORDER * 1.5) {
+                        // Have enough for minimum + buffer, use minimum
+                        size = MIN_ORDER;
+                        log(`📊 Size bumped to minimum $${MIN_ORDER} (bankroll: $${bankroll.toFixed(2)})`, asset);
+                    } else {
+                        // Too small to trade safely
+                        log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
+                        return { success: false, error: `Need at least $${(MIN_ORDER * 1.5).toFixed(2)} to trade` };
+                    }
+                }
+
+                // CAP: Never risk more than MAX_FRACTION of bankroll
+                const maxSize = bankroll * MAX_FRACTION;
+                if (size > maxSize) {
+                    size = maxSize;
+                    log(`📊 Size capped to ${(MAX_FRACTION * 100).toFixed(0)}% of bankroll: $${size.toFixed(2)}`, asset);
+                }
+            }
+
+            // FINAL MINIMUM CHECK: Polymarket requires $1 minimum
+            const minDollars = 1.10;
+            if (size < minDollars) {
+                log(`❌ TRADE BLOCKED: $${size.toFixed(2)} below $${minDollars} minimum`, asset);
+                return { success: false, error: `Minimum order size is $${minDollars}` };
+            }
+
+            const tokenType = direction === 'UP' ? 'YES' : 'NO';
+            const positionId = `${asset}_${Date.now()}`;
+
+            // Determine targets based on mode
+            let target, stopLoss;
             switch (mode) {
                 case 'ORACLE':
-                    basePct = Math.min(0.15, confidence * 0.15); // Up to 15% at max confidence
+                    target = null; // Hold to resolution
+                    // 🛡️ ORACLE STOP LOSS: Optional emergency protection
+                    if (CONFIG.ORACLE.stopLossEnabled && CONFIG.ORACLE.stopLoss > 0) {
+                        stopLoss = entryPrice * (1 - CONFIG.ORACLE.stopLoss);
+                        log(`🛡️ ORACLE STOP LOSS SET: ${(stopLoss * 100).toFixed(1)}¢ (${(CONFIG.ORACLE.stopLoss * 100).toFixed(0)}% protection)`, asset);
+                    } else {
+                        stopLoss = null; // Pure hold-to-resolution (default)
+                    }
                     break;
                 case 'SCALP':
-                    basePct = 0.08; // 8% for scalps - quick in/out
+                    target = entryPrice * CONFIG.SCALP.targetMultiple;
+                    stopLoss = entryPrice * 0.5;
                     break;
                 case 'ARBITRAGE':
+                    target = entryPrice * (1 + CONFIG.ARBITRAGE.targetProfit);
+                    stopLoss = entryPrice * (1 - CONFIG.ARBITRAGE.stopLoss);
+                    break;
                 case 'UNCERTAINTY':
-                    basePct = 0.08;
+                    target = direction === 'UP' ? CONFIG.UNCERTAINTY.targetReversion : (1 - CONFIG.UNCERTAINTY.targetReversion);
+                    stopLoss = entryPrice * (1 - CONFIG.UNCERTAINTY.stopLoss);
                     break;
                 case 'MOMENTUM':
-                    basePct = 0.10; // 10% for momentum - confident trades
+                    target = null; // Exit on reversal
+                    stopLoss = entryPrice * 0.8;
                     break;
-                default:
-                    basePct = 0.08;
             }
 
-            // Calculate size based on actual bankroll
-            size = bankroll * basePct;
+            log(``, asset);
+            log(`🎯 ═══════════════════════════════════════`, asset);
+            log(`🎯 ${mode} TRADE ENTRY`, asset);
+            log(`🎯 Direction: ${direction} (${tokenType})`, asset);
+            log(`🎯 Entry: ${(entryPrice * 100).toFixed(1)}¢`, asset);
+            log(`🎯 Size: $${size.toFixed(2)}`, asset);
+            if (target) log(`🎯 Target: ${(target * 100).toFixed(1)}¢`, asset);
+            if (stopLoss) log(`🎯 Stop: ${(stopLoss * 100).toFixed(1)}¢`, asset);
+            log(`🎯 ═══════════════════════════════════════`, asset);
 
-            // SMART MINIMUM: Ensure we meet $1.10 minimum
-            // If percentage-based size is too small, use minimum (if affordable)
-            if (size < MIN_ORDER) {
-                if (bankroll >= MIN_ORDER * 1.5) {
-                    // Have enough for minimum + buffer, use minimum
-                    size = MIN_ORDER;
-                    log(`📊 Size bumped to minimum $${MIN_ORDER} (bankroll: $${bankroll.toFixed(2)})`, asset);
-                } else {
-                    // Too small to trade safely
-                    log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
-                    return { success: false, error: `Need at least $${(MIN_ORDER * 1.5).toFixed(2)} to trade` };
-                }
-            }
+            // 📱 TELEGRAM NOTIFICATION: Trade opened (with market links)
+            sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market));
 
-            // CAP: Never risk more than MAX_FRACTION of bankroll
-            const maxSize = bankroll * MAX_FRACTION;
-            if (size > maxSize) {
-                size = maxSize;
-                log(`📊 Size capped to ${(MAX_FRACTION * 100).toFixed(0)}% of bankroll: $${size.toFixed(2)}`, asset);
-            }
-        }
+            if (this.mode === 'PAPER') {
+                const balanceBefore = this.paperBalance;
+                this.paperBalance -= size;
+                this.positions[positionId] = {
+                    asset,
+                    mode,
+                    side: direction,
+                    tokenType,
+                    size,
+                    entry: entryPrice,
+                    time: Date.now(),
+                    target,
+                    stopLoss,
+                    shares: size / entryPrice
+                };
 
-        // FINAL MINIMUM CHECK: Polymarket requires $1 minimum
-        const minDollars = 1.10;
-        if (size < minDollars) {
-            log(`❌ TRADE BLOCKED: $${size.toFixed(2)} below $${minDollars} minimum`, asset);
-            return { success: false, error: `Minimum order size is $${minDollars}` };
-        }
-
-        const tokenType = direction === 'UP' ? 'YES' : 'NO';
-        const positionId = `${asset}_${Date.now()}`;
-
-        // Determine targets based on mode
-        let target, stopLoss;
-        switch (mode) {
-            case 'ORACLE':
-                target = null; // Hold to resolution
-                // 🛡️ ORACLE STOP LOSS: Optional emergency protection
-                if (CONFIG.ORACLE.stopLossEnabled && CONFIG.ORACLE.stopLoss > 0) {
-                    stopLoss = entryPrice * (1 - CONFIG.ORACLE.stopLoss);
-                    log(`🛡️ ORACLE STOP LOSS SET: ${(stopLoss * 100).toFixed(1)}¢ (${(CONFIG.ORACLE.stopLoss * 100).toFixed(0)}% protection)`, asset);
-                } else {
-                    stopLoss = null; // Pure hold-to-resolution (default)
-                }
-                break;
-            case 'SCALP':
-                target = entryPrice * CONFIG.SCALP.targetMultiple;
-                stopLoss = entryPrice * 0.5;
-                break;
-            case 'ARBITRAGE':
-                target = entryPrice * (1 + CONFIG.ARBITRAGE.targetProfit);
-                stopLoss = entryPrice * (1 - CONFIG.ARBITRAGE.stopLoss);
-                break;
-            case 'UNCERTAINTY':
-                target = direction === 'UP' ? CONFIG.UNCERTAINTY.targetReversion : (1 - CONFIG.UNCERTAINTY.targetReversion);
-                stopLoss = entryPrice * (1 - CONFIG.UNCERTAINTY.stopLoss);
-                break;
-            case 'MOMENTUM':
-                target = null; // Exit on reversal
-                stopLoss = entryPrice * 0.8;
-                break;
-        }
-
-        log(``, asset);
-        log(`🎯 ═══════════════════════════════════════`, asset);
-        log(`🎯 ${mode} TRADE ENTRY`, asset);
-        log(`🎯 Direction: ${direction} (${tokenType})`, asset);
-        log(`🎯 Entry: ${(entryPrice * 100).toFixed(1)}¢`, asset);
-        log(`🎯 Size: $${size.toFixed(2)}`, asset);
-        if (target) log(`🎯 Target: ${(target * 100).toFixed(1)}¢`, asset);
-        if (stopLoss) log(`🎯 Stop: ${(stopLoss * 100).toFixed(1)}¢`, asset);
-        log(`🎯 ═══════════════════════════════════════`, asset);
-
-        // 📱 TELEGRAM NOTIFICATION: Trade opened (with market links)
-        sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market));
-
-        if (this.mode === 'PAPER') {
-            const balanceBefore = this.paperBalance;
-            this.paperBalance -= size;
-            this.positions[positionId] = {
-                asset,
-                mode,
-                side: direction,
-                tokenType,
-                size,
-                entry: entryPrice,
-                time: Date.now(),
-                target,
-                stopLoss,
-                shares: size / entryPrice
-            };
-
-            this.tradeHistory.push({
-                id: positionId,
-                asset,
-                mode,
-                side: direction,
-                entry: entryPrice,
-                size,
-                time: Date.now(),
-                status: 'OPEN'
-            });
-
-            // PINNACLE: Prevent memory leak - keep max 1000 trades in history
-            if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
-
-            log(`📝 PAPER FILL: Bought ${(size / entryPrice).toFixed(1)} shares @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
-            log(`💰 Balance: $${balanceBefore.toFixed(2)} → $${this.paperBalance.toFixed(2)} (-$${size.toFixed(2)})`, asset);
-
-            // 📊 Track cycle trade count
-            this.incrementCycleTradeCount(asset);
-
-            return { success: true, positionId, mode: 'PAPER' };
-        }
-
-        // LIVE TRADING MODE - ACTUAL EXECUTION
-        if (this.mode === 'LIVE') {
-            log(`🔴 LIVE TRADE EXECUTION - ${mode} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
-
-            // Check if CLOB Client is available
-            if (!ClobClient) {
-                log(`❌ LIVE TRADING FAILED: @polymarket/clob-client not installed`, asset);
-                log(`   Run: npm install @polymarket/clob-client`, asset);
-                return { success: false, error: 'CLOB client not installed. Run: npm install @polymarket/clob-client' };
-            }
-
-            // Check if we have the required credentials
-            if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
-                log(`❌ LIVE TRADING FAILED: Missing API credentials`, asset);
-                return { success: false, error: 'Missing API credentials (key/secret/passphrase)' };
-            }
-
-            if (!this.wallet) {
-                log(`❌ LIVE TRADING FAILED: No wallet loaded`, asset);
-                return { success: false, error: 'No wallet loaded. Add private key in Settings.' };
-            }
-
-            // Get Token ID for the market
-            if (!market.tokenIds) {
-                log(`❌ LIVE TRADING FAILED: No token IDs for market`, asset);
-                return { success: false, error: 'No token IDs for this market yet' };
-            }
-
-            const tokenId = tokenType === 'YES' ? market.tokenIds.yes : market.tokenIds.no;
-
-            try {
-                // Initialize CLOB Client
-                // CRITICAL FIX: creds is 4th param (not 5th)
-                // ApiKeyCreds interface uses 'key' not 'apiKey'
-                // SANITIZE: Remove any non-printable ASCII characters from credentials
-                const sanitizedPassphrase = CONFIG.POLYMARKET_PASSPHRASE.replace(/[^\x20-\x7E]/g, '');
-
-                if (sanitizedPassphrase !== CONFIG.POLYMARKET_PASSPHRASE) {
-                    log(`⚠️ Passphrase had invalid chars removed. Original length: ${CONFIG.POLYMARKET_PASSPHRASE.length}, New: ${sanitizedPassphrase.length}`, asset);
-                }
-
-                const clobClient = new ClobClient(
-                    'https://clob.polymarket.com',
-                    POLY_CHAIN_ID,
-                    this.wallet,
-                    {
-                        key: CONFIG.POLYMARKET_API_KEY.replace(/[^\x20-\x7E]/g, ''),
-                        secret: CONFIG.POLYMARKET_SECRET.replace(/[^\x20-\x7E]/g, ''),
-                        passphrase: sanitizedPassphrase
-                    }
-                );
-
-                // Calculate shares to buy
-                const shares = Math.floor((size / entryPrice) * 1e6) / 1e6; // 6 decimal precision
-
-                log(`📝 Placing order: BUY ${shares.toFixed(2)} shares of ${tokenType} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
-
-                // Create and submit limit order
-                const order = await clobClient.createOrder({
-                    tokenID: tokenId,
-                    price: entryPrice,
-                    size: shares,
-                    side: 'BUY',
-                    feeRateBps: 0
+                this.tradeHistory.push({
+                    id: positionId,
+                    asset,
+                    mode,
+                    side: direction,
+                    entry: entryPrice,
+                    size,
+                    time: Date.now(),
+                    status: 'OPEN'
                 });
 
-                const response = await clobClient.postOrder(order);
+                // PINNACLE: Prevent memory leak - keep max 1000 trades in history
+                if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
 
-                if (response && response.orderID) {
-                    log(`✅ LIVE ORDER PLACED: ${response.orderID}`, asset);
-                    log(`🎯 Status: ${response.status || 'SUBMITTED'}`, asset);
+                log(`📝 PAPER FILL: Bought ${(size / entryPrice).toFixed(1)} shares @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+                log(`💰 Balance: $${balanceBefore.toFixed(2)} → $${this.paperBalance.toFixed(2)} (-$${size.toFixed(2)})`, asset);
 
-                    // FAILSAFE: Verify order fill with retry logic
-                    let fillStatus = 'UNVERIFIED';
-                    let actualShares = shares;
-                    for (let attempt = 1; attempt <= 3; attempt++) {
-                        await new Promise(r => setTimeout(r, 2000));
-                        try {
-                            const orderStatus = await clobClient.getOrder(response.orderID);
-                            if (orderStatus) {
-                                fillStatus = orderStatus.status || 'UNKNOWN';
-                                if (['FILLED', 'MATCHED', 'LIVE'].includes(fillStatus.toUpperCase())) {
-                                    log(`✅ Order CONFIRMED: ${fillStatus}`, asset);
-                                    if (orderStatus.size_matched) {
-                                        actualShares = parseFloat(orderStatus.size_matched);
-                                    }
-                                    break;
-                                } else if (['CANCELLED', 'EXPIRED', 'REJECTED'].includes(fillStatus.toUpperCase())) {
-                                    log(`❌ Order ${fillStatus} - trade failed`, asset);
-                                    return { success: false, error: `Order was ${fillStatus}` };
-                                }
-                            }
-                            log(`⏳ Fill check ${attempt}/3: ${fillStatus}`, asset);
-                        } catch (pollErr) {
-                            log(`⚠️ Fill check ${attempt}/3 failed: ${pollErr.message}`, asset);
+                // 📊 Track cycle trade count
+                this.incrementCycleTradeCount(asset);
+
+                return { success: true, positionId, mode: 'PAPER' };
+            }
+
+            // LIVE TRADING MODE - ACTUAL EXECUTION
+            if (this.mode === 'LIVE') {
+                log(`🔴 LIVE TRADE EXECUTION - ${mode} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+
+                // Check if CLOB Client is available
+                if (!ClobClient) {
+                    log(`❌ LIVE TRADING FAILED: @polymarket/clob-client not installed`, asset);
+                    log(`   Run: npm install @polymarket/clob-client`, asset);
+                    return { success: false, error: 'CLOB client not installed. Run: npm install @polymarket/clob-client' };
+                }
+
+                // Check if we have the required credentials
+                if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
+                    log(`❌ LIVE TRADING FAILED: Missing API credentials`, asset);
+                    return { success: false, error: 'Missing API credentials (key/secret/passphrase)' };
+                }
+
+                if (!this.wallet) {
+                    log(`❌ LIVE TRADING FAILED: No wallet loaded`, asset);
+                    return { success: false, error: 'No wallet loaded. Add private key in Settings.' };
+                }
+
+                // Get Token ID for the market
+                if (!market.tokenIds) {
+                    log(`❌ LIVE TRADING FAILED: No token IDs for market`, asset);
+                    return { success: false, error: 'No token IDs for this market yet' };
+                }
+
+                const tokenId = tokenType === 'YES' ? market.tokenIds.yes : market.tokenIds.no;
+
+                try {
+                    // Initialize CLOB Client
+                    // CRITICAL FIX: creds is 4th param (not 5th)
+                    // ApiKeyCreds interface uses 'key' not 'apiKey'
+                    // SANITIZE: Remove any non-printable ASCII characters from credentials
+                    const sanitizedPassphrase = CONFIG.POLYMARKET_PASSPHRASE.replace(/[^\x20-\x7E]/g, '');
+
+                    if (sanitizedPassphrase !== CONFIG.POLYMARKET_PASSPHRASE) {
+                        log(`⚠️ Passphrase had invalid chars removed. Original length: ${CONFIG.POLYMARKET_PASSPHRASE.length}, New: ${sanitizedPassphrase.length}`, asset);
+                    }
+
+                    const clobClient = new ClobClient(
+                        'https://clob.polymarket.com',
+                        POLY_CHAIN_ID,
+                        this.wallet,
+                        {
+                            key: CONFIG.POLYMARKET_API_KEY.replace(/[^\x20-\x7E]/g, ''),
+                            secret: CONFIG.POLYMARKET_SECRET.replace(/[^\x20-\x7E]/g, ''),
+                            passphrase: sanitizedPassphrase
                         }
-                    }
-                    if (fillStatus === 'UNVERIFIED') {
-                        log(`⚠️ Order fill unconfirmed after 6s - tracking with caution`, asset);
-                    }
+                    );
 
-                    // Store position with order details
-                    this.positions[positionId] = {
-                        asset,
-                        mode,
-                        side: direction,
-                        tokenType,
-                        size,
-                        entry: entryPrice,
-                        time: Date.now(),
-                        target,
-                        stopLoss,
-                        shares,
-                        isLive: true,
-                        status: 'LIVE_OPEN',
-                        orderID: response.orderID,
-                        tokenId: tokenId
-                    };
+                    // Calculate shares to buy
+                    const shares = Math.floor((size / entryPrice) * 1e6) / 1e6; // 6 decimal precision
 
-                    this.tradeHistory.push({
-                        id: positionId,
-                        asset,
-                        mode,
-                        side: direction,
-                        entry: entryPrice,
-                        size,
-                        shares,
-                        time: Date.now(),
-                        status: 'LIVE_OPEN',
-                        orderID: response.orderID
+                    log(`📝 Placing order: BUY ${shares.toFixed(2)} shares of ${tokenType} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+
+                    // Create and submit limit order
+                    const order = await clobClient.createOrder({
+                        tokenID: tokenId,
+                        price: entryPrice,
+                        size: shares,
+                        side: 'BUY',
+                        feeRateBps: 0
                     });
 
-                    // PINNACLE: Prevent memory leak - keep max 1000 trades in history
-                    if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
+                    const response = await clobClient.postOrder(order);
 
-                    // 📊 Track cycle trade count
-                    this.incrementCycleTradeCount(asset);
+                    if (response && response.orderID) {
+                        log(`✅ LIVE ORDER PLACED: ${response.orderID}`, asset);
+                        log(`🎯 Status: ${response.status || 'SUBMITTED'}`, asset);
 
-                    return { success: true, positionId, mode: 'LIVE' };
-                } else {
-                    const errorDetail = response ? JSON.stringify(response) : 'No response';
-                    log(`❌ Order submission failed: ${errorDetail}`, asset);
-                    // Return more specific error based on response
-                    let errorMsg = 'Order submission failed';
-                    if (response?.error) errorMsg = response.error;
-                    else if (response?.message) errorMsg = response.message;
-                    else if (typeof response === 'string') errorMsg = response;
-                    else errorMsg = `API rejected: ${errorDetail.substring(0, 100)}`;
-                    return { success: false, error: errorMsg };
-                }
+                        // FAILSAFE: Verify order fill with retry logic
+                        let fillStatus = 'UNVERIFIED';
+                        let actualShares = shares;
+                        for (let attempt = 1; attempt <= 3; attempt++) {
+                            await new Promise(r => setTimeout(r, 2000));
+                            try {
+                                const orderStatus = await clobClient.getOrder(response.orderID);
+                                if (orderStatus) {
+                                    fillStatus = orderStatus.status || 'UNKNOWN';
+                                    if (['FILLED', 'MATCHED', 'LIVE'].includes(fillStatus.toUpperCase())) {
+                                        log(`✅ Order CONFIRMED: ${fillStatus}`, asset);
+                                        if (orderStatus.size_matched) {
+                                            actualShares = parseFloat(orderStatus.size_matched);
+                                        }
+                                        break;
+                                    } else if (['CANCELLED', 'EXPIRED', 'REJECTED'].includes(fillStatus.toUpperCase())) {
+                                        log(`❌ Order ${fillStatus} - trade failed`, asset);
+                                        return { success: false, error: `Order was ${fillStatus}` };
+                                    }
+                                }
+                                log(`⏳ Fill check ${attempt}/3: ${fillStatus}`, asset);
+                            } catch (pollErr) {
+                                log(`⚠️ Fill check ${attempt}/3 failed: ${pollErr.message}`, asset);
+                            }
+                        }
+                        if (fillStatus === 'UNVERIFIED') {
+                            log(`⚠️ Order fill unconfirmed after 6s - tracking with caution`, asset);
+                        }
 
-            } catch (e) {
-                log(`❌ LIVE TRADE ERROR: ${e.message}`, asset);
-                // Log stack trace for debugging
-                if (e.stack) {
-                    const stackLines = e.stack.split('\n').slice(0, 3).join('\n');
-                    log(`   Stack: ${stackLines}`, asset);
+                        // Store position with order details
+                        this.positions[positionId] = {
+                            asset,
+                            mode,
+                            side: direction,
+                            tokenType,
+                            size,
+                            entry: entryPrice,
+                            time: Date.now(),
+                            target,
+                            stopLoss,
+                            shares,
+                            isLive: true,
+                            status: 'LIVE_OPEN',
+                            orderID: response.orderID,
+                            tokenId: tokenId
+                        };
+
+                        this.tradeHistory.push({
+                            id: positionId,
+                            asset,
+                            mode,
+                            side: direction,
+                            entry: entryPrice,
+                            size,
+                            shares,
+                            time: Date.now(),
+                            status: 'LIVE_OPEN',
+                            orderID: response.orderID
+                        });
+
+                        // PINNACLE: Prevent memory leak - keep max 1000 trades in history
+                        if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
+
+                        // 📊 Track cycle trade count
+                        this.incrementCycleTradeCount(asset);
+
+                        return { success: true, positionId, mode: 'LIVE' };
+                    } else {
+                        const errorDetail = response ? JSON.stringify(response) : 'No response';
+                        log(`❌ Order submission failed: ${errorDetail}`, asset);
+                        // Return more specific error based on response
+                        let errorMsg = 'Order submission failed';
+                        if (response?.error) errorMsg = response.error;
+                        else if (response?.message) errorMsg = response.message;
+                        else if (typeof response === 'string') errorMsg = response;
+                        else errorMsg = `API rejected: ${errorDetail.substring(0, 100)}`;
+                        return { success: false, error: errorMsg };
+                    }
+
+                } catch (e) {
+                    log(`❌ LIVE TRADE ERROR: ${e.message}`, asset);
+                    // Log stack trace for debugging
+                    if (e.stack) {
+                        const stackLines = e.stack.split('\n').slice(0, 3).join('\n');
+                        log(`   Stack: ${stackLines}`, asset);
+                    }
+                    // Check for specific known errors
+                    if (e.message.includes('signTypedData') || e.message.includes('_signTypedData')) {
+                        log(`   FIX: ethers v6 compatibility issue - wallet._signTypedData wrapper may be missing`, asset);
+                    }
+                    if (e.message.includes('ENOTFOUND') || e.message.includes('ECONNREFUSED')) {
+                        log(`   FIX: Network/DNS issue - check internet connection`, asset);
+                    }
+                    if (e.message.includes('401') || e.message.includes('403') || e.message.includes('Unauthorized')) {
+                        log(`   FIX: API credentials may be invalid - check API key, secret, passphrase`, asset);
+                    }
+                    return { success: false, error: e.message };
                 }
-                // Check for specific known errors
-                if (e.message.includes('signTypedData') || e.message.includes('_signTypedData')) {
-                    log(`   FIX: ethers v6 compatibility issue - wallet._signTypedData wrapper may be missing`, asset);
-                }
-                if (e.message.includes('ENOTFOUND') || e.message.includes('ECONNREFUSED')) {
-                    log(`   FIX: Network/DNS issue - check internet connection`, asset);
-                }
-                if (e.message.includes('401') || e.message.includes('403') || e.message.includes('Unauthorized')) {
-                    log(`   FIX: API credentials may be invalid - check API key, secret, passphrase`, asset);
-                }
-                return { success: false, error: e.message };
             }
+
+            return { success: false, error: 'Unknown mode - not PAPER or LIVE' };
+        } finally {
+            // 🔒 GOD MODE: Always release mutex, even on error/early return
+            this.tradeMutex = false;
         }
-
-        return { success: false, error: 'Unknown mode - not PAPER or LIVE' };
     }
-
     // LIVE MODE: Execute sell order to close position
     async executeSellOrder(position) {
         if (!ClobClient || !this.wallet || !position.tokenId) {
@@ -2062,7 +2102,7 @@ class OpportunityDetector {
     // MOLECULAR RECONSTRUCTION: Detect Yes + No != 100 for guaranteed profit
     // When market makers don't keep spread tight, we get FREE MONEY
     detectIlliquidityGap(asset, yesPrice, noPrice) {
-        if (!CONFIG.ARBITRAGE.enabled) return null; // Uses arbitrage mode toggle
+        if (!CONFIG.ILLIQUIDITY_GAP.enabled) return null; // Uses own toggle now
         if (this.hasTraded(asset, 'ILLIQUIDITY')) return null;
 
         // Calculate the gap: In a perfect market, Yes + No = $1 (100%)
@@ -2070,9 +2110,8 @@ class OpportunityDetector {
         const totalOdds = yesPrice + noPrice;
         const gap = 1 - totalOdds; // Positive = underpriced overall
 
-        // GUARANTEED PROFIT: If gap > 2% (after ~2% Polymarket fee), profit is locked
-        // Example: Yes=45¢, No=45¢, Total=90¢. Gap=10¢. Buy both = guaranteed 10¢ profit per $0.90 spent!
-        if (gap >= 0.03) { // 3% gap minimum (covers fees + profit)
+        // GUARANTEED PROFIT: If gap >= minGap (default 3%), profit is possible
+        if (gap >= CONFIG.ILLIQUIDITY_GAP.minGap) {
             log(`💰 ILLIQUIDITY GAP FOUND: Yes=${(yesPrice * 100).toFixed(1)}¢ + No=${(noPrice * 100).toFixed(1)}¢ = ${(totalOdds * 100).toFixed(1)}¢ (Gap: ${(gap * 100).toFixed(1)}%)`, asset);
             return {
                 mode: 'ILLIQUIDITY',
@@ -2098,12 +2137,14 @@ class OpportunityDetector {
     // MOLECULAR RECONSTRUCTION: Buy shares <10¢ when market overreacts, sell on bounce
     // Logic: When one side hits 5¢-10¢, uncertainty spikes often cause 10-15¢ bounce
     detectDeathBounce(asset, yesPrice, noPrice, elapsed, atr, regime) {
+        if (!CONFIG.DEATH_BOUNCE.enabled) return null; // Uses own toggle now
         if (this.hasTraded(asset, 'DEATH_BOUNCE')) return null;
 
-        // DEATH BOUNCE ZONE: Shares trading at 5-10¢
-        const DEATH_ZONE_MIN = 0.03; // Below 3¢ = too dead, probably stays dead
-        const DEATH_ZONE_MAX = 0.12; // Above 12¢ = not "death" level
-        const BOUNCE_TARGET = 0.18; // Target 18¢ for sell (2-3x profit)
+        // DEATH BOUNCE ZONE: From config
+        const DEATH_ZONE_MIN = CONFIG.DEATH_BOUNCE.minPrice;
+        const DEATH_ZONE_MAX = CONFIG.DEATH_BOUNCE.maxPrice;
+        const BOUNCE_TARGET = CONFIG.DEATH_BOUNCE.targetPrice;
+        const MIN_SCORE = CONFIG.DEATH_BOUNCE.minScore;
 
         // Time windows: Best bounces happen in specific periods
         // Early cycle (0-180s): Too early, odds still forming
@@ -2123,7 +2164,7 @@ class OpportunityDetector {
             const riskReward = potentialProfit / yesPrice; // e.g., 0.13/0.05 = 2.6x
             const score = riskReward * windowMultiplier * volBonus;
 
-            if (score >= 1.5) { // Minimum 1.5 score (roughly 2x R:R with good timing)
+            if (score >= MIN_SCORE) {
                 log(`💀 DEATH BOUNCE: YES at ${(yesPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)}`, asset);
                 return {
                     mode: 'DEATH_BOUNCE',
@@ -2142,7 +2183,7 @@ class OpportunityDetector {
             const riskReward = potentialProfit / noPrice;
             const score = riskReward * windowMultiplier * volBonus;
 
-            if (score >= 1.5) {
+            if (score >= MIN_SCORE) {
                 log(`💀 DEATH BOUNCE: NO at ${(noPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)}`, asset);
                 return {
                     mode: 'DEATH_BOUNCE',
@@ -2637,8 +2678,12 @@ class SupremeBrain {
         this.lockStrength = 0;
         this.lastSignal = null;
 
-        // FINAL SEVEN: CONFIDENCE CALIBRATION
+        // FINAL SEVEN: CONFIDENCE CALIBRATION (FIXED: Added all confidence ranges)
         this.calibrationBuckets = {
+            '0.50-0.60': { total: 0, wins: 0 },
+            '0.60-0.70': { total: 0, wins: 0 },
+            '0.70-0.80': { total: 0, wins: 0 },
+            '0.80-0.90': { total: 0, wins: 0 },
             '0.90-0.95': { total: 0, wins: 0 },
             '0.95-0.98': { total: 0, wins: 0 },
             '0.98-1.00': { total: 0, wins: 0 }
@@ -3032,9 +3077,23 @@ class SupremeBrain {
             const normalATR = MathLib.calculateATR(history.slice(-100, -30), 20);
             const isExtremeVolatility = currentATR > normalATR * 3.0;
 
-            if (isLagging || isPanic || isSpoofing || isExtremeVolatility) {
+            // 🔴 GOD MODE: LIQUIDITY VOID DETECTION (Wide spreads = danger zone)
+            // If Yes + No significantly != 100 (spread > 5%), liquidity is thin
+            const marketData = currentMarkets[this.asset];
+            const spread = marketData ? Math.abs(1 - (marketData.yesPrice + marketData.noPrice)) : 0;
+            const isLiquidityVoid = spread > 0.05; // 5% spread = liquidity void
+            if (isLiquidityVoid && marketData) {
+                log(`⚠️ LIQUIDITY VOID: Spread ${(spread * 100).toFixed(1)}% (Yes ${(marketData.yesPrice * 100).toFixed(0)}¢ + No ${(marketData.noPrice * 100).toFixed(0)}¢ ≠ 100%)`, this.asset);
+            }
+
+            // 🔴 GOD MODE: FINAL MINUTE BLOCK - No NEW predictions in last 60 seconds
+            // Existing predictions are held via blackout, but new signals are killed
+            const isFinalMinute = elapsed >= 840;
+
+            if (isLagging || isPanic || isSpoofing || isExtremeVolatility || isLiquidityVoid || isFinalMinute) {
                 votes.UP = 0; votes.DOWN = 0; totalConfidence = 0;
                 if (isExtremeVolatility) log(`⚠️ CIRCUIT BREAKER: Extreme volatility detected (${(currentATR / normalATR).toFixed(1)}x normal)`, this.asset);
+                if (isFinalMinute && !this.inBlackout) log(`⏱️ FINAL MINUTE: No new signals - holding current prediction`, this.asset);
             }
 
             // === DECISION LOGIC ===
@@ -4030,7 +4089,15 @@ class SupremeBrain {
         if (!market) return 0;
 
         const marketOdds = this.prediction === 'UP' ? market.yesPrice : market.noPrice;
+
+        // GOD MODE: Division by zero protection
+        // marketOdds = 0: Infinity odds = undefined return 0
+        // marketOdds = 1: b would be 0, causing division by zero
+        if (!marketOdds || marketOdds <= 0 || marketOdds >= 1) return 0;
+
         const b = (1 / marketOdds) - 1;
+        if (b <= 0) return 0; // Additional safety check
+
         const p = this.confidence;
         const q = 1 - p;
 
@@ -4067,7 +4134,7 @@ class SupremeBrain {
     evaluateOutcome(finalPrice, startPrice) {
         if (!startPrice) return;
 
-        const actual = finalPrice > startPrice ? 'UP' : 'DOWN';
+        const actual = finalPrice >= startPrice ? 'UP' : 'DOWN'; // FIXED: Tie = UP wins
         const predicted = this.lastSignal ? this.lastSignal.type : 'NEUTRAL';
         const tier = this.lastSignal ? this.lastSignal.tier : 'NONE';
 
@@ -4093,7 +4160,12 @@ class SupremeBrain {
             // FINAL SEVEN: CALIBRATION TRACKING
             if (this.lastSignal && this.lastSignal.conf) {
                 const conf = this.lastSignal.conf;
-                const bucket = conf >= 0.98 ? '0.98-1.00' : (conf >= 0.95 ? '0.95-0.98' : '0.90-0.95');
+                const bucket = conf >= 0.98 ? '0.98-1.00' :
+                    (conf >= 0.95 ? '0.95-0.98' :
+                        (conf >= 0.90 ? '0.90-0.95' :
+                            (conf >= 0.80 ? '0.80-0.90' :
+                                (conf >= 0.70 ? '0.70-0.80' :
+                                    (conf >= 0.60 ? '0.60-0.70' : '0.50-0.60')))));
                 if (this.calibrationBuckets[bucket]) {
                     this.calibrationBuckets[bucket].total++;
                     if (isWin) this.calibrationBuckets[bucket].wins++;
@@ -4355,12 +4427,30 @@ function connectWebSocket() {
     });
 }
 
-async function fetchJSON(url) {
-    try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return await res.json();
-    } catch (e) { return null; }
+async function fetchJSON(url, retries = 3, baseDelay = 1000) {
+    for (let attempt = 0; attempt < retries; attempt++) {
+        try {
+            const res = await fetch(url);
+
+            // GOD MODE: API Rate Limit Detection
+            if (res.status === 429) {
+                const retryAfter = parseInt(res.headers.get('Retry-After') || '5');
+                log(`⚠️ RATE LIMITED (429): Waiting ${retryAfter}s before retry ${attempt + 1}/${retries}`);
+                await new Promise(r => setTimeout(r, retryAfter * 1000));
+                continue;
+            }
+
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return await res.json();
+        } catch (e) {
+            if (attempt < retries - 1) {
+                // Exponential backoff: 1s, 2s, 4s
+                const delay = baseDelay * Math.pow(2, attempt);
+                await new Promise(r => setTimeout(r, delay));
+            }
+        }
+    }
+    return null;
 }
 
 async function fetchCurrentMarkets() {
@@ -6220,7 +6310,7 @@ app.get('/api/settings', (req, res) => {
 
         // Trading settings (fully visible)
         TRADE_MODE: CONFIG.TRADE_MODE,
-        PAPER_BALANCE: CONFIG.PAPER_BALANCE,
+        PAPER_BALANCE: 10,
         LIVE_BALANCE: CONFIG.LIVE_BALANCE,
         MAX_POSITION_SIZE: CONFIG.MAX_POSITION_SIZE,
         MAX_POSITIONS_PER_ASSET: CONFIG.MAX_POSITIONS_PER_ASSET,
