@@ -987,6 +987,13 @@ class TradeExecutor {
                 return { success: false, error: `Invalid entry price: ${entryPrice}. Must be > 0.` };
             }
 
+            // 🔴 UNBOUNDED FIX #11: HARD maxOdds check - FINAL GUARD against race conditions
+            // This check cannot be bypassed by market movements between ORACLE check and execution
+            if (mode === 'ORACLE' && entryPrice > CONFIG.ORACLE.maxOdds) {
+                log(`🚫 HARD BLOCK: Entry price ${(entryPrice * 100).toFixed(1)}¢ > maxOdds ${(CONFIG.ORACLE.maxOdds * 100).toFixed(1)}¢ - NO VALUE BETTING`, asset);
+                return { success: false, error: `Entry price ${(entryPrice * 100).toFixed(1)}¢ exceeds maxOdds limit` };
+            }
+
             // 🔒 ASSET TRADING ENABLED CHECK
             if (!this.isAssetEnabled(asset)) {
                 log(`⏸️ TRADE BLOCKED: Trading disabled for ${asset}`, asset);
