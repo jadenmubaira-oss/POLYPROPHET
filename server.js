@@ -442,6 +442,10 @@ ASSETS.forEach(asset => {
 });
 
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
+// 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
+// This ensures Redis cache is invalidated and new values are used.
+const CONFIG_VERSION = 2;  // Version 2: UNBOUNDED FIXES (minElapsed=180, maxExposure=0.50, minEdge=15)
+
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
     // CRITICAL: NO DEFAULTS - user MUST set these in .env
@@ -4729,32 +4733,43 @@ async function loadState() {
             if (savedSettings) {
                 const settings = JSON.parse(savedSettings);
 
-                // CRITICAL: These keys should NEVER be overwritten from Redis
-                // Environment variables ALWAYS take priority for security
-                const protectedKeys = [
-                    'POLYMARKET_PRIVATE_KEY',
-                    'POLYMARKET_API_KEY',
-                    'POLYMARKET_SECRET',
-                    'POLYMARKET_PASSPHRASE',
-                    'POLYMARKET_ADDRESS'
-                ];
+                // 🔴 CONFIG_VERSION CHECK: If version changed, CLEAR old settings and use new code!
+                const savedVersion = settings._CONFIG_VERSION || 0;
+                if (savedVersion !== CONFIG_VERSION) {
+                    log(`⚠️ CONFIG_VERSION mismatch: Redis v${savedVersion} != Code v${CONFIG_VERSION}`);
+                    log(`🔄 CLEARING stale Redis settings - using fresh hardcoded values!`);
+                    await redis.del('deity:settings');
+                    // Don't apply any settings - use hardcoded CONFIG as-is
+                } else {
+                    // Version matches - safe to apply Redis settings
+                    // CRITICAL: These keys should NEVER be overwritten from Redis
+                    // Environment variables ALWAYS take priority for security
+                    const protectedKeys = [
+                        'POLYMARKET_PRIVATE_KEY',
+                        'POLYMARKET_API_KEY',
+                        'POLYMARKET_SECRET',
+                        'POLYMARKET_PASSPHRASE',
+                        'POLYMARKET_ADDRESS'
+                    ];
 
-                // Apply persisted settings to CONFIG (except protected keys)
-                for (const [key, value] of Object.entries(settings)) {
-                    if (CONFIG.hasOwnProperty(key) && value !== undefined && value !== null) {
-                        if (protectedKeys.includes(key)) {
-                            log(`🔒 Skipping Redis override for ${key} (env var takes priority)`);
-                            continue; // Skip - use env var instead
+                    // Apply persisted settings to CONFIG (except protected keys)
+                    for (const [key, value] of Object.entries(settings)) {
+                        if (key.startsWith('_')) continue; // Skip internal keys like _CONFIG_VERSION
+                        if (CONFIG.hasOwnProperty(key) && value !== undefined && value !== null) {
+                            if (protectedKeys.includes(key)) {
+                                log(`🔒 Skipping Redis override for ${key} (env var takes priority)`);
+                                continue; // Skip - use env var instead
+                            }
+                            CONFIG[key] = value;
                         }
-                        CONFIG[key] = value;
                     }
-                }
-                log('⚙️ Settings restored from Redis (credentials from env)');
+                    log('⚙️ Settings restored from Redis (credentials from env)');
 
-                // Reload wallet with ENV credentials (not Redis!)
-                tradeExecutor.mode = CONFIG.TRADE_MODE;
-                tradeExecutor.paperBalance = CONFIG.PAPER_BALANCE;
-                // Note: reloadWallet() is NOT called here - wallet was already loaded from env at startup
+                    // Reload wallet with ENV credentials (not Redis!)
+                    tradeExecutor.mode = CONFIG.TRADE_MODE;
+                    tradeExecutor.paperBalance = CONFIG.PAPER_BALANCE;
+                    // Note: reloadWallet() is NOT called here - wallet was already loaded from env at startup
+                }
             }
 
             const stored = await redis.get('deity:state');
@@ -6488,6 +6503,8 @@ app.post('/api/settings', async (req, res) => {
     if (redisAvailable && redis) {
         try {
             const persistedSettings = {
+                // 🔴 CONFIG_VERSION: Used to invalidate stale settings when code changes
+                _CONFIG_VERSION: CONFIG_VERSION,
                 // API Credentials
                 POLYMARKET_API_KEY: CONFIG.POLYMARKET_API_KEY,
                 POLYMARKET_SECRET: CONFIG.POLYMARKET_SECRET,
