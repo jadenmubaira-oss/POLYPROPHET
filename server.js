@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 2;  // Version 2: UNBOUNDED FIXES (minElapsed=180, maxExposure=0.50, minEdge=15)
+const CONFIG_VERSION = 3;  // Version 3: PAPER_BALANCE default 10 (was 1000)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -457,8 +457,8 @@ const CONFIG = {
 
     // Core Trading Settings
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
-    PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '1000'),
-    LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '1000'),  // Configurable live balance
+    PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '10'),   // 🔴 FIXED: Default £10 (was 1000)
+    LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
     MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.10'),
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
@@ -3292,9 +3292,10 @@ class SupremeBrain {
                 convictionThreshold *= 1.05;
             }
             if (this.lossStreak > 1) {
-                // Cold streak: much more conservative
-                convictionThreshold *= 1.15;
-                advisoryThreshold *= 1.10;
+                // Cold streak: mild caution (was 15%/10% - too aggressive, blocked 82% trades)
+                // 🔴 UNBOUNDED FIX: Reduced from 1.15/1.10 to 1.05/1.03
+                convictionThreshold *= 1.05;  // +5% (vs +15%)
+                advisoryThreshold *= 1.03;    // +3% (vs +10%)
             }
 
             // SNIPER MODE: Dynamic Thresholds based on Odds (Value Betting)
