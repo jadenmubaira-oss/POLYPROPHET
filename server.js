@@ -976,6 +976,13 @@ class TradeExecutor {
                 return { success: false, error: `Invalid direction: ${direction}. Must be UP or DOWN.` };
             }
 
+            // 🔴 FORENSIC FIX: ENTRY PRICE GUARD - Prevent division by zero
+            // shares = size / entryPrice - if entryPrice is 0, shares = Infinity = catastrophic P&L
+            if (!entryPrice || entryPrice <= 0) {
+                log(`🚨 CRITICAL BLOCK: Invalid entry price ${entryPrice} - MUST BE > 0`, asset);
+                return { success: false, error: `Invalid entry price: ${entryPrice}. Must be > 0.` };
+            }
+
             // 🔒 ASSET TRADING ENABLED CHECK
             if (!this.isAssetEnabled(asset)) {
                 log(`⏸️ TRADE BLOCKED: Trading disabled for ${asset}`, asset);
@@ -1573,7 +1580,8 @@ class TradeExecutor {
         }
 
         const pnl = (exitPrice - pos.entry) * pos.shares;
-        const pnlPercent = ((exitPrice / pos.entry) - 1) * 100;
+        // 🔴 FORENSIC FIX: Guard against division by zero in pnl percentage
+        const pnlPercent = pos.entry > 0 ? ((exitPrice / pos.entry) - 1) * 100 : 0;
 
         this.paperBalance += pos.size + pnl;
         this.todayPnL += pnl;
@@ -2080,7 +2088,10 @@ class OpportunityDetector {
         this.tradesThisCycle[`${asset}_${mode}`] = Date.now();
     }
 
-    // MODE 2: ARBITRAGE - Detect mispriced odds
+    // MODE 2: VALUE_BET - Detect mispriced odds (RENAMED from ARBITRAGE)
+    // ⚠️ WARNING: This is NOT true arbitrage! True arbitrage buys BOTH sides
+    // simultaneously when Yes+No<100% for guaranteed profit. This only buys
+    // ONE side based on predicted mispricing. Should be called VALUE_BET.
     detectArbitrage(asset, confidence, yesPrice, noPrice, side, elapsed = 0) {
         if (!CONFIG.ARBITRAGE.enabled) return null;
         // ONE TRADE PER CYCLE PER ASSET
@@ -2093,6 +2104,19 @@ class OpportunityDetector {
             return null; // HARD BLOCK: Only UP or DOWN allowed
         }
 
+        // ⚠️ CRITICAL BUG FIX: CYCLE BOUNDARY GUARD
+        // At cycle boundary, old market has extreme odds (1-5¢) but new market resets to ~50%
+        // Without this guard, trades open at 1¢ using stale data, then immediately close at 50¢
+        // for fake 5000%+ profits. Block first 30 seconds of each cycle.
+        const now = Math.floor(Date.now() / 1000);
+        const cycleStart = now - (now % 900); // 15 min cycles
+        const elapsedInCycle = now - cycleStart;
+        const CYCLE_BOUNDARY_COOLDOWN = 30; // 30 seconds
+
+        if (elapsedInCycle < CYCLE_BOUNDARY_COOLDOWN) {
+            return null; // BLOCK: Market data may be stale from previous cycle
+        }
+
         // LATE CYCLE CUTOFF: REMOVED - User requested late entries if confident
         // Bot learns from all trades, even late-cycle ones
 
@@ -2102,11 +2126,11 @@ class OpportunityDetector {
 
         if (mispricing >= CONFIG.ARBITRAGE.minMispricing) {
             return {
-                mode: 'ARBITRAGE',
+                mode: 'VALUE_BET', // RENAMED: Not true arbitrage - only buys ONE side
                 direction: side,
                 entry: marketOdds,
                 edge: mispricing * 100,
-                reason: `Odds mispriced by ${(mispricing * 100).toFixed(1)}%`
+                reason: `Value bet: ${(mispricing * 100).toFixed(1)}% mispricing (single-sided)`
             };
         }
         return null;
@@ -2218,6 +2242,20 @@ class OpportunityDetector {
         if (!CONFIG.SCALP.enabled) return null;
         // ONE TRADE PER CYCLE PER ASSET
         if (this.hasTraded(asset, 'SCALP')) return null;
+
+        // ⚠️ CRITICAL BUG FIX: CYCLE BOUNDARY GUARD
+        // At cycle boundary, old market has extreme odds (1-5¢) but new market resets to ~50%
+        // Without this guard, trades open at 1¢ using stale data, then immediately close at 50¢
+        // for fake 5000%+ profits. Block first 30 seconds of each cycle.
+        const now = Math.floor(Date.now() / 1000);
+        const cycleStart = now - (now % 900); // 15 min cycles
+        const elapsedInCycle = now - cycleStart;
+        const CYCLE_BOUNDARY_COOLDOWN = 30; // 30 seconds
+
+        if (elapsedInCycle < CYCLE_BOUNDARY_COOLDOWN) {
+            return null; // BLOCK: Market data may be stale from previous cycle
+        }
+
 
         // Calculate expectation for each side
         const yesExpect = confidence;
@@ -3094,8 +3132,9 @@ class SupremeBrain {
             // 🔴 GOD MODE: LIQUIDITY VOID DETECTION (Wide spreads = danger zone)
             // If Yes + No significantly != 100 (spread > 5%), liquidity is thin
             const marketData = currentMarkets[this.asset];
-            const spread = marketData ? Math.abs(1 - (marketData.yesPrice + marketData.noPrice)) : 0;
-            const isLiquidityVoid = spread > 0.05; // 5% spread = liquidity void
+            // 🔴 FORENSIC FIX: Null market = assume liquidity void (not safe), was defaulting to 0 (safe)
+            const spread = marketData ? Math.abs(1 - (marketData.yesPrice + marketData.noPrice)) : 1.0;
+            const isLiquidityVoid = spread > 0.05 || !marketData; // Explicit: no market = void
             if (isLiquidityVoid && marketData) {
                 log(`⚠️ LIQUIDITY VOID: Spread ${(spread * 100).toFixed(1)}% (Yes ${(marketData.yesPrice * 100).toFixed(0)}¢ + No ${(marketData.noPrice * 100).toFixed(0)}¢ ≠ 100%)`, this.asset);
             }
@@ -4367,7 +4406,8 @@ function connectWebSocket() {
         // 🔮 CHAINLINK STABILITY: Check for stale data every 15 seconds
         wsTimeoutInterval = setInterval(() => {
             const staleMs = Date.now() - lastChainlinkDataTime;
-            if (staleMs > 60000 && ws.readyState === WebSocket.OPEN) {
+            // 🔴 FORENSIC FIX: Reduced from 60s to 15s - 60s is too long for 15-min markets
+            if (staleMs > 15000 && ws.readyState === WebSocket.OPEN) {
                 log(`⚠️ CHAINLINK TIMEOUT: No data for ${Math.floor(staleMs / 1000)}s - forcing reconnection...`);
                 ws.close(4000, 'Stale data timeout');
             } else if (staleMs > 30000 && staleMs <= 60000) {
@@ -4395,6 +4435,11 @@ function connectWebSocket() {
                 const asset = map[msg.payload?.symbol];
                 if (asset && msg.payload?.value) {
                     const price = parseFloat(msg.payload.value);
+                    // 🔴 FORENSIC FIX: Guard against NaN prices
+                    if (isNaN(price) || price <= 0) {
+                        log(`⚠️ Invalid price received for ${asset}: ${msg.payload.value}`);
+                        return;
+                    }
                     livePrices[asset] = price;
                     const now = Date.now();
                     lastUpdateTimestamp = now;
@@ -4494,7 +4539,9 @@ async function fetchCurrentMarkets() {
                 fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[1]}`)
             ]);
 
-            let yesPrice = 0.5, noPrice = 0.5;
+            // 🔴 FORENSIC FIX: Default to null (not 50/50) when no order book
+            // 50/50 default causes cross-cycle bug: old cycle 1¢ + new cycle 50¢ default = fake profits
+            let yesPrice = null, noPrice = null;
 
             // Extract best ask prices from order book
             if (upBook?.asks?.length) {
@@ -4512,6 +4559,17 @@ async function fetchCurrentMarkets() {
             } else if (upBook?.asks?.length) {
                 noPrice = 1 - yesPrice;
             }
+
+            // 🔴 FORENSIC FIX: If no order book data at all, market is not tradeable
+            if (yesPrice === null && noPrice === null) {
+                log(`⚠️ NO ORDER BOOK DATA for ${asset} - market not tradeable yet`, asset);
+                currentMarkets[asset] = null;
+                continue;
+            }
+
+            // Fallback: if only one side has data, derive the other
+            if (yesPrice === null && noPrice !== null) yesPrice = 1 - noPrice;
+            if (noPrice === null && yesPrice !== null) noPrice = 1 - yesPrice;
 
             if (!marketOddsHistory[asset]) marketOddsHistory[asset] = [];
             marketOddsHistory[asset].push({ yes: yesPrice, no: noPrice, timestamp: Date.now() });
