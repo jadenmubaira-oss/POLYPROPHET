@@ -466,10 +466,10 @@ const CONFIG = {
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
-        minElapsedSeconds: 120,  // 🔮 MOLECULAR: Wait 2 min for data to stabilize
+        minElapsedSeconds: 180,  // 🔴 UNBOUNDED FIX: 180s minimum (was 120 - too early, noisy data)
         minConsensus: 0.70,      // 70%+ models must agree (raised from 65%)
         minConfidence: 0.70,     // 70%+ confidence required (raised from 60%)
-        minEdge: 10,             // 🔮 MOLECULAR: 10%+ edge (raised from 5%)
+        minEdge: 15,             // 🔴 UNBOUNDED FIX: 15%+ edge (was 10 - need safety margin)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
         maxOdds: 0.50,           // 🔮 MOLECULAR: Buy at ≤50¢ (value zone)
@@ -538,7 +538,7 @@ const CONFIG = {
 
     // Risk Management - 🔮 ORACLE MODE (90%+ Win Rate, 1-2 Week Timeline)
     RISK: {
-        maxTotalExposure: 0.75,  // 🔮 ORACLE: 75% for aggressive compounding
+        maxTotalExposure: 0.50,  // 🔴 UNBOUNDED FIX: 50% max (was 75% - too aggressive per Kelly)
         globalStopLoss: 0.40,   // -40% day = wider safety net
         globalStopLossOverride: false,
         cooldownAfterLoss: 0,  // 🔮 ORACLE: NO cooldown (continuous trading)
@@ -556,7 +556,7 @@ const CONFIG = {
 
         // 🔮 NEW: ORACLE-LEVEL FEATURES
         enablePositionPyramiding: true,  // Add to winning positions
-        firstMoveAdvantage: true,        // Bonus for trading <30s
+        firstMoveAdvantage: false,        // 🔴 UNBOUNDED FIX: Disabled (was true - <30s is noisy)
         supremeConfidenceMode: true      // Only trade 75%+ confidence
     },
 
@@ -2868,9 +2868,10 @@ class SupremeBrain {
                         continue;
                     }
 
-                    // ⚠️ PENALTY ZONE: 50-55% = reduced weight (marginal performance)
-                    if (accuracy < 0.55) {
-                        weights[model] = 0.25;
+                    // ⚠️ PENALTY ZONE: 50-60% = ZERO weight (still dilutes high-accuracy models)
+                    // 🔴 UNBOUNDED FIX: Was 0.25 weight - now ZERO (50-55% is still harmful)
+                    if (accuracy < 0.60) {
+                        weights[model] = 0; // DISABLED - too close to coin flip
                         continue;
                     }
 
@@ -3139,9 +3140,10 @@ class SupremeBrain {
                 log(`⚠️ LIQUIDITY VOID: Spread ${(spread * 100).toFixed(1)}% (Yes ${(marketData.yesPrice * 100).toFixed(0)}¢ + No ${(marketData.noPrice * 100).toFixed(0)}¢ ≠ 100%)`, this.asset);
             }
 
-            // 🔴 GOD MODE: FINAL MINUTE BLOCK - No NEW predictions in last 60 seconds
+            // 🔴 GOD MODE: FINAL 90 SECONDS BLOCK - No NEW predictions in last 90 seconds
             // Existing predictions are held via blackout, but new signals are killed
-            const isFinalMinute = elapsed >= 840;
+            // 🔴 UNBOUNDED FIX #7: 60s was too tight for sell execution, extended to 90s
+            const isFinalMinute = elapsed >= 810; // 900-810 = 90 seconds before end
 
             if (isLagging || isPanic || isSpoofing || isExtremeVolatility || isLiquidityVoid || isFinalMinute) {
                 votes.UP = 0; votes.DOWN = 0; totalConfidence = 0;
@@ -3191,6 +3193,29 @@ class SupremeBrain {
                 if (force > 0) { finalSignal = 'UP'; finalConfidence = 0.6 + (absForce / (atr * 3)); }
                 else { finalSignal = 'DOWN'; finalConfidence = 0.6 + (absForce / (atr * 3)); }
                 finalConfidence = Math.min(0.75, finalConfidence);
+            }
+
+            // 🔴🔴🔴 GENESIS HARD VETO 🔴🔴🔴
+            // When Genesis accuracy >90%, it OVERRIDES the ensemble if it disagrees
+            // Genesis has 94.4% accuracy - trust it over low-accuracy models
+            const genesisAccForVeto = this.modelAccuracy.genesis;
+            if (genesisAccForVeto.total >= 10) {
+                const genesisAccuracyForVeto = genesisAccForVeto.wins / genesisAccForVeto.total;
+                const genesisVote = modelVotes.genesis;
+
+                if (genesisAccuracyForVeto > 0.90 && genesisVote && finalSignal !== 'NEUTRAL') {
+                    if (finalSignal !== genesisVote) {
+                        log(`⚠️ GENESIS VETO ACTIVATED ⚠️`, this.asset);
+                        log(`   Ensemble says: ${finalSignal}`, this.asset);
+                        log(`   Genesis says: ${genesisVote} (${(genesisAccuracyForVeto * 100).toFixed(1)}% accurate)`, this.asset);
+                        log(`   OVERRIDING to: ${genesisVote}`, this.asset);
+                        finalSignal = genesisVote;
+                        finalConfidence = Math.max(finalConfidence, 0.85); // High confidence when Genesis vetoes
+                    } else {
+                        // Genesis agrees with ensemble - boost confidence
+                        finalConfidence = Math.min(0.95, finalConfidence * 1.1);
+                    }
+                }
             }
 
             // === THRESHOLD DETERMINATION (Regime-Aware) ===
@@ -3614,7 +3639,7 @@ class SupremeBrain {
             // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
             // 🕐 minElapsedSeconds: Wait for confidence to build before trading
             const minElapsed = CONFIG.ORACLE.minElapsedSeconds || 60;
-            if (CONFIG.ORACLE.enabled && !this.convictionLocked && tier === 'CONVICTION' && elapsed >= minElapsed && elapsed < 300) {
+            if (CONFIG.ORACLE.enabled && !this.convictionLocked && tier === 'CONVICTION' && elapsed >= minElapsed && elapsed < 600) {
                 const market = currentMarkets[this.asset];
                 if (market) {
                     const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
