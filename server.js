@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 5;  // Version 5: 1 trade/asset/cycle + loss cooldown
+const CONFIG_VERSION = 6;  // Version 6: maxOdds 65→60 (better R/R ratio)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -476,7 +476,7 @@ const CONFIG = {
         minEdge: 8,              // 🔴 TUNED: 8% edge (was 15 - too restrictive, no trades)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.65,           // 🔴 TUNED: Buy at ≤65¢ (was 50¢ - too restrictive)
+        maxOdds: 0.60,           // 🔴 FIX #16: 60¢ (was 65¢ - need 60% win rate, not 64%)
         minStability: 3,         // 3 ticks stable for confidence
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
