@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 6;  // Version 6: maxOdds 65→60 (better R/R ratio)
+const CONFIG_VERSION = 9;  // Version 9: Aggressive position sizing (40-50%)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -459,7 +459,7 @@ const CONFIG = {
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
     PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '10'),   // 🔴 FIXED: Default £10 (was 1000)
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.10'),
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.40'),  // 🔴 FIX #19: 40% (was 10%)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -1065,13 +1065,13 @@ class TradeExecutor {
                 // For small bankrolls: use minimum viable size
                 // For large bankrolls: use percentage-based sizing
                 const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
-                const MAX_FRACTION = 0.30; // Never risk more than 30% on one trade
+                const MAX_FRACTION = 0.50; // 🔴 FIX #19: 50% max (was 30%) - faster compounding
 
                 // Calculate base percentage
                 let basePct;
                 switch (mode) {
                     case 'ORACLE':
-                        basePct = Math.min(0.15, confidence * 0.15); // Up to 15% at max confidence
+                        basePct = Math.min(0.40, confidence * 0.50); // 🔴 FIX #19: Up to 40% at max conf
                         break;
                     case 'SCALP':
                         basePct = 0.08; // 8% for scalps - quick in/out
@@ -4734,7 +4734,18 @@ async function saveState() {
         regime: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].regimeHistory }), {}),
         // PINNACLE: Model accuracy (THE LEARNING!) - MUST be persisted
         modelAccuracy: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].modelAccuracy }), {}),
-        recentOutcomes: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].recentOutcomes }), {})
+        recentOutcomes: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].recentOutcomes }), {}),
+
+        // 🔴 FIX #17: PERSIST TRADE EXECUTOR STATE (survives restarts!)
+        tradeExecutor: {
+            paperBalance: tradeExecutor.paperBalance,
+            startingBalance: tradeExecutor.startingBalance,
+            tradeHistory: tradeExecutor.tradeHistory.slice(-100), // Keep last 100 trades
+            todayPnL: tradeExecutor.todayPnL,
+            consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
+            lastLossTime: tradeExecutor.lastLossTime || 0,
+            lastDayReset: tradeExecutor.lastDayReset
+        }
     };
 
     // Save to Redis if available
@@ -4838,6 +4849,19 @@ async function loadState() {
                 // PINNACLE: RESTORE MODEL ACCURACY (THE LEARNING!) - CRITICAL FOR GENUINE EVOLUTION
                 if (state.modelAccuracy) ASSETS.forEach(a => { if (state.modelAccuracy[a]) Brains[a].modelAccuracy = state.modelAccuracy[a]; });
                 if (state.recentOutcomes) ASSETS.forEach(a => { if (state.recentOutcomes[a]) Brains[a].recentOutcomes = state.recentOutcomes[a]; });
+
+                // 🔴 FIX #17: RESTORE TRADE EXECUTOR STATE (preserves balance across restarts!)
+                if (state.tradeExecutor) {
+                    const te = state.tradeExecutor;
+                    if (te.paperBalance !== undefined) tradeExecutor.paperBalance = te.paperBalance;
+                    if (te.startingBalance !== undefined) tradeExecutor.startingBalance = te.startingBalance;
+                    if (te.tradeHistory && Array.isArray(te.tradeHistory)) tradeExecutor.tradeHistory = te.tradeHistory;
+                    if (te.todayPnL !== undefined) tradeExecutor.todayPnL = te.todayPnL;
+                    if (te.consecutiveLosses !== undefined) tradeExecutor.consecutiveLosses = te.consecutiveLosses;
+                    if (te.lastLossTime !== undefined) tradeExecutor.lastLossTime = te.lastLossTime;
+                    if (te.lastDayReset !== undefined) tradeExecutor.lastDayReset = te.lastDayReset;
+                    log(`💰 Trade state restored: Balance=$${tradeExecutor.paperBalance.toFixed(2)}, History=${tradeExecutor.tradeHistory.length} trades`);
+                }
 
                 log('💾 State Restored from Redis (including model learning!)');
                 return;
@@ -6176,7 +6200,8 @@ app.get('/api/state', (req, res) => {
     // Add trading system data
     const inCooldown = tradeExecutor.isInCooldown();
     const cooldownRemaining = inCooldown ? Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - tradeExecutor.lastLossTime)) / 1000) : 0;
-    const globalStopTriggered = Math.abs(tradeExecutor.todayPnL) > tradeExecutor.paperBalance * CONFIG.RISK.globalStopLoss;
+    // 🔴 FIX #18: Only NEGATIVE P/L triggers stop loss (was using Math.abs which triggered on PROFIT!)
+    const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > tradeExecutor.paperBalance * CONFIG.RISK.globalStopLoss;
 
     // 🔴 FIX #15: Determine halt reason for UI display
     let haltReason = null;
