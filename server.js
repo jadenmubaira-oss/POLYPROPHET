@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 9;  // Version 9: Aggressive position sizing (40-50%)
+const CONFIG_VERSION = 11;  // Version 11: FIX #20-22 (tighter ORACLE, global cycle limit, 30min cooldown)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -473,10 +473,10 @@ const CONFIG = {
         minElapsedSeconds: 180,  // 🔴 UNBOUNDED FIX: 180s minimum (was 120 - too early, noisy data)
         minConsensus: 0.70,      // 70%+ models must agree (raised from 65%)
         minConfidence: 0.70,     // 70%+ confidence required (raised from 60%)
-        minEdge: 8,              // 🔴 TUNED: 8% edge (was 15 - too restrictive, no trades)
+        minEdge: 10,             // 🔴 BALANCED: 10% edge (12% too restrictive, 8% too loose)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.60,           // 🔴 FIX #16: 60¢ (was 65¢ - need 60% win rate, not 64%)
+        maxOdds: 0.60,           // 🔴 REVERTED TO 60¢: 55¢ blocked 7/8 winning trades in backtest!
         minStability: 3,         // 3 ticks stable for confidence
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
@@ -545,7 +545,7 @@ const CONFIG = {
         maxTotalExposure: 0.50,  // 🔴 UNBOUNDED FIX: 50% max (was 75% - too aggressive per Kelly)
         globalStopLoss: 0.40,   // -40% day = wider safety net
         globalStopLossOverride: false,
-        cooldownAfterLoss: 3600,            // 🔴 FIX: 1 hour cooldown after loss streak (was 0)
+        cooldownAfterLoss: 1800,            // 🔴 FIX #22: 30 min cooldown (was 1hr - too long, missed winning trades)
         enableLossCooldown: true,            // 🔴 FIX: Enabled (was false)
         noTradeDetection: true,   // Still block genuinely random markets
         enableCircuitBreaker: false, // 🔮 OFF - trade through volatility (opportunity!)
@@ -557,6 +557,7 @@ const CONFIG = {
         maxDailyLosses: 8,        // More trades allowed (from 5)
         autoReduceSizeOnDrawdown: false, // Maintain aggression
         withdrawalNotification: 1000,
+        maxGlobalTradesPerCycle: 2, // 🔴 FIX #21: Max 2 trades across ALL assets per cycle (prevents correlated losses)
 
         // 🔮 NEW: ORACLE-LEVEL FEATURES
         enablePositionPyramiding: true,  // Add to winning positions
@@ -787,6 +788,12 @@ class TradeExecutor {
         this.cycleTradeCount[asset] = (this.cycleTradeCount[asset] || 0) + 1;
     }
 
+    // 📊 FIX #21: Get GLOBAL cycle trade count (all assets combined)
+    getGlobalCycleTradeCount() {
+        this.getCycleTradeCount('BTC'); // Ensure cycle is current
+        return Object.values(this.cycleTradeCount).reduce((sum, count) => sum + count, 0);
+    }
+
     // 🔄 CRITICAL: Reset daily P/L at the start of each new day
     // This prevents global stop loss from permanently halting trading
     resetDailyPnL() {
@@ -1003,12 +1010,21 @@ class TradeExecutor {
                 return { success: false, error: `Trading disabled for ${asset}` };
             }
 
-            // 📊 MAX TRADES PER CYCLE CHECK
+            // 📊 MAX TRADES PER CYCLE CHECK (per asset)
             const cycleTradeCount = this.getCycleTradeCount(asset);
             const maxTrades = this.getMaxTradesPerCycle(asset);
             if (cycleTradeCount >= maxTrades) {
                 log(`⚠️ TRADE BLOCKED: Max trades (${maxTrades}) reached for ${asset} this cycle`, asset);
                 return { success: false, error: `Max trades (${maxTrades}) per cycle reached for ${asset}` };
+            }
+
+            // 📊 FIX #21: GLOBAL MAX TRADES PER CYCLE CHECK (all assets combined)
+            // Prevents correlated losses when multiple assets move against predictions simultaneously
+            const globalCycleCount = this.getGlobalCycleTradeCount();
+            const maxGlobalTrades = CONFIG.RISK.maxGlobalTradesPerCycle || 4;
+            if (globalCycleCount >= maxGlobalTrades) {
+                log(`⚠️ TRADE BLOCKED: Global max trades (${maxGlobalTrades}) reached across all assets this cycle`, asset);
+                return { success: false, error: `Global max trades (${maxGlobalTrades}) per cycle reached` };
             }
 
             // ENTRY PRICE GUARD: REMOVED - Bot learns from all trades, even at extreme prices
