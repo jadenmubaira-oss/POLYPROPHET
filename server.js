@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 4;  // Version 4: minEdge 15→8, maxOdds 0.50→0.65 (more trades)
+const CONFIG_VERSION = 5;  // Version 5: 1 trade/asset/cycle + loss cooldown
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -545,15 +545,15 @@ const CONFIG = {
         maxTotalExposure: 0.50,  // 🔴 UNBOUNDED FIX: 50% max (was 75% - too aggressive per Kelly)
         globalStopLoss: 0.40,   // -40% day = wider safety net
         globalStopLossOverride: false,
-        cooldownAfterLoss: 0,  // 🔮 ORACLE: NO cooldown (continuous trading)
-        enableLossCooldown: false, // 🔮 OFF for maximum speed
+        cooldownAfterLoss: 3600,            // 🔴 FIX: 1 hour cooldown after loss streak (was 0)
+        enableLossCooldown: true,            // 🔴 FIX: Enabled (was false)
         noTradeDetection: true,   // Still block genuinely random markets
         enableCircuitBreaker: false, // 🔮 OFF - trade through volatility (opportunity!)
         enableDivergenceBlocking: false, // 🔮 OFF - trust our ensemble over market
         aggressiveSizingOnLosses: true, // 🔮 Maintain size (confidence in system)
 
         // 🔮 ORACLE SAFEGUARDS
-        maxConsecutiveLosses: 5,  // Higher tolerance (from 3)
+        maxConsecutiveLosses: 3,  // 🔴 FIX: Reduced from 5 to 3 (pause earlier)
         maxDailyLosses: 8,        // More trades allowed (from 5)
         autoReduceSizeOnDrawdown: false, // Maintain aggression
         withdrawalNotification: 1000,
@@ -571,12 +571,12 @@ const CONFIG = {
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
     },
 
-    // PER-ASSET TRADING CONTROLS - 🔮 ORACLE MODE (5 trades/cycle)
+    // PER-ASSET TRADING CONTROLS - 🔴 FIX: 1 trade/asset/cycle (diversification)
     ASSET_CONTROLS: {
-        BTC: { enabled: true, maxTradesPerCycle: 5 },
-        ETH: { enabled: true, maxTradesPerCycle: 5 },
-        SOL: { enabled: true, maxTradesPerCycle: 5 },
-        XRP: { enabled: true, maxTradesPerCycle: 5 }
+        BTC: { enabled: true, maxTradesPerCycle: 1 },
+        ETH: { enabled: true, maxTradesPerCycle: 1 },
+        SOL: { enabled: true, maxTradesPerCycle: 1 },
+        XRP: { enabled: true, maxTradesPerCycle: 1 }
     }
 };
 
@@ -682,6 +682,9 @@ class TradeExecutor {
         // 📊 CYCLE TRADE TRACKING - Max trades per cycle per asset
         this.cycleTradeCount = {};     // { 'BTC': 1, 'ETH': 0, ... }
         this.currentCycleStart = 0;    // Timestamp of current cycle start
+
+        // 🔴 FIX #14: Track consecutive losses for cooldown trigger
+        this.consecutiveLosses = 0;    // Resets on win, triggers cooldown after maxConsecutiveLosses
 
         // 🔒 GOD MODE: TRADE EXECUTION MUTEX - Prevent race conditions
         // Without this, two trades could pass balance checks simultaneously
@@ -1012,8 +1015,12 @@ class TradeExecutor {
             // The bot's learning loop will naturally penalize bad patterns
             // User requested: allow 2¢-99¢ trades if confident
 
-            // COOLDOWN: REMOVED - Bot learns from each trade/decision
-            // User requested: no cooldown as long as bot is learning
+            // 🔴 FIX: LOSS COOLDOWN CHECK - Pause 1 hour after 3 consecutive losses
+            if (CONFIG.RISK.enableLossCooldown && this.isInCooldown()) {
+                const remainingCooldown = Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - this.lastLossTime)) / 1000);
+                log(`⏳ TRADE BLOCKED: In cooldown for ${remainingCooldown}s after consecutive losses`, asset);
+                return { success: false, error: `In cooldown for ${remainingCooldown}s after loss streak` };
+            }
 
             // Check max positions per asset
             if (this.getPositionCount(asset) >= CONFIG.MAX_POSITIONS_PER_ASSET) {
@@ -1622,9 +1629,17 @@ class TradeExecutor {
             trade.reason = reason;
         }
 
-        // Cooldown on loss
+        // 🔴 FIX #14: Track CONSECUTIVE losses - only trigger cooldown after maxConsecutiveLosses
         if (pnl < 0) {
-            this.lastLossTime = Date.now();
+            this.consecutiveLosses = (this.consecutiveLosses || 0) + 1;
+            // Only trigger cooldown after maxConsecutiveLosses (default 3)
+            if (this.consecutiveLosses >= CONFIG.RISK.maxConsecutiveLosses) {
+                this.lastLossTime = Date.now();
+                log(`🔴 CONSECUTIVE LOSSES: ${this.consecutiveLosses} - Triggering ${CONFIG.RISK.cooldownAfterLoss}s cooldown`, pos.asset);
+            }
+        } else {
+            // WIN - reset consecutive losses
+            this.consecutiveLosses = 0;
         }
 
         // Add WINNING live positions to redemption queue for later claiming
@@ -4959,6 +4974,10 @@ app.get('/', (req, res) => {
             <button id="resumeTradingBtn" onclick="toggleStopLossOverride()" style="margin-left:15px;padding:4px 10px;border-radius:4px;border:1px solid #ff9900;background:transparent;color:#ff9900;cursor:pointer;font-size:0.75em;display:none;">🔓 Resume Trading</button>
         </div>
         <span class="mode-badge" id="modeBadge">PAPER</span>
+        <!-- 🔴 FIX #15: Visual halt indicator -->
+        <div id="haltIndicator" style="display:none;background:linear-gradient(135deg,#ff0000,#ff4400);color:white;padding:8px 16px;border-radius:6px;font-weight:bold;animation:pulse 1s infinite;margin-left:15px;font-size:0.9em;box-shadow:0 0 20px rgba(255,0,0,0.5);">
+            🛑 <span id="haltReason">TRADING HALTED</span>
+        </div>
     </div>
     <div class="main-container">
         <div class="predictions-grid" id="predictionsGrid"><div style="text-align:center;padding:40px;color:#666;">Loading predictions...</div></div>
@@ -5589,6 +5608,17 @@ app.get('/', (req, res) => {
                     document.getElementById('positionCount').textContent = (t.positionCount || 0) + ' positions';
                     document.getElementById('paperBtn').className = t.mode === 'PAPER' ? 'paper active' : 'paper';
                     document.getElementById('liveBtn').className = t.mode === 'LIVE' ? 'live active' : 'live';
+                    
+                    // 🔴 FIX #15: Update halt indicator visibility and reason
+                    const haltIndicator = document.getElementById('haltIndicator');
+                    const haltReasonEl = document.getElementById('haltReason');
+                    if (t.isHalted && t.haltReason) {
+                        haltIndicator.style.display = 'block';
+                        haltReasonEl.textContent = t.haltReason;
+                    } else {
+                        haltIndicator.style.display = 'none';
+                    }
+                    
                     const positions = Object.entries(t.positions || {});
                     if (positions.length > 0) {
                         let posHtml = '';
@@ -6144,6 +6174,18 @@ app.get('/api/state', (req, res) => {
     });
 
     // Add trading system data
+    const inCooldown = tradeExecutor.isInCooldown();
+    const cooldownRemaining = inCooldown ? Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - tradeExecutor.lastLossTime)) / 1000) : 0;
+    const globalStopTriggered = Math.abs(tradeExecutor.todayPnL) > tradeExecutor.paperBalance * CONFIG.RISK.globalStopLoss;
+
+    // 🔴 FIX #15: Determine halt reason for UI display
+    let haltReason = null;
+    if (inCooldown) {
+        haltReason = `⏳ COOLDOWN: ${Math.floor(cooldownRemaining / 60)}m ${cooldownRemaining % 60}s remaining after ${tradeExecutor.consecutiveLosses || 0} consecutive losses`;
+    } else if (globalStopTriggered) {
+        haltReason = `🛑 GLOBAL STOP LOSS: Daily loss exceeds ${(CONFIG.RISK.globalStopLoss * 100).toFixed(0)}%`;
+    }
+
     response._trading = {
         mode: CONFIG.TRADE_MODE,
         balance: tradeExecutor.paperBalance,
@@ -6161,7 +6203,13 @@ app.get('/api/state', (req, res) => {
             UNCERTAINTY: CONFIG.UNCERTAINTY.enabled,
             MOMENTUM: CONFIG.MOMENTUM.enabled
         },
-        inCooldown: tradeExecutor.isInCooldown()
+        // 🔴 FIX #15: Comprehensive halt status for UI
+        inCooldown: inCooldown,
+        cooldownRemaining: cooldownRemaining,
+        consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
+        globalStopTriggered: globalStopTriggered,
+        haltReason: haltReason,
+        isHalted: inCooldown || globalStopTriggered
     };
 
     res.json(response);
