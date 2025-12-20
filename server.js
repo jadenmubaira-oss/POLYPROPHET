@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 3;  // Version 3: PAPER_BALANCE default 10 (was 1000)
+const CONFIG_VERSION = 4;  // Version 4: minEdge 15→8, maxOdds 0.50→0.65 (more trades)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -473,10 +473,10 @@ const CONFIG = {
         minElapsedSeconds: 180,  // 🔴 UNBOUNDED FIX: 180s minimum (was 120 - too early, noisy data)
         minConsensus: 0.70,      // 70%+ models must agree (raised from 65%)
         minConfidence: 0.70,     // 70%+ confidence required (raised from 60%)
-        minEdge: 15,             // 🔴 UNBOUNDED FIX: 15%+ edge (was 10 - need safety margin)
+        minEdge: 8,              // 🔴 TUNED: 8% edge (was 15 - too restrictive, no trades)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.50,           // 🔮 MOLECULAR: Buy at ≤50¢ (value zone)
+        maxOdds: 0.65,           // 🔴 TUNED: Buy at ≤65¢ (was 50¢ - too restrictive)
         minStability: 3,         // 3 ticks stable for confidence
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
