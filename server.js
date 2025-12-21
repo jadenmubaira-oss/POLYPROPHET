@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 16;  // Version 16: OPTIMIZATION - maxOdds 0.65, reduced cooldown, more trade opportunities
+const CONFIG_VERSION = 17;  // Version 17: SUPREME DEITY - Golden Mean (0.62 maxOdds, 15m cooldown, 2 trades) = Survival + Growth
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -476,7 +476,7 @@ const CONFIG = {
         minEdge: 10,             // 🔴 BALANCED: 10% edge (12% too restrictive, 8% too loose)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.65,           // 🎯 v16: RAISED to 65¢ - debug logs show winning trades at 59-65¢ being blocked!
+        maxOdds: 0.62,           // 🎯 v17 SUPREME DEITY: Golden Mean - captures 59-62¢ wins, avoids risky >63¢ bets
         minStability: 3,         // 3 ticks stable for confidence
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
@@ -545,7 +545,7 @@ const CONFIG = {
         maxTotalExposure: 0.50,  // 🔴 UNBOUNDED FIX: 50% max (was 75% - too aggressive per Kelly)
         globalStopLoss: 0.40,   // -40% day = wider safety net
         globalStopLossOverride: false,
-        cooldownAfterLoss: 600,             // 🔴 v16: 10 min cooldown (was 30 min - too long with 97.8% accuracy)
+        cooldownAfterLoss: 900,             // 🛡️ v17: 15 min cooldown (1 full cycle) - smart recovery after losses
         enableLossCooldown: true,            // 🔴 FIX: Enabled (was false)
         noTradeDetection: true,   // Still block genuinely random markets
         enableCircuitBreaker: false, // 🔮 OFF - trade through volatility (opportunity!)
@@ -557,7 +557,7 @@ const CONFIG = {
         maxDailyLosses: 8,        // More trades allowed (from 5)
         autoReduceSizeOnDrawdown: false, // Maintain aggression
         withdrawalNotification: 1000,
-        maxGlobalTradesPerCycle: 3, // 🔴 v16: Max 3 trades per cycle (was 2 - missed opportunities with 97.8% accuracy)
+        maxGlobalTradesPerCycle: 2, // 🛡️ v17 SUPREME DEITY: Correlation shield - limits damage if Genesis wrong
 
         // 🔮 NEW: ORACLE-LEVEL FEATURES
         enablePositionPyramiding: true,  // Add to winning positions
@@ -5118,7 +5118,7 @@ app.get('/', (req, res) => {
             
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
             <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('PINNACLE_V16')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">🔮 PINNACLE v16<br><small style="font-weight:normal;opacity:0.7;">MAXIMUM GAINS</small></button>
+                <button onclick="applyPreset('PINNACLE_V17')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">🔮 SUPREME DEITY v17<br><small style="font-weight:normal;opacity:0.7;">FINAL PERFECTION</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
                 <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
@@ -5895,7 +5895,7 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
-                PINNACLE_V16: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.65, minStability: 3 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 600, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 3 } },
+                PINNACLE_V17: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.62, minStability: 3 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 900, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 2 } },
                 CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
                 BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
