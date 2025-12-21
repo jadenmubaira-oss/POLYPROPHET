@@ -1,13 +1,14 @@
-# 🔮 POLYPROPHET: SUPREME DEITY v17 (FINAL)
-> **The "God Mode" Trading Engine | 100% Perfected Logic**
-> *Status: DEPLOYED (v17 Golden Mean)*
+# 🛡️ POLYPROPHET: SINGLETON PROTOCOL v18 (FINAL)
+> **The "One Trade Per Cycle" Engine | Correlation-Immune**
+> *Status: DEPLOYED (v18 Singleton Protocol)*
 
 **Current Configuration:**
-- **Max Odds:** 0.62 (The Mathematical Sweet Spot)
-- **Cooldown:** 15 Minutes (Smart Recovery)
-- **Risk Shield:** 2 Trades Max Per Cycle
+- **Strategy:** 🛡️ Singleton Protocol (1 Trade Per Cycle)
+- **Max Odds:** 0.58 (Conservative Sweet Spot)
+- **Cooldown:** 20 Minutes (Recovery Buffer)
 - **Accuracy:** >94% (Genesis Veto Enabled)
 
+**🔒 CORRELATION IMMUNITY:** Bot selects the SINGLE highest-conviction trade per cycle, eliminating multi-asset correlation wipeouts. LIVE trading verified - no silent errors.
 
 ---
 
