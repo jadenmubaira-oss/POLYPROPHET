@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 11;  // Version 11: FIX #20-22 (tighter ORACLE, global cycle limit, 30min cooldown)
+const CONFIG_VERSION = 12;  // Version 12: FIX #23-24 (warmup period, safer position sizing 25%/30%)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -690,6 +690,12 @@ class TradeExecutor {
         // 🔒 GOD MODE: TRADE EXECUTION MUTEX - Prevent race conditions
         // Without this, two trades could pass balance checks simultaneously
         this.tradeMutex = false;        // Simple mutex lock for trade execution
+
+        //  FIX #23: WARMUP PERIOD - Reduce risk on fresh startup
+        // For first 2 cycles after startup, use reduced position sizes
+        this.startupTime = Date.now();
+        this.warmupCycles = 2;          // Number of cycles to stay in warmup mode
+        this.warmupSizeMultiplier = 0.5; // Use 50% of normal size during warmup
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
@@ -1081,13 +1087,13 @@ class TradeExecutor {
                 // For small bankrolls: use minimum viable size
                 // For large bankrolls: use percentage-based sizing
                 const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
-                const MAX_FRACTION = 0.50; // 🔴 FIX #19: 50% max (was 30%) - faster compounding
+                const MAX_FRACTION = 0.30; //  FIX #24: 30% max (was 50%) - safer compounding
 
                 // Calculate base percentage
                 let basePct;
                 switch (mode) {
                     case 'ORACLE':
-                        basePct = Math.min(0.40, confidence * 0.50); // 🔴 FIX #19: Up to 40% at max conf
+                        basePct = Math.min(0.25, confidence * 0.35); //  FIX #24: Up to 25% (was 40%) - safer
                         break;
                     case 'SCALP':
                         basePct = 0.08; // 8% for scalps - quick in/out
@@ -1105,6 +1111,14 @@ class TradeExecutor {
 
                 // Calculate size based on actual bankroll
                 size = bankroll * basePct;
+
+                //  FIX #23: WARMUP PERIOD - Reduce size for first 2 cycles after startup
+                const elapsedSinceStartup = Date.now() - this.startupTime;
+                const warmupDuration = this.warmupCycles * INTERVAL_SECONDS * 1000;
+                if (elapsedSinceStartup < warmupDuration) {
+                    size = size * this.warmupSizeMultiplier;
+                    log(` WARMUP MODE: Size reduced to ${(this.warmupSizeMultiplier * 100).toFixed(0)}% (${size.toFixed(2)})`, asset);
+                }
 
                 // SMART MINIMUM: Ensure we meet $1.10 minimum
                 // If percentage-based size is too small, use minimum (if affordable)
