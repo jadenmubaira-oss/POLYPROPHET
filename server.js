@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 12;  // Version 12: FIX #23-24 (warmup period, safer position sizing 25%/30%)
+const CONFIG_VERSION = 13;  // Version 13: Tiered sizing (CONVICTION=30%, ADVISORY=15%), maxOdds 58¢
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -476,7 +476,7 @@ const CONFIG = {
         minEdge: 10,             // 🔴 BALANCED: 10% edge (12% too restrictive, 8% too loose)
         requireTrending: false,  // Allow all regimes
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.60,           // 🔴 REVERTED TO 60¢: 55¢ blocked 7/8 winning trades in backtest!
+        maxOdds: 0.58,           // 🎯 OPTIMIZED: 58¢ blocks marginal 59-60¢ bets, preserves 46-58¢ winners
         minStability: 3,         // 3 ticks stable for confidence
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
@@ -1093,7 +1093,16 @@ class TradeExecutor {
                 let basePct;
                 switch (mode) {
                     case 'ORACLE':
-                        basePct = Math.min(0.25, confidence * 0.35); //  FIX #24: Up to 25% (was 40%) - safer
+                        // 🎯 TIERED SIZING: Higher confidence tier = bigger bet
+                        // CONVICTION (98% accuracy) = Full size, ADVISORY (75% accuracy) = Half size
+                        const tradeTier = options.tier || 'ADVISORY';
+                        if (tradeTier === 'CONVICTION') {
+                            basePct = 0.30; // Full 30% for high-confidence trades
+                            log(`💎 CONVICTION tier: Full 30% sizing`, asset);
+                        } else {
+                            basePct = 0.15; // Half 15% for medium-confidence trades  
+                            log(`📊 ADVISORY tier: Half 15% sizing`, asset);
+                        }
                         break;
                     case 'SCALP':
                         basePct = 0.08; // 8% for scalps - quick in/out
@@ -3696,7 +3705,7 @@ class SupremeBrain {
             // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
             // 🕐 minElapsedSeconds: Wait for confidence to build before trading
             const minElapsed = CONFIG.ORACLE.minElapsedSeconds || 60;
-            if (CONFIG.ORACLE.enabled && !this.convictionLocked && tier === 'CONVICTION' && elapsed >= minElapsed && elapsed < 600) {
+            if (CONFIG.ORACLE.enabled && !this.convictionLocked && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed >= minElapsed && elapsed < 600) {
                 const market = currentMarkets[this.asset];
                 if (market) {
                     const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
@@ -3763,7 +3772,7 @@ class SupremeBrain {
                             log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
                             log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
 
-                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market);
+                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier });
                         } else {
                             log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
                         }
