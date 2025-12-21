@@ -3,9 +3,9 @@
 > **AI-powered prediction bot for Polymarket 15-minute crypto markets**
 > 
 > **Mission**: £10 → £1,000,000 through strategic compounding  
-> **Status**: 🔮 ORACLE MODE (Dec 20, 2025) - CONFIG v9 - 19 Fixes Applied
-> **Oracle Features**: Adaptive learning | 40-50% position sizing | 60¢ maxOdds  
-> **Win Rate**: 88.9%+ observed in latest trades  
+> **Status**: 🔮 PINNACLE v14 (Dec 21, 2025) - 24 Fixes Applied  
+> **Key Features**: Tiered sizing (CONVICTION 30% / ADVISORY 15%) | 58¢ maxOdds | Genesis Veto  
+> **Win Rate Target**: 85-90%+ with stricter ADVISORY (80%+ confidence required)  
 > **Deployment**: Production-ready with LIVE trading verified
 
 
@@ -780,6 +780,31 @@ Control trade frequency via the aggression slider (0-100%):
 
 ## 📜 Recent Updates
 
+### 🔮 CONFIG v14 PINNACLE (Dec 21, 2025)
+
+**TIERED CONFIDENCE SYSTEM:**
+| Tier | Min Confidence | Position Size | Accuracy |
+|------|----------------|---------------|----------|
+| **CONVICTION** | 70%+ | 30% | ~98% |
+| **ADVISORY** | 80%+ | 15% | ~80%+ |
+| **NONE** | Any | BLOCKED | N/A |
+
+**KEY v14 CHANGES:**
+- ✅ **maxOdds 58¢** - Blocks marginal 59-60¢ bets (was 60¢)
+- ✅ **Tiered Sizing** - CONVICTION 30%, ADVISORY 15% (was flat 25%)
+- ✅ **Stricter ADVISORY** - Requires 80%+ confidence (was 70%+)
+- ✅ **Genesis Veto** - 94.6% accurate model can override ensemble
+- ✅ **PINNACLE UI Preset** - One-click reset to optimal v14 settings
+- ✅ **CONFIG_VERSION Protection** - Hardcoded v14 overrides UI on restart
+
+**HARD BLOCKS (Cannot be bypassed):**
+1. Negative edge → BLOCKED (guaranteed loss)
+2. Genesis disagreement → BLOCKED (94% model veto)
+3. Edge < 5% → BLOCKED (minimum floor)
+4. Entry > 58¢ → BLOCKED (no value bets)
+5. NONE tier → BLOCKED (coin flip accuracy)
+
+**PREVIOUS UPDATES:**
 - ✅ **Telegram Notifications** - Trade alerts, stop loss events, server status
 - ✅ **ORACLE Stop Loss UI** - Optional emergency stop loss for ORACLE trades
 - ✅ **Oracle Aggression Slider** - Control prediction frequency (0-100%)

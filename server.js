@@ -5085,6 +5085,9 @@ app.get('/', (req, res) => {
             </div>
             
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
+                <button onclick="applyPreset('PINNACLE_V14')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">🔮 PINNACLE v14<br><small style="font-weight:normal;opacity:0.7;">AI Optimized</small></button>
+            </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
                 <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
                 <button onclick="applyPreset('BALANCED')" style="flex:1;padding:12px;border:2px solid #ffaa00;border-radius:8px;background:rgba(255,170,0,0.15);color:#ffaa00;cursor:pointer;font-weight:bold;">⚖️ Balanced<br><small style="font-weight:normal;opacity:0.7;">Medium Risk</small></button>
@@ -5860,6 +5863,7 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
+                PINNACLE_V14: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.58, minStability: 3 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1800, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 2 } },
                 CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
                 BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
