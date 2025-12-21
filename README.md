@@ -1,16 +1,16 @@
-# ⚡ POLYPROPHET: VARIANCE KILLER v19 (FINAL)
-> **The "Mathematical Edge" Engine | Variance-Immune**
-> *Status: DEPLOYED (v19 Variance Killer Protocol)*
+# 🦅 POLYPROPHET: DYNAMIC AGGRESSION v20 (FINAL)
+> **The "Hunter-Gatherer" Engine | Variance-Immune + Activity-Aware**
+> *Status: DEPLOYED (v20 Dynamic Aggression Protocol)*
 
 **Current Configuration:**
-- **Strategy:** ⚡ Variance Killer (Math Advantage + Regime Lock)
-- **Max Odds:** 0.55 (Even 55% Win Rate = PROFIT)
-- **Regime:** TRENDING Only (Blocks 'Coin Flip' Noise)
-- **Stability:** 5 Ticks (Sniper Wait)
-- **Cooldown:** 20 Minutes (Recovery Buffer)
+- **Strategy:** 🦅 Hunter-Gatherer (Auto-switches SNIPER ↔ HUNTER)
+- **Max Odds:** 0.55 SNIPER / 0.58 HUNTER (Math Advantage)
+- **Stability:** 4 Ticks SNIPER / 3 Ticks HUNTER
+- **Dormancy:** 90 min = Switch to HUNTER
+- **Safety:** 2 HUNTER losses = Retreat to SNIPER
 - **Global Limit:** 1 Trade Per Cycle (Singleton)
 
-**🔒 VARIANCE IMMUNITY:** Bot only trades TRENDING markets at max 55¢ odds. Even with 50% market variance, the math guarantees long-term profit. LIVE trading verified.
+**🔒 VARIANCE + DORMANCY IMMUNITY:** Bot auto-switches from strict SNIPER mode to relaxed HUNTER mode after 90min inactivity. If HUNTER takes 2 losses, retreats to SNIPER. LIVE trading verified.
 
 ---
 

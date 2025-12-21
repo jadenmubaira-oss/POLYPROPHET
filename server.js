@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 19;  // Version 19: VARIANCE KILLER - maxOdds 0.55, requireTrending true, minStability 5 = Mathematical Edge
+const CONFIG_VERSION = 20;  // Version 20: DYNAMIC AGGRESSION - Auto-switches SNIPER/HUNTER based on market activity. Balanced: requireTrending false, maxOdds 0.55
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -474,10 +474,10 @@ const CONFIG = {
         minConsensus: 0.70,      // 70%+ models must agree (raised from 65%)
         minConfidence: 0.70,     // 70%+ confidence required (raised from 60%)
         minEdge: 10,             // 🔴 BALANCED: 10% edge (12% too restrictive, 8% too loose)
-        requireTrending: true,   // 🎯 v19 VARIANCE KILLER: Only trade TRENDING markets (blocks 'coin flip' noise)
+        requireTrending: false,  // 🎯 v20 BALANCED: Allow all regimes (Hunter-Gatherer handles dormancy via auto-switch)
         requireMomentum: false,  // Don't require perfect timing
         maxOdds: 0.55,           // 🎯 v19 VARIANCE KILLER: Even 55% win rate = PROFIT. Math advantage.
-        minStability: 5,         // 🎯 v19 VARIANCE KILLER: 5 ticks stable = 'Sniper Wait' (was 3)
+        minStability: 4,         // 🎯 v20 BALANCED: 4 ticks stable (compromise between speed and safety)
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
     },
@@ -697,6 +697,15 @@ class TradeExecutor {
         this.warmupCycles = 2;          // Number of cycles to stay in warmup mode
         this.warmupSizeMultiplier = 0.5; // Use 50% of normal size during warmup
 
+        // 🦅 v20 DYNAMIC AGGRESSION: Hunter-Gatherer Protocol
+        // Auto-switches between SNIPER (strict) and HUNTER (relaxed) based on market activity
+        this.aggressionMode = 'SNIPER';     // Current mode: 'SNIPER' or 'HUNTER'
+        this.lastTradeTime = Date.now();    // Track when last trade was executed
+        this.autoAggressionEnabled = true;  // UI toggle for auto-switching
+        this.hunterLossStreak = 0;          // Track losses while in HUNTER mode (resets on mode switch)
+        this.DORMANCY_THRESHOLD_MS = 90 * 60 * 1000;  // 90 minutes = switch to HUNTER
+        this.HUNTER_LOSS_LIMIT = 2;         // 2 losses in HUNTER mode = retreat to SNIPER
+
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
@@ -798,6 +807,60 @@ class TradeExecutor {
     getGlobalCycleTradeCount() {
         this.getCycleTradeCount('BTC'); // Ensure cycle is current
         return Object.values(this.cycleTradeCount).reduce((sum, count) => sum + count, 0);
+    }
+
+    // 🦅 v20 DYNAMIC AGGRESSION: Check and auto-switch between SNIPER/HUNTER modes
+    checkDynamicAggression() {
+        if (!this.autoAggressionEnabled) return;
+
+        const timeSinceLastTrade = Date.now() - this.lastTradeTime;
+
+        // SNIPER → HUNTER: If dormant for too long, relax thresholds
+        if (this.aggressionMode === 'SNIPER' && timeSinceLastTrade > this.DORMANCY_THRESHOLD_MS) {
+            this.setAggressionMode('HUNTER');
+            log(`🔥 DYNAMIC AGGRESSION: Switching to HUNTER mode (dormant ${Math.round(timeSinceLastTrade / 60000)}min)`);
+        }
+
+        // HUNTER → SNIPER: If taking losses in aggressive mode, retreat to safety
+        if (this.aggressionMode === 'HUNTER' && this.hunterLossStreak >= this.HUNTER_LOSS_LIMIT) {
+            this.setAggressionMode('SNIPER');
+            log(`🛡️ DYNAMIC AGGRESSION: Switching to SNIPER mode (${this.hunterLossStreak} losses in HUNTER)`);
+            this.hunterLossStreak = 0; // Reset counter
+        }
+    }
+
+    // 🦅 v20: Set aggression mode (also callable from UI)
+    setAggressionMode(mode) {
+        const validModes = ['SNIPER', 'HUNTER'];
+        if (!validModes.includes(mode)) return;
+
+        const oldMode = this.aggressionMode;
+        this.aggressionMode = mode;
+
+        // Reset hunter loss streak when switching modes
+        if (mode === 'HUNTER') {
+            this.hunterLossStreak = 0;
+        }
+
+        log(`🦅 AGGRESSION MODE: ${oldMode} → ${mode}`);
+    }
+
+    // 🦅 v20: Get current mode-adjusted maxOdds
+    // SNIPER = strict (0.55), HUNTER = relaxed (0.58)
+    getEffectiveMaxOdds() {
+        if (this.aggressionMode === 'HUNTER') {
+            return Math.min(CONFIG.ORACLE.maxOdds + 0.03, 0.60); // Max 60¢ in HUNTER
+        }
+        return CONFIG.ORACLE.maxOdds; // Default: 55¢ in SNIPER
+    }
+
+    // 🦅 v20: Get current mode-adjusted minStability
+    // SNIPER = strict (4), HUNTER = relaxed (3)
+    getEffectiveMinStability() {
+        if (this.aggressionMode === 'HUNTER') {
+            return Math.max(CONFIG.ORACLE.minStability - 1, 2); // Min 2 in HUNTER
+        }
+        return CONFIG.ORACLE.minStability; // Default in SNIPER
     }
 
     // 🔄 CRITICAL: Reset daily P/L at the start of each new day
@@ -1687,14 +1750,22 @@ class TradeExecutor {
         // 🔴 FIX #14: Track CONSECUTIVE losses - only trigger cooldown after maxConsecutiveLosses
         if (pnl < 0) {
             this.consecutiveLosses = (this.consecutiveLosses || 0) + 1;
+            // 🦅 v20: Track losses in HUNTER mode for retreat trigger
+            if (this.aggressionMode === 'HUNTER') {
+                this.hunterLossStreak++;
+                log(`🔥 HUNTER Loss #${this.hunterLossStreak}/${this.HUNTER_LOSS_LIMIT}`, pos.asset);
+            }
             // Only trigger cooldown after maxConsecutiveLosses (default 3)
             if (this.consecutiveLosses >= CONFIG.RISK.maxConsecutiveLosses) {
                 this.lastLossTime = Date.now();
                 log(`🔴 CONSECUTIVE LOSSES: ${this.consecutiveLosses} - Triggering ${CONFIG.RISK.cooldownAfterLoss}s cooldown`, pos.asset);
             }
         } else {
-            // WIN - reset consecutive losses
+            // WIN - reset consecutive losses and hunter streak
             this.consecutiveLosses = 0;
+            this.hunterLossStreak = 0;
+            // 🦅 v20: Reset dormancy timer on successful trade
+            this.lastTradeTime = Date.now();
         }
 
         // Add WINNING live positions to redemption queue for later claiming
@@ -3790,8 +3861,8 @@ class SupremeBrain {
                             edge: edgePercent >= adjustedMinEdge,
                             regime: !CONFIG.ORACLE.requireTrending || isTrending,
                             momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
-                            odds: currentOdds <= CONFIG.ORACLE.maxOdds,
-                            stability: stabilityMet
+                            odds: currentOdds <= tradeExecutor.getEffectiveMaxOdds(), // 🦅 v20: Dynamic based on SNIPER/HUNTER mode
+                            stability: this.stabilityCounter >= tradeExecutor.getEffectiveMinStability() || this.prediction === finalSignal // 🦅 v20: Dynamic
                         };
 
                         const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
@@ -5118,7 +5189,7 @@ app.get('/', (req, res) => {
             
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
             <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('VARIANCE_KILLER_V19')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">⚡ VARIANCE KILLER v19<br><small style="font-weight:normal;opacity:0.7;">MATH ADVANTAGE</small></button>
+                <button onclick="applyPreset('DYNAMIC_V20')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">🦅 DYNAMIC v20<br><small style="font-weight:normal;opacity:0.7;">HUNTER-GATHERER</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
                 <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
@@ -5895,7 +5966,7 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
-                VARIANCE_KILLER_V19: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.55, minStability: 5, requireTrending: true }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
+                DYNAMIC_V20: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.55, minStability: 4, requireTrending: false }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
                 CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
                 BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
