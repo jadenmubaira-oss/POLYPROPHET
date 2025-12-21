@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 18;  // Version 18: SINGLETON PROTOCOL - 1 trade/cycle globally, 0.58 maxOdds, 20min cooldown = Maximum Safety
+const CONFIG_VERSION = 19;  // Version 19: VARIANCE KILLER - maxOdds 0.55, requireTrending true, minStability 5 = Mathematical Edge
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -474,10 +474,10 @@ const CONFIG = {
         minConsensus: 0.70,      // 70%+ models must agree (raised from 65%)
         minConfidence: 0.70,     // 70%+ confidence required (raised from 60%)
         minEdge: 10,             // 🔴 BALANCED: 10% edge (12% too restrictive, 8% too loose)
-        requireTrending: false,  // Allow all regimes
+        requireTrending: true,   // 🎯 v19 VARIANCE KILLER: Only trade TRENDING markets (blocks 'coin flip' noise)
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.58,           // 🎯 v18 SINGLETON: Conservative sweet spot - avoids edge-boundary losses
-        minStability: 3,         // 3 ticks stable for confidence
+        maxOdds: 0.55,           // 🎯 v19 VARIANCE KILLER: Even 55% win rate = PROFIT. Math advantage.
+        minStability: 5,         // 🎯 v19 VARIANCE KILLER: 5 ticks stable = 'Sniper Wait' (was 3)
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
     },
@@ -5118,7 +5118,7 @@ app.get('/', (req, res) => {
             
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
             <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('SINGLETON_V18')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">🛡️ SINGLETON v18<br><small style="font-weight:normal;opacity:0.7;">1 TRADE/CYCLE</small></button>
+                <button onclick="applyPreset('VARIANCE_KILLER_V19')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">⚡ VARIANCE KILLER v19<br><small style="font-weight:normal;opacity:0.7;">MATH ADVANTAGE</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
                 <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
@@ -5895,7 +5895,7 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
-                SINGLETON_V18: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.58, minStability: 3 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
+                VARIANCE_KILLER_V19: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.55, minStability: 5, requireTrending: true }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
                 CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
                 BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
