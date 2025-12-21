@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 13;  // Version 13: Tiered sizing (CONVICTION=30%, ADVISORY=15%), maxOdds 58¢
+const CONFIG_VERSION = 14;  // Version 14: Stricter ADVISORY (requires 80%+ conf), tiered sizing, maxOdds 58¢
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -3705,7 +3705,9 @@ class SupremeBrain {
             // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
             // 🕐 minElapsedSeconds: Wait for confidence to build before trading
             const minElapsed = CONFIG.ORACLE.minElapsedSeconds || 60;
-            if (CONFIG.ORACLE.enabled && !this.convictionLocked && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed >= minElapsed && elapsed < 600) {
+            // 🎯 STRICTER ADVISORY: Require 80%+ confidence for ADVISORY (vs 70% for CONVICTION)
+            const meetsAdvisoryThreshold = tier === 'CONVICTION' || (tier === 'ADVISORY' && finalConfidence >= 0.80);
+            if (CONFIG.ORACLE.enabled && !this.convictionLocked && meetsAdvisoryThreshold && elapsed >= minElapsed && elapsed < 600) {
                 const market = currentMarkets[this.asset];
                 if (market) {
                     const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
