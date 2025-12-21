@@ -1,12 +1,12 @@
-# 🔮 POLYPROPHET - Supreme Oracle Prediction Engine
+# 🔮 POLYPROPHET: SUPREME DEITY v17 (FINAL)
+> **The "God Mode" Trading Engine | 100% Perfected Logic**
+> *Status: DEPLOYED (v17 Golden Mean)*
 
-> **AI-powered prediction bot for Polymarket 15-minute crypto markets**
-> 
-> **Mission**: £10 → £1,000,000 through strategic compounding  
-> **Status**: 🔮 SUPREME DEITY v17 (Dec 21, 2025) - FINAL: 62¢ maxOdds, 15min cooldown, 2 trades/cycle  
-> **Genesis Accuracy**: 94.5% verified | CONVICTION: 97.8% (2132/2179 trades)  
-> **Configuration**: "Golden Mean" - Optimal balance of Survival + Growth for £1M mission  
-> **Deployment**: Production-ready with LIVE trading verified
+**Current Configuration:**
+- **Max Odds:** 0.62 (The Mathematical Sweet Spot)
+- **Cooldown:** 15 Minutes (Smart Recovery)
+- **Risk Shield:** 2 Trades Max Per Cycle
+- **Accuracy:** >94% (Genesis Veto Enabled)
 
 
 ---
@@ -1327,13 +1327,7 @@ Repeat: £100 → £1,000 in 10-14 days
 5. Click "Save All Settings"
 6. Settings persist across restarts via Redis
 
-### December 11, 2025 - 🔮 Oracle Mode
-
-**TRUE PROPHET-LEVEL: 90-95% Win Rate Target**
-
-Oracle mode is the ultimate configuration for maximum win rate through intelligence features rather than just aggressive settings:
-
-**🔮 Oracle-Specific Features:**
+**Oracle Mode features:**
 
 | Feature | Description | Impact |
 |---------|-------------|--------|
