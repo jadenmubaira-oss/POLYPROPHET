@@ -1,17 +1,18 @@
-# 💥 POLYPROPHET: UNDERDOG v21 (FINAL)
-> **The "Math Shield" Engine | Variance-Immune Money Printer**
-> *Status: DEPLOYED (v21 UNDERDOG Protocol)*
+# 💰 POLYPROPHET: VOLATILITY HARVESTER v22 (PINNACLE)
+> **Shield & Spear Engine | Harvest Swings, Lock Profits**
+> *Status: DEPLOYED (v22 Volatility Harvester Protocol)*
 
 **Current Configuration:**
-- **Strategy:** 💥 UNDERDOG (Buy Cheap, Win More)
-- **Max Odds:** 0.48 SNIPER / 0.50 HUNTER (Below Breakeven)
+- **Strategy:** 💰 HARVESTER (Buy Cheap + Exit Early on Gains)
+- **Entry Shield (v21):** Max Odds 0.48 SNIPER / 0.50 HUNTER
+- **Exit Spear (v22):** Early Take Profit at +25% Gain
 - **Regime:** TRENDING only in SNIPER, ALL in HUNTER
 - **Stability:** 4 Ticks SNIPER / 3 Ticks HUNTER
 - **Dormancy:** 90 min = Switch to HUNTER (find cheap dips)
-- **Safety:** 2 HUNTER losses = Retreat to SNIPER
+- **Safety:** 2 HUNTER losses = Retreat to SNIPER, 30% Stop Loss
 - **Global Limit:** 1 Trade Per Cycle (Singleton)
 
-**🔒 THE MONEY PRINTER:** Bot ONLY buys at 48-50¢. Even with 50% variance, math guarantees profit. HUNTER mode finds cheap entries in choppy markets. LIVE trading verified.
+**🔒 THE MONEY PRINTER:** Bot buys at 48-50¢ (Shield) and exits at +25% gain (Spear). Harvests volatility swings before reversal. Even choppy markets become profit opportunities.
 
 ---
 

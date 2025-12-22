@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 21;  // Version 21: UNDERDOG PROTOCOL - maxOdds 0.48 (Shield), requireTrending true (SNIPER). HUNTER relaxes regime, NOT price.
+const CONFIG_VERSION = 22;  // Version 22: VOLATILITY HARVESTER - v21 Shield (maxOdds 0.48) + v22 Spear (Early Take Profit at +25%)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -479,7 +479,9 @@ const CONFIG = {
         maxOdds: 0.48,           // 🎯 v21 UNDERDOG: Buy CHEAP (48¢) = profit even with 48% accuracy. NEVER COMPROMISE.
         minStability: 4,         // 🎯 v20 BALANCED: 4 ticks stable (compromise between speed and safety)
         stopLoss: 0.30,          // 🛡️ 30% stop loss
-        stopLossEnabled: true    // 🛡️ MOLECULAR: ENABLED for loss protection
+        stopLossEnabled: true,   // 🛡️ MOLECULAR: ENABLED for loss protection
+        earlyTakeProfitEnabled: true,    // 💰 v22 VOLATILITY HARVESTER: Exit early on gains
+        earlyTakeProfitThreshold: 0.25   // 💰 v22: Exit at +25% gain (48¢ -> 60¢) to harvest swings
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -1917,6 +1919,21 @@ class TradeExecutor {
                 log(`⏰ PRE-RESOLUTION EXIT: ${pos.mode} ${pos.side} position closing at ${(currentOdds * 100).toFixed(1)}%`, pos.asset);
                 this.closePosition(id, currentOdds, 'PRE-RESOLUTION EXIT (30s)');
                 return;
+            }
+
+            // ==================== v22 VOLATILITY HARVESTER: EARLY TAKE PROFIT ====================
+            // Harvest swing profits before market reverses. Exit at +25% gain instead of holding to resolution.
+            // This turns potential reversals into guaranteed wins.
+            if (pos.mode === 'ORACLE' && CONFIG.ORACLE.earlyTakeProfitEnabled) {
+                const gainPercent = (currentOdds - pos.entry) / pos.entry;
+
+                // Only trigger if we're in profit by threshold amount AND have enough time left
+                if (gainPercent >= CONFIG.ORACLE.earlyTakeProfitThreshold && timeToEnd > 60) {
+                    const profitPercent = (gainPercent * 100).toFixed(0);
+                    log(`💰 EARLY TAKE PROFIT: +${profitPercent}% gain! Harvesting swing (entry ${(pos.entry * 100).toFixed(0)}¢ → exit ${(currentOdds * 100).toFixed(0)}¢)`, pos.asset);
+                    this.closePosition(id, currentOdds, `ORACLE EARLY TP +${profitPercent}% ✅`);
+                    return;
+                }
             }
 
             // ==================== DEITY-LEVEL: SMART STOP LOSS ====================
@@ -5198,7 +5215,7 @@ app.get('/', (req, res) => {
             
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
             <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('UNDERDOG_V21')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">💥 UNDERDOG v21<br><small style="font-weight:normal;opacity:0.7;">MATH SHIELD</small></button>
+                <button onclick="applyPreset('HARVESTER_V22')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">💰 HARVESTER v22<br><small style="font-weight:normal;opacity:0.7;">VOLATILITY PROFITS</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
                 <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
@@ -5975,7 +5992,7 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
-                UNDERDOG_V21: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
+                HARVESTER_V22: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.25 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
                 CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
                 BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
