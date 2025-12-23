@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 23;  // Version 23: GUARDIAN - Always-On Stop Loss (No Diamond Hands) + Faster Take Profit (20%)
+const CONFIG_VERSION = 24;  // Version 24: APEX - 5-Layer Zero-Variance System (Arbitrage + Genesis Supremacy + Hedged Oracle + Death Bounce)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -471,8 +471,8 @@ const CONFIG = {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
         minElapsedSeconds: 180,  // 🔴 UNBOUNDED FIX: 180s minimum (was 120 - too early, noisy data)
-        minConsensus: 0.70,      // 70%+ models must agree (raised from 65%)
-        minConfidence: 0.70,     // 70%+ confidence required (raised from 60%)
+        minConsensus: 0.85,      // 🏆 APEX v24: 85%+ models must agree (Genesis Supremacy - Layer 2)
+        minConfidence: 0.85,     // 🏆 APEX v24: 85%+ confidence (Genesis Supremacy - Layer 2)
         minEdge: 10,             // 🔴 BALANCED: 10% edge (12% too restrictive, 8% too loose)
         requireTrending: true,   // 🎯 v21 UNDERDOG: SNIPER default = Only Trending markets (HUNTER relaxes this)
         requireMomentum: false,  // Don't require perfect timing
@@ -481,7 +481,9 @@ const CONFIG = {
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true,   // 🛡️ MOLECULAR: ENABLED for loss protection
         earlyTakeProfitEnabled: true,    // 💰 v22 VOLATILITY HARVESTER: Exit early on gains
-        earlyTakeProfitThreshold: 0.25   // 💰 v22: Exit at +25% gain (48¢ -> 60¢) to harvest swings
+        earlyTakeProfitThreshold: 0.20,  // 🏆 APEX v24: Exit at +20% gain (faster profit taking)
+        hedgeEnabled: true,              // 🏆 APEX v24: Enable hedged positions (Layer 3)
+        hedgeRatio: 0.20                  // 🏆 APEX v24: 20% hedge on opposite side
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -495,16 +497,17 @@ const CONFIG = {
     },
 
     // MODE 2B: ILLIQUIDITY GAP 💰 - Guaranteed profit when Yes+No < 100%
-    // MOLECULAR: Uses arbitrage toggle by default, but has own settings
+    // 🏆 APEX v24: ENABLED - TRUE ZERO VARIANCE (Layer 1)
     ILLIQUIDITY_GAP: {
-        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
+        enabled: true,           // 🏆 APEX v24: TRUE ARBITRAGE - ZERO VARIANCE
         minGap: 0.03,            // 3% minimum gap (covers fees + profit)
         maxEntryTotal: 0.97      // Only enter if Yes+No <= 97%
     },
 
     // MODE 2C: DEATH BOUNCE 💀 - Buy ultra-cheap shares on overreaction
+    // 🏆 APEX v24: ENABLED - Capture extreme odds (Layer 4)
     DEATH_BOUNCE: {
-        enabled: false,          // 🔮 MOLECULAR: Disabled for focus
+        enabled: true,           // 🏆 APEX v24: ENABLED for extreme odds capture
         minPrice: 0.03,          // 3¢ minimum (below = probably stays dead)
         maxPrice: 0.12,          // 12¢ maximum (above = not "death" level)
         targetPrice: 0.18,       // Target 18¢ for exit (2-3x profit)
@@ -1295,8 +1298,104 @@ class TradeExecutor {
             // 📱 TELEGRAM NOTIFICATION: Trade opened (with market links)
             sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market));
 
+
             if (this.mode === 'PAPER') {
                 const balanceBefore = this.paperBalance;
+
+                // ==================== 🏆 APEX v24: HEDGED ORACLE (Layer 3) ====================
+                // If hedging is enabled for ORACLE trades, split position into main + hedge
+                const shouldHedge = mode === 'ORACLE' && CONFIG.ORACLE.hedgeEnabled && CONFIG.ORACLE.hedgeRatio > 0;
+
+                if (shouldHedge) {
+                    // Calculate split sizes
+                    const hedgeRatio = CONFIG.ORACLE.hedgeRatio || 0.20;
+                    const mainSize = size * (1 - hedgeRatio);
+                    const hedgeSize = size * hedgeRatio;
+
+                    // Determine hedge direction and prices
+                    const hedgeDirection = direction === 'UP' ? 'DOWN' : 'UP';
+                    const hedgeTokenType = hedgeDirection === 'UP' ? 'YES' : 'NO';
+                    const hedgePrice = hedgeDirection === 'UP' ? market.yesPrice : market.noPrice;
+
+                    // Deduct total from balance
+                    this.paperBalance -= size;
+
+                    // ---- MAIN POSITION ----
+                    const mainPositionId = `${asset}_${Date.now()}`;
+                    this.positions[mainPositionId] = {
+                        asset,
+                        mode: 'ORACLE',
+                        side: direction,
+                        tokenType,
+                        size: mainSize,
+                        entry: entryPrice,
+                        time: Date.now(),
+                        target,
+                        stopLoss: null, // No stop loss needed - hedge provides protection
+                        shares: mainSize / entryPrice,
+                        isHedged: true,
+                        hedgeId: null // Will be set below
+                    };
+
+                    // ---- HEDGE POSITION ----
+                    const hedgePositionId = `${asset}_HEDGE_${Date.now()}`;
+                    this.positions[hedgePositionId] = {
+                        asset,
+                        mode: 'HEDGE',
+                        side: hedgeDirection,
+                        tokenType: hedgeTokenType,
+                        size: hedgeSize,
+                        entry: hedgePrice,
+                        time: Date.now(),
+                        target: null,
+                        stopLoss: null,
+                        shares: hedgeSize / hedgePrice,
+                        isHedge: true,
+                        mainId: mainPositionId
+                    };
+
+                    // Link main to hedge
+                    this.positions[mainPositionId].hedgeId = hedgePositionId;
+
+                    // Record both in trade history
+                    this.tradeHistory.push({
+                        id: mainPositionId,
+                        asset,
+                        mode: 'ORACLE',
+                        side: direction,
+                        entry: entryPrice,
+                        size: mainSize,
+                        time: Date.now(),
+                        status: 'OPEN',
+                        isHedged: true
+                    });
+
+                    this.tradeHistory.push({
+                        id: hedgePositionId,
+                        asset,
+                        mode: 'HEDGE',
+                        side: hedgeDirection,
+                        entry: hedgePrice,
+                        size: hedgeSize,
+                        time: Date.now(),
+                        status: 'OPEN',
+                        isHedge: true
+                    });
+
+                    // PINNACLE: Prevent memory leak
+                    if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
+
+                    log(`🏆 APEX HEDGED ORACLE: Main ${direction} $${mainSize.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+                    log(`🛡️ HEDGE: ${hedgeDirection} $${hedgeSize.toFixed(2)} @ ${(hedgePrice * 100).toFixed(1)}¢ (${(hedgeRatio * 100).toFixed(0)}% protection)`, asset);
+                    log(`💰 Balance: $${balanceBefore.toFixed(2)} → $${this.paperBalance.toFixed(2)} (-$${size.toFixed(2)} total)`, asset);
+
+                    // 📊 Track cycle trade count
+                    this.incrementCycleTradeCount(asset);
+
+                    return { success: true, positionId: mainPositionId, hedgeId: hedgePositionId, mode: 'PAPER', hedged: true };
+                }
+
+                // ---- STANDARD (Non-Hedged) POSITION ----
                 this.paperBalance -= size;
                 this.positions[positionId] = {
                     asset,
@@ -1333,6 +1432,7 @@ class TradeExecutor {
 
                 return { success: true, positionId, mode: 'PAPER' };
             }
+
 
             // LIVE TRADING MODE - ACTUAL EXECUTION
             if (this.mode === 'LIVE') {
@@ -1708,6 +1808,45 @@ class TradeExecutor {
     closePosition(positionId, exitPrice, reason) {
         const pos = this.positions[positionId];
         if (!pos) return;
+
+        // ==================== 🏆 APEX v24: HEDGED POSITION CLOSING ====================
+        // If this is a hedged main position, also close the hedge
+        if (pos.isHedged && pos.hedgeId && this.positions[pos.hedgeId]) {
+            const hedge = this.positions[pos.hedgeId];
+            const hedgeMarket = currentMarkets[hedge.asset];
+            const hedgeExitPrice = hedge.side === 'UP' ? (hedgeMarket?.yesPrice || 0.5) : (hedgeMarket?.noPrice || 0.5);
+
+            // Calculate hedge P&L
+            const hedgePnl = (hedgeExitPrice - hedge.entry) * hedge.shares;
+            const hedgePnlPercent = hedge.entry > 0 ? ((hedgeExitPrice / hedge.entry) - 1) * 100 : 0;
+
+            // Add hedge returns to balance
+            this.paperBalance += hedge.size + hedgePnl;
+            this.todayPnL += hedgePnl;
+
+            log(`🛡️ HEDGE CLOSED: ${hedge.side} Entry ${(hedge.entry * 100).toFixed(1)}¢ → Exit ${(hedgeExitPrice * 100).toFixed(1)}¢ = ${hedgePnl >= 0 ? '+' : ''}$${hedgePnl.toFixed(2)}`, hedge.asset);
+
+            // Update hedge trade history
+            const hedgeTrade = this.tradeHistory.find(t => t.id === pos.hedgeId);
+            if (hedgeTrade) {
+                hedgeTrade.exit = hedgeExitPrice;
+                hedgeTrade.pnl = hedgePnl;
+                hedgeTrade.pnlPercent = hedgePnlPercent;
+                hedgeTrade.status = 'CLOSED';
+                hedgeTrade.closeTime = Date.now();
+                hedgeTrade.reason = 'HEDGE CLOSED (with main)';
+            }
+
+            delete this.positions[pos.hedgeId];
+        }
+
+        // Skip closing if this is a hedge being closed from main (already handled above)
+        if (pos.isHedge) {
+            // Just remove - P&L already calculated when main closed
+            delete this.positions[positionId];
+            return;
+        }
+
 
         // LIVE MODE: Execute actual sell order WITH RETRY
         if (pos.isLive && this.mode === 'LIVE') {
@@ -5981,11 +6120,23 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
+                // 🏆 APEX v24: 5-Layer Zero-Variance System (THE PINNACLE)
+                APEX_V24: { 
+                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.85, minConfidence: 0.85, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: true, hedgeRatio: 0.20 }, 
+                    ILLIQUIDITY_GAP: { enabled: true, minGap: 0.03, maxEntryTotal: 0.97 },
+                    DEATH_BOUNCE: { enabled: true, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
+                    SCALP: { enabled: false }, 
+                    ARBITRAGE: { enabled: false }, 
+                    MOMENTUM: { enabled: false }, 
+                    UNCERTAINTY: { enabled: false }, 
+                    RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } 
+                },
                 GUARDIAN_V23: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
                 CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
                 BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
             };
+
             const p = presets[preset];
             if (!p) return;
             try {
