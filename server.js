@@ -7024,6 +7024,9 @@ app.post('/api/settings', async (req, res) => {
                 SCALP: CONFIG.SCALP,
                 UNCERTAINTY: CONFIG.UNCERTAINTY,
                 MOMENTUM: CONFIG.MOMENTUM,
+                // 🏆 APEX v24 MODES (CRITICAL: Must persist to survive restarts!)
+                ILLIQUIDITY_GAP: CONFIG.ILLIQUIDITY_GAP,
+                DEATH_BOUNCE: CONFIG.DEATH_BOUNCE,
                 RISK: CONFIG.RISK,
                 // 📱 Telegram Settings
                 TELEGRAM: CONFIG.TELEGRAM,
