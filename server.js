@@ -471,9 +471,9 @@ const CONFIG = {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
         minElapsedSeconds: 180,  // 🔴 UNBOUNDED FIX: 180s minimum (was 120 - too early, noisy data)
-        minConsensus: 0.85,      // 🏆 APEX v24: 85%+ models must agree (Genesis Supremacy - Layer 2)
-        minConfidence: 0.85,     // 🏆 APEX v24: 85%+ confidence (Genesis Supremacy - Layer 2)
-        minEdge: 10,             // 🔴 BALANCED: 10% edge (12% too restrictive, 8% too loose)
+        minConsensus: 0.70,      // 🏆 APEX v24 FIX: 70% models must agree (was 85% - too restrictive, 0 trades)
+        minConfidence: 0.70,     // 🏆 APEX v24 FIX: 70% confidence (was 85% - too restrictive, 0 trades)
+        minEdge: 5,              // 🏆 APEX v24 FIX: 5% edge (was 10% - often negative in debug)
         requireTrending: true,   // 🎯 v21 UNDERDOG: SNIPER default = Only Trending markets (HUNTER relaxes this)
         requireMomentum: false,  // Don't require perfect timing
         maxOdds: 0.48,           // 🎯 v21 UNDERDOG: Buy CHEAP (48¢) = profit even with 48% accuracy. NEVER COMPROMISE.
@@ -5428,6 +5428,9 @@ app.get('/', (req, res) => {
             
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
             <div style="display:flex;gap:10px;margin-bottom:10px;">
+                <button onclick="applyPreset('PINNACLE_OPTIMAL')" style="flex:1;padding:15px;border:3px solid #ffd700;border-radius:10px;background:linear-gradient(145deg,rgba(255,215,0,0.4),rgba(255,165,0,0.25));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 30px rgba(255,215,0,0.5);animation:pulse 1.5s infinite;font-size:1.1em;">👑 PINNACLE<br><small style="font-weight:normal;opacity:0.9;">ALL OPTIMAL SETTINGS</small></button>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
                 <button onclick="applyPreset('APEX_V24')" style="flex:1;padding:12px;border:2px solid #00ffaa;border-radius:8px;background:linear-gradient(145deg,rgba(0,255,170,0.35),rgba(0,200,100,0.2));color:#00ffaa;cursor:pointer;font-weight:bold;box-shadow:0 0 20px rgba(0,255,170,0.4);animation:pulse 2s infinite;">🏆 APEX v24<br><small style="font-weight:normal;opacity:0.8;">ZERO VARIANCE</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
@@ -6205,6 +6208,18 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
+                // 👑 PINNACLE_OPTIMAL: THE ULTIMATE - ALL forensic-analysis-derived optimal settings
+                PINNACLE_OPTIMAL: { 
+                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 5, maxOdds: 0.48, minStability: 3, requireTrending: false, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: true, hedgeRatio: 0.20, stopLossEnabled: true, stopLoss: 0.30 }, 
+                    ILLIQUIDITY_GAP: { enabled: true, minGap: 0.03, maxEntryTotal: 0.97 },
+                    DEATH_BOUNCE: { enabled: true, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
+                    SCALP: { enabled: false }, 
+                    ARBITRAGE: { enabled: false }, 
+                    MOMENTUM: { enabled: false }, 
+                    UNCERTAINTY: { enabled: false }, 
+                    RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 2, supremeConfidenceMode: false, firstMoveAdvantage: false, enablePositionPyramiding: false, enableLossCooldown: true },
+                    ASSET_CONTROLS: { BTC: { enabled: true, maxTradesPerCycle: 1 }, ETH: { enabled: true, maxTradesPerCycle: 1 }, SOL: { enabled: true, maxTradesPerCycle: 1 }, XRP: { enabled: true, maxTradesPerCycle: 1 } }
+                },
                 // 🏆 APEX v24: 5-Layer Zero-Variance System (THE PINNACLE)
                 APEX_V24: { 
                     ORACLE: { enabled: true, aggression: 50, minConsensus: 0.85, minConfidence: 0.85, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: true, hedgeRatio: 0.20 }, 
