@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 22;  // Version 22: VOLATILITY HARVESTER - v21 Shield (maxOdds 0.48) + v22 Spear (Early Take Profit at +25%)
+const CONFIG_VERSION = 23;  // Version 23: GUARDIAN - Always-On Stop Loss (No Diamond Hands) + Faster Take Profit (20%)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -1946,27 +1946,16 @@ class TradeExecutor {
             // - Other modes: Respect stopLoss but with smart overrides
             if (pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
 
-                // SMART CHECK 1: Final 120 seconds - HOLD to resolution (binary is all-or-nothing)
-                if (timeToEnd < 120) {
-                    if (elapsed % 30 < 2) { // Only log every 30s
-                        log(`💎 DIAMOND HANDS: Holding to resolution (${timeToEnd}s left) - binary win/loss pending`, pos.asset);
-                    }
-                    // Don't exit - let it resolve
-                }
-                // SMART CHECK 2: Extreme odds (<15¢) - don't lock in massive loss
-                else if (currentOdds < 0.15) {
-                    log(`⚠️ EXTREME ODDS (${(currentOdds * 100).toFixed(0)}¢): Holding for binary resolution`, pos.asset);
-                    // Don't exit - selling at 8¢ is worse than riding to 0¢ or 100¢
-                }
-                // SMART CHECK 3: Early enough (>300s left) and significant loss - cut for recovery
-                else if (timeToEnd > 300) {
-                    const lossPercent = ((pos.entry - currentOdds) / pos.entry) * 100;
-                    if (lossPercent > 30) {
-                        log(`📉 SMART EXIT: -${lossPercent.toFixed(0)}% loss, ${timeToEnd}s left to recover`, pos.asset);
-                        const reason = pos.mode === 'ORACLE' ? 'ORACLE SMART STOP LOSS' : 'SMART STOP LOSS';
-                        this.closePosition(id, currentOdds, reason);
-                    }
-                }
+                // ==================== v23 GUARDIAN UPDATE ====================
+                // PREVIOUSLY: "Diamond Hands" (Held last 120s). Resulted in -100% losses.
+                // NOW: ALWAYS TRIGGER. If we are losing -30%, we SELL.
+
+                const lossPercent = ((pos.entry - currentOdds) / pos.entry * 100).toFixed(0);
+                log(`🛑 GUARDIAN STOP LOSS: Exiting at -${lossPercent}% (Odds ${currentOdds} <= ${pos.stopLoss})`, pos.asset);
+                this.closePosition(id, currentOdds, `STOP LOSS -${lossPercent}% 🛑`);
+
+                this.coolOffAsset(pos.asset, CONFIG.RISK.cooldownAfterLoss || 300);
+                return;
             }
         });
     }
@@ -5992,7 +5981,7 @@ app.get('/', (req, res) => {
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
             const presets = {
-                HARVESTER_V22: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.25 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
+                GUARDIAN_V23: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
                 CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
                 BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
