@@ -2578,6 +2578,24 @@ class OpportunityDetector {
             return null; // BLOCK: Market data may be stale from previous cycle
         }
 
+        // ==================== 🏆 APEX v24: SMART SCALP CONDITIONS ====================
+        const timeRemaining = 900 - elapsedInCycle;
+
+        // 🏆 SMART CONDITION 1: TIME WINDOW (60-600 seconds)
+        // Too early = price unstable, too late = not enough time to profit
+        const MIN_ELAPSED = 60;   // At least 1 minute into cycle
+        const MAX_ELAPSED = 600;  // No later than 10 minutes (need 5 min to exit)
+
+        if (elapsedInCycle < MIN_ELAPSED || elapsedInCycle > MAX_ELAPSED) {
+            return null; // BLOCK: Outside optimal scalp window
+        }
+
+        // 🏆 SMART CONDITION 2: EXIT BUFFER
+        // Ensure we have at least 2 minutes to exit before cycle ends
+        const MIN_TIME_REMAINING = CONFIG.SCALP.exitBeforeEnd || 120;
+        if (timeRemaining < MIN_TIME_REMAINING) {
+            return null; // BLOCK: Too close to resolution
+        }
 
         // Calculate expectation for each side
         const yesExpect = confidence;
@@ -5343,7 +5361,7 @@ app.get('/', (req, res) => {
             
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
             <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('HARVESTER_V22')" style="flex:1;padding:12px;border:2px solid #ffd700;border-radius:8px;background:linear-gradient(145deg,rgba(255,215,0,0.25),rgba(255,170,0,0.15));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 15px rgba(255,215,0,0.3);">💰 HARVESTER v22<br><small style="font-weight:normal;opacity:0.7;">VOLATILITY PROFITS</small></button>
+                <button onclick="applyPreset('APEX_V24')" style="flex:1;padding:12px;border:2px solid #00ffaa;border-radius:8px;background:linear-gradient(145deg,rgba(0,255,170,0.35),rgba(0,200,100,0.2));color:#00ffaa;cursor:pointer;font-weight:bold;box-shadow:0 0 20px rgba(0,255,170,0.4);animation:pulse 2s infinite;">🏆 APEX v24<br><small style="font-weight:normal;opacity:0.8;">ZERO VARIANCE</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
                 <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
@@ -6538,6 +6556,8 @@ app.get('/api/state', (req, res) => {
         modes: {
             ORACLE: CONFIG.ORACLE.enabled,
             ARBITRAGE: CONFIG.ARBITRAGE.enabled,
+            ILLIQUIDITY_GAP: CONFIG.ILLIQUIDITY_GAP.enabled,  // 🏆 APEX v24: TRUE ARBITRAGE
+            DEATH_BOUNCE: CONFIG.DEATH_BOUNCE.enabled,        // 🏆 APEX v24: EXTREME SCALP
             SCALP: CONFIG.SCALP.enabled,
             UNCERTAINTY: CONFIG.UNCERTAINTY.enabled,
             MOMENTUM: CONFIG.MOMENTUM.enabled
@@ -6826,6 +6846,8 @@ app.get('/api/settings', (req, res) => {
         // Mode Configs
         ORACLE: CONFIG.ORACLE,
         ARBITRAGE: CONFIG.ARBITRAGE,
+        ILLIQUIDITY_GAP: CONFIG.ILLIQUIDITY_GAP,  // 🏆 APEX v24: TRUE ARBITRAGE
+        DEATH_BOUNCE: CONFIG.DEATH_BOUNCE,        // 🏆 APEX v24: EXTREME SCALP
         SCALP: CONFIG.SCALP,
         UNCERTAINTY: CONFIG.UNCERTAINTY,
         MOMENTUM: CONFIG.MOMENTUM,
