@@ -1572,7 +1572,78 @@ class TradeExecutor {
                         // 📊 Track cycle trade count
                         this.incrementCycleTradeCount(asset);
 
-                        return { success: true, positionId, mode: 'LIVE' };
+                        // ==================== 🏆 APEX v24: LIVE HEDGED ORACLE ====================
+                        // If hedging is enabled for ORACLE trades, place a hedge order on opposite side
+                        const shouldLiveHedge = mode === 'ORACLE' && CONFIG.ORACLE.hedgeEnabled && CONFIG.ORACLE.hedgeRatio > 0;
+
+                        if (shouldLiveHedge && market && market.tokenIds) {
+                            try {
+                                const hedgeRatio = CONFIG.ORACLE.hedgeRatio || 0.20;
+                                const hedgeSize = size * hedgeRatio;
+                                const hedgeDirection = direction === 'UP' ? 'DOWN' : 'UP';
+                                const hedgeTokenType = hedgeDirection === 'UP' ? 'YES' : 'NO';
+                                const hedgeTokenId = hedgeTokenType === 'YES' ? market.tokenIds.yes : market.tokenIds.no;
+                                const hedgePrice = hedgeTokenType === 'YES' ? market.yesPrice : market.noPrice;
+                                const hedgeShares = Math.floor((hedgeSize / hedgePrice) * 1e6) / 1e6;
+
+                                log(`🛡️ LIVE HEDGE: Placing ${hedgeDirection} ${hedgeShares.toFixed(2)} shares @ ${(hedgePrice * 100).toFixed(1)}¢`, asset);
+
+                                const hedgeOrder = await clobClient.createOrder({
+                                    tokenID: hedgeTokenId,
+                                    price: hedgePrice,
+                                    size: hedgeShares,
+                                    side: 'BUY',
+                                    feeRateBps: 0
+                                });
+
+                                const hedgeResponse = await clobClient.postOrder(hedgeOrder);
+
+                                if (hedgeResponse && hedgeResponse.orderID) {
+                                    log(`✅ LIVE HEDGE PLACED: ${hedgeResponse.orderID}`, asset);
+
+                                    // Store hedge position
+                                    const hedgePositionId = `${asset}_HEDGE_${Date.now()}`;
+                                    this.positions[hedgePositionId] = {
+                                        asset,
+                                        mode: 'HEDGE',
+                                        side: hedgeDirection,
+                                        tokenType: hedgeTokenType,
+                                        size: hedgeSize,
+                                        entry: hedgePrice,
+                                        time: Date.now(),
+                                        shares: hedgeShares,
+                                        isLive: true,
+                                        isHedge: true,
+                                        mainId: positionId,
+                                        status: 'LIVE_OPEN',
+                                        orderID: hedgeResponse.orderID,
+                                        tokenId: hedgeTokenId
+                                    };
+
+                                    // Link main to hedge
+                                    this.positions[positionId].hedgeId = hedgePositionId;
+                                    this.positions[positionId].isHedged = true;
+
+                                    this.tradeHistory.push({
+                                        id: hedgePositionId,
+                                        asset,
+                                        mode: 'HEDGE',
+                                        side: hedgeDirection,
+                                        entry: hedgePrice,
+                                        size: hedgeSize,
+                                        time: Date.now(),
+                                        status: 'LIVE_OPEN',
+                                        isHedge: true
+                                    });
+                                } else {
+                                    log(`⚠️ LIVE HEDGE FAILED: ${JSON.stringify(hedgeResponse)}`, asset);
+                                }
+                            } catch (hedgeErr) {
+                                log(`⚠️ LIVE HEDGE ERROR: ${hedgeErr.message}`, asset);
+                            }
+                        }
+
+                        return { success: true, positionId, mode: 'LIVE', hedged: shouldLiveHedge };
                     } else {
                         const errorDetail = response ? JSON.stringify(response) : 'No response';
                         log(`❌ Order submission failed: ${errorDetail}`, asset);
@@ -5515,6 +5586,26 @@ app.get('/', (req, res) => {
                         <div class="form-group"><label>Exit Before End (s)</label><input type="number" id="momExitBefore" value="180" min="60" max="300"></div>
                     </div>
                 </div>
+                <!-- ILLIQUIDITY_GAP (TRUE ARBITRAGE) -->
+                <div style="margin-bottom:12px;padding:10px;background:rgba(255,215,0,0.15);border-left:3px solid #ffd700;border-radius:4px;">
+                    <strong style="color:#ffd700;">💰 ILLIQUIDITY GAP (True Arbitrage)</strong>
+                    <label style="float:right;color:#888;"><input type="checkbox" id="ilGapEnabled" checked> Enabled</label>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Min Gap</label><input type="number" id="ilGapMinGap" value="0.03" step="0.01" min="0.01" max="0.10"></div>
+                        <div class="form-group"><label>Max Entry Total</label><input type="number" id="ilGapMaxEntry" value="0.97" step="0.01" min="0.90" max="0.99"></div>
+                    </div>
+                </div>
+                <!-- DEATH_BOUNCE (Genesis-Aligned Contrarian) -->
+                <div style="margin-bottom:12px;padding:10px;background:rgba(255,0,0,0.15);border-left:3px solid #ff4444;border-radius:4px;">
+                    <strong style="color:#ff4444;">💀 DEATH BOUNCE (Genesis-Aligned)</strong>
+                    <label style="float:right;color:#888;"><input type="checkbox" id="dbEnabled" checked> Enabled</label>
+                    <div class="form-grid" style="margin-top:8px;">
+                        <div class="form-group"><label>Min Price (¢)</label><input type="number" id="dbMinPrice" value="3" min="1" max="10"></div>
+                        <div class="form-group"><label>Max Price (¢)</label><input type="number" id="dbMaxPrice" value="12" min="5" max="20"></div>
+                        <div class="form-group"><label>Target Price (¢)</label><input type="number" id="dbTargetPrice" value="18" min="10" max="30"></div>
+                        <div class="form-group"><label>Min Score</label><input type="number" id="dbMinScore" value="1.5" step="0.5" min="1" max="5"></div>
+                    </div>
+                </div>
                 <!-- RISK -->
                 <div style="padding:10px;background:rgba(255,0,100,0.1);border-left:3px solid #ff0066;border-radius:4px;">
                     <strong style="color:#ff0066;">⚠️ RISK MANAGEMENT - SMART AGGRESSIVE MODE</strong>
@@ -6138,6 +6229,20 @@ app.get('/', (req, res) => {
                     document.getElementById('momConsensus').value = data.MOMENTUM.minConsensus || 0.75;
                     document.getElementById('momExitBefore').value = data.MOMENTUM.exitBeforeEnd || 180;
                 }
+                // 💰 ILLIQUIDITY_GAP (True Arbitrage)
+                if (data.ILLIQUIDITY_GAP) {
+                    document.getElementById('ilGapEnabled').checked = data.ILLIQUIDITY_GAP.enabled !== false;
+                    document.getElementById('ilGapMinGap').value = data.ILLIQUIDITY_GAP.minGap || 0.03;
+                    document.getElementById('ilGapMaxEntry').value = data.ILLIQUIDITY_GAP.maxEntryTotal || 0.97;
+                }
+                // 💀 DEATH_BOUNCE (Genesis-Aligned)
+                if (data.DEATH_BOUNCE) {
+                    document.getElementById('dbEnabled').checked = data.DEATH_BOUNCE.enabled !== false;
+                    document.getElementById('dbMinPrice').value = ((data.DEATH_BOUNCE.minPrice || 0.03) * 100);
+                    document.getElementById('dbMaxPrice').value = ((data.DEATH_BOUNCE.maxPrice || 0.12) * 100);
+                    document.getElementById('dbTargetPrice').value = ((data.DEATH_BOUNCE.targetPrice || 0.18) * 100);
+                    document.getElementById('dbMinScore').value = data.DEATH_BOUNCE.minScore || 1.5;
+                }
                 if (data.RISK) { 
                     document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.75) * 100; 
                     document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.40) * 100; 
@@ -6290,6 +6395,20 @@ app.get('/', (req, res) => {
                     exitBeforeEnd: parseInt(document.getElementById('momExitBefore').value),
                     breakoutThreshold: 0.03,
                     exitOnReversal: true
+                },
+                // 💰 ILLIQUIDITY_GAP (True Arbitrage)
+                ILLIQUIDITY_GAP: {
+                    enabled: document.getElementById('ilGapEnabled').checked,
+                    minGap: parseFloat(document.getElementById('ilGapMinGap').value),
+                    maxEntryTotal: parseFloat(document.getElementById('ilGapMaxEntry').value)
+                },
+                // 💀 DEATH_BOUNCE (Genesis-Aligned)
+                DEATH_BOUNCE: {
+                    enabled: document.getElementById('dbEnabled').checked,
+                    minPrice: parseFloat(document.getElementById('dbMinPrice').value) / 100,
+                    maxPrice: parseFloat(document.getElementById('dbMaxPrice').value) / 100,
+                    targetPrice: parseFloat(document.getElementById('dbTargetPrice').value) / 100,
+                    minScore: parseFloat(document.getElementById('dbMinScore').value)
                 },
                 RISK: { 
                     maxTotalExposure: parseFloat(document.getElementById('riskMaxExposure').value) / 100, 
