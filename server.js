@@ -2020,6 +2020,28 @@ class TradeExecutor {
                     }
                     break;
 
+                // 🏆 APEX v24 FIX: DEATH_BOUNCE was MISSING from exit cases!
+                case 'DEATH_BOUNCE':
+                    // Exit at target price
+                    if (currentOdds >= pos.target) {
+                        log(`💀 DEATH BOUNCE TARGET HIT: ${(currentOdds * 100).toFixed(0)}¢ >= ${(pos.target * 100).toFixed(0)}¢`, pos.asset);
+                        this.closePosition(id, currentOdds, 'DEATH_BOUNCE TARGET HIT');
+                        return;
+                    }
+                    // Exit on time - must close before cycle ends with buffer
+                    if (timeToEnd <= 60) { // 60 seconds buffer for DEATH_BOUNCE
+                        log(`💀 DEATH BOUNCE TIME EXIT: ${timeToEnd}s remaining`, pos.asset);
+                        this.closePosition(id, currentOdds, 'DEATH_BOUNCE TIME EXIT');
+                        return;
+                    }
+                    // Exit on stop loss (50% loss max)
+                    if (currentOdds <= pos.stopLoss) {
+                        log(`💀 DEATH BOUNCE STOP: ${(currentOdds * 100).toFixed(0)}¢ <= ${(pos.stopLoss * 100).toFixed(0)}¢`, pos.asset);
+                        this.closePosition(id, currentOdds, 'DEATH_BOUNCE STOP LOSS');
+                        return;
+                    }
+                    break;
+
                 case 'UNCERTAINTY':
                     // Exit at reversion target
                     if (pos.side === 'UP' && currentOdds >= pos.target) {
@@ -2511,12 +2533,46 @@ class OpportunityDetector {
         // Mid cycle (180-600s): GOLDEN WINDOW - uncertainty highest
         // Late cycle (600-840s): Still ok, but decreasing
         // Final (840+): Too close to resolution, hold risk high
+
+        // 🏆 APEX v24 FIX: HARD BLOCK first 120 seconds - prevents cycle start trades!
+        if (elapsed < 120) {
+            return null; // BLOCK: Too early in cycle, market forming, stale data risk
+        }
+
+        // 🏆 APEX v24 FIX: HARD BLOCK if not enough time to exit (need 90s buffer)
+        const timeToEnd = INTERVAL_SECONDS - elapsed;
+        if (timeToEnd < 90) {
+            return null; // BLOCK: Not enough time to exit position safely
+        }
+
         const isGoldenWindow = elapsed >= 180 && elapsed <= 600;
         const isLateWindow = elapsed > 600 && elapsed <= 780;
         const windowMultiplier = isGoldenWindow ? 1.2 : (isLateWindow ? 0.9 : 0.5);
 
         // Volatility check: Higher ATR = more bounce potential
         const volBonus = (regime === 'VOLATILE') ? 1.3 : (regime === 'CHOPPY') ? 1.1 : 1.0;
+
+        // ==================== 🏆 APEX v24 FIX: GENESIS SUPREMACY CHECK ====================
+        // DEATH_BOUNCE must align with Genesis model (94.2% accurate)
+        // If Genesis says UP, only buy YES (direction UP)
+        // If Genesis says DOWN, only buy NO (direction DOWN)
+        const brain = brains[asset];
+        let genesisDirection = null;
+        let genesisAccuracy = 0;
+
+        if (brain && brain.modelAccuracy && brain.modelAccuracy.genesis) {
+            const genAcc = brain.modelAccuracy.genesis;
+            if (genAcc.total >= 10) {
+                genesisAccuracy = genAcc.wins / genAcc.total;
+            }
+        }
+
+        if (brain && brain.lastSignal && brain.lastSignal.modelVotes) {
+            genesisDirection = brain.lastSignal.modelVotes.genesis;
+        }
+
+        // If Genesis is >85% accurate and has a vote, we MUST align with it
+        const requireGenesisAlignment = genesisAccuracy > 0.85 && genesisDirection !== null;
 
         // Check YES side death bounce
         if (yesPrice >= DEATH_ZONE_MIN && yesPrice <= DEATH_ZONE_MAX) {
@@ -2525,15 +2581,21 @@ class OpportunityDetector {
             const score = riskReward * windowMultiplier * volBonus;
 
             if (score >= MIN_SCORE) {
-                log(`💀 DEATH BOUNCE: YES at ${(yesPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)}`, asset);
-                return {
-                    mode: 'DEATH_BOUNCE',
-                    direction: 'UP',
-                    entry: yesPrice,
-                    target: BOUNCE_TARGET,
-                    stopLoss: Math.max(0.01, yesPrice * 0.5), // 50% stop (still cheap)
-                    reason: `YES ${(yesPrice * 100).toFixed(0)}¢→${(BOUNCE_TARGET * 100).toFixed(0)}¢ (${riskReward.toFixed(1)}x R:R)`
-                };
+                // 🏆 APEX v24: Genesis alignment check for YES side (direction = UP)
+                if (requireGenesisAlignment && genesisDirection !== 'UP') {
+                    log(`🛡️ DEATH BOUNCE BLOCKED: Genesis says ${genesisDirection}, not UP`, asset);
+                    // Don't return - continue to check NO side
+                } else {
+                    log(`💀 DEATH BOUNCE: YES at ${(yesPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)} | Genesis: ${genesisDirection || 'N/A'}`, asset);
+                    return {
+                        mode: 'DEATH_BOUNCE',
+                        direction: 'UP',
+                        entry: yesPrice,
+                        target: BOUNCE_TARGET,
+                        stopLoss: Math.max(0.01, yesPrice * 0.5), // 50% stop (still cheap)
+                        reason: `YES ${(yesPrice * 100).toFixed(0)}¢→${(BOUNCE_TARGET * 100).toFixed(0)}¢ (${riskReward.toFixed(1)}x R:R) [Genesis: ${genesisDirection}]`
+                    };
+                }
             }
         }
 
@@ -2544,14 +2606,19 @@ class OpportunityDetector {
             const score = riskReward * windowMultiplier * volBonus;
 
             if (score >= MIN_SCORE) {
-                log(`💀 DEATH BOUNCE: NO at ${(noPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)}`, asset);
+                // 🏆 APEX v24: Genesis alignment check for NO side (direction = DOWN)
+                if (requireGenesisAlignment && genesisDirection !== 'DOWN') {
+                    log(`🛡️ DEATH BOUNCE BLOCKED: Genesis says ${genesisDirection}, not DOWN`, asset);
+                    return null; // Block - Genesis disagrees
+                }
+                log(`💀 DEATH BOUNCE: NO at ${(noPrice * 100).toFixed(0)}¢ | R:R=${riskReward.toFixed(1)}x | Score=${score.toFixed(1)} | Genesis: ${genesisDirection || 'N/A'}`, asset);
                 return {
                     mode: 'DEATH_BOUNCE',
                     direction: 'DOWN',
                     entry: noPrice,
                     target: BOUNCE_TARGET,
                     stopLoss: Math.max(0.01, noPrice * 0.5),
-                    reason: `NO ${(noPrice * 100).toFixed(0)}¢→${(BOUNCE_TARGET * 100).toFixed(0)}¢ (${riskReward.toFixed(1)}x R:R)`
+                    reason: `NO ${(noPrice * 100).toFixed(0)}¢→${(BOUNCE_TARGET * 100).toFixed(0)}¢ (${riskReward.toFixed(1)}x R:R) [Genesis: ${genesisDirection}]`
                 };
             }
         }
