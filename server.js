@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 24;  // Version 24: APEX - 5-Layer Zero-Variance System (Arbitrage + Genesis Supremacy + Hedged Oracle + Death Bounce)
+const CONFIG_VERSION = 27;  // PINNACLE v27 - FINAL ENDGAME: Genesis-only, no hedging, 60¢ max, 50% velocity
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -506,9 +506,10 @@ const CONFIG = {
     },
 
     // MODE 2C: DEATH BOUNCE 💀 - Buy ultra-cheap shares on overreaction
-    // 🏆 APEX v24: ENABLED - Capture extreme odds (Layer 4)
+    // 🚨 VELOCITY v26: DISABLED - Stop-loss ordering bug caused -80% losses
+    // Bug: TIME EXIT check came before STOP LOSS check, causing massive losses
     DEATH_BOUNCE: {
-        enabled: true,           // 🏆 APEX v24: ENABLED for extreme odds capture
+        enabled: false,          // 🚨 DISABLED - Loss machine until bugs fixed
         minPrice: 0.03,          // 3¢ minimum (below = probably stays dead)
         maxPrice: 0.12,          // 12¢ maximum (above = not "death" level)
         targetPrice: 0.18,       // Target 18¢ for exit (2-3x profit)
@@ -2101,7 +2102,14 @@ class TradeExecutor {
                     break;
 
                 // 🏆 APEX v24 FIX: DEATH_BOUNCE was MISSING from exit cases!
+                // 🚀 VELOCITY v26 FIX: Stop-loss check MUST come FIRST
                 case 'DEATH_BOUNCE':
+                    // STOP LOSS FIRST (prevents 80% losses from TIME EXIT at 1¢)
+                    if (currentOdds <= pos.stopLoss) {
+                        log(`💀 DEATH BOUNCE STOP: ${(currentOdds * 100).toFixed(0)}¢ <= ${(pos.stopLoss * 100).toFixed(0)}¢`, pos.asset);
+                        this.closePosition(id, currentOdds, 'DEATH_BOUNCE STOP LOSS');
+                        return;
+                    }
                     // Exit at target price
                     if (currentOdds >= pos.target) {
                         log(`💀 DEATH BOUNCE TARGET HIT: ${(currentOdds * 100).toFixed(0)}¢ >= ${(pos.target * 100).toFixed(0)}¢`, pos.asset);
@@ -2112,12 +2120,6 @@ class TradeExecutor {
                     if (timeToEnd <= 60) { // 60 seconds buffer for DEATH_BOUNCE
                         log(`💀 DEATH BOUNCE TIME EXIT: ${timeToEnd}s remaining`, pos.asset);
                         this.closePosition(id, currentOdds, 'DEATH_BOUNCE TIME EXIT');
-                        return;
-                    }
-                    // Exit on stop loss (50% loss max)
-                    if (currentOdds <= pos.stopLoss) {
-                        log(`💀 DEATH BOUNCE STOP: ${(currentOdds * 100).toFixed(0)}¢ <= ${(pos.stopLoss * 100).toFixed(0)}¢`, pos.asset);
-                        this.closePosition(id, currentOdds, 'DEATH_BOUNCE STOP LOSS');
                         return;
                     }
                     break;
@@ -2393,17 +2395,31 @@ class TradeExecutor {
     // Note: This stores token IDs from closed positions for later redemption
 
     // Add a position to redemption queue after cycle resolution
+    // 🚀 VELOCITY v26: Now stores conditionId for automatic redemption
     addToRedemptionQueue(position) {
         if (!this.redemptionQueue) this.redemptionQueue = [];
         if (position && position.tokenId) {
+            // Extract conditionId from market if available
+            let conditionId = position.conditionId || null;
+
+            // Try to get conditionId from current market data
+            if (!conditionId && position.asset && currentMarkets[position.asset]) {
+                const market = currentMarkets[position.asset];
+                // Polymarket encodes conditionId in the token itself, or we can derive from market
+                if (market.conditionId) {
+                    conditionId = market.conditionId;
+                }
+            }
+
             this.redemptionQueue.push({
                 tokenId: position.tokenId,
                 asset: position.asset,
                 side: position.side,
                 addedAt: Date.now(),
-                shares: position.shares || 0
+                shares: position.shares || 0,
+                conditionId: conditionId // For automatic redemption
             });
-            log(`📋 Added to redemption queue: ${position.asset} ${position.side}`, position.asset);
+            log(`📋 Added to redemption queue: ${position.asset} ${position.side}${conditionId ? ' (auto-redeemable)' : ' (manual)'}`, position.asset);
         }
     }
 
@@ -2412,7 +2428,7 @@ class TradeExecutor {
         return this.redemptionQueue || [];
     }
 
-    // Check and redeem any resolved positions
+    // Check and redeem any resolved positions - AUTOMATIC REDEMPTION
     async checkAndRedeemPositions() {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded' };
@@ -2423,7 +2439,7 @@ class TradeExecutor {
             return { success: true, message: 'No positions to redeem', redeemed: 0 };
         }
 
-        log(`🔍 Checking ${queue.length} positions for redemption...`);
+        log(`🔍 Checking ${queue.length} positions for automatic redemption...`);
         let redeemed = 0;
         let failed = 0;
 
@@ -2442,10 +2458,60 @@ class TradeExecutor {
 
                     if (balance.gt(0)) {
                         log(`💰 Found ${ethers.utils.formatUnits(balance, 0)} redeemable tokens for ${item.asset}`, item.asset);
-                        // Has balance - this position can potentially be redeemed
-                        // Note: Full redemption requires conditionId which is complex
-                        // For now, just log that redemption is available
-                        log(`✅ Position ${item.asset} ${item.side} has redeemable balance. Use Polymarket website to redeem.`, item.asset);
+
+                        // 🚀 VELOCITY v26: AUTOMATIC REDEMPTION ATTEMPT
+                        // If we have conditionId stored, try to redeem automatically
+                        if (item.conditionId) {
+                            try {
+                                log(`🔄 Attempting automatic redemption for ${item.asset}...`, item.asset);
+
+                                // Prepare redemption parameters
+                                const parentCollectionId = ethers.constants.HashZero; // bytes32(0) for Polymarket
+                                const indexSets = [1, 2]; // Both outcomes for binary markets
+
+                                // Estimate gas first
+                                const gasEstimate = await ctfContract.estimateGas.redeemPositions(
+                                    USDC_ADDRESS,
+                                    parentCollectionId,
+                                    item.conditionId,
+                                    indexSets
+                                );
+
+                                // Execute redemption with 20% gas buffer
+                                const tx = await ctfContract.redeemPositions(
+                                    USDC_ADDRESS,
+                                    parentCollectionId,
+                                    item.conditionId,
+                                    indexSets,
+                                    { gasLimit: gasEstimate.mul(120).div(100) }
+                                );
+
+                                log(`📝 Redemption TX submitted: ${tx.hash}`, item.asset);
+
+                                // Wait for confirmation
+                                const receipt = await tx.wait();
+
+                                if (receipt.status === 1) {
+                                    log(`✅ AUTO-REDEEMED: ${item.asset} ${item.side} - TX: ${tx.hash}`, item.asset);
+                                    queue.splice(i, 1);
+                                    redeemed++;
+
+                                    // Refresh balance
+                                    this.refreshLiveBalance();
+                                } else {
+                                    log(`❌ Redemption TX failed for ${item.asset}`, item.asset);
+                                    failed++;
+                                }
+                            } catch (redeemError) {
+                                log(`⚠️ Auto-redeem failed for ${item.asset}: ${redeemError.message}`, item.asset);
+                                log(`   Fallback: Use Polymarket website to redeem manually`, item.asset);
+                                failed++;
+                            }
+                        } else {
+                            // No conditionId - can't auto-redeem
+                            log(`⚠️ Position ${item.asset} ${item.side} missing conditionId - manual redemption required`, item.asset);
+                            log(`   Use Polymarket website: https://polymarket.com/portfolio`, item.asset);
+                        }
                     } else {
                         // No balance - either already redeemed or market not resolved
                         log(`ℹ️ No balance found for ${item.asset} ${item.side} token - may already be redeemed`, item.asset);
