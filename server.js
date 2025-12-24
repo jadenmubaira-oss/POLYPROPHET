@@ -2636,7 +2636,7 @@ class OpportunityDetector {
         // DEATH_BOUNCE must align with Genesis model (94.2% accurate)
         // If Genesis says UP, only buy YES (direction UP)
         // If Genesis says DOWN, only buy NO (direction DOWN)
-        const brain = brains[asset];
+        const brain = Brains[asset];
         let genesisDirection = null;
         let genesisAccuracy = 0;
 
