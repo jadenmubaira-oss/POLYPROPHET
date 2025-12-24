@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 27;  // PINNACLE v27 - FINAL ENDGAME: Genesis-only, no hedging, 60¢ max, 50% velocity
+const CONFIG_VERSION = 28;  // PINNACLE v28 - CRASH RECOVERY: Full position persistence + recovery queues
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -671,6 +671,10 @@ class TradeExecutor {
         this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
         this.wallet = null;
         this.tradeHistory = [];
+        // 🚀 PINNACLE v28: CRASH RECOVERY - Initialize recovery queues
+        this.pendingSells = {};         // Failed sell orders awaiting retry
+        this.redemptionQueue = [];      // Winning positions to claim
+        this.recoveryQueue = [];        // Orphaned/crashed positions needing attention
         this.lastLossTime = 0;         // For cooldown tracking
         this.todayPnL = 0;             // Daily P/L tracking
         this.lastDayReset = Date.now(); // Track when we last reset daily P/L
@@ -3774,31 +3778,33 @@ class SupremeBrain {
             // === THRESHOLD DETERMINATION (Regime-Aware) ===
             // 🎯 AGGRESSIVE PROPHECY MODE: Optimized for £10→£1M Goal
             // Goal: Frequent, early predictions with acceptable accuracy
+            // 🚀 PINNACLE v27: LOWERED THRESHOLDS to enable more 50% velocity trades
             let tier = 'NONE';
-            let convictionThreshold = 0.75; // 🔮 ORACLE: Supreme confidence (75%+ only)
-            let advisoryThreshold = 0.65;   // 🔮 Higher bar for quality (was 0.52)
+            let convictionThreshold = 0.70; // 🚀 LOWERED: 70% (was 75%) - Genesis protects us
+            let advisoryThreshold = 0.55;   // 🚀 LOWERED: 55% (was 65%) - more trade opportunities
 
             // 🌍 ALL-WEATHER LOGIC: Adapt strategy to market regime
+            // 🚀 PINNACLE v27: All thresholds lowered by 5-10% for more velocity
             if (regime === 'CHOPPY') {
-                convictionThreshold = 0.80; // Very cautious - use mean reversion
-                advisoryThreshold = 0.65;
+                convictionThreshold = 0.75; // 🚀 LOWERED: 75% (was 80%) - still cautious but not frozen
+                advisoryThreshold = 0.60;
                 // Boost pattern matching  +  reduce momentum in choppy markets
                 if (weights.pattern) weights.pattern *= 1.5;
                 if (weights.physicist) weights.physicist *= 0.7;
             } else if (regime === 'TRENDING') {
-                convictionThreshold = 0.65; // Aggressive - ride the trend
-                advisoryThreshold = 0.52;
+                convictionThreshold = 0.60; // 🚀 LOWERED: 60% (was 65%) - ride the trend aggressively
+                advisoryThreshold = 0.50;
                 // Boost momentum + physicist in trending markets
                 if (weights.physicist) weights.physicist *= 1.3;
                 if (weights.genesis) weights.genesis *= 1.2;
             } else if (regime === 'VOLATILE') {
-                convictionThreshold = 0.75; // Moderate caution
-                advisoryThreshold = 0.60;
+                convictionThreshold = 0.70; // 🚀 LOWERED: 70% (was 75%) - more opportunities
+                advisoryThreshold = 0.55;
                 // Boost ATR-based models in volatile markets
                 if (weights.historian) weights.historian *= 1.2;
             } else { // STABLE
-                convictionThreshold = 0.70;
-                advisoryThreshold = 0.55;
+                convictionThreshold = 0.65; // 🚀 LOWERED: 65% (was 70%) - stable = predictable
+                advisoryThreshold = 0.50;
                 // Boost pattern matching in stable/predictable markets
                 if (weights.pattern) weights.pattern *= 1.3;
             }
@@ -5266,14 +5272,23 @@ async function saveState() {
         recentOutcomes: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].recentOutcomes }), {}),
 
         // 🔴 FIX #17: PERSIST TRADE EXECUTOR STATE (survives restarts!)
+        // 🚀 PINNACLE v27 CRASH RECOVERY: Now persists OPEN POSITIONS + recovery queues
         tradeExecutor: {
             paperBalance: tradeExecutor.paperBalance,
             startingBalance: tradeExecutor.startingBalance,
-            tradeHistory: tradeExecutor.tradeHistory.slice(-100), // Keep last 100 trades
+            tradeHistory: tradeExecutor.tradeHistory.slice(-200), // Keep last 200 trades
             todayPnL: tradeExecutor.todayPnL,
             consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
             lastLossTime: tradeExecutor.lastLossTime || 0,
-            lastDayReset: tradeExecutor.lastDayReset
+            lastDayReset: tradeExecutor.lastDayReset,
+            // 🚀 PINNACLE v27: CRASH RECOVERY - Persist open positions!
+            positions: tradeExecutor.positions || {},
+            // 🚀 PINNACLE v27: Persist pending sells (failed sell orders)
+            pendingSells: tradeExecutor.pendingSells || {},
+            // 🚀 PINNACLE v27: Persist redemption queue (winning positions to claim)
+            redemptionQueue: tradeExecutor.redemptionQueue || [],
+            // 🚀 PINNACLE v27: Persist recovery queue (orphaned/crashed positions)
+            recoveryQueue: tradeExecutor.recoveryQueue || []
         }
     };
 
@@ -5380,6 +5395,7 @@ async function loadState() {
                 if (state.recentOutcomes) ASSETS.forEach(a => { if (state.recentOutcomes[a]) Brains[a].recentOutcomes = state.recentOutcomes[a]; });
 
                 // 🔴 FIX #17: RESTORE TRADE EXECUTOR STATE (preserves balance across restarts!)
+                // 🚀 PINNACLE v27: CRASH RECOVERY - Full state restoration
                 if (state.tradeExecutor) {
                     const te = state.tradeExecutor;
                     if (te.paperBalance !== undefined) tradeExecutor.paperBalance = te.paperBalance;
@@ -5389,7 +5405,90 @@ async function loadState() {
                     if (te.consecutiveLosses !== undefined) tradeExecutor.consecutiveLosses = te.consecutiveLosses;
                     if (te.lastLossTime !== undefined) tradeExecutor.lastLossTime = te.lastLossTime;
                     if (te.lastDayReset !== undefined) tradeExecutor.lastDayReset = te.lastDayReset;
-                    log(`💰 Trade state restored: Balance=$${tradeExecutor.paperBalance.toFixed(2)}, History=${tradeExecutor.tradeHistory.length} trades`);
+
+                    // 🚀 PINNACLE v27: CRASH RECOVERY - Restore open positions!
+                    if (te.positions && Object.keys(te.positions).length > 0) {
+                        const restoredCount = Object.keys(te.positions).length;
+                        tradeExecutor.positions = te.positions;
+                        log(`🔄 CRASH RECOVERY: Restored ${restoredCount} open positions`);
+
+                        // Check if any restored positions are from a PREVIOUS cycle (orphaned)
+                        const now = Math.floor(Date.now() / 1000);
+                        const currentCycle = now - (now % 900);
+
+                        Object.entries(te.positions).forEach(([posId, pos]) => {
+                            const posCycle = Math.floor(pos.time / 1000);
+                            const posCycleStart = posCycle - (posCycle % 900);
+
+                            // If position is from a previous cycle, it's orphaned
+                            if (posCycleStart < currentCycle) {
+                                log(`⚠️ ORPHANED POSITION: ${posId} from previous cycle - adding to recovery queue`);
+
+                                // Add to recovery queue with FULL info
+                                if (!tradeExecutor.recoveryQueue) tradeExecutor.recoveryQueue = [];
+                                tradeExecutor.recoveryQueue.push({
+                                    id: posId,
+                                    asset: pos.asset,
+                                    mode: pos.mode,
+                                    side: pos.side,
+                                    entry: pos.entry,
+                                    size: pos.size,
+                                    shares: pos.shares,
+                                    time: pos.time,
+                                    tokenId: pos.tokenId || null,
+                                    tokenType: pos.tokenType || null,
+                                    orderID: pos.orderID || null,
+                                    isLive: pos.isLive || false,
+                                    status: 'ORPHANED_BY_CRASH',
+                                    reason: 'Server crashed before cycle resolution',
+                                    recoveryTime: Date.now(),
+                                    recoveryInstructions: pos.isLive ? [
+                                        '1. Check Polymarket portfolio for this position',
+                                        '2. If resolved, claim winnings manually or wait for auto-redemption',
+                                        '3. If still open, it will resolve at cycle end',
+                                        `Token ID: ${pos.tokenId || 'N/A'}`,
+                                        `Order ID: ${pos.orderID || 'N/A'}`
+                                    ] : [
+                                        'PAPER TRADE - No real money involved',
+                                        'Position was simulated and lost in crash',
+                                        `Entry: ${(pos.entry * 100).toFixed(1)}¢, Size: $${pos.size.toFixed(2)}`
+                                    ]
+                                });
+
+                                // Remove from active positions (it's now in recovery)
+                                delete tradeExecutor.positions[posId];
+
+                                // Update trade history to mark as CRASH_RECOVERED
+                                const trade = tradeExecutor.tradeHistory.find(t => t.id === posId);
+                                if (trade) {
+                                    trade.status = 'CRASH_RECOVERED';
+                                    trade.reason = 'Moved to recovery queue after crash';
+                                }
+                            } else {
+                                log(`✅ VALID POSITION: ${posId} is in current cycle - keeping active`);
+                            }
+                        });
+                    }
+
+                    // 🚀 PINNACLE v27: Restore pending sells
+                    if (te.pendingSells && Object.keys(te.pendingSells).length > 0) {
+                        tradeExecutor.pendingSells = te.pendingSells;
+                        log(`🔄 CRASH RECOVERY: Restored ${Object.keys(te.pendingSells).length} pending sells`);
+                    }
+
+                    // 🚀 PINNACLE v27: Restore redemption queue
+                    if (te.redemptionQueue && Array.isArray(te.redemptionQueue) && te.redemptionQueue.length > 0) {
+                        tradeExecutor.redemptionQueue = te.redemptionQueue;
+                        log(`🔄 CRASH RECOVERY: Restored ${te.redemptionQueue.length} items in redemption queue`);
+                    }
+
+                    // 🚀 PINNACLE v27: Restore recovery queue (orphaned/crashed positions)
+                    if (te.recoveryQueue && Array.isArray(te.recoveryQueue) && te.recoveryQueue.length > 0) {
+                        tradeExecutor.recoveryQueue = te.recoveryQueue;
+                        log(`🔄 CRASH RECOVERY: Restored ${te.recoveryQueue.length} items in recovery queue`);
+                    }
+
+                    log(`💰 Trade state restored: Balance=$${tradeExecutor.paperBalance.toFixed(2)}, History=${tradeExecutor.tradeHistory.length} trades, Positions=${Object.keys(tradeExecutor.positions || {}).length}, Recovery=${(tradeExecutor.recoveryQueue || []).length}`);
                 }
 
                 log('💾 State Restored from Redis (including model learning!)');
@@ -6994,6 +7093,106 @@ app.post('/api/toggle-stop-loss-override', (req, res) => {
         success: true,
         override: CONFIG.RISK.globalStopLossOverride,
         message: `Global stop loss is now ${status}. Trading will ${CONFIG.RISK.globalStopLossOverride ? 'continue even after 20% daily loss' : 'halt at 20% daily loss'}.`
+    });
+});
+
+// 🚀 PINNACLE v27: CRASH RECOVERY QUEUE API ENDPOINTS
+
+// Get recovery queue (orphaned/crashed positions)
+app.get('/api/recovery-queue', (req, res) => {
+    const queue = tradeExecutor.recoveryQueue || [];
+    res.json({
+        success: true,
+        count: queue.length,
+        items: queue,
+        summary: queue.map(item => ({
+            id: item.id,
+            asset: item.asset,
+            side: item.side,
+            entry: item.entry,
+            size: item.size,
+            isLive: item.isLive,
+            status: item.status,
+            reason: item.reason
+        }))
+    });
+});
+
+// Acknowledge and clear a specific recovery item
+app.post('/api/recovery-acknowledge', (req, res) => {
+    const { id } = req.body;
+    if (!id) {
+        return res.status(400).json({ success: false, error: 'Missing id parameter' });
+    }
+
+    if (!tradeExecutor.recoveryQueue) {
+        return res.status(404).json({ success: false, error: 'No recovery queue' });
+    }
+
+    const index = tradeExecutor.recoveryQueue.findIndex(item => item.id === id);
+    if (index === -1) {
+        return res.status(404).json({ success: false, error: 'Item not found in recovery queue' });
+    }
+
+    const removed = tradeExecutor.recoveryQueue.splice(index, 1)[0];
+    log(`✅ RECOVERY ACKNOWLEDGED: ${removed.id} (${removed.asset} ${removed.side})`);
+
+    res.json({
+        success: true,
+        message: `Acknowledged and removed: ${id}`,
+        removed
+    });
+});
+
+// Clear entire recovery queue
+app.post('/api/clear-recovery-queue', (req, res) => {
+    const count = (tradeExecutor.recoveryQueue || []).length;
+    tradeExecutor.recoveryQueue = [];
+    log(`🧹 RECOVERY QUEUE CLEARED: ${count} items removed`);
+
+    res.json({
+        success: true,
+        message: `Cleared ${count} items from recovery queue`
+    });
+});
+
+// Get pending sells (failed sell orders)
+app.get('/api/pending-sells', (req, res) => {
+    const pending = tradeExecutor.pendingSells || {};
+    res.json({
+        success: true,
+        count: Object.keys(pending).length,
+        items: pending
+    });
+});
+
+// Retry pending sells
+app.post('/api/retry-pending-sells', async (req, res) => {
+    const pending = tradeExecutor.pendingSells || {};
+    const count = Object.keys(pending).length;
+
+    if (count === 0) {
+        return res.json({ success: true, message: 'No pending sells to retry' });
+    }
+
+    log(`🔄 RETRYING ${count} pending sells...`);
+
+    for (const [key, position] of Object.entries(pending)) {
+        try {
+            const result = await tradeExecutor.executeSellOrderWithRetry(position, 3, 2000);
+            if (result.success) {
+                delete tradeExecutor.pendingSells[key];
+                log(`✅ Pending sell resolved: ${key}`);
+            }
+        } catch (e) {
+            log(`❌ Pending sell retry failed: ${key} - ${e.message}`);
+        }
+    }
+
+    res.json({
+        success: true,
+        message: `Retried ${count} pending sells`,
+        remaining: Object.keys(tradeExecutor.pendingSells || {}).length
     });
 });
 
