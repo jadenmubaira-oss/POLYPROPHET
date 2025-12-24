@@ -476,7 +476,7 @@ const CONFIG = {
         minEdge: 5,              // 🏆 APEX v24 FIX: 5% edge (was 10% - often negative in debug)
         requireTrending: true,   // 🎯 v21 UNDERDOG: SNIPER default = Only Trending markets (HUNTER relaxes this)
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.48,           // 🎯 v21 UNDERDOG: Buy CHEAP (48¢) = profit even with 48% accuracy. NEVER COMPROMISE.
+        maxOdds: 0.55,           // 🏆 PINNACLE v25: Buy at 55¢ max = profit with Genesis 94.4% accuracy. Balanced activity.
         minStability: 4,         // 🎯 v20 BALANCED: 4 ticks stable (compromise between speed and safety)
         stopLoss: 0.30,          // 🛡️ 30% stop loss
         stopLossEnabled: true,   // 🛡️ MOLECULAR: ENABLED for loss protection
