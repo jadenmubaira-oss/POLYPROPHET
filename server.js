@@ -2013,6 +2013,30 @@ class TradeExecutor {
         return pnl;
     }
 
+    // 🧊 PINNACLE v28: ASSET COOLDOWN - Pause trading on specific asset after loss
+    // This prevents the bot from immediately re-entering a losing asset
+    coolOffAsset(asset, durationSeconds) {
+        if (!this.assetCooldowns) this.assetCooldowns = {};
+
+        this.assetCooldowns[asset] = Date.now() + (durationSeconds * 1000);
+        log(`🧊 COOLDOWN: ${asset} paused for ${durationSeconds}s after stop loss`, asset);
+    }
+
+    // 🧊 Check if asset is in cooldown
+    isAssetInCooldown(asset) {
+        if (!this.assetCooldowns || !this.assetCooldowns[asset]) return false;
+
+        if (Date.now() > this.assetCooldowns[asset]) {
+            // Cooldown expired, clear it
+            delete this.assetCooldowns[asset];
+            return false;
+        }
+
+        const remainingMs = this.assetCooldowns[asset] - Date.now();
+        log(`🧊 ${asset} still in cooldown: ${Math.ceil(remainingMs / 1000)}s remaining`, asset);
+        return true;
+    }
+
     // 🔮 ORACLE: POSITION PYRAMIDING - Add to Winning Positions
     async checkPyramiding() {
         if (!CONFIG.RISK.enablePositionPyramiding) return;
