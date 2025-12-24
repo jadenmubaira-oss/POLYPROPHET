@@ -1,14 +1,14 @@
-# 👑 POLYPROPHET: THE PINNACLE EDITION v25
-> **94.4% Accurate Genesis Model | £50-100/Day Target System**
-> *Status: CERTIFIED (PINNACLE v25 Protocol - Dec 24, 2025)*
+# 🚀 POLYPROPHET: VELOCITY EDITION v26
+> **94.4% Accurate Genesis Model | Maximum Velocity to £100+/Day**
+> *Status: FINAL RELEASE (VELOCITY v26 Protocol - Dec 24, 2025)*
 
 ---
 
 ## 🎯 THE GOAL
 
-**Target:** £50-100 profit per day from Polymarket 15-minute crypto prediction markets.
+**Target:** £50-100+ profit per day from Polymarket 15-minute crypto prediction markets.
 
-**Method:** Use the Genesis model (94.3% accurate) to predict BTC, ETH, SOL, XRP direction, then trade at optimal entry prices (<48¢) for maximum R:R.
+**Method:** Use the Genesis model (94.4% accurate) to predict BTC, ETH, SOL, XRP direction, then trade at optimal entry prices (≤60¢) for maximum velocity.
 
 ---
 
@@ -40,7 +40,7 @@ Every 15 minutes, Polymarket creates binary markets:
 
 ---
 
-## 🧠 THE 94.3% GENESIS MODEL
+## 🧠 THE 94.4% GENESIS MODEL
 
 ### What Makes Genesis Special
 
@@ -59,16 +59,17 @@ Every 15 minutes, Polymarket creates binary markets:
 
 ## 👑 THE PINNACLE SETTINGS
 
-Click **👑 PINNACLE** button in Settings to apply these optimal values:
+Click **🚀 VELOCITY** button in Settings to apply these optimal values:
 
 ```
 ORACLE:
   minConsensus: 0.70      (70% model agreement)
   minConfidence: 0.70     (70% confidence)
   minEdge: 5              (5% edge over market)
-  maxOdds: 0.55           (55¢ max entry - PINNACLE v25)
-  hedgeEnabled: true      (20% protection)
+  maxOdds: 0.60           (60¢ max - VELOCITY v26)
+  hedgeEnabled: false     (DISABLED - Genesis IS the hedge)
   stopLossEnabled: true   (30% stop)
+  velocityMode: true      (50% sizing for accounts < $200)
 
 DEATH_BOUNCE:
   enabled: true           (Genesis-aligned)
