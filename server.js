@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 31;  // CRITICAL FIX v31: minConfidence enforcement in executeTrade (was being ignored!)
+const CONFIG_VERSION = 32;  // v32: Edge validation, entryConfidence logging, configVersion tagging, MIN_BALANCE=$2
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -1100,6 +1100,13 @@ class TradeExecutor {
                 return { success: false, error: `Confidence ${(confidence * 100).toFixed(1)}% below ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% threshold` };
             }
 
+            // 🏆 v32 CRITICAL: MINIMUM BALANCE CHECK - User requested $2 minimum
+            const MIN_TRADING_BALANCE = 2.00;
+            if (this.paperBalance < MIN_TRADING_BALANCE) {
+                log(`🚫 BALANCE TOO LOW: $${this.paperBalance.toFixed(2)} < minimum $${MIN_TRADING_BALANCE} - BLOCKED`, asset);
+                return { success: false, error: `Balance $${this.paperBalance.toFixed(2)} below minimum $${MIN_TRADING_BALANCE}` };
+            }
+
             // 🔴 BUG FIX: DOUBLE CHECK - Re-fetch CURRENT market price and verify it hasn't moved above maxOdds
             // This catches race conditions where market moved between ORACLE check and trade execution
             if (mode === 'ORACLE' && market) {
@@ -1342,6 +1349,10 @@ class TradeExecutor {
                     this.paperBalance -= size;
 
                     // ---- MAIN POSITION ----
+                    const now = Math.floor(Date.now() / 1000);
+                    const cycleStart = now - (now % INTERVAL_SECONDS);
+                    const cycleElapsed = now - cycleStart;
+
                     const mainPositionId = `${asset}_${Date.now()}`;
                     this.positions[mainPositionId] = {
                         asset,
@@ -1355,7 +1366,11 @@ class TradeExecutor {
                         stopLoss: null, // No stop loss needed - hedge provides protection
                         shares: mainSize / entryPrice,
                         isHedged: true,
-                        hedgeId: null // Will be set below
+                        hedgeId: null, // Will be set below
+                        // v32: DIAGNOSTIC FIELDS
+                        entryConfidence: confidence,
+                        configVersion: CONFIG_VERSION,
+                        cycleElapsed: cycleElapsed
                     };
 
                     // ---- HEDGE POSITION ----
@@ -1417,6 +1432,10 @@ class TradeExecutor {
                 }
 
                 // ---- STANDARD (Non-Hedged) POSITION ----
+                const now = Math.floor(Date.now() / 1000);
+                const cycleStart = now - (now % INTERVAL_SECONDS);
+                const cycleElapsed = now - cycleStart;
+
                 this.paperBalance -= size;
                 this.positions[positionId] = {
                     asset,
@@ -1428,7 +1447,11 @@ class TradeExecutor {
                     time: Date.now(),
                     target,
                     stopLoss,
-                    shares: size / entryPrice
+                    shares: size / entryPrice,
+                    // v32: DIAGNOSTIC FIELDS
+                    entryConfidence: confidence,
+                    configVersion: CONFIG_VERSION,
+                    cycleElapsed: cycleElapsed
                 };
 
                 this.tradeHistory.push({
@@ -4385,11 +4408,29 @@ class SupremeBrain {
             // EDGE CALCULATION - Use CURRENT cycle values, not stale ones
             // BUG FIX: Was using this.confidence (previous) instead of finalConfidence (current)
             // BUG FIX 2: Must use RELATIVE formula ((conf-market)/market) like lines 2954/2967
+            // v32 FIX: Add comprehensive validation and logging to prevent 0% edge bugs
             if (currentMarkets[this.asset] && finalSignal !== 'NEUTRAL') {
                 const market = currentMarkets[this.asset];
                 const marketProb = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-                this.edge = marketProb > 0 ? ((finalConfidence - marketProb) / marketProb) * 100 : 0;
+
+                // v32: VALIDATE market data before calculation
+                if (!marketProb || marketProb <= 0 || marketProb >= 1) {
+                    log(`⚠️ INVALID MARKET PROB: ${marketProb} for ${finalSignal} - edge set to 0`, this.asset);
+                    this.edge = 0;
+                } else {
+                    this.edge = ((finalConfidence - marketProb) / marketProb) * 100;
+                    // v32: Log edge calculation for debugging
+                    if (finalConfidence >= 0.70) {
+                        log(`📊 EDGE: conf=${(finalConfidence * 100).toFixed(1)}% vs market=${(marketProb * 100).toFixed(1)}% = ${this.edge.toFixed(1)}% edge`, this.asset);
+                    }
+                }
             } else {
+                // v32: Log why edge is 0
+                if (!currentMarkets[this.asset]) {
+                    log(`⚠️ NO MARKET DATA - edge set to 0`, this.asset);
+                } else if (finalSignal === 'NEUTRAL') {
+                    log(`ℹ️ NEUTRAL signal - edge set to 0`, this.asset);
+                }
                 this.edge = 0;
             }
 
