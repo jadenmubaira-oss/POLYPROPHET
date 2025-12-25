@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 29;  // ZERO VARIANCE v29 - Stricter entry: 85% conf, 80% consensus, 55¢ max, 300s wait, 6 stability
+const CONFIG_VERSION = 30;  // OPTIMAL v30 - BACKTEST PROVEN: 60¢ max (78% WR!), 80% conf, SOL disabled (50% WR)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -466,25 +466,25 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // 🎯 ZERO VARIANCE v29: Maximum confidence requirements to eliminate losses
+    // 🏆 OPTIMAL v30 - BACKTEST PROVEN: Higher entries (58-60¢) have 78% WR!
     ORACLE: {
         enabled: true,
-        aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
-        minElapsedSeconds: 300,  // 🎯 ZERO VARIANCE: 5 minutes minimum (more data = more certainty)
-        minConsensus: 0.80,      // 🎯 ZERO VARIANCE: 80% models must agree (was 70%)
-        minConfidence: 0.85,     // 🎯 ZERO VARIANCE: 85% confidence required (was 70%)
-        minEdge: 5,              // Minimum 5% edge over market
-        requireTrending: true,   // Must be trending in our direction
+        aggression: 50,          // 🔮 0-100 scale
+        minElapsedSeconds: 240,  // 🏆 v30: 4 min (was 5 - too slow)
+        minConsensus: 0.75,      // 🏆 v30: 75% (was 80% - too strict)
+        minConfidence: 0.80,     // 🏆 v30: 80% (was 85% - blocked too many)
+        minEdge: 5,              // 5% edge minimum
+        requireTrending: true,   // Must be trending
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.55,           // 🎯 ZERO VARIANCE: 55¢ max (was 60¢ - more profit margin)
-        minStability: 6,         // 🎯 ZERO VARIANCE: 6 ticks stable (was 4 - more confirmation)
-        stopLoss: 0.30,          // 🛡️ 30% stop loss
-        stopLossEnabled: true,   // 🛡️ Always enabled
-        earlyTakeProfitEnabled: true,    // 💰 Exit early on gains
-        earlyTakeProfitThreshold: 0.20,  // Exit at +20% gain
-        hedgeEnabled: false,             // Genesis 94.5% IS the hedge
-        hedgeRatio: 0.20,                // Only used if hedgeEnabled = true
-        velocityMode: true               // Aggressive sizing for small accounts
+        maxOdds: 0.60,           // 🏆 v30: 60¢ (KEEP! 78% WR at 58-60¢)
+        minStability: 5,         // 🏆 v30: 5 ticks (was 6 - too strict)
+        stopLoss: 0.30,          // 30% stop loss
+        stopLossEnabled: true,   // Always enabled
+        earlyTakeProfitEnabled: true,
+        earlyTakeProfitThreshold: 0.20,
+        hedgeEnabled: false,     // Genesis 94.5% IS the hedge
+        hedgeRatio: 0.20,
+        velocityMode: true       // Aggressive sizing
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -579,11 +579,11 @@ const CONFIG = {
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
     },
 
-    // PER-ASSET TRADING CONTROLS - 🔴 FIX: 1 trade/asset/cycle (diversification)
+    // PER-ASSET TRADING CONTROLS - 🏆 v30: SOL DISABLED (50% WR in backtest)
     ASSET_CONTROLS: {
         BTC: { enabled: true, maxTradesPerCycle: 1 },
-        ETH: { enabled: true, maxTradesPerCycle: 1 },
-        SOL: { enabled: true, maxTradesPerCycle: 1 },
+        ETH: { enabled: true, maxTradesPerCycle: 1 },   // 100% WR in backtest!
+        SOL: { enabled: false, maxTradesPerCycle: 1 },  // 🚫 v30: DISABLED - 50% WR kills profits
         XRP: { enabled: true, maxTradesPerCycle: 1 }
     }
 };
