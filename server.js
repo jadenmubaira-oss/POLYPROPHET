@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 30;  // OPTIMAL v30 - BACKTEST PROVEN: 60¢ max (78% WR!), 80% conf, SOL disabled (50% WR)
+const CONFIG_VERSION = 31;  // CRITICAL FIX v31: minConfidence enforcement in executeTrade (was being ignored!)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -1091,6 +1091,13 @@ class TradeExecutor {
             if (mode === 'ORACLE' && entryPrice > CONFIG.ORACLE.maxOdds) {
                 log(`🚫 HARD BLOCK: Entry price ${(entryPrice * 100).toFixed(1)}¢ > maxOdds ${(CONFIG.ORACLE.maxOdds * 100).toFixed(1)}¢ - NO VALUE BETTING`, asset);
                 return { success: false, error: `Entry price ${(entryPrice * 100).toFixed(1)}¢ exceeds maxOdds limit` };
+            }
+
+            // 🏆 v30 CRITICAL FIX: HARD minConfidence check - MUST be enforced here!
+            // Bug: minConfidence was set to 0.80 but never checked - trades at 28% were executing!
+            if (mode === 'ORACLE' && confidence < CONFIG.ORACLE.minConfidence) {
+                log(`🚫 CONFIDENCE BLOCK: Trade confidence ${(confidence * 100).toFixed(1)}% < minConfidence ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% - BLOCKED`, asset);
+                return { success: false, error: `Confidence ${(confidence * 100).toFixed(1)}% below ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% threshold` };
             }
 
             // 🔴 BUG FIX: DOUBLE CHECK - Re-fetch CURRENT market price and verify it hasn't moved above maxOdds
