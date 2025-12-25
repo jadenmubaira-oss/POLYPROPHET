@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 28;  // PINNACLE v28 - CRASH RECOVERY: Full position persistence + recovery queues
+const CONFIG_VERSION = 29;  // ZERO VARIANCE v29 - Stricter entry: 85% conf, 80% consensus, 55¢ max, 300s wait, 6 stability
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -466,25 +466,25 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // MOLECULAR RECONSTRUCTION: Tightened thresholds for quality over quantity
+    // 🎯 ZERO VARIANCE v29: Maximum confidence requirements to eliminate losses
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale (0=conservative, 100=aggressive)
-        minElapsedSeconds: 180,  // 🔴 UNBOUNDED FIX: 180s minimum (was 120 - too early, noisy data)
-        minConsensus: 0.70,      // 🏆 APEX v24 FIX: 70% models must agree (was 85% - too restrictive, 0 trades)
-        minConfidence: 0.70,     // 🏆 APEX v24 FIX: 70% confidence (was 85% - too restrictive, 0 trades)
-        minEdge: 5,              // 🏆 APEX v24 FIX: 5% edge (was 10% - often negative in debug)
-        requireTrending: true,   // 🎯 v21 UNDERDOG: SNIPER default = Only Trending markets (HUNTER relaxes this)
+        minElapsedSeconds: 300,  // 🎯 ZERO VARIANCE: 5 minutes minimum (more data = more certainty)
+        minConsensus: 0.80,      // 🎯 ZERO VARIANCE: 80% models must agree (was 70%)
+        minConfidence: 0.85,     // 🎯 ZERO VARIANCE: 85% confidence required (was 70%)
+        minEdge: 5,              // Minimum 5% edge over market
+        requireTrending: true,   // Must be trending in our direction
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.60,           // 🚀 VELOCITY v26: 60¢ max = MAXIMUM OPPORTUNITY. Genesis Hard Block (L4156) guarantees safety.
-        minStability: 4,         // 🎯 v20 BALANCED: 4 ticks stable (compromise between speed and safety)
+        maxOdds: 0.55,           // 🎯 ZERO VARIANCE: 55¢ max (was 60¢ - more profit margin)
+        minStability: 6,         // 🎯 ZERO VARIANCE: 6 ticks stable (was 4 - more confirmation)
         stopLoss: 0.30,          // 🛡️ 30% stop loss
-        stopLossEnabled: true,   // 🛡️ MOLECULAR: ENABLED for loss protection
-        earlyTakeProfitEnabled: true,    // 💰 v22 VOLATILITY HARVESTER: Exit early on gains
-        earlyTakeProfitThreshold: 0.20,  // 🏆 APEX v24: Exit at +20% gain (faster profit taking)
-        hedgeEnabled: false,             // 🚀 VELOCITY v26: DISABLED - Genesis 94.4% accuracy IS the hedge. Hedging costs 40% EV.
-        hedgeRatio: 0.20,                 // Only used if hedgeEnabled = true
-        velocityMode: true                // 🚀 VELOCITY v26: Aggressive sizing for small accounts
+        stopLossEnabled: true,   // 🛡️ Always enabled
+        earlyTakeProfitEnabled: true,    // 💰 Exit early on gains
+        earlyTakeProfitThreshold: 0.20,  // Exit at +20% gain
+        hedgeEnabled: false,             // Genesis 94.5% IS the hedge
+        hedgeRatio: 0.20,                // Only used if hedgeEnabled = true
+        velocityMode: true               // Aggressive sizing for small accounts
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
