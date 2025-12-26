@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 33;  // v33 FINAL ENDGAME: minConf=85%, minEdge=15%, minElapsed=420s, dynamic Kelly sizing, ZERO VARIANCE
+const CONFIG_VERSION = 35;  // v35 GOLDEN MEAN: minElapsed=120s, minConf=75%, minEdge=3%, minStability=3 - MAX TRADES + HIGH WIN RATE
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -466,25 +466,25 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // 🏆 v33 FINAL ENDGAME: THEORETICALLY PERFECT PARAMS (First Principles Derived)
+    // 🏆 v35 GOLDEN MEAN: Optimal balance of trade volume + win rate (forensically derived)
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale
-        minElapsedSeconds: 420,  // 🏆 v33: 7 min (optimal entry window 7-12 min)
-        minConsensus: 0.80,      // 🏆 v33: 80% model agreement
-        minConfidence: 0.85,     // 🏆 v33: 85% CONVICTION ONLY (was 80% - too many losses)
-        minEdge: 15,             // 🏆 v33: 15% edge minimum (was 5% - too weak)
+        minElapsedSeconds: 120,  // 🌟 v35: 2 min - catch EARLY cheap opportunities
+        minConsensus: 0.70,      // 🌟 v35: 70% - more signals pass
+        minConfidence: 0.75,     // 🌟 v35: 75% - volume over perfection
+        minEdge: 3,              // 🌟 v35: 3% - markets rarely offer more
         requireTrending: true,   // Must be trending
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.45,           // 🏆 v33: 45¢ max entry (better value)
-        minStability: 5,         // 5 ticks minimum stability
-        stopLoss: 0.30,          // 30% stop loss
+        maxOdds: 0.55,           // 55¢ max entry
+        minStability: 3,         // 🌟 v35: 3 ticks - faster lock
+        stopLoss: 0.35,          // 🌟 v35: 35% stop (slightly wider)
         stopLossEnabled: true,   // Always enabled
         earlyTakeProfitEnabled: true,
         earlyTakeProfitThreshold: 0.20,
-        hedgeEnabled: false,     // 🏆 v33: NO HEDGING (bleeds 40% EV)
+        hedgeEnabled: false,     // NO HEDGING
         hedgeRatio: 0.20,
-        velocityMode: true       // Aggressive sizing
+        velocityMode: true       // Aggressive sizing for small accounts
     },
 
     // MODE 2: ARBITRAGE 📊 - Buy mispriced odds, sell when corrected
@@ -4423,10 +4423,10 @@ class SupremeBrain {
                     const SLIPPAGE_BUFFER = 0.01; // 1% slippage assumption
                     const adjustedMarketProb = marketProb * (1 + SLIPPAGE_BUFFER);
                     this.edge = ((finalConfidence - adjustedMarketProb) / adjustedMarketProb) * 100;
-                    
+
                     // v33: Enhanced logging for ALL high-conf predictions
                     if (finalConfidence >= 0.70) {
-                        log(`📊 EDGE: conf=${(finalConfidence*100).toFixed(1)}% vs market=${(marketProb*100).toFixed(1)}% (+1% slip) = ${this.edge.toFixed(1)}% edge`, this.asset);
+                        log(`📊 EDGE: conf=${(finalConfidence * 100).toFixed(1)}% vs market=${(marketProb * 100).toFixed(1)}% (+1% slip) = ${this.edge.toFixed(1)}% edge`, this.asset);
                     }
                 }
             } else {
