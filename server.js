@@ -472,7 +472,7 @@ const CONFIG = {
         aggression: 50,          // 🔮 0-100 scale
         minElapsedSeconds: 60,   // 🏆 v36: 1 min - catch VERY early cheap odds
         minConsensus: 0.70,      // 70% model agreement
-        minConfidence: 0.85,     // 🏆 v36: 85% - quality over quantity
+        minConfidence: 0.80,     // 🏆 v37: 80% - more trades (was 85%)
         minEdge: 0,              // 🏆 v36: DISABLED - edge calc is broken (always 0%)
         requireTrending: false,  // 🏆 v36: OFF - catch early before trend forms
         requireMomentum: false,  // Don't require perfect timing
