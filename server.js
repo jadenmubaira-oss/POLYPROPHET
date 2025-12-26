@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 38;  // v38 PROPHET: Smoothed Dynamic Exit (Diamond/Paper logic), 40% Stop, 95¢ Target for High Conf
+const CONFIG_VERSION = 39;  // v39 ADAPTIVE: Market Regimes (Calm/Volatile/Chaos), Real-time Volatility Analysis
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -466,28 +466,59 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // 🏆 v38 PROPHET STRATEGY: Smoothed Dynamic Exit
+    // 🏆 v39 ADAPTIVE STRATEGY: Real-time Regime Detection
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale
-        minElapsedSeconds: 60,   // 1 min - catch VERY early cheap odds
+        minElapsedSeconds: 60,   // 1 min - catch VERY early
         minConsensus: 0.70,      // 70% model agreement
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        requireTrending: false,  // OFF - catch early
-        requireMomentum: false,  // OFF - catch early
         maxOdds: 0.50,           // 50¢ max - VALUE ENTRY
         minStability: 2,         // 2 ticks - fast lock
-        stopLoss: 0.40,          // 🏆 v38: 40% stop - Survival Line
-        stopLossEnabled: true,   // Always enabled
 
-        // 🏆 v38 DYNAMIC EXIT PROTOCOL
-        earlyTakeProfitEnabled: true,    // Enable smart exits
-        dynamicExitEnabled: true,        // 💎 DIAMOND HANDS logic
-        confidenceSmoothingWindow: 3,    // 🛡️ 3-tick smoothing (filters noise)
-        confidenceKeepThreshold: 0.80,   // 💎 Hold if AvgConf >= 80%
-        diamondTarget: 0.95,             // 💎 Target for High Conf (~95¢)
-        safetyTarget: 0.25,              // 🧻 Target for Dropping Conf (+25%)
+        // 🏆 v39 ADAPTIVE CONFIGURATION
+        // The bot automatically switches regimes based on Confidence Volatility (StdDev)
+        adaptiveModeEnabled: true,
+
+        regimes: {
+            // 🌊 CALM: Low Volatility (StdDev < 5%) -> AGGRESSIVE
+            CALM: {
+                sensitivity: "HIGH",
+                smoothingWindow: 1,      // Fast reaction
+                stopLoss: 0.30,          // Tight stop
+                diamondTarget: 0.98,     // Max greed
+                safetyTarget: 0.20       // Quick scalp if wrong
+            },
+
+            // 🌪️ VOLATILE: Normal (StdDev 5-15%) -> DEFENSIVE (v38 Standard)
+            VOLATILE: {
+                sensitivity: "MEDIUM",
+                smoothingWindow: 3,      // Filter noise
+                stopLoss: 0.40,          // Standard stop
+                diamondTarget: 0.95,     // Standard target
+                safetyTarget: 0.25       // Standard safety
+            },
+
+            // 🔥 CHAOS: Extreme (StdDev > 15%) -> SURVIVAL
+            CHAOS: {
+                sensitivity: "LOW",
+                smoothingWindow: 5,      // Heavy filtering
+                stopLoss: 0.50,          // Max room to breathe
+                diamondTarget: 0.90,     // Lower expectations
+                safetyTarget: 0.15       // Get out fast
+            }
+        },
+
+        // DEFAULT VALUES (Used if adaptive mode off or initializing)
+        stopLoss: 0.40,
+        stopLossEnabled: true,
+        earlyTakeProfitEnabled: true,
+        dynamicExitEnabled: true,
+        confidenceSmoothingWindow: 3,
+        confidenceKeepThreshold: 0.80,
+        diamondTarget: 0.95,
+        safetyTarget: 0.25,
 
         hedgeEnabled: false,     // NO HEDGING
         hedgeRatio: 0.20,
@@ -2234,49 +2265,53 @@ class TradeExecutor {
                 return;
             }
 
-            // ==================== v38 PROPHET: SMOOTHED DYNAMIC EXIT ====================
-            // ANATOMICALLY DESIGNED to handle "Jumpy" Confidence
-            // 1. Smooth confidence (3-tick avg) to ignore noise
-            // 2. High Conf (>=80%) -> DIAMOND HANDS (Target 95¢)
-            // 3. Low Conf (<80%) -> PAPER HANDS (Target +25%)
+            // ==================== v39 ADAPTIVE MARKET REGIMES ====================
+            // 🧠 INTELLIGENCE: Auto-adapt to Market Mood (Calm/Volatile/Chaos)
 
-            if (pos.mode === 'ORACLE' && CONFIG.ORACLE.dynamicExitEnabled) {
-                // Get Current Gain
+            if (pos.mode === 'ORACLE' && CONFIG.ORACLE.adaptiveModeEnabled) {
+                // 1. Detect Regime (Real-time volatility analysis)
+                // Use global opportunityDetector instance to get regime
+                const regime = (typeof opportunityDetector !== 'undefined')
+                    ? opportunityDetector.detectRegime(asset)
+                    : 'VOLATILE';
+
+                // 2. Load Regime Parameters
+                const params = CONFIG.ORACLE.regimes[regime] || CONFIG.ORACLE.regimes.VOLATILE;
+
+                // 3. Dynamic Stop Loss Update (CRITICAL)
+                // We update the position's stop loss to match the current regime.
+                // In CHAOS, we widen it (0.50). In CALM, we tighten it (0.30).
+                pos.stopLoss = params.stopLoss;
+
+                // Explicit Check for logging clarity
+                if (currentOdds <= params.stopLoss) {
+                    log(`🛡️ ${regime} REGIME STOP: Exiting at ${(currentOdds * 100).toFixed(0)}¢ (Stop ${params.stopLoss * 100}%)`, pos.asset);
+                    this.closePosition(id, currentOdds, `${regime} STOP LOSS`);
+                    return;
+                }
+
+                // 4. Dynamic Target Logic (Diamond vs Safety)
                 const gainPercent = (currentOdds - pos.entry) / pos.entry;
 
-                // Get Smoothed Confidence (Rolling Average)
-                // We use OpportunityDetector history if available, else raw current confidence
-                let avgConfidence = 0.85; // Default assumption if no history
-
-                // Attempt to get recent confidence history from OpportunityDetector singleton
-                if (typeof opportunityDetector !== 'undefined' && opportunityDetector.lastScans && opportunityDetector.lastScans[asset]) {
-                    // This is a simplified access - a robust implementation would access cycle history
-                    // For now, we assume the latest scan is representative, but in future steps we can link deeper
-                    // Defaulting to raw exit logic based on current market state + entry confidence decay
+                // DIAMOND HANDS: High confidence implied by Regime + Price Action
+                // If price > diamondTarget, we take max profit
+                if (currentOdds >= params.diamondTarget) {
+                    const profitPercent = (gainPercent * 100).toFixed(0);
+                    this.closePosition(id, currentOdds, `💎 ${regime} DIAMOND EXIT +${profitPercent}% (${(params.diamondTarget * 100).toFixed(0)}¢ Target)`);
+                    return;
                 }
 
-                // SIMPLIFIED DYNAMIC LOGIC (Robust for now):
-                // If price > entry AND price > 0.90 -> AI was RIGHT -> HOLD
-                // We use PRICE ACTION as the ultimate confidence signal
+                // SAFETY NET: Mid-range profit taking if things look shaky
+                // If price > safetyTarget (e.g. +20%) AND we are not at moon yet...
+                // Only take safety exit if Price < 0.80 (Struggling) OR Regime is CHAOS
+                // In CALM, we ignore safety exit (let it ride). In CHAOS, we take it eagerly.
+                const isStruggling = currentOdds < 0.80;
+                const forceSafety = regime === 'CHAOS'; // Taking profit early in chaos is wise
 
-                // 💎 DIAMOND HANDS CHECK: Is the trade working perfectly?
-                // If price > 80¢, we assume high confidence is validated by market
-                if (currentOdds >= 0.80) {
-                    // TARGET: 95¢ (Maximum Yield)
-                    if (currentOdds >= CONFIG.ORACLE.diamondTarget) {
-                        const profitPercent = (gainPercent * 100).toFixed(0);
-                        this.closePosition(id, currentOdds, `💎 PROPHET DIAMOND EXIT +${profitPercent}% (95¢ Target)`);
-                        return;
-                    }
-                }
-                // 🧻 PAPER HANDS CHECK: Early profit taking if not yet at moon
-                else {
-                    // TARGET: 25% (Safety) - ONLY if we haven't reached "Escape Velocity" (>80¢)
-                    if (gainPercent >= CONFIG.ORACLE.safetyTarget && timeToEnd > 60) {
-                        const profitPercent = (gainPercent * 100).toFixed(0);
-                        this.closePosition(id, currentOdds, `🧻 SAFETY EXIT +${profitPercent}% (Confidence Protection)`);
-                        return;
-                    }
+                if ((isStruggling || forceSafety) && gainPercent >= params.safetyTarget && timeToEnd > 60) {
+                    const profitPercent = (gainPercent * 100).toFixed(0);
+                    this.closePosition(id, currentOdds, `🧻 ${regime} SAFETY EXIT +${profitPercent}%`);
+                    return;
                 }
             }
 
@@ -2652,6 +2687,7 @@ class TradeExecutor {
 class OpportunityDetector {
     constructor() {
         this.lastScans = {};
+        this.confidenceHistory = {}; // 🏆 v39: Track confidence volatility
         // Track trades per cycle per asset per mode to prevent duplicate entries
         this.tradesThisCycle = {}; // { 'BTC_MOMENTUM': timestamp, ... }
         this.currentCycleStart = 0;
@@ -2677,6 +2713,32 @@ class OpportunityDetector {
     markTraded(asset, mode) {
         this.checkCycleReset();
         this.tradesThisCycle[`${asset}_${mode}`] = Date.now();
+    }
+
+    // 🏆 v39: Update confidence history for volatility analysis
+    updateConfidenceHistory(asset, confidence) {
+        if (!this.confidenceHistory[asset]) this.confidenceHistory[asset] = [];
+        this.confidenceHistory[asset].push(confidence);
+        // Keep last 10 ticks (~1 min) for StdDev calculation
+        if (this.confidenceHistory[asset].length > 10) this.confidenceHistory[asset].shift();
+    }
+
+    // 🏆 v39: Detect Market Regime based on volatility
+    detectRegime(asset) {
+        if (!CONFIG.ORACLE.adaptiveModeEnabled) return 'VOLATILE'; // Default if disabled
+
+        const history = this.confidenceHistory[asset];
+        if (!history || history.length < 5) return 'VOLATILE'; // Not enough data -> Default
+
+        // Calculate Standard Deviation
+        const mean = history.reduce((a, b) => a + b, 0) / history.length;
+        const variance = history.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / history.length;
+        const stdDev = Math.sqrt(variance);
+
+        // Determine Regime
+        if (stdDev < 0.05) return 'CALM';      // 🌊 Low Volatility (<5%) -> Aggressive
+        if (stdDev > 0.15) return 'CHAOS';     // 🔥 Extreme Volatility (>15%) -> Survival
+        return 'VOLATILE';                     // 🌪️ Normal (5-15%) -> Defensive
     }
 
     // MODE 2: VALUE_BET - Detect mispriced odds (RENAMED from ARBITRAGE)
@@ -3046,6 +3108,11 @@ class OpportunityDetector {
 
     // Scan all modes and return best opportunity
     scanAll(asset, data) {
+        // v39: Update confidence history for regime detection
+        if (data && typeof data.confidence === 'number') {
+            this.updateConfidenceHistory(asset, data.confidence);
+        }
+
         const opportunities = [];
 
         // ==================== STRATEGIC TRINITY: HIGHEST PRIORITY ====================
