@@ -1462,7 +1462,12 @@ class TradeExecutor {
                     entry: entryPrice,
                     size,
                     time: Date.now(),
-                    status: 'OPEN'
+                    status: 'OPEN',
+                    // v37: DIAGNOSTIC FIELDS for forensics
+                    entryConfidence: confidence,
+                    configVersion: CONFIG_VERSION,
+                    cycleElapsed: cycleElapsed,
+                    tier: options.tier || 'UNKNOWN'
                 });
 
                 // PINNACLE: Prevent memory leak - keep max 1000 trades in history
