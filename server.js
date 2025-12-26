@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 35;  // v35 GOLDEN MEAN: minElapsed=120s, minConf=75%, minEdge=3%, minStability=3 - MAX TRADES + HIGH WIN RATE
+const CONFIG_VERSION = 37;  // v37 ULTRA-AGGRESSIVE: 70% CONVICTION sizing, 50% ADVISORY, $5→$100 in 5-6 trades
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -466,22 +466,22 @@ const CONFIG = {
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
-    // 🏆 v35 GOLDEN MEAN: Optimal balance of trade volume + win rate (forensically derived)
+    // 🏆 v36 PERFECT STRATEGY: Edge is BROKEN (always 0%), use maxOdds as edge proxy
     ORACLE: {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale
-        minElapsedSeconds: 120,  // 🌟 v35: 2 min - catch EARLY cheap opportunities
-        minConsensus: 0.70,      // 🌟 v35: 70% - more signals pass
-        minConfidence: 0.75,     // 🌟 v35: 75% - volume over perfection
-        minEdge: 3,              // 🌟 v35: 3% - markets rarely offer more
-        requireTrending: true,   // Must be trending
+        minElapsedSeconds: 60,   // 🏆 v36: 1 min - catch VERY early cheap odds
+        minConsensus: 0.70,      // 70% model agreement
+        minConfidence: 0.85,     // 🏆 v36: 85% - quality over quantity
+        minEdge: 0,              // 🏆 v36: DISABLED - edge calc is broken (always 0%)
+        requireTrending: false,  // 🏆 v36: OFF - catch early before trend forms
         requireMomentum: false,  // Don't require perfect timing
-        maxOdds: 0.55,           // 55¢ max entry
-        minStability: 3,         // 🌟 v35: 3 ticks - faster lock
-        stopLoss: 0.35,          // 🌟 v35: 35% stop (slightly wider)
+        maxOdds: 0.50,           // 🏆 v36: 50¢ max - THIS IS YOUR EDGE PROXY
+        minStability: 2,         // 🏆 v36: 2 ticks - fast lock
+        stopLoss: 0.50,          // 🏆 v36: 50% stop - wider = fewer false exits
         stopLossEnabled: true,   // Always enabled
         earlyTakeProfitEnabled: true,
-        earlyTakeProfitThreshold: 0.20,
+        earlyTakeProfitThreshold: 0.25, // 🏆 v36: 25% early profit take
         hedgeEnabled: false,     // NO HEDGING
         hedgeRatio: 0.20,
         velocityMode: true       // Aggressive sizing for small accounts
@@ -1200,29 +1200,29 @@ class TradeExecutor {
                 // For small bankrolls: use minimum viable size
                 // For large bankrolls: use percentage-based sizing
                 const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
-                const MAX_FRACTION = 0.30; //  FIX #24: 30% max (was 50%) - safer compounding
+                const MAX_FRACTION = 0.70; // 🚀 v37: 70% max (was 30%) - AGGRESSIVE compounding
 
                 // Calculate base percentage
                 let basePct;
                 switch (mode) {
                     case 'ORACLE':
-                        // 🚀 VELOCITY v26: AGGRESSIVE SIZING FOR CONVICTION TRADES ON SMALL ACCOUNTS
-                        // Mathematical basis: Kelly Criterion with 94% win rate = 87% optimal
-                        // We use Half-Kelly (50%) for safety while maximizing growth velocity
+                        // 🚀 v37 ULTRA-AGGRESSIVE: Based on Kelly Matrix analysis
+                        // $5→$100 path: 70% sizing @ 90% WR = only 5-6 trades needed!
+                        // Mathematical basis: See uploaded chart (70% row, 1-2 Loss column)
                         const tradeTier = options.tier || 'ADVISORY';
                         const isVelocityMode = CONFIG.ORACLE.velocityMode && bankroll < 200; // $200 threshold
 
                         if (tradeTier === 'CONVICTION') {
                             if (isVelocityMode) {
-                                basePct = 0.50; // 🚀 VELOCITY: 50% for CONVICTION on small accounts
-                                log(`🚀 VELOCITY MODE: 50% sizing (bankroll $${bankroll.toFixed(2)} < $200)`, asset);
+                                basePct = 0.70; // 🚀 v37: 70% for CONVICTION on small accounts (was 50%)
+                                log(`🚀 ULTRA-AGGRESSIVE: 70% sizing (bankroll $${bankroll.toFixed(2)} < $200)`, asset);
                             } else {
-                                basePct = 0.30; // Standard 30% for larger accounts
-                                log(`💎 CONVICTION tier: Full 30% sizing`, asset);
+                                basePct = 0.50; // 🚀 v37: 50% for larger accounts (was 30%)
+                                log(`💎 CONVICTION tier: 50% sizing`, asset);
                             }
                         } else {
-                            basePct = 0.15; // Half 15% for medium-confidence trades
-                            log(`📊 ADVISORY tier: Half 15% sizing`, asset);
+                            basePct = 0.30; // 🚀 v37: 30% for ADVISORY (was 15%)
+                            log(`📊 ADVISORY tier: 30% sizing`, asset);
                         }
                         break;
                     case 'SCALP':
