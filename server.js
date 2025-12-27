@@ -4425,7 +4425,7 @@ class SupremeBrain {
                         let isTrendMode = false;
                         if (!isGodMode && finalConfidence > 0.80) {
                             const isTrendUP = finalSignal === 'UP' && currentOdds > 0.50;
-                            const isTrendDOWN = finalSignal === 'DOWN' && currentOdds < 0.50;
+                            const isTrendDOWN = finalSignal === 'DOWN' && currentOdds > 0.50; // FIX: Trend = NO price > 0.50
                             if (isTrendUP || isTrendDOWN) {
                                 isTrendMode = true;
                             }
