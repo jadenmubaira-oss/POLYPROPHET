@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 39;  // v39 ADAPTIVE: Market Regimes (Calm/Volatile/Chaos), Real-time Volatility Analysis
+const CONFIG_VERSION = 40;  // v40 PROPHET: RELATIVE RELATIVITY (Fixes Chaos Stop Loss Bug)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -2278,15 +2278,22 @@ class TradeExecutor {
                 // 2. Load Regime Parameters
                 const params = CONFIG.ORACLE.regimes[regime] || CONFIG.ORACLE.regimes.VOLATILE;
 
-                // 3. Dynamic Stop Loss Update (CRITICAL)
-                // We update the position's stop loss to match the current regime.
-                // In CHAOS, we widen it (0.50). In CALM, we tighten it (0.30).
-                pos.stopLoss = params.stopLoss;
+                // 3. Dynamic Stop Loss Update (CRITICAL FIX v40)
+                // PREVIOUS BUG (v39): pos.stopLoss = params.stopLoss (0.50) -> ABSOLUTE PRICE -> INSTANT EXIT
+                // v40 FIX: Calculate RELATIVE Stop Price based on Entry
+                // Formula: StopPrice = Entry * (1 - StopPct)
+
+                const stopPct = params.stopLoss; // e.g., 0.50 (50%)
+                const stopPrice = pos.entry * (1 - stopPct);
+
+                // Update the position's stop loss to the calculated price
+                pos.stopLoss = stopPrice;
 
                 // Explicit Check for logging clarity
-                if (currentOdds <= params.stopLoss) {
-                    log(`🛡️ ${regime} REGIME STOP: Exiting at ${(currentOdds * 100).toFixed(0)}¢ (Stop ${params.stopLoss * 100}%)`, pos.asset);
-                    this.closePosition(id, currentOdds, `${regime} STOP LOSS`);
+                if (currentOdds <= pos.stopLoss) {
+                    const lossPct = ((pos.entry - currentOdds) / pos.entry * 100).toFixed(0);
+                    log(`🛡️ ${regime} REGIME STOP: Exiting at ${(currentOdds * 100).toFixed(0)}¢ (Stop Price ${(pos.stopLoss * 100).toFixed(0)}¢ / -${stopPct * 100}%)`, pos.asset);
+                    this.closePosition(id, currentOdds, `${regime} STOP LOSS (-${lossPct}%)`);
                     return;
                 }
 
