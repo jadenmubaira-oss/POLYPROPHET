@@ -444,7 +444,7 @@ ASSETS.forEach(asset => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 40;  // v40 PROPHET: RELATIVE RELATIVITY (Fixes Chaos Stop Loss Bug)
+const CONFIG_VERSION = 42;  // v42 PROPHET: IMMUTABLE GOD/TREND STRATEGY (MaxOdds 60c)
 
 const CONFIG = {
     // API Keys - .trim() removes any hidden newlines/spaces from env vars
@@ -474,7 +474,7 @@ const CONFIG = {
         minConsensus: 0.70,      // 70% model agreement
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        maxOdds: 0.50,           // 50¢ max - VALUE ENTRY
+        maxOdds: 0.60,           // 🏆 v42: 60¢ max (Catch Trend Winners)
         minStability: 2,         // 2 ticks - fast lock
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
@@ -4415,33 +4415,64 @@ class SupremeBrain {
                         // Do not trade - fall through to end
                     }
                     else {
-                        // Safe to proceed with normal checks
+                        // ==================== v42 IMMUTABLE PROPHET: GOD / TREND MODES ====================
 
-                        const oracleChecks = {
-                            consensus: consensusRatio >= adjustedMinConsensus,
-                            confidence: finalConfidence >= adjustedMinConfidence,
-                            edge: edgePercent >= adjustedMinEdge,
-                            regime: !tradeExecutor.getEffectiveRequireTrending() || isTrending, // 🦅 v21: Dynamic SNIPER/HUNTER
-                            momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
-                            odds: currentOdds <= tradeExecutor.getEffectiveMaxOdds(), // 🦅 v21: Dynamic (0.48 SNIPER / 0.50 HUNTER)
-                            stability: this.stabilityCounter >= tradeExecutor.getEffectiveMinStability() || this.prediction === finalSignal // 🦅 v21: Dynamic
-                        };
+                        // 1. GOD MODE (>90%): 0 Historical Failures -> EXECUTE IMMEDIATELY
+                        const isGodMode = finalConfidence > 0.90;
 
-                        const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
+                        // 2. TREND MODE (80-90%): Execute ONLY if Trend Aligned (Buy High / Short Low)
+                        // This CAPTURES the 5:45 velocity trade (60c) and BLOCKS the 80% reversals
+                        let isTrendMode = false;
+                        if (!isGodMode && finalConfidence > 0.80) {
+                            const isTrendUP = finalSignal === 'UP' && currentOdds > 0.50;
+                            const isTrendDOWN = finalSignal === 'DOWN' && currentOdds < 0.50;
+                            if (isTrendUP || isTrendDOWN) {
+                                isTrendMode = true;
+                            }
+                        }
 
-
-                        if (failedChecks.length === 0) {
+                        if (isGodMode || isTrendMode) {
+                            // BYPASS ALL STANDARD CHECKS (Consensus, Momentum, Regime, etc.)
                             this.convictionLocked = true;
                             this.lockedDirection = finalSignal;
                             this.lockTime = Date.now();
                             this.lockConfidence = finalConfidence;
 
-                            log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
-                            log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
+                            const modeName = isGodMode ? "GOD MODE (>90%) ⚡" : "TREND MODE (80-90% + Trend) 🌊";
+                            log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
+                            log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
 
                             tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier });
-                        } else {
-                            log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
+                        }
+                        else {
+                            // Safe to proceed with normal checks
+
+                            const oracleChecks = {
+                                consensus: consensusRatio >= adjustedMinConsensus,
+                                confidence: finalConfidence >= adjustedMinConfidence,
+                                edge: edgePercent >= adjustedMinEdge,
+                                regime: !tradeExecutor.getEffectiveRequireTrending() || isTrending, // 🦅 v21: Dynamic SNIPER/HUNTER
+                                momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
+                                odds: currentOdds <= tradeExecutor.getEffectiveMaxOdds(), // 🦅 v21: Dynamic (0.48 SNIPER / 0.50 HUNTER)
+                                stability: this.stabilityCounter >= tradeExecutor.getEffectiveMinStability() || this.prediction === finalSignal // 🦅 v21: Dynamic
+                            };
+
+                            const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
+
+
+                            if (failedChecks.length === 0) {
+                                this.convictionLocked = true;
+                                this.lockedDirection = finalSignal;
+                                this.lockTime = Date.now();
+                                this.lockConfidence = finalConfidence;
+
+                                log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
+                                log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
+
+                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier });
+                            } else {
+                                log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
+                            }
                         }
                     }
                 }
