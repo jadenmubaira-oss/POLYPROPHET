@@ -1,18 +1,52 @@
+# Dependencies
 node_modules/
+
+# Environment
 .env
 *.log
+
+# State files
 omega_state.json
+
+# OS
 .DS_Store
+
+# Archives (keep in debug-archive branch)
 *.zip
+
+# Debug/backtest folders (keep in debug-archive branch)
+debug/
 debug_backtest/
-*.json.bak
+p2/
+
+# Forensic artifacts (keep in debug-archive branch)
+FORENSIC_*.json
+FORENSIC_*.csv
+FORENSIC_*.md
+FORENSIC_*.diff
 repo_integrity_manifest.json
 debug_trade_analysis_output.json
-debug/trade_replay_backtest_v2.json
-cursor_chat_name_generation_instruction.md
-debug/
-.cursor/
-POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd/
-p2/
-*.large.md
 *analysis_results*.json
+*.json.bak
+
+# Variant folders (keep in debug-archive branch)
+POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd/
+POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted/
+POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd/
+POLYPROPHET-FINAL/
+
+# Large chat exports (keep in debug-archive branch)
+cursor_*.md
+Genesis Veto Verification.md
+OMEGA V2 Data Restoration.md
+POLYPROPHET Molecular Reconstruction.md
+
+# IDE
+.cursor/
+
+# Wrapper backups
+*.root-wrapper.js
+*.root-wrapper.json
+
+# Tools (optional - can keep if useful)
+tools/
