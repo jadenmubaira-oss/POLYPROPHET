@@ -8,11 +8,13 @@ A production-ready autonomous trading system for Polymarket's 15-minute crypto c
 
 ## 🎯 MISSION
 
-**£5 → £100 in 24 hours** through intelligent state-based trading that:
+**Stretch goal (NOT guaranteed): £5 → £100 in 24 hours** through intelligent state-based trading that:
 - Prevents dormancy (frequent trades when justified)
 - Maximizes EV (expected value-based sizing)
 - Minimizes variance (state-gated aggression)
 - Preserves capital (fractional Kelly + drawdown limits)
+
+**Hard reality**: a guaranteed 20× return in 24h with “minimal to zero variance” is not mathematically provable in a live prediction market without a true, persistent edge and fill/liquidity guarantees. This repo aims to be **operationally robust** and **honest about limits**, not to promise impossible outcomes.
 
 ---
 
@@ -45,6 +47,12 @@ A production-ready autonomous trading system for Polymarket's 15-minute crypto c
    - Proxy-aware for Render.com deployment
    - Market data normalization
 
+### Data Sources (critical)
+- **Underlying prices (settlement truth)**: Polymarket live-data WebSocket (`wss://ws-live-data.polymarket.com`) topic `crypto_prices_chainlink`
+- **Market odds**: Polymarket Gamma API outcome prices (used for entry/exit odds)
+
+If Chainlink prices go stale, the bot **will not trade** until the feed recovers.
+
 6. **Exit Engine** (`src/exit.js`)
    - Brain reversal detection
    - Confidence drain protection
@@ -66,9 +74,9 @@ A production-ready autonomous trading system for Polymarket's 15-minute crypto c
 
 1. **Create New Web Service**
    - Connect your GitHub repository
-   - Build Command: `npm install`
+   - Build Command: `npm ci`
    - Start Command: `node server.js`
-   - Environment: Node 18+
+   - Environment: Node **20.x** (pinned in `package.json`)
 
 2. **Environment Variables**
 
@@ -115,6 +123,17 @@ node server.js
 Access dashboard at `http://localhost:3000`
 
 ---
+
+## 🔍 REPRODUCIBLE AUDITS (no hand-waving)
+
+These tools exist to scan the tree and logs deterministically:
+
+- **Repo integrity scan**: `node tools/repo_integrity_scan.js`
+  - Hashes every file (excluding `node_modules/`, `.git/`, `.cursor/`) and parses JS with `acorn`.
+- **Debug trade extraction**: `node tools/analyze_debug_trades.js`
+  - De-dupes trades across `./debug` snapshots, prints distribution + outliers.
+- **Trade replay (sizing + exposure cap)**: `node tools/replay_trade_history.js`
+  - Replays historical trade *returns* with risk caps from a small starting balance (no Monte Carlo).
 
 ## 📱 MOBILE APP (Vibecode)
 

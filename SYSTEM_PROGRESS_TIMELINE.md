@@ -116,7 +116,22 @@ This document tracks the complete evolution of the Polyprophet system, including
 - **Higher returns per trade** (2x+ minimum instead of 1.25x)
 - **Better chance of reaching £100 goal** (if 5-10 good trades vs 24 marginal trades)
 
-**SYSTEM IS NOW OPTIMIZED FOR MAXIMUM PROFIT**
+**SYSTEM IS NOW OPERATIONALLY HARDENED (profit is NOT guaranteed)**
+
+### Phase 8: Deployment + Correctness Hardening (2025-12-29)
+- **Critical fix**: `src/supreme_brain.js` had a runtime scoping bug (`agreement`, `priceConfirmation`, etc. were block-scoped then referenced later), which could silently break prediction generation and keep the UI stuck on WAIT.
+- **Data correctness**: Switched underlying price source to Polymarket live-data WebSocket (`wss://ws-live-data.polymarket.com`) Chainlink topic `crypto_prices_chainlink` and **skip trading on stale prices**.
+- **Run-forever stability**:
+  - Prevent overlapping `mainLoop()` executions
+  - Fix exposure math (use equity, not remaining cash)
+  - Add global exposure cap to prevent multi-asset wipeouts
+- **Deployment determinism**:
+  - Pin Node to **20.x**
+  - Fix `package-lock.json` to include `socket.io`
+
+### What this means for the £5→£100/24h goal
+- The logs show some extreme outliers (very low entry prices and very large compounding sizes). Those are **not a reliable “worst-case” expectation** and depend on real-world fill/liquidity and a genuine predictive edge.
+- The system can be engineered to be robust; it **cannot** honestly promise a guaranteed 20× return in 24h with near-zero variance.
 
 ## FILES TO READ
 
