@@ -155,21 +155,30 @@ const INTERVAL_SECONDS = 900; // 15 minutes
 const LIVE_DATA_WS_ENDPOINT = 'wss://ws-live-data.polymarket.com';
 const livePrices = { BTC: null, ETH: null, SOL: null, XRP: null };
 const lastPriceUpdateMs = { BTC: 0, ETH: 0, SOL: 0, XRP: 0 };
-let lastChainlinkDataTime = Date.now();
+let lastLiveDataTime = Date.now();
 let liveDataWs = null;
 let wsHeartbeatInterval = null;
 let wsTimeoutInterval = null;
+let wsReconnectBackoffMs = 5000;
+let wsLastError = null;
+let wsLastClose = null;
+let wsConnectCount = 0;
 
 function connectLiveDataWs() {
     if (wsHeartbeatInterval) clearInterval(wsHeartbeatInterval);
     if (wsTimeoutInterval) clearInterval(wsTimeoutInterval);
 
-    const ws = new WebSocket(LIVE_DATA_WS_ENDPOINT);
+    wsConnectCount++;
+    const ws = new WebSocket(LIVE_DATA_WS_ENDPOINT, {
+        perMessageDeflate: false,
+        headers: { 'User-Agent': 'PolyProphetFinal/1.0' }
+    });
     liveDataWs = ws;
 
     ws.on('open', () => {
-        lastChainlinkDataTime = Date.now();
-        console.log('✅ Connected to Polymarket live-data WS (Chainlink)');
+        lastLiveDataTime = Date.now();
+        wsReconnectBackoffMs = 5000; // reset backoff on successful connect
+        console.log(`✅ Connected to Polymarket live-data WS (attempt #${wsConnectCount})`);
         ws.send(JSON.stringify({ action: 'subscribe', subscriptions: [{ topic: 'crypto_prices_chainlink', type: '*' }] }));
         ws.send(JSON.stringify({ action: 'subscribe', subscriptions: [{ topic: 'crypto_prices', type: 'update', filters: 'btcusdt,ethusdt,solusdt,xrpusdt' }] }));
 
@@ -178,8 +187,9 @@ function connectLiveDataWs() {
         }, 30000);
 
         wsTimeoutInterval = setInterval(() => {
-            if (Date.now() - lastChainlinkDataTime > 30000 && ws.readyState === WebSocket.OPEN) {
-                ws.close(4000, 'Stale Chainlink data');
+            // CRITICAL: Treat ANY valid feed (chainlink OR backup) as "live"
+            if (Date.now() - lastLiveDataTime > 60000 && ws.readyState === WebSocket.OPEN) {
+                ws.close(4000, 'Stale live-data feed');
             }
         }, 15000);
     });
@@ -197,28 +207,36 @@ function connectLiveDataWs() {
                 if (asset && Number.isFinite(price) && price > 0) {
                     livePrices[asset] = price;
                     lastPriceUpdateMs[asset] = Date.now();
-                    lastChainlinkDataTime = Date.now();
+                    lastLiveDataTime = Date.now();
                 }
             } else if (msg.topic === 'crypto_prices' && msg.type === 'update') {
                 const map = { btcusdt: 'BTC', ethusdt: 'ETH', solusdt: 'SOL', xrpusdt: 'XRP' };
                 const asset = map[msg.payload?.symbol];
                 const price = parseFloat(msg.payload?.value);
-                if (asset && !livePrices[asset] && Number.isFinite(price) && price > 0) {
+                // CRITICAL: Always update (Bug fix: previous code only set once, then staled out forever)
+                if (asset && Number.isFinite(price) && price > 0) {
                     livePrices[asset] = price;
                     lastPriceUpdateMs[asset] = Date.now();
+                    lastLiveDataTime = Date.now();
                 }
             }
         } catch (e) {}
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reasonBuf) => {
         if (wsHeartbeatInterval) clearInterval(wsHeartbeatInterval);
         if (wsTimeoutInterval) clearInterval(wsTimeoutInterval);
-        console.log('⚠️ Polymarket live-data WS disconnected. Reconnecting in 5s...');
-        setTimeout(connectLiveDataWs, 5000);
+        const reason = reasonBuf ? reasonBuf.toString() : '';
+        wsLastClose = { code, reason, time: Date.now() };
+        console.log(`⚠️ Live-data WS closed (code=${code}${reason ? `, reason=${reason}` : ''}). Reconnecting in ${Math.round(wsReconnectBackoffMs / 1000)}s...`);
+        setTimeout(connectLiveDataWs, wsReconnectBackoffMs);
+        wsReconnectBackoffMs = Math.min(60000, Math.floor(wsReconnectBackoffMs * 1.5));
     });
 
-    ws.on('error', () => {});
+    ws.on('error', (err) => {
+        wsLastError = { message: err?.message || String(err), time: Date.now() };
+        console.log(`⚠️ Live-data WS error: ${wsLastError.message}`);
+    });
 }
 
 // ==================== STATE ====================
@@ -663,6 +681,41 @@ app.get('/api/health', (req, res) => {
         mode: CONFIG.TRADE_MODE,
         balance: tradeExecutor.paperBalance,
         positions: Object.keys(tradeExecutor.positions).length
+    });
+});
+
+// Diagnostics for debugging deployment issues (e.g., live price feed stalling)
+app.get('/api/diagnostics', (req, res) => {
+    const now = Date.now();
+    res.json({
+        now,
+        uptime: process.uptime(),
+        mode: CONFIG.TRADE_MODE,
+        executor: {
+            paperBalance: tradeExecutor.paperBalance,
+            liveBalance: tradeExecutor.liveBalance,
+            peakBalance: tradeExecutor.peakBalance,
+            todayPnL: tradeExecutor.todayPnL,
+            consecutiveLosses: tradeExecutor.consecutiveLosses,
+            positions: Object.keys(tradeExecutor.positions).length
+        },
+        liveData: {
+            wsReadyState: liveDataWs ? liveDataWs.readyState : null,
+            wsConnectCount,
+            lastLiveDataAgeMs: now - lastLiveDataTime,
+            lastPriceUpdateAgeMs: {
+                BTC: now - (lastPriceUpdateMs.BTC || 0),
+                ETH: now - (lastPriceUpdateMs.ETH || 0),
+                SOL: now - (lastPriceUpdateMs.SOL || 0),
+                XRP: now - (lastPriceUpdateMs.XRP || 0)
+            },
+            livePrices,
+            wsLastError,
+            wsLastClose
+        },
+        env: {
+            hasProxyUrl: !!process.env.PROXY_URL
+        }
     });
 });
 
