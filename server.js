@@ -125,8 +125,15 @@ io.on('connection', (socket) => {
     });
     
     // Send initial state on connection
+    const sanitizedBrains = sanitizeBrains(brains);
+    console.log(`📤 Sending initial state to client ${socket.id}. Assets:`, Object.keys(sanitizedBrains));
+    Object.keys(sanitizedBrains).forEach(asset => {
+        const brain = sanitizedBrains[asset];
+        console.log(`  ${asset}: prediction=${brain.prediction}, confidence=${brain.confidence}, tier=${brain.tier}`);
+    });
+    
     const initialData = {
-        ...sanitizeBrains(brains),
+        ...sanitizedBrains,
         _trading: {
             balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance,
             todayPnL: tradeExecutor.todayPnL,
@@ -242,7 +249,10 @@ ASSETS.forEach(asset => {
 // ==================== HEALTH STATUS TRACKING ====================
 const healthStatus = {
     status: 'INITIALIZING',
+    lastLoopStart: null,
     lastSuccessfulLoop: Date.now(),
+    lastLoopDurationMs: null,
+    loopInProgress: false,
     consecutiveFailures: 0,
     apiFailures: 0,
     recoveryAttempts: 0,
@@ -636,13 +646,21 @@ class TradeExecutor {
     }
 }
 
-const tradeExecutor = new TradeExecutor();
+let tradeExecutor = new TradeExecutor();
 
 // ==================== MAIN TRADING LOOP ====================
 async function mainLoop() {
+    // Prevent overlapping loops (setInterval can tick while a prior loop is still running)
+    if (healthStatus.loopInProgress) {
+        return;
+    }
+
+    const loopStartedAt = Date.now();
+    healthStatus.loopInProgress = true;
+    healthStatus.lastLoopStart = loopStartedAt;
+    healthStatus.status = 'RUNNING';
+
     try {
-        healthStatus.lastSuccessfulLoop = Date.now();
-        healthStatus.consecutiveFailures = 0;
         
         state.cycle++;
         tradeExecutor.resetDailyPnL();
@@ -710,6 +728,9 @@ async function mainLoop() {
                 elapsed,
                 market
             );
+            
+            // Debug: Log brain state after update (defensive against undefined confidence)
+            console.log(`🧠 ${asset} Brain Update: prediction=${brains[asset].prediction}, confidence=${Number(brains[asset].confidence ?? 0).toFixed(2)}, tier=${brains[asset].tier}`);
             
             // CRITICAL FIX: Calculate real velocity from price derivatives
             const priceHistory = state.priceHistory[asset];
@@ -1011,8 +1032,15 @@ async function mainLoop() {
         await saveState();
         
         // Broadcast update via Socket.IO
+        const sanitizedBrains = sanitizeBrains(brains);
+        console.log('📡 Broadcasting state update. Assets:', Object.keys(sanitizedBrains));
+        Object.keys(sanitizedBrains).forEach(asset => {
+            const brain = sanitizedBrains[asset];
+            console.log(`  ${asset}: prediction=${brain.prediction}, confidence=${brain.confidence}, tier=${brain.tier}`);
+        });
+        
         const updateData = {
-            ...sanitizeBrains(brains),
+            ...sanitizedBrains,
             _trading: {
                 balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance,
                 todayPnL: tradeExecutor.todayPnL,
@@ -1026,6 +1054,11 @@ async function mainLoop() {
         };
         
         io.emit('state_update', updateData);
+
+        // Mark loop success only after completing all work
+        healthStatus.lastSuccessfulLoop = Date.now();
+        healthStatus.consecutiveFailures = 0;
+        healthStatus.lastLoopDurationMs = Date.now() - loopStartedAt;
         
     } catch (err) {
         healthStatus.consecutiveFailures++;
@@ -1037,6 +1070,8 @@ async function mainLoop() {
         
         console.error(`[OMEGA-FATAL] Master Loop Failure: ${err.message}`);
         console.error(err.stack);
+        healthStatus.status = 'ERROR';
+        healthStatus.lastLoopDurationMs = Date.now() - loopStartedAt;
         
         // Auto-recovery: If too many failures, attempt recovery
         if (healthStatus.consecutiveFailures >= 5) {
@@ -1075,6 +1110,8 @@ async function mainLoop() {
         
         // Don't crash - continue running
         // The loop will retry on next interval
+    } finally {
+        healthStatus.loopInProgress = false;
     }
 }
 
@@ -1306,10 +1343,19 @@ async function startup() {
     }
     
     // Main loop - runs every 5 seconds
-    setInterval(mainLoop, 5000);
+    console.log('🔄 Starting main loop (runs every 5 seconds)');
+    setInterval(() => {
+        console.log('⏰ Main loop tick - calling mainLoop()');
+        mainLoop().catch(err => {
+            console.error('❌ Main loop error:', err);
+        });
+    }, 5000);
     
     // Initial loop run
-    mainLoop();
+    console.log('🚀 Running initial mainLoop()');
+    mainLoop().catch(err => {
+        console.error('❌ Initial mainLoop() error:', err);
+    });
     
     // Save state every 30 seconds
     setInterval(saveState, 30000);

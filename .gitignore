@@ -6,3 +6,4 @@ omega_state.json
 *.zip
 debug_backtest/
 *.json.bak
+repo_integrity_manifest.json
