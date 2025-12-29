@@ -241,6 +241,7 @@ let lastChainlinkDataTime = Date.now();
 let liveDataWs = null;
 let wsHeartbeatInterval = null;
 let wsTimeoutInterval = null;
+const firstChainlinkPriceLogged = { BTC: false, ETH: false, SOL: false, XRP: false };
 
 function connectLiveDataWs() {
     // Clear any existing intervals
@@ -252,6 +253,7 @@ function connectLiveDataWs() {
 
     ws.on('open', () => {
         lastChainlinkDataTime = Date.now();
+        console.log('✅ Connected to Polymarket live-data WS (Chainlink)');
 
         // Chainlink price feed (primary)
         ws.send(JSON.stringify({ action: 'subscribe', subscriptions: [{ topic: 'crypto_prices_chainlink', type: '*' }] }));
@@ -287,6 +289,10 @@ function connectLiveDataWs() {
                     livePrices[asset] = price;
                     lastPriceUpdateMs[asset] = Date.now();
                     lastChainlinkDataTime = Date.now();
+                    if (!firstChainlinkPriceLogged[asset]) {
+                        console.log(`💰 Chainlink price: ${asset} = $${price.toFixed(2)}`);
+                        firstChainlinkPriceLogged[asset] = true;
+                    }
                 }
             } else if (msg.topic === 'crypto_prices' && msg.type === 'update') {
                 // Only use backup if Chainlink hasn't provided a price yet
@@ -306,6 +312,7 @@ function connectLiveDataWs() {
     ws.on('close', () => {
         if (wsHeartbeatInterval) clearInterval(wsHeartbeatInterval);
         if (wsTimeoutInterval) clearInterval(wsTimeoutInterval);
+        console.log('⚠️ Polymarket live-data WS disconnected. Reconnecting in 5s...');
         setTimeout(connectLiveDataWs, 5000);
     });
 
