@@ -3997,6 +3997,7 @@ class SupremeBrain {
 
         // FINAL SEVEN: CONFIDENCE CALIBRATION (FIXED: Added all confidence ranges)
         this.calibrationBuckets = {
+            '0.00-0.50': { total: 0, wins: 0 },
             '0.50-0.60': { total: 0, wins: 0 },
             '0.60-0.70': { total: 0, wins: 0 },
             '0.70-0.80': { total: 0, wins: 0 },
@@ -5589,7 +5590,8 @@ class SupremeBrain {
                         (conf >= 0.90 ? '0.90-0.95' :
                             (conf >= 0.80 ? '0.80-0.90' :
                                 (conf >= 0.70 ? '0.70-0.80' :
-                                    (conf >= 0.60 ? '0.60-0.70' : '0.50-0.60')))));
+                                    (conf >= 0.60 ? '0.60-0.70' :
+                                        (conf >= 0.50 ? '0.50-0.60' : '0.00-0.50'))))));
                 if (this.calibrationBuckets[bucket]) {
                     this.calibrationBuckets[bucket].total++;
                     if (isWin) this.calibrationBuckets[bucket].wins++;
@@ -5731,6 +5733,35 @@ class SupremeBrain {
         }
     }
 }
+
+// ==================== CALIBRATION HELPERS ====================
+// IMPORTANT: `confidence` in this codebase is a *signal score*, not a true probability.
+// These helpers convert score→empirical win-rate using per-asset calibration buckets.
+
+SupremeBrain.prototype.getCalibrationBucket = function (conf) {
+    if (!Number.isFinite(conf)) return null;
+    if (conf >= 0.98) return '0.98-1.00';
+    if (conf >= 0.95) return '0.95-0.98';
+    if (conf >= 0.90) return '0.90-0.95';
+    if (conf >= 0.80) return '0.80-0.90';
+    if (conf >= 0.70) return '0.70-0.80';
+    if (conf >= 0.60) return '0.60-0.70';
+    if (conf >= 0.50) return '0.50-0.60';
+    return '0.00-0.50';
+};
+
+SupremeBrain.prototype.getCalibratedWinProb = function (conf, opts = {}) {
+    const bucket = this.getCalibrationBucket(conf);
+    if (!bucket) return null;
+    const b = this.calibrationBuckets ? this.calibrationBuckets[bucket] : null;
+    if (!b || typeof b.total !== 'number' || typeof b.wins !== 'number') return null;
+
+    const minSamples = opts.minSamples ?? 20;
+    const alpha = opts.alpha ?? 1; // Laplace smoothing
+    if (b.total < minSamples) return null;
+
+    return (b.wins + alpha) / (b.total + 2 * alpha);
+};
 
 const Brains = {};
 ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
@@ -7691,10 +7722,17 @@ function buildStateSnapshot() {
         const recentWins = Brains[a].recentOutcomes.filter(Boolean).length;
         const recentTotal = Brains[a].recentOutcomes.length;
         const recentAccuracy = recentTotal > 0 ? (recentWins / recentTotal) * 100 : 0;
+        const calBucket = Brains[a].getCalibrationBucket ? Brains[a].getCalibrationBucket(Brains[a].confidence) : null;
+        const calStats = calBucket && Brains[a].calibrationBuckets ? Brains[a].calibrationBuckets[calBucket] : null;
+        const pWin = Brains[a].getCalibratedWinProb ? Brains[a].getCalibratedWinProb(Brains[a].confidence) : null;
 
         response[a] = {
             prediction: Brains[a].prediction,
             confidence: Brains[a].confidence,
+            // Calibrated probability (empirical) derived from per-asset confidence buckets
+            pWin: pWin,
+            pWinBucket: calBucket,
+            pWinSamples: calStats ? calStats.total : 0,
             tier: Brains[a].tier,
             edge: Brains[a].edge,
             votes: Brains[a].ensembleVotes,
