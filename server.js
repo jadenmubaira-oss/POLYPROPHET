@@ -378,6 +378,7 @@ let state = {
     cycle: 0,
     lastUpdate: Date.now(),
     checkpoints: {},
+    lastCheckpoint: null,
     markets: {},
     priceHistory: {}
 };
@@ -777,8 +778,16 @@ async function mainLoop() {
                 continue;
             }
             
+            // CRITICAL FIX: Initialize checkpoint immediately on first valid price
+            // This ensures predictions can start generating as soon as we have price data
+            if (!state.checkpoints[asset]) {
+                console.log(`🎯 ${asset} Initializing checkpoint with first price: ${currentPrice}`);
+                state.checkpoints[asset] = currentPrice;
+                state.lastCheckpoint = currentCheckpoint;
+            }
+            
             // Update checkpoint
-            if (!state.checkpoints[asset] || state.lastCheckpoint !== currentCheckpoint) {
+            if (state.lastCheckpoint !== currentCheckpoint) {
                 if (state.checkpoints[asset]) {
                     // Cycle ended - evaluate outcome
                     const finalOutcome = currentPrice >= state.checkpoints[asset] ? 'UP' : 'DOWN';
@@ -797,6 +806,7 @@ async function mainLoop() {
                         }
                     });
                 }
+                console.log(`🔄 ${asset} New cycle: checkpoint=${currentCheckpoint}, price=${currentPrice}, history.length=${state.priceHistory[asset].length}`);
                 state.checkpoints[asset] = currentPrice;
                 state.lastCheckpoint = currentCheckpoint;
                 
@@ -823,6 +833,13 @@ async function mainLoop() {
             // Calculate elapsed time in cycle
             const cycleNow = Math.floor(Date.now() / 1000);
             const elapsed = cycleNow % INTERVAL_SECONDS;
+            
+            // DIAGNOSTIC: Log before brain update
+            const hasCheckpoint = !!state.checkpoints[asset];
+            const historyLen = state.priceHistory[asset].length;
+            if (!hasCheckpoint || historyLen < 10) {
+                console.log(`⚠️ ${asset} Brain prerequisites: checkpoint=${hasCheckpoint ? state.checkpoints[asset] : 'MISSING'}, history.length=${historyLen}, currentPrice=${currentPrice}`);
+            }
             
             // Update brain
             await brains[asset].update(

@@ -37,7 +37,17 @@ class SupremeBrain {
     }
 
     async update(currentPrice, startPrice, history, elapsed, marketData) {
-        if (!currentPrice || !startPrice || history.length < 10) return;
+        // CRITICAL FIX: Allow predictions with minimal history (5 points) for faster startup
+        // Full accuracy requires 10+ points, but we can make basic predictions with 5+
+        // 5 points allows derivatives to calculate, which enables the Physicist model
+        const minHistory = 5;
+        if (!currentPrice || !startPrice || history.length < minHistory) {
+            // Only log if we're close (to avoid spam)
+            if (history.length >= 3 && history.length < minHistory) {
+                console.log(`⏳ ${this.asset} Brain waiting: history.length=${history.length}/${minHistory}, accumulating price data...`);
+            }
+            return;
+        }
         if (this.oracleLocked) return; // Direction is FINAL
 
         const weights = this.calculateWeights();
