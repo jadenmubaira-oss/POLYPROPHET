@@ -1,5 +1,5 @@
-﻿/**
- * ðŸ”® POLYPROPHET OMEGA: PINNACLE EDITION
+/**
+ * 🔮 POLYPROPHET OMEGA: PINNACLE EDITION
  * 
  * Complete production-ready trading system for Polymarket
  * Combines SupremeBrain prediction with state-based EV trading
@@ -39,9 +39,9 @@ if (PROXY_URL) {
         https.globalAgent = proxyAgent;
         axios.defaults.httpsAgent = proxyAgent;
         axios.defaults.proxy = false;
-        console.log(`âœ… GLOBAL PROXY ACTIVE`);
+        console.log(`✅ GLOBAL PROXY ACTIVE`);
     } catch (e) {
-        console.log(`âš ï¸ Proxy configuration failed: ${e.message}`);
+        console.log(`⚠️ Proxy configuration failed: ${e.message}`);
     }
 }
 
@@ -58,7 +58,7 @@ let ClobClient = null;
 try {
     ClobClient = require('@polymarket/clob-client').ClobClient;
 } catch (e) {
-    console.log('âš ï¸ @polymarket/clob-client not installed - LIVE trading will not work');
+    console.log('⚠️ @polymarket/clob-client not installed - LIVE trading will not work');
 }
 
 const POLY_EXCHANGE = "0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E";
@@ -118,10 +118,10 @@ const io = socketIo(server, {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-    console.log(`ðŸ”Œ Client connected: ${socket.id}`);
+    console.log(`🔌 Client connected: ${socket.id}`);
     
     socket.on('disconnect', () => {
-        console.log(`ðŸ”Œ Client disconnected: ${socket.id}`);
+        console.log(`🔌 Client disconnected: ${socket.id}`);
     });
     
     // Send initial state on connection
@@ -154,14 +154,14 @@ if (process.env.REDIS_URL) {
         });
         redis.on('connect', () => {
             redisAvailable = true;
-            console.log('âœ… Redis Connected');
+            console.log('✅ Redis Connected');
         });
         redis.on('error', (err) => {
             redisAvailable = false;
-            console.log(`âš ï¸ Redis Error: ${err.message}`);
+            console.log(`⚠️ Redis Error: ${err.message}`);
         });
     } catch (e) {
-        console.log(`âš ï¸ Redis Init Failed: ${e.message}`);
+        console.log(`⚠️ Redis Init Failed: ${e.message}`);
     }
 }
 
@@ -255,9 +255,9 @@ if (CONFIG.POLYMARKET_PRIVATE_KEY) {
     try {
         const provider = createDirectProvider('https://polygon-rpc.com');
         wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
-        console.log(`âœ… Wallet Loaded: ${wallet.address}`);
+        console.log(`✅ Wallet Loaded: ${wallet.address}`);
     } catch (e) {
-        console.error(`âš ï¸ Wallet init failed: ${e.message}`);
+        console.error(`⚠️ Wallet init failed: ${e.message}`);
     }
 }
 
@@ -297,11 +297,11 @@ async function loadState() {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 state = { ...state, ...parsed };
-                console.log('âœ… State loaded from Redis');
+                console.log('✅ State loaded from Redis');
                 return;
             }
         } catch (e) {
-            console.log(`âš ï¸ Redis load failed: ${e.message}`);
+            console.log(`⚠️ Redis load failed: ${e.message}`);
         }
     }
     
@@ -311,9 +311,9 @@ async function loadState() {
         try {
             const saved = JSON.parse(fs.readFileSync(STATE_FILE, 'utf8'));
             state = { ...state, ...saved };
-            console.log('âœ… State loaded from file');
+            console.log('✅ State loaded from file');
         } catch (e) {
-            console.error(`âš ï¸ State file corrupt: ${e.message}`);
+            console.error(`⚠️ State file corrupt: ${e.message}`);
         }
     }
 }
@@ -325,7 +325,7 @@ async function saveState() {
         try {
             await redis.set('polyprophet:state', JSON.stringify(state));
         } catch (e) {
-            console.log(`âš ï¸ Redis save failed: ${e.message}`);
+            console.log(`⚠️ Redis save failed: ${e.message}`);
         }
     }
     
@@ -333,7 +333,7 @@ async function saveState() {
     try {
         fs.writeFileSync('./omega_state.json', JSON.stringify(state, null, 2));
     } catch (e) {
-        console.error(`âš ï¸ File save failed: ${e.message}`);
+        console.error(`⚠️ File save failed: ${e.message}`);
     }
 }
 
@@ -363,9 +363,9 @@ class TradeExecutor {
                     POLY_CHAIN_ID,
                     wallet
                 );
-                console.log('âœ… CLOB Client initialized');
+                console.log('✅ CLOB Client initialized');
             } catch (e) {
-                console.error(`âš ï¸ CLOB Client init failed: ${e.message}`);
+                console.error(`⚠️ CLOB Client init failed: ${e.message}`);
             }
         }
     }
@@ -435,7 +435,7 @@ class TradeExecutor {
                 
                 this.incrementCycleTradeCount(asset);
                 
-                console.log(`ðŸ“ˆ PAPER TRADE: ${asset} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}Â¢`);
+                console.log(`📈 PAPER TRADE: ${asset} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢`);
                 
                 return { success: true, positionId, mode: 'PAPER' };
             } else {
@@ -489,7 +489,7 @@ class TradeExecutor {
                         } catch (e) {
                             lastError = e;
                             if (attempt < maxRetries) {
-                                console.log(`âš ï¸ Live trade attempt ${attempt} failed, retrying...`);
+                                console.log(`⚠️ Live trade attempt ${attempt} failed, retrying...`);
                                 await new Promise(resolve => setTimeout(resolve, 1000 * attempt)); // Exponential backoff
                             }
                         }
@@ -532,7 +532,7 @@ class TradeExecutor {
                     
                     this.incrementCycleTradeCount(asset);
                     
-                    console.log(`ðŸ“ˆ LIVE TRADE EXECUTED: ${asset} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}Â¢ | Order ID: ${order.orderId}`);
+                    console.log(`📈 LIVE TRADE EXECUTED: ${asset} ${direction} $${size.toFixed(2)} @ ${(entryPrice * 100).toFixed(1)}¢ | Order ID: ${order.orderId}`);
                     
                     // Emit trade notification
                     if (this.io) {
@@ -549,7 +549,7 @@ class TradeExecutor {
                     
                     return { success: true, positionId, mode: 'LIVE', orderId: order.orderId };
                 } catch (e) {
-                    console.error(`âŒ Live trade failed: ${e.message}`);
+                    console.error(`❌ Live trade failed: ${e.message}`);
                     console.error(e.stack);
                     return { success: false, error: `Live trade execution failed: ${e.message}` };
                 }
@@ -595,7 +595,7 @@ class TradeExecutor {
         
         delete this.positions[positionId];
         
-        console.log(`${pnl >= 0 ? 'âœ…' : 'âŒ'} TRADE CLOSED: ${pos.asset} ${pos.side} P/L: $${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%) - ${reason}`);
+        console.log(`${pnl >= 0 ? '✅' : '❌'} TRADE CLOSED: ${pos.asset} ${pos.side} P/L: $${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%) - ${reason}`);
         
         return pnl;
     }
@@ -801,7 +801,7 @@ async function mainLoop() {
             
             // RUIN PREVENTION: Stop trading if drawdown > 20%
             if (drawdown > 0.20) {
-                console.log(`âš ï¸ RUIN PREVENTION: Drawdown ${(drawdown * 100).toFixed(1)}% > 20% - Skipping trade`);
+                console.log(`⚠️ RUIN PREVENTION: Drawdown ${(drawdown * 100).toFixed(1)}% > 20% - Skipping trade`);
                 continue; // Skip this trade
             }
             
@@ -822,7 +822,7 @@ async function mainLoop() {
             sizePct = sizePct * lossPenalty * drawdownPenalty;
             
             // RUIN PREVENTION: Hard cap at 75% (for low-price opportunities, we can be more aggressive)
-            // System already filters to only trade when entry < 20Â¢, so returns are massive
+            // System already filters to only trade when entry < 20¢, so returns are massive
             sizePct = Math.min(sizePct, 0.75);
             
             const allowedSize = bankroll * sizePct;
@@ -863,8 +863,8 @@ async function mainLoop() {
                 const isNearPerfect = brains[asset].isNearPerfectPattern || false;
                 
                 // ULTIMATE OPTIMIZATION: Multi-tier pattern system for MAXIMUM profit + FREQUENCY
-                // Goal: 1+ trades/hour (4 assets Ã— 4 cycles/hour = 16 opportunities/hour)
-                // Analysis shows: CONVICTION <80Â¢ = 1.26 cycles/hour (MEETS GOAL)
+                // Goal: 1+ trades/hour (4 assets × 4 cycles/hour = 16 opportunities/hour)
+                // Analysis shows: CONVICTION <80¢ = 1.26 cycles/hour (MEETS GOAL)
                 // This ensures worst case = HIGH PROFIT, best case = SUPER HIGH PROFIT, FREQUENT trades
                 
                 const isConviction = brains[asset].tier === 'CONVICTION';
@@ -873,17 +873,17 @@ async function mainLoop() {
                 
                 // DUAL STRATEGY: Trade BOTH high prices (frequent small wins) AND low prices (rare big wins)
                 // Analysis from cycle_report.json shows:
-                // - CONVICTION at 95-100Â¢: 362 cycles, 99.4% accuracy = FREQUENT SAFE WINS
-                // - CONVICTION at <20Â¢: 245 cycles, 99.2% accuracy = RARE BIG WINS
+                // - CONVICTION at 95-100¢: 362 cycles, 99.4% accuracy = FREQUENT SAFE WINS
+                // - CONVICTION at <20¢: 245 cycles, 99.2% accuracy = RARE BIG WINS
                 // Strategy: Trade both to maximize profit (compounding + acceleration)
-                const perfectThreshold = 0.20; // PERFECT: Only < 20Â¢ (massive returns, 10-500x, rare)
-                const nearPerfectThreshold = 0.30; // NEAR PERFECT: < 30Â¢ (high returns, 3-33x)
-                const convictionLowThreshold = 0.50; // CONVICTION: < 50Â¢ (good returns, 2-10x)
-                const convictionHighThreshold = 0.95; // CONVICTION: â‰¥ 95Â¢ (small returns, 1-2%, but 99.4% win rate, VERY frequent)
-                const oracleLockedLowThreshold = 0.50; // ORACLE LOCKED: < 50Â¢ (good returns, 2-10x)
-                const oracleLockedHighThreshold = 0.95; // ORACLE LOCKED: â‰¥ 95Â¢ (small returns, but frequent)
-                const highConfidenceLowThreshold = 0.50; // HIGH CONFIDENCE: < 50Â¢ (moderate returns, 2-5x)
-                const highConfidenceHighThreshold = 0.95; // HIGH CONFIDENCE: â‰¥ 95Â¢ (small returns, but frequent)
+                const perfectThreshold = 0.20; // PERFECT: Only < 20¢ (massive returns, 10-500x, rare)
+                const nearPerfectThreshold = 0.30; // NEAR PERFECT: < 30¢ (high returns, 3-33x)
+                const convictionLowThreshold = 0.50; // CONVICTION: < 50¢ (good returns, 2-10x)
+                const convictionHighThreshold = 0.95; // CONVICTION: ≥ 95¢ (small returns, 1-2%, but 99.4% win rate, VERY frequent)
+                const oracleLockedLowThreshold = 0.50; // ORACLE LOCKED: < 50¢ (good returns, 2-10x)
+                const oracleLockedHighThreshold = 0.95; // ORACLE LOCKED: ≥ 95¢ (small returns, but frequent)
+                const highConfidenceLowThreshold = 0.50; // HIGH CONFIDENCE: < 50¢ (moderate returns, 2-5x)
+                const highConfidenceHighThreshold = 0.95; // HIGH CONFIDENCE: ≥ 95¢ (small returns, but frequent)
                 
                 // Calculate win rate for fallback patterns
                 const convictionWinRate = brains[asset].stats.total > 0 ? 
@@ -910,9 +910,9 @@ async function mainLoop() {
                 // DUAL STRATEGY: Trade BOTH high prices (frequent compounding) AND low prices (big wins)
                 // This maximizes profit by combining steady growth with acceleration
                 const shouldTrade = 
-                    // Tier 1: PERFECT pattern < 20Â¢ (massive returns, 10-500x, rare)
+                    // Tier 1: PERFECT pattern < 20¢ (massive returns, 10-500x, rare)
                     (isPerfect && evMetrics.ev > 0 && entryPrice < perfectThreshold) ||
-                    // Tier 2: NEAR PERFECT pattern < 30Â¢ (high returns, 3-33x)
+                    // Tier 2: NEAR PERFECT pattern < 30¢ (high returns, 3-33x)
                     (isNearPerfect && evMetrics.ev > 0 && entryPrice < nearPerfectThreshold) ||
                     // Tier 3: CONVICTION tier - DUAL (low prices OR high prices)
                     (isConviction && evMetrics.ev > 0 && 
@@ -986,13 +986,13 @@ async function mainLoop() {
                     if (entryPrice <= CONFIG.ORACLE.maxOdds && 
                         elapsed >= minElapsed) {
                         
-                        const patternType = patternTier === 'PERFECT' ? 'ðŸŒŸ PERFECT' : 
-                                       patternTier === 'NEAR_PERFECT' ? 'â­ NEAR PERFECT' : 
-                                       patternTier === 'CONVICTION' ? 'ðŸ’Ž CONVICTION' :
-                                       patternTier === 'ORACLE_LOCKED' ? 'ðŸ”’ ORACLE LOCKED' :
-                                       patternTier === 'HIGH_CONFIDENCE' ? 'âš¡ HIGH CONFIDENCE' :
+                        const patternType = patternTier === 'PERFECT' ? '🌟 PERFECT' : 
+                                       patternTier === 'NEAR_PERFECT' ? '⭐ NEAR PERFECT' : 
+                                       patternTier === 'CONVICTION' ? '💎 CONVICTION' :
+                                       patternTier === 'ORACLE_LOCKED' ? '🔒 ORACLE LOCKED' :
+                                       patternTier === 'HIGH_CONFIDENCE' ? '⚡ HIGH CONFIDENCE' :
                                        brains[asset].tier;
-                    console.log(`ðŸŽ¯ TRADE SIGNAL: ${asset} ${brains[asset].prediction} @ ${(entryPrice * 100).toFixed(1)}Â¢ | EV: ${evMetrics.ev.toFixed(4)} | Confidence: ${(brains[asset].confidence * 100).toFixed(1)}% | Certainty: ${(brains[asset].certaintyScore || 0).toFixed(1)} | Size: $${allowedSize.toFixed(2)} | ${patternType}`);
+                    console.log(`🎯 TRADE SIGNAL: ${asset} ${brains[asset].prediction} @ ${(entryPrice * 100).toFixed(1)}¢ | EV: ${evMetrics.ev.toFixed(4)} | Confidence: ${(brains[asset].confidence * 100).toFixed(1)}% | Certainty: ${(brains[asset].certaintyScore || 0).toFixed(1)} | Size: $${allowedSize.toFixed(2)} | ${patternType}`);
                         
                         await tradeExecutor.executeTrade(
                             asset,
@@ -1011,15 +1011,21 @@ async function mainLoop() {
         await saveState();
         
         // Broadcast update via Socket.IO
-        const sanitizedBrains = sanitizeBrains(brains);
-        console.log(`ðŸ“¡ Broadcasting state update. Assets:`, Object.keys(sanitizedBrains));
-        Object.keys(sanitizedBrains).forEach(asset => {
-            const brain = sanitizedBrains[asset];
-            console.log(`  ${asset}: prediction=${brain.prediction}, confidence=${brain.confidence}, tier=${brain.tier}`);
-        });
-
         const updateData = {
-            ...sanitizedBrains,
+            ...sanitizeBrains(brains),
+            _trading: {
+                balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance,
+                todayPnL: tradeExecutor.todayPnL,
+                positionCount: Object.keys(tradeExecutor.positions).length,
+                positions: tradeExecutor.positions,
+                tradeHistory: tradeExecutor.tradeHistory.slice(-20),
+                mode: tradeExecutor.mode,
+                isHalted: state.isHalted,
+                haltReason: state.haltReason
+            }
+        };
+        
+        io.emit('state_update', updateData);
         
     } catch (err) {
         healthStatus.consecutiveFailures++;
@@ -1034,7 +1040,7 @@ async function mainLoop() {
         
         // Auto-recovery: If too many failures, attempt recovery
         if (healthStatus.consecutiveFailures >= 5) {
-            console.log(`âš ï¸ Multiple failures detected, attempting recovery...`);
+            console.log(`⚠️ Multiple failures detected, attempting recovery...`);
             healthStatus.recoveryAttempts++;
             
             try {
@@ -1050,22 +1056,20 @@ async function mainLoop() {
                 // Reset failure counter after recovery attempt
                 if (healthStatus.recoveryAttempts < 3) {
                     healthStatus.consecutiveFailures = 0;
-                    console.log(`âœ… Recovery attempt ${healthStatus.recoveryAttempts} successful`);
+                    console.log(`✅ Recovery attempt ${healthStatus.recoveryAttempts} successful`);
                 } else {
-                    console.error(`âŒ Recovery failed after ${healthStatus.recoveryAttempts} attempts - system may need manual intervention`);
+                    console.error(`❌ Recovery failed after ${healthStatus.recoveryAttempts} attempts - system may need manual intervention`);
                     // Emit alert
                     if (io) {
                         io.emit('system_alert', {
                             type: 'CRITICAL',
                             message: 'System recovery failed - manual intervention required',
                             timestamp: Date.now()
-        };
-
-        io.emit('state_update', updateData);
+                        });
                     }
                 }
             } catch (recoveryErr) {
-                console.error(`âŒ Recovery attempt failed: ${recoveryErr.message}`);
+                console.error(`❌ Recovery attempt failed: ${recoveryErr.message}`);
             }
         }
         
@@ -1285,8 +1289,8 @@ app.post('/api/manual-sell', async (req, res) => {
 
 // ==================== STARTUP ====================
 async function startup() {
-    console.log('ðŸš€ POLYPROPHET OMEGA: PINNACLE EDITION');
-    console.log('ðŸ”§ Initializing...');
+    console.log('🚀 POLYPROPHET OMEGA: PINNACLE EDITION');
+    console.log('🔧 Initializing...');
     
     // Make io available to trade executor
     tradeExecutor.io = io;
@@ -1302,29 +1306,20 @@ async function startup() {
     }
     
     // Main loop - runs every 5 seconds
-    console.log('ðŸ„ Starting main loop (runs every 5 seconds)');
-    setInterval(() => {
-        console.log('â° Main loop tick - calling mainLoop()');
-        mainLoop().catch(err => {
-            console.error('âŒ Main loop error:', err);
-        });
-    }, 5000);
+    setInterval(mainLoop, 5000);
     
     // Initial loop run
-    console.log('ðŸš€ Running initial mainLoop()');
-    mainLoop().catch(err => {
-        console.error('âŒ Initial mainLoop() error:', err);
-    });
+    mainLoop();
     
     // Save state every 30 seconds
     setInterval(saveState, 30000);
     
     const PORT = process.env.PORT || 3000;
     server.listen(PORT, () => {
-        console.log(`âš¡ POLYPROPHET OMEGA ONLINE on port ${PORT}`);
-        console.log(`ðŸŒ Dashboard: http://localhost:${PORT}`);
-        console.log(`ðŸ’° Mode: ${CONFIG.TRADE_MODE}`);
-        console.log(`ðŸ’µ Starting Balance: $${CONFIG.STARTING_BALANCE}`);
+        console.log(`⚡ POLYPROPHET OMEGA ONLINE on port ${PORT}`);
+        console.log(`🌐 Dashboard: http://localhost:${PORT}`);
+        console.log(`💰 Mode: ${CONFIG.TRADE_MODE}`);
+        console.log(`💵 Starting Balance: $${CONFIG.STARTING_BALANCE}`);
     });
 }
 
