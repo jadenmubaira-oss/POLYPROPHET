@@ -1034,6 +1034,18 @@ async function mainLoop() {
 
         io.emit('state_update', updateData);
 
+                _trading: {
+                balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance,
+                todayPnL: tradeExecutor.todayPnL,
+                positionCount: Object.keys(tradeExecutor.positions).length,
+                positions: tradeExecutor.positions,
+                tradeHistory: tradeExecutor.tradeHistory.slice(-20),
+                mode: tradeExecutor.mode,
+                isHalted: state.isHalted,
+                haltReason: state.haltReason
+            }
+        };
+        
         io.emit('state_update', updateData);
         
     } catch (err) {
