@@ -1011,21 +1011,15 @@ async function mainLoop() {
         await saveState();
         
         // Broadcast update via Socket.IO
+        const sanitizedBrains = sanitizeBrains(brains);
+        console.log(`ðŸ“¡ Broadcasting state update. Assets:`, Object.keys(sanitizedBrains));
+        Object.keys(sanitizedBrains).forEach(asset => {
+            const brain = sanitizedBrains[asset];
+            console.log(`  ${asset}: prediction=${brain.prediction}, confidence=${brain.confidence}, tier=${brain.tier}`);
+        });
+
         const updateData = {
-            ...sanitizeBrains(brains),
-            _trading: {
-                balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance,
-                todayPnL: tradeExecutor.todayPnL,
-                positionCount: Object.keys(tradeExecutor.positions).length,
-                positions: tradeExecutor.positions,
-                tradeHistory: tradeExecutor.tradeHistory.slice(-20),
-                mode: tradeExecutor.mode,
-                isHalted: state.isHalted,
-                haltReason: state.haltReason
-            }
-        };
-        
-        io.emit('state_update', updateData);
+            ...sanitizedBrains,
         
     } catch (err) {
         healthStatus.consecutiveFailures++;
@@ -1065,7 +1059,9 @@ async function mainLoop() {
                             type: 'CRITICAL',
                             message: 'System recovery failed - manual intervention required',
                             timestamp: Date.now()
-                        });
+        };
+
+        io.emit('state_update', updateData);
                     }
                 }
             } catch (recoveryErr) {
