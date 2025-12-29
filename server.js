@@ -584,6 +584,8 @@ const CONFIG = {
 
     // ==================== MULTI-MODE SYSTEM ====================
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
+    // UI/ops metadata (does not affect trading unless you explicitly use it)
+    ACTIVE_PRESET: process.env.ACTIVE_PRESET || 'CUSTOM',
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
     // 🏆 v39 ADAPTIVE STRATEGY: Real-time Regime Detection
@@ -6727,6 +6729,7 @@ app.get('/', (req, res) => {
             <div class="form-group"><label>Passphrase</label><input type="password" id="apiPassphrase" placeholder="Enter passphrase..."></div>
             <div class="form-group"><label>Private Key (⚠️)</label><input type="password" id="privateKey" placeholder="0x..."></div>
             <button class="btn btn-primary" onclick="saveAllSettings()" style="width:100%;">💾 Save All Settings</button>
+            <div style="margin-top:10px;color:#88ccff;font-size:0.85em;">Active preset: <span id="activePresetLabel">CUSTOM</span></div>
             <div class="status-msg" id="settingsStatus"></div>
         </div>
     </div>
@@ -7253,6 +7256,9 @@ app.get('/', (req, res) => {
                     // Don't populate token (security) - only show if set
                     if (data.TELEGRAM.chatId) document.getElementById('telegramChatId').value = data.TELEGRAM.chatId;
                 }
+                // Active preset label (source-of-truth from server)
+                const presetLabel = document.getElementById('activePresetLabel');
+                if (presetLabel) presetLabel.textContent = (data.ACTIVE_PRESET ?? 'CUSTOM');
                 // 🎛️ PER-ASSET CONTROLS
                 if (data.ASSET_CONTROLS) {
                     if (data.ASSET_CONTROLS.BTC) {
@@ -7318,7 +7324,8 @@ app.get('/', (req, res) => {
                 AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
             };
 
-            const p = presets[preset];
+            const base = presets[preset];
+            const p = base ? { ...base, ACTIVE_PRESET: preset } : null;
             if (!p) return;
             try {
                 await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(p) });
@@ -7340,6 +7347,7 @@ app.get('/', (req, res) => {
         }
         async function saveAllSettings() {
             const updates = { 
+                ACTIVE_PRESET: 'CUSTOM',
                 PAPER_BALANCE: parseFloat(document.getElementById('paperBalance').value), 
                 MAX_POSITION_SIZE: parseFloat(document.getElementById('maxPosition').value) / 100,
                 ORACLE: { 
@@ -8113,6 +8121,10 @@ app.post('/api/wallet/transfer', async (req, res) => {
 // Get current settings (masked for security)
 app.get('/api/settings', (req, res) => {
     res.json({
+        // Build fingerprint (tie UI + debug exports to exact deployed code/config)
+        CODE: getCodeFingerprint(),
+        ACTIVE_PRESET: CONFIG.ACTIVE_PRESET || 'CUSTOM',
+
         // Masked keys (show first/last 4 chars only)
         POLYMARKET_API_KEY: CONFIG.POLYMARKET_API_KEY ? `${CONFIG.POLYMARKET_API_KEY.substring(0, 8)}...${CONFIG.POLYMARKET_API_KEY.slice(-4)}` : '',
         POLYMARKET_SECRET: CONFIG.POLYMARKET_SECRET ? '****HIDDEN****' : '',
@@ -8208,6 +8220,8 @@ app.post('/api/settings', async (req, res) => {
             const persistedSettings = {
                 // 🔴 CONFIG_VERSION: Used to invalidate stale settings when code changes
                 _CONFIG_VERSION: CONFIG_VERSION,
+                // UI / Ops metadata
+                ACTIVE_PRESET: CONFIG.ACTIVE_PRESET,
                 // API Credentials
                 POLYMARKET_API_KEY: CONFIG.POLYMARKET_API_KEY,
                 POLYMARKET_SECRET: CONFIG.POLYMARKET_SECRET,
