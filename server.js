@@ -7172,56 +7172,57 @@ app.get('/', (req, res) => {
             try {
                 const res = await fetch('/api/settings');
                 const data = await res.json();
-                document.getElementById('paperBalance').value = data.PAPER_BALANCE || 1000;
-                document.getElementById('maxPosition').value = (data.MAX_POSITION_SIZE || 0.1) * 100;
+                // IMPORTANT: Use nullish coalescing so valid 0 values are preserved (e.g. minEdge=0)
+                document.getElementById('paperBalance').value = (data.PAPER_BALANCE ?? 1000);
+                document.getElementById('maxPosition').value = ((data.MAX_POSITION_SIZE ?? 0.1) * 100);
                 if (data.ORACLE) { 
                     document.getElementById('oracleEnabled').checked = data.ORACLE.enabled !== false; 
-                    document.getElementById('oracleConsensus').value = data.ORACLE.minConsensus || 0.85; 
-                    document.getElementById('oracleConfidence').value = data.ORACLE.minConfidence || 0.92; 
-                    document.getElementById('oracleEdge').value = data.ORACLE.minEdge || 15; 
-                    document.getElementById('oracleMaxOdds').value = data.ORACLE.maxOdds || 0.70;
+                    document.getElementById('oracleConsensus').value = (data.ORACLE.minConsensus ?? 0.85); 
+                    document.getElementById('oracleConfidence').value = (data.ORACLE.minConfidence ?? 0.92); 
+                    document.getElementById('oracleEdge').value = (data.ORACLE.minEdge ?? 15); 
+                    document.getElementById('oracleMaxOdds').value = (data.ORACLE.maxOdds ?? 0.70);
                     // 🔮 ORACLE AGGRESSION
-                    const aggression = data.ORACLE.aggression || 50;
+                    const aggression = (data.ORACLE.aggression ?? 50);
                     document.getElementById('oracleAggression').value = aggression;
                     document.getElementById('aggressionValue').textContent = aggression + '%';
                     // 🛑 ORACLE STOP LOSS
-                    document.getElementById('oracleStopLossEnabled').checked = data.ORACLE.stopLossEnabled || false;
-                    document.getElementById('oracleStopLoss').value = (data.ORACLE.stopLoss || 0.25) * 100;
+                    document.getElementById('oracleStopLossEnabled').checked = (data.ORACLE.stopLossEnabled ?? false);
+                    document.getElementById('oracleStopLoss').value = ((data.ORACLE.stopLoss ?? 0.25) * 100);
                 }
-                if (data.SCALP) { document.getElementById('scalpEnabled').checked = data.SCALP.enabled !== false; document.getElementById('scalpMaxEntry').value = (data.SCALP.maxEntryPrice || 0.20) * 100; document.getElementById('scalpTarget').value = data.SCALP.targetMultiple || 2.0; }
-                if (data.ARBITRAGE) { document.getElementById('arbEnabled').checked = data.ARBITRAGE.enabled !== false; document.getElementById('arbMispricing').value = data.ARBITRAGE.minMispricing || 0.15; document.getElementById('arbTarget').value = data.ARBITRAGE.targetProfit || 0.50; document.getElementById('arbStopLoss').value = data.ARBITRAGE.stopLoss || 0.30; }
+                if (data.SCALP) { document.getElementById('scalpEnabled').checked = data.SCALP.enabled !== false; document.getElementById('scalpMaxEntry').value = ((data.SCALP.maxEntryPrice ?? 0.20) * 100); document.getElementById('scalpTarget').value = (data.SCALP.targetMultiple ?? 2.0); }
+                if (data.ARBITRAGE) { document.getElementById('arbEnabled').checked = data.ARBITRAGE.enabled !== false; document.getElementById('arbMispricing').value = (data.ARBITRAGE.minMispricing ?? 0.15); document.getElementById('arbTarget').value = (data.ARBITRAGE.targetProfit ?? 0.50); document.getElementById('arbStopLoss').value = (data.ARBITRAGE.stopLoss ?? 0.30); }
                 // 🌊 UNCERTAINTY MODE
                 if (data.UNCERTAINTY) {
                     document.getElementById('uncEnabled').checked = data.UNCERTAINTY.enabled !== false;
-                    document.getElementById('uncThreshold').value = data.UNCERTAINTY.extremeThreshold || 0.80;
-                    document.getElementById('uncTarget').value = data.UNCERTAINTY.targetReversion || 0.60;
-                    document.getElementById('uncStopLoss').value = data.UNCERTAINTY.stopLoss || 0.25;
+                    document.getElementById('uncThreshold').value = (data.UNCERTAINTY.extremeThreshold ?? 0.80);
+                    document.getElementById('uncTarget').value = (data.UNCERTAINTY.targetReversion ?? 0.60);
+                    document.getElementById('uncStopLoss').value = (data.UNCERTAINTY.stopLoss ?? 0.25);
                 }
                 // 🚀 MOMENTUM MODE
                 if (data.MOMENTUM) {
                     document.getElementById('momEnabled').checked = data.MOMENTUM.enabled !== false;
-                    document.getElementById('momMinElapsed').value = data.MOMENTUM.minElapsed || 300;
-                    document.getElementById('momConsensus').value = data.MOMENTUM.minConsensus || 0.75;
-                    document.getElementById('momExitBefore').value = data.MOMENTUM.exitBeforeEnd || 180;
+                    document.getElementById('momMinElapsed').value = (data.MOMENTUM.minElapsed ?? 300);
+                    document.getElementById('momConsensus').value = (data.MOMENTUM.minConsensus ?? 0.75);
+                    document.getElementById('momExitBefore').value = (data.MOMENTUM.exitBeforeEnd ?? 180);
                 }
                 // 💰 ILLIQUIDITY_GAP (True Arbitrage)
                 if (data.ILLIQUIDITY_GAP) {
                     document.getElementById('ilGapEnabled').checked = data.ILLIQUIDITY_GAP.enabled !== false;
-                    document.getElementById('ilGapMinGap').value = data.ILLIQUIDITY_GAP.minGap || 0.03;
-                    document.getElementById('ilGapMaxEntry').value = data.ILLIQUIDITY_GAP.maxEntryTotal || 0.97;
+                    document.getElementById('ilGapMinGap').value = (data.ILLIQUIDITY_GAP.minGap ?? 0.03);
+                    document.getElementById('ilGapMaxEntry').value = (data.ILLIQUIDITY_GAP.maxEntryTotal ?? 0.97);
                 }
                 // 💀 DEATH_BOUNCE (Genesis-Aligned)
                 if (data.DEATH_BOUNCE) {
                     document.getElementById('dbEnabled').checked = data.DEATH_BOUNCE.enabled !== false;
-                    document.getElementById('dbMinPrice').value = ((data.DEATH_BOUNCE.minPrice || 0.03) * 100);
-                    document.getElementById('dbMaxPrice').value = ((data.DEATH_BOUNCE.maxPrice || 0.12) * 100);
-                    document.getElementById('dbTargetPrice').value = ((data.DEATH_BOUNCE.targetPrice || 0.18) * 100);
-                    document.getElementById('dbMinScore').value = data.DEATH_BOUNCE.minScore || 1.5;
+                    document.getElementById('dbMinPrice').value = (((data.DEATH_BOUNCE.minPrice ?? 0.03) * 100));
+                    document.getElementById('dbMaxPrice').value = (((data.DEATH_BOUNCE.maxPrice ?? 0.12) * 100));
+                    document.getElementById('dbTargetPrice').value = (((data.DEATH_BOUNCE.targetPrice ?? 0.18) * 100));
+                    document.getElementById('dbMinScore').value = (data.DEATH_BOUNCE.minScore ?? 1.5);
                 }
                 if (data.RISK) { 
-                    document.getElementById('riskMaxExposure').value = (data.RISK.maxTotalExposure || 0.75) * 100; 
-                    document.getElementById('riskStopLoss').value = (data.RISK.globalStopLoss || 0.40) * 100; 
-                    document.getElementById('riskCooldown').value = data.RISK.cooldownAfterLoss || 0;
+                    document.getElementById('riskMaxExposure').value = ((data.RISK.maxTotalExposure ?? 0.75) * 100); 
+                    document.getElementById('riskStopLoss').value = ((data.RISK.globalStopLoss ?? 0.40) * 100); 
+                    document.getElementById('riskCooldown').value = (data.RISK.cooldownAfterLoss ?? 0);
                     document.getElementById('noTradeDetection').checked = data.RISK.noTradeDetection !== false;
                     // Smart Aggressive toggles
                     document.getElementById('enableLossCooldown').checked = data.RISK.enableLossCooldown === true;
@@ -7233,22 +7234,22 @@ app.get('/', (req, res) => {
                     document.getElementById('supremeConfidenceMode').checked = data.RISK.supremeConfidenceMode !== false;
                     document.getElementById('enablePositionPyramiding').checked = data.RISK.enablePositionPyramiding !== false;
                     // Smart Safeguards
-                    document.getElementById('maxConsecutiveLosses').value = data.RISK.maxConsecutiveLosses || 5;
-                    document.getElementById('maxDailyLosses').value = data.RISK.maxDailyLosses || 8;
-                    document.getElementById('withdrawalNotification').value = data.RISK.withdrawalNotification || 1000;
+                    document.getElementById('maxConsecutiveLosses').value = (data.RISK.maxConsecutiveLosses ?? 5);
+                    document.getElementById('maxDailyLosses').value = (data.RISK.maxDailyLosses ?? 8);
+                    document.getElementById('withdrawalNotification').value = (data.RISK.withdrawalNotification ?? 1000);
                     // Max position size
-                    document.getElementById('maxPositionSize').value = (data.MAX_POSITION_SIZE || 0.25) * 100;
+                    document.getElementById('maxPositionSize').value = ((data.MAX_POSITION_SIZE ?? 0.25) * 100);
                     // Resume button visibility
                     const resumeBtn = document.getElementById('resumeTradingBtn');
                     if (resumeBtn) {
-                        const needsResume = data.RISK.globalStopLossOverride || false;
+                        const needsResume = (data.RISK.globalStopLossOverride ?? false);
                         resumeBtn.style.display = needsResume ? 'none' : 'inline-block';
                         resumeBtn.textContent = needsResume ? '✅ Override Active' : '🔓 Resume Trading';
                     }
                 }
                 // 📱 TELEGRAM SETTINGS
                 if (data.TELEGRAM) {
-                    document.getElementById('telegramEnabled').checked = data.TELEGRAM.enabled || false;
+                    document.getElementById('telegramEnabled').checked = (data.TELEGRAM.enabled ?? false);
                     // Don't populate token (security) - only show if set
                     if (data.TELEGRAM.chatId) document.getElementById('telegramChatId').value = data.TELEGRAM.chatId;
                 }
@@ -7258,25 +7259,25 @@ app.get('/', (req, res) => {
                         const btcEnabledEl = document.getElementById('btcEnabled');
                         const btcMaxEl = document.getElementById('btcMaxTrades');
                         if (btcEnabledEl) btcEnabledEl.checked = data.ASSET_CONTROLS.BTC.enabled !== false;
-                        if (btcMaxEl) btcMaxEl.value = data.ASSET_CONTROLS.BTC.maxTradesPerCycle || 1;
+                        if (btcMaxEl) btcMaxEl.value = (data.ASSET_CONTROLS.BTC.maxTradesPerCycle ?? 1);
                     }
                     if (data.ASSET_CONTROLS.ETH) {
                         const ethEnabledEl = document.getElementById('ethEnabled');
                         const ethMaxEl = document.getElementById('ethMaxTrades');
                         if (ethEnabledEl) ethEnabledEl.checked = data.ASSET_CONTROLS.ETH.enabled !== false;
-                        if (ethMaxEl) ethMaxEl.value = data.ASSET_CONTROLS.ETH.maxTradesPerCycle || 1;
+                        if (ethMaxEl) ethMaxEl.value = (data.ASSET_CONTROLS.ETH.maxTradesPerCycle ?? 1);
                     }
                     if (data.ASSET_CONTROLS.SOL) {
                         const solEnabledEl = document.getElementById('solEnabled');
                         const solMaxEl = document.getElementById('solMaxTrades');
                         if (solEnabledEl) solEnabledEl.checked = data.ASSET_CONTROLS.SOL.enabled !== false;
-                        if (solMaxEl) solMaxEl.value = data.ASSET_CONTROLS.SOL.maxTradesPerCycle || 1;
+                        if (solMaxEl) solMaxEl.value = (data.ASSET_CONTROLS.SOL.maxTradesPerCycle ?? 1);
                     }
                     if (data.ASSET_CONTROLS.XRP) {
                         const xrpEnabledEl = document.getElementById('xrpEnabled');
                         const xrpMaxEl = document.getElementById('xrpMaxTrades');
                         if (xrpEnabledEl) xrpEnabledEl.checked = data.ASSET_CONTROLS.XRP.enabled !== false;
-                        if (xrpMaxEl) xrpMaxEl.value = data.ASSET_CONTROLS.XRP.maxTradesPerCycle || 1;
+                        if (xrpMaxEl) xrpMaxEl.value = (data.ASSET_CONTROLS.XRP.maxTradesPerCycle ?? 1);
                     }
                 }
                 // 🕐 MIN ELAPSED SECONDS
