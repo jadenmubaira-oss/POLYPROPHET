@@ -10,3 +10,9 @@ repo_integrity_manifest.json
 debug_trade_analysis_output.json
 debug/trade_replay_backtest_v2.json
 cursor_chat_name_generation_instruction.md
+debug/
+.cursor/
+POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd/
+p2/
+*.large.md
+*analysis_results*.json
