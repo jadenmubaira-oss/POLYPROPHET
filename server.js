@@ -239,6 +239,16 @@ ASSETS.forEach(asset => {
     stateMachines[asset] = new StateMachine(CONFIG.STATE);
 });
 
+// ==================== HEALTH STATUS TRACKING ====================
+const healthStatus = {
+    status: 'INITIALIZING',
+    lastSuccessfulLoop: Date.now(),
+    consecutiveFailures: 0,
+    apiFailures: 0,
+    recoveryAttempts: 0,
+    lastError: null
+};
+
 // Wallet setup
 let wallet = null;
 if (CONFIG.POLYMARKET_PRIVATE_KEY) {
