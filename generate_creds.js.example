@@ -1,0 +1,80 @@
+const { ClobClient } = require('@polymarket/clob-client');
+const { ethers } = require('ethers');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const axios = require('axios');
+
+// 1. Get Private Key from args
+const privateKey = process.argv[2];
+
+// PROXY CONFIG for UK Users
+const PROXY_URL = 'http://qmgniaeu:rlpgxbof0cfq@209.166.22.44:5705';
+
+if (!privateKey || !privateKey.startsWith('0x')) {
+    console.error('❌ ERROR: Please provide your private key as an argument.');
+    console.error('Usage: node generate_creds.js 0xYOUR_PRIVATE_KEY');
+    process.exit(1);
+}
+
+// Monkey-patch axios for the ClobClient to use Proxy
+if (PROXY_URL) {
+    try {
+        const proxyAgent = new HttpsProxyAgent(PROXY_URL);
+        const originalCreate = axios.create.bind(axios);
+        axios.create = function (config = {}) {
+            // Inject proxy if request is for Polymarket
+            if (config.baseURL && config.baseURL.includes('polymarket.com')) {
+                config.httpsAgent = proxyAgent;
+                config.proxy = false;
+                console.log('🔌 Proxy attached to CLOB Client');
+            }
+            return originalCreate(config);
+        };
+        console.log('✅ Proxy configuration loaded');
+    } catch (e) {
+        console.log('⚠️ Proxy setup failed:', e.message);
+    }
+}
+
+async function generate() {
+    try {
+        console.log('🔄 Initializing Wallet and CLOB Client...');
+
+        // 2. Setup Wallet
+        const provider = new ethers.providers.JsonRpcProvider('https://polygon-rpc.com');
+        const wallet = new ethers.Wallet(privateKey, provider);
+
+        console.log(`✅ Wallet Address: ${wallet.address}`);
+        console.log(`⚠️  VERIFY this matches your Trust Wallet address!`);
+
+        // 3. Initialize Client
+        // Note: L2 derivation sends a request to check chain/system status, so proxy is needed
+        const clobClient = new ClobClient(
+            'https://clob.polymarket.com',
+            137, // Chain ID (Polygon)
+            wallet
+        );
+
+        console.log('🔐 Deriving API Credentials (signing message)...');
+
+        // 4. Derive API Keys
+        // This signs a message with your wallet to generate distinct API keys
+        const creds = await clobClient.deriveApiKey();
+
+        console.log('\n✅ SUCCESS! Here are your NEW credentials for Render:');
+        console.log('=====================================================');
+        console.log(`POLYMARKET_PRIVATE_KEY=${privateKey}`);
+        console.log(`POLYMARKET_API_KEY=${creds.apiKey || creds.key}`);
+        console.log(`POLYMARKET_SECRET=${creds.secret}`);
+        console.log(`POLYMARKET_PASSPHRASE=${creds.passphrase}`);
+        console.log('=====================================================');
+        console.log('👉 Update your Render Environment Variables with these exact values.');
+
+    } catch (error) {
+        console.error('❌ FAILED to generate credentials:', error);
+        if (error.message.includes('403')) {
+            console.error('   (Block detected! The proxy might not be working correctly)');
+        }
+    }
+}
+
+generate();

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMEGA | Command Center</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg: #0A0A0A;
+            --surface: #1A1A1A;
+            --accent: #A855F7;
+            --text: #FFFFFF;
+            --dim: #888888;
+            --green: #22C55E;
+            --red: #EF4444;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #333;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.4;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.4;
+            }
+        }
+
+        .bankroll {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .asset-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .asset-row:last-child {
+            border-bottom: none;
+        }
+
+        .tag {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .tag-harvest {
+            background: #3B82F6;
+        }
+
+        .tag-strike {
+            background: var(--accent);
+        }
+
+        .tag-observe {
+            background: #4B5563;
+        }
+
+        .progress-container {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1 style="font-size: 18px; margin: 0; color: var(--accent);">OMEGA PROTOCOL</h1>
+        <div class="status-dot"></div>
+    </div>
+
+    <div class="card">
+        <div style="color: var(--dim); font-size: 14px;">Total Bankroll (£)</div>
+        <div class="bankroll" id="bankroll">£5.00</div>
+        <div class="progress-container">
+            <div class="progress-bar" id="goal-progress"></div>
+        </div>
+        <div style="font-size: 12px; color: var(--dim); margin-top: 5px;">Target: £100.00</div>
+    </div>
+
+    <div class="card" id="assets-list">
+        <!-- Asset rows will be injected here -->
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px;">Recent Activity</div>
+        <div id="activity-list" style="font-size: 13px; color: var(--dim);">
+            Syncing with server...
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const goal = 100;
+
+        socket.on('omega_update', (data) => {
+            // Update Bankroll
+            document.getElementById('bankroll').innerText = `£${data.bankroll.toFixed(2)}`;
+            const progress = (data.bankroll / goal) * 100;
+            document.getElementById('goal-progress').style.width = `${progress}%`;
+
+            // Update Asset Rows
+            const list = document.getElementById('assets-list');
+            list.innerHTML = '';
+
+            Object.entries(data.assets).forEach(([name, asset]) => {
+                const row = document.createElement('div');
+                row.className = 'asset-row';
+                row.innerHTML = `
+                    <div>
+                        <div style="font-weight: bold;">${name}</div>
+                        <div style="font-size: 12px; color: var(--dim);">Streak: ${asset.streak}</div>
+                    </div>
+                    <div class="tag tag-${asset.state.toLowerCase()}">${asset.state}</div>
+                `;
+                list.appendChild(row);
+            });
+
+            // Update Activity
+            const activity = document.getElementById('activity-list');
+            activity.innerHTML = '';
+            Object.entries(data.assets).forEach(([name, asset]) => {
+                if (asset.lastSignal) {
+                    const div = document.createElement('div');
+                    div.style.marginBottom = '5px';
+                    div.innerText = `${name}: ${asset.lastSignal.side} @ ${asset.lastSignal.entryPrice} (${asset.lastSignal.status})`;
+                    activity.appendChild(div);
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

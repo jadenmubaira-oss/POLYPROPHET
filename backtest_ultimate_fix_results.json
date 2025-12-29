@@ -1,0 +1,41 @@
+{
+  "config": {
+    "STARTING_BALANCE": 5,
+    "PERFECT_THRESHOLD": 0.2,
+    "NEAR_PERFECT_THRESHOLD": 0.3,
+    "CONVICTION_THRESHOLD": 0.5,
+    "ORACLE_LOCKED_THRESHOLD": 0.5,
+    "HIGH_CONFIDENCE_THRESHOLD": 0.5
+  },
+  "results": {
+    "startingBalance": 5,
+    "finalBalance": 5,
+    "totalProfit": 0,
+    "totalReturn": 0,
+    "tradesExecuted": 0,
+    "wins": 0,
+    "losses": 0,
+    "winRate": 0,
+    "avgProfitPerTrade": 0,
+    "tradesPerDay": 0,
+    "projected24hBalance": 5,
+    "projected24hProfit": 0,
+    "patternStats": {
+      "PERFECT": 0,
+      "NEAR_PERFECT": 0,
+      "CONVICTION": 0,
+      "ORACLE_LOCKED": 0,
+      "HIGH_CONFIDENCE": 0,
+      "NONE": 0
+    },
+    "entryPriceBuckets": {
+      "<10¢": 0,
+      "10-20¢": 0,
+      "20-30¢": 0,
+      "30-50¢": 0,
+      "50-80¢": 0,
+      "80-100¢": 0
+    }
+  },
+  "trades": []
+}

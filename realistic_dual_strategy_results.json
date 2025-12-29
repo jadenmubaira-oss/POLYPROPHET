@@ -1,0 +1,49 @@
+{
+  "strategies": [
+    {
+      "name": "HIGH FREQ: CONVICTION/ADVISORY at 95-100¢",
+      "finalBalance": 8.338083434696546,
+      "totalReturn": 66.76166869393091,
+      "trades": 583,
+      "wins": 577,
+      "losses": 6,
+      "winRate": 98.97084048027445,
+      "projected24h": 5.125975325533445,
+      "projected24hProfit": 0.12597532553344504
+    },
+    {
+      "name": "HIGH RETURN: CONVICTION/ADVISORY at <50¢",
+      "finalBalance": 3880000000,
+      "totalReturn": 77599999900,
+      "trades": 412,
+      "wins": 407,
+      "losses": 5,
+      "winRate": 98.7864077669903,
+      "projected24h": 13.53701250517378,
+      "projected24hProfit": 8.53701250517378
+    },
+    {
+      "name": "DUAL OPTIMAL: High (95-100¢) + Low (<50¢)",
+      "finalBalance": 8116960000.000001,
+      "totalReturn": 162339199900.00003,
+      "trades": 995,
+      "wins": 982,
+      "losses": 13,
+      "winRate": 98.69346733668341,
+      "projected24h": 14.032025245336335,
+      "projected24hProfit": 9.032025245336335
+    },
+    {
+      "name": "MAX FREQ: All CONVICTION/ADVISORY",
+      "finalBalance": 1.2611781134626672,
+      "totalReturn": -74.77643773074666,
+      "trades": 83,
+      "wins": 81,
+      "losses": 2,
+      "winRate": 97.59036144578313,
+      "projected24h": 4.6758845373989,
+      "projected24hProfit": -0.3241154626010996
+    }
+  ],
+  "bestStrategy": "DUAL OPTIMAL: High (95-100¢) + Low (<50¢)"
+}

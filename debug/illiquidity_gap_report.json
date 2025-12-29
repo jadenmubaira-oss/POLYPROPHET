@@ -1,0 +1,53 @@
+{
+  "dir": "C:\\Users\\voide\\Downloads\\POLYPROPHET-main\\POLYPROPHET-main\\debug",
+  "fileCount": 109,
+  "parseErrors": [],
+  "thresholds": {
+    "minGap": 0.03,
+    "maxEntryTotal": 0.97
+  },
+  "points": {
+    "unique": 21298,
+    "gapsPositive": 3,
+    "qualifying": 1
+  },
+  "gapStats": {
+    "medianGapPct": -2,
+    "maxGapPct": 5,
+    "minGapPct": -73
+  },
+  "byAsset": {
+    "ETH": {
+      "points": 5324,
+      "gaps": 0,
+      "qualifying": 0
+    },
+    "SOL": {
+      "points": 5324,
+      "gaps": 1,
+      "qualifying": 0
+    },
+    "XRP": {
+      "points": 5325,
+      "gaps": 0,
+      "qualifying": 0
+    },
+    "BTC": {
+      "points": 5325,
+      "gaps": 2,
+      "qualifying": 1
+    }
+  },
+  "topQualifying": [
+    {
+      "asset": "BTC",
+      "time": "2025-12-19T21:43:35.887Z",
+      "yes": 0.23,
+      "no": 0.72,
+      "total": 0.95,
+      "gapPct": 5,
+      "roiPct": 5.26,
+      "sourceFile": "polyprophet_debug_2025-12-19T21-45-10-845Z.json"
+    }
+  ]
+}
