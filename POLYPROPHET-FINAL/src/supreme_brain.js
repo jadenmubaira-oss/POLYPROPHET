@@ -174,15 +174,20 @@ class SupremeBrain {
         return weights;
     }
     
-    recordOutcome(win) {
+    recordOutcome(win, tradePrediction = null, tradeModelVotes = null) {
         this.stats.total++;
         if (win) this.stats.wins++;
         else this.stats.losses++;
         
-        // Update model accuracy
-        if (this.currentModelVotes) {
-            const actualDir = win ? this.prediction : (this.prediction === 'UP' ? 'DOWN' : 'UP');
-            for (const [model, vote] of Object.entries(this.currentModelVotes)) {
+        // Bug 4 fix: Use the prediction and model votes from trade time, NOT current state
+        // If not provided, fall back to current (backward compatibility, but less accurate)
+        const predictionToUse = tradePrediction || this.prediction;
+        const modelVotesToUse = tradeModelVotes || this.currentModelVotes;
+        
+        // Update model accuracy based on trade-time votes
+        if (modelVotesToUse) {
+            const actualDir = win ? predictionToUse : (predictionToUse === 'UP' ? 'DOWN' : 'UP');
+            for (const [model, vote] of Object.entries(modelVotesToUse)) {
                 if (this.modelAccuracy[model]) {
                     this.modelAccuracy[model].total++;
                     if (vote === actualDir) {

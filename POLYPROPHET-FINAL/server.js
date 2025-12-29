@@ -270,6 +270,20 @@ if (process.env.REDIS_URL) {
 
 async function saveState() {
     state.lastUpdate = Date.now();
+    
+    // CRITICAL: Sync executor state to the state object for persistence
+    if (typeof tradeExecutor !== 'undefined') {
+        state.executor = {
+            paperBalance: tradeExecutor.paperBalance,
+            peakBalance: tradeExecutor.peakBalance,
+            todayPnL: tradeExecutor.todayPnL,
+            consecutiveLosses: tradeExecutor.consecutiveLosses,
+            lastLossTime: tradeExecutor.lastLossTime,
+            tradeHistory: tradeExecutor.tradeHistory,
+            positions: tradeExecutor.positions
+        };
+    }
+    
     if (redisAvailable) {
         try { await redis.set('polyprophet:state', JSON.stringify(state)); } catch (e) {}
     }
@@ -293,6 +307,7 @@ class TradeExecutor {
     constructor() {
         this.mode = CONFIG.TRADE_MODE;
         this.paperBalance = CONFIG.STARTING_BALANCE;
+        this.liveBalance = 0; // Will be fetched from wallet for LIVE mode
         this.peakBalance = CONFIG.STARTING_BALANCE;
         this.positions = {};
         this.tradeHistory = [];
@@ -302,6 +317,7 @@ class TradeExecutor {
         this.cycleTradeCount = {};
         this.currentCycleStart = 0;
         this.clobClient = null;
+        this.wallet = null;
         
         // Initialize wallet and CLOB client for LIVE mode
         if (CONFIG.POLYMARKET_PRIVATE_KEY && ClobClient) {
@@ -316,7 +332,20 @@ class TradeExecutor {
         }
     }
     
-    async executeTrade(asset, direction, entryPrice, size, market, tradeType) {
+    // Refresh live balance from wallet (for LIVE mode)
+    async refreshLiveBalance() {
+        if (this.mode !== 'LIVE' || !this.wallet) return;
+        try {
+            const usdcContract = new ethers.Contract(USDC_ADDRESS, ['function balanceOf(address) view returns (uint256)'], this.wallet.provider);
+            const balance = await usdcContract.balanceOf(this.wallet.address);
+            this.liveBalance = parseFloat(ethers.utils.formatUnits(balance, 6));
+            console.log(`💰 LIVE balance refreshed: $${this.liveBalance.toFixed(2)}`);
+        } catch (e) {
+            console.error(`⚠️ Failed to refresh LIVE balance: ${e.message}`);
+        }
+    }
+    
+    async executeTrade(asset, direction, entryPrice, size, market, tradeType, modelVotesSnapshot = null) {
         // Check cooldown
         if (this.consecutiveLosses >= CONFIG.RISK.maxConsecutiveLosses) {
             if (Date.now() - this.lastLossTime < CONFIG.RISK.cooldownAfterLoss * 1000) {
@@ -354,7 +383,9 @@ class TradeExecutor {
             this.positions[positionId] = {
                 asset, direction, size, entry: entryPrice,
                 time: Date.now(), shares: size / entryPrice,
-                tradeType, status: 'OPEN'
+                tradeType, status: 'OPEN',
+                // Bug 4 fix: Store model votes at trade time for accurate learning
+                modelVotesSnapshot: modelVotesSnapshot ? { ...modelVotesSnapshot } : null
             };
             this.cycleTradeCount[asset] = assetCount + 1;
             
@@ -453,7 +484,8 @@ async function mainLoop() {
                         const won = (pos.direction === finalOutcome);
                         const exitPrice = won ? 1.0 : 0.0;
                         tradeExecutor.closePosition(id, exitPrice, won ? 'CYCLE_WIN' : 'CYCLE_LOSS');
-                        brains[asset].recordOutcome(won);
+                        // Bug 4 fix: Pass the TRADE-TIME prediction and model votes, not current state
+                        brains[asset].recordOutcome(won, pos.direction, pos.modelVotesSnapshot);
                     }
                 });
                 state.checkpoints[asset] = currentPrice;
@@ -547,8 +579,8 @@ async function mainLoop() {
                 positionSize *= 0.5;
             }
             
-            // Calculate stake
-            const bankroll = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.paperBalance;
+            // Calculate stake (PAPER uses paperBalance, LIVE would use actual wallet balance)
+            const bankroll = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.liveBalance;
             let stake = bankroll * positionSize;
             
             // Check minimum
@@ -564,8 +596,11 @@ async function mainLoop() {
             const returnMultiplier = (1 / entryPrice).toFixed(2);
             console.log(`🎯 ${tradeType} SIGNAL: ${asset} ${prediction} @ ${(entryPrice * 100).toFixed(1)}¢ | EV: ${evMetrics.ev.toFixed(4)} | Conf: ${(confidence * 100).toFixed(1)}% | Size: $${stake.toFixed(2)} | ${returnMultiplier}x potential`);
             
+            // Bug 4 fix: Capture model votes at trade time for accurate learning
+            const modelVotesSnapshot = brains[asset].currentModelVotes ? { ...brains[asset].currentModelVotes } : null;
+            
             // Execute trade
-            await tradeExecutor.executeTrade(asset, prediction, entryPrice, stake, market, tradeType);
+            await tradeExecutor.executeTrade(asset, prediction, entryPrice, stake, market, tradeType, modelVotesSnapshot);
         }
         
         // Save state
@@ -664,9 +699,40 @@ async function startup() {
     connectLiveDataWs();
     await loadState();
     
-    // Restore executor state
-    if (state.tradeHistory) tradeExecutor.tradeHistory = state.tradeHistory;
-    if (state.positions) tradeExecutor.positions = state.positions;
+    // CRITICAL: Restore executor state including balances (Bug 3 fix)
+    if (state.executor) {
+        if (typeof state.executor.paperBalance === 'number') {
+            tradeExecutor.paperBalance = state.executor.paperBalance;
+            console.log(`💰 Restored paper balance: $${tradeExecutor.paperBalance.toFixed(2)}`);
+        }
+        if (typeof state.executor.peakBalance === 'number') {
+            tradeExecutor.peakBalance = state.executor.peakBalance;
+        }
+        if (typeof state.executor.todayPnL === 'number') {
+            tradeExecutor.todayPnL = state.executor.todayPnL;
+        }
+        if (typeof state.executor.consecutiveLosses === 'number') {
+            tradeExecutor.consecutiveLosses = state.executor.consecutiveLosses;
+        }
+        if (typeof state.executor.lastLossTime === 'number') {
+            tradeExecutor.lastLossTime = state.executor.lastLossTime;
+        }
+        if (state.executor.tradeHistory) {
+            tradeExecutor.tradeHistory = state.executor.tradeHistory;
+        }
+        if (state.executor.positions) {
+            tradeExecutor.positions = state.executor.positions;
+        }
+    } else {
+        // Legacy restoration (backward compatibility)
+        if (state.tradeHistory) tradeExecutor.tradeHistory = state.tradeHistory;
+        if (state.positions) tradeExecutor.positions = state.positions;
+    }
+    
+    // Refresh live balance if in LIVE mode
+    if (tradeExecutor.mode === 'LIVE') {
+        await tradeExecutor.refreshLiveBalance();
+    }
     
     // Main loop - runs every 5 seconds
     setInterval(() => mainLoop().catch(console.error), 5000);
