@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -388,9 +388,9 @@
 </head>
 <body>
     <div class="header">
-        <h1>🔮 PolyProphet Omega</h1>
+        <h1>ðŸ”® PolyProphet Omega</h1>
         <div class="status-bar">
-            <span id="connection-status" class="connection-status">🟡 Connecting...</span>
+            <span id="connection-status" class="connection-status">ðŸŸ¡ Connecting...</span>
             <span id="last-update">--:--</span>
         </div>
     </div>
@@ -463,7 +463,7 @@
         </div>
     </div>
     
-    <button class="settings-button" onclick="openSettings()">⚙️</button>
+    <button class="settings-button" onclick="openSettings()">âš™ï¸</button>
     
     <script>
         // Inline mobile app logic for Vibecode compatibility
@@ -494,7 +494,7 @@
                 });
                 
                 socket.on('connect', () => {
-                    console.log('✅ Connected');
+                    console.log('âœ… Connected');
                     appState.connected = true;
                     reconnectAttempts = 0;
                     updateUI();
@@ -556,8 +556,8 @@
                 const newTrades = data._trading.tradeHistory.slice(lastTradeCount);
                 newTrades.forEach(trade => {
                     sendNotification(
-                        `📈 New Trade: ${trade.asset} ${trade.side}`,
-                        `Entry: ${(trade.entry * 100).toFixed(1)}¢ | Size: $${trade.size?.toFixed(2) || 'N/A'}`
+                        `ðŸ“ˆ New Trade: ${trade.asset} ${trade.side}`,
+                        `Entry: ${(trade.entry * 100).toFixed(1)}Â¢ | Size: $${trade.size?.toFixed(2) || 'N/A'}`
                     );
                 });
                 lastTradeCount = currentTradeCount;
@@ -586,7 +586,7 @@
         function updateUI() {
             const statusEl = document.getElementById('connection-status');
             if (statusEl) {
-                statusEl.textContent = appState.connected ? '🟢 Connected' : '🔴 Disconnected';
+                statusEl.textContent = appState.connected ? 'ðŸŸ¢ Connected' : 'ðŸ”´ Disconnected';
                 statusEl.style.color = appState.connected ? '#00ff88' : '#ff4466';
             }
             
@@ -633,7 +633,7 @@
                     </div>
                     <div class="confidence-text">${conf}% Confidence</div>
                     <div class="tier-badge ${pred.tier || 'NONE'}">${pred.tier || 'NONE'}</div>
-                    ${pred.market ? `<div class="market-odds">YES: ${(pred.market.yesPrice * 100).toFixed(1)}¢ | NO: ${(pred.market.noPrice * 100).toFixed(1)}¢</div>` : ''}
+                    ${pred.market ? `<div class="market-odds">YES: ${(pred.market.yesPrice * 100).toFixed(1)}Â¢ | NO: ${(pred.market.noPrice * 100).toFixed(1)}Â¢</div>` : ''}
                 </div>`;
             });
             
@@ -668,8 +668,8 @@
                         <span class="trade-side ${trade.side}">${trade.side}</span>
                     </div>
                     <div class="trade-details">
-                        <div>Entry: ${(trade.entry * 100).toFixed(1)}¢</div>
-                        ${trade.exit ? `<div>Exit: ${(trade.exit * 100).toFixed(1)}¢</div>` : ''}
+                        <div>Entry: ${(trade.entry * 100).toFixed(1)}Â¢</div>
+                        ${trade.exit ? `<div>Exit: ${(trade.exit * 100).toFixed(1)}Â¢</div>` : ''}
                         <div>Size: $${trade.size?.toFixed(2) || 'N/A'}</div>
                         ${pnl !== undefined ? `<div class="trade-pnl ${isWin ? 'positive' : 'negative'}">
                             P/L: ${isWin ? '+' : ''}$${pnl.toFixed(2)} (${isWin ? '+' : ''}${pnlPercent.toFixed(1)}%)
@@ -702,7 +702,7 @@
                         <span class="position-side ${pos.side}">${pos.side}</span>
                     </div>
                     <div class="position-details">
-                        <div>Entry: ${(pos.entry * 100).toFixed(1)}¢</div>
+                        <div>Entry: ${(pos.entry * 100).toFixed(1)}Â¢</div>
                         <div>Size: $${pos.size?.toFixed(2) || 'N/A'}</div>
                         <div>State: ${pos.state || 'N/A'}</div>
                     </div>
@@ -750,7 +750,7 @@
                 const marketPrice = tradeDirection === 'UP' ? pred.market.yesPrice : pred.market.noPrice;
                 const priceEl = document.getElementById('trade-market-price');
                 const previewEl = document.getElementById('trade-preview');
-                if (priceEl) priceEl.textContent = `${(marketPrice * 100).toFixed(1)}¢`;
+                if (priceEl) priceEl.textContent = `${(marketPrice * 100).toFixed(1)}Â¢`;
                 if (previewEl) previewEl.style.display = 'block';
             }
         }
@@ -765,7 +765,7 @@
                 resultEl.style.background = 'rgba(255, 68, 102, 0.2)';
                 resultEl.style.border = '1px solid #ff4466';
                 resultEl.style.color = '#ff4466';
-                resultEl.textContent = '❌ Size must be at least $1';
+                resultEl.textContent = 'âŒ Size must be at least $1';
                 return;
             }
             
@@ -773,7 +773,7 @@
             resultEl.style.background = 'rgba(153, 51, 255, 0.1)';
             resultEl.style.border = '1px solid #9933ff';
             resultEl.style.color = '#9933ff';
-            resultEl.textContent = '⏳ Placing trade...';
+            resultEl.textContent = 'â³ Placing trade...';
             
             try {
                 const response = await fetch(`${SERVER_URL}/api/manual-buy`, {
@@ -788,7 +788,7 @@
                     resultEl.style.background = 'rgba(0, 255, 136, 0.2)';
                     resultEl.style.border = '1px solid #00ff88';
                     resultEl.style.color = '#00ff88';
-                    resultEl.textContent = `✅ Trade placed! Position ID: ${data.positionId}`;
+                    resultEl.textContent = `âœ… Trade placed! Position ID: ${data.positionId}`;
                     
                     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
                     
@@ -801,19 +801,19 @@
                     resultEl.style.background = 'rgba(255, 68, 102, 0.2)';
                     resultEl.style.border = '1px solid #ff4466';
                     resultEl.style.color = '#ff4466';
-                    resultEl.textContent = `❌ ${data.error || 'Trade failed'}`;
+                    resultEl.textContent = `âŒ ${data.error || 'Trade failed'}`;
                 }
             } catch (e) {
                 resultEl.style.background = 'rgba(255, 68, 102, 0.2)';
                 resultEl.style.border = '1px solid #ff4466';
                 resultEl.style.color = '#ff4466';
-                resultEl.textContent = `❌ Error: ${e.message}`;
+                resultEl.textContent = `âŒ Error: ${e.message}`;
             }
         }
         
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('🔮 PolyProphet Mobile App Starting...');
+            console.log('ðŸ”® PolyProphet Mobile App Starting...');
             connectWebSocket();
             setInterval(updateUI, 1000);
             setInterval(() => {
@@ -846,40 +846,6 @@
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         let currentFilter = 'all';
-        
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(tabName + '-tab').classList.add('active');
-        }
-        
-        function filterTrades(filter) {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            renderTrades();
-        }
-        
-        function openSettings() {
-            const url = prompt('Enter your Render server URL:', localStorage.getItem('polyprophet_server_url') || 'https://your-server.onrender.com');
-            if (url) {
-                localStorage.setItem('polyprophet_server_url', url);
-                location.reload();
-            }
-        }
-        
-        // Update last update time
-        setInterval(() => {
-            if (appState.lastUpdate) {
-                const elapsed = Math.floor((Date.now() - appState.lastUpdate.getTime()) / 1000);
-                const minutes = Math.floor(elapsed / 60);
-                const seconds = elapsed % 60;
-                document.getElementById('last-update').textContent = `${minutes}:${seconds.toString().padStart(2, '0')} ago`;
-            }
-        }, 1000);
-    </script>
 </body>
 </html>
 
