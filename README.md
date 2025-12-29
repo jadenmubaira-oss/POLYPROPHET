@@ -72,11 +72,18 @@ If Chainlink prices go stale, the bot **will not trade** until the feed recovers
 
 ### Render.com Setup
 
-1. **Create New Web Service**
-   - Connect your GitHub repository
+This repo includes a **Render Blueprint** (`render.yaml`) that deploys the **`POLYPROPHET-FINAL/`** service.
+
+1. **Recommended (Blueprint)**
+   - In Render: **New + → Blueprint**
+   - Select this repo and apply
+
+2. **Manual (if you don’t use Blueprint)**
+   - Create a new Web Service from this repo
+   - **Root directory**: `POLYPROPHET-FINAL`
    - Build Command: `npm ci`
    - Start Command: `node server.js`
-   - Environment: Node **20.x** (pinned in `package.json`)
+   - Environment: Node **20.x** (pinned in `POLYPROPHET-FINAL/package.json`)
 
 2. **Environment Variables**
 
@@ -114,9 +121,9 @@ Copy the output to Render environment variables.
 ### Local Development
 
 ```bash
+cd POLYPROPHET-FINAL
 npm install
-cp .env.example .env
-# Edit .env with your credentials
+# Create a .env file if you want, then:
 node server.js
 ```
 

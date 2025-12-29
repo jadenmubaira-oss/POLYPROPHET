@@ -1,0 +1,848 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>PolyProphet Omega</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #ffffff;
+            overflow-x: hidden;
+            padding-bottom: 80px;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a0a2e 0%, #16213e 100%);
+            padding: 20px;
+            text-align: center;
+            border-bottom: 2px solid #9933ff;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            color: #9933ff;
+            margin-bottom: 10px;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .connection-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.3);
+        }
+        
+        .balance-card {
+            background: linear-gradient(135deg, #1a0a2e 0%, #16213e 100%);
+            margin: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #9933ff;
+            text-align: center;
+        }
+        
+        .balance-card .label {
+            font-size: 14px;
+            color: #888;
+            margin-bottom: 8px;
+        }
+        
+        .balance-card .balance {
+            font-size: 36px;
+            font-weight: bold;
+            color: #ffd700;
+            margin-bottom: 8px;
+        }
+        
+        .balance-card .pnl {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .tabs {
+            display: flex;
+            background: rgba(0, 0, 0, 0.5);
+            border-bottom: 1px solid #333;
+            position: sticky;
+            top: 120px;
+            z-index: 90;
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            background: transparent;
+            border: none;
+            color: #888;
+            font-size: 14px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab.active {
+            color: #9933ff;
+            border-bottom-color: #9933ff;
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 20px;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .prediction-card {
+            background: rgba(153, 51, 255, 0.1);
+            border: 1px solid #9933ff;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        
+        .prediction-card.locked {
+            border-color: #ffd700;
+            background: rgba(255, 215, 0, 0.1);
+        }
+        
+        .asset-name {
+            font-size: 18px;
+            font-weight: bold;
+            color: #9933ff;
+            margin-bottom: 8px;
+        }
+        
+        .prediction-value {
+            font-size: 32px;
+            font-weight: bold;
+            margin: 12px 0;
+            text-align: center;
+        }
+        
+        .prediction-value.UP {
+            color: #00ff88;
+        }
+        
+        .prediction-value.DOWN {
+            color: #ff4466;
+        }
+        
+        .prediction-value.WAIT {
+            color: #888;
+        }
+        
+        .confidence-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 12px 0;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            transition: width 0.3s;
+        }
+        
+        .confidence-fill.high {
+            background: linear-gradient(90deg, #00ff88, #00cc66);
+        }
+        
+        .confidence-fill.medium {
+            background: linear-gradient(90deg, #ffd700, #ff9900);
+        }
+        
+        .confidence-fill.low {
+            background: linear-gradient(90deg, #ff4466, #cc2244);
+        }
+        
+        .confidence-text {
+            font-size: 12px;
+            color: #888;
+            text-align: center;
+            margin-top: 4px;
+        }
+        
+        .tier-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+        
+        .tier-badge.CONVICTION {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+        
+        .tier-badge.ADVISORY {
+            background: rgba(255, 215, 0, 0.2);
+            color: #ffd700;
+        }
+        
+        .tier-badge.NONE {
+            background: rgba(136, 136, 136, 0.2);
+            color: #888;
+        }
+        
+        .market-odds {
+            font-size: 11px;
+            color: #888;
+            margin-top: 8px;
+            text-align: center;
+        }
+        
+        .trade-card {
+            background: rgba(0, 0, 0, 0.3);
+            border-left: 4px solid;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .trade-card.win {
+            border-left-color: #00ff88;
+        }
+        
+        .trade-card.loss {
+            border-left-color: #ff4466;
+        }
+        
+        .trade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .trade-asset {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .trade-side {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .trade-side.UP {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+        
+        .trade-side.DOWN {
+            background: rgba(255, 68, 102, 0.2);
+            color: #ff4466;
+        }
+        
+        .trade-details {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+        
+        .trade-pnl {
+            font-weight: bold;
+            margin-top: 4px;
+        }
+        
+        .trade-pnl.positive {
+            color: #00ff88;
+        }
+        
+        .trade-pnl.negative {
+            color: #ff4466;
+        }
+        
+        .trade-reason {
+            font-size: 11px;
+            color: #888;
+            margin-top: 4px;
+        }
+        
+        .trade-time {
+            font-size: 10px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        .position-card {
+            background: rgba(153, 51, 255, 0.1);
+            border: 1px solid #9933ff;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .position-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        
+        .position-asset {
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        .position-side {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .position-side.UP {
+            background: rgba(0, 255, 136, 0.2);
+            color: #00ff88;
+        }
+        
+        .position-side.DOWN {
+            background: rgba(255, 68, 102, 0.2);
+            color: #ff4466;
+        }
+        
+        .position-details {
+            font-size: 12px;
+            color: #aaa;
+        }
+        
+        .empty-state {
+            text-align: center;
+            color: #888;
+            padding: 40px 20px;
+            font-size: 14px;
+        }
+        
+        .settings-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #9933ff, #6600cc);
+            border: none;
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(153, 51, 255, 0.4);
+            z-index: 1000;
+        }
+        
+        .settings-button:active {
+            transform: scale(0.95);
+        }
+        
+        .filter-buttons {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            padding: 0 20px;
+        }
+        
+        .filter-btn {
+            flex: 1;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid #333;
+            border-radius: 6px;
+            color: #888;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        
+        .filter-btn.active {
+            background: rgba(153, 51, 255, 0.2);
+            border-color: #9933ff;
+            color: #9933ff;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ðŸ”® PolyProphet Omega</h1>
+        <div class="status-bar">
+            <span id="connection-status" class="connection-status">ðŸŸ¡ Connecting...</span>
+            <span id="last-update">--:--</span>
+        </div>
+    </div>
+    
+    <div class="balance-card">
+        <div class="label">Balance</div>
+        <div class="balance" id="balance">$0.00</div>
+        <div class="pnl" id="pnl">+$0.00</div>
+    </div>
+    
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('dashboard')">Dashboard</button>
+        <button class="tab" onclick="switchTab('trades')">Trades</button>
+        <button class="tab" onclick="switchTab('trade')">Trade</button>
+        <button class="tab" onclick="switchTab('positions')">Positions</button>
+    </div>
+    
+    <div id="dashboard-tab" class="tab-content active">
+        <div id="predictions-container"></div>
+    </div>
+    
+    <div id="trades-tab" class="tab-content">
+        <div class="filter-buttons">
+            <button class="filter-btn active" onclick="filterTrades('all')">All</button>
+            <button class="filter-btn" onclick="filterTrades('wins')">Wins</button>
+            <button class="filter-btn" onclick="filterTrades('losses')">Losses</button>
+        </div>
+        <div id="trades-container"></div>
+    </div>
+    
+    <div id="positions-tab" class="tab-content">
+        <div id="positions-container"></div>
+    </div>
+    
+    <div id="trade-tab" class="tab-content">
+        <div style="padding: 20px;">
+            <h2 style="margin-bottom: 20px; color: #9933ff;">Manual Trade</h2>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Asset</label>
+                <select id="trade-asset" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 16px;">
+                    <option value="BTC">BTC</option>
+                    <option value="ETH">ETH</option>
+                    <option value="SOL">SOL</option>
+                    <option value="XRP">XRP</option>
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Direction</label>
+                <div style="display: flex; gap: 10px;">
+                    <button id="trade-direction-up" onclick="setTradeDirection('UP')" style="flex: 1; padding: 12px; background: rgba(0, 255, 136, 0.2); border: 2px solid #00ff88; border-radius: 8px; color: #00ff88; font-size: 16px; font-weight: bold; cursor: pointer;">UP</button>
+                    <button id="trade-direction-down" onclick="setTradeDirection('DOWN')" style="flex: 1; padding: 12px; background: rgba(255, 68, 102, 0.2); border: 2px solid #ff4466; border-radius: 8px; color: #ff4466; font-size: 16px; font-weight: bold; cursor: pointer;">DOWN</button>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Size ($)</label>
+                <input type="number" id="trade-size" min="1" step="0.01" value="5" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 16px;">
+            </div>
+            
+            <div id="trade-preview" style="background: rgba(153, 51, 255, 0.1); border: 1px solid #9933ff; border-radius: 8px; padding: 12px; margin-bottom: 20px; display: none;">
+                <div style="font-size: 12px; color: #aaa;">Current Market Price:</div>
+                <div id="trade-market-price" style="font-size: 18px; font-weight: bold; color: #9933ff; margin-top: 4px;"></div>
+            </div>
+            
+            <button onclick="executeManualTrade()" style="width: 100%; padding: 16px; background: linear-gradient(135deg, #9933ff 0%, #7a1fa2 100%); border: none; border-radius: 8px; color: #fff; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">Place Trade</button>
+            
+            <div id="trade-result" style="margin-top: 20px; padding: 12px; border-radius: 8px; display: none;"></div>
+        </div>
+    </div>
+    
+    <button class="settings-button" onclick="openSettings()">âš™ï¸</button>
+    
+    <script>
+        // Inline mobile app logic for Vibecode compatibility
+        const SERVER_URL = localStorage.getItem('polyprophet_server_url') || window.location.origin;
+        let ws = null;
+        let reconnectAttempts = 0;
+        const MAX_RECONNECT_ATTEMPTS = 10;
+        
+        let appState = {
+            connected: false,
+            balance: 0,
+            todayPnL: 0,
+            positions: [],
+            trades: [],
+            predictions: {},
+            lastUpdate: null
+        };
+        
+        let lastTradeCount = 0;
+        
+        function connectWebSocket() {
+            if (ws && ws.readyState === WebSocket.OPEN) return;
+            
+            try {
+                // Use Socket.IO client
+                const socket = io(SERVER_URL, {
+                    transports: ['websocket', 'polling']
+                });
+                
+                socket.on('connect', () => {
+                    console.log('âœ… Connected');
+                    appState.connected = true;
+                    reconnectAttempts = 0;
+                    updateUI();
+                    requestNotificationPermission();
+                });
+                
+                socket.on('state_update', (data) => {
+                    handleStateUpdate(data);
+                });
+                
+                socket.on('disconnect', () => {
+                    console.log('Disconnected');
+                    appState.connected = false;
+                    updateUI();
+                });
+                
+                ws = socket;
+            } catch (e) {
+                console.error('Connection failed:', e);
+                startPolling();
+            }
+        }
+        
+        function startPolling() {
+            setInterval(async () => {
+                try {
+                    const response = await fetch(`${SERVER_URL}/api/state`);
+                    const data = await response.json();
+                    handleStateUpdate(data);
+                } catch (e) {
+                    console.error('Polling failed:', e);
+                }
+            }, 5000);
+        }
+        
+        function handleStateUpdate(data) {
+            if (data._trading) {
+                appState.balance = data._trading.balance || 0;
+                appState.todayPnL = data._trading.todayPnL || 0;
+                appState.positions = Object.values(data._trading.positions || {});
+                appState.trades = data._trading.tradeHistory || [];
+            }
+            
+            appState.predictions = {};
+            ['BTC', 'ETH', 'SOL', 'XRP'].forEach(asset => {
+                if (data[asset]) {
+                    appState.predictions[asset] = data[asset];
+                }
+            });
+            
+            appState.lastUpdate = new Date();
+            updateUI();
+            checkForNewTrades(data);
+        }
+        
+        function checkForNewTrades(data) {
+            const currentTradeCount = (data._trading?.tradeHistory || []).length;
+            if (currentTradeCount > lastTradeCount) {
+                const newTrades = data._trading.tradeHistory.slice(lastTradeCount);
+                newTrades.forEach(trade => {
+                    sendNotification(
+                        `ðŸ“ˆ New Trade: ${trade.asset} ${trade.side}`,
+                        `Entry: ${(trade.entry * 100).toFixed(1)}Â¢ | Size: $${trade.size?.toFixed(2) || 'N/A'}`
+                    );
+                });
+                lastTradeCount = currentTradeCount;
+            }
+        }
+        
+        function requestNotificationPermission() {
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        }
+        
+        function sendNotification(title, body) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: body,
+                    tag: 'polyprophet-trade',
+                    requireInteraction: false
+                });
+            }
+            if (navigator.vibrate) {
+                navigator.vibrate(200);
+            }
+        }
+        
+        function updateUI() {
+            const statusEl = document.getElementById('connection-status');
+            if (statusEl) {
+                statusEl.textContent = appState.connected ? 'ðŸŸ¢ Connected' : 'ðŸ”´ Disconnected';
+                statusEl.style.color = appState.connected ? '#00ff88' : '#ff4466';
+            }
+            
+            const balanceEl = document.getElementById('balance');
+            if (balanceEl) {
+                balanceEl.textContent = `$${appState.balance.toFixed(2)}`;
+            }
+            
+            const pnlEl = document.getElementById('pnl');
+            if (pnlEl) {
+                pnlEl.textContent = `${appState.todayPnL >= 0 ? '+' : ''}$${appState.todayPnL.toFixed(2)}`;
+                pnlEl.style.color = appState.todayPnL >= 0 ? '#00ff88' : '#ff4466';
+            }
+            
+            renderPredictions();
+            renderTrades();
+            renderPositions();
+        }
+        
+        function renderPredictions() {
+            const container = document.getElementById('predictions-container');
+            if (!container) return;
+            
+            let html = '';
+            ['BTC', 'ETH', 'SOL', 'XRP'].forEach(asset => {
+                const pred = appState.predictions[asset];
+                if (!pred) {
+                    html += `<div class="prediction-card">
+                        <div class="asset-name">${asset}</div>
+                        <div class="prediction-value WAIT">WAITING</div>
+                    </div>`;
+                    return;
+                }
+                
+                const conf = (pred.confidence * 100).toFixed(0);
+                const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
+                const predClass = pred.prediction || 'WAIT';
+                
+                html += `<div class="prediction-card ${pred.locked ? 'locked' : ''}">
+                    <div class="asset-name">${asset}</div>
+                    <div class="prediction-value ${predClass}">${pred.prediction || 'WAIT'}</div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill ${confClass}" style="width: ${conf}%"></div>
+                    </div>
+                    <div class="confidence-text">${conf}% Confidence</div>
+                    <div class="tier-badge ${pred.tier || 'NONE'}">${pred.tier || 'NONE'}</div>
+                    ${pred.market ? `<div class="market-odds">YES: ${(pred.market.yesPrice * 100).toFixed(1)}Â¢ | NO: ${(pred.market.noPrice * 100).toFixed(1)}Â¢</div>` : ''}
+                </div>`;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function renderTrades() {
+            const container = document.getElementById('trades-container');
+            if (!container) return;
+            
+            let filteredTrades = appState.trades.slice(-10).reverse();
+            if (currentFilter === 'wins') {
+                filteredTrades = filteredTrades.filter(t => (t.pnl || 0) >= 0);
+            } else if (currentFilter === 'losses') {
+                filteredTrades = filteredTrades.filter(t => (t.pnl || 0) < 0);
+            }
+            
+            if (filteredTrades.length === 0) {
+                container.innerHTML = '<div class="empty-state">No trades yet</div>';
+                return;
+            }
+            
+            let html = '';
+            filteredTrades.forEach(trade => {
+                const pnl = trade.pnl || 0;
+                const pnlPercent = trade.pnlPercent || 0;
+                const isWin = pnl >= 0;
+                
+                html += `<div class="trade-card ${isWin ? 'win' : 'loss'}">
+                    <div class="trade-header">
+                        <span class="trade-asset">${trade.asset}</span>
+                        <span class="trade-side ${trade.side}">${trade.side}</span>
+                    </div>
+                    <div class="trade-details">
+                        <div>Entry: ${(trade.entry * 100).toFixed(1)}Â¢</div>
+                        ${trade.exit ? `<div>Exit: ${(trade.exit * 100).toFixed(1)}Â¢</div>` : ''}
+                        <div>Size: $${trade.size?.toFixed(2) || 'N/A'}</div>
+                        ${pnl !== undefined ? `<div class="trade-pnl ${isWin ? 'positive' : 'negative'}">
+                            P/L: ${isWin ? '+' : ''}$${pnl.toFixed(2)} (${isWin ? '+' : ''}${pnlPercent.toFixed(1)}%)
+                        </div>` : ''}
+                    </div>
+                    ${trade.reason ? `<div class="trade-reason">${trade.reason}</div>` : ''}
+                    <div class="trade-time">${new Date(trade.time).toLocaleTimeString()}</div>
+                </div>`;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function renderPositions() {
+            const container = document.getElementById('positions-container');
+            if (!container) return;
+            
+            const openPositions = appState.positions.filter(p => p.status === 'OPEN');
+            
+            if (openPositions.length === 0) {
+                container.innerHTML = '<div class="empty-state">No open positions</div>';
+                return;
+            }
+            
+            let html = '';
+            openPositions.forEach(pos => {
+                html += `<div class="position-card">
+                    <div class="position-header">
+                        <span class="position-asset">${pos.asset}</span>
+                        <span class="position-side ${pos.side}">${pos.side}</span>
+                    </div>
+                    <div class="position-details">
+                        <div>Entry: ${(pos.entry * 100).toFixed(1)}Â¢</div>
+                        <div>Size: $${pos.size?.toFixed(2) || 'N/A'}</div>
+                        <div>State: ${pos.state || 'N/A'}</div>
+                    </div>
+                </div>`;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function openSettings() {
+            const url = prompt('Enter your Render server URL:', SERVER_URL);
+            if (url) {
+                localStorage.setItem('polyprophet_server_url', url);
+                location.reload();
+            }
+        }
+        
+        let currentFilter = 'all';
+        let tradeDirection = 'UP';
+        
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName + '-tab').classList.add('active');
+            
+            if (tabName === 'trade') {
+                updateTradePreview();
+            }
+        }
+        
+        function setTradeDirection(direction) {
+            tradeDirection = direction;
+            document.getElementById('trade-direction-up').style.border = direction === 'UP' ? '2px solid #00ff88' : '2px solid transparent';
+            document.getElementById('trade-direction-down').style.border = direction === 'DOWN' ? '2px solid #ff4466' : '2px solid transparent';
+            updateTradePreview();
+        }
+        
+        function updateTradePreview() {
+            const asset = document.getElementById('trade-asset')?.value;
+            if (!asset) return;
+            const pred = appState.predictions[asset];
+            if (pred && pred.market) {
+                const marketPrice = tradeDirection === 'UP' ? pred.market.yesPrice : pred.market.noPrice;
+                const priceEl = document.getElementById('trade-market-price');
+                const previewEl = document.getElementById('trade-preview');
+                if (priceEl) priceEl.textContent = `${(marketPrice * 100).toFixed(1)}Â¢`;
+                if (previewEl) previewEl.style.display = 'block';
+            }
+        }
+        
+        async function executeManualTrade() {
+            const asset = document.getElementById('trade-asset').value;
+            const size = parseFloat(document.getElementById('trade-size').value);
+            const resultEl = document.getElementById('trade-result');
+            
+            if (!size || size < 1) {
+                resultEl.style.display = 'block';
+                resultEl.style.background = 'rgba(255, 68, 102, 0.2)';
+                resultEl.style.border = '1px solid #ff4466';
+                resultEl.style.color = '#ff4466';
+                resultEl.textContent = 'âŒ Size must be at least $1';
+                return;
+            }
+            
+            resultEl.style.display = 'block';
+            resultEl.style.background = 'rgba(153, 51, 255, 0.1)';
+            resultEl.style.border = '1px solid #9933ff';
+            resultEl.style.color = '#9933ff';
+            resultEl.textContent = 'â³ Placing trade...';
+            
+            try {
+                const response = await fetch(`${SERVER_URL}/api/manual-buy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset, direction: tradeDirection, size })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultEl.style.background = 'rgba(0, 255, 136, 0.2)';
+                    resultEl.style.border = '1px solid #00ff88';
+                    resultEl.style.color = '#00ff88';
+                    resultEl.textContent = `âœ… Trade placed! Position ID: ${data.positionId}`;
+                    
+                    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+                    
+                    // Reset form
+                    document.getElementById('trade-size').value = '5';
+                    setTimeout(() => {
+                        resultEl.style.display = 'none';
+                    }, 5000);
+                } else {
+                    resultEl.style.background = 'rgba(255, 68, 102, 0.2)';
+                    resultEl.style.border = '1px solid #ff4466';
+                    resultEl.style.color = '#ff4466';
+                    resultEl.textContent = `âŒ ${data.error || 'Trade failed'}`;
+                }
+            } catch (e) {
+                resultEl.style.background = 'rgba(255, 68, 102, 0.2)';
+                resultEl.style.border = '1px solid #ff4466';
+                resultEl.style.color = '#ff4466';
+                resultEl.textContent = `âŒ Error: ${e.message}`;
+            }
+        }
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('ðŸ”® PolyProphet Mobile App Starting...');
+            connectWebSocket();
+            setInterval(updateUI, 1000);
+            setInterval(() => {
+                if (!appState.connected && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                    connectWebSocket();
+                }
+            }, 30000);
+            
+            // Setup trade tab
+            const assetSelect = document.getElementById('trade-asset');
+            if (assetSelect) {
+                assetSelect.addEventListener('change', updateTradePreview);
+            }
+            setTradeDirection('UP');
+        });
+        
+        // Update last update time
+        setInterval(() => {
+            if (appState.lastUpdate) {
+                const elapsed = Math.floor((Date.now() - appState.lastUpdate.getTime()) / 1000);
+                const minutes = Math.floor(elapsed / 60);
+                const seconds = elapsed % 60;
+                const updateEl = document.getElementById('last-update');
+                if (updateEl) {
+                    updateEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')} ago`;
+                }
+            }
+        }, 1000);
+    </script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script></body>
+</html>
+
