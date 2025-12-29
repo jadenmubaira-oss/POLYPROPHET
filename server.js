@@ -875,6 +875,22 @@ class TradeExecutor {
         this.DORMANCY_THRESHOLD_MS = 90 * 60 * 1000;  // 90 minutes = switch to HUNTER
         this.HUNTER_LOSS_LIMIT = 2;         // 2 losses in HUNTER mode = retreat to SNIPER
 
+        // 🎯 GOLDEN MEAN: OBSERVE/HARVEST/STRIKE State Machine
+        // - OBSERVE: Cooldown/learning mode (no trades, ≤5% probe sizes)
+        // - HARVEST: Normal trading mode (standard sizes, EV-gated)
+        // - STRIKE: Aggressive mode (larger sizes after verified edge/streak)
+        this.tradingState = 'HARVEST';      // Current state: 'OBSERVE' | 'HARVEST' | 'STRIKE'
+        this.stateEntryTime = Date.now();   // When we entered current state
+        this.recentWinStreak = 0;           // Consecutive wins (for STRIKE upgrade)
+        this.recentLossStreak = 0;          // Consecutive losses (for OBSERVE downgrade)
+        this.STATE_THRESHOLDS = {
+            observeToHarvest: 2,             // 2 cycles in OBSERVE before returning to HARVEST
+            harvestToStrike: 3,              // 3 consecutive wins to enter STRIKE
+            strikeToHarvest: 1,              // 1 loss exits STRIKE back to HARVEST
+            harvestToObserve: 3,             // 3 consecutive losses enters OBSERVE
+            observeMinMinutes: 15            // Minimum 15 mins in OBSERVE
+        }
+
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
                 // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
@@ -1088,6 +1104,81 @@ class TradeExecutor {
         return false;
     }
 
+    // 🎯 GOLDEN MEAN: State Machine Management
+    // Updates trading state based on trade outcomes
+    updateTradingState(outcome) {
+        const prevState = this.tradingState;
+        
+        if (outcome === 'WIN') {
+            this.recentWinStreak++;
+            this.recentLossStreak = 0;
+            
+            // Check for STRIKE upgrade
+            if (this.tradingState === 'HARVEST' && this.recentWinStreak >= this.STATE_THRESHOLDS.harvestToStrike) {
+                this.tradingState = 'STRIKE';
+                this.stateEntryTime = Date.now();
+                log(`🎯 STATE: HARVEST → STRIKE (${this.recentWinStreak} consecutive wins)`);
+            }
+            // Check for OBSERVE → HARVEST
+            else if (this.tradingState === 'OBSERVE') {
+                const minutesInObserve = (Date.now() - this.stateEntryTime) / 60000;
+                if (minutesInObserve >= this.STATE_THRESHOLDS.observeMinMinutes) {
+                    this.tradingState = 'HARVEST';
+                    this.stateEntryTime = Date.now();
+                    this.recentWinStreak = 0;
+                    log(`🎯 STATE: OBSERVE → HARVEST (win after ${minutesInObserve.toFixed(0)}min cooldown)`);
+                }
+            }
+        } else if (outcome === 'LOSS') {
+            this.recentLossStreak++;
+            this.recentWinStreak = 0;
+            
+            // STRIKE → HARVEST on any loss
+            if (this.tradingState === 'STRIKE' && this.recentLossStreak >= this.STATE_THRESHOLDS.strikeToHarvest) {
+                this.tradingState = 'HARVEST';
+                this.stateEntryTime = Date.now();
+                log(`🎯 STATE: STRIKE → HARVEST (loss while in STRIKE)`);
+            }
+            // HARVEST → OBSERVE on loss streak
+            else if (this.tradingState === 'HARVEST' && this.recentLossStreak >= this.STATE_THRESHOLDS.harvestToObserve) {
+                this.tradingState = 'OBSERVE';
+                this.stateEntryTime = Date.now();
+                log(`🎯 STATE: HARVEST → OBSERVE (${this.recentLossStreak} consecutive losses)`);
+            }
+        }
+        
+        if (prevState !== this.tradingState) {
+            log(`🎯 GOLDEN MEAN: State changed ${prevState} → ${this.tradingState}`);
+        }
+    }
+    
+    // Get position size multiplier based on trading state
+    getStateSizeMultiplier() {
+        switch (this.tradingState) {
+            case 'OBSERVE':
+                return 0.25;  // 25% of normal size (probe trades only)
+            case 'HARVEST':
+                return 1.0;   // 100% normal size
+            case 'STRIKE':
+                return 1.5;   // 150% of normal size (aggressive after verified edge)
+            default:
+                return 1.0;
+        }
+    }
+    
+    // Check if trading is allowed in current state
+    canTradeInCurrentState() {
+        if (this.tradingState === 'OBSERVE') {
+            const minutesInObserve = (Date.now() - this.stateEntryTime) / 60000;
+            // Allow small probe trades in OBSERVE after minimum time
+            if (minutesInObserve < this.STATE_THRESHOLDS.observeMinMinutes) {
+                return { allowed: false, reason: `OBSERVE cooldown: ${(this.STATE_THRESHOLDS.observeMinMinutes - minutesInObserve).toFixed(0)}min remaining` };
+            }
+            return { allowed: true, sizeMultiplier: 0.25, reason: 'OBSERVE: probe trades only' };
+        }
+        return { allowed: true, sizeMultiplier: this.getStateSizeMultiplier() };
+    }
+
     // Refresh cached LIVE balance (call every 30s or before trades)
     // NOTE: Refreshes regardless of mode - user wants to see wallet balance even in PAPER mode
     async refreshLiveBalance() {
@@ -1234,6 +1325,47 @@ class TradeExecutor {
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
 
+        // ==================== 🎯 GOLDEN MEAN: EV + LIQUIDITY GUARDS ====================
+        // These checks ensure we only trade when Expected Value is positive after fees
+        // and liquidity is sufficient to execute without excessive slippage.
+        
+        // 💰 EV CALCULATION: Account for ~2% round-trip fees on Polymarket
+        const POLYMARKET_FEE_PCT = 0.02; // 2% round-trip (buy + sell)
+        const SLIPPAGE_ASSUMPTION = 0.01; // 1% estimated slippage
+        const TOTAL_FRICTION = POLYMARKET_FEE_PCT + SLIPPAGE_ASSUMPTION; // 3% total cost
+        
+        if (mode === 'ORACLE' && direction !== 'BOTH' && entryPrice > 0) {
+            // EV = (P_win * Profit) - (P_lose * Loss) - Friction
+            // For binary: Profit = (1 - entryPrice) / entryPrice, Loss = 1 (total stake)
+            // Simplified: EV_after_fees = confidence * (1/entryPrice - 1) - (1 - confidence) - TOTAL_FRICTION
+            const rawProfit = (1 - entryPrice) / entryPrice; // Win: get $1 back, paid entryPrice
+            const expectedProfit = confidence * rawProfit;
+            const expectedLoss = (1 - confidence) * 1; // Lose full stake
+            const evBeforeFees = expectedProfit - expectedLoss;
+            const evAfterFees = evBeforeFees - TOTAL_FRICTION;
+            
+            if (evAfterFees <= 0) {
+                log(`📉 EV GUARD: EV after fees = ${(evAfterFees * 100).toFixed(2)}% (conf: ${(confidence * 100).toFixed(1)}%, price: ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
+                return { success: false, error: `Negative EV after fees: ${(evAfterFees * 100).toFixed(2)}%` };
+            }
+            log(`📈 EV CHECK: EV after fees = +${(evAfterFees * 100).toFixed(2)}% ✓`, asset);
+        }
+        
+        // 📊 SPREAD/LIQUIDITY GUARD: Reject if bid-ask spread is too wide
+        const MAX_SPREAD_PCT = 0.15; // 15% max spread (YES + NO should sum to ~100%)
+        if (market && market.yesPrice && market.noPrice) {
+            const spreadDeficit = 1 - (market.yesPrice + market.noPrice);
+            // A "deficit" > 0 means illiquidity gap (YES 40 + NO 50 = 90, gap = 10)
+            // A "surplus" < 0 means spread (YES 55 + NO 55 = 110, spread = 10)
+            const effectiveSpread = Math.abs(spreadDeficit);
+            
+            if (effectiveSpread > MAX_SPREAD_PCT && mode !== 'ILLIQUIDITY') {
+                log(`💧 LIQUIDITY GUARD: Spread ${(effectiveSpread * 100).toFixed(1)}% > max ${(MAX_SPREAD_PCT * 100).toFixed(0)}% - BLOCKED`, asset);
+                return { success: false, error: `Spread too wide: ${(effectiveSpread * 100).toFixed(1)}%` };
+            }
+        }
+        // ==================== END GOLDEN MEAN GUARDS ====================
+
         // 🔒 GOD MODE: MUTEX LOCK - Prevent race conditions
         // Wait for any concurrent trade execution to complete (max 5s timeout)
         const mutexTimeout = 5000;
@@ -1322,6 +1454,18 @@ class TradeExecutor {
             if (!this.isAssetEnabled(asset)) {
                 log(`⏸️ TRADE BLOCKED: Trading disabled for ${asset}`, asset);
                 return { success: false, error: `Trading disabled for ${asset}` };
+            }
+
+            // 🎯 GOLDEN MEAN: STATE MACHINE CHECK
+            const stateCheck = this.canTradeInCurrentState();
+            if (!stateCheck.allowed) {
+                log(`⏸️ STATE BLOCKED: ${stateCheck.reason}`, asset);
+                return { success: false, error: `Trading state: ${stateCheck.reason}` };
+            }
+            // Store multiplier for position sizing
+            options.stateMultiplier = stateCheck.sizeMultiplier || 1.0;
+            if (stateCheck.sizeMultiplier && stateCheck.sizeMultiplier !== 1.0) {
+                log(`🎯 STATE: ${this.tradingState} - size multiplier ${stateCheck.sizeMultiplier}x`, asset);
             }
 
             // 📊 MAX TRADES PER CYCLE CHECK (per asset)
@@ -1440,6 +1584,13 @@ class TradeExecutor {
                 if (elapsedSinceStartup < warmupDuration) {
                     size = size * this.warmupSizeMultiplier;
                     log(` WARMUP MODE: Size reduced to ${(this.warmupSizeMultiplier * 100).toFixed(0)}% (${size.toFixed(2)})`, asset);
+                }
+
+                // 🎯 GOLDEN MEAN: Apply state machine size multiplier
+                if (options.stateMultiplier && options.stateMultiplier !== 1.0) {
+                    const originalSize = size;
+                    size = size * options.stateMultiplier;
+                    log(`🎯 STATE SIZING: ${this.tradingState} mode - ${(options.stateMultiplier * 100).toFixed(0)}% (${originalSize.toFixed(2)} → ${size.toFixed(2)})`, asset);
                 }
 
                 // SMART MINIMUM: Ensure we meet $1.10 minimum
@@ -2437,12 +2588,16 @@ class TradeExecutor {
                 this.lastLossTime = Date.now();
                 log(`🔴 CONSECUTIVE LOSSES: ${this.consecutiveLosses} - Triggering ${CONFIG.RISK.cooldownAfterLoss}s cooldown`, pos.asset);
             }
+            // 🎯 GOLDEN MEAN: Update state machine on loss
+            this.updateTradingState('LOSS');
         } else {
             // WIN - reset consecutive losses and hunter streak
             this.consecutiveLosses = 0;
             this.hunterLossStreak = 0;
             // 🦅 v20: Reset dormancy timer on successful trade
             this.lastTradeTime = Date.now();
+            // 🎯 GOLDEN MEAN: Update state machine on win
+            this.updateTradingState('WIN');
         }
 
         // Add WINNING live positions to redemption queue for later claiming
@@ -7574,6 +7729,11 @@ function buildStateSnapshot() {
         positions: tradeExecutor.positions,
         positionCount: Object.keys(tradeExecutor.positions).length,
         tradeHistory: tradeExecutor.tradeHistory.slice(-20), // Last 20 trades
+        // 🎯 GOLDEN MEAN: State machine info
+        tradingState: tradeExecutor.tradingState || 'HARVEST',
+        stateSizeMultiplier: tradeExecutor.getStateSizeMultiplier ? tradeExecutor.getStateSizeMultiplier() : 1.0,
+        recentWinStreak: tradeExecutor.recentWinStreak || 0,
+        recentLossStreak: tradeExecutor.recentLossStreak || 0,
         modes: {
             ORACLE: CONFIG.ORACLE.enabled,
             ARBITRAGE: CONFIG.ARBITRAGE.enabled,
