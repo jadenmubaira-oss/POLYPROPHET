@@ -1331,26 +1331,37 @@ class TradeExecutor {
         // These checks ensure we only trade when Expected Value is positive after fees
         // and liquidity is sufficient to execute without excessive slippage.
         
-        // 💰 EV CALCULATION: Account for ~2% round-trip fees on Polymarket
-        const POLYMARKET_FEE_PCT = 0.02; // 2% round-trip (buy + sell)
-        const SLIPPAGE_ASSUMPTION = 0.01; // 1% estimated slippage
-        const TOTAL_FRICTION = POLYMARKET_FEE_PCT + SLIPPAGE_ASSUMPTION; // 3% total cost
+        // 💰 EV CALCULATION (ORACLE-only): Use calibrated pWin, not raw signal score
+        // Fee model: conservative assumption = 2% fee on PROFITS at settlement (not stake).
+        const PROFIT_FEE_PCT = 0.02;
+        const SLIPPAGE_ASSUMPTION_PCT = 0.01; // estimated entry slippage
         
         if (mode === 'ORACLE' && direction !== 'BOTH' && entryPrice > 0) {
-            // EV = (P_win * Profit) - (P_lose * Loss) - Friction
-            // For binary: Profit = (1 - entryPrice) / entryPrice, Loss = 1 (total stake)
-            // Simplified: EV_after_fees = confidence * (1/entryPrice - 1) - (1 - confidence) - TOTAL_FRICTION
-            const rawProfit = (1 - entryPrice) / entryPrice; // Win: get $1 back, paid entryPrice
-            const expectedProfit = confidence * rawProfit;
-            const expectedLoss = (1 - confidence) * 1; // Lose full stake
-            const evBeforeFees = expectedProfit - expectedLoss;
-            const evAfterFees = evBeforeFees - TOTAL_FRICTION;
-            
-            if (evAfterFees <= 0) {
-                log(`📉 EV GUARD: EV after fees = ${(evAfterFees * 100).toFixed(2)}% (conf: ${(confidence * 100).toFixed(1)}%, price: ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
-                return { success: false, error: `Negative EV after fees: ${(evAfterFees * 100).toFixed(2)}%` };
+            // Resolve pWin (prefer caller-provided, else derive from current brain calibration + priors)
+            let pWin = Number.isFinite(options.pWin) ? options.pWin : null;
+            if (pWin === null && typeof Brains !== 'undefined' && Brains[asset] && typeof Brains[asset].getCalibratedWinProb === 'function') {
+                const s = Brains[asset].stats || {};
+                const tier = options.tier || Brains[asset].tier || 'UNKNOWN';
+                const priorRate =
+                    (tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
+                        (s.total > 0 ? (s.wins / s.total) : 0.5);
+                pWin = Brains[asset].getCalibratedWinProb(confidence, { priorRate, priorStrength: 40, minSamples: 0 });
             }
-            log(`📈 EV CHECK: EV after fees = +${(evAfterFees * 100).toFixed(2)}% ✓`, asset);
+            
+            if (Number.isFinite(pWin)) {
+                // Binary bet odds: b = (1 - price)/price. EV on stake = pWin*b*(1-fee) - (1-pWin)
+                const effectivePrice = Math.min(0.99, entryPrice * (1 + SLIPPAGE_ASSUMPTION_PCT));
+                const b = (1 - effectivePrice) / effectivePrice;
+                const evRoi = (pWin * b * (1 - PROFIT_FEE_PCT)) - (1 - pWin);
+                
+                if (evRoi <= 0) {
+                    log(`📉 EV GUARD: EV=${(evRoi * 100).toFixed(2)}% (pWin ${(pWin * 100).toFixed(1)}%, price ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
+                    return { success: false, error: `Negative EV: ${(evRoi * 100).toFixed(2)}%` };
+                }
+                log(`📈 EV CHECK: EV=${(evRoi * 100).toFixed(2)}% (pWin ${(pWin * 100).toFixed(1)}%) ✓`, asset);
+            } else {
+                log(`⚠️ EV GUARD: Missing calibrated pWin - skipping EV check`, asset);
+            }
         }
         
         // 📊 SPREAD/LIQUIDITY GUARD: Reject if bid-ask spread is too wide
@@ -4935,10 +4946,22 @@ class SupremeBrain {
                     } else {
                     const consensusVotes = Math.max(votes.UP, votes.DOWN);
                     const consensusRatio = totalVotes > 0 ? consensusVotes / totalVotes : 0;
-                    // CRITICAL FIX: Use RELATIVE edge formula (not absolute) AND account for 2% Polymarket fee
-                    const POLYMARKET_FEE = 0.02; // 2% fee on winnings
-                    const effectiveConfidence = finalConfidence * (1 - POLYMARKET_FEE); // Reduce by fee
-                    const edgePercent = currentOdds > 0 ? ((effectiveConfidence - currentOdds) / currentOdds) * 100 : 0;
+                    // EV/EDGE MUST use calibrated probability (pWin), not raw signal score
+                    // We also weight pWin toward 0.5 when signal score is weak to avoid overconfidence from priors.
+                    const PROFIT_FEE_PCT = 0.02; // conservative: fee on profits at settlement
+                    const s = this.stats || {};
+                    const priorRate =
+                        (tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
+                            (s.total > 0 ? (s.wins / s.total) : 0.5);
+                    const pWinRaw = (typeof this.getCalibratedWinProb === 'function')
+                        ? this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 })
+                        : null;
+                    const minConfRef = Math.max(0.0001, CONFIG.ORACLE.minConfidence || 0.8);
+                    const weight = Math.max(0, Math.min(1, finalConfidence / minConfRef)); // 0..1
+                    const pWinEff = Number.isFinite(pWinRaw) ? (0.5 + ((pWinRaw - 0.5) * weight)) : null;
+                    const edgePercent = (pWinEff !== null && currentOdds > 0) ? (((pWinEff - currentOdds) / currentOdds) * 100) : 0;
+                    const b = currentOdds > 0 ? ((1 - currentOdds) / currentOdds) : 0;
+                    const evRoi = (pWinEff !== null && currentOdds > 0) ? ((pWinEff * b * (1 - PROFIT_FEE_PCT)) - (1 - pWinEff)) : null;
                     const priceMovingRight = (finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0);
                     const isTrending = regime === 'TRENDING';
                     const stabilityMet = this.stabilityCounter >= CONFIG.ORACLE.minStability || this.prediction === finalSignal;
@@ -4953,20 +4976,25 @@ class SupremeBrain {
                     const adjustedMinConfidence = CONFIG.ORACLE.minConfidence * aggressionMultiplier;
                     const adjustedMinEdge = CONFIG.ORACLE.minEdge * aggressionMultiplier;
 
-                    log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Conf=${(finalConfidence * 100).toFixed(0)}% Edge=${edgePercent.toFixed(1)}% Aggression=${Math.round(aggression * 100)}%`, this.asset);
+                    log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Score=${(finalConfidence * 100).toFixed(0)}% pWin≈${pWinEff !== null ? (pWinEff * 100).toFixed(1) : 'NA'}% EV=${evRoi !== null ? (evRoi * 100).toFixed(2) : 'NA'}%`, this.asset);
 
                     // ==================== MOLECULAR FIX: HARD BLOCKS (Cannot be bypassed by aggression) ====================
-                    // 1. NEGATIVE EDGE = GUARANTEED LOSS - Never trade!
-                    if (edgePercent < 0) {
-                        log(`🚫 ORACLE HARD BLOCK: Negative edge ${edgePercent.toFixed(1)}% = guaranteed loss`, this.asset);
+                    // 1. Missing calibrated pWin = cannot evaluate EV reliably
+                    if (pWinEff === null) {
+                        log(`🚫 ORACLE HARD BLOCK: Missing calibrated pWin (cannot compute EV)`, this.asset);
                         // Do not trade - fall through to end
                     }
-                    // 2. GENESIS DISAGREEMENT = 94% accurate model says NO
+                    // 2. NEGATIVE EV = Never trade
+                    else if (evRoi !== null && evRoi <= 0) {
+                        log(`🚫 ORACLE HARD BLOCK: Negative EV ${(evRoi * 100).toFixed(2)}%`, this.asset);
+                        // Do not trade - fall through to end
+                    }
+                    // 3. GENESIS DISAGREEMENT = 94% accurate model says NO
                     else if (modelVotes.genesis && modelVotes.genesis !== finalSignal) {
                         log(`🛡️ ORACLE HARD BLOCK: Genesis (94% accurate) says ${modelVotes.genesis}, not ${finalSignal}`, this.asset);
                         // Do not trade - fall through to end
                     }
-                    // 3. MINIMUM HARD FLOOR: Even with max aggression, need 5% absolute edge
+                    // 4. MINIMUM HARD FLOOR: Even with max aggression, need 5% relative edge
                     else if (edgePercent < 5) {
                         log(`⚠️ ORACLE HARD BLOCK: Edge ${edgePercent.toFixed(1)}% below 5% minimum floor`, this.asset);
                         // Do not trade - fall through to end
@@ -4999,7 +5027,7 @@ class SupremeBrain {
                             log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
                             log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
 
-                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier });
+                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff });
                         }
                         else {
                             // Safe to proceed with normal checks
@@ -5026,7 +5054,7 @@ class SupremeBrain {
                                 log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
                                 log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
 
-                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier });
+                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff });
                             } else {
                                 log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
                             }
