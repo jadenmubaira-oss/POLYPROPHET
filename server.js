@@ -710,8 +710,14 @@ async function mainLoop() {
                 
                 // Reset brain locks
                 brains[asset].oracleLocked = false;
+                brains[asset].oracleLockPrediction = 'NEUTRAL';
+                brains[asset].lockCertainty = 0;
+                brains[asset].lockState = 'NEUTRAL';
+                brains[asset].stabilityCounter = 0;
                 brains[asset].prediction = 'WAIT';
                 brains[asset].tier = 'NONE';
+                brains[asset].isPerfectPattern = false;
+                brains[asset].isNearPerfectPattern = false;
             }
             
             state.markets[asset] = market;

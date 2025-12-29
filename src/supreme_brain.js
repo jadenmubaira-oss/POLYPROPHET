@@ -97,23 +97,30 @@ class SupremeBrain {
         let finalSignal = 'WAIT';
         let finalConfidence = 0;
 
+        // These are used later for certainty scoring and must remain in scope
+        let agreement = 0;
+        let priceConfirmation = 0.5;
+        let manipFactor = 1.0;
+        let patternQuality = 0;
+        let stabilityFactor = 0;
+
         if (totalVotes > 0) {
             finalSignal = votes.UP > votes.DOWN ? 'UP' : (votes.DOWN > votes.UP ? 'DOWN' : 'WAIT');
 
             // 1. Model Agreement (Consensus)
-            const agreement = Math.max(votes.UP, votes.DOWN) / totalVotes;
+            agreement = Math.max(votes.UP, votes.DOWN) / totalVotes;
 
             // 2. Price Confirmation (Chainlink/Market Trend)
             const priceTrend = force > 0 ? 'UP' : 'DOWN';
-            const priceConfirmation = finalSignal === priceTrend ? 1.0 : 0.5;
+            priceConfirmation = finalSignal === priceTrend ? 1.0 : 0.5;
 
             // 3. Manipulation Detection (Spread/Imbalance Check)
             const market = marketData || {};
             const spread = Math.abs((market.yesPrice || 0.5) - (market.noPrice || 0.5));
-            const manipFactor = spread > 0.15 ? 0.7 : 1.0; // Penalize high spreads
+            manipFactor = spread > 0.15 ? 0.7 : 1.0; // Penalize high spreads
 
             // 4. Pattern Quality (Relative Force)
-            const patternQuality = Math.min(1.0, absForce / (atr * 1.5));
+            patternQuality = Math.min(1.0, absForce / (atr * 1.5));
 
             // 5. Edge Persistence (Stability)
             if (this.lastPrediction === finalSignal) {
@@ -121,7 +128,7 @@ class SupremeBrain {
             } else {
                 this.stabilityCounter = 0;
             }
-            const stabilityFactor = Math.min(1.0, this.stabilityCounter / 10);
+            stabilityFactor = Math.min(1.0, this.stabilityCounter / 10);
 
             // COMPOSITE CONFIDENCE (THE TRUTH)
             finalConfidence = (agreement * 0.4) +
