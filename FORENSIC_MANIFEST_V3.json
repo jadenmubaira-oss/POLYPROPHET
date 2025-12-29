@@ -1,0 +1,2639 @@
+{
+  "root": "C:\\Users\\voide\\Downloads\\POLYPROPHET-main\\POLYPROPHET-main",
+  "generatedAt": "2025-12-29T15:29:30.213Z",
+  "skippedDirs": [
+    ".git",
+    "node_modules"
+  ],
+  "fileCount": 438,
+  "files": [
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd.zip",
+      "bytes": 2929934,
+      "sha256": "96d643f1c0c2872cdc0ee926a9c6b640e2cf00b6dcad65a00796b5e7d66dc08b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd.zip",
+      "bytes": 2422777,
+      "sha256": "69bad36674b7b01e8f403f9a5a22990f0fbccbfb8c47d352c8795895f4bcbc58",
+      "error": null
+    },
+    {
+      "path": "cursor_chat_name_generation_instruction.md",
+      "bytes": 2417384,
+      "sha256": "35807a986c2c036ac9f8004706c8778f0ebd4028f2bbf6eba2c99fd2a15df942",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\server.js",
+      "bytes": 489430,
+      "sha256": "458dd5227a0685f6bab83ba645d455a3a4e8029464f79d7a9803c05a60ebd8b6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\server.js",
+      "bytes": 468225,
+      "sha256": "afbf44c7ba5c12480514527cf1ca713c1c5f49b8d2ac2eeebe7fe9dfbc4463d2",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\server.js",
+      "bytes": 466982,
+      "sha256": "e8bdb4a4528ce8a20268f2752131d8af1256deb73faa74a809fbd5978be30c3c",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-28T06-00-21-220Z.json",
+      "bytes": 251893,
+      "sha256": "96310162d21280928ac8c90f2f3220995f90a6c9825eba29538c4eb762430029",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-28T05-31-56-485Z.json",
+      "bytes": 250549,
+      "sha256": "dbe31b1ef5e115ffdd4d7bc81b1fbcee4d6abc7bd721272c37352b1b6ee148e8",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-28T06-30-04-550Z.json",
+      "bytes": 249350,
+      "sha256": "2d28c2ee389201a7509d62c0d2e57aee2963ffa76ad6bc91f6b808edfa1aca29",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T22-04-59-755Z.json",
+      "bytes": 248609,
+      "sha256": "ee0170ac216450c97026e0fac41316a2ce2ce64d921d678394ecc9000e14e1df",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T20-58-00-752Z.json",
+      "bytes": 248410,
+      "sha256": "3827c3edeba2fbf6995d4cb1d891e565974790006d53b17dbc9cdc4c50983fd7",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T19-02-36-695Z.json",
+      "bytes": 245074,
+      "sha256": "6acc7eec9e1390f4b9323da861044269e90bab115d18226407744555e01784ab",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-18T10-59-02-670Z.json",
+      "bytes": 244914,
+      "sha256": "38b81988b9c8912e10df1e8477961fca6a5b93c521c9d02c77a89cc1c112536a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T10-59-02-670Z.json",
+      "bytes": 244914,
+      "sha256": "38b81988b9c8912e10df1e8477961fca6a5b93c521c9d02c77a89cc1c112536a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T10-59-02-670Z.json",
+      "bytes": 244914,
+      "sha256": "38b81988b9c8912e10df1e8477961fca6a5b93c521c9d02c77a89cc1c112536a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-18T10-59-02-670Z.json",
+      "bytes": 244914,
+      "sha256": "38b81988b9c8912e10df1e8477961fca6a5b93c521c9d02c77a89cc1c112536a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T22-15-03-392Z.json",
+      "bytes": 243856,
+      "sha256": "06d945c7daa394b3b7862d2766e0ba3b6b04ca8d57c4713d50133d26a0bd001e",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T18-26-49-053Z.json",
+      "bytes": 243746,
+      "sha256": "35c5e654f8f73f44db460962640baef592bd0b17256bf1b98d1fb96dcd01fe3a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T17-12-55-378Z.json",
+      "bytes": 241734,
+      "sha256": "6d366457827036b13dc188d635f74c103161a5b7fa2bdf7c6ccfabfab3199bcc",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T16-41-25-005Z.json",
+      "bytes": 241656,
+      "sha256": "2c0290e9f7d97f5e23b50ebe0b5f7b9a8eaf5315ef3213fa666c0751624f0c69",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T15-48-48-538Z.json",
+      "bytes": 240070,
+      "sha256": "0762923b70073c9816b1e3fb628eda9c53e47faba98eb4a922b96eb8926136b6",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-19T12-20-26-784Z.json",
+      "bytes": 240032,
+      "sha256": "e77227e6e3dae0f937e9fe21ac7686b63b0c463057ae2385f44b90ce93a9b493",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T12-20-26-784Z.json",
+      "bytes": 240032,
+      "sha256": "e77227e6e3dae0f937e9fe21ac7686b63b0c463057ae2385f44b90ce93a9b493",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T12-20-26-784Z.json",
+      "bytes": 240032,
+      "sha256": "e77227e6e3dae0f937e9fe21ac7686b63b0c463057ae2385f44b90ce93a9b493",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-19T12-20-26-784Z.json",
+      "bytes": 240032,
+      "sha256": "e77227e6e3dae0f937e9fe21ac7686b63b0c463057ae2385f44b90ce93a9b493",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T14-26-26-713Z.json",
+      "bytes": 239538,
+      "sha256": "c52120d29252b10eee4928ebb158f979f39617c18768eaa3cc60fddaaea0e818",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T07-33-34-462Z.json",
+      "bytes": 239145,
+      "sha256": "4734a52b89e62e7cb39d655723fd2b782a397e9aead781896f680c61eb334953",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T07-33-34-462Z.json",
+      "bytes": 239145,
+      "sha256": "4734a52b89e62e7cb39d655723fd2b782a397e9aead781896f680c61eb334953",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T07-33-34-462Z.json",
+      "bytes": 239145,
+      "sha256": "4734a52b89e62e7cb39d655723fd2b782a397e9aead781896f680c61eb334953",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T07-33-34-462Z.json",
+      "bytes": 239145,
+      "sha256": "4734a52b89e62e7cb39d655723fd2b782a397e9aead781896f680c61eb334953",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T15-13-40-475Z.json",
+      "bytes": 239117,
+      "sha256": "7aab44eabc41c9947ee37c3331fb5884bf4b00eae56d76d92ea62bdb30e09fb3",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T15-25-48-825Z.json",
+      "bytes": 238365,
+      "sha256": "a7461cc3193f1790b8c09f50c2d055977535ddd2c920f30c4db4c3b7d664b215",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T15-25-48-825Z.json",
+      "bytes": 238365,
+      "sha256": "a7461cc3193f1790b8c09f50c2d055977535ddd2c920f30c4db4c3b7d664b215",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T15-25-48-825Z.json",
+      "bytes": 238365,
+      "sha256": "a7461cc3193f1790b8c09f50c2d055977535ddd2c920f30c4db4c3b7d664b215",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T15-25-48-825Z.json",
+      "bytes": 238365,
+      "sha256": "a7461cc3193f1790b8c09f50c2d055977535ddd2c920f30c4db4c3b7d664b215",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T09-46-08-879Z.json",
+      "bytes": 238364,
+      "sha256": "246a17808b42717e3bbe50a2987abb9df5ffbab11c0f8d65e8df414589e307ba",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T09-46-08-879Z.json",
+      "bytes": 238364,
+      "sha256": "246a17808b42717e3bbe50a2987abb9df5ffbab11c0f8d65e8df414589e307ba",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T09-46-08-879Z.json",
+      "bytes": 238364,
+      "sha256": "246a17808b42717e3bbe50a2987abb9df5ffbab11c0f8d65e8df414589e307ba",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T09-46-08-879Z.json",
+      "bytes": 238364,
+      "sha256": "246a17808b42717e3bbe50a2987abb9df5ffbab11c0f8d65e8df414589e307ba",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T13-06-12-787Z.json",
+      "bytes": 237792,
+      "sha256": "632d12fba148b55c47a912f5d641bff33ca95a57bb6ca92478fb6b7595f16768",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T17-56-27-218Z.json",
+      "bytes": 237698,
+      "sha256": "63d70aac90912cf5ad9acdbd2dbfe04b13a653e74e6bd0b69f56a0ce6eecd25f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T17-56-27-218Z.json",
+      "bytes": 237698,
+      "sha256": "63d70aac90912cf5ad9acdbd2dbfe04b13a653e74e6bd0b69f56a0ce6eecd25f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T17-56-27-218Z.json",
+      "bytes": 237698,
+      "sha256": "63d70aac90912cf5ad9acdbd2dbfe04b13a653e74e6bd0b69f56a0ce6eecd25f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T17-56-27-218Z.json",
+      "bytes": 237698,
+      "sha256": "63d70aac90912cf5ad9acdbd2dbfe04b13a653e74e6bd0b69f56a0ce6eecd25f",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T12-44-54-802Z.json",
+      "bytes": 237430,
+      "sha256": "6a3c6e4a961d6270f5ff1da67aa7d34342a788e8b234358473bd688b31f68db7",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T14-46-40-801Z.json",
+      "bytes": 237298,
+      "sha256": "5078dd9e4c24664ae8cb61c6fc1e6f8ce8b26fb7c739de0f1f847798d29ebd7c",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T02-00-13-000Z.json",
+      "bytes": 236581,
+      "sha256": "2550790f4cb0be80a8075144d95008984ccea396c2e3d58551d7acfeba271fe2",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T02-00-13-000Z.json",
+      "bytes": 236581,
+      "sha256": "2550790f4cb0be80a8075144d95008984ccea396c2e3d58551d7acfeba271fe2",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T02-00-13-000Z.json",
+      "bytes": 236581,
+      "sha256": "2550790f4cb0be80a8075144d95008984ccea396c2e3d58551d7acfeba271fe2",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T02-00-13-000Z.json",
+      "bytes": 236581,
+      "sha256": "2550790f4cb0be80a8075144d95008984ccea396c2e3d58551d7acfeba271fe2",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T16-06-45-883Z.json",
+      "bytes": 236493,
+      "sha256": "70d9978433f8c0ae3bb591b00fb53ef38486c15cfd8d209cd62ea95c459f1c94",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T16-06-45-883Z.json",
+      "bytes": 236493,
+      "sha256": "70d9978433f8c0ae3bb591b00fb53ef38486c15cfd8d209cd62ea95c459f1c94",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T16-06-45-883Z.json",
+      "bytes": 236493,
+      "sha256": "70d9978433f8c0ae3bb591b00fb53ef38486c15cfd8d209cd62ea95c459f1c94",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T16-06-45-883Z.json",
+      "bytes": 236493,
+      "sha256": "70d9978433f8c0ae3bb591b00fb53ef38486c15cfd8d209cd62ea95c459f1c94",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T04-50-47-240Z.json",
+      "bytes": 236131,
+      "sha256": "51ad473d03bf88bc1de3e9473c908e56811eca4d7b3b3e355db4d90d316d1a62",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T04-50-47-240Z.json",
+      "bytes": 236131,
+      "sha256": "51ad473d03bf88bc1de3e9473c908e56811eca4d7b3b3e355db4d90d316d1a62",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T04-50-47-240Z.json",
+      "bytes": 236131,
+      "sha256": "51ad473d03bf88bc1de3e9473c908e56811eca4d7b3b3e355db4d90d316d1a62",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T02-33-09-871Z.json",
+      "bytes": 235586,
+      "sha256": "bff7150e6f6ebcf5da3ba91bc3facb9229b870c043de841dab95524854edca68",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T02-33-09-871Z.json",
+      "bytes": 235586,
+      "sha256": "bff7150e6f6ebcf5da3ba91bc3facb9229b870c043de841dab95524854edca68",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T02-33-09-871Z.json",
+      "bytes": 235586,
+      "sha256": "bff7150e6f6ebcf5da3ba91bc3facb9229b870c043de841dab95524854edca68",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T02-33-09-871Z.json",
+      "bytes": 235586,
+      "sha256": "bff7150e6f6ebcf5da3ba91bc3facb9229b870c043de841dab95524854edca68",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T00-56-51-502Z.json",
+      "bytes": 235248,
+      "sha256": "21e1f34dfcce18a1ce1ba5931b58753bef6bf1fb320beb31865058ce8eb1139f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T00-56-51-502Z.json",
+      "bytes": 235248,
+      "sha256": "21e1f34dfcce18a1ce1ba5931b58753bef6bf1fb320beb31865058ce8eb1139f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T00-56-51-502Z.json",
+      "bytes": 235248,
+      "sha256": "21e1f34dfcce18a1ce1ba5931b58753bef6bf1fb320beb31865058ce8eb1139f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T00-56-51-502Z.json",
+      "bytes": 235248,
+      "sha256": "21e1f34dfcce18a1ce1ba5931b58753bef6bf1fb320beb31865058ce8eb1139f",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T16-58-50-525Z.json",
+      "bytes": 235192,
+      "sha256": "db747a9a89f911f78bbfbe25a2e21fc9787df83e5719d0ccfc7f18d6f01281c9",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T16-58-50-525Z.json",
+      "bytes": 235192,
+      "sha256": "db747a9a89f911f78bbfbe25a2e21fc9787df83e5719d0ccfc7f18d6f01281c9",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T16-58-50-525Z.json",
+      "bytes": 235192,
+      "sha256": "db747a9a89f911f78bbfbe25a2e21fc9787df83e5719d0ccfc7f18d6f01281c9",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T16-58-50-525Z.json",
+      "bytes": 235192,
+      "sha256": "db747a9a89f911f78bbfbe25a2e21fc9787df83e5719d0ccfc7f18d6f01281c9",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T04-39-48-742Z.json",
+      "bytes": 234720,
+      "sha256": "d7043ee4b0204d9aacce9bb9b29c2c42eb4f40ee9a1be825255a6b0cf388956a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T04-39-48-742Z.json",
+      "bytes": 234720,
+      "sha256": "d7043ee4b0204d9aacce9bb9b29c2c42eb4f40ee9a1be825255a6b0cf388956a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T04-39-48-742Z.json",
+      "bytes": 234720,
+      "sha256": "d7043ee4b0204d9aacce9bb9b29c2c42eb4f40ee9a1be825255a6b0cf388956a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T16-18-43-191Z.json",
+      "bytes": 234557,
+      "sha256": "d0046a2e0cac411b41a5d0fd68977c7ddca0ec113d3e922768ea981921ea1d0f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T16-18-43-191Z.json",
+      "bytes": 234557,
+      "sha256": "d0046a2e0cac411b41a5d0fd68977c7ddca0ec113d3e922768ea981921ea1d0f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T16-18-43-191Z.json",
+      "bytes": 234557,
+      "sha256": "d0046a2e0cac411b41a5d0fd68977c7ddca0ec113d3e922768ea981921ea1d0f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T16-18-43-191Z.json",
+      "bytes": 234557,
+      "sha256": "d0046a2e0cac411b41a5d0fd68977c7ddca0ec113d3e922768ea981921ea1d0f",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T07-03-44-173Z.json",
+      "bytes": 234507,
+      "sha256": "9a2529e431cd72108bc893f1618842581cab0ccb835900ef671c966863647437",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T07-03-44-173Z.json",
+      "bytes": 234507,
+      "sha256": "9a2529e431cd72108bc893f1618842581cab0ccb835900ef671c966863647437",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T07-03-44-173Z.json",
+      "bytes": 234507,
+      "sha256": "9a2529e431cd72108bc893f1618842581cab0ccb835900ef671c966863647437",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-26T07-03-44-173Z.json",
+      "bytes": 234507,
+      "sha256": "9a2529e431cd72108bc893f1618842581cab0ccb835900ef671c966863647437",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T18-48-35-348Z.json",
+      "bytes": 234501,
+      "sha256": "4d9338eb7b4301ececc06882da3c229fdb725d2ef83cc6e90a5cdcee21937a01",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T18-48-35-348Z.json",
+      "bytes": 234501,
+      "sha256": "4d9338eb7b4301ececc06882da3c229fdb725d2ef83cc6e90a5cdcee21937a01",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T18-48-35-348Z.json",
+      "bytes": 234501,
+      "sha256": "4d9338eb7b4301ececc06882da3c229fdb725d2ef83cc6e90a5cdcee21937a01",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T18-48-35-348Z.json",
+      "bytes": 234501,
+      "sha256": "4d9338eb7b4301ececc06882da3c229fdb725d2ef83cc6e90a5cdcee21937a01",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T16-18-09-967Z.json",
+      "bytes": 234221,
+      "sha256": "51d09986977cf1f65c9530af84a73da5e4672c2bfe22c7c31c07e412113628f6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T16-18-09-967Z.json",
+      "bytes": 234221,
+      "sha256": "51d09986977cf1f65c9530af84a73da5e4672c2bfe22c7c31c07e412113628f6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T16-18-09-967Z.json",
+      "bytes": 234221,
+      "sha256": "51d09986977cf1f65c9530af84a73da5e4672c2bfe22c7c31c07e412113628f6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T16-18-09-967Z.json",
+      "bytes": 234221,
+      "sha256": "51d09986977cf1f65c9530af84a73da5e4672c2bfe22c7c31c07e412113628f6",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T18-45-55-368Z.json",
+      "bytes": 234205,
+      "sha256": "4b47f5cdd3464942bfd489f204535f8505c452ba20536d7278281dfcc2c01dd7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T18-45-55-368Z.json",
+      "bytes": 234205,
+      "sha256": "4b47f5cdd3464942bfd489f204535f8505c452ba20536d7278281dfcc2c01dd7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T18-45-55-368Z.json",
+      "bytes": 234205,
+      "sha256": "4b47f5cdd3464942bfd489f204535f8505c452ba20536d7278281dfcc2c01dd7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T18-45-55-368Z.json",
+      "bytes": 234205,
+      "sha256": "4b47f5cdd3464942bfd489f204535f8505c452ba20536d7278281dfcc2c01dd7",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T15-42-16-342Z.json",
+      "bytes": 233914,
+      "sha256": "12aa439dc23e02a2011aa1fb34e30744eee7a563bbdce9c499c7d3ea678c8a30",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T15-42-16-342Z.json",
+      "bytes": 233914,
+      "sha256": "12aa439dc23e02a2011aa1fb34e30744eee7a563bbdce9c499c7d3ea678c8a30",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T15-42-16-342Z.json",
+      "bytes": 233914,
+      "sha256": "12aa439dc23e02a2011aa1fb34e30744eee7a563bbdce9c499c7d3ea678c8a30",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T11-11-58-190Z.json",
+      "bytes": 233703,
+      "sha256": "7d01bc5d3b331eab62b9d48299961ab4acdca440942aed1728ae89fb272ce3ac",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T11-11-58-190Z.json",
+      "bytes": 233703,
+      "sha256": "7d01bc5d3b331eab62b9d48299961ab4acdca440942aed1728ae89fb272ce3ac",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T11-11-58-190Z.json",
+      "bytes": 233703,
+      "sha256": "7d01bc5d3b331eab62b9d48299961ab4acdca440942aed1728ae89fb272ce3ac",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T11-11-58-190Z.json",
+      "bytes": 233703,
+      "sha256": "7d01bc5d3b331eab62b9d48299961ab4acdca440942aed1728ae89fb272ce3ac",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T16-40-56-062Z.json",
+      "bytes": 233656,
+      "sha256": "3e18ee8cef6158d343b0366c7548ccfca680fcb6dcfd03d834b5f7b0d3c4ec71",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T16-40-56-062Z.json",
+      "bytes": 233656,
+      "sha256": "3e18ee8cef6158d343b0366c7548ccfca680fcb6dcfd03d834b5f7b0d3c4ec71",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T16-40-56-062Z.json",
+      "bytes": 233656,
+      "sha256": "3e18ee8cef6158d343b0366c7548ccfca680fcb6dcfd03d834b5f7b0d3c4ec71",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T18-28-40-718Z.json",
+      "bytes": 233362,
+      "sha256": "833a7eee2eb6aad84fdce5d0174b7e4a8aba82c9c4bf524cc2b28141311a6396",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T18-28-40-718Z.json",
+      "bytes": 233362,
+      "sha256": "833a7eee2eb6aad84fdce5d0174b7e4a8aba82c9c4bf524cc2b28141311a6396",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T18-28-40-718Z.json",
+      "bytes": 233362,
+      "sha256": "833a7eee2eb6aad84fdce5d0174b7e4a8aba82c9c4bf524cc2b28141311a6396",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T18-28-40-718Z.json",
+      "bytes": 233362,
+      "sha256": "833a7eee2eb6aad84fdce5d0174b7e4a8aba82c9c4bf524cc2b28141311a6396",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T22-42-04-464Z.json",
+      "bytes": 233134,
+      "sha256": "7e994d18ec68b3c7bc8119ecc597e324886ee33803fc56897aa91ed8f2327324",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T22-42-04-464Z.json",
+      "bytes": 233134,
+      "sha256": "7e994d18ec68b3c7bc8119ecc597e324886ee33803fc56897aa91ed8f2327324",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T22-42-04-464Z.json",
+      "bytes": 233134,
+      "sha256": "7e994d18ec68b3c7bc8119ecc597e324886ee33803fc56897aa91ed8f2327324",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T22-42-04-464Z.json",
+      "bytes": 233134,
+      "sha256": "7e994d18ec68b3c7bc8119ecc597e324886ee33803fc56897aa91ed8f2327324",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T04-13-29-832Z.json",
+      "bytes": 233101,
+      "sha256": "04bc5848087476ea758f222bd3764510365a278dcc8b4eb5614b2835567c827c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T04-13-29-832Z.json",
+      "bytes": 233101,
+      "sha256": "04bc5848087476ea758f222bd3764510365a278dcc8b4eb5614b2835567c827c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T04-13-29-832Z.json",
+      "bytes": 233101,
+      "sha256": "04bc5848087476ea758f222bd3764510365a278dcc8b4eb5614b2835567c827c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T04-13-29-832Z.json",
+      "bytes": 233101,
+      "sha256": "04bc5848087476ea758f222bd3764510365a278dcc8b4eb5614b2835567c827c",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T07-03-36-163Z.json",
+      "bytes": 232938,
+      "sha256": "4ff0523d3e9b9f03074d388f0542b837bce069eba2b01100ea583a72bdf3b465",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T07-03-36-163Z.json",
+      "bytes": 232938,
+      "sha256": "4ff0523d3e9b9f03074d388f0542b837bce069eba2b01100ea583a72bdf3b465",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T07-03-36-163Z.json",
+      "bytes": 232938,
+      "sha256": "4ff0523d3e9b9f03074d388f0542b837bce069eba2b01100ea583a72bdf3b465",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T07-03-36-163Z.json",
+      "bytes": 232938,
+      "sha256": "4ff0523d3e9b9f03074d388f0542b837bce069eba2b01100ea583a72bdf3b465",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T04-12-58-113Z.json",
+      "bytes": 232418,
+      "sha256": "f3427cf7d47aef3b01bdc0cd806ee73b9f252902cfe8f2f47c3eaa1687e31b7a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T04-12-58-113Z.json",
+      "bytes": 232418,
+      "sha256": "f3427cf7d47aef3b01bdc0cd806ee73b9f252902cfe8f2f47c3eaa1687e31b7a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T04-12-58-113Z.json",
+      "bytes": 232418,
+      "sha256": "f3427cf7d47aef3b01bdc0cd806ee73b9f252902cfe8f2f47c3eaa1687e31b7a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T04-12-58-113Z.json",
+      "bytes": 232418,
+      "sha256": "f3427cf7d47aef3b01bdc0cd806ee73b9f252902cfe8f2f47c3eaa1687e31b7a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T11-30-28-153Z.json",
+      "bytes": 232376,
+      "sha256": "781e7fb0a1bacef76b52153879a0af90ec39bd84c7cb19c2186ae05ac458246b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T11-30-28-153Z.json",
+      "bytes": 232376,
+      "sha256": "781e7fb0a1bacef76b52153879a0af90ec39bd84c7cb19c2186ae05ac458246b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T11-30-28-153Z.json",
+      "bytes": 232376,
+      "sha256": "781e7fb0a1bacef76b52153879a0af90ec39bd84c7cb19c2186ae05ac458246b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T11-30-28-153Z.json",
+      "bytes": 232376,
+      "sha256": "781e7fb0a1bacef76b52153879a0af90ec39bd84c7cb19c2186ae05ac458246b",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T22-45-28-950Z.json",
+      "bytes": 232342,
+      "sha256": "a7a1f4f631aef9f87a5aba6d3edab150dca0f4922c1273123e0031118539f77b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T22-45-28-950Z.json",
+      "bytes": 232342,
+      "sha256": "a7a1f4f631aef9f87a5aba6d3edab150dca0f4922c1273123e0031118539f77b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T22-45-28-950Z.json",
+      "bytes": 232342,
+      "sha256": "a7a1f4f631aef9f87a5aba6d3edab150dca0f4922c1273123e0031118539f77b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T22-45-28-950Z.json",
+      "bytes": 232342,
+      "sha256": "a7a1f4f631aef9f87a5aba6d3edab150dca0f4922c1273123e0031118539f77b",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T22-01-33-414Z.json",
+      "bytes": 231994,
+      "sha256": "d86c2687bc95f7b27208873017e6389725eabc6468dc1aca525de44eaafdb8cb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T22-01-33-414Z.json",
+      "bytes": 231994,
+      "sha256": "d86c2687bc95f7b27208873017e6389725eabc6468dc1aca525de44eaafdb8cb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T22-01-33-414Z.json",
+      "bytes": 231994,
+      "sha256": "d86c2687bc95f7b27208873017e6389725eabc6468dc1aca525de44eaafdb8cb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T22-01-33-414Z.json",
+      "bytes": 231994,
+      "sha256": "d86c2687bc95f7b27208873017e6389725eabc6468dc1aca525de44eaafdb8cb",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T00-26-06-256Z.json",
+      "bytes": 231942,
+      "sha256": "c7d4a25423299e3a903f65ba9d96387d041bca95cd03d282f8e3aefb26efcb6b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T00-26-06-256Z.json",
+      "bytes": 231942,
+      "sha256": "c7d4a25423299e3a903f65ba9d96387d041bca95cd03d282f8e3aefb26efcb6b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T00-26-06-256Z.json",
+      "bytes": 231942,
+      "sha256": "c7d4a25423299e3a903f65ba9d96387d041bca95cd03d282f8e3aefb26efcb6b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-26T00-26-06-256Z.json",
+      "bytes": 231942,
+      "sha256": "c7d4a25423299e3a903f65ba9d96387d041bca95cd03d282f8e3aefb26efcb6b",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T17-31-58-687Z.json",
+      "bytes": 231721,
+      "sha256": "1a3fc5f2b211d6adce60dc7147f15fba8a6e22cd75a2f156defe3ac5795b6699",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T17-31-58-687Z.json",
+      "bytes": 231721,
+      "sha256": "1a3fc5f2b211d6adce60dc7147f15fba8a6e22cd75a2f156defe3ac5795b6699",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T17-31-58-687Z.json",
+      "bytes": 231721,
+      "sha256": "1a3fc5f2b211d6adce60dc7147f15fba8a6e22cd75a2f156defe3ac5795b6699",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T17-31-58-687Z.json",
+      "bytes": 231721,
+      "sha256": "1a3fc5f2b211d6adce60dc7147f15fba8a6e22cd75a2f156defe3ac5795b6699",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-19T21-45-10-845Z.json",
+      "bytes": 231633,
+      "sha256": "79b85629c4a5f11bc92764b7c06b0bfbf9087151fa3bcb93501466db61674e1a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T21-45-10-845Z.json",
+      "bytes": 231633,
+      "sha256": "79b85629c4a5f11bc92764b7c06b0bfbf9087151fa3bcb93501466db61674e1a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T21-45-10-845Z.json",
+      "bytes": 231633,
+      "sha256": "79b85629c4a5f11bc92764b7c06b0bfbf9087151fa3bcb93501466db61674e1a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-19T21-45-10-845Z.json",
+      "bytes": 231633,
+      "sha256": "79b85629c4a5f11bc92764b7c06b0bfbf9087151fa3bcb93501466db61674e1a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T12-45-01-465Z.json",
+      "bytes": 231294,
+      "sha256": "ff1195fb58d7e4ec6db18db553db088a8b4b62d9ff58be78d564ff9721c5c29b",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T09-31-21-135Z.json",
+      "bytes": 231120,
+      "sha256": "497387face5329a8dee79e3c68f84800953a364b48c9fe9198961064355cde38",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T09-31-21-135Z.json",
+      "bytes": 231120,
+      "sha256": "497387face5329a8dee79e3c68f84800953a364b48c9fe9198961064355cde38",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T09-31-21-135Z.json",
+      "bytes": 231120,
+      "sha256": "497387face5329a8dee79e3c68f84800953a364b48c9fe9198961064355cde38",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T23-00-03-191Z.json",
+      "bytes": 229282,
+      "sha256": "3caf889387a005858a1d49768daf79d2ebb15025e6555c6a286b6b8900195add",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T23-00-03-191Z.json",
+      "bytes": 229282,
+      "sha256": "3caf889387a005858a1d49768daf79d2ebb15025e6555c6a286b6b8900195add",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T23-00-03-191Z.json",
+      "bytes": 229282,
+      "sha256": "3caf889387a005858a1d49768daf79d2ebb15025e6555c6a286b6b8900195add",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T23-00-03-191Z.json",
+      "bytes": 229282,
+      "sha256": "3caf889387a005858a1d49768daf79d2ebb15025e6555c6a286b6b8900195add",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T16-03-43-077Z.json",
+      "bytes": 226783,
+      "sha256": "4cbe1cc2eed66ad8b751c8210234b3769bccfe4ba13430c7a7b56d8f3de696cd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T16-03-43-077Z.json",
+      "bytes": 226783,
+      "sha256": "4cbe1cc2eed66ad8b751c8210234b3769bccfe4ba13430c7a7b56d8f3de696cd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T16-03-43-077Z.json",
+      "bytes": 226783,
+      "sha256": "4cbe1cc2eed66ad8b751c8210234b3769bccfe4ba13430c7a7b56d8f3de696cd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T16-03-43-077Z.json",
+      "bytes": 226783,
+      "sha256": "4cbe1cc2eed66ad8b751c8210234b3769bccfe4ba13430c7a7b56d8f3de696cd",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T00-17-20-114Z.json",
+      "bytes": 225413,
+      "sha256": "acbea908b7df971839a09aec2bef6983b798fd573bbb599d659dce6acfc373a5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T00-17-20-114Z.json",
+      "bytes": 225413,
+      "sha256": "acbea908b7df971839a09aec2bef6983b798fd573bbb599d659dce6acfc373a5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T00-17-20-114Z.json",
+      "bytes": 225413,
+      "sha256": "acbea908b7df971839a09aec2bef6983b798fd573bbb599d659dce6acfc373a5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T00-17-20-114Z.json",
+      "bytes": 225413,
+      "sha256": "acbea908b7df971839a09aec2bef6983b798fd573bbb599d659dce6acfc373a5",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T14-21-07-438Z.json",
+      "bytes": 225237,
+      "sha256": "b593c535928d22b8ff0cf25788402a0f62f5af09d0401144775dd090c3f754d5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T14-21-07-438Z.json",
+      "bytes": 225237,
+      "sha256": "b593c535928d22b8ff0cf25788402a0f62f5af09d0401144775dd090c3f754d5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T14-21-07-438Z.json",
+      "bytes": 225237,
+      "sha256": "b593c535928d22b8ff0cf25788402a0f62f5af09d0401144775dd090c3f754d5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T14-21-07-438Z.json",
+      "bytes": 225237,
+      "sha256": "b593c535928d22b8ff0cf25788402a0f62f5af09d0401144775dd090c3f754d5",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T11-30-16-715Z.json",
+      "bytes": 225039,
+      "sha256": "57cc7847f9ca37729525a5c5bed99675700995e14ae2ef2c9a807d0c835fcdc5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T11-30-16-715Z.json",
+      "bytes": 225039,
+      "sha256": "57cc7847f9ca37729525a5c5bed99675700995e14ae2ef2c9a807d0c835fcdc5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T11-30-16-715Z.json",
+      "bytes": 225039,
+      "sha256": "57cc7847f9ca37729525a5c5bed99675700995e14ae2ef2c9a807d0c835fcdc5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T11-30-16-715Z.json",
+      "bytes": 225039,
+      "sha256": "57cc7847f9ca37729525a5c5bed99675700995e14ae2ef2c9a807d0c835fcdc5",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-21T16-01-55-479Z.json",
+      "bytes": 221348,
+      "sha256": "4efa3567f8ae3e9cf63bfc362189cd3ffc136f7b9d55c3ffb4d9ea90fd6da109",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T16-01-55-479Z.json",
+      "bytes": 221348,
+      "sha256": "4efa3567f8ae3e9cf63bfc362189cd3ffc136f7b9d55c3ffb4d9ea90fd6da109",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T16-01-55-479Z.json",
+      "bytes": 221348,
+      "sha256": "4efa3567f8ae3e9cf63bfc362189cd3ffc136f7b9d55c3ffb4d9ea90fd6da109",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-21T16-01-55-479Z.json",
+      "bytes": 221348,
+      "sha256": "4efa3567f8ae3e9cf63bfc362189cd3ffc136f7b9d55c3ffb4d9ea90fd6da109",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-18T23-33-14-868Z.json",
+      "bytes": 219942,
+      "sha256": "67d0c83f7e131382b48843b4b6a8489959e3e846ed4e6f7b59945e57c47a93c3",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T23-33-14-868Z.json",
+      "bytes": 219942,
+      "sha256": "67d0c83f7e131382b48843b4b6a8489959e3e846ed4e6f7b59945e57c47a93c3",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T23-33-14-868Z.json",
+      "bytes": 219942,
+      "sha256": "67d0c83f7e131382b48843b4b6a8489959e3e846ed4e6f7b59945e57c47a93c3",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-18T23-33-14-868Z.json",
+      "bytes": 219942,
+      "sha256": "67d0c83f7e131382b48843b4b6a8489959e3e846ed4e6f7b59945e57c47a93c3",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T09-00-30-396Z.json",
+      "bytes": 219113,
+      "sha256": "7e2186eb5f23ddd04c8d789047cd50069718ae91e75dce9c1e1e5c15b8731439",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T09-00-30-396Z.json",
+      "bytes": 219113,
+      "sha256": "7e2186eb5f23ddd04c8d789047cd50069718ae91e75dce9c1e1e5c15b8731439",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T09-00-30-396Z.json",
+      "bytes": 219113,
+      "sha256": "7e2186eb5f23ddd04c8d789047cd50069718ae91e75dce9c1e1e5c15b8731439",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-19T21-24-23-191Z.json",
+      "bytes": 218911,
+      "sha256": "45620249161a6471a3a72cff24e38f0a5156881eb159dac717046c93f960d1bf",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T21-24-23-191Z.json",
+      "bytes": 218911,
+      "sha256": "45620249161a6471a3a72cff24e38f0a5156881eb159dac717046c93f960d1bf",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T21-24-23-191Z.json",
+      "bytes": 218911,
+      "sha256": "45620249161a6471a3a72cff24e38f0a5156881eb159dac717046c93f960d1bf",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-19T21-24-23-191Z.json",
+      "bytes": 218911,
+      "sha256": "45620249161a6471a3a72cff24e38f0a5156881eb159dac717046c93f960d1bf",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-21T20-46-05-213Z.json",
+      "bytes": 218259,
+      "sha256": "778e20bc870112b4b661e3920a04de532ee5f335acc0cfe727bb23b6295f01dd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T20-46-05-213Z.json",
+      "bytes": 218259,
+      "sha256": "778e20bc870112b4b661e3920a04de532ee5f335acc0cfe727bb23b6295f01dd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T20-46-05-213Z.json",
+      "bytes": 218259,
+      "sha256": "778e20bc870112b4b661e3920a04de532ee5f335acc0cfe727bb23b6295f01dd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-21T20-46-05-213Z.json",
+      "bytes": 218259,
+      "sha256": "778e20bc870112b4b661e3920a04de532ee5f335acc0cfe727bb23b6295f01dd",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T11-39-42-577Z.json",
+      "bytes": 214193,
+      "sha256": "b8900c3d000a9c1da876d0f3fb4ee3c44d5c2c8da770805103ef4af4ef0f8e28",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T11-39-42-577Z.json",
+      "bytes": 214193,
+      "sha256": "b8900c3d000a9c1da876d0f3fb4ee3c44d5c2c8da770805103ef4af4ef0f8e28",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T11-39-42-577Z.json",
+      "bytes": 214193,
+      "sha256": "b8900c3d000a9c1da876d0f3fb4ee3c44d5c2c8da770805103ef4af4ef0f8e28",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T12-50-44-776Z.json",
+      "bytes": 214178,
+      "sha256": "6088041200b35269c031b0cbf9910cd255894cb77268c8c7bd710801b5b181da",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T12-50-44-776Z.json",
+      "bytes": 214178,
+      "sha256": "6088041200b35269c031b0cbf9910cd255894cb77268c8c7bd710801b5b181da",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T12-50-44-776Z.json",
+      "bytes": 214178,
+      "sha256": "6088041200b35269c031b0cbf9910cd255894cb77268c8c7bd710801b5b181da",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T12-50-44-776Z.json",
+      "bytes": 214178,
+      "sha256": "6088041200b35269c031b0cbf9910cd255894cb77268c8c7bd710801b5b181da",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T15-21-02-246Z.json",
+      "bytes": 213311,
+      "sha256": "3ddb5cd30a1b9a0bfb6d5ae60421dec3e8c7b36cab8771d32c6e7a2d551fbc11",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T15-21-02-246Z.json",
+      "bytes": 213311,
+      "sha256": "3ddb5cd30a1b9a0bfb6d5ae60421dec3e8c7b36cab8771d32c6e7a2d551fbc11",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T15-21-02-246Z.json",
+      "bytes": 213311,
+      "sha256": "3ddb5cd30a1b9a0bfb6d5ae60421dec3e8c7b36cab8771d32c6e7a2d551fbc11",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T15-21-02-246Z.json",
+      "bytes": 213311,
+      "sha256": "3ddb5cd30a1b9a0bfb6d5ae60421dec3e8c7b36cab8771d32c6e7a2d551fbc11",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T13-03-15-572Z.json",
+      "bytes": 212541,
+      "sha256": "5a4e80bdb9790cf943b42700022b32f493b9eebae182365ab62836e40357c6f8",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T13-03-15-572Z.json",
+      "bytes": 212541,
+      "sha256": "5a4e80bdb9790cf943b42700022b32f493b9eebae182365ab62836e40357c6f8",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T13-03-15-572Z.json",
+      "bytes": 212541,
+      "sha256": "5a4e80bdb9790cf943b42700022b32f493b9eebae182365ab62836e40357c6f8",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T13-03-15-572Z.json",
+      "bytes": 212541,
+      "sha256": "5a4e80bdb9790cf943b42700022b32f493b9eebae182365ab62836e40357c6f8",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T17-26-42-320Z.json",
+      "bytes": 211655,
+      "sha256": "bee2c23ea06ddd9f813b439a616f1c0729196fd125fed84334e670298e01f4dd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T17-26-42-320Z.json",
+      "bytes": 211655,
+      "sha256": "bee2c23ea06ddd9f813b439a616f1c0729196fd125fed84334e670298e01f4dd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T17-26-42-320Z.json",
+      "bytes": 211655,
+      "sha256": "bee2c23ea06ddd9f813b439a616f1c0729196fd125fed84334e670298e01f4dd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T17-26-42-320Z.json",
+      "bytes": 211655,
+      "sha256": "bee2c23ea06ddd9f813b439a616f1c0729196fd125fed84334e670298e01f4dd",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T21-52-57-638Z.json",
+      "bytes": 211155,
+      "sha256": "3e46e36aa2d51502e848c5f332664566ac40fa2ae0a516685ec65f2cc5f89a60",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T21-52-57-638Z.json",
+      "bytes": 211155,
+      "sha256": "3e46e36aa2d51502e848c5f332664566ac40fa2ae0a516685ec65f2cc5f89a60",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T21-52-57-638Z.json",
+      "bytes": 211155,
+      "sha256": "3e46e36aa2d51502e848c5f332664566ac40fa2ae0a516685ec65f2cc5f89a60",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T21-52-57-638Z.json",
+      "bytes": 211155,
+      "sha256": "3e46e36aa2d51502e848c5f332664566ac40fa2ae0a516685ec65f2cc5f89a60",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-19T10-49-38-681Z.json",
+      "bytes": 209719,
+      "sha256": "9d283a195d703ef38089caf612fd14df6fb245c28c5d39fb43483286c042eca7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T10-49-38-681Z.json",
+      "bytes": 209719,
+      "sha256": "9d283a195d703ef38089caf612fd14df6fb245c28c5d39fb43483286c042eca7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T10-49-38-681Z.json",
+      "bytes": 209719,
+      "sha256": "9d283a195d703ef38089caf612fd14df6fb245c28c5d39fb43483286c042eca7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-19T10-49-38-681Z.json",
+      "bytes": 209719,
+      "sha256": "9d283a195d703ef38089caf612fd14df6fb245c28c5d39fb43483286c042eca7",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-21T15-36-07-773Z.json",
+      "bytes": 206164,
+      "sha256": "8f61a529599324ee37a382e468aa46812dd59f082e6e1f3560da6434b556f420",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T15-36-07-773Z.json",
+      "bytes": 206164,
+      "sha256": "8f61a529599324ee37a382e468aa46812dd59f082e6e1f3560da6434b556f420",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T15-36-07-773Z.json",
+      "bytes": 206164,
+      "sha256": "8f61a529599324ee37a382e468aa46812dd59f082e6e1f3560da6434b556f420",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-21T15-36-07-773Z.json",
+      "bytes": 206164,
+      "sha256": "8f61a529599324ee37a382e468aa46812dd59f082e6e1f3560da6434b556f420",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T19-24-52-540Z.json",
+      "bytes": 204005,
+      "sha256": "d5206f6fd5e0f83a19854be74d971ea101ee2f14f53ba4b0be511a9f7a059edc",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T19-24-52-540Z.json",
+      "bytes": 204005,
+      "sha256": "d5206f6fd5e0f83a19854be74d971ea101ee2f14f53ba4b0be511a9f7a059edc",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T19-24-52-540Z.json",
+      "bytes": 204005,
+      "sha256": "d5206f6fd5e0f83a19854be74d971ea101ee2f14f53ba4b0be511a9f7a059edc",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T19-24-52-540Z.json",
+      "bytes": 204005,
+      "sha256": "d5206f6fd5e0f83a19854be74d971ea101ee2f14f53ba4b0be511a9f7a059edc",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-20T13-18-39-796Z.json",
+      "bytes": 203107,
+      "sha256": "f113cd43b25ff37f4d041d8aba542c283787bf32fbff6e26484ed5fdadd0edfd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T13-18-39-796Z.json",
+      "bytes": 203107,
+      "sha256": "f113cd43b25ff37f4d041d8aba542c283787bf32fbff6e26484ed5fdadd0edfd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-20T13-18-39-796Z.json",
+      "bytes": 203107,
+      "sha256": "f113cd43b25ff37f4d041d8aba542c283787bf32fbff6e26484ed5fdadd0edfd",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-20T13-18-39-796Z.json",
+      "bytes": 203107,
+      "sha256": "f113cd43b25ff37f4d041d8aba542c283787bf32fbff6e26484ed5fdadd0edfd",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T10-34-43-912Z.json",
+      "bytes": 198755,
+      "sha256": "a5a3164d70802f0257c62a293f484b9b50771dde9fc55dec97bce3a2b79c8bf2",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T10-34-43-912Z.json",
+      "bytes": 198755,
+      "sha256": "a5a3164d70802f0257c62a293f484b9b50771dde9fc55dec97bce3a2b79c8bf2",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T10-34-43-912Z.json",
+      "bytes": 198755,
+      "sha256": "a5a3164d70802f0257c62a293f484b9b50771dde9fc55dec97bce3a2b79c8bf2",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T10-34-43-912Z.json",
+      "bytes": 198755,
+      "sha256": "a5a3164d70802f0257c62a293f484b9b50771dde9fc55dec97bce3a2b79c8bf2",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T06-29-34-638Z.json",
+      "bytes": 198698,
+      "sha256": "f9412bd8436e8af38871b5c9d40224b2fa68a7d9f6448e275bbfeb7be1ced85b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T06-29-34-638Z.json",
+      "bytes": 198698,
+      "sha256": "f9412bd8436e8af38871b5c9d40224b2fa68a7d9f6448e275bbfeb7be1ced85b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T06-29-34-638Z.json",
+      "bytes": 198698,
+      "sha256": "f9412bd8436e8af38871b5c9d40224b2fa68a7d9f6448e275bbfeb7be1ced85b",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T11-08-27-276Z.json",
+      "bytes": 198268,
+      "sha256": "4b0466b53de69d8d0aa6321d267a98aefc1066a48c42beb02ae402f0a78641fe",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T11-08-27-276Z.json",
+      "bytes": 198268,
+      "sha256": "4b0466b53de69d8d0aa6321d267a98aefc1066a48c42beb02ae402f0a78641fe",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T11-08-27-276Z.json",
+      "bytes": 198268,
+      "sha256": "4b0466b53de69d8d0aa6321d267a98aefc1066a48c42beb02ae402f0a78641fe",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-19T18-15-30-228Z.json",
+      "bytes": 197785,
+      "sha256": "4c82b2724bf75cdc5b4f6c030d6c066dbede3554083349357588b84434bf6281",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T18-15-30-228Z.json",
+      "bytes": 197785,
+      "sha256": "4c82b2724bf75cdc5b4f6c030d6c066dbede3554083349357588b84434bf6281",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T18-15-30-228Z.json",
+      "bytes": 197785,
+      "sha256": "4c82b2724bf75cdc5b4f6c030d6c066dbede3554083349357588b84434bf6281",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-19T18-15-30-228Z.json",
+      "bytes": 197785,
+      "sha256": "4c82b2724bf75cdc5b4f6c030d6c066dbede3554083349357588b84434bf6281",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-19T15-32-58-456Z.json",
+      "bytes": 197586,
+      "sha256": "4e27839d7ab117a180ecffb366907e75555f5fcff571b560687ca0b7140a71bb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T15-32-58-456Z.json",
+      "bytes": 197586,
+      "sha256": "4e27839d7ab117a180ecffb366907e75555f5fcff571b560687ca0b7140a71bb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T15-32-58-456Z.json",
+      "bytes": 197586,
+      "sha256": "4e27839d7ab117a180ecffb366907e75555f5fcff571b560687ca0b7140a71bb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-19T15-32-58-456Z.json",
+      "bytes": 197586,
+      "sha256": "4e27839d7ab117a180ecffb366907e75555f5fcff571b560687ca0b7140a71bb",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T16-46-47-851Z.json",
+      "bytes": 194770,
+      "sha256": "3b8d10dc0961b765d4d255269b22fdf430fa36c1ae0fe8c283da49ab4e88c624",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T16-46-47-851Z.json",
+      "bytes": 194770,
+      "sha256": "3b8d10dc0961b765d4d255269b22fdf430fa36c1ae0fe8c283da49ab4e88c624",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T16-46-47-851Z.json",
+      "bytes": 194770,
+      "sha256": "3b8d10dc0961b765d4d255269b22fdf430fa36c1ae0fe8c283da49ab4e88c624",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T16-46-47-851Z.json",
+      "bytes": 194770,
+      "sha256": "3b8d10dc0961b765d4d255269b22fdf430fa36c1ae0fe8c283da49ab4e88c624",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T12-21-28-753Z.json",
+      "bytes": 188916,
+      "sha256": "0baffac564ce458493cb71629edc8e4a970f43c5850fe1207166d5949e49853d",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T12-21-28-753Z.json",
+      "bytes": 188916,
+      "sha256": "0baffac564ce458493cb71629edc8e4a970f43c5850fe1207166d5949e49853d",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T12-21-28-753Z.json",
+      "bytes": 188916,
+      "sha256": "0baffac564ce458493cb71629edc8e4a970f43c5850fe1207166d5949e49853d",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T12-21-28-753Z.json",
+      "bytes": 188916,
+      "sha256": "0baffac564ce458493cb71629edc8e4a970f43c5850fe1207166d5949e49853d",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T19-55-04-560Z.json",
+      "bytes": 188888,
+      "sha256": "a2aaf42addb5efbe1a2b4f4220531d2197ba8fa8b6edab8f9003c38bafc79233",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T19-55-04-560Z.json",
+      "bytes": 188888,
+      "sha256": "a2aaf42addb5efbe1a2b4f4220531d2197ba8fa8b6edab8f9003c38bafc79233",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T19-55-04-560Z.json",
+      "bytes": 188888,
+      "sha256": "a2aaf42addb5efbe1a2b4f4220531d2197ba8fa8b6edab8f9003c38bafc79233",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T19-55-04-560Z.json",
+      "bytes": 188888,
+      "sha256": "a2aaf42addb5efbe1a2b4f4220531d2197ba8fa8b6edab8f9003c38bafc79233",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T19-31-40-253Z.json",
+      "bytes": 188724,
+      "sha256": "feaf2944fc46e0e7eb0a70725a8515b541ebae9113b569c127d3f7f2bfaf2a62",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T19-31-40-253Z.json",
+      "bytes": 188724,
+      "sha256": "feaf2944fc46e0e7eb0a70725a8515b541ebae9113b569c127d3f7f2bfaf2a62",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T19-31-40-253Z.json",
+      "bytes": 188724,
+      "sha256": "feaf2944fc46e0e7eb0a70725a8515b541ebae9113b569c127d3f7f2bfaf2a62",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-22T07-30-10-239Z.json",
+      "bytes": 187524,
+      "sha256": "94e4514f3571010c010d21589a494a85961cdcee11e803f34a34b016295bd94d",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T07-30-10-239Z.json",
+      "bytes": 187524,
+      "sha256": "94e4514f3571010c010d21589a494a85961cdcee11e803f34a34b016295bd94d",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-22T07-30-10-239Z.json",
+      "bytes": 187524,
+      "sha256": "94e4514f3571010c010d21589a494a85961cdcee11e803f34a34b016295bd94d",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-22T07-30-10-239Z.json",
+      "bytes": 187524,
+      "sha256": "94e4514f3571010c010d21589a494a85961cdcee11e803f34a34b016295bd94d",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T14-23-38-476Z.json",
+      "bytes": 183821,
+      "sha256": "3ebfc95fcb47db20cc38ac2e8e66a31b0765a5a8d62fe4f1ba26fce724dfaeb6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T14-23-38-476Z.json",
+      "bytes": 183821,
+      "sha256": "3ebfc95fcb47db20cc38ac2e8e66a31b0765a5a8d62fe4f1ba26fce724dfaeb6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T14-23-38-476Z.json",
+      "bytes": 183821,
+      "sha256": "3ebfc95fcb47db20cc38ac2e8e66a31b0765a5a8d62fe4f1ba26fce724dfaeb6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T14-23-38-476Z.json",
+      "bytes": 183821,
+      "sha256": "3ebfc95fcb47db20cc38ac2e8e66a31b0765a5a8d62fe4f1ba26fce724dfaeb6",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-21T06-15-16-927Z.json",
+      "bytes": 182241,
+      "sha256": "460ae235324b0112d1ff4ce55b455381a90b920187c14aab0cb740dad7c06b5a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T06-15-16-927Z.json",
+      "bytes": 182241,
+      "sha256": "460ae235324b0112d1ff4ce55b455381a90b920187c14aab0cb740dad7c06b5a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T06-15-16-927Z.json",
+      "bytes": 182241,
+      "sha256": "460ae235324b0112d1ff4ce55b455381a90b920187c14aab0cb740dad7c06b5a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-21T06-15-16-927Z.json",
+      "bytes": 182241,
+      "sha256": "460ae235324b0112d1ff4ce55b455381a90b920187c14aab0cb740dad7c06b5a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T22-35-38-932Z.json",
+      "bytes": 182188,
+      "sha256": "4acdf5fc6125a7293c95080d298e8fff97609de905ac3cbfcbbfe1de423179a0",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T22-35-38-932Z.json",
+      "bytes": 182188,
+      "sha256": "4acdf5fc6125a7293c95080d298e8fff97609de905ac3cbfcbbfe1de423179a0",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T22-35-38-932Z.json",
+      "bytes": 182188,
+      "sha256": "4acdf5fc6125a7293c95080d298e8fff97609de905ac3cbfcbbfe1de423179a0",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T22-35-38-932Z.json",
+      "bytes": 182188,
+      "sha256": "4acdf5fc6125a7293c95080d298e8fff97609de905ac3cbfcbbfe1de423179a0",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-18T22-30-35-403Z.json",
+      "bytes": 181938,
+      "sha256": "55b85b406a63913f500b900ca7699f6f1021117f2aa3bee8325d52dc85705b67",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T22-30-35-403Z.json",
+      "bytes": 181938,
+      "sha256": "55b85b406a63913f500b900ca7699f6f1021117f2aa3bee8325d52dc85705b67",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T22-30-35-403Z.json",
+      "bytes": 181938,
+      "sha256": "55b85b406a63913f500b900ca7699f6f1021117f2aa3bee8325d52dc85705b67",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-18T22-30-35-403Z.json",
+      "bytes": 181938,
+      "sha256": "55b85b406a63913f500b900ca7699f6f1021117f2aa3bee8325d52dc85705b67",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T21-48-55-618Z.json",
+      "bytes": 177623,
+      "sha256": "5c9729294efe718ac1b6cc25805cd5ba0b973609cf6a7ad5827b1259c8d5ad3f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T21-48-55-618Z.json",
+      "bytes": 177623,
+      "sha256": "5c9729294efe718ac1b6cc25805cd5ba0b973609cf6a7ad5827b1259c8d5ad3f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T21-48-55-618Z.json",
+      "bytes": 177623,
+      "sha256": "5c9729294efe718ac1b6cc25805cd5ba0b973609cf6a7ad5827b1259c8d5ad3f",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-19T14-59-42-755Z.json",
+      "bytes": 177498,
+      "sha256": "dd97b191fddafea31e6236ffd6eb9e3df687199d27aa38114dbb9dc4e53e86dc",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T14-59-42-755Z.json",
+      "bytes": 177498,
+      "sha256": "dd97b191fddafea31e6236ffd6eb9e3df687199d27aa38114dbb9dc4e53e86dc",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-19T14-59-42-755Z.json",
+      "bytes": 177498,
+      "sha256": "dd97b191fddafea31e6236ffd6eb9e3df687199d27aa38114dbb9dc4e53e86dc",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-19T14-59-42-755Z.json",
+      "bytes": 177498,
+      "sha256": "dd97b191fddafea31e6236ffd6eb9e3df687199d27aa38114dbb9dc4e53e86dc",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T10-24-01-499Z.json",
+      "bytes": 176505,
+      "sha256": "c9c030aaab22f323c01ffa5f033918705a2f62baf2903f8a8c44643c7b70da0a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T10-24-01-499Z.json",
+      "bytes": 176505,
+      "sha256": "c9c030aaab22f323c01ffa5f033918705a2f62baf2903f8a8c44643c7b70da0a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T10-24-01-499Z.json",
+      "bytes": 176505,
+      "sha256": "c9c030aaab22f323c01ffa5f033918705a2f62baf2903f8a8c44643c7b70da0a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T21-04-33-443Z.json",
+      "bytes": 176088,
+      "sha256": "217d856d9aecfcbf023c025f05b4f138d8b9106cfd01dc2134f130dd5a75d376",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T21-04-33-443Z.json",
+      "bytes": 176088,
+      "sha256": "217d856d9aecfcbf023c025f05b4f138d8b9106cfd01dc2134f130dd5a75d376",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T21-04-33-443Z.json",
+      "bytes": 176088,
+      "sha256": "217d856d9aecfcbf023c025f05b4f138d8b9106cfd01dc2134f130dd5a75d376",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T19-16-37-940Z.json",
+      "bytes": 173988,
+      "sha256": "4bbca31a952ccf986e3558dfe7021fd2d1cb574f6c20214766d58e589a24a73c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T19-16-37-940Z.json",
+      "bytes": 173988,
+      "sha256": "4bbca31a952ccf986e3558dfe7021fd2d1cb574f6c20214766d58e589a24a73c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T19-16-37-940Z.json",
+      "bytes": 173988,
+      "sha256": "4bbca31a952ccf986e3558dfe7021fd2d1cb574f6c20214766d58e589a24a73c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T19-16-37-940Z.json",
+      "bytes": 173988,
+      "sha256": "4bbca31a952ccf986e3558dfe7021fd2d1cb574f6c20214766d58e589a24a73c",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T11-30-04-780Z.json",
+      "bytes": 173894,
+      "sha256": "f5b88f9a5bdc29c425ea0d807b1ce8e2a9a9ba8d37e61261eba6d097b8788056",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T11-30-04-780Z.json",
+      "bytes": 173894,
+      "sha256": "f5b88f9a5bdc29c425ea0d807b1ce8e2a9a9ba8d37e61261eba6d097b8788056",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T11-30-04-780Z.json",
+      "bytes": 173894,
+      "sha256": "f5b88f9a5bdc29c425ea0d807b1ce8e2a9a9ba8d37e61261eba6d097b8788056",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T11-30-04-780Z.json",
+      "bytes": 173894,
+      "sha256": "f5b88f9a5bdc29c425ea0d807b1ce8e2a9a9ba8d37e61261eba6d097b8788056",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-23T20-36-02-820Z.json",
+      "bytes": 173780,
+      "sha256": "aba62e4ff60a27001fa644345a6e0dea8ec1e67952c3a61f74ec6b50c1487aa8",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T20-36-02-820Z.json",
+      "bytes": 173780,
+      "sha256": "aba62e4ff60a27001fa644345a6e0dea8ec1e67952c3a61f74ec6b50c1487aa8",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-23T20-36-02-820Z.json",
+      "bytes": 173780,
+      "sha256": "aba62e4ff60a27001fa644345a6e0dea8ec1e67952c3a61f74ec6b50c1487aa8",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-23T20-36-02-820Z.json",
+      "bytes": 173780,
+      "sha256": "aba62e4ff60a27001fa644345a6e0dea8ec1e67952c3a61f74ec6b50c1487aa8",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T20-17-24-336Z.json",
+      "bytes": 173691,
+      "sha256": "f566e17c8fc915afacc1a00dc5942a58dbefa5780b28ed01cdebfbb2998fa2eb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T20-17-24-336Z.json",
+      "bytes": 173691,
+      "sha256": "f566e17c8fc915afacc1a00dc5942a58dbefa5780b28ed01cdebfbb2998fa2eb",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T20-17-24-336Z.json",
+      "bytes": 173691,
+      "sha256": "f566e17c8fc915afacc1a00dc5942a58dbefa5780b28ed01cdebfbb2998fa2eb",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T19-19-25-598Z.json",
+      "bytes": 173576,
+      "sha256": "c94ccecb0d8d36855d069ff7205c31ba68bcd65e38955d8bc71dfdb5bc8ddc32",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T19-19-25-598Z.json",
+      "bytes": 173576,
+      "sha256": "c94ccecb0d8d36855d069ff7205c31ba68bcd65e38955d8bc71dfdb5bc8ddc32",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T19-19-25-598Z.json",
+      "bytes": 173576,
+      "sha256": "c94ccecb0d8d36855d069ff7205c31ba68bcd65e38955d8bc71dfdb5bc8ddc32",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T19-19-25-598Z.json",
+      "bytes": 173576,
+      "sha256": "c94ccecb0d8d36855d069ff7205c31ba68bcd65e38955d8bc71dfdb5bc8ddc32",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-21T17-22-54-172Z.json",
+      "bytes": 172476,
+      "sha256": "5b2a0e17e01d72a5d28d1404fda8c2b87f26c437410eca3bfddecb654925344a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T17-22-54-172Z.json",
+      "bytes": 172476,
+      "sha256": "5b2a0e17e01d72a5d28d1404fda8c2b87f26c437410eca3bfddecb654925344a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T17-22-54-172Z.json",
+      "bytes": 172476,
+      "sha256": "5b2a0e17e01d72a5d28d1404fda8c2b87f26c437410eca3bfddecb654925344a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-21T17-22-54-172Z.json",
+      "bytes": 172476,
+      "sha256": "5b2a0e17e01d72a5d28d1404fda8c2b87f26c437410eca3bfddecb654925344a",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T17-32-56-886Z.json",
+      "bytes": 171309,
+      "sha256": "61d0206b0932b1c81de7cbdcfbc0fee11e6e34ea81fee8d4186d99ffcd8b8f86",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T17-32-56-886Z.json",
+      "bytes": 171309,
+      "sha256": "61d0206b0932b1c81de7cbdcfbc0fee11e6e34ea81fee8d4186d99ffcd8b8f86",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T17-32-56-886Z.json",
+      "bytes": 171309,
+      "sha256": "61d0206b0932b1c81de7cbdcfbc0fee11e6e34ea81fee8d4186d99ffcd8b8f86",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T17-32-56-886Z.json",
+      "bytes": 171309,
+      "sha256": "61d0206b0932b1c81de7cbdcfbc0fee11e6e34ea81fee8d4186d99ffcd8b8f86",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-27T10-09-54-711Z.json",
+      "bytes": 170084,
+      "sha256": "6959d0e897ce16ed065397b100d498704611e363340156c5654dbc029b5d2775",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T10-09-54-711Z.json",
+      "bytes": 170084,
+      "sha256": "6959d0e897ce16ed065397b100d498704611e363340156c5654dbc029b5d2775",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-27T10-09-54-711Z.json",
+      "bytes": 170084,
+      "sha256": "6959d0e897ce16ed065397b100d498704611e363340156c5654dbc029b5d2775",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-21T03-29-21-806Z.json",
+      "bytes": 170019,
+      "sha256": "f7985365d62737081cf9943cc9d501d4edc1d2f187fd6e47d4336c5e95373dfa",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T03-29-21-806Z.json",
+      "bytes": 170019,
+      "sha256": "f7985365d62737081cf9943cc9d501d4edc1d2f187fd6e47d4336c5e95373dfa",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-21T03-29-21-806Z.json",
+      "bytes": 170019,
+      "sha256": "f7985365d62737081cf9943cc9d501d4edc1d2f187fd6e47d4336c5e95373dfa",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-21T03-29-21-806Z.json",
+      "bytes": 170019,
+      "sha256": "f7985365d62737081cf9943cc9d501d4edc1d2f187fd6e47d4336c5e95373dfa",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-25T13-48-29-813Z.json",
+      "bytes": 168252,
+      "sha256": "f12d39863e7e0ec2644fc477bbfa80af103b9bea8530896151bab6fe1cb5baaf",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T13-48-29-813Z.json",
+      "bytes": 168252,
+      "sha256": "f12d39863e7e0ec2644fc477bbfa80af103b9bea8530896151bab6fe1cb5baaf",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-25T13-48-29-813Z.json",
+      "bytes": 168252,
+      "sha256": "f12d39863e7e0ec2644fc477bbfa80af103b9bea8530896151bab6fe1cb5baaf",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-25T13-48-29-813Z.json",
+      "bytes": 168252,
+      "sha256": "f12d39863e7e0ec2644fc477bbfa80af103b9bea8530896151bab6fe1cb5baaf",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T09-33-09-808Z.json",
+      "bytes": 167617,
+      "sha256": "9db41fb8b62421be19f94dc03631db2270f3776966b54a6b98faf8e502708668",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T09-33-09-808Z.json",
+      "bytes": 167617,
+      "sha256": "9db41fb8b62421be19f94dc03631db2270f3776966b54a6b98faf8e502708668",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T09-33-09-808Z.json",
+      "bytes": 167617,
+      "sha256": "9db41fb8b62421be19f94dc03631db2270f3776966b54a6b98faf8e502708668",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T09-33-09-808Z.json",
+      "bytes": 167617,
+      "sha256": "9db41fb8b62421be19f94dc03631db2270f3776966b54a6b98faf8e502708668",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-18T20-40-25-896Z.json",
+      "bytes": 166987,
+      "sha256": "9eaa10b95e99cdc568eef0a09f71891ddabc852e8e1852eb9bcb876bf67d59ca",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T20-40-25-896Z.json",
+      "bytes": 166987,
+      "sha256": "9eaa10b95e99cdc568eef0a09f71891ddabc852e8e1852eb9bcb876bf67d59ca",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-18T20-40-25-896Z.json",
+      "bytes": 166987,
+      "sha256": "9eaa10b95e99cdc568eef0a09f71891ddabc852e8e1852eb9bcb876bf67d59ca",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-18T20-40-25-896Z.json",
+      "bytes": 166987,
+      "sha256": "9eaa10b95e99cdc568eef0a09f71891ddabc852e8e1852eb9bcb876bf67d59ca",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-24T11-27-42-500Z.json",
+      "bytes": 159521,
+      "sha256": "924aa32f22844ad183186fe95bb77dc2526763294ae5316fbd85fae85b2e4cc5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T11-27-42-500Z.json",
+      "bytes": 159521,
+      "sha256": "924aa32f22844ad183186fe95bb77dc2526763294ae5316fbd85fae85b2e4cc5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-24T11-27-42-500Z.json",
+      "bytes": 159521,
+      "sha256": "924aa32f22844ad183186fe95bb77dc2526763294ae5316fbd85fae85b2e4cc5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\debug\\polyprophet_debug_2025-12-24T11-27-42-500Z.json",
+      "bytes": 159521,
+      "sha256": "924aa32f22844ad183186fe95bb77dc2526763294ae5316fbd85fae85b2e4cc5",
+      "error": null
+    },
+    {
+      "path": "repo_integrity_manifest.json",
+      "bytes": 133312,
+      "sha256": "e279573bdcc846aa5605e3c74d160320ce1e98e69595c148abdc63b34e8659ae",
+      "error": null
+    },
+    {
+      "path": "p2\\debug\\polyprophet_debug_2025-12-26T20-44-18-684Z.json",
+      "bytes": 128987,
+      "sha256": "5de1718ad6980a698f9af803506b9cbe774657973849d9beb9c319abf07e9d38",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T20-44-18-684Z.json",
+      "bytes": 128987,
+      "sha256": "5de1718ad6980a698f9af803506b9cbe774657973849d9beb9c319abf07e9d38",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\polyprophet_debug_2025-12-26T20-44-18-684Z.json",
+      "bytes": 128987,
+      "sha256": "5de1718ad6980a698f9af803506b9cbe774657973849d9beb9c319abf07e9d38",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\package-lock.json",
+      "bytes": 116350,
+      "sha256": "a1de1fadbfa2101daf1762ac709b39e883f7c1d921c6385250ad0c8c9b4ca013",
+      "error": null
+    },
+    {
+      "path": "FORENSIC_MANIFEST_V2.json",
+      "bytes": 114326,
+      "sha256": "1a2c1dd1ecf403cb2d215c45e3afecfbbf00828d46ab9130deede02012406ce8",
+      "error": null
+    },
+    {
+      "path": "p2\\package-lock.json",
+      "bytes": 106687,
+      "sha256": "47bce12d578460107449f358244c9930dd2a0e1beda095cb3a84afcffd00d945",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\package-lock.json",
+      "bytes": 106687,
+      "sha256": "47bce12d578460107449f358244c9930dd2a0e1beda095cb3a84afcffd00d945",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\package-lock.json",
+      "bytes": 106687,
+      "sha256": "47bce12d578460107449f358244c9930dd2a0e1beda095cb3a84afcffd00d945",
+      "error": null
+    },
+    {
+      "path": "FORENSIC_DIFF_2dfolder_vs_d7ca_extracted.diff",
+      "bytes": 69518,
+      "sha256": "31ff855925d32f93490836652554684dbffd0bab0e7c83ea91dd737a35f9fdcf",
+      "error": null
+    },
+    {
+      "path": "FORENSIC_MANIFEST.json",
+      "bytes": 59881,
+      "sha256": "cda8fa25e1fed7dd4ced4bdb027a087a1c0ddbe873ecca3db9b7f2610cec9243",
+      "error": null
+    },
+    {
+      "path": "p2\\public\\index.html",
+      "bytes": 40131,
+      "sha256": "31ec1656e3ddb169d3f833fc194d7ccc70b26ddc61dd5031757c2c5951e16122",
+      "error": null
+    },
+    {
+      "path": "FORENSIC_MANIFEST.csv",
+      "bytes": 38287,
+      "sha256": "c2bdb4c82af7ff08ecc032bee40fd317e239e09cabad66bdd08e3812008327c4",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\public\\mobile.html",
+      "bytes": 34844,
+      "sha256": "218a47dae4baf3d5961853f3f586f744a4a38aa00100894cf483aff53763d08f",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\server.js",
+      "bytes": 34020,
+      "sha256": "52d4f4e120379e30e944d9c81d622e347e7219ea70bb8e49936ac0cd343eb1db",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\public\\mobile.html",
+      "bytes": 32718,
+      "sha256": "e7a17e6430e85de307349e53be2aeee03f00870834a5c066e4ed64cb04cb1171",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\public\\index.html",
+      "bytes": 31202,
+      "sha256": "c4aaf2fd5da0e7659b9787dbf3927c19eb076995ac7cd87b3e7cb80043659e27",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\cycle_report.json",
+      "bytes": 28901,
+      "sha256": "05fbb29e13eee1cd2dbfa0c6efc0a8494ee49338a70b2c4fc20301f7ad0079d6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\cycle_report.md",
+      "bytes": 22967,
+      "sha256": "226bbc8bff95d91cbc6a1cba9bd115eb1eef42b59784af8a8f274bca32b9bd58",
+      "error": null
+    },
+    {
+      "path": "p2\\server.js",
+      "bytes": 15581,
+      "sha256": "8e5272cc8c86a26014379cbcfdc856cdc70915417d91f8c90dc5b7f531cfb253",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\backtest.js",
+      "bytes": 12512,
+      "sha256": "e3f97e7b7fd45eea2cc318adf105ab9bf37531a7c3b354ce338431c5eb1d9033",
+      "error": null
+    },
+    {
+      "path": "debug_trade_analysis_output.json",
+      "bytes": 12158,
+      "sha256": "f314181a78f0de6bd4e53ed53b0b2aed83741b43a30a3a45683d63cb1319cfe1",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\tools\\backtest_comprehensive.js",
+      "bytes": 11004,
+      "sha256": "fc460cdf3d0bff70ab3ac427005e1c89ebe2b113b40ba5107a3085fb233dc45a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\FINAL_SUMMARY.md",
+      "bytes": 10975,
+      "sha256": "f73125cce987b4c6efe9f20bc215f4a29b15fbbb6f48d6e313f421681ab189b6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\README.md",
+      "bytes": 10355,
+      "sha256": "e875392a410511dc4649fca53a3cd7d38b60c8c1514b89818ec965cb5db061f1",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\tools\\analyze_cycles.js",
+      "bytes": 9826,
+      "sha256": "3d3e0ba1e01a81a8b7a9d34ede59ba32051e59efc2af4705575b49b5285d90d1",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\tools\\analyze_trades_deep.js",
+      "bytes": 9588,
+      "sha256": "85a0819b964ca20ff5d9d260d6f991b316f6d16a2c015eb2bc5f804a2a294035",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\PROGRESS_TIMELINE.md",
+      "bytes": 9382,
+      "sha256": "b8575f80d36c3d3476f2b634f81de4f2dc9c6ff41cbe02fc1d9df57d5590b7f6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\public\\index.html",
+      "bytes": 8759,
+      "sha256": "a73b5924d03c5090faeddee91a3dd2f982cd2c39b47c0526039c8d3d59fdbe41",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\tools\\audit_debug_logs.js",
+      "bytes": 8529,
+      "sha256": "145a75f588367d20361a8034cbcf198b057a69612c06845d0413c02f29ad9a02",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\src\\supreme_brain.js",
+      "bytes": 8454,
+      "sha256": "708576e028843b037496953115dcc33cdf175628e8f439d470c822b983b51123",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\tools\\replay_trades_backtest.js",
+      "bytes": 8073,
+      "sha256": "22f20b92f054e1df502743b4a42c8f00bf5ca6b90f1d86797014d77171024c70",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\FINAL_ATOMIC_SYSTEM_COMPLETE.md",
+      "bytes": 7552,
+      "sha256": "d21aa6e2e741bd732cbdc9465153ba0914c0deb32ab84fce39b1f1a6d3a51090",
+      "error": null
+    },
+    {
+      "path": "FORENSIC_LEDGER_FULL.md",
+      "bytes": 7390,
+      "sha256": "6c9f876eedcc724542cc5d5a38e7b9e095d2846af780d8cde09773e5a33a9574",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\CRITICAL_FINAL_VERIFICATION.md",
+      "bytes": 7386,
+      "sha256": "8d5fee09bcab6052414122d2b075facc82b24076e406bbec04877e0f127cabf6",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\supreme_brain.js",
+      "bytes": 7040,
+      "sha256": "588fdf4fae4e4925c19bd033137b1d54c05c63fd337f54d2efb08ed589a311ee",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\tools\\analyze_illiquidity_gap.js",
+      "bytes": 6327,
+      "sha256": "c008dce9418b8451d66ac5b6b5fd66cdde0b3a1e262c2e46d291764013e924e9",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\COMPREHENSIVE_ANALYSIS_FINAL.md",
+      "bytes": 5949,
+      "sha256": "9a62e71893d5637490e94fb8a5700dbd12cb2d156be2db44e58a3c94a604e4ba",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\tools\\audit_markdown.js",
+      "bytes": 5270,
+      "sha256": "e95483cf6b71ac748e9eccd015d31b53640d4ef7a103244573517d952462efbc",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\README_ATOMIC_FINAL.md",
+      "bytes": 5083,
+      "sha256": "0f0c5d2bd2508ffb4becdcd93c9d6837c25356204ad6c913b45c887bfbc2d4b7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\PINNACLE_VERDICT.md",
+      "bytes": 4933,
+      "sha256": "31f6c6622dc3679bcfcef67d104e501fd5cc8d9fcc2e48390201d47b1d38a778",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\CONSISTENCY_LEDGER.md",
+      "bytes": 4492,
+      "sha256": "291bc7fcb84244582d1926dc4b42385a7aee434edf4f458332b79eb89b5dc00a",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\market_adapter.js",
+      "bytes": 4099,
+      "sha256": "4ed9322ddc7c4cdbc8c23eb5952635b8486e2a3d01a85bfe9f3d73d64bf351f8",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\README.md",
+      "bytes": 4009,
+      "sha256": "c11b31ddb49426b7907de4eda0662ab14aba99aae684d66be18950898d258d85",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\ATOMIC_INVESTIGATION_FINDINGS.md",
+      "bytes": 3796,
+      "sha256": "f73a6c8a1c8f3d5a4cf12ec0ccecec7ffdd69f5910bed9a4ff60dce8a29a9bb5",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\DEBUG_AUDIT_FINDINGS.md",
+      "bytes": 3735,
+      "sha256": "8eaa0dc1f36dc877e7bdc10623d6f3b755c6c2f9891ed4bee77c442cf86a6fb6",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\README.md",
+      "bytes": 3587,
+      "sha256": "0da9e52e36681c408836354eb33241c95c483f0b29d495bf26dd477f0b94abad",
+      "error": null
+    },
+    {
+      "path": "p2\\generate_creds.js.example",
+      "bytes": 3214,
+      "sha256": "7f791ebe9fae0539f8b8071734533c701bfc007737e8f598a0a608a3495c6134",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\generate_creds.js.example",
+      "bytes": 3214,
+      "sha256": "7f791ebe9fae0539f8b8071734533c701bfc007737e8f598a0a608a3495c6134",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\generate_creds.js.example",
+      "bytes": 3214,
+      "sha256": "7f791ebe9fae0539f8b8071734533c701bfc007737e8f598a0a608a3495c6134",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\generate_creds.js.example",
+      "bytes": 3214,
+      "sha256": "7f791ebe9fae0539f8b8071734533c701bfc007737e8f598a0a608a3495c6134",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\COMPREHENSIVE_FILE_CHECK.md",
+      "bytes": 3167,
+      "sha256": "e4d5db5f8b756d6d8a674284d77afdc2ef98ec31277327ec5f1229f1f2b1a849",
+      "error": null
+    },
+    {
+      "path": "p2\\README.md",
+      "bytes": 3066,
+      "sha256": "ea0bf4a680bb8bc0fdc767db7a28fcfc691a591475d9fd5e146409009019b0ce",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\README.md",
+      "bytes": 3066,
+      "sha256": "ea0bf4a680bb8bc0fdc767db7a28fcfc691a591475d9fd5e146409009019b0ce",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\src\\market_adapter.js",
+      "bytes": 3005,
+      "sha256": "90b30152b2b7982bcde0a1cc7c6293d4464e64c97e5a9a415cbd09274352fc41",
+      "error": null
+    },
+    {
+      "path": "FORENSIC_LEDGER.md",
+      "bytes": 2829,
+      "sha256": "12ba3fd7ff7fed6024b7e36a5dc3174bb388c925ed394f25aeee343c6150c6ba",
+      "error": null
+    },
+    {
+      "path": "p2\\FORENSIC_LEDGER_MASTER.md",
+      "bytes": 2793,
+      "sha256": "b571574ba35f7141d560d9b4fbb07d21737183666dead5f698911e1b8e97d522",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\math_utils.js",
+      "bytes": 2778,
+      "sha256": "580e3963819073d36a29edd615a5cfa540d49d2d7762c8ef2b78bfc5b9e6c00c",
+      "error": null
+    },
+    {
+      "path": "p2\\.env.example",
+      "bytes": 2702,
+      "sha256": "2f235d1fdc2800193fbc3137e7c470c80c5d0f02a73b05d04baa41d8d123f75b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\.env.example",
+      "bytes": 2702,
+      "sha256": "2f235d1fdc2800193fbc3137e7c470c80c5d0f02a73b05d04baa41d8d123f75b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\.env.example",
+      "bytes": 2702,
+      "sha256": "2f235d1fdc2800193fbc3137e7c470c80c5d0f02a73b05d04baa41d8d123f75b",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\.env.example",
+      "bytes": 2702,
+      "sha256": "2f235d1fdc2800193fbc3137e7c470c80c5d0f02a73b05d04baa41d8d123f75b",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\state.js",
+      "bytes": 2697,
+      "sha256": "b30a173182d2a981e2c4ef28b22b6adcca7b9e7d17c2f56718bb0baa36ff77c7",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\audit_report.json",
+      "bytes": 2548,
+      "sha256": "e6f700479afdee72e438db3a54431d30d9c76a7c5c186fadae1f6681e135bf9f",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\bridge.js",
+      "bytes": 2459,
+      "sha256": "fffd71e0ed7bc74c178aa372e4523bc5d084688eb9c457e309bb7ba4cd566daf",
+      "error": null
+    },
+    {
+      "path": "debug\\trade_replay_backtest_v2.json",
+      "bytes": 2449,
+      "sha256": "1afd177f7234cefb5914644a61a619b24a08f2f4a12e55c690dc39a39fa4c340",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\debug\\audit_report.md",
+      "bytes": 2445,
+      "sha256": "664d56ae8de2c7a1bd41b12f1af13c31ead421c0813ddc8398dc21af6e6eff79",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\redemption.js",
+      "bytes": 2229,
+      "sha256": "5dec588c9c2b8b4d9360febf8e8c555776ea2dc3b92a411d3de71bca251cab98",
+      "error": null
+    },
+    {
+      "path": "p2\\README_OMEGA_V2.md",
+      "bytes": 2227,
+      "sha256": "069dc4338c0a2ac800865d3c8221ca34719335310a304cddd4aa50db0505a36a",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\risk.js",
+      "bytes": 1782,
+      "sha256": "938ba5802a6b27232a4860518d3968981e11e2d730fc671fc9b77a7d145ce7cd",
+      "error": null
+    },
+    {
+      "path": "p2\\backtest.js",
+      "bytes": 1776,
+      "sha256": "6e45932c356d15b12271a244a593c7af9089ff147826ecb37126ead894a1f31d",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\GITHUB_PUSH_INSTRUCTIONS.md",
+      "bytes": 1696,
+      "sha256": "db2f87268c8a19bfe6ff2503613b39c517a267663b09efd2aaea2ae2e606734a",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\src\\math_utils.js",
+      "bytes": 1675,
+      "sha256": "64e4d8c26cbacb4f5edb92bfb2e02961ffd070b974f378b252b3c9d7c1626b4b",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\exit.js",
+      "bytes": 1582,
+      "sha256": "477f8df30a464fdefe1c713831d1fababad6688f7bc6b0ce27c1585f65b42e5c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\PUSH_NOW.md",
+      "bytes": 1487,
+      "sha256": "8c597ffc0fbb32d71c8273a20287b502ba5fec8b5ff66ccafdd9c4267a3e6534",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\recovery.js",
+      "bytes": 1455,
+      "sha256": "d76e3d1ea9bb6a2fa302cddac8fb4cd62c7a312fe38c403ab9e067136144a230",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\src\\state.js",
+      "bytes": 1379,
+      "sha256": "845569c06490307de134fe939c16a9729afe83f30e78dbe39d89731169b2942c",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\src\\ev.js",
+      "bytes": 1349,
+      "sha256": "27df7e7e57265373ff8b77c1517c50766cd8709a314267ec4d8cae5ecd06329a",
+      "error": null
+    },
+    {
+      "path": "p2\\src\\ev.js",
+      "bytes": 1283,
+      "sha256": "1f131ca50af247460f3003df526ddf954bbf2069970516cf626e3063a8895517",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\src\\risk.js",
+      "bytes": 1198,
+      "sha256": "b2d4550c80dcf2b6dab241e60be3993afcc9cec184f114220c9ec526d59fd224",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\FINAL_PUSH_CONFIRMATION.md",
+      "bytes": 1030,
+      "sha256": "1873f976ae95518b71a6523f95f4b8e152ce040a6fc1c0677a13379a8e487dee",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\package.json",
+      "bytes": 748,
+      "sha256": "d5442f682a50b816e8012d4d119d94f8d3dda8c1437b7824799fa79e74a6eaf7",
+      "error": null
+    },
+    {
+      "path": "p2\\package.json",
+      "bytes": 746,
+      "sha256": "6ab338280c293c3e5e67147bfadafd3898943e9f560b6e3dbffd45adff09ae5e",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-FINAL\\package.json",
+      "bytes": 729,
+      "sha256": "5c0121d8d0c1246f2cbbdc39179b5bf7d98a58c4c817f687042ccbe7ad37c7ae",
+      "error": null
+    },
+    {
+      "path": "README.md",
+      "bytes": 722,
+      "sha256": "8bdcd16259515e67d8fe1290155396cbcd3e5d755ad7349528f7cac944469915",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\package.json",
+      "bytes": 716,
+      "sha256": "6e659e913d4c6aba753c1449a33147539e9db6d304818444c4f732ab156afe85",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\package.json",
+      "bytes": 716,
+      "sha256": "6e659e913d4c6aba753c1449a33147539e9db6d304818444c4f732ab156afe85",
+      "error": null
+    },
+    {
+      "path": "render.yaml",
+      "bytes": 509,
+      "sha256": "b64aa6f7c23529a90e0e3cf881e6a90e221b5001793d7f0cc66af9ea89120929",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\.gitattributes",
+      "bytes": 459,
+      "sha256": "2fb042663de37e985c3f69ab0fb0f11c8154b5785240eed245fe76090ef4006a",
+      "error": null
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 353,
+      "sha256": "714602b1bd0aad749fb71864450b43b7051c45e4d48dc74e2a84ed74e562363c",
+      "error": null
+    },
+    {
+      "path": "p2\\.gitignore",
+      "bytes": 209,
+      "sha256": "44ae4017c117d98416b62dcc7766d35f334c5b64700e6f3afb93469983b38a20",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted\\POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\.gitignore",
+      "bytes": 209,
+      "sha256": "44ae4017c117d98416b62dcc7766d35f334c5b64700e6f3afb93469983b38a20",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd\\.gitignore",
+      "bytes": 209,
+      "sha256": "44ae4017c117d98416b62dcc7766d35f334c5b64700e6f3afb93469983b38a20",
+      "error": null
+    },
+    {
+      "path": "POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd\\.gitignore",
+      "bytes": 70,
+      "sha256": "ded5d954f81087c37d2f703ea51d685c395c8f7a300212c1d3f6d48edc352ff6",
+      "error": null
+    }
+  ]
+}
