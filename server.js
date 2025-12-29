@@ -393,10 +393,13 @@ class TradeExecutor {
                 return { success: false, error: 'In cooldown after loss' };
             }
             
-            // Check max exposure
+            // Check max exposure (use equity, not remaining cash)
             const totalExposure = this.getTotalExposure();
-            const bankroll = this.mode === 'LIVE' ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE) : this.paperBalance;
-            if (totalExposure / bankroll > CONFIG.RISK.maxTotalExposure) {
+            const cash = this.mode === 'LIVE'
+                ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE)
+                : this.paperBalance;
+            const equity = cash + totalExposure;
+            if (equity > 0 && (totalExposure / equity) > CONFIG.RISK.maxTotalExposure) {
                 return { success: false, error: 'Max exposure reached' };
             }
             
@@ -417,6 +420,9 @@ class TradeExecutor {
             
             if (this.mode === 'PAPER') {
                 // Paper trading
+                if (size > this.paperBalance) {
+                    return { success: false, error: 'Insufficient paper balance' };
+                }
                 this.paperBalance -= size;
                 this.positions[positionId] = {
                     asset,
@@ -846,9 +852,9 @@ async function mainLoop() {
             // System already filters to only trade when entry < 20¢, so returns are massive
             sizePct = Math.min(sizePct, 0.75);
             
-            const allowedSize = bankroll * sizePct;
+            let allowedSize = bankroll * sizePct;
             
-            const verdict = {
+            let verdict = {
                 asset,
                 prediction: brains[asset].prediction,
                 confidence: brains[asset].confidence,
@@ -990,6 +996,24 @@ async function mainLoop() {
                     const maxSize = isHighPrice ? 0.75 : 0.75; // Both can go to 75%
                     sizePct = Math.min(sizePct, maxSize);
                     allowedSize = bankroll * sizePct;
+                    verdict.allowedSize = allowedSize;
+                }
+
+                // GLOBAL EXPOSURE CAP: prevent simultaneous multi-asset trades from consuming all bankroll
+                // (critical to avoid "two losses in parallel = wipeout" failure mode)
+                const openExposure = Object.values(tradeExecutor.positions)
+                    .filter(p => p && p.status === 'OPEN')
+                    .reduce((sum, p) => sum + (Number(p.size) || 0), 0);
+                const equity = bankroll + openExposure;
+                const maxExposure = equity * CONFIG.RISK.maxTotalExposure;
+                const remainingExposure = maxExposure - openExposure;
+                if (remainingExposure <= 0) {
+                    // At/over cap: do not open new positions this tick
+                    continue;
+                }
+                if (allowedSize > remainingExposure) {
+                    allowedSize = remainingExposure;
+                    verdict.allowedSize = allowedSize;
                 }
                 
                 if (shouldTrade &&
