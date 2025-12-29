@@ -5754,13 +5754,24 @@ SupremeBrain.prototype.getCalibratedWinProb = function (conf, opts = {}) {
     const bucket = this.getCalibrationBucket(conf);
     if (!bucket) return null;
     const b = this.calibrationBuckets ? this.calibrationBuckets[bucket] : null;
-    if (!b || typeof b.total !== 'number' || typeof b.wins !== 'number') return null;
-
-    const minSamples = opts.minSamples ?? 20;
+    const priorRate = (typeof opts.priorRate === 'number' && opts.priorRate >= 0 && opts.priorRate <= 1) ? opts.priorRate : null;
+    const priorStrength = opts.priorStrength ?? 40; // pseudo-samples for shrinkage toward prior
+    const minSamples = opts.minSamples ?? 0; // allow always-on output; callers can raise if needed
     const alpha = opts.alpha ?? 1; // Laplace smoothing
-    if (b.total < minSamples) return null;
 
-    return (b.wins + alpha) / (b.total + 2 * alpha);
+    if (!b || typeof b.total !== 'number' || typeof b.wins !== 'number') {
+        return priorRate;
+    }
+
+    if (b.total < minSamples && priorRate === null) return null;
+
+    const baseWins = b.wins + alpha;
+    const baseTotal = b.total + (2 * alpha);
+
+    if (priorRate !== null) {
+        return (baseWins + (priorStrength * priorRate)) / (baseTotal + priorStrength);
+    }
+    return baseWins / baseTotal;
 };
 
 const Brains = {};
@@ -6211,7 +6222,12 @@ async function loadState() {
                 }
 
                 // FINAL SEVEN: RESTORE CALIBRATION & REGIME
-                if (state.calibration) ASSETS.forEach(a => { if (state.calibration[a]) Brains[a].calibrationBuckets = state.calibration[a]; });
+                // Merge to preserve any newly added buckets in code (avoid losing keys when restoring older Redis state)
+                if (state.calibration) ASSETS.forEach(a => {
+                    if (state.calibration[a]) {
+                        Brains[a].calibrationBuckets = { ...(Brains[a].calibrationBuckets || {}), ...(state.calibration[a] || {}) };
+                    }
+                });
                 if (state.regime) ASSETS.forEach(a => { if (state.regime[a]) Brains[a].regimeHistory = state.regime[a]; });
 
                 // PINNACLE: RESTORE MODEL ACCURACY (THE LEARNING!) - CRITICAL FOR GENUINE EVOLUTION
@@ -7724,7 +7740,14 @@ function buildStateSnapshot() {
         const recentAccuracy = recentTotal > 0 ? (recentWins / recentTotal) * 100 : 0;
         const calBucket = Brains[a].getCalibrationBucket ? Brains[a].getCalibrationBucket(Brains[a].confidence) : null;
         const calStats = calBucket && Brains[a].calibrationBuckets ? Brains[a].calibrationBuckets[calBucket] : null;
-        const pWin = Brains[a].getCalibratedWinProb ? Brains[a].getCalibratedWinProb(Brains[a].confidence) : null;
+        // Prior = long-run accuracy (or conviction accuracy when in CONVICTION tier)
+        const s = Brains[a].stats || {};
+        const priorRate =
+            (Brains[a].tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
+                (s.total > 0 ? (s.wins / s.total) : 0.5);
+        const pWin = Brains[a].getCalibratedWinProb
+            ? Brains[a].getCalibratedWinProb(Brains[a].confidence, { priorRate, priorStrength: 40, minSamples: 0 })
+            : null;
 
         response[a] = {
             prediction: Brains[a].prediction,
