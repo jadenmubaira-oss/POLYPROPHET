@@ -467,7 +467,7 @@
     
     <script>
         // Inline mobile app logic for Vibecode compatibility
-        const SERVER_URL = localStorage.getItem('polyprophet_server_url') || 'https://your-server.onrender.com';
+        const SERVER_URL = localStorage.getItem('polyprophet_server_url') || window.location.origin;
         let ws = null;
         let reconnectAttempts = 0;
         const MAX_RECONNECT_ATTEMPTS = 10;
