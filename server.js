@@ -232,6 +232,88 @@ const CONFIG = {
 const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
 const INTERVAL_SECONDS = 900; // 15 minutes
 
+// ==================== LIVE DATA (CHAINLINK VIA POLYMARKET WS) ====================
+// Polymarket 15m markets resolve off Chainlink. Prefer the official live-data WS feed.
+const LIVE_DATA_WS_ENDPOINT = 'wss://ws-live-data.polymarket.com';
+const livePrices = { BTC: null, ETH: null, SOL: null, XRP: null };
+const lastPriceUpdateMs = { BTC: 0, ETH: 0, SOL: 0, XRP: 0 };
+let lastChainlinkDataTime = Date.now();
+let liveDataWs = null;
+let wsHeartbeatInterval = null;
+let wsTimeoutInterval = null;
+
+function connectLiveDataWs() {
+    // Clear any existing intervals
+    if (wsHeartbeatInterval) clearInterval(wsHeartbeatInterval);
+    if (wsTimeoutInterval) clearInterval(wsTimeoutInterval);
+
+    const ws = new WebSocket(LIVE_DATA_WS_ENDPOINT);
+    liveDataWs = ws;
+
+    ws.on('open', () => {
+        lastChainlinkDataTime = Date.now();
+
+        // Chainlink price feed (primary)
+        ws.send(JSON.stringify({ action: 'subscribe', subscriptions: [{ topic: 'crypto_prices_chainlink', type: '*' }] }));
+
+        // Backup (exchange) prices
+        ws.send(JSON.stringify({ action: 'subscribe', subscriptions: [{ topic: 'crypto_prices', type: 'update', filters: 'btcusdt,ethusdt,solusdt,xrpusdt' }] }));
+
+        // Keep-alive ping every 30s
+        wsHeartbeatInterval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) ws.send('PING');
+        }, 30000);
+
+        // Reconnect if Chainlink stalls
+        wsTimeoutInterval = setInterval(() => {
+            const staleMs = Date.now() - lastChainlinkDataTime;
+            if (staleMs > 30000 && ws.readyState === WebSocket.OPEN) {
+                ws.close(4000, 'Stale Chainlink data');
+            }
+        }, 15000);
+    });
+
+    ws.on('message', (data) => {
+        try {
+            const str = data.toString();
+            if (str === 'PONG') return;
+            const msg = JSON.parse(str);
+
+            if (msg.topic === 'crypto_prices_chainlink') {
+                const map = { 'btc/usd': 'BTC', 'eth/usd': 'ETH', 'sol/usd': 'SOL', 'xrp/usd': 'XRP' };
+                const asset = map[msg.payload?.symbol];
+                const price = parseFloat(msg.payload?.value);
+                if (asset && Number.isFinite(price) && price > 0) {
+                    livePrices[asset] = price;
+                    lastPriceUpdateMs[asset] = Date.now();
+                    lastChainlinkDataTime = Date.now();
+                }
+            } else if (msg.topic === 'crypto_prices' && msg.type === 'update') {
+                // Only use backup if Chainlink hasn't provided a price yet
+                const map = { btcusdt: 'BTC', ethusdt: 'ETH', solusdt: 'SOL', xrpusdt: 'XRP' };
+                const asset = map[msg.payload?.symbol];
+                const price = parseFloat(msg.payload?.value);
+                if (asset && !livePrices[asset] && Number.isFinite(price) && price > 0) {
+                    livePrices[asset] = price;
+                    lastPriceUpdateMs[asset] = Date.now();
+                }
+            }
+        } catch (e) {
+            // Swallow parse errors; WS will keep running
+        }
+    });
+
+    ws.on('close', () => {
+        if (wsHeartbeatInterval) clearInterval(wsHeartbeatInterval);
+        if (wsTimeoutInterval) clearInterval(wsTimeoutInterval);
+        setTimeout(connectLiveDataWs, 5000);
+    });
+
+    ws.on('error', () => {
+        // 'close' handler will reconnect
+    });
+}
+
 const adapter = new MarketAdapter();
 const brains = {};
 const stateMachines = {};
@@ -680,10 +762,13 @@ async function mainLoop() {
             const market = await adapter.getMarketState(asset, currentCheckpoint);
             if (!market) continue;
             
-            const priceInfo = await adapter.getPrices(asset);
-            if (!priceInfo) continue;
-            
-            const currentPrice = priceInfo.price;
+            // Use Chainlink-derived live prices from Polymarket WS (preferred)
+            const currentPrice = livePrices[asset];
+            const priceStaleMs = Date.now() - (lastPriceUpdateMs[asset] || 0);
+            if (!currentPrice || priceStaleMs > 60000) {
+                // If prices are stale, do not trade; keep loop alive and wait for WS recovery
+                continue;
+            }
             
             // Update checkpoint
             if (!state.checkpoints[asset] || state.lastCheckpoint !== currentCheckpoint) {
@@ -1361,6 +1446,9 @@ async function startup() {
     
     // Make io available to trade executor
     tradeExecutor.io = io;
+
+    // Start Chainlink live price feed (required for accurate settlement + signals)
+    connectLiveDataWs();
     
     await loadState();
     
