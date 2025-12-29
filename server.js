@@ -8122,7 +8122,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
 app.get('/api/settings', (req, res) => {
     res.json({
         // Build fingerprint (tie UI + debug exports to exact deployed code/config)
-        CODE: getCodeFingerprint(),
+        CODE: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
         ACTIVE_PRESET: CONFIG.ACTIVE_PRESET || 'CUSTOM',
 
         // Masked keys (show first/last 4 chars only)
