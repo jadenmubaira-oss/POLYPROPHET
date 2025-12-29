@@ -7,3 +7,5 @@ omega_state.json
 debug_backtest/
 *.json.bak
 repo_integrity_manifest.json
+debug_trade_analysis_output.json
+debug/trade_replay_backtest_v2.json
