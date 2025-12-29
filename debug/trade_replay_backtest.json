@@ -1,0 +1,82 @@
+{
+  "parseErrors": [],
+  "result": {
+    "starting": 5,
+    "ending": 0,
+    "totalPnl": -5,
+    "totalReturnPct": -100,
+    "tradesTaken": 3,
+    "wins": 1,
+    "losses": 2,
+    "flats": 0,
+    "winRatePct": 3333.3,
+    "maxDrawdownPct": 10000,
+    "params": {
+      "dir": ".\\debug",
+      "starting": 5,
+      "maxFrac": 0.5,
+      "minOrder": 1.1,
+      "modes": null,
+      "noWrite": false
+    },
+    "sampleEvents": [
+      {
+        "t": 1766010265274,
+        "type": "OPEN",
+        "id": "SOL_1766010265273",
+        "mode": "ORACLE",
+        "asset": "SOL",
+        "cash": 2.5,
+        "equity": 5,
+        "time": "2025-12-17T22:24:25.274Z"
+      },
+      {
+        "t": 1766010600169,
+        "type": "CLOSE",
+        "id": "SOL_1766010265273",
+        "pnl": 1.7372881355932206,
+        "cash": 6.737288135593221,
+        "equity": 6.737288135593221,
+        "time": "2025-12-17T22:30:00.169Z"
+      },
+      {
+        "t": 1766010840359,
+        "type": "OPEN",
+        "id": "ETH_1766010840359",
+        "mode": "ORACLE",
+        "asset": "ETH",
+        "cash": 3.3686440677966103,
+        "equity": 6.737288135593221,
+        "time": "2025-12-17T22:34:00.359Z"
+      },
+      {
+        "t": 1766010841353,
+        "type": "OPEN",
+        "id": "BTC_1766010841353",
+        "mode": "ORACLE",
+        "asset": "BTC",
+        "cash": 0,
+        "equity": 6.737288135593221,
+        "time": "2025-12-17T22:34:01.353Z"
+      },
+      {
+        "t": 1766011500324,
+        "type": "CLOSE",
+        "id": "BTC_1766010841353",
+        "pnl": -3.3686440677966103,
+        "cash": 0,
+        "equity": 3.3686440677966103,
+        "time": "2025-12-17T22:45:00.324Z"
+      },
+      {
+        "t": 1766011500327,
+        "type": "CLOSE",
+        "id": "ETH_1766010840359",
+        "pnl": -3.3686440677966103,
+        "cash": 0,
+        "equity": 0,
+        "time": "2025-12-17T22:45:00.327Z"
+      }
+    ]
+  }
+}

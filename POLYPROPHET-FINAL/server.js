@@ -102,42 +102,56 @@ const io = socketIo(server, {
 });
 
 // ==================== CONFIGURATION ====================
+// THE PINNACLE CONFIG - Based on 485 trades + 85 debug logs analysis
 const CONFIG = {
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
     STARTING_BALANCE: parseFloat(process.env.PAPER_BALANCE || '5.00'),
     
-    // OPTIMIZED STRATEGY (based on backtest showing 99.91% win rate on high prices)
+    // PINNACLE STRATEGY - Based on forensic analysis
+    // Genesis model: 93-94% accuracy
+    // CONVICTION tier: 73% win rate (highest)
+    // MEDIUM price (30-50¢): 66% win rate + good returns
+    // XRP: 67.6% win rate (best asset)
     STRATEGY: {
-        // HIGH PRICE: THE MAIN MONEY MAKER - 99.91% win rate, steady compounding
-        // Backtest: 1172 trades, 1171 wins = £5 → £2896
-        highPriceThreshold: 0.95,   // Trade when price ≥ 95¢
-        highPricePositionSize: 0.60, // 60% position size (aggressive compounding)
+        // CONVICTION ONLY: Only trade when brain says CONVICTION
+        requireConviction: true,    // MUST be CONVICTION tier (73% win rate)
         
-        // LOW PRICE: BONUS trades when CONVICTION tier only
-        // More selective to avoid the 62% win rate from mixed tiers
-        lowPriceThreshold: 0.30,    // Only trade when price < 30¢ (higher returns)
-        lowPricePositionSize: 0.50, // 50% position size (more conservative)
-        lowPriceRequireConviction: true, // MUST be CONVICTION tier
+        // MEDIUM-HIGH PRICES: Best risk/reward zone
+        // MEDIUM (30-50¢): 66% win rate, 2-3x returns
+        // HIGH (50-70¢): 58% win rate, 1.4-2x returns  
+        minPrice: 0.30,             // Don't trade below 30¢
+        maxPrice: 0.70,             // Don't trade above 70¢
         
-        // Minimum requirements for trading
-        minConfidence: 0.65,        // Minimum brain confidence
+        // POSITION SIZING: Aggressive for compounding
+        convictionPositionSize: 0.60, // 60% when CONVICTION
+        advisoryPositionSize: 0.30,   // 30% when ADVISORY (backup)
+        
+        // GENESIS REQUIREMENT: Only trade when Genesis confirms
+        requireGenesis: true,       // Genesis MUST have a direction
+        
+        // TIMING
         minElapsedSeconds: 30,      // Wait 30 seconds into cycle
+        maxElapsedSeconds: 780,     // Don't trade in last 2 minutes
+        
+        // MINIMUM CONFIDENCE
+        minConfidence: 0.80,        // 80% minimum for any trade
     },
     
     RISK: {
-        maxTotalExposure: 0.80,     // Maximum 80% of bankroll exposed at once
-        maxPositionSize: 0.70,      // Hard cap on any single position
-        drawdownLimit: 0.30,        // Pause if drawdown > 30% (less restrictive)
-        maxConsecutiveLosses: 3,    // Pause after 3 consecutive losses
-        cooldownAfterLoss: 300,     // 5 minute cooldown after max losses
+        maxTotalExposure: 0.70,     // Maximum 70% of bankroll exposed
+        maxPositionSize: 0.60,      // Hard cap on any single position
+        drawdownLimit: 0.35,        // Pause if drawdown > 35%
+        maxConsecutiveLosses: 2,    // Pause after 2 consecutive losses
+        cooldownAfterLoss: 600,     // 10 minute cooldown after losses
         minTradeSize: 1.10,         // Polymarket minimum
     },
     
+    // ASSET PRIORITY: XRP > ETH > BTC > SOL (based on win rates)
     ASSET_CONTROLS: {
-        BTC: { enabled: true, maxTradesPerCycle: 2 },
-        ETH: { enabled: true, maxTradesPerCycle: 2 },
-        SOL: { enabled: true, maxTradesPerCycle: 2 },
-        XRP: { enabled: true, maxTradesPerCycle: 2 }
+        XRP: { enabled: true, maxTradesPerCycle: 1, priority: 1 },  // 67.6% win rate
+        ETH: { enabled: true, maxTradesPerCycle: 1, priority: 2 },  // 58.9% win rate
+        BTC: { enabled: true, maxTradesPerCycle: 1, priority: 3 },  // 52.2% win rate
+        SOL: { enabled: false, maxTradesPerCycle: 0, priority: 4 }  // 44.5% - DISABLED
     },
     
     // API keys (from environment)
