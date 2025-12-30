@@ -10593,6 +10593,11 @@ setInterval(() => {
                     } else {
                         log(`⚠️ Skipping learning evaluation (stale data) but positions resolved`, a);
                     }
+                    
+                    // 🎯 GOAT v44.1: Notify watchdog that a cycle was detected
+                    if (typeof watchdogCycleDetected === 'function') {
+                        watchdogCycleDetected();
+                    }
                 }
 
                 // Update checkpoints for the NEW cycle
@@ -10912,4 +10917,3 @@ process.on('SIGINT', () => {
 });
 
 startup();
-
