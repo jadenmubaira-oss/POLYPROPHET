@@ -50,6 +50,35 @@
             border-radius: 4px;
             background: rgba(0, 0, 0, 0.3);
         }
+
+        .header-actions {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .action-btn {
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(153, 51, 255, 0.4);
+            background: rgba(153, 51, 255, 0.12);
+            color: #d8b4fe;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .action-btn:active {
+            transform: scale(0.98);
+        }
+
+        .version-badge {
+            margin-top: 10px;
+            font-size: 11px;
+            color: #888;
+            opacity: 0.9;
+        }
         
         .balance-card {
             background: linear-gradient(135deg, #1a0a2e 0%, #16213e 100%);
@@ -393,6 +422,13 @@
             <span id="connection-status" class="connection-status">🟡 Connecting...</span>
             <span id="last-update">--:--</span>
         </div>
+
+        <div class="header-actions">
+            <button class="action-btn" onclick="openServerSettings()">⚙️ Settings</button>
+            <button class="action-btn" onclick="downloadDebugExport()">⬇️ Debug Export</button>
+            <button class="action-btn" onclick="openGuide()">📚 Guide</button>
+        </div>
+        <div id="version-badge" class="version-badge">loading version...</div>
     </div>
     
     <div class="balance-card">
@@ -467,7 +503,8 @@
     
     <script>
         // Inline mobile app logic for Vibecode compatibility
-        const SERVER_URL = localStorage.getItem('polyprophet_server_url') || 'https://your-server.onrender.com';
+        // Default to current origin when served from Render/localhost, but allow override for “monitor remote server” use.
+        const SERVER_URL = localStorage.getItem('polyprophet_server_url') || window.location.origin;
         let ws = null;
         let reconnectAttempts = 0;
         const MAX_RECONNECT_ATTEMPTS = 10;
@@ -499,6 +536,7 @@
                     reconnectAttempts = 0;
                     updateUI();
                     requestNotificationPermission();
+                    loadVersion();
                 });
                 
                 socket.on('state_update', (data) => {
@@ -515,6 +553,45 @@
             } catch (e) {
                 console.error('Connection failed:', e);
                 startPolling();
+            }
+        }
+
+        async function loadVersion() {
+            const el = document.getElementById('version-badge');
+            if (!el) return;
+            try {
+                const res = await fetch(`${SERVER_URL}/api/version`, { cache: 'no-store' });
+                const v = await res.json();
+                const commit = v.gitCommit ? String(v.gitCommit).slice(0, 7) : 'unknown';
+                const hash = v.serverSha256 ? String(v.serverSha256).slice(0, 10) : 'nohash';
+                el.textContent = `v${v.configVersion || '?'} • ${commit} • ${hash}`;
+            } catch (e) {
+                el.textContent = 'version unavailable (Render redeploy pending?)';
+            }
+        }
+
+        function openServerSettings() {
+            window.open(`${SERVER_URL}/settings`, '_blank', 'noopener,noreferrer');
+        }
+
+        function openGuide() {
+            window.open(`${SERVER_URL}/guide`, '_blank', 'noopener,noreferrer');
+        }
+
+        async function downloadDebugExport() {
+            try {
+                const res = await fetch(`${SERVER_URL}/api/debug-export`, { cache: 'no-store' });
+                const data = await res.json();
+                const ts = (data.exportTime || new Date().toISOString()).replace(/[:.]/g, '-');
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = `polyprophet_debug_export_${ts}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            } catch (e) {
+                alert('Failed to download debug export: ' + e.message);
             }
         }
         

@@ -1,25 +1,42 @@
+# ============================================
+# POLYPROPHET GOAT v3 - .gitignore
+# ============================================
+
 # Dependencies
 node_modules/
 
-# Environment
+# Environment files (contain secrets)
 .env
+.env.local
+.env.*.local
+
+# Logs
 *.log
+npm-debug.log*
 
-# State files
+# State files (regenerated on startup)
 omega_state.json
+state.json
 
-# OS
+# OS files
 .DS_Store
+Thumbs.db
 
-# Archives (keep in debug-archive branch)
-*.zip
+# IDE
+.cursor/
+.vscode/
+.idea/
 
-# Debug/backtest folders (keep in debug-archive branch)
+# ============================================
+# DEBUG & FORENSIC FILES (large, not needed for deploy)
+# ============================================
+
+# Debug exports (keep locally, don't commit)
 debug/
 debug_backtest/
-p2/
+backtest-data/
 
-# Forensic artifacts (keep in debug-archive branch)
+# Forensic artifacts
 FORENSIC_*.json
 FORENSIC_*.csv
 FORENSIC_*.md
@@ -29,40 +46,59 @@ debug_trade_analysis_output.json
 *analysis_results*.json
 *.json.bak
 
-# Variant folders (keep in debug-archive branch)
-POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd/
-POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted/
-POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd/
-POLYPROPHET-FINAL/
-
-# Large chat exports (keep in debug-archive branch)
-cursor_*.md
-Genesis Veto Verification.md
-OMEGA V2 Data Restoration.md
-POLYPROPHET Molecular Reconstruction.md
-
-# IDE
-.cursor/
-
-# Wrapper backups
-*.root-wrapper.js
-*.root-wrapper.json
-
-# Tools (optional - can keep if useful)
-tools/
-
-# 🎯 GOAT: Additional cleanup exclusions
-BASELINE_DECISION.md
-GOLDEN_MEAN_RUNBOOK.md
-backtest-data/
-local-archive/
-
-# Additional forensic files
-COMPREHENSIVE_ANALYSIS_FINAL.md
+# Investigation docs
 *_INVESTIGATION*.md
 *_LEDGER*.md
 *_FINDINGS*.md
 *_VERDICT*.md
 *_TIMELINE*.md
 *_CONFIRMATION*.md
-*_SUMMARY*.md
+
+# ============================================
+# ARCHIVED FOLDERS (historical, not deployed)
+# ============================================
+
+# Old variant folders
+POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd/
+POLYPROPHET-2d998c92e045c0110cc2864b53e62c70e0ccefbd_extracted/
+POLYPROPHET-d7caab64012693e891e106a51dd8f1ad7b90dddd/
+p2/
+
+# Local archive folder
+local-archive/
+
+# ============================================
+# LARGE FILES
+# ============================================
+
+# Archives
+*.zip
+*.tar.gz
+
+# Large chat exports
+cursor_*.md
+
+# ============================================
+# WRAPPER/BACKUP FILES
+# ============================================
+
+*.root-wrapper.js
+*.root-wrapper.json
+*.bak
+*.backup
+
+# ============================================
+# TOOLS (optional - can keep if useful)
+# ============================================
+
+tools/
+
+# ============================================
+# IMPORTANT: What IS tracked
+# ============================================
+# - POLYPROPHET-FINAL/ (production deployment)
+# - render.yaml (Render Blueprint)
+# - README.md (documentation)
+# - package.json, package-lock.json
+# - server.js (root - kept as reference)
+# - public/ (root - kept as reference)
