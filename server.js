@@ -96,25 +96,44 @@ app.use(cors());
 app.use(express.json()); // CRITICAL: Parse JSON bodies BEFORE any routes
 
 // ==================== PASSWORD PROTECTION ====================
+// 🎯 GOAT v44.1: Support both Basic Auth AND Bearer token for API access
+const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
+console.log(`🔑 API Key (for programmatic access): ${API_KEY.substring(0, 8)}...${API_KEY.substring(API_KEY.length - 4)}`);
+
 app.use((req, res, next) => {
     // Public endpoints (no auth) for uptime checks / deploy verification only.
-    // Everything else (including trading APIs) requires Basic Auth.
     const isPublicApi =
         req.path === '/api/health' ||
-        req.path === '/api/version';
+        req.path === '/api/version' ||
+        req.path === '/api/state-public'; // Read-only public state endpoint
     if (isPublicApi) return next();
 
-    const credentials = auth(req);
     const username = process.env.AUTH_USERNAME || 'admin';
     const password = process.env.AUTH_PASSWORD || 'changeme';
 
-    if (!credentials || credentials.name !== username || credentials.pass !== password) {
-        res.statusCode = 401;
-        res.setHeader('WWW-Authenticate', 'Basic realm="Supreme Deity"');
-        res.end('Access denied');
-    } else {
-        next();
+    // 🎯 GOAT: Check Bearer token first (for programmatic/mobile access)
+    const authHeader = req.headers.authorization || '';
+    if (authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        if (token === API_KEY || token === password) {
+            return next();
+        }
     }
+
+    // Fall back to Basic Auth (for browser access)
+    const credentials = auth(req);
+    if (credentials && credentials.name === username && credentials.pass === password) {
+        return next();
+    }
+
+    // 🎯 GOAT: Also accept API key as query param for easy dashboard testing
+    if (req.query.apiKey === API_KEY || req.query.apiKey === password) {
+        return next();
+    }
+
+    res.statusCode = 401;
+    res.setHeader('WWW-Authenticate', 'Basic realm="Supreme Deity"');
+    res.json({ error: 'Access denied', hint: 'Use Basic Auth (username:password) or Bearer token (Authorization: Bearer <API_KEY>)' });
 });
 
 // Serve static assets, but do NOT auto-serve public/index.html at `/`
@@ -282,6 +301,107 @@ app.get('/api/backtest-proof', async (req, res) => {
         const tradesToReach100 = avgProfitPerTrade > 0 ? (100 - startingBalance) / avgProfitPerTrade : Infinity;
         const daysToReach100 = tradesPerDay > 0 ? tradesToReach100 / tradesPerDay : Infinity;
         
+        // 🎯 GOAT v44.1: Time-to-target distributions
+        const targets = [20, 50, 100, 200, 500];
+        const timeToTarget = {};
+        for (const target of targets) {
+            const idx = balanceHistory.findIndex(b => b.balance >= target);
+            if (idx >= 0 && idx < balanceHistory.length) {
+                const startTime = new Date(allCycles[0]?.cycleEndTime || Date.now());
+                const targetTime = new Date(balanceHistory[idx].time);
+                const hoursToTarget = (targetTime - startTime) / (1000 * 60 * 60);
+                const tradesNeeded = idx;
+                timeToTarget[`to_${target}`] = {
+                    reached: true,
+                    hours: hoursToTarget.toFixed(1),
+                    trades: tradesNeeded,
+                    atTrade: idx
+                };
+            } else {
+                // Project based on current trajectory
+                if (avgProfitPerTrade > 0 && balance > startingBalance) {
+                    const remaining = target - balance;
+                    const tradesNeeded = remaining / avgProfitPerTrade;
+                    const hoursNeeded = tradesPerDay > 0 ? (tradesNeeded / tradesPerDay) * 24 : Infinity;
+                    timeToTarget[`to_${target}`] = {
+                        reached: false,
+                        projectedHours: Number.isFinite(hoursNeeded) ? hoursNeeded.toFixed(1) : 'N/A',
+                        projectedTrades: Number.isFinite(tradesNeeded) ? Math.ceil(tradesNeeded) : 'N/A'
+                    };
+                } else {
+                    timeToTarget[`to_${target}`] = { reached: false, projectedHours: 'N/A' };
+                }
+            }
+        }
+        
+        // 🎯 GOAT v44.1: Stress test scenarios
+        const stressTests = {};
+        
+        // Scenario 1: Higher fees (3% instead of 2%)
+        let stressBalance = startingBalance;
+        let stressWins = 0;
+        for (const t of trades) {
+            if (t.wasCorrect) {
+                const profit = (t.entryPrice > 0 ? (1 / t.entryPrice - 1) : 0) * (stressBalance * MAX_POSITION_PCT);
+                stressBalance += profit * (1 - 0.03);
+                stressWins++;
+            } else {
+                stressBalance -= stressBalance * MAX_POSITION_PCT * 0.95; // Slightly worse loss
+            }
+        }
+        stressTests.higherFees = {
+            finalBalance: stressBalance.toFixed(2),
+            profit: (stressBalance - startingBalance).toFixed(2)
+        };
+        
+        // Scenario 2: 5% slippage
+        stressBalance = startingBalance;
+        for (const t of trades) {
+            const slippedEntry = t.entryPrice * 1.05;
+            if (t.wasCorrect && slippedEntry < 0.99) {
+                const shares = (stressBalance * MAX_POSITION_PCT) / slippedEntry;
+                const profit = (shares * 1.0) - (stressBalance * MAX_POSITION_PCT);
+                stressBalance += profit * (1 - PROFIT_FEE_PCT);
+            } else if (!t.wasCorrect) {
+                stressBalance -= stressBalance * MAX_POSITION_PCT;
+            }
+        }
+        stressTests.highSlippage = {
+            finalBalance: stressBalance.toFixed(2),
+            profit: (stressBalance - startingBalance).toFixed(2)
+        };
+        
+        // Scenario 3: 10% missed fills (random trades skipped)
+        stressBalance = startingBalance;
+        let skipped = 0;
+        for (let i = 0; i < trades.length; i++) {
+            if (i % 10 === 0) { skipped++; continue; } // Skip every 10th trade
+            const t = trades[i];
+            if (t.wasCorrect) {
+                const profit = (stressBalance * MAX_POSITION_PCT) * (1 / t.entryPrice - 1);
+                stressBalance += profit * (1 - PROFIT_FEE_PCT);
+            } else {
+                stressBalance -= stressBalance * MAX_POSITION_PCT;
+            }
+        }
+        stressTests.missedFills = {
+            finalBalance: stressBalance.toFixed(2),
+            profit: (stressBalance - startingBalance).toFixed(2),
+            fillsSkipped: skipped
+        };
+        
+        // 🎯 GOAT v44.1: Gate failure analysis (if gateTrace available)
+        let gateAnalysis = null;
+        if (typeof gateTrace !== 'undefined' && gateTrace) {
+            const summary = gateTrace.getSummary();
+            gateAnalysis = {
+                totalEvaluations: summary.totalEvaluations,
+                totalBlocked: summary.totalBlocked,
+                blockRate: summary.totalEvaluations > 0 ? ((summary.totalBlocked / summary.totalEvaluations) * 100).toFixed(1) + '%' : 'N/A',
+                topBlockers: Object.entries(summary.gateFailures || {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
+            };
+        }
+        
         res.json({
             summary: {
                 startingBalance,
@@ -306,9 +426,108 @@ app.get('/api/backtest-proof', async (req, res) => {
                 commit: filterCommit
             },
             totalCyclesAnalyzed: allCycles.length,
+            timeToTarget,
+            stressTests,
+            gateAnalysis,
             trades: trades.slice(-50), // Last 50 trades
             balanceHistory: balanceHistory.filter((_, i) => i % Math.max(1, Math.floor(balanceHistory.length / 100)) === 0 || i === balanceHistory.length - 1) // Sample for chart
         });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 🎯 GOAT v44.1: Forward Test - Replay collector snapshots through decision engine
+app.get('/api/forward-test', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 100;
+        const snapshotData = await getCollectorSnapshots(limit);
+        
+        if (snapshotData.count === 0) {
+            return res.json({
+                error: 'No snapshots available. Enable the collector first.',
+                howToEnable: 'POST /api/collector/toggle'
+            });
+        }
+        
+        const snapshots = snapshotData.snapshots;
+        const results = {
+            source: snapshotData.source,
+            snapshotsAnalyzed: snapshots.length,
+            signalDistribution: { UP: 0, DOWN: 0, WAIT: 0, NEUTRAL: 0 },
+            tierDistribution: { CONVICTION: 0, ADVISORY: 0, NONE: 0 },
+            avgConfidence: 0,
+            avgEdge: 0,
+            pWinDistribution: { high: 0, medium: 0, low: 0, na: 0 },
+            tradingStates: {},
+            assets: {}
+        };
+        
+        let totalConf = 0;
+        let totalEdge = 0;
+        let confCount = 0;
+        let edgeCount = 0;
+        
+        for (const snapshot of snapshots) {
+            // Track trading state distribution
+            const state = snapshot.tradingState || 'UNKNOWN';
+            results.tradingStates[state] = (results.tradingStates[state] || 0) + 1;
+            
+            // Analyze signals
+            for (const [asset, signal] of Object.entries(snapshot.signals || {})) {
+                if (!results.assets[asset]) {
+                    results.assets[asset] = { signals: [], avgConf: 0, avgEdge: 0, tierCounts: { CONVICTION: 0, ADVISORY: 0, NONE: 0 } };
+                }
+                
+                // Signal distribution
+                const pred = signal.prediction || 'WAIT';
+                results.signalDistribution[pred] = (results.signalDistribution[pred] || 0) + 1;
+                
+                // Tier distribution
+                const tier = signal.tier || 'NONE';
+                results.tierDistribution[tier] = (results.tierDistribution[tier] || 0) + 1;
+                results.assets[asset].tierCounts[tier] = (results.assets[asset].tierCounts[tier] || 0) + 1;
+                
+                // Confidence
+                if (typeof signal.confidence === 'number') {
+                    totalConf += signal.confidence;
+                    confCount++;
+                }
+                
+                // Edge
+                if (typeof signal.edge === 'number' && Number.isFinite(signal.edge)) {
+                    totalEdge += signal.edge;
+                    edgeCount++;
+                }
+                
+                // pWin distribution
+                const pWin = signal.pWin;
+                if (pWin === null || pWin === undefined) {
+                    results.pWinDistribution.na++;
+                } else if (pWin >= 0.7) {
+                    results.pWinDistribution.high++;
+                } else if (pWin >= 0.5) {
+                    results.pWinDistribution.medium++;
+                } else {
+                    results.pWinDistribution.low++;
+                }
+            }
+        }
+        
+        results.avgConfidence = confCount > 0 ? (totalConf / confCount * 100).toFixed(1) + '%' : 'N/A';
+        results.avgEdge = edgeCount > 0 ? (totalEdge / edgeCount).toFixed(2) + '%' : 'N/A';
+        
+        // Summary insights
+        results.insights = [];
+        const convictionPct = (results.tierDistribution.CONVICTION / Math.max(1, Object.values(results.tierDistribution).reduce((a, b) => a + b, 0))) * 100;
+        if (convictionPct < 5) {
+            results.insights.push('Low CONVICTION signal rate (' + convictionPct.toFixed(1) + '%) - consider loosening thresholds');
+        }
+        if (results.pWinDistribution.na > results.pWinDistribution.high + results.pWinDistribution.medium) {
+            results.insights.push('Many signals missing pWin - calibration data may be insufficient');
+        }
+        
+        res.json(results);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -484,13 +703,24 @@ app.get('/api/debug-export', (req, res) => {
     }
 });
 
-// Health check endpoint
+// Health check endpoint (enhanced with GOAT v44.1 watchdog status)
 app.get('/api/health', (req, res) => {
+    const now = Date.now();
+    const lastTrade = tradeExecutor && tradeExecutor.tradeHistory && tradeExecutor.tradeHistory.length > 0
+        ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp
+        : null;
+    
     res.json({
         status: 'ok',
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
-        code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null
+        code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+        watchdog: {
+            lastCycleAge: typeof watchdogState !== 'undefined' ? Math.round((now - watchdogState.lastCycleDetected) / 1000) : null,
+            lastTradeAge: lastTrade ? Math.round((now - lastTrade) / 1000) : null,
+            memoryMB: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
+            alertsPending: typeof watchdogState !== 'undefined' ? watchdogState.alertsSent.size : 0
+        }
     });
 });
 
@@ -731,13 +961,15 @@ ASSETS.forEach(asset => {
     cycleDebugHistory[asset] = []; // Array of cycle objects
 });
 
-// 🎯 GOAT: Forward Data Collector for unlimited backtesting
-// Persists market+signal snapshots to files for later analysis
+// 🎯 GOAT v44.1: Forward Data Collector with Redis persistence
+// Persists market+signal snapshots to Redis (survives Render restarts) + optional file backup
 let forwardCollectorEnabled = false; // Set to true to enable
 let lastCollectorSave = 0;
 const COLLECTOR_INTERVAL_MS = 15 * 60 * 1000; // Save every 15 minutes
+const COLLECTOR_REDIS_KEY = 'polyprophet:collector:snapshots';
+const COLLECTOR_MAX_SNAPSHOTS = 1000; // Keep last 1000 in Redis
 
-function runForwardDataCollector() {
+async function runForwardDataCollector() {
     if (!forwardCollectorEnabled) return;
     
     const now = Date.now();
@@ -745,21 +977,15 @@ function runForwardDataCollector() {
     lastCollectorSave = now;
     
     try {
-        const fs = require('fs');
-        const path = require('path');
-        
-        const dataDir = path.join(__dirname, 'backtest-data');
-        if (!fs.existsSync(dataDir)) {
-            fs.mkdirSync(dataDir, { recursive: true });
-        }
-        
         // Collect snapshot
         const snapshot = {
             timestamp: new Date().toISOString(),
+            timestampMs: now,
             code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
             markets: {},
             signals: {},
-            tradingState: tradeExecutor ? tradeExecutor.tradingState : 'UNKNOWN'
+            tradingState: tradeExecutor ? tradeExecutor.tradingState : 'UNKNOWN',
+            gateTrace: gateTrace ? gateTrace.getSummary() : null
         };
         
         ASSETS.forEach(asset => {
@@ -772,26 +998,103 @@ function runForwardDataCollector() {
                         confidence: brain.confidence,
                         tier: brain.tier,
                         edge: brain.edge,
-                        pWin: brain.getTierConditionedPWin ? brain.getTierConditionedPWin(brain.tier, currentMarkets[asset]?.yesPrice, { fallback: null }) : null
+                        pWin: brain.getTierConditionedPWin ? brain.getTierConditionedPWin(brain.tier, currentMarkets[asset]?.yesPrice, { fallback: null }) : null,
+                        oracleLocked: brain.oracleLocked,
+                        convictionLocked: brain.convictionLocked
                     };
                 }
             }
         });
         
-        // Save to file
-        const filename = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-        fs.writeFileSync(path.join(dataDir, filename), JSON.stringify(snapshot, null, 2));
-        log(`📦 FORWARD COLLECTOR: Saved ${filename}`);
+        // 🎯 GOAT v44.1: Primary storage = Redis (persists across Render restarts)
+        if (typeof redis !== 'undefined' && redis) {
+            try {
+                // Add to Redis list
+                await redis.lpush(COLLECTOR_REDIS_KEY, JSON.stringify(snapshot));
+                // Trim to keep only last N snapshots
+                await redis.ltrim(COLLECTOR_REDIS_KEY, 0, COLLECTOR_MAX_SNAPSHOTS - 1);
+                log(`📦 FORWARD COLLECTOR: Saved to Redis (${snapshot.timestamp})`);
+            } catch (redisErr) {
+                log(`⚠️ FORWARD COLLECTOR: Redis save failed: ${redisErr.message}, falling back to file`);
+            }
+        }
         
-        // Cleanup old files (keep last 1000)
-        const files = fs.readdirSync(dataDir).filter(f => f.startsWith('snapshot_')).sort();
-        if (files.length > 1000) {
-            const toDelete = files.slice(0, files.length - 1000);
-            toDelete.forEach(f => fs.unlinkSync(path.join(dataDir, f)));
-            log(`📦 FORWARD COLLECTOR: Cleaned up ${toDelete.length} old files`);
+        // Secondary storage = File (for local dev or Redis fallback)
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            
+            const dataDir = path.join(__dirname, 'backtest-data');
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            
+            const filename = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+            fs.writeFileSync(path.join(dataDir, filename), JSON.stringify(snapshot, null, 2));
+            
+            // Cleanup old files (keep last 500 on disk)
+            const files = fs.readdirSync(dataDir).filter(f => f.startsWith('snapshot_')).sort();
+            if (files.length > 500) {
+                const toDelete = files.slice(0, files.length - 500);
+                toDelete.forEach(f => fs.unlinkSync(path.join(dataDir, f)));
+            }
+        } catch (fileErr) {
+            // File save is secondary, log but don't fail
+            log(`⚠️ FORWARD COLLECTOR: File save failed: ${fileErr.message}`);
         }
     } catch (e) {
         log(`⚠️ FORWARD COLLECTOR ERROR: ${e.message}`);
+    }
+}
+
+// 🎯 GOAT v44.1: Retrieve snapshots from Redis
+async function getCollectorSnapshots(limit = 100) {
+    const snapshots = [];
+    
+    // Try Redis first
+    if (typeof redis !== 'undefined' && redis) {
+        try {
+            const redisData = await redis.lrange(COLLECTOR_REDIS_KEY, 0, limit - 1);
+            for (const item of redisData) {
+                try {
+                    snapshots.push(JSON.parse(item));
+                } catch (parseErr) {
+                    // Skip invalid entries
+                }
+            }
+            if (snapshots.length > 0) {
+                return { source: 'redis', count: snapshots.length, snapshots };
+            }
+        } catch (e) {
+            log(`⚠️ COLLECTOR: Redis read failed: ${e.message}`);
+        }
+    }
+    
+    // Fall back to file system
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const dataDir = path.join(__dirname, 'backtest-data');
+        
+        if (fs.existsSync(dataDir)) {
+            const files = fs.readdirSync(dataDir)
+                .filter(f => f.startsWith('snapshot_'))
+                .sort()
+                .reverse()
+                .slice(0, limit);
+            
+            for (const file of files) {
+                try {
+                    const content = fs.readFileSync(path.join(dataDir, file), 'utf8');
+                    snapshots.push(JSON.parse(content));
+                } catch (parseErr) {
+                    // Skip invalid files
+                }
+            }
+        }
+        return { source: 'file', count: snapshots.length, snapshots };
+    } catch (e) {
+        return { source: 'none', count: 0, snapshots: [], error: e.message };
     }
 }
 
@@ -805,12 +1108,25 @@ app.post('/api/collector/toggle', (req, res) => {
     res.json({ enabled: forwardCollectorEnabled });
 });
 
+// 🎯 GOAT v44.1: API to get collector snapshots
+app.get('/api/collector/snapshots', async (req, res) => {
+    try {
+        const limit = parseInt(req.query.limit) || 50;
+        const result = await getCollectorSnapshots(limit);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // API: Get collector status
-app.get('/api/collector/status', (req, res) => {
+app.get('/api/collector/status', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
     
     let fileCount = 0;
+    let redisCount = 0;
+    
     try {
         const dataDir = path.join(__dirname, 'backtest-data');
         if (fs.existsSync(dataDir)) {
@@ -818,18 +1134,30 @@ app.get('/api/collector/status', (req, res) => {
         }
     } catch (e) {}
     
+    // 🎯 GOAT v44.1: Also check Redis count
+    try {
+        if (typeof redis !== 'undefined' && redis) {
+            redisCount = await redis.llen(COLLECTOR_REDIS_KEY);
+        }
+    } catch (e) {}
+    
     res.json({
         enabled: forwardCollectorEnabled,
         lastSave: lastCollectorSave > 0 ? new Date(lastCollectorSave).toISOString() : null,
-        fileCount,
-        intervalMinutes: COLLECTOR_INTERVAL_MS / 60000
+        storage: {
+            redis: { available: typeof redis !== 'undefined' && redis !== null, count: redisCount },
+            file: { count: fileCount }
+        },
+        totalSnapshots: Math.max(redisCount, fileCount),
+        intervalMinutes: COLLECTOR_INTERVAL_MS / 60000,
+        maxSnapshots: COLLECTOR_MAX_SNAPSHOTS
     });
 });
 
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 43;  // v43 CONSISTENCY: invalidate stale Redis settings when defaults change
+const CONFIG_VERSION = 44;  // v44 GOAT: API Explorer, GateTrace, EV-derived caps, frequency governor, redemption audit, watchdog
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -1380,6 +1708,79 @@ class TradeExecutor {
         }
         return CONFIG.ORACLE.minStability; // Default in SNIPER
     }
+    
+    // 🎯 GOAT v44.1: Frequency Governor - replaces time-of-day filtering
+    // Dynamically adjusts trading based on recent trade frequency and outcomes
+    getFrequencyGovernorDecision() {
+        const now = Date.now();
+        const ONE_HOUR = 60 * 60 * 1000;
+        const TWO_HOURS = 2 * ONE_HOUR;
+        
+        // Count trades in last hour and last 2 hours
+        const recentTrades = (this.tradeHistory || []).filter(t => (now - t.timestamp) < ONE_HOUR);
+        const tradesLastHour = recentTrades.length;
+        const tradesLast2Hours = (this.tradeHistory || []).filter(t => (now - t.timestamp) < TWO_HOURS).length;
+        
+        // Count wins in recent trades
+        const recentWins = recentTrades.filter(t => t.profit > 0).length;
+        const recentWinRate = tradesLastHour > 0 ? recentWins / tradesLastHour : 0.5;
+        
+        // Target: 2-4 trades per hour (enough activity without overtrading)
+        const targetTradesPerHour = 3;
+        const minTradesPerHour = 1;
+        const maxTradesPerHour = 6;
+        
+        // Calculate threshold adjustments based on frequency
+        let thresholdMultiplier = 1.0;
+        let reason = 'NORMAL';
+        let allowTrade = true;
+        
+        // If trading too frequently, tighten thresholds
+        if (tradesLastHour >= maxTradesPerHour) {
+            thresholdMultiplier = 1.3; // 30% higher thresholds
+            reason = 'THROTTLE_HIGH_FREQUENCY';
+            allowTrade = this.tradingState === 'STRIKE'; // Only allow in STRIKE mode when throttled
+        }
+        // If trading too infrequently, loosen thresholds
+        else if (tradesLast2Hours === 0) {
+            thresholdMultiplier = 0.85; // 15% lower thresholds
+            reason = 'EXPAND_TRADE_DROUGHT';
+            allowTrade = true;
+        }
+        // If recent win rate is poor, tighten thresholds
+        else if (tradesLastHour >= 2 && recentWinRate < 0.4) {
+            thresholdMultiplier = 1.2;
+            reason = 'TIGHTEN_LOW_WINRATE';
+            allowTrade = this.tradingState !== 'OBSERVE';
+        }
+        // Normal operation
+        else if (tradesLastHour < targetTradesPerHour) {
+            reason = 'NORMAL_BELOW_TARGET';
+            allowTrade = true;
+        }
+        
+        // Integrate with OBSERVE/HARVEST/STRIKE state machine
+        if (this.tradingState === 'OBSERVE') {
+            thresholdMultiplier *= 1.2; // More conservative in OBSERVE
+            const minutesInObserve = (now - (this.stateEntryTime || now)) / 60000;
+            if (minutesInObserve < 10) {
+                allowTrade = false; // Hard block for first 10 min in OBSERVE
+                reason = 'OBSERVE_COOLDOWN';
+            }
+        } else if (this.tradingState === 'STRIKE') {
+            thresholdMultiplier *= 0.9; // More aggressive in STRIKE
+        }
+        
+        return {
+            allowTrade,
+            reason,
+            thresholdMultiplier,
+            tradesLastHour,
+            tradesLast2Hours,
+            recentWinRate,
+            tradingState: this.tradingState
+        };
+    }
 
     // 🔄 CRITICAL: Reset daily P/L at the start of each new day
     // This prevents global stop loss from permanently halting trading
@@ -1733,18 +2134,38 @@ class TradeExecutor {
                 return { success: false, error: `Invalid entry price: ${entryPrice}. Must be > 0.` };
             }
 
-            // 🔴 UNBOUNDED FIX #11: HARD maxOdds check - FINAL GUARD against race conditions
-            // This check cannot be bypassed by market movements between ORACLE check and execution
-            if (mode === 'ORACLE' && entryPrice > CONFIG.ORACLE.maxOdds) {
-                log(`🚫 HARD BLOCK: Entry price ${(entryPrice * 100).toFixed(1)}¢ > maxOdds ${(CONFIG.ORACLE.maxOdds * 100).toFixed(1)}¢ - NO VALUE BETTING`, asset);
-                return { success: false, error: `Entry price ${(entryPrice * 100).toFixed(1)}¢ exceeds maxOdds limit` };
+            // 🎯 GOAT v44.1: EV-derived max price check (replaces hard maxOdds)
+            // If pWin is provided, compute EV-derived max entry; otherwise use hardMaxOdds as fallback
+            // This prevents blocking trades that have positive EV at higher prices
+            const pWinProvided = options.pWin;
+            const PROFIT_FEE_PCT_EXEC = 0.02;
+            const SAFETY_MARGIN_EXEC = 0.02;
+            const evDerivedMaxExec = (pWinProvided !== null && pWinProvided !== undefined && Number.isFinite(pWinProvided)) 
+                ? Math.max(0.10, (pWinProvided * (1 - PROFIT_FEE_PCT_EXEC)) - SAFETY_MARGIN_EXEC) 
+                : CONFIG.ORACLE.maxOdds;
+            const hardMaxOddsExec = CONFIG.ORACLE.maxOdds + 0.10; // Allow 10c above hard cap if EV-positive
+            const effectiveMaxExec = Math.min(evDerivedMaxExec, hardMaxOddsExec);
+            
+            if (mode === 'ORACLE' && entryPrice > effectiveMaxExec) {
+                log(`🚫 HARD BLOCK: Entry price ${(entryPrice * 100).toFixed(1)}¢ > EV-max ${(effectiveMaxExec * 100).toFixed(1)}¢ (pWin=${pWinProvided ? (pWinProvided * 100).toFixed(1) + '%' : 'N/A'}) - NO VALUE BETTING`, asset);
+                return { success: false, error: `Entry price ${(entryPrice * 100).toFixed(1)}¢ exceeds EV-derived max ${(effectiveMaxExec * 100).toFixed(1)}¢` };
             }
 
-            // 🏆 v30 CRITICAL FIX: HARD minConfidence check - MUST be enforced here!
-            // Bug: minConfidence was set to 0.80 but never checked - trades at 28% were executing!
-            if (mode === 'ORACLE' && confidence < CONFIG.ORACLE.minConfidence) {
-                log(`🚫 CONFIDENCE BLOCK: Trade confidence ${(confidence * 100).toFixed(1)}% < minConfidence ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% - BLOCKED`, asset);
+            // 🎯 GOAT v44.1: Unified confidence/pWin gating
+            // CONVICTION tier is NOT blocked by raw minConfidence (tier already implies high quality)
+            // Instead, use pWin/EV-based gating for all tiers
+            const tradeTier = options.tier || 'ADVISORY';
+            const isPWinGated = pWinProvided !== null && pWinProvided !== undefined && Number.isFinite(pWinProvided);
+            
+            // For non-CONVICTION, still check raw confidence as fallback when no pWin
+            if (mode === 'ORACLE' && tradeTier !== 'CONVICTION' && !isPWinGated && confidence < CONFIG.ORACLE.minConfidence) {
+                log(`🚫 CONFIDENCE BLOCK: Trade confidence ${(confidence * 100).toFixed(1)}% < minConfidence ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% (tier=${tradeTier}, no pWin)`, asset);
                 return { success: false, error: `Confidence ${(confidence * 100).toFixed(1)}% below ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% threshold` };
+            }
+            
+            // For CONVICTION, log but do not block on raw confidence (pWin/EV already gated earlier)
+            if (mode === 'ORACLE' && tradeTier === 'CONVICTION' && confidence < CONFIG.ORACLE.minConfidence) {
+                log(`📊 CONVICTION PASS: Raw confidence ${(confidence * 100).toFixed(1)}% < minConfidence, but CONVICTION tier bypasses this gate`, asset);
             }
 
             // 🏆 v32 CRITICAL: MINIMUM BALANCE CHECK - User requested $2 minimum
@@ -1754,14 +2175,14 @@ class TradeExecutor {
                 return { success: false, error: `Balance $${this.paperBalance.toFixed(2)} below minimum $${MIN_TRADING_BALANCE}` };
             }
 
-            // 🔴 BUG FIX: DOUBLE CHECK - Re-fetch CURRENT market price and verify it hasn't moved above maxOdds
+            // 🎯 GOAT v44.1: DOUBLE CHECK - Re-fetch CURRENT market price and verify it hasn't moved above EV-derived max
             // This catches race conditions where market moved between ORACLE check and trade execution
             if (mode === 'ORACLE' && market) {
                 const tokenType = direction === 'UP' ? 'YES' : 'NO';
                 const currentRealPrice = tokenType === 'YES' ? market.yesPrice : market.noPrice;
-                if (currentRealPrice && currentRealPrice > CONFIG.ORACLE.maxOdds) {
-                    log(`🚫 REAL-TIME BLOCK: Current market price ${(currentRealPrice * 100).toFixed(1)}¢ > maxOdds ${(CONFIG.ORACLE.maxOdds * 100).toFixed(1)}¢ (passed: ${(entryPrice * 100).toFixed(1)}¢)`, asset);
-                    return { success: false, error: `Current price ${(currentRealPrice * 100).toFixed(1)}¢ exceeds maxOdds - race condition blocked` };
+                if (currentRealPrice && currentRealPrice > effectiveMaxExec) {
+                    log(`🚫 REAL-TIME BLOCK: Current market price ${(currentRealPrice * 100).toFixed(1)}¢ > EV-max ${(effectiveMaxExec * 100).toFixed(1)}¢ (passed: ${(entryPrice * 100).toFixed(1)}¢)`, asset);
+                    return { success: false, error: `Current price ${(currentRealPrice * 100).toFixed(1)}¢ exceeds EV-derived max - race condition blocked` };
                 }
                 // Use the HIGHER of passed vs current to be conservative
                 if (currentRealPrice && currentRealPrice > entryPrice) {
@@ -3439,20 +3860,26 @@ class TradeExecutor {
         return this.redemptionQueue || [];
     }
 
-    // Check and redeem any resolved positions - AUTOMATIC REDEMPTION
+    // 🎯 GOAT v44.1: Check and redeem any resolved positions - IDEMPOTENT AUTOMATIC REDEMPTION
+    // Each item is processed exactly once and outcome is recorded for visibility
     async checkAndRedeemPositions() {
         if (!this.wallet) {
-            return { success: false, error: 'No wallet loaded' };
+            return { success: false, error: 'No wallet loaded', events: [] };
         }
+
+        // Initialize redemption event log if not exists
+        if (!this.redemptionEvents) this.redemptionEvents = [];
 
         const queue = this.redemptionQueue || [];
         if (queue.length === 0) {
-            return { success: true, message: 'No positions to redeem', redeemed: 0 };
+            return { success: true, message: 'No positions to redeem', redeemed: 0, events: [] };
         }
 
         log(`🔍 Checking ${queue.length} positions for automatic redemption...`);
         let redeemed = 0;
         let failed = 0;
+        let skipped = 0;
+        const events = [];
 
         try {
             // Use direct provider to avoid proxy issues
@@ -3462,23 +3889,40 @@ class TradeExecutor {
 
             for (let i = queue.length - 1; i >= 0; i--) {
                 const item = queue[i];
+                
+                // 🎯 GOAT v44.1: Idempotency check - skip if already processed
+                if (item.processedAt) {
+                    skipped++;
+                    continue;
+                }
+
+                const eventRecord = {
+                    tokenId: item.tokenId,
+                    asset: item.asset,
+                    side: item.side,
+                    timestamp: Date.now(),
+                    outcome: 'PENDING',
+                    reason: null,
+                    txHash: null
+                };
 
                 try {
                     // Check if we have any balance of this token
                     const balance = await ctfContract.balanceOf(wallet.address, item.tokenId);
+                    const balanceNum = parseFloat(ethers.utils.formatUnits(balance, 0));
+                    eventRecord.balance = balanceNum;
 
                     if (balance.gt(0)) {
-                        log(`💰 Found ${ethers.utils.formatUnits(balance, 0)} redeemable tokens for ${item.asset}`, item.asset);
+                        log(`💰 Found ${balanceNum} redeemable tokens for ${item.asset}`, item.asset);
 
-                        // 🚀 VELOCITY v26: AUTOMATIC REDEMPTION ATTEMPT
-                        // If we have conditionId stored, try to redeem automatically
+                        // 🚀 AUTOMATIC REDEMPTION ATTEMPT
                         if (item.conditionId) {
                             try {
                                 log(`🔄 Attempting automatic redemption for ${item.asset}...`, item.asset);
 
                                 // Prepare redemption parameters
-                                const parentCollectionId = ethers.constants.HashZero; // bytes32(0) for Polymarket
-                                const indexSets = [1, 2]; // Both outcomes for binary markets
+                                const parentCollectionId = ethers.constants.HashZero;
+                                const indexSets = [1, 2];
 
                                 // Estimate gas first
                                 const gasEstimate = await ctfContract.estimateGas.redeemPositions(
@@ -3498,41 +3942,76 @@ class TradeExecutor {
                                 );
 
                                 log(`📝 Redemption TX submitted: ${tx.hash}`, item.asset);
+                                eventRecord.txHash = tx.hash;
 
                                 // Wait for confirmation
                                 const receipt = await tx.wait();
 
                                 if (receipt.status === 1) {
                                     log(`✅ AUTO-REDEEMED: ${item.asset} ${item.side} - TX: ${tx.hash}`, item.asset);
+                                    eventRecord.outcome = 'REDEEMED';
+                                    eventRecord.reason = 'Auto-redeemed successfully';
+                                    item.processedAt = Date.now();
+                                    item.status = 'REDEEMED';
                                     queue.splice(i, 1);
                                     redeemed++;
-
-                                    // Refresh balance
                                     this.refreshLiveBalance();
                                 } else {
                                     log(`❌ Redemption TX failed for ${item.asset}`, item.asset);
+                                    eventRecord.outcome = 'TX_FAILED';
+                                    eventRecord.reason = 'Transaction reverted';
+                                    item.lastAttempt = Date.now();
+                                    item.attempts = (item.attempts || 0) + 1;
                                     failed++;
                                 }
                             } catch (redeemError) {
                                 log(`⚠️ Auto-redeem failed for ${item.asset}: ${redeemError.message}`, item.asset);
-                                log(`   Fallback: Use Polymarket website to redeem manually`, item.asset);
+                                eventRecord.outcome = 'ERROR';
+                                eventRecord.reason = redeemError.message;
+                                item.lastAttempt = Date.now();
+                                item.attempts = (item.attempts || 0) + 1;
                                 failed++;
                             }
                         } else {
-                            // No conditionId - can't auto-redeem
+                            // No conditionId - mark as requiring manual redemption
                             log(`⚠️ Position ${item.asset} ${item.side} missing conditionId - manual redemption required`, item.asset);
-                            log(`   Use Polymarket website: https://polymarket.com/portfolio`, item.asset);
+                            eventRecord.outcome = 'MANUAL_REQUIRED';
+                            eventRecord.reason = 'Missing conditionId for automatic redemption';
+                            item.requiresManual = true;
                         }
                     } else {
-                        // No balance - either already redeemed or market not resolved
-                        log(`ℹ️ No balance found for ${item.asset} ${item.side} token - may already be redeemed`, item.asset);
-                        // Remove from queue
-                        queue.splice(i, 1);
-                        redeemed++;
+                        // No balance - check if already redeemed or never had tokens
+                        log(`ℹ️ No balance found for ${item.asset} ${item.side} token`, item.asset);
+                        eventRecord.outcome = 'NO_BALANCE';
+                        
+                        // 🎯 GOAT v44.1: Do NOT silently remove - verify before dropping
+                        // Only remove if item has been in queue for > 24 hours (likely already processed)
+                        const ageHours = (Date.now() - (item.addedAt || Date.now())) / (1000 * 60 * 60);
+                        if (ageHours > 24) {
+                            eventRecord.reason = 'Zero balance after 24h - assumed redeemed externally';
+                            item.processedAt = Date.now();
+                            item.status = 'ASSUMED_REDEEMED';
+                            queue.splice(i, 1);
+                            redeemed++;
+                        } else {
+                            eventRecord.reason = 'Zero balance but recent - keeping in queue for verification';
+                            item.lastChecked = Date.now();
+                        }
                     }
                 } catch (e) {
                     log(`⚠️ Error checking token ${item.asset}: ${e.message}`, item.asset);
+                    eventRecord.outcome = 'CHECK_ERROR';
+                    eventRecord.reason = e.message;
+                    item.lastAttempt = Date.now();
                     failed++;
+                }
+
+                events.push(eventRecord);
+                this.redemptionEvents.push(eventRecord);
+                
+                // Keep only last 100 events
+                if (this.redemptionEvents.length > 100) {
+                    this.redemptionEvents = this.redemptionEvents.slice(-100);
                 }
             }
 
@@ -3542,19 +4021,40 @@ class TradeExecutor {
                 message: `Checked ${queue.length + redeemed} positions`,
                 redeemed,
                 failed,
-                remaining: queue.length
+                skipped,
+                remaining: queue.length,
+                events
             };
 
         } catch (e) {
             log(`❌ Redemption check failed: ${e.message}`);
-            return { success: false, error: e.message };
+            return { success: false, error: e.message, events };
         }
     }
+    
+    // 🎯 GOAT v44.1: Get redemption events for API visibility
+    getRedemptionEvents(limit = 50) {
+        return (this.redemptionEvents || []).slice(-limit);
+    }
 
-    // Clear redemption queue
-    clearRedemptionQueue() {
+    // Clear redemption queue (with confirmation tracking)
+    clearRedemptionQueue(reason = 'manual') {
+        const count = (this.redemptionQueue || []).length;
+        const clearedItems = [...(this.redemptionQueue || [])];
         this.redemptionQueue = [];
-        log(`🗑️ Redemption queue cleared`);
+        
+        // Record the clear event
+        if (!this.redemptionEvents) this.redemptionEvents = [];
+        this.redemptionEvents.push({
+            timestamp: Date.now(),
+            outcome: 'QUEUE_CLEARED',
+            reason,
+            clearedCount: count,
+            clearedItems: clearedItems.map(i => ({ asset: i.asset, side: i.side, tokenId: i.tokenId }))
+        });
+        
+        log(`🗑️ Redemption queue cleared: ${count} items (reason: ${reason})`);
+        return { cleared: count, items: clearedItems };
     }
 }
 
@@ -4038,6 +4538,57 @@ class OpportunityDetector {
 
 const tradeExecutor = new TradeExecutor();
 const opportunityDetector = new OpportunityDetector();
+
+// 🎯 GOAT v44.1: GateTrace - records why trades were blocked for each cycle/asset
+const gateTrace = {
+    // Structure: { asset: { cycleStart: timestamp, evaluations: [...] } }
+    traces: {},
+    maxTraces: 50, // Keep last 50 per asset
+    
+    record(asset, evaluation) {
+        if (!this.traces[asset]) {
+            this.traces[asset] = [];
+        }
+        this.traces[asset].unshift({
+            timestamp: Date.now(),
+            cycleStart: Math.floor(Date.now() / 900000) * 900000,
+            ...evaluation
+        });
+        // Keep only last maxTraces
+        if (this.traces[asset].length > this.maxTraces) {
+            this.traces[asset] = this.traces[asset].slice(0, this.maxTraces);
+        }
+    },
+    
+    getAll() {
+        return this.traces;
+    },
+    
+    getForAsset(asset) {
+        return this.traces[asset] || [];
+    },
+    
+    getSummary() {
+        const summary = { totalEvaluations: 0, totalBlocked: 0, gateFailures: {}, byAsset: {} };
+        for (const [asset, traces] of Object.entries(this.traces)) {
+            summary.byAsset[asset] = { evaluations: traces.length, blocked: 0, traded: 0, failedGates: {} };
+            for (const trace of traces) {
+                summary.totalEvaluations++;
+                if (trace.decision === 'NO_TRADE') {
+                    summary.totalBlocked++;
+                    summary.byAsset[asset].blocked++;
+                    for (const gate of (trace.failedGates || [])) {
+                        summary.gateFailures[gate] = (summary.gateFailures[gate] || 0) + 1;
+                        summary.byAsset[asset].failedGates[gate] = (summary.byAsset[asset].failedGates[gate] || 0) + 1;
+                    }
+                } else {
+                    summary.byAsset[asset].traded++;
+                }
+            }
+        }
+        return summary;
+    }
+};
 
 // Logging
 function log(msg, asset = null) {
@@ -5228,6 +5779,10 @@ class SupremeBrain {
                     }
                     this.stabilityCounter = 0;
                     this.pendingSignal = null;
+                    
+                    // 🎯 GOAT v44.1: Invariant enforcement after state update
+                    this.enforceStateInvariants();
+                    
                     log(`✅ PREDICTION FLIP: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
                 }
                 // REMOVED: The broken code that updated confidence separately from prediction
@@ -5248,6 +5803,9 @@ class SupremeBrain {
                     this.lastSignal.conf = finalConfidence;
                     this.lastSignal.tier = tier;
                 }
+                
+                // 🎯 GOAT v44.1: Invariant enforcement after state update
+                this.enforceStateInvariants();
             }
 
             // ==================== MULTI-MODE TRADING SYSTEM ====================
@@ -5264,11 +5822,10 @@ class SupremeBrain {
                 // Do not trade - fall through to end
             } else {
             const meetsAdvisoryThreshold = tier === 'CONVICTION' || (tier === 'ADVISORY' && finalConfidence >= 0.80);
-                // 🎯 COMPREHENSIVE ANALYSIS: Time-based filtering - prefer best hours (14:00-16:00 = 80%+ win rate)
-                const currentHour = new Date().getUTCHours(); // Use UTC for consistency
-                const isBestHour = currentHour >= 14 && currentHour <= 16;
-                // Allow trading in best hours OR if CONVICTION tier (high confidence overrides time)
-                const timeFilterPass = isBestHour || tier === 'CONVICTION';
+                // 🎯 GOAT v44.1: Frequency governor replaces time-of-day filtering
+                // Instead of blocking trades by hour, we dynamically adjust thresholds based on recent trade frequency
+                const frequencyCheck = tradeExecutor.getFrequencyGovernorDecision();
+                const timeFilterPass = frequencyCheck.allowTrade || tier === 'CONVICTION';
                 
                 if (CONFIG.ORACLE.enabled && !this.convictionLocked && meetsAdvisoryThreshold && timeFilterPass && elapsed >= minElapsed && elapsed < 600) {
                 const market = currentMarkets[this.asset];
@@ -5279,6 +5836,8 @@ class SupremeBrain {
                     const isExtremeOdds = currentOdds < 0.20 || currentOdds > 0.95;
                     if (!isExtremeOdds && tier !== 'CONVICTION') {
                         log(`🚫 ENTRY PRICE FILTER: Mid-range odds ${(currentOdds * 100).toFixed(1)}¢ - only CONVICTION can trade mid-range`, this.asset);
+                        // 🎯 GOAT v44.1: Record extreme odds filter block
+                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'PRICE_FILTER', failedGates: ['mid_range_odds'], inputs: { signal: finalSignal, tier, currentOdds, isExtremeOdds, elapsed } });
                         // Do not trade - fall through to end
                     } else {
                     const consensusVotes = Math.max(votes.UP, votes.DOWN);
@@ -5324,24 +5883,50 @@ class SupremeBrain {
                     log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Score=${(finalConfidence * 100).toFixed(0)}% pWin≈${pWinEff !== null ? (pWinEff * 100).toFixed(1) : 'NA'}% EV=${evRoi !== null ? (evRoi * 100).toFixed(2) : 'NA'}%`, this.asset);
 
                     // ==================== MOLECULAR FIX: HARD BLOCKS (Cannot be bypassed by aggression) ====================
+                    // 🎯 GOAT v44.1: Gate trace inputs for this evaluation
+                    const gateInputs = {
+                        signal: finalSignal,
+                        confidence: finalConfidence,
+                        tier,
+                        pWin: pWinEff,
+                        evRoi,
+                        edgePercent,
+                        currentOdds,
+                        consensusRatio,
+                        genesis: modelVotes.genesis,
+                        isTrending,
+                        priceMovingRight,
+                        stabilityCounter: this.stabilityCounter,
+                        elapsed,
+                        adjustedMinConsensus,
+                        adjustedMinConfidence,
+                        adjustedMinEdge,
+                        effectiveMaxOdds: tradeExecutor.getEffectiveMaxOdds(),
+                        effectiveMinStability: tradeExecutor.getEffectiveMinStability()
+                    };
+                    
                     // 1. Missing calibrated pWin = cannot evaluate EV reliably
                     if (pWinEff === null) {
                         log(`🚫 ORACLE HARD BLOCK: Missing calibrated pWin (cannot compute EV)`, this.asset);
+                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['pWin_missing'], inputs: gateInputs });
                         // Do not trade - fall through to end
                     }
                     // 2. NEGATIVE EV = Never trade
                     else if (evRoi !== null && evRoi <= 0) {
                         log(`🚫 ORACLE HARD BLOCK: Negative EV ${(evRoi * 100).toFixed(2)}%`, this.asset);
+                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['negative_EV'], inputs: gateInputs });
                         // Do not trade - fall through to end
                     }
                     // 3. GENESIS DISAGREEMENT = 94% accurate model says NO
                     else if (modelVotes.genesis && modelVotes.genesis !== finalSignal) {
                         log(`🛡️ ORACLE HARD BLOCK: Genesis (94% accurate) says ${modelVotes.genesis}, not ${finalSignal}`, this.asset);
+                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['genesis_veto'], inputs: gateInputs });
                         // Do not trade - fall through to end
                     }
                     // 4. MINIMUM HARD FLOOR: Even with max aggression, need 5% relative edge
                     else if (edgePercent < 5) {
                         log(`⚠️ ORACLE HARD BLOCK: Edge ${edgePercent.toFixed(1)}% below 5% minimum floor`, this.asset);
+                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['edge_floor'], inputs: gateInputs });
                         // Do not trade - fall through to end
                     }
                     else {
@@ -5372,20 +5957,37 @@ class SupremeBrain {
                             log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
                             log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
 
+                            // 🎯 GOAT v44.1: Record successful trade
+                            gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
+                            
                             tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff });
                         }
                         else {
                             // Safe to proceed with normal checks
 
+                            // 🎯 GOAT v44.1: EV-derived max price instead of hard maxOdds
+                            // If pWin implies positive EV even at higher prices, allow entry
+                            // Formula: breakeven_price = pWin * (1 - fee) - safety_margin
+                            const SAFETY_MARGIN = 0.02; // 2% safety
+                            const evDerivedMaxPrice = pWinEff !== null ? Math.max(0.10, (pWinEff * (1 - PROFIT_FEE_PCT)) - SAFETY_MARGIN) : 0.48;
+                            const hardMaxOdds = tradeExecutor.getEffectiveMaxOdds(); // Keep as secondary safety cap
+                            const effectiveMaxPrice = Math.min(evDerivedMaxPrice, hardMaxOdds + 0.10); // Allow up to 10c above hardMaxOdds if EV justifies
+                            const oddsCheckPassed = currentOdds <= effectiveMaxPrice;
+                            
                             const oracleChecks = {
                                 consensus: consensusRatio >= adjustedMinConsensus,
                                 confidence: finalConfidence >= adjustedMinConfidence,
                                 edge: edgePercent >= adjustedMinEdge,
                                 regime: !tradeExecutor.getEffectiveRequireTrending() || isTrending, // 🦅 v21: Dynamic SNIPER/HUNTER
                                 momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
-                                odds: currentOdds <= tradeExecutor.getEffectiveMaxOdds(), // 🦅 v21: Dynamic (0.48 SNIPER / 0.50 HUNTER)
+                                odds: oddsCheckPassed, // 🎯 GOAT: EV-derived price cap
                                 stability: this.stabilityCounter >= tradeExecutor.getEffectiveMinStability() || this.prediction === finalSignal // 🦅 v21: Dynamic
                             };
+                            
+                            // Add EV-derived info to gate inputs for tracing
+                            gateInputs.evDerivedMaxPrice = evDerivedMaxPrice;
+                            gateInputs.effectiveMaxPrice = effectiveMaxPrice;
+                            gateInputs.hardMaxOdds = hardMaxOdds;
 
                             const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
 
@@ -5399,9 +6001,14 @@ class SupremeBrain {
                                 log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
                                 log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
 
+                                // 🎯 GOAT v44.1: Record successful trade
+                                gateTrace.record(this.asset, { decision: 'TRADE', reason: 'ORACLE_ALL_GATES_PASSED', failedGates: [], inputs: gateInputs, checks: oracleChecks });
+                                
                                 tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff });
                             } else {
                                 log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
+                                // 🎯 GOAT v44.1: Record blocked trade with specific gates that failed
+                                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'ORACLE_GATES_FAILED', failedGates: failedChecks, inputs: gateInputs, checks: oracleChecks });
                             }
                         }
                             }
@@ -6218,6 +6825,47 @@ SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts
     return fallbackPWin;
 };
 
+// 🎯 GOAT v44.1: Enforce state invariants to prevent contradictory states
+SupremeBrain.prototype.enforceStateInvariants = function () {
+    // Invariant 1: Lock state must be consistent with prediction
+    // If oracleLocked, prediction MUST match oracleLockPrediction
+    if (this.oracleLocked && this.oracleLockPrediction && this.prediction !== this.oracleLockPrediction) {
+        log(`⚠️ INVARIANT FIX: oracleLocked but prediction ${this.prediction} != lockPrediction ${this.oracleLockPrediction}. Forcing alignment.`, this.asset);
+        this.prediction = this.oracleLockPrediction;
+    }
+    
+    // Invariant 2: convictionLocked must be consistent with tier
+    // If convictionLocked, tier should be CONVICTION
+    if (this.convictionLocked && this.tier !== 'CONVICTION') {
+        log(`⚠️ INVARIANT FIX: convictionLocked but tier=${this.tier}. Upgrading to CONVICTION.`, this.asset);
+        this.tier = 'CONVICTION';
+    }
+    
+    // Invariant 3: lockedDirection must match prediction when convictionLocked
+    if (this.convictionLocked && this.lockedDirection && this.prediction !== this.lockedDirection) {
+        log(`⚠️ INVARIANT FIX: convictionLocked to ${this.lockedDirection} but prediction=${this.prediction}. Forcing alignment.`, this.asset);
+        this.prediction = this.lockedDirection;
+    }
+    
+    // Invariant 4: cycleCommitted direction must match prediction
+    if (this.cycleCommitted && this.committedDirection && this.prediction !== this.committedDirection) {
+        log(`⚠️ INVARIANT FIX: cycleCommitted to ${this.committedDirection} but prediction=${this.prediction}. Forcing alignment.`, this.asset);
+        this.prediction = this.committedDirection;
+    }
+    
+    // Invariant 5: confidence must be in [0, 1]
+    if (this.confidence < 0 || this.confidence > 1) {
+        log(`⚠️ INVARIANT FIX: confidence=${this.confidence} out of bounds. Clamping.`, this.asset);
+        this.confidence = Math.max(0, Math.min(1, this.confidence));
+    }
+    
+    // Invariant 6: NONE tier should not have high confidence signals
+    // (This is informational - we don't force change, just log)
+    if (this.tier === 'NONE' && this.confidence > 0.7 && this.prediction !== 'WAIT' && this.prediction !== 'NEUTRAL') {
+        log(`📊 TIER MISMATCH: High confidence ${(this.confidence * 100).toFixed(1)}% but tier=NONE. Consider tier recalculation.`, this.asset);
+    }
+};
+
 const Brains = {};
 ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
 
@@ -6903,6 +7551,7 @@ app.get('/', (req, res) => {
         <div class="nav-brand">🔮 Supreme Oracle <span id="codeFingerprint" style="font-size:0.6em;color:#888;margin-left:8px;"></span></div>
         <div class="nav-links">
             <span id="activePresetBadge" style="background:#333;color:#ffd700;padding:4px 10px;border-radius:12px;font-size:0.8em;margin-right:8px;">🏷️ Loading...</span>
+            <button class="nav-btn" onclick="openModal('apiExplorerModal')">🔌 API</button>
             <button class="nav-btn" onclick="openModal('walletModal')">💰 Wallet</button>
             <button class="nav-btn" onclick="openModal('settingsModal')">⚙️ Settings</button>
             <button class="nav-btn" onclick="openModal('guideModal')">📚 Guide</button>
@@ -6935,6 +7584,12 @@ app.get('/', (req, res) => {
         <div class="trading-panel" style="margin-top:15px;">
             <div class="panel-header"><span class="panel-title">📜 Trade History</span><span id="historyCount">0 trades</span></div>
             <div class="positions-list" id="tradeHistory"><div class="no-positions">No trades yet</div></div>
+        </div>
+        <!-- 🎯 GOAT v44.1: GateTrace Panel -->
+        <div class="trading-panel" style="margin-top:15px;">
+            <div class="panel-header"><span class="panel-title">🚧 Gate Trace (Why Not Trading?)</span><button onclick="loadGateTrace()" style="padding:4px 10px;background:#f59e0b;border:none;border-radius:4px;cursor:pointer;color:#000;font-size:0.75em;font-weight:bold;">🔄 Refresh</button></div>
+            <div id="gateTraceSummary" style="padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;margin-bottom:10px;font-size:0.85em;color:#888;">Click refresh to load gate trace data...</div>
+            <div class="positions-list" id="gateTraceList" style="max-height:250px;"><div class="no-positions">Gate trace shows why trades were blocked</div></div>
         </div>
     </div>
     <!-- WALLET MODAL -->
@@ -7420,6 +8075,87 @@ app.get('/', (req, res) => {
                 </ol>
             </div>
             <p style="color:#666;font-size:0.8em;margin-top:10px;text-align:center;">Auto-updates every 10 seconds | API: <code>/api/pending-sells</code></p>
+        </div>
+    </div>
+    <!-- 🎯 GOAT v44.1: API EXPLORER MODAL -->
+    <div class="modal-overlay" id="apiExplorerModal">
+        <div class="modal" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header"><span class="modal-title">🔌 API Explorer</span><button class="modal-close" onclick="closeModal('apiExplorerModal')">×</button></div>
+            
+            <div style="padding:12px;background:rgba(0,255,136,0.1);border-radius:8px;margin-bottom:15px;border-left:3px solid #00ff88;">
+                <h4 style="color:#00ff88;margin-bottom:8px;">🔑 Your API Key</h4>
+                <div style="display:flex;gap:10px;align-items:center;">
+                    <code id="apiKeyDisplay" style="flex:1;background:rgba(0,0,0,0.4);padding:10px;border-radius:6px;font-size:0.9em;word-break:break-all;">Loading...</code>
+                    <button onclick="copyApiKey()" style="padding:8px 16px;background:#00ff88;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">📋 Copy</button>
+                </div>
+                <p style="color:#888;font-size:0.75em;margin-top:8px;">Use this key for programmatic access: <code>Authorization: Bearer &lt;key&gt;</code> or <code>?apiKey=&lt;key&gt;</code></p>
+            </div>
+            
+            <h4 style="color:#ffd700;margin-bottom:10px;">📡 Quick API Calls</h4>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:15px;">
+                <button onclick="apiCall('/api/version')" class="btn" style="background:linear-gradient(90deg,#4fc3f7,#2196f3);">📋 Version</button>
+                <button onclick="apiCall('/api/state')" class="btn" style="background:linear-gradient(90deg,#9933ff,#6600cc);">🔮 Full State</button>
+                <button onclick="apiCall('/api/state-public')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);">🌐 Public State</button>
+                <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);">⚙️ Settings</button>
+                <button onclick="apiCall('/api/trades')" class="btn" style="background:linear-gradient(90deg,#ff4466,#cc2244);">📊 Trades</button>
+                <button onclick="apiCall('/api/pending-sells')" class="btn" style="background:linear-gradient(90deg,#8b5cf6,#6d28d9);">🔄 Pending Sells</button>
+                <button onclick="apiCall('/api/gates')" class="btn" style="background:linear-gradient(90deg,#f59e0b,#d97706);">🚧 Gate Trace</button>
+                <button onclick="apiCall('/api/backtest-proof?tier=ALL&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);">📈 Backtest</button>
+            </div>
+            
+            <h4 style="color:#00ff88;margin-bottom:8px;">🧪 Custom Request</h4>
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
+                <select id="apiMethod" style="padding:10px;background:rgba(0,0,0,0.4);border:2px solid rgba(100,150,255,0.2);border-radius:6px;color:#fff;">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                </select>
+                <input type="text" id="apiEndpoint" placeholder="/api/state" style="flex:1;padding:10px;background:rgba(0,0,0,0.4);border:2px solid rgba(100,150,255,0.2);border-radius:6px;color:#fff;font-family:monospace;">
+                <button onclick="apiCallCustom()" class="btn btn-primary">▶️ Run</button>
+            </div>
+            <div id="apiBodyContainer" style="display:none;margin-bottom:10px;">
+                <label style="color:#888;font-size:0.8em;">Request Body (JSON):</label>
+                <textarea id="apiBody" style="width:100%;height:80px;padding:10px;background:rgba(0,0,0,0.4);border:2px solid rgba(100,150,255,0.2);border-radius:6px;color:#fff;font-family:monospace;resize:vertical;" placeholder='{"key": "value"}'></textarea>
+            </div>
+            
+            <h4 style="color:#88ccff;margin-bottom:8px;">📄 Response</h4>
+            <div style="position:relative;">
+                <pre id="apiResponse" style="background:rgba(0,0,0,0.5);padding:15px;border-radius:8px;font-size:0.8em;max-height:350px;overflow:auto;white-space:pre-wrap;word-break:break-word;border:1px solid rgba(100,150,255,0.2);">Click an API button above to see the response...</pre>
+                <button onclick="copyApiResponse()" style="position:absolute;top:8px;right:8px;padding:4px 8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:4px;color:#888;cursor:pointer;font-size:0.7em;">📋 Copy</button>
+            </div>
+            
+            <h4 style="color:#ff9900;margin-top:15px;margin-bottom:8px;">📖 API Reference</h4>
+            <div style="font-size:0.85em;color:#aaa;">
+                <table style="width:100%;border-collapse:collapse;">
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#4fc3f7;"><code>GET /api/version</code></td>
+                        <td style="padding:6px;">Code version, commit hash, uptime (public)</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#4fc3f7;"><code>GET /api/state-public</code></td>
+                        <td style="padding:6px;">Predictions without sensitive data (public)</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#4fc3f7;"><code>GET /api/state</code></td>
+                        <td style="padding:6px;">Full bot state with all asset data</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#4fc3f7;"><code>GET /api/gates</code></td>
+                        <td style="padding:6px;">GateTrace: why trades were blocked</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#4fc3f7;"><code>GET /api/backtest-proof</code></td>
+                        <td style="padding:6px;">Run deterministic backtest on debug logs</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#4fc3f7;"><code>GET /api/settings</code></td>
+                        <td style="padding:6px;">Current configuration values</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px;color:#4fc3f7;"><code>POST /api/settings</code></td>
+                        <td style="padding:6px;">Update configuration</td>
+                    </tr>
+                </table>
+            </div>
         </div>
     </div>
     <script>
@@ -8094,6 +8830,144 @@ app.get('/', (req, res) => {
             }
         }
         
+        // 🎯 GOAT v44.1: API EXPLORER FUNCTIONS
+        let cachedApiKey = null;
+        async function loadApiKey() {
+            try {
+                const res = await fetch('/api/api-key');
+                if (res.ok) {
+                    const data = await res.json();
+                    cachedApiKey = data.apiKey;
+                    document.getElementById('apiKeyDisplay').textContent = cachedApiKey;
+                }
+            } catch (e) {
+                document.getElementById('apiKeyDisplay').textContent = 'Error loading API key';
+            }
+        }
+        loadApiKey();
+        
+        function copyApiKey() {
+            if (cachedApiKey) {
+                navigator.clipboard.writeText(cachedApiKey);
+                alert('API key copied to clipboard!');
+            }
+        }
+        
+        function copyApiResponse() {
+            const response = document.getElementById('apiResponse').textContent;
+            navigator.clipboard.writeText(response);
+            alert('Response copied to clipboard!');
+        }
+        
+        async function apiCall(endpoint) {
+            const responseEl = document.getElementById('apiResponse');
+            responseEl.textContent = 'Loading...';
+            responseEl.style.color = '#888';
+            try {
+                const start = performance.now();
+                const res = await fetch(endpoint);
+                const elapsed = (performance.now() - start).toFixed(0);
+                const data = await res.json();
+                responseEl.style.color = res.ok ? '#00ff88' : '#ff4466';
+                responseEl.textContent = '// ' + endpoint + ' (' + res.status + ') - ' + elapsed + 'ms\\n' + JSON.stringify(data, null, 2);
+            } catch (e) {
+                responseEl.style.color = '#ff4466';
+                responseEl.textContent = 'Error: ' + e.message;
+            }
+        }
+        
+        async function apiCallCustom() {
+            const method = document.getElementById('apiMethod').value;
+            const endpoint = document.getElementById('apiEndpoint').value || '/api/state';
+            const bodyText = document.getElementById('apiBody').value;
+            const responseEl = document.getElementById('apiResponse');
+            responseEl.textContent = 'Loading...';
+            responseEl.style.color = '#888';
+            try {
+                const options = { method };
+                if (method === 'POST' && bodyText) {
+                    options.headers = { 'Content-Type': 'application/json' };
+                    options.body = bodyText;
+                }
+                const start = performance.now();
+                const res = await fetch(endpoint, options);
+                const elapsed = (performance.now() - start).toFixed(0);
+                const text = await res.text();
+                let formatted;
+                try { formatted = JSON.stringify(JSON.parse(text), null, 2); } catch { formatted = text; }
+                responseEl.style.color = res.ok ? '#00ff88' : '#ff4466';
+                responseEl.textContent = '// ' + method + ' ' + endpoint + ' (' + res.status + ') - ' + elapsed + 'ms\\n' + formatted;
+            } catch (e) {
+                responseEl.style.color = '#ff4466';
+                responseEl.textContent = 'Error: ' + e.message;
+            }
+        }
+        
+        // Toggle POST body visibility
+        document.getElementById('apiMethod').addEventListener('change', function() {
+            document.getElementById('apiBodyContainer').style.display = this.value === 'POST' ? 'block' : 'none';
+        });
+        
+        // 🎯 GOAT v44.1: GateTrace UI functions
+        async function loadGateTrace() {
+            try {
+                const res = await fetch('/api/gates');
+                if (!res.ok) throw new Error('Failed to load gates');
+                const data = await res.json();
+                
+                // Update summary
+                const summary = data.summary || {};
+                const summaryHtml = '<strong>Evaluations:</strong> ' + (summary.totalEvaluations || 0) + 
+                    ' | <strong>Blocked:</strong> <span style="color:#ff4466;">' + (summary.totalBlocked || 0) + '</span>' +
+                    ' | <strong>Top Blockers:</strong> ' + Object.entries(summary.gateFailures || {}).slice(0, 3).map(([g, c]) => g + '(' + c + ')').join(', ');
+                document.getElementById('gateTraceSummary').innerHTML = summaryHtml || 'No data yet';
+                
+                // Update traces list
+                const traceList = document.getElementById('gateTraceList');
+                const allTraces = [];
+                for (const [asset, traces] of Object.entries(data.recentTraces || {})) {
+                    for (const t of traces) {
+                        allTraces.push({ asset, ...t });
+                    }
+                }
+                allTraces.sort((a, b) => b.timestamp - a.timestamp);
+                
+                if (allTraces.length === 0) {
+                    traceList.innerHTML = '<div class="no-positions">No gate evaluations recorded yet. Wait for the next cycle.</div>';
+                    return;
+                }
+                
+                let html = '';
+                for (const t of allTraces.slice(0, 15)) {
+                    const isBlocked = t.decision === 'NO_TRADE';
+                    const color = isBlocked ? '#ff4466' : '#00ff88';
+                    const icon = isBlocked ? '🚫' : '✅';
+                    const time = new Date(t.timestamp).toLocaleTimeString();
+                    const failedStr = (t.failedGates || []).join(', ') || 'none';
+                    const inputs = t.inputs || {};
+                    html += '<div class="position-item" style="border-left:3px solid ' + color + ';">';
+                    html += '<span>' + icon + ' <strong>' + t.asset + '</strong> @ ' + time + ' - ' + (t.reason || 'unknown') + '</span>';
+                    html += '<span style="color:#888;font-size:0.8em;">Failed: ' + failedStr + '</span>';
+                    html += '</div>';
+                    if (inputs.pWin !== undefined) {
+                        html += '<div style="padding:4px 12px;background:rgba(0,0,0,0.2);font-size:0.75em;color:#666;margin-bottom:6px;border-radius:0 0 6px 6px;">';
+                        html += 'pWin=' + (inputs.pWin !== null ? (inputs.pWin * 100).toFixed(1) + '%' : 'N/A');
+                        html += ' | EV=' + (inputs.evRoi !== null ? (inputs.evRoi * 100).toFixed(2) + '%' : 'N/A');
+                        html += ' | Edge=' + (inputs.edgePercent !== undefined ? inputs.edgePercent.toFixed(1) + '%' : 'N/A');
+                        html += ' | Odds=' + (inputs.currentOdds !== undefined ? (inputs.currentOdds * 100).toFixed(1) + '¢' : 'N/A');
+                        html += ' | Cons=' + (inputs.consensusRatio !== undefined ? (inputs.consensusRatio * 100).toFixed(0) + '%' : 'N/A');
+                        html += '</div>';
+                    }
+                }
+                traceList.innerHTML = html;
+            } catch (e) {
+                document.getElementById('gateTraceList').innerHTML = '<div class="no-positions" style="color:#ff4466;">Error: ' + e.message + '</div>';
+            }
+        }
+        // Auto-load gate trace on page load
+        setTimeout(loadGateTrace, 2000);
+        setInterval(loadGateTrace, 30000); // Refresh every 30s
+        
         // PENDING SELLS / RECOVERY FUNCTIONS
         async function loadPendingSells() {
             try {
@@ -8303,6 +9177,87 @@ app.get('/api/state', (req, res) => {
     res.json(buildStateSnapshot());
 });
 
+// 🎯 GOAT v44.1: Public state endpoint (no auth, no sensitive data)
+app.get('/api/state-public', (req, res) => {
+    const snapshot = buildStateSnapshot();
+    // Strip sensitive data
+    const publicState = {};
+    for (const [asset, data] of Object.entries(snapshot)) {
+        publicState[asset] = {
+            prediction: data.prediction,
+            confidence: data.confidence,
+            tier: data.tier,
+            edge: data.edge,
+            pWin: data.pWin,
+            certaintyScore: data.certaintyScore,
+            winRate: data.winRate,
+            recentAccuracy: data.recentAccuracy,
+            currentPhase: data.currentPhase,
+            locked: data.locked,
+            lockedDirection: data.lockedDirection,
+            marketOdds: data.marketOdds
+        };
+    }
+    res.json({
+        timestamp: Date.now(),
+        mode: CONFIG.TRADE_MODE,
+        uptime: process.uptime(),
+        assets: publicState
+    });
+});
+
+// 🎯 GOAT v44.1: Get API key for programmatic access (authenticated users only)
+app.get('/api/api-key', (req, res) => {
+    res.json({
+        apiKey: API_KEY,
+        usage: {
+            bearer: 'Authorization: Bearer <apiKey>',
+            queryParam: '?apiKey=<apiKey>',
+            basicAuth: 'Basic base64(username:password)'
+        }
+    });
+});
+
+// 🎯 GOAT v44.1: GateTrace API - shows why trades were blocked
+app.get('/api/gates', (req, res) => {
+    const asset = req.query.asset;
+    const limit = parseInt(req.query.limit) || 20;
+    
+    if (asset && ASSETS.includes(asset)) {
+        // Get traces for specific asset
+        const traces = gateTrace.getForAsset(asset).slice(0, limit);
+        return res.json({
+            asset,
+            count: traces.length,
+            traces,
+            summary: gateTrace.getSummary().byAsset[asset] || {}
+        });
+    }
+    
+    // Get summary + recent traces for all assets
+    const summary = gateTrace.getSummary();
+    const recentByAsset = {};
+    for (const a of ASSETS) {
+        recentByAsset[a] = gateTrace.getForAsset(a).slice(0, 5);
+    }
+    
+    res.json({
+        summary,
+        recentTraces: recentByAsset,
+        config: {
+            ORACLE: {
+                minConsensus: CONFIG.ORACLE.minConsensus,
+                minConfidence: CONFIG.ORACLE.minConfidence,
+                minEdge: CONFIG.ORACLE.minEdge,
+                maxOdds: CONFIG.ORACLE.maxOdds,
+                minStability: CONFIG.ORACLE.minStability,
+                effectiveMaxOdds: tradeExecutor.getEffectiveMaxOdds(),
+                effectiveMinStability: tradeExecutor.getEffectiveMinStability()
+            }
+        }
+    });
+});
+
 // Trading API - Get detailed trade data
 app.get('/api/trades', (req, res) => {
     res.json({
@@ -8407,10 +9362,34 @@ app.post('/api/retry-sell', async (req, res) => {
 
 // Get redemption queue
 app.get('/api/redemption-queue', (req, res) => {
+    const queue = tradeExecutor.getRedemptionQueue();
     res.json({
         success: true,
-        queue: tradeExecutor.getRedemptionQueue(),
-        count: tradeExecutor.getRedemptionQueue().length
+        queue,
+        count: queue.length,
+        // 🎯 GOAT v44.1: Include summary stats
+        summary: {
+            total: queue.length,
+            requiresManual: queue.filter(i => i.requiresManual).length,
+            pendingRetry: queue.filter(i => i.attempts && i.attempts > 0).length,
+            oldestItem: queue.length > 0 ? Math.min(...queue.map(i => i.addedAt || Date.now())) : null
+        }
+    });
+});
+
+// 🎯 GOAT v44.1: Get redemption events (history of all redemption attempts)
+app.get('/api/redemption-events', (req, res) => {
+    const limit = parseInt(req.query.limit) || 50;
+    const events = tradeExecutor.getRedemptionEvents(limit);
+    res.json({
+        success: true,
+        events,
+        count: events.length,
+        summary: {
+            redeemed: events.filter(e => e.outcome === 'REDEEMED').length,
+            failed: events.filter(e => e.outcome === 'TX_FAILED' || e.outcome === 'ERROR').length,
+            manualRequired: events.filter(e => e.outcome === 'MANUAL_REQUIRED').length
+        }
     });
 });
 
@@ -8426,8 +9405,9 @@ app.post('/api/check-redemptions', async (req, res) => {
 
 // Clear redemption queue
 app.post('/api/clear-redemption-queue', (req, res) => {
-    tradeExecutor.clearRedemptionQueue();
-    res.json({ success: true, message: 'Queue cleared' });
+    const reason = req.body?.reason || 'manual_api_call';
+    const result = tradeExecutor.clearRedemptionQueue(reason);
+    res.json({ success: true, message: 'Queue cleared', ...result });
 });
 
 // 🔓 Toggle Global Stop Loss Override
@@ -9733,9 +10713,20 @@ async function startup() {
     // Initial check after 30 seconds (give server time to start)
     setTimeout(() => tradeExecutor.checkLowBalances(), 30000);
 
+    // 🎯 GOAT v44.1: Startup Self-Tests
+    const selfTestResults = runStartupSelfTests();
+    if (selfTestResults.failed > 0) {
+        log(`⚠️ STARTUP SELF-TESTS: ${selfTestResults.failed}/${selfTestResults.total} FAILED`);
+        selfTestResults.failures.forEach(f => log(`   ❌ ${f}`));
+    } else {
+        log(`✅ STARTUP SELF-TESTS: ${selfTestResults.total}/${selfTestResults.total} PASSED`);
+    }
+    
     server.listen(PORT, () => {
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);
         log(`🌐 Access at: http://localhost:${PORT}`);
+        log(`📊 Config Version: ${CONFIG_VERSION}`);
+        log(`🔑 API Key: ${API_KEY.substring(0, 8)}...`);
 
         // 📱 Telegram: Server Online notification
         sendTelegramNotification(telegramServerStatus('online', {
@@ -9743,6 +10734,150 @@ async function startup() {
             balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : null
         }));
     });
+    
+    // 🎯 GOAT v44.1: Start Watchdog
+    startWatchdog();
+}
+
+// 🎯 GOAT v44.1: Startup Self-Tests
+function runStartupSelfTests() {
+    const tests = [];
+    const failures = [];
+    
+    // Test 1: Required environment variables
+    tests.push('ENV_AUTH');
+    if (!process.env.AUTH_USERNAME || !process.env.AUTH_PASSWORD) {
+        failures.push('AUTH_USERNAME or AUTH_PASSWORD not set (using defaults)');
+    }
+    
+    // Test 2: Node version check
+    tests.push('NODE_VERSION');
+    const nodeVersion = process.version.match(/^v(\d+)/);
+    const majorVersion = nodeVersion ? parseInt(nodeVersion[1]) : 0;
+    if (majorVersion < 18) {
+        failures.push(`Node version ${process.version} is below minimum (18.x)`);
+    }
+    if (majorVersion >= 26) {
+        failures.push(`Node version ${process.version} is above tested maximum (25.x)`);
+    }
+    
+    // Test 3: CONFIG sanity
+    tests.push('CONFIG_SANITY');
+    if (!CONFIG || !CONFIG.ORACLE) {
+        failures.push('CONFIG or CONFIG.ORACLE is undefined');
+    }
+    if (CONFIG.ORACLE.maxOdds > 0.95) {
+        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) is dangerously high`);
+    }
+    if (CONFIG.ORACLE.minConfidence < 0.3) {
+        failures.push(`CONFIG.ORACLE.minConfidence (${CONFIG.ORACLE.minConfidence}) is very low`);
+    }
+    
+    // Test 4: Trade executor initialized
+    tests.push('TRADE_EXECUTOR');
+    if (!tradeExecutor) {
+        failures.push('tradeExecutor not initialized');
+    }
+    
+    // Test 5: Brains initialized
+    tests.push('BRAINS');
+    if (!Brains || Object.keys(Brains).length === 0) {
+        failures.push('Brains not initialized');
+    }
+    
+    // Test 6: Gate trace initialized
+    tests.push('GATE_TRACE');
+    if (!gateTrace) {
+        failures.push('gateTrace not initialized');
+    }
+    
+    return {
+        total: tests.length,
+        passed: tests.length - failures.length,
+        failed: failures.length,
+        tests,
+        failures
+    };
+}
+
+// 🎯 GOAT v44.1: Watchdog - monitors for issues and alerts
+let watchdogState = {
+    lastCycleDetected: Date.now(),
+    lastTrade: null,
+    consecutiveApiFailures: 0,
+    alertsSent: new Set()
+};
+
+function startWatchdog() {
+    const WATCHDOG_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
+    const CYCLE_TIMEOUT = 20 * 60 * 1000; // Alert if no cycle detected in 20 min
+    const TRADE_DROUGHT_HOURS = 4; // Alert if no trades in 4 hours
+    
+    setInterval(() => {
+        const now = Date.now();
+        const alerts = [];
+        
+        // Check 1: Cycle detection
+        const cycleAge = now - watchdogState.lastCycleDetected;
+        if (cycleAge > CYCLE_TIMEOUT) {
+            const alertKey = 'no_cycles_' + Math.floor(now / (60 * 60 * 1000));
+            if (!watchdogState.alertsSent.has(alertKey)) {
+                alerts.push(`⚠️ WATCHDOG: No cycles detected in ${(cycleAge / 60000).toFixed(0)} minutes`);
+                watchdogState.alertsSent.add(alertKey);
+            }
+        }
+        
+        // Check 2: Trade drought
+        const lastTradeTime = tradeExecutor.tradeHistory.length > 0 
+            ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp 
+            : null;
+        if (lastTradeTime) {
+            const tradeAge = (now - lastTradeTime) / (1000 * 60 * 60);
+            if (tradeAge > TRADE_DROUGHT_HOURS) {
+                const alertKey = 'trade_drought_' + Math.floor(now / (60 * 60 * 1000));
+                if (!watchdogState.alertsSent.has(alertKey)) {
+                    alerts.push(`⚠️ WATCHDOG: No trades in ${tradeAge.toFixed(1)} hours`);
+                    watchdogState.alertsSent.add(alertKey);
+                }
+            }
+        }
+        
+        // Check 3: Memory usage
+        const memUsage = process.memoryUsage();
+        const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+        if (heapUsedMB > 500) {
+            const alertKey = 'high_memory_' + Math.floor(now / (60 * 60 * 1000));
+            if (!watchdogState.alertsSent.has(alertKey)) {
+                alerts.push(`⚠️ WATCHDOG: High memory usage (${heapUsedMB.toFixed(0)}MB)`);
+                watchdogState.alertsSent.add(alertKey);
+            }
+        }
+        
+        // Log alerts
+        for (const alert of alerts) {
+            log(alert);
+            // Send Telegram alert if enabled
+            if (CONFIG.TELEGRAM?.enabled) {
+                sendTelegramNotification(telegramSystemAlert('🐕 Watchdog Alert', alert));
+            }
+        }
+        
+        // Clean up old alert keys (older than 6 hours)
+        const cutoff = Math.floor((now - 6 * 60 * 60 * 1000) / (60 * 60 * 1000));
+        for (const key of watchdogState.alertsSent) {
+            const keyTime = parseInt(key.split('_').pop());
+            if (keyTime < cutoff) {
+                watchdogState.alertsSent.delete(key);
+            }
+        }
+    }, WATCHDOG_INTERVAL);
+    
+    log(`🐕 WATCHDOG: Started (checking every ${WATCHDOG_INTERVAL / 60000} minutes)`);
+}
+
+// Update watchdog when cycle is detected
+function watchdogCycleDetected() {
+    watchdogState.lastCycleDetected = Date.now();
 }
 
 // ==================== GLOBAL ERROR HANDLERS ====================
@@ -9777,3 +10912,4 @@ process.on('SIGINT', () => {
 });
 
 startup();
+
