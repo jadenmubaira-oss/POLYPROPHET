@@ -9182,7 +9182,10 @@ app.get('/api/state-public', (req, res) => {
     const snapshot = buildStateSnapshot();
     // Strip sensitive data
     const publicState = {};
-    for (const [asset, data] of Object.entries(snapshot)) {
+    // Only include known assets (buildStateSnapshot also includes `_trading` metadata)
+    for (const asset of ASSETS) {
+        const data = snapshot[asset];
+        if (!data) continue;
         publicState[asset] = {
             prediction: data.prediction,
             confidence: data.confidence,
