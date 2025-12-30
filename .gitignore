@@ -50,3 +50,19 @@ POLYPROPHET Molecular Reconstruction.md
 
 # Tools (optional - can keep if useful)
 tools/
+
+# 🎯 GOAT: Additional cleanup exclusions
+BASELINE_DECISION.md
+GOLDEN_MEAN_RUNBOOK.md
+backtest-data/
+local-archive/
+
+# Additional forensic files
+COMPREHENSIVE_ANALYSIS_FINAL.md
+*_INVESTIGATION*.md
+*_LEDGER*.md
+*_FINDINGS*.md
+*_VERDICT*.md
+*_TIMELINE*.md
+*_CONFIRMATION*.md
+*_SUMMARY*.md

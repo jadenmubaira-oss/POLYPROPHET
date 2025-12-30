@@ -121,6 +121,199 @@ app.use((req, res, next) => {
 // (we want `/` to be the full-featured dashboard, like the original server.js UI)
 app.use(express.static('public', { index: false }));
 
+// ==================== PROOF-QUALITY BACKTEST API ====================
+// 🎯 GOAT: Deterministic backtester using historical cycle data
+app.get('/api/backtest-proof', async (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        // Parse query params
+        const minConfigVersion = parseInt(req.query.minConfigVersion) || 0;
+        const filterCommit = req.query.commit || null;
+        const startingBalance = parseFloat(req.query.balance) || 5.0;
+        const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, or ALL
+        const priceFilter = req.query.prices || 'EXTREME'; // EXTREME (<20¢ or >95¢), ALL
+        
+        // Fee model: 2% on profits at resolution
+        const PROFIT_FEE_PCT = 0.02;
+        const SLIPPAGE_PCT = 0.01;
+        const MAX_POSITION_PCT = 0.60; // Max 60% of balance per trade
+        
+        const debugDir = path.join(__dirname, 'debug');
+        if (!fs.existsSync(debugDir)) {
+            return res.json({ error: 'No debug directory found', cycles: 0 });
+        }
+        
+        const debugFiles = fs.readdirSync(debugDir)
+            .filter(f => f.startsWith('polyprophet_debug_') && f.endsWith('.json'))
+            .sort(); // chronological order
+        
+        // Collect all cycles from all matching debug files
+        const allCycles = [];
+        const seenCycleEnds = new Set(); // Dedup by cycle end time
+        
+        for (const file of debugFiles) {
+            try {
+                const content = fs.readFileSync(path.join(debugDir, file), 'utf8');
+                const data = JSON.parse(content);
+                
+                // Filter by config version
+                const configVer = data.code?.configVersion || 0;
+                if (configVer < minConfigVersion) continue;
+                
+                // Filter by commit
+                if (filterCommit && data.code?.gitCommit && !data.code.gitCommit.startsWith(filterCommit)) continue;
+                
+                // Extract cycles from each asset
+                const assets = data.assets || {};
+                for (const [asset, assetData] of Object.entries(assets)) {
+                    const cycleHistory = assetData.cycleHistory || [];
+                    for (const cycle of cycleHistory) {
+                        if (!cycle.cycleEndTime) continue;
+                        
+                        // Dedup
+                        const key = `${asset}_${cycle.cycleEndTime}`;
+                        if (seenCycleEnds.has(key)) continue;
+                        seenCycleEnds.add(key);
+                        
+                        // Apply tier filter
+                        const tier = cycle.tier || 'NONE';
+                        if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
+                        
+                        // Apply price filter
+                        const odds = cycle.marketOdds || {};
+                        const yesPrice = odds.yesPrice || 0.5;
+                        const noPrice = odds.noPrice || 0.5;
+                        const prediction = cycle.prediction;
+                        const entryPrice = prediction === 'UP' ? yesPrice : noPrice;
+                        
+                        if (priceFilter === 'EXTREME') {
+                            if (entryPrice >= 0.20 && entryPrice <= 0.95) continue; // Skip mid-range
+                        }
+                        
+                        allCycles.push({
+                            asset,
+                            cycleEndTime: cycle.cycleEndTime,
+                            prediction,
+                            actualOutcome: cycle.actualOutcome,
+                            wasCorrect: cycle.wasCorrect,
+                            tier,
+                            confidence: cycle.confidence || 0,
+                            entryPrice,
+                            configVersion: configVer
+                        });
+                    }
+                }
+            } catch (e) {
+                // Skip malformed files
+            }
+        }
+        
+        // Sort by cycle end time
+        allCycles.sort((a, b) => new Date(a.cycleEndTime) - new Date(b.cycleEndTime));
+        
+        // Simulate trading
+        let balance = startingBalance;
+        let peakBalance = startingBalance;
+        let maxDrawdown = 0;
+        let wins = 0;
+        let losses = 0;
+        const trades = [];
+        const balanceHistory = [{ time: 'start', balance: startingBalance }];
+        
+        for (const cycle of allCycles) {
+            if (balance <= 1.0) break; // Stop if balance too low
+            
+            // Position sizing: min of (60% balance) or (Kelly-style sizing)
+            const positionSize = Math.min(balance * MAX_POSITION_PCT, balance - 1.0);
+            if (positionSize <= 0) break;
+            
+            // Entry price with slippage
+            const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
+            
+            // Calculate shares
+            const shares = positionSize / effectiveEntry;
+            
+            // Resolution: win pays $1/share, loss pays $0
+            let pnl;
+            if (cycle.wasCorrect) {
+                // Win: shares resolve to $1 each, minus fee on profit
+                const grossValue = shares * 1.0; // $1 per share
+                const profit = grossValue - positionSize;
+                const fee = profit * PROFIT_FEE_PCT;
+                pnl = profit - fee;
+                wins++;
+            } else {
+                // Loss: shares worth $0
+                pnl = -positionSize;
+                losses++;
+            }
+            
+            balance += pnl;
+            peakBalance = Math.max(peakBalance, balance);
+            const drawdown = (peakBalance - balance) / peakBalance;
+            maxDrawdown = Math.max(maxDrawdown, drawdown);
+            
+            trades.push({
+                time: cycle.cycleEndTime,
+                asset: cycle.asset,
+                tier: cycle.tier,
+                prediction: cycle.prediction,
+                entryPrice: cycle.entryPrice,
+                wasCorrect: cycle.wasCorrect,
+                pnl: pnl,
+                balance: balance
+            });
+            
+            balanceHistory.push({ time: cycle.cycleEndTime, balance });
+        }
+        
+        // Calculate statistics
+        const totalTrades = wins + losses;
+        const winRate = totalTrades > 0 ? (wins / totalTrades * 100) : 0;
+        const totalProfit = balance - startingBalance;
+        const profitPct = (totalProfit / startingBalance * 100);
+        
+        // Time to £100 projection
+        const tradesPerDay = totalTrades > 0 ? (totalTrades / (allCycles.length > 0 ? 
+            ((new Date(allCycles[allCycles.length - 1].cycleEndTime) - new Date(allCycles[0].cycleEndTime)) / (1000 * 60 * 60 * 24)) : 1)) : 0;
+        const avgProfitPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
+        const tradesToReach100 = avgProfitPerTrade > 0 ? (100 - startingBalance) / avgProfitPerTrade : Infinity;
+        const daysToReach100 = tradesPerDay > 0 ? tradesToReach100 / tradesPerDay : Infinity;
+        
+        res.json({
+            summary: {
+                startingBalance,
+                finalBalance: balance,
+                totalProfit,
+                profitPct: profitPct.toFixed(2) + '%',
+                wins,
+                losses,
+                winRate: winRate.toFixed(2) + '%',
+                maxDrawdown: (maxDrawdown * 100).toFixed(2) + '%',
+                tradesPerDay: tradesPerDay.toFixed(2),
+                daysToReach100: daysToReach100.toFixed(1),
+                timeSpan: allCycles.length > 0 ? {
+                    start: allCycles[0].cycleEndTime,
+                    end: allCycles[allCycles.length - 1].cycleEndTime
+                } : null
+            },
+            filters: {
+                tierFilter,
+                priceFilter,
+                minConfigVersion,
+                commit: filterCommit
+            },
+            totalCyclesAnalyzed: allCycles.length,
+            trades: trades.slice(-50), // Last 50 trades
+            balanceHistory: balanceHistory.filter((_, i) => i % Math.max(1, Math.floor(balanceHistory.length / 100)) === 0 || i === balanceHistory.length - 1) // Sample for chart
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ==================== DEBUG EXPORT API ====================
 // Returns last 10 cycles of COMPLETE debugging data - EVERY ATOM
 app.get('/api/debug-export', (req, res) => {
@@ -538,6 +731,101 @@ ASSETS.forEach(asset => {
     cycleDebugHistory[asset] = []; // Array of cycle objects
 });
 
+// 🎯 GOAT: Forward Data Collector for unlimited backtesting
+// Persists market+signal snapshots to files for later analysis
+let forwardCollectorEnabled = false; // Set to true to enable
+let lastCollectorSave = 0;
+const COLLECTOR_INTERVAL_MS = 15 * 60 * 1000; // Save every 15 minutes
+
+function runForwardDataCollector() {
+    if (!forwardCollectorEnabled) return;
+    
+    const now = Date.now();
+    if (now - lastCollectorSave < COLLECTOR_INTERVAL_MS) return;
+    lastCollectorSave = now;
+    
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        const dataDir = path.join(__dirname, 'backtest-data');
+        if (!fs.existsSync(dataDir)) {
+            fs.mkdirSync(dataDir, { recursive: true });
+        }
+        
+        // Collect snapshot
+        const snapshot = {
+            timestamp: new Date().toISOString(),
+            code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+            markets: {},
+            signals: {},
+            tradingState: tradeExecutor ? tradeExecutor.tradingState : 'UNKNOWN'
+        };
+        
+        ASSETS.forEach(asset => {
+            if (!CONFIG.ASSET_CONTROLS || CONFIG.ASSET_CONTROLS[asset]?.enabled !== false) {
+                snapshot.markets[asset] = currentMarkets[asset] || null;
+                const brain = Brains[asset];
+                if (brain) {
+                    snapshot.signals[asset] = {
+                        prediction: brain.prediction,
+                        confidence: brain.confidence,
+                        tier: brain.tier,
+                        edge: brain.edge,
+                        pWin: brain.getTierConditionedPWin ? brain.getTierConditionedPWin(brain.tier, currentMarkets[asset]?.yesPrice, { fallback: null }) : null
+                    };
+                }
+            }
+        });
+        
+        // Save to file
+        const filename = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        fs.writeFileSync(path.join(dataDir, filename), JSON.stringify(snapshot, null, 2));
+        log(`📦 FORWARD COLLECTOR: Saved ${filename}`);
+        
+        // Cleanup old files (keep last 1000)
+        const files = fs.readdirSync(dataDir).filter(f => f.startsWith('snapshot_')).sort();
+        if (files.length > 1000) {
+            const toDelete = files.slice(0, files.length - 1000);
+            toDelete.forEach(f => fs.unlinkSync(path.join(dataDir, f)));
+            log(`📦 FORWARD COLLECTOR: Cleaned up ${toDelete.length} old files`);
+        }
+    } catch (e) {
+        log(`⚠️ FORWARD COLLECTOR ERROR: ${e.message}`);
+    }
+}
+
+// Run collector every minute (actual saves happen at COLLECTOR_INTERVAL_MS)
+setInterval(runForwardDataCollector, 60 * 1000);
+
+// API: Toggle forward collector
+app.post('/api/collector/toggle', (req, res) => {
+    forwardCollectorEnabled = !forwardCollectorEnabled;
+    log(`📦 FORWARD COLLECTOR: ${forwardCollectorEnabled ? 'ENABLED' : 'DISABLED'}`);
+    res.json({ enabled: forwardCollectorEnabled });
+});
+
+// API: Get collector status
+app.get('/api/collector/status', (req, res) => {
+    const fs = require('fs');
+    const path = require('path');
+    
+    let fileCount = 0;
+    try {
+        const dataDir = path.join(__dirname, 'backtest-data');
+        if (fs.existsSync(dataDir)) {
+            fileCount = fs.readdirSync(dataDir).filter(f => f.startsWith('snapshot_')).length;
+        }
+    } catch (e) {}
+    
+    res.json({
+        enabled: forwardCollectorEnabled,
+        lastSave: lastCollectorSave > 0 ? new Date(lastCollectorSave).toISOString() : null,
+        fileCount,
+        intervalMinutes: COLLECTOR_INTERVAL_MS / 60000
+    });
+});
+
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
@@ -890,7 +1178,11 @@ class TradeExecutor {
             harvestToStrike: 3,              // 3 consecutive wins to enter STRIKE
             strikeToHarvest: 1,              // 1 loss exits STRIKE back to HARVEST
             harvestToObserve: 3,             // 3 consecutive losses enters OBSERVE
-            observeMinMinutes: 15            // Minimum 15 mins in OBSERVE
+            observeMinMinutes: 15,           // Minimum 15 mins in OBSERVE
+            // 🎯 GOAT: pWin thresholds per state
+            observeMinPWin: 0.60,            // Minimum pWin to trade in OBSERVE (probe)
+            harvestMinPWin: 0.55,            // Minimum pWin to trade in HARVEST
+            strikeMinPWin: 0.65              // Minimum pWin to trade in STRIKE (higher bar for larger bets)
         }
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
@@ -1168,16 +1460,31 @@ class TradeExecutor {
         }
     }
     
-    // Check if trading is allowed in current state
-    canTradeInCurrentState() {
+    // Check if trading is allowed in current state (optionally pass pWin for threshold check)
+    canTradeInCurrentState(pWin = null) {
         if (this.tradingState === 'OBSERVE') {
             const minutesInObserve = (Date.now() - this.stateEntryTime) / 60000;
             // Allow small probe trades in OBSERVE after minimum time
             if (minutesInObserve < this.STATE_THRESHOLDS.observeMinMinutes) {
                 return { allowed: false, reason: `OBSERVE cooldown: ${(this.STATE_THRESHOLDS.observeMinMinutes - minutesInObserve).toFixed(0)}min remaining` };
             }
+            // 🎯 GOAT: pWin threshold check for OBSERVE
+            if (Number.isFinite(pWin) && pWin < this.STATE_THRESHOLDS.observeMinPWin) {
+                return { allowed: false, reason: `OBSERVE: pWin ${(pWin * 100).toFixed(1)}% < ${(this.STATE_THRESHOLDS.observeMinPWin * 100).toFixed(0)}% threshold` };
+            }
             return { allowed: true, sizeMultiplier: 0.25, reason: 'OBSERVE: probe trades only' };
         }
+        
+        // 🎯 GOAT: pWin threshold checks for HARVEST/STRIKE
+        if (Number.isFinite(pWin)) {
+            const minPWin = this.tradingState === 'STRIKE' 
+                ? this.STATE_THRESHOLDS.strikeMinPWin 
+                : this.STATE_THRESHOLDS.harvestMinPWin;
+            if (pWin < minPWin) {
+                return { allowed: false, reason: `${this.tradingState}: pWin ${(pWin * 100).toFixed(1)}% < ${(minPWin * 100).toFixed(0)}% threshold` };
+            }
+        }
+        
         return { allowed: true, sizeMultiplier: this.getStateSizeMultiplier() };
     }
 
@@ -1469,8 +1776,9 @@ class TradeExecutor {
                 return { success: false, error: `Trading disabled for ${asset}` };
             }
 
-            // 🎯 GOLDEN MEAN: STATE MACHINE CHECK
-            const stateCheck = this.canTradeInCurrentState();
+            // 🎯 GOLDEN MEAN: STATE MACHINE CHECK (pass pWin from options or EV calculation)
+            const tradePWin = options.pWin || null;
+            const stateCheck = this.canTradeInCurrentState(tradePWin);
             if (!stateCheck.allowed) {
                 log(`⏸️ STATE BLOCKED: ${stateCheck.reason}`, asset);
                 return { success: false, error: `Trading state: ${stateCheck.reason}` };
@@ -1814,6 +2122,7 @@ class TradeExecutor {
                     target,
                     stopLoss,
                     shares: size / entryPrice,
+                    tier: options.tier || 'UNKNOWN', // 🎯 GOAT: Store tier for exit policy
                     // v32: DIAGNOSTIC FIELDS
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -2864,17 +3173,38 @@ class TradeExecutor {
             // Binary markets resolve to 0¢ or 100¢ - selling at 8¢ locks in -75% loss
             // Better strategy: hold to resolution unless early enough to recover
 
-            // Universal stop loss check (with smart binary market awareness)
+            // 🎯 GOAT: Smart exit policy for binary markets
             // - MANUAL trades: Never auto-close (user controls)
-            // - ORACLE trades: Only if stopLoss is enabled AND smart conditions met
-            // - Other modes: Respect stopLoss but with smart overrides
+            // - ORACLE CONVICTION entries: Hold to resolution (these have 98%+ win rate)
+            // - ORACLE other entries: Allow stop-loss in early cycle only
+            // - Late cycle (final 5 mins): Hold to resolution (selling locks in loss)
             if (pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
-
-                // ==================== v23 GUARDIAN UPDATE ====================
-                // PREVIOUSLY: "Diamond Hands" (Held last 120s). Resulted in -100% losses.
-                // NOW: ALWAYS TRIGGER. If we are losing -30%, we SELL.
-
+                
                 const lossPercent = ((pos.entry - currentOdds) / pos.entry * 100).toFixed(0);
+                const elapsed = (Date.now() - pos.time) / 1000;
+                const cycleTimeRemaining = 900 - elapsed; // 15-min cycle
+                
+                // 🎯 GOAT: Hold to resolution conditions
+                const isConvictionEntry = pos.tier === 'CONVICTION';
+                const isLateCycle = cycleTimeRemaining < 300; // Final 5 mins
+                const isDeepLoss = parseFloat(lossPercent) >= 60; // -60%+ = hold (selling is worse)
+                
+                if (isConvictionEntry) {
+                    log(`💎 DIAMOND HANDS: CONVICTION entry at ${(pos.entry * 100).toFixed(0)}¢ - holding to resolution (stop at ${(pos.stopLoss * 100).toFixed(0)}¢ bypassed)`, pos.asset);
+                    return; // Do NOT exit
+                }
+                
+                if (isLateCycle) {
+                    log(`⏰ LATE CYCLE HOLD: Only ${cycleTimeRemaining.toFixed(0)}s remaining - holding to resolution`, pos.asset);
+                    return; // Do NOT exit
+                }
+                
+                if (isDeepLoss) {
+                    log(`🔒 DEEP LOSS HOLD: At -${lossPercent}% - selling now locks in massive loss, holding for resolution chance`, pos.asset);
+                    return; // Do NOT exit - resolution gives 50% chance of recovery
+                }
+                
+                // Early cycle non-conviction entry: allow stop-loss
                 log(`🛑 GUARDIAN STOP LOSS: Exiting at -${lossPercent}% (Odds ${currentOdds} <= ${pos.stopLoss})`, pos.asset);
                 this.closePosition(id, currentOdds, `STOP LOSS -${lossPercent}% 🛑`);
 
@@ -4017,6 +4347,13 @@ class SupremeBrain {
             '0.95-0.98': { total: 0, wins: 0 },
             '0.98-1.00': { total: 0, wins: 0 }
         };
+        
+        // 🎯 GOAT FIX: Tier-conditioned calibration (CONVICTION has different hit rate than ADVISORY/NONE)
+        this.tierCalibration = {
+            'CONVICTION': { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } },
+            'ADVISORY':   { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } },
+            'NONE':       { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } }
+        };
 
         // FINAL SEVEN: REGIME PERSISTENCE
         this.regimeHistory = [];
@@ -4946,16 +5283,24 @@ class SupremeBrain {
                     } else {
                     const consensusVotes = Math.max(votes.UP, votes.DOWN);
                     const consensusRatio = totalVotes > 0 ? consensusVotes / totalVotes : 0;
-                    // EV/EDGE MUST use calibrated probability (pWin), not raw signal score
-                    // We also weight pWin toward 0.5 when signal score is weak to avoid overconfidence from priors.
+                    // 🎯 GOAT: EV/EDGE uses tier-conditioned calibrated probability (pWin), not raw signal score
+                    // This accounts for the fact that CONVICTION tier at extreme prices has ~99% win rate
                     const PROFIT_FEE_PCT = 0.02; // conservative: fee on profits at settlement
                     const s = this.stats || {};
                     const priorRate =
                         (tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
                             (s.total > 0 ? (s.wins / s.total) : 0.5);
-                    const pWinRaw = (typeof this.getCalibratedWinProb === 'function')
-                        ? this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 })
-                        : null;
+                    
+                    // 🎯 GOAT: Prefer tier+price conditioned pWin, fall back to bucket-based
+                    let pWinRaw = null;
+                    if (typeof this.getTierConditionedPWin === 'function') {
+                        pWinRaw = this.getTierConditionedPWin(tier, currentOdds, { fallback: null, minSamples: 5 });
+                    }
+                    if (pWinRaw === null && typeof this.getCalibratedWinProb === 'function') {
+                        pWinRaw = this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 });
+                    }
+                    
+                    // Weight pWin toward 0.5 when signal score is weak to avoid overconfidence from priors
                     const minConfRef = Math.max(0.0001, CONFIG.ORACLE.minConfidence || 0.8);
                     const weight = Math.max(0, Math.min(1, finalConfidence / minConfRef)); // 0..1
                     const pWinEff = Number.isFinite(pWinRaw) ? (0.5 + ((pWinRaw - 0.5) * weight)) : null;
@@ -5175,12 +5520,16 @@ class SupremeBrain {
                 this.edge = 0;
             }
 
-            // CRITICAL: Save signal state for UI display
+            // CRITICAL: Save signal state for UI display + calibration tracking
+            const signalMarket = currentMarkets[this.asset];
+            const signalEntryPrice = signalMarket ? (finalSignal === 'UP' ? signalMarket.yesPrice : signalMarket.noPrice) : null;
             this.lastSignal = {
                 type: finalSignal,
                 confidence: finalConfidence,
+                conf: finalConfidence, // alias for calibration tracking
                 tier: tier,
-                modelVotes: modelVotes
+                modelVotes: modelVotes,
+                entryPrice: signalEntryPrice // 🎯 GOAT: Store for tier+price calibration
             };
 
         } catch (e) {
@@ -5534,9 +5883,9 @@ class SupremeBrain {
         return elapsed >= 840; // Final 60 seconds
     }
 
-    // KELLY CRITERION (Enhanced Position Sizing)
+    // 🎯 GOAT: KELLY CRITERION using CALIBRATED pWin (not raw confidence)
     getKellySize() {
-        if (this.confidence < 0.6 || this.tier === 'NONE') return 0;
+        if (this.tier === 'NONE') return 0;
 
         const market = currentMarkets[this.asset];
         if (!market) return 0;
@@ -5551,7 +5900,20 @@ class SupremeBrain {
         const b = (1 / marketOdds) - 1;
         if (b <= 0) return 0; // Additional safety check
 
-        const p = this.confidence;
+        // 🎯 GOAT: Use tier-conditioned pWin instead of raw confidence
+        let p = null;
+        if (typeof this.getTierConditionedPWin === 'function') {
+            p = this.getTierConditionedPWin(this.tier, marketOdds, { fallback: null, minSamples: 5 });
+        }
+        if (p === null && typeof this.getCalibratedWinProb === 'function') {
+            const s = this.stats || {};
+            const priorRate = (this.tier === 'CONVICTION' && s.convictionTotal > 0) 
+                ? (s.convictionWins / s.convictionTotal) 
+                : (s.total > 0 ? (s.wins / s.total) : 0.5);
+            p = this.getCalibratedWinProb(this.confidence, { priorRate, priorStrength: 40, minSamples: 0 });
+        }
+        if (p === null || p < 0.5) return 0; // No edge = no bet
+        
         const q = 1 - p;
 
         let kellyFraction = (b * p - q) / b;
@@ -5623,6 +5985,21 @@ class SupremeBrain {
                 if (this.calibrationBuckets[bucket]) {
                     this.calibrationBuckets[bucket].total++;
                     if (isWin) this.calibrationBuckets[bucket].wins++;
+                }
+                
+                // 🎯 GOAT FIX: Tier-conditioned calibration tracking
+                const signalTier = this.lastSignal.tier || 'NONE';
+                if (this.tierCalibration && this.tierCalibration[signalTier]) {
+                    this.tierCalibration[signalTier].total++;
+                    if (isWin) this.tierCalibration[signalTier].wins++;
+                    
+                    // Track by price band if we have entry price recorded
+                    const entryPrice = this.lastSignal.entryPrice;
+                    if (Number.isFinite(entryPrice)) {
+                        const band = (entryPrice < 0.20 || entryPrice > 0.95) ? 'extreme' : 'mid';
+                        this.tierCalibration[signalTier].priceBands[band].total++;
+                        if (isWin) this.tierCalibration[signalTier].priceBands[band].wins++;
+                    }
                 }
             }
 
@@ -5800,6 +6177,45 @@ SupremeBrain.prototype.getCalibratedWinProb = function (conf, opts = {}) {
         return (baseWins + (priorStrength * priorRate)) / (baseTotal + priorStrength);
     }
     return baseWins / baseTotal;
+};
+
+// 🎯 GOAT: Tier-conditioned calibrated probability
+// Uses tier + price band specific historical win rates for more accurate pWin
+SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts = {}) {
+    const alpha = opts.alpha ?? 1; // Laplace smoothing
+    const minSamples = opts.minSamples ?? 5; // require some data before trusting
+    const fallbackPWin = opts.fallback ?? 0.5; // neutral if no data
+    
+    if (!this.tierCalibration || !this.tierCalibration[tier]) {
+        return fallbackPWin;
+    }
+    
+    const tc = this.tierCalibration[tier];
+    
+    // First try price-band specific
+    if (Number.isFinite(entryPrice)) {
+        const band = (entryPrice < 0.20 || entryPrice > 0.95) ? 'extreme' : 'mid';
+        const pb = tc.priceBands[band];
+        if (pb && pb.total >= minSamples) {
+            return (pb.wins + alpha) / (pb.total + 2 * alpha);
+        }
+    }
+    
+    // Fall back to tier-wide
+    if (tc.total >= minSamples) {
+        return (tc.wins + alpha) / (tc.total + 2 * alpha);
+    }
+    
+    // Fall back to overall stats
+    const s = this.stats || {};
+    if (tier === 'CONVICTION' && s.convictionTotal >= minSamples) {
+        return (s.convictionWins + alpha) / (s.convictionTotal + 2 * alpha);
+    }
+    if (s.total >= minSamples) {
+        return (s.wins + alpha) / (s.total + 2 * alpha);
+    }
+    
+    return fallbackPWin;
 };
 
 const Brains = {};
@@ -6484,8 +6900,9 @@ app.get('/', (req, res) => {
 </head>
 <body>
     <nav class="nav">
-        <div class="nav-brand">🔮 Supreme Oracle</div>
+        <div class="nav-brand">🔮 Supreme Oracle <span id="codeFingerprint" style="font-size:0.6em;color:#888;margin-left:8px;"></span></div>
         <div class="nav-links">
+            <span id="activePresetBadge" style="background:#333;color:#ffd700;padding:4px 10px;border-radius:12px;font-size:0.8em;margin-right:8px;">🏷️ Loading...</span>
             <button class="nav-btn" onclick="openModal('walletModal')">💰 Wallet</button>
             <button class="nav-btn" onclick="openModal('settingsModal')">⚙️ Settings</button>
             <button class="nav-btn" onclick="openModal('guideModal')">📚 Guide</button>
@@ -6564,8 +6981,8 @@ app.get('/', (req, res) => {
             
             <h4 style="margin:15px 0 10px;color:#ffd700;font-size:0.95em;">💰 Core Parameters</h4>
             <div class="form-grid">
-                <div class="form-group"><label>Paper Balance ($)</label><input type="number" id="paperBalance" value="1000"></div>
-                <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" value="10" min="1" max="25"></div>
+                <div class="form-group"><label>Paper Balance ($)</label><input type="number" id="paperBalance" placeholder="Loading..."></div>
+                <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" placeholder="Loading..." min="1" max="25"></div>
             </div>
             <button class="btn" onclick="resetPaperBalance()" style="width:100%;margin-bottom:15px;background:#ff6600;">🔄 Reset Paper Balance to Starting Value</button>
             
@@ -6577,10 +6994,10 @@ app.get('/', (req, res) => {
                     <strong style="color:#9933ff;">🔮 ORACLE</strong>
                     <label style="float:right;color:#888;"><input type="checkbox" id="oracleEnabled" checked> Enabled</label>
                     <div class="form-grid" style="margin-top:8px;">
-                        <div class="form-group"><label>Min Consensus</label><input type="number" id="oracleConsensus" value="0.85" step="0.05" min="0.5" max="1"></div>
-                        <div class="form-group"><label>Min Confidence</label><input type="number" id="oracleConfidence" value="0.92" step="0.02" min="0.5" max="1"></div>
-                        <div class="form-group"><label>Min Edge (%)</label><input type="number" id="oracleEdge" value="15" min="5" max="50"></div>
-                        <div class="form-group"><label>Max Odds</label><input type="number" id="oracleMaxOdds" value="0.70" step="0.05" min="0.3" max="0.9"></div>
+                        <div class="form-group"><label>Min Consensus</label><input type="number" id="oracleConsensus" placeholder="..." step="0.05" min="0.5" max="1"></div>
+                        <div class="form-group"><label>Min Confidence</label><input type="number" id="oracleConfidence" placeholder="..." step="0.02" min="0.5" max="1"></div>
+                        <div class="form-group"><label>Min Edge (%)</label><input type="number" id="oracleEdge" placeholder="..." min="0" max="50"></div>
+                        <div class="form-group"><label>Max Odds</label><input type="number" id="oracleMaxOdds" placeholder="..." step="0.05" min="0.3" max="1.0"></div>
                     </div>
                     <div class="form-group" style="margin-top:10px;">
                         <label>🔮 Aggression (0=Conservative, 100=Aggressive)</label>
@@ -7250,15 +7667,24 @@ app.get('/', (req, res) => {
             try {
                 const res = await fetch('/api/settings');
                 const data = await res.json();
-                // IMPORTANT: Use nullish coalescing so valid 0 values are preserved (e.g. minEdge=0)
-                document.getElementById('paperBalance').value = (data.PAPER_BALANCE ?? 1000);
-                document.getElementById('maxPosition').value = ((data.MAX_POSITION_SIZE ?? 0.1) * 100);
+                // 🎯 GOAT FIX: Load ACTUAL server values - no fallback defaults (config drift fix)
+                document.getElementById('paperBalance').value = data.PAPER_BALANCE;
+                document.getElementById('maxPosition').value = (data.MAX_POSITION_SIZE * 100);
+                // Show active preset + code fingerprint
+                if (data.ACTIVE_PRESET) {
+                    const presetBadge = document.getElementById('activePresetBadge');
+                    if (presetBadge) presetBadge.textContent = '🏷️ ' + data.ACTIVE_PRESET;
+                }
+                if (data.CODE) {
+                    const codeBadge = document.getElementById('codeFingerprint');
+                    if (codeBadge) codeBadge.textContent = '📦 v' + data.CODE.configVersion + ' (' + (data.CODE.gitCommit || '').substring(0, 7) + ')';
+                }
                 if (data.ORACLE) { 
                     document.getElementById('oracleEnabled').checked = data.ORACLE.enabled !== false; 
-                    document.getElementById('oracleConsensus').value = (data.ORACLE.minConsensus ?? 0.85); 
-                    document.getElementById('oracleConfidence').value = (data.ORACLE.minConfidence ?? 0.92); 
-                    document.getElementById('oracleEdge').value = (data.ORACLE.minEdge ?? 15); 
-                    document.getElementById('oracleMaxOdds').value = (data.ORACLE.maxOdds ?? 0.70);
+                    document.getElementById('oracleConsensus').value = data.ORACLE.minConsensus; 
+                    document.getElementById('oracleConfidence').value = data.ORACLE.minConfidence; 
+                    document.getElementById('oracleEdge').value = data.ORACLE.minEdge; 
+                    document.getElementById('oracleMaxOdds').value = data.ORACLE.maxOdds;
                     // 🔮 ORACLE AGGRESSION
                     const aggression = (data.ORACLE.aggression ?? 50);
                     document.getElementById('oracleAggression').value = aggression;
@@ -7773,10 +8199,26 @@ function buildStateSnapshot() {
         const priorRate =
             (Brains[a].tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
                 (s.total > 0 ? (s.wins / s.total) : 0.5);
-        const pWin = Brains[a].getCalibratedWinProb
-            ? Brains[a].getCalibratedWinProb(Brains[a].confidence, { priorRate, priorStrength: 40, minSamples: 0 })
-            : null;
+        
+        // 🎯 GOAT: Use tier-conditioned pWin (most accurate), fall back to bucket-based
+        const market = currentMarkets[a];
+        const entryPrice = market ? (Brains[a].prediction === 'UP' ? market.yesPrice : market.noPrice) : null;
+        let pWin = null;
+        if (Brains[a].getTierConditionedPWin) {
+            pWin = Brains[a].getTierConditionedPWin(Brains[a].tier, entryPrice, { fallback: null, minSamples: 5 });
+        }
+        if (pWin === null && Brains[a].getCalibratedWinProb) {
+            pWin = Brains[a].getCalibratedWinProb(Brains[a].confidence, { priorRate, priorStrength: 40, minSamples: 0 });
+        }
 
+        // 🎯 GOAT: Calculate EV for UI display
+        let evRoi = null;
+        if (Number.isFinite(pWin) && Number.isFinite(entryPrice) && entryPrice > 0 && entryPrice < 1) {
+            const PROFIT_FEE_PCT = 0.02;
+            const b = (1 - entryPrice) / entryPrice;
+            evRoi = (pWin * b * (1 - PROFIT_FEE_PCT)) - (1 - pWin);
+        }
+        
         response[a] = {
             prediction: Brains[a].prediction,
             confidence: Brains[a].confidence,
@@ -7784,6 +8226,7 @@ function buildStateSnapshot() {
             pWin: pWin,
             pWinBucket: calBucket,
             pWinSamples: calStats ? calStats.total : 0,
+            evRoi: evRoi, // 🎯 GOAT: Expected Value ROI (positive = profitable trade)
             tier: Brains[a].tier,
             edge: Brains[a].edge,
             votes: Brains[a].ensembleVotes,
@@ -7798,6 +8241,7 @@ function buildStateSnapshot() {
             recentOutcomes: Brains[a].recentOutcomes, // Rolling W/L for UI display
             kellySize: Brains[a].getKellySize(),
             calibration: Brains[a].calibrationBuckets,
+            tierCalibration: Brains[a].tierCalibration, // 🎯 GOAT: Tier+price conditioned calibration
             newsState: Brains[a].newsState,
             modelVotes: Brains[a].lastSignal ? Brains[a].lastSignal.modelVotes : {}
         };
@@ -7832,6 +8276,8 @@ function buildStateSnapshot() {
         stateSizeMultiplier: tradeExecutor.getStateSizeMultiplier ? tradeExecutor.getStateSizeMultiplier() : 1.0,
         recentWinStreak: tradeExecutor.recentWinStreak || 0,
         recentLossStreak: tradeExecutor.recentLossStreak || 0,
+        stateThresholds: tradeExecutor.STATE_THRESHOLDS || {},
+        stateEntryTime: tradeExecutor.stateEntryTime || Date.now(),
         modes: {
             ORACLE: CONFIG.ORACLE.enabled,
             ARBITRAGE: CONFIG.ARBITRAGE.enabled,
