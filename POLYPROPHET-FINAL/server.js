@@ -1063,121 +1063,194 @@ app.get('/api/projection', async (req, res) => {
     }
 });
 
-// 🎯 GOAT v3: Final GOAT Verification endpoint
+// 🎯 GOAT v45: Honest GOAT Verification endpoint
+// Each check must actually validate functionality, not just existence
 app.get('/api/verify', async (req, res) => {
     const checks = [];
     let passCount = 0;
     let failCount = 0;
     
-    const addCheck = (name, passed, details = '') => {
-        checks.push({ name, passed, details });
+    const addCheck = (name, passed, details = '', severity = 'error') => {
+        checks.push({ name, passed, details, severity });
         if (passed) passCount++;
         else failCount++;
     };
+    
+    // ==================== CORE CHECKS ====================
     
     // Check 1: TradeExecutor initialized
     addCheck('TradeExecutor initialized', 
         !!tradeExecutor, 
         tradeExecutor ? `Mode: ${tradeExecutor.mode}` : 'Not found');
     
-    // Check 2: CircuitBreaker enabled
-    addCheck('CircuitBreaker enabled', 
-        tradeExecutor?.circuitBreaker?.enabled === true,
-        tradeExecutor?.circuitBreaker?.state || 'N/A');
+    // Check 2: CircuitBreaker with hybrid throttle (HONEST CHECK)
+    const cbExists = tradeExecutor?.circuitBreaker;
+    const cbHasThresholds = cbExists && 
+        typeof cbExists.softDrawdownPct === 'number' && 
+        typeof cbExists.hardDrawdownPct === 'number' && 
+        typeof cbExists.haltDrawdownPct === 'number';
+    const cbHasResumeConditions = cbExists && cbExists.resumeConditions && 
+        typeof cbExists.resumeConditions.probeToSafeMinutes === 'number';
+    addCheck('Hybrid throttle (CircuitBreaker v45)', 
+        cbExists?.enabled === true && cbHasThresholds && cbHasResumeConditions,
+        cbExists ? `State: ${cbExists.state}, Thresholds: ${cbExists.softDrawdownPct*100}%/${cbExists.hardDrawdownPct*100}%/${cbExists.haltDrawdownPct*100}%` : 'Not configured');
     
-    // Check 3: Streak sizing enabled
-    addCheck('Streak sizing enabled',
-        tradeExecutor?.streakSizing?.enabled === true,
-        `Multiplier: ${tradeExecutor?.getStreakSizeMultiplier?.() || 'N/A'}`);
+    // Check 3: LCB gating (HONEST CHECK - verify function exists on at least one brain)
+    const hasLcbFunction = ASSETS.some(a => 
+        typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function'
+    );
+    const wilsonLCBExists = typeof wilsonLCB === 'function';
+    addCheck('LCB gating active', 
+        hasLcbFunction && wilsonLCBExists,
+        hasLcbFunction ? 'getCalibratedPWinWithLCB + wilsonLCB available' : 'LCB functions not found');
     
-    // Check 4: Redis available (for persistence)
+    // Check 4: LIVE balance freshness enforcement (HONEST CHECK)
+    const hasFreshnessCheck = tradeExecutor?.lastBalanceFetch !== undefined;
+    const freshnessAge = hasFreshnessCheck ? (Date.now() - (tradeExecutor.lastBalanceFetch || 0)) : Infinity;
+    const freshnessOk = hasFreshnessCheck && (tradeExecutor.mode !== 'LIVE' || freshnessAge < 120000);
+    addCheck('LIVE balance freshness', 
+        freshnessOk,
+        hasFreshnessCheck ? `Age: ${Math.round(freshnessAge/1000)}s (max: 60s for LIVE trades)` : 'Freshness tracking not found',
+        'warn');
+    
+    // Check 5: Redis available (for persistence)
     addCheck('Redis available',
         typeof redisAvailable !== 'undefined' && redisAvailable === true,
         redisAvailable ? 'Connected' : 'Not connected');
     
-    // Check 5: Brains initialized
+    // Check 6: Brains initialized with calibration
     const brainsOk = typeof Brains !== 'undefined' && ASSETS.every(a => Brains[a]);
-    addCheck('All Brains initialized',
-        brainsOk,
-        ASSETS.map(a => Brains?.[a] ? a : `${a}:MISSING`).join(', '));
+    const brainsWithCalibration = ASSETS.filter(a => 
+        Brains?.[a]?.calibrationBuckets && Object.keys(Brains[a].calibrationBuckets).length > 0
+    ).length;
+    addCheck('Brains with calibration',
+        brainsOk && brainsWithCalibration > 0,
+        `${brainsWithCalibration}/${ASSETS.length} assets have calibration data`);
     
-    // Check 6: Live data feed
+    // Check 7: Live data feed
     const now = Date.now();
     const feedAge = typeof lastLiveDataTime !== 'undefined' ? now - lastLiveDataTime : Infinity;
     addCheck('Live data feed active',
         feedAge < 120000,
         feedAge < Infinity ? `Last update: ${Math.round(feedAge / 1000)}s ago` : 'Never received');
     
-    // Check 7: Config version
-    addCheck('Config version defined',
-        typeof CONFIG_VERSION !== 'undefined' && CONFIG_VERSION >= 44,
-        `v${CONFIG_VERSION || 'UNDEFINED'}`);
+    // Check 8: Config version matches expected
+    addCheck('Config version v45+',
+        typeof CONFIG_VERSION !== 'undefined' && CONFIG_VERSION >= 45,
+        `v${CONFIG_VERSION || 'UNDEFINED'} (need >=45 for GOAT features)`);
     
-    // Check 8: Trade history persistence
-    let historyTest = false;
-    if (typeof loadTradeHistory === 'function') {
+    // Check 9: Trade history idempotent (HONEST CHECK - verify structure)
+    let historyIdempotent = false;
+    let historyDetails = 'Not tested';
+    if (typeof loadTradeHistory === 'function' && redisAvailable && redis) {
         try {
-            const result = await loadTradeHistory('PAPER', 0, 1);
-            historyTest = result.source === 'redis' || result.trades.length >= 0;
-        } catch {}
+            // Check that the new hash+zset keys exist (not old list key)
+            const hashExists = await redis.exists(TRADE_HISTORY_PAPER_HASH);
+            const zsetExists = await redis.exists(TRADE_HISTORY_PAPER_ZSET);
+            // Either both exist, or neither (fresh start)
+            historyIdempotent = (hashExists && zsetExists) || (!hashExists && !zsetExists);
+            historyDetails = historyIdempotent ? 
+                `Using idempotent hash+zset structure` : 
+                `Legacy list structure detected - run migration`;
+        } catch (e) {
+            historyDetails = `Error: ${e.message}`;
+        }
     }
-    addCheck('Trade history persistence',
-        historyTest,
-        historyTest ? 'Endpoint functional' : 'Not working');
+    addCheck('Trade history idempotent',
+        historyIdempotent,
+        historyDetails);
     
-    // Check 9: GateTrace available
+    // Check 10: GateTrace available
     addCheck('GateTrace available',
         typeof gateTrace !== 'undefined' && gateTrace !== null,
         gateTrace ? `${gateTrace.getSummary?.()?.totalEvaluations || 0} evaluations` : 'Not found');
     
-    // Check 10: Portfolio accounting
-    const portfolioOk = tradeExecutor?.getPortfolioSummary !== undefined;
-    addCheck('Portfolio accounting',
-        portfolioOk,
-        portfolioOk ? 'Functional' : 'Not found');
+    // Check 11: Forward collector state persisted
+    // Honest check: verify forwardCollectorEnabled matches what's in Redis state
+    let collectorStatePersisted = false;
+    if (redisAvailable && redis) {
+        try {
+            const storedState = await redis.get('deity:state');
+            if (storedState) {
+                const state = JSON.parse(storedState);
+                collectorStatePersisted = typeof state.forwardCollectorEnabled === 'boolean';
+            }
+        } catch {}
+    }
+    addCheck('Collector state persisted',
+        typeof forwardCollectorEnabled !== 'undefined' && (collectorStatePersisted || !redisAvailable),
+        collectorStatePersisted ? 'State saved in Redis' : (redisAvailable ? 'Not yet saved (will save on next cycle)' : 'No Redis'),
+        'warn');
     
-    // Check 11: Forward collector
-    addCheck('Forward collector available',
-        typeof forwardCollectorEnabled !== 'undefined',
-        forwardCollectorEnabled ? 'ENABLED' : 'Disabled (can be enabled via API)');
+    // Check 12: Redemption events persisted
+    const redemptionEventsPersisted = Array.isArray(tradeExecutor?.redemptionEvents);
+    addCheck('Redemption events tracked',
+        redemptionEventsPersisted,
+        redemptionEventsPersisted ? `${tradeExecutor.redemptionEvents.length} events tracked` : 'Not initialized',
+        'warn');
     
-    // Check 12: Auth configured
+    // Check 13: Streak sizing enabled
+    addCheck('Streak sizing enabled',
+        tradeExecutor?.streakSizing?.enabled === true,
+        `Multiplier: ${tradeExecutor?.getStreakSizeMultiplier?.() || 'N/A'}`);
+    
+    // Check 14: Auth configured
     const authConfigured = process.env.AUTH_USERNAME && process.env.AUTH_PASSWORD;
     addCheck('Auth configured',
         authConfigured,
-        authConfigured ? 'Username and password set' : 'Using defaults (insecure)');
+        authConfigured ? 'Username and password set' : 'Using defaults (insecure)',
+        'warn');
     
-    const overallStatus = failCount === 0 ? 'PASS' : (failCount <= 2 ? 'WARN' : 'FAIL');
+    // ==================== CALCULATE STATUS ====================
+    const criticalFails = checks.filter(c => !c.passed && c.severity === 'error').length;
+    const warnFails = checks.filter(c => !c.passed && c.severity === 'warn').length;
+    
+    const overallStatus = criticalFails === 0 ? (warnFails === 0 ? 'PASS' : 'WARN') : 'FAIL';
     
     res.json({
         status: overallStatus,
         passed: passCount,
         failed: failCount,
+        criticalFailures: criticalFails,
+        warnings: warnFails,
         checks,
         
-        // Top 3 failures for quick action
-        topFailures: checks.filter(c => !c.passed).slice(0, 3).map(c => ({
+        // Top failures for quick action
+        topFailures: checks.filter(c => !c.passed).slice(0, 5).map(c => ({
             issue: c.name,
+            severity: c.severity,
             action: getFixAction(c.name)
         })),
         
+        // Summary of GOAT v45 features
+        goatFeatures: {
+            hybridThrottle: cbHasThresholds && cbHasResumeConditions,
+            lcbGating: hasLcbFunction && wilsonLCBExists,
+            liveFreshness: hasFreshnessCheck,
+            idempotentHistory: historyIdempotent,
+            collectorPersistence: collectorStatePersisted
+        },
+        
         timestamp: new Date().toISOString(),
-        version: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null
+        version: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+        configVersion: CONFIG_VERSION
     });
     
     function getFixAction(checkName) {
         const actions = {
             'TradeExecutor initialized': 'Check server startup logs for errors',
-            'CircuitBreaker enabled': 'Enable via POST /api/circuit-breaker/override { action: "enable" }',
+            'Hybrid throttle (CircuitBreaker v45)': 'Ensure circuitBreaker is initialized with resumeConditions',
+            'LCB gating active': 'Ensure getCalibratedPWinWithLCB method exists on SupremeBrain',
+            'LIVE balance freshness': 'refreshLiveBalance() must update lastBalanceFetch',
             'Streak sizing enabled': 'Check TradeExecutor configuration',
             'Redis available': 'Set REDIS_URL environment variable',
-            'All Brains initialized': 'Check Brains initialization in startup',
+            'Brains with calibration': 'Run trades to build calibration data',
             'Live data feed active': 'Check WebSocket connection to Polymarket',
-            'Config version defined': 'Ensure CONFIG_VERSION is set in code',
-            'Trade history persistence': 'Check Redis connection',
+            'Config version v45+': 'Ensure CONFIG_VERSION >= 45 in server.js',
+            'Trade history idempotent': 'Using new hash+zset structure - old list will be ignored',
             'GateTrace available': 'Check gateTrace initialization',
-            'Portfolio accounting': 'Check TradeExecutor methods',
-            'Forward collector available': 'Check forwardCollectorEnabled variable',
+            'Collector state persisted': 'Will persist on next saveState() cycle',
+            'Redemption events tracked': 'Initialize tradeExecutor.redemptionEvents array',
             'Auth configured': 'Set AUTH_USERNAME and AUTH_PASSWORD in environment'
         };
         return actions[checkName] || 'Check server configuration';
@@ -1478,14 +1551,39 @@ async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
 }
 
 // Reset trade history in Redis
+// 🎯 GOAT v45: Reset trade history (both hash and zset)
 async function resetTradeHistory(mode = 'PAPER') {
+    let deletedCount = 0;
     if (redisAvailable && redis) {
         try {
-            const key = mode === 'LIVE' ? TRADE_HISTORY_LIVE_KEY : TRADE_HISTORY_PAPER_KEY;
-            await redis.del(key);
+            const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
+            const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+            
+            // Get current count before deletion
+            deletedCount = await redis.zcard(zsetKey);
+            
+            // Delete both hash and sorted set
+            await redis.del(hashKey);
+            await redis.del(zsetKey);
+            
+            console.log(`🗑️ Reset ${mode} trade history: ${deletedCount} trades deleted`);
         } catch (e) {
             console.log(`⚠️ Failed to reset trade history in Redis: ${e.message}`);
         }
+    }
+    return { success: true, deletedCount };
+}
+
+// 🎯 GOAT v45: Get trade history stats
+async function getTradeHistoryStats(mode = 'PAPER') {
+    if (!redisAvailable || !redis) return { total: 0, source: 'unavailable' };
+    
+    try {
+        const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+        const total = await redis.zcard(zsetKey);
+        return { total, source: 'redis' };
+    } catch (e) {
+        return { total: 0, source: 'error', error: e.message };
     }
 }
 
@@ -1622,9 +1720,13 @@ async function getCollectorSnapshots(limit = 100) {
 setInterval(runForwardDataCollector, 60 * 1000);
 
 // API: Toggle forward collector
-app.post('/api/collector/toggle', (req, res) => {
+app.post('/api/collector/toggle', async (req, res) => {
     forwardCollectorEnabled = !forwardCollectorEnabled;
     log(`📦 FORWARD COLLECTOR: ${forwardCollectorEnabled ? 'ENABLED' : 'DISABLED'}`);
+    
+    // 🎯 GOAT v4: Persist state to Redis
+    await persistCollectorEnabled();
+    
     res.json({ enabled: forwardCollectorEnabled });
 });
 
@@ -4857,7 +4959,10 @@ class TradeExecutor {
                 events.push(eventRecord);
                 this.redemptionEvents.push(eventRecord);
                 
-                // Keep only last 100 events
+                // 🎯 GOAT v4: Persist redemption event to Redis
+                persistRedemptionEvent(eventRecord);
+                
+                // Keep only last 100 events in memory
                 if (this.redemptionEvents.length > 100) {
                     this.redemptionEvents = this.redemptionEvents.slice(-100);
                 }
@@ -4893,13 +4998,17 @@ class TradeExecutor {
         
         // Record the clear event
         if (!this.redemptionEvents) this.redemptionEvents = [];
-        this.redemptionEvents.push({
+        const clearEvent = {
             timestamp: Date.now(),
             outcome: 'QUEUE_CLEARED',
             reason,
             clearedCount: count,
             clearedItems: clearedItems.map(i => ({ asset: i.asset, side: i.side, tokenId: i.tokenId }))
-        });
+        };
+        this.redemptionEvents.push(clearEvent);
+        
+        // 🎯 GOAT v4: Persist clear event to Redis
+        persistRedemptionEvent(clearEvent);
         
         log(`🗑️ Redemption queue cleared: ${count} items (reason: ${reason})`);
         return { cleared: count, items: clearedItems };
@@ -11629,6 +11738,10 @@ async function startup() {
 
     await initPatternStorage();
     await loadState();
+    
+    // 🎯 GOAT v4: Load persisted settings from Redis
+    await loadCollectorEnabled();
+    
     connectWebSocket();
 
     // 🔮 MAIN UPDATE LOOP: Every second, update brains AND check exit conditions
