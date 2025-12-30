@@ -10615,6 +10615,21 @@ setInterval(() => {
                 Brains[a].pendingSignal = null;
                 Brains[a].voteHistory = [];
                 Brains[a].currentCycleHistory = [];
+                
+                // 🎯 GOAT: Reset ALL per-cycle locks/state so we never get “stuck locked” across cycles
+                // (Leaving these true causes permanent trade drought even with 0 positions.)
+                Brains[a].convictionLocked = false;
+                Brains[a].lockedDirection = null;
+                Brains[a].lockTime = null;
+                Brains[a].lockConfidence = 0;
+                
+                Brains[a].cycleCommitted = false;
+                Brains[a].committedDirection = null;
+                Brains[a].commitTime = null;
+                
+                Brains[a].oracleLocked = false;
+                Brains[a].oracleLockPrediction = null;
+                Brains[a].lockCertainty = 0;
 
                 // 🔄 EXPLICIT RESET: Clear trade counts for new cycle
                 // This ensures trade limits reset even if internal checks fail
