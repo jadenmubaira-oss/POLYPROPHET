@@ -2337,23 +2337,28 @@ class TradeExecutor {
 
                 // SMART MINIMUM: Ensure we meet $1.10 minimum
                 // If percentage-based size is too small, use minimum (if affordable)
+                // CAP: Never risk more than MAX_FRACTION of bankroll
+                // GOAT: In micro-bankroll scenarios ($5 start), maxPct can imply a maxSize below Polymarket minimum.
+                // Instead of deadlocking trading, temporarily allow MIN_ORDER as the effective cap (with a log).
+                let maxSize = bankroll * MAX_FRACTION;
+                if (maxSize < MIN_ORDER && bankroll >= MIN_ORDER * 1.5) {
+                    log(`⚠️ MICRO BANKROLL: Max position ${(MAX_FRACTION * 100).toFixed(0)}% = $${maxSize.toFixed(2)} < $${MIN_ORDER}. Allowing minimum order to avoid trade drought.`, asset);
+                    maxSize = MIN_ORDER;
+                }
+                if (size > maxSize) {
+                    size = maxSize;
+                    log(`📊 Size capped: $${size.toFixed(2)} (max ${(MAX_FRACTION * 100).toFixed(0)}% / min-order override if needed)`, asset);
+                }
+
+                // SMART MINIMUM: Ensure we meet $1.10 minimum (after cap)
                 if (size < MIN_ORDER) {
                     if (bankroll >= MIN_ORDER * 1.5) {
-                        // Have enough for minimum + buffer, use minimum
                         size = MIN_ORDER;
                         log(`📊 Size bumped to minimum $${MIN_ORDER} (bankroll: $${bankroll.toFixed(2)})`, asset);
                     } else {
-                        // Too small to trade safely
                         log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
                         return { success: false, error: `Need at least $${(MIN_ORDER * 1.5).toFixed(2)} to trade` };
                     }
-                }
-
-                // CAP: Never risk more than MAX_FRACTION of bankroll
-                const maxSize = bankroll * MAX_FRACTION;
-                if (size > maxSize) {
-                    size = maxSize;
-                    log(`📊 Size capped to ${(MAX_FRACTION * 100).toFixed(0)}% of bankroll: $${size.toFixed(2)}`, asset);
                 }
             }
 
