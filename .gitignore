@@ -94,11 +94,13 @@ cursor_*.md
 tools/
 
 # ============================================
-# IMPORTANT: What IS tracked
+# IMPORTANT: What IS tracked on main
 # ============================================
-# - server.js (✅ production runtime)
-# - public/ (✅ production dashboard assets)
+# - server.js (production runtime)
+# - public/ (dashboard UI)
 # - render.yaml (Render Blueprint)
-# - README.md (documentation)
+# - README.md (final manifesto)
 # - package.json, package-lock.json
-# - POLYPROPHET-FINAL/ (archived/reference runtime)
+# - .env.example, generate_creds.js.example
+#
+# Historical/debug material is on the 'archive' branch.
