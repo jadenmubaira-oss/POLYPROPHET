@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: polyprophet-final
+    name: polyprophet
     runtime: node
     plan: starter
     region: frankfurt
-    rootDir: POLYPROPHET-FINAL
+    # No rootDir - uses repo root (server.js v45)
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
@@ -14,9 +14,9 @@ services:
       - key: TRADE_MODE
         value: PAPER
       - key: PAPER_BALANCE
-        value: "5.00"
+        value: "10.00"
       - key: AUTH_USERNAME
-        value: admin
+        value: bandito
       - key: AUTH_PASSWORD
-        value: changeme
+        value: bandito
 

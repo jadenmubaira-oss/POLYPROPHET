@@ -1,7 +1,7 @@
 {
-    "name": "supreme-deity-cloud",
-    "version": "2.0.0-goat",
-    "description": "PolyProphet GOAT v44.1 - The 24/7 Supreme Deity Prediction Engine",
+    "name": "polyprophet",
+    "version": "3.0.0-goat-v45",
+    "description": "PolyProphet GOAT v45 - The Pinnacle: MAX PROFIT ASAP WITH MIN VARIANCE",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
@@ -22,9 +22,7 @@
         "ws": "^8.13.0"
     },
     "engines": {
-        "node": ">=18.0.0 <26.0.0"
+        "node": "20.x"
     },
-    "devDependencies": {
-        "acorn": "^8.15.0"
-    }
+    "engineStrict": true
 }

@@ -1502,6 +1502,48 @@ const COLLECTOR_INTERVAL_MS = 15 * 60 * 1000; // Save every 15 minutes
 const COLLECTOR_REDIS_KEY = 'polyprophet:collector:snapshots';
 const COLLECTOR_MAX_SNAPSHOTS = 1000; // Keep last 1000 in Redis
 
+// 🎯 GOAT v4: Persist forward-collector enabled state (survives restarts)
+// NOTE: Previously referenced by startup()/API but missing, causing startup to fail before server.listen().
+const COLLECTOR_ENABLED_REDIS_KEY = 'polyprophet:collector:enabled';
+
+async function loadCollectorEnabled() {
+    if (!redisAvailable || !redis) return;
+    try {
+        const raw = await redis.get(COLLECTOR_ENABLED_REDIS_KEY);
+        if (!raw) return;
+
+        let enabled = null;
+        try {
+            const parsed = JSON.parse(raw);
+            if (typeof parsed === 'boolean') enabled = parsed;
+            else if (parsed && typeof parsed.enabled === 'boolean') enabled = parsed.enabled;
+        } catch {
+            if (raw === 'true') enabled = true;
+            if (raw === 'false') enabled = false;
+        }
+
+        if (typeof enabled === 'boolean') {
+            forwardCollectorEnabled = enabled;
+            log(`📦 FORWARD COLLECTOR: Restored ${enabled ? 'ENABLED' : 'DISABLED'} from Redis`);
+        }
+    } catch (e) {
+        log(`⚠️ FORWARD COLLECTOR: Failed to load enabled state: ${e.message}`);
+    }
+}
+
+async function persistCollectorEnabled() {
+    if (!redisAvailable || !redis) return;
+    try {
+        await redis.set(COLLECTOR_ENABLED_REDIS_KEY, JSON.stringify({
+            enabled: forwardCollectorEnabled,
+            updatedAt: new Date().toISOString(),
+            configVersion: typeof CONFIG_VERSION !== 'undefined' ? CONFIG_VERSION : null
+        }));
+    } catch (e) {
+        log(`⚠️ FORWARD COLLECTOR: Failed to persist enabled state: ${e.message}`);
+    }
+}
+
 // 🎯 GOAT v4: Idempotent Persistent Trade History (Redis Hash + Sorted Set)
 // Uses Hash for deduplication (by trade ID) and Sorted Set for ordering (by timestamp)
 const TRADE_HISTORY_PAPER_HASH = 'polyprophet:trades:paper:hash';
@@ -8208,7 +8250,12 @@ async function saveState() {
             redemptionQueue: tradeExecutor.redemptionQueue || [],
             // 🚀 PINNACLE v27: Persist recovery queue (orphaned/crashed positions)
             recoveryQueue: tradeExecutor.recoveryQueue || []
-        }
+        },
+
+        // 🎯 GOAT v44.1: Persist forward-collector state in the main state blob
+        // (enables deterministic replay/analysis across restarts)
+        forwardCollectorEnabled: typeof forwardCollectorEnabled === 'boolean' ? forwardCollectorEnabled : false,
+        lastCollectorSave: typeof lastCollectorSave === 'number' ? lastCollectorSave : 0
     };
 
     // Save to Redis if available
@@ -8280,6 +8327,15 @@ async function loadState() {
             const stored = await redis.get('deity:state');
             if (stored) {
                 const state = JSON.parse(stored);
+
+                // 🎯 GOAT v44.1: Restore forward-collector state
+                if (typeof state.forwardCollectorEnabled === 'boolean') {
+                    forwardCollectorEnabled = state.forwardCollectorEnabled;
+                }
+                if (typeof state.lastCollectorSave === 'number') {
+                    lastCollectorSave = state.lastCollectorSave;
+                }
+
                 if (state.stats) ASSETS.forEach(a => { if (state.stats[a]) Brains[a].stats = state.stats[a]; });
                 if (state.evolution) ASSETS.forEach(a => {
                     if (state.evolution[a]) {

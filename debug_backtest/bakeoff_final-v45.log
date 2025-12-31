@@ -1,0 +1,25 @@
+ℹ️ No PROXY_URL set - CLOB requests will use direct connection
+   To bypass Cloudflare on Render, set PROXY_URL in environment
+🔑 API Key (for programmatic access): 82452863...77b2
+13:30:27 [ORACLE] ⚠️ REDIS_URL not set - Using ephemeral storage
+13:30:28 [ORACLE] ⚠️ No POLYMARKET_PRIVATE_KEY found in environment!
+13:30:28 [ORACLE] 💰 Trade Executor Initialized in PAPER mode. Balance: $5
+13:30:28 [ORACLE] 🔐 API Credentials Source:
+13:30:28 [ORACLE]    API Key: ... [FALLBACK]
+13:30:28 [ORACLE]    Secret: ... [FALLBACK]
+13:30:28 [ORACLE]    Passphrase: ... [FALLBACK]
+13:30:28 [ORACLE]    Private Key: ... [FALLBACK]
+13:30:28 [ORACLE] 🚀 SUPREME DEITY: CLOUD EDITION
+13:30:28 [ORACLE] 🔧 Initializing...
+13:30:28 [ORACLE] 📚 Historian Storage Initialized
+13:30:28 [ORACLE] ℹ️ Starting with fresh state
+13:30:28 [ORACLE] 🔌 Attempting WebSocket connection to Polymarket...
+13:30:28 [ORACLE] ⚠️ CHAINLINK STALE: BTC, ETH, SOL, XRP - No WS data for >30s. DO NOT TRADE!
+13:30:28 [ORACLE]    Waiting for Chainlink WS to reconnect...
+13:30:28 [ORACLE] 📈 Waiting for Chainlink WS prices (no HTTP fallback)
+13:30:28 [ORACLE] ✅ STARTUP SELF-TESTS: 6/6 PASSED
+13:30:28 [ORACLE] 🐕 WATCHDOG: Started (checking every 5 minutes)
+13:30:28 [ORACLE] ⚡ SUPREME DEITY SERVER ONLINE on port 5901 
+13:30:28 [ORACLE] 🌐 Access at: http://localhost:5901
+13:30:28 [ORACLE] 📊 Config Version: 45
+13:30:28 [ORACLE] 🔑 API Key: 82452863...
