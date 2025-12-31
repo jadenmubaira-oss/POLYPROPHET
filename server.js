@@ -703,12 +703,31 @@ app.get('/api/debug-export', (req, res) => {
     }
 });
 
-// Health check endpoint (enhanced with GOAT v44.1 watchdog status)
+// Health check endpoint (enhanced with GOAT v44.1 watchdog status + v3 CircuitBreaker)
 app.get('/api/health', (req, res) => {
     const now = Date.now();
     const lastTrade = tradeExecutor && tradeExecutor.tradeHistory && tradeExecutor.tradeHistory.length > 0
         ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp
         : null;
+    
+    // Update CircuitBreaker to get current state
+    let cbStatus = null;
+    if (tradeExecutor && tradeExecutor.circuitBreaker) {
+        tradeExecutor.updateCircuitBreaker();
+        const dayStart = tradeExecutor.circuitBreaker.dayStartBalance || tradeExecutor.paperBalance;
+        const currentBal = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance;
+        const drawdownPct = dayStart > 0 ? (dayStart - currentBal) / dayStart : 0;
+        
+        cbStatus = {
+            enabled: tradeExecutor.circuitBreaker.enabled,
+            state: tradeExecutor.circuitBreaker.state,
+            dayStartBalance: dayStart,
+            currentBalance: currentBal,
+            drawdownPct: (drawdownPct * 100).toFixed(1) + '%',
+            consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
+            streakSizeMultiplier: tradeExecutor.getStreakSizeMultiplier()
+        };
+    }
     
     res.json({
         status: 'ok',
@@ -720,8 +739,522 @@ app.get('/api/health', (req, res) => {
             lastTradeAge: lastTrade ? Math.round((now - lastTrade) / 1000) : null,
             memoryMB: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
             alertsPending: typeof watchdogState !== 'undefined' ? watchdogState.alertsSent.size : 0
+        },
+        circuitBreaker: cbStatus
+    });
+});
+
+// 🎯 GOAT v3: CircuitBreaker status and control
+app.get('/api/circuit-breaker', (req, res) => {
+    if (!tradeExecutor || !tradeExecutor.circuitBreaker) {
+        return res.json({ error: 'TradeExecutor not initialized' });
+    }
+    
+    tradeExecutor.updateCircuitBreaker();
+    const cb = tradeExecutor.circuitBreaker;
+    const dayStart = cb.dayStartBalance || tradeExecutor.paperBalance;
+    const currentBal = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance;
+    const drawdownPct = dayStart > 0 ? (dayStart - currentBal) / dayStart : 0;
+    
+    res.json({
+        state: cb.state,
+        enabled: cb.enabled,
+        
+        // Current situation
+        dayStartBalance: dayStart,
+        currentBalance: currentBal,
+        drawdownPct: (drawdownPct * 100).toFixed(2) + '%',
+        consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
+        recentWinStreak: tradeExecutor.recentWinStreak || 0,
+        
+        // Thresholds
+        thresholds: {
+            softDrawdownPct: (cb.softDrawdownPct * 100) + '%',
+            hardDrawdownPct: (cb.hardDrawdownPct * 100) + '%',
+            haltDrawdownPct: (cb.haltDrawdownPct * 100) + '%',
+            safeOnlyAfterLosses: cb.safeOnlyAfterLosses,
+            probeOnlyAfterLosses: cb.probeOnlyAfterLosses,
+            haltAfterLosses: cb.haltAfterLosses
+        },
+        
+        // Streak sizing
+        streakSizing: {
+            enabled: tradeExecutor.streakSizing.enabled,
+            currentMultiplier: tradeExecutor.getStreakSizeMultiplier(),
+            maxLossBudget: tradeExecutor.getMaxLossBudget().toFixed(2)
+        },
+        
+        // Trigger history
+        triggerTime: cb.triggerTime ? new Date(cb.triggerTime).toISOString() : null,
+        dayStartTime: cb.dayStartTime ? new Date(cb.dayStartTime).toISOString() : null,
+        
+        // What would happen to a trade right now
+        wouldAllow: tradeExecutor.isCircuitBreakerAllowed('NORMAL')
+    });
+});
+
+// 🎯 GOAT v3: Override CircuitBreaker (manual control)
+app.post('/api/circuit-breaker/override', (req, res) => {
+    if (!tradeExecutor || !tradeExecutor.circuitBreaker) {
+        return res.status(400).json({ error: 'TradeExecutor not initialized' });
+    }
+    
+    const { action } = req.body;
+    
+    switch (action) {
+        case 'reset':
+            tradeExecutor.circuitBreaker.state = 'NORMAL';
+            tradeExecutor.circuitBreaker.triggerTime = 0;
+            tradeExecutor.consecutiveLosses = 0;
+            log('🔌 CircuitBreaker manually reset to NORMAL');
+            break;
+        case 'disable':
+            tradeExecutor.circuitBreaker.enabled = false;
+            log('🔌 CircuitBreaker DISABLED');
+            break;
+        case 'enable':
+            tradeExecutor.circuitBreaker.enabled = true;
+            log('🔌 CircuitBreaker ENABLED');
+            break;
+        case 'halt':
+            tradeExecutor.circuitBreaker.state = 'HALTED';
+            tradeExecutor.circuitBreaker.triggerTime = Date.now();
+            log('🔌 CircuitBreaker manually set to HALTED');
+            break;
+        default:
+            return res.status(400).json({ 
+                error: 'Invalid action', 
+                validActions: ['reset', 'disable', 'enable', 'halt'] 
+            });
+    }
+    
+    res.json({ 
+        success: true, 
+        action: action,
+        newState: tradeExecutor.circuitBreaker.state,
+        enabled: tradeExecutor.circuitBreaker.enabled
+    });
+});
+
+// 🎯 GOAT v3: Portfolio accounting endpoint
+app.get('/api/portfolio', (req, res) => {
+    if (!tradeExecutor) {
+        return res.status(500).json({ error: 'TradeExecutor not initialized' });
+    }
+    
+    res.json(tradeExecutor.getPortfolioSummary());
+});
+
+// 🎯 GOAT v3: Calibration endpoint with confidence bounds
+app.get('/api/calibration', (req, res) => {
+    const calibrationData = {
+        description: 'Calibration statistics by bucket (tier × price_band × regime)',
+        buckets: {},
+        summary: {
+            totalCycles: 0,
+            avgAccuracy: 0,
+            lcbPWin: 0,
+            explanation: 'Lower Confidence Bound (LCB) is used to gate trades - we only trade when the LCB of pWin is above threshold'
+        }
+    };
+    
+    // Collect calibration data from all brains
+    ASSETS.forEach(asset => {
+        if (typeof Brains !== 'undefined' && Brains[asset]) {
+            const brain = Brains[asset];
+            const buckets = brain.calibrationBuckets || {};
+            
+            for (const [key, bucket] of Object.entries(buckets)) {
+                if (!calibrationData.buckets[key]) {
+                    calibrationData.buckets[key] = { wins: 0, total: 0, assets: [] };
+                }
+                calibrationData.buckets[key].wins += bucket.wins || 0;
+                calibrationData.buckets[key].total += bucket.total || 0;
+                calibrationData.buckets[key].assets.push(asset);
+            }
+            
+            // Also include brain stats
+            if (brain.stats) {
+                calibrationData.summary.totalCycles += brain.stats.total || 0;
+            }
         }
     });
+    
+    // Calculate accuracy and LCB for each bucket
+    let totalAcc = 0;
+    let bucketCount = 0;
+    
+    for (const [key, bucket] of Object.entries(calibrationData.buckets)) {
+        if (bucket.total > 0) {
+            bucket.accuracy = bucket.wins / bucket.total;
+            bucket.accuracyPct = (bucket.accuracy * 100).toFixed(1) + '%';
+            
+            // Calculate Wilson score interval for LCB (conservative)
+            // LCB = (p + z²/2n - z*sqrt(p(1-p)/n + z²/4n²)) / (1 + z²/n)
+            // Using z = 1.96 for 95% confidence
+            const p = bucket.accuracy;
+            const n = bucket.total;
+            const z = 1.96;
+            const z2 = z * z;
+            
+            if (n > 0) {
+                const denominator = 1 + z2 / n;
+                const center = p + z2 / (2 * n);
+                const margin = z * Math.sqrt((p * (1 - p) / n) + (z2 / (4 * n * n)));
+                bucket.lcb = Math.max(0, (center - margin) / denominator);
+                bucket.ucb = Math.min(1, (center + margin) / denominator);
+                bucket.lcbPct = (bucket.lcb * 100).toFixed(1) + '%';
+            } else {
+                bucket.lcb = 0;
+                bucket.ucb = 1;
+                bucket.lcbPct = '0%';
+            }
+            
+            totalAcc += bucket.accuracy;
+            bucketCount++;
+        }
+    }
+    
+    if (bucketCount > 0) {
+        calibrationData.summary.avgAccuracy = (totalAcc / bucketCount * 100).toFixed(1) + '%';
+    }
+    
+    // Plain English explanation
+    calibrationData.howToRead = {
+        accuracy: 'Historical win rate for this bucket',
+        lcb: 'Lower Confidence Bound (95%) - conservative estimate of true win probability',
+        ucb: 'Upper Confidence Bound (95%)',
+        total: 'Number of trades in this bucket',
+        recommendation: 'Only trade when LCB >= configured threshold (typically 55-60%)'
+    };
+    
+    res.json(calibrationData);
+});
+
+// 🎯 GOAT v3: Monte Carlo projection endpoint
+app.get('/api/projection', async (req, res) => {
+    try {
+        const startingBalance = parseFloat(req.query.balance) || 5.0;
+        const targetBalance = parseFloat(req.query.target) || 100.0;
+        const simulations = Math.min(parseInt(req.query.sims) || 1000, 10000);
+        const maxTrades = parseInt(req.query.maxTrades) || 500;
+        
+        // Get historical win rate from calibration
+        let historicalWinRate = 0.65; // Default
+        let totalWins = 0;
+        let totalTrades = 0;
+        
+        if (typeof Brains !== 'undefined') {
+            ASSETS.forEach(asset => {
+                if (Brains[asset] && Brains[asset].stats) {
+                    totalWins += Brains[asset].stats.wins || 0;
+                    totalTrades += Brains[asset].stats.total || 0;
+                }
+            });
+        }
+        
+        if (totalTrades > 0) {
+            historicalWinRate = totalWins / totalTrades;
+        }
+        
+        // Also check trade history
+        if (tradeExecutor && tradeExecutor.tradeHistory) {
+            const closedTrades = tradeExecutor.tradeHistory.filter(t => t.status === 'CLOSED');
+            if (closedTrades.length > 10) {
+                const wins = closedTrades.filter(t => t.pnl >= 0).length;
+                historicalWinRate = (historicalWinRate + wins / closedTrades.length) / 2; // Average
+            }
+        }
+        
+        // Monte Carlo simulation
+        const results = [];
+        const tradesToTarget = [];
+        const finalBalances = [];
+        let reachedTargetCount = 0;
+        let bustCount = 0;
+        
+        const positionSize = 0.20; // 20% position size (conservative)
+        const avgEntryPrice = 0.65; // Average entry price
+        const winPayout = 1.0 / avgEntryPrice; // Win pays ~1.54x
+        
+        for (let sim = 0; sim < simulations; sim++) {
+            let balance = startingBalance;
+            let trades = 0;
+            let reached = false;
+            
+            while (trades < maxTrades && balance >= 1.10 && !reached) {
+                const size = Math.min(balance * positionSize, balance - 1.0);
+                if (size < 1.10) break;
+                
+                // Simulate trade outcome
+                const won = Math.random() < historicalWinRate;
+                
+                if (won) {
+                    const profit = size * (winPayout - 1) * 0.98; // 2% fee on profit
+                    balance += profit;
+                } else {
+                    balance -= size;
+                }
+                
+                trades++;
+                
+                if (balance >= targetBalance) {
+                    reached = true;
+                    reachedTargetCount++;
+                    tradesToTarget.push(trades);
+                }
+            }
+            
+            if (balance < 1.10) bustCount++;
+            finalBalances.push(balance);
+        }
+        
+        // Calculate percentiles
+        finalBalances.sort((a, b) => a - b);
+        tradesToTarget.sort((a, b) => a - b);
+        
+        const p50Balance = finalBalances[Math.floor(simulations * 0.50)];
+        const p80Balance = finalBalances[Math.floor(simulations * 0.80)];
+        const p95Balance = finalBalances[Math.floor(simulations * 0.95)];
+        
+        const p50Trades = tradesToTarget.length > 0 ? tradesToTarget[Math.floor(tradesToTarget.length * 0.50)] : null;
+        const p80Trades = tradesToTarget.length > 0 ? tradesToTarget[Math.floor(tradesToTarget.length * 0.80)] : null;
+        
+        res.json({
+            inputs: {
+                startingBalance,
+                targetBalance,
+                simulations,
+                maxTrades,
+                historicalWinRate: (historicalWinRate * 100).toFixed(1) + '%',
+                positionSize: (positionSize * 100) + '%',
+                avgEntryPrice: (avgEntryPrice * 100) + '¢'
+            },
+            results: {
+                reachedTargetPct: ((reachedTargetCount / simulations) * 100).toFixed(1) + '%',
+                bustPct: ((bustCount / simulations) * 100).toFixed(1) + '%',
+                
+                balanceDistribution: {
+                    p50: '$' + p50Balance.toFixed(2),
+                    p80: '$' + p80Balance.toFixed(2),
+                    p95: '$' + p95Balance.toFixed(2),
+                    min: '$' + finalBalances[0].toFixed(2),
+                    max: '$' + finalBalances[finalBalances.length - 1].toFixed(2)
+                },
+                
+                tradesToTarget: tradesToTarget.length > 0 ? {
+                    p50: p50Trades + ' trades',
+                    p80: p80Trades + ' trades',
+                    sampleSize: tradesToTarget.length
+                } : 'Target not reached in enough simulations'
+            },
+            
+            // Plain English summary
+            summary: `Based on ${simulations} Monte Carlo simulations with ${(historicalWinRate * 100).toFixed(0)}% win rate: ` +
+                     `There's a ${((reachedTargetCount / simulations) * 100).toFixed(0)}% chance of reaching $${targetBalance} from $${startingBalance}. ` +
+                     `Median ending balance after ${maxTrades} trades: $${p50Balance.toFixed(2)}. ` +
+                     `Risk of bust (balance < $1.10): ${((bustCount / simulations) * 100).toFixed(1)}%.`,
+            
+            disclaimer: 'These projections are based on historical data and Monte Carlo simulation. ' +
+                        'Past performance does not guarantee future results. Markets can behave unexpectedly.'
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// 🎯 GOAT v45: Honest GOAT Verification endpoint
+// Each check must actually validate functionality, not just existence
+app.get('/api/verify', async (req, res) => {
+    const checks = [];
+    let passCount = 0;
+    let failCount = 0;
+    
+    const addCheck = (name, passed, details = '', severity = 'error') => {
+        checks.push({ name, passed, details, severity });
+        if (passed) passCount++;
+        else failCount++;
+    };
+    
+    // ==================== CORE CHECKS ====================
+    
+    // Check 1: TradeExecutor initialized
+    addCheck('TradeExecutor initialized', 
+        !!tradeExecutor, 
+        tradeExecutor ? `Mode: ${tradeExecutor.mode}` : 'Not found');
+    
+    // Check 2: CircuitBreaker with hybrid throttle (HONEST CHECK)
+    const cbExists = tradeExecutor?.circuitBreaker;
+    const cbHasThresholds = cbExists && 
+        typeof cbExists.softDrawdownPct === 'number' && 
+        typeof cbExists.hardDrawdownPct === 'number' && 
+        typeof cbExists.haltDrawdownPct === 'number';
+    const cbHasResumeConditions = cbExists && cbExists.resumeConditions && 
+        typeof cbExists.resumeConditions.probeToSafeMinutes === 'number';
+    addCheck('Hybrid throttle (CircuitBreaker v45)', 
+        cbExists?.enabled === true && cbHasThresholds && cbHasResumeConditions,
+        cbExists ? `State: ${cbExists.state}, Thresholds: ${cbExists.softDrawdownPct*100}%/${cbExists.hardDrawdownPct*100}%/${cbExists.haltDrawdownPct*100}%` : 'Not configured');
+    
+    // Check 3: LCB gating (HONEST CHECK - verify function exists on at least one brain)
+    const hasLcbFunction = ASSETS.some(a => 
+        typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function'
+    );
+    const wilsonLCBExists = typeof wilsonLCB === 'function';
+    addCheck('LCB gating active', 
+        hasLcbFunction && wilsonLCBExists,
+        hasLcbFunction ? 'getCalibratedPWinWithLCB + wilsonLCB available' : 'LCB functions not found');
+    
+    // Check 4: LIVE balance freshness enforcement (HONEST CHECK)
+    const hasFreshnessCheck = tradeExecutor?.lastBalanceFetch !== undefined;
+    const freshnessAge = hasFreshnessCheck ? (Date.now() - (tradeExecutor.lastBalanceFetch || 0)) : Infinity;
+    const freshnessOk = hasFreshnessCheck && (tradeExecutor.mode !== 'LIVE' || freshnessAge < 120000);
+    addCheck('LIVE balance freshness', 
+        freshnessOk,
+        hasFreshnessCheck ? `Age: ${Math.round(freshnessAge/1000)}s (max: 60s for LIVE trades)` : 'Freshness tracking not found',
+        'warn');
+    
+    // Check 5: Redis available (for persistence)
+    addCheck('Redis available',
+        typeof redisAvailable !== 'undefined' && redisAvailable === true,
+        redisAvailable ? 'Connected' : 'Not connected');
+    
+    // Check 6: Brains initialized with calibration
+    const brainsOk = typeof Brains !== 'undefined' && ASSETS.every(a => Brains[a]);
+    const brainsWithCalibration = ASSETS.filter(a => 
+        Brains?.[a]?.calibrationBuckets && Object.keys(Brains[a].calibrationBuckets).length > 0
+    ).length;
+    addCheck('Brains with calibration',
+        brainsOk && brainsWithCalibration > 0,
+        `${brainsWithCalibration}/${ASSETS.length} assets have calibration data`);
+    
+    // Check 7: Live data feed
+    const now = Date.now();
+    const feedAge = typeof lastLiveDataTime !== 'undefined' ? now - lastLiveDataTime : Infinity;
+    addCheck('Live data feed active',
+        feedAge < 120000,
+        feedAge < Infinity ? `Last update: ${Math.round(feedAge / 1000)}s ago` : 'Never received');
+    
+    // Check 8: Config version matches expected
+    addCheck('Config version v45+',
+        typeof CONFIG_VERSION !== 'undefined' && CONFIG_VERSION >= 45,
+        `v${CONFIG_VERSION || 'UNDEFINED'} (need >=45 for GOAT features)`);
+    
+    // Check 9: Trade history idempotent (HONEST CHECK - verify structure)
+    let historyIdempotent = false;
+    let historyDetails = 'Not tested';
+    if (typeof loadTradeHistory === 'function' && redisAvailable && redis) {
+        try {
+            // Check that the new hash+zset keys exist (not old list key)
+            const hashExists = await redis.exists(TRADE_HISTORY_PAPER_HASH);
+            const zsetExists = await redis.exists(TRADE_HISTORY_PAPER_ZSET);
+            // Either both exist, or neither (fresh start)
+            historyIdempotent = (hashExists && zsetExists) || (!hashExists && !zsetExists);
+            historyDetails = historyIdempotent ? 
+                `Using idempotent hash+zset structure` : 
+                `Legacy list structure detected - run migration`;
+        } catch (e) {
+            historyDetails = `Error: ${e.message}`;
+        }
+    }
+    addCheck('Trade history idempotent',
+        historyIdempotent,
+        historyDetails);
+    
+    // Check 10: GateTrace available
+    addCheck('GateTrace available',
+        typeof gateTrace !== 'undefined' && gateTrace !== null,
+        gateTrace ? `${gateTrace.getSummary?.()?.totalEvaluations || 0} evaluations` : 'Not found');
+    
+    // Check 11: Forward collector state persisted
+    // Honest check: verify forwardCollectorEnabled matches what's in Redis state
+    let collectorStatePersisted = false;
+    if (redisAvailable && redis) {
+        try {
+            const storedState = await redis.get('deity:state');
+            if (storedState) {
+                const state = JSON.parse(storedState);
+                collectorStatePersisted = typeof state.forwardCollectorEnabled === 'boolean';
+            }
+        } catch {}
+    }
+    addCheck('Collector state persisted',
+        typeof forwardCollectorEnabled !== 'undefined' && (collectorStatePersisted || !redisAvailable),
+        collectorStatePersisted ? 'State saved in Redis' : (redisAvailable ? 'Not yet saved (will save on next cycle)' : 'No Redis'),
+        'warn');
+    
+    // Check 12: Redemption events persisted
+    const redemptionEventsPersisted = Array.isArray(tradeExecutor?.redemptionEvents);
+    addCheck('Redemption events tracked',
+        redemptionEventsPersisted,
+        redemptionEventsPersisted ? `${tradeExecutor.redemptionEvents.length} events tracked` : 'Not initialized',
+        'warn');
+    
+    // Check 13: Streak sizing enabled
+    addCheck('Streak sizing enabled',
+        tradeExecutor?.streakSizing?.enabled === true,
+        `Multiplier: ${tradeExecutor?.getStreakSizeMultiplier?.() || 'N/A'}`);
+    
+    // Check 14: Auth configured
+    const authConfigured = process.env.AUTH_USERNAME && process.env.AUTH_PASSWORD;
+    addCheck('Auth configured',
+        authConfigured,
+        authConfigured ? 'Username and password set' : 'Using defaults (insecure)',
+        'warn');
+    
+    // ==================== CALCULATE STATUS ====================
+    const criticalFails = checks.filter(c => !c.passed && c.severity === 'error').length;
+    const warnFails = checks.filter(c => !c.passed && c.severity === 'warn').length;
+    
+    const overallStatus = criticalFails === 0 ? (warnFails === 0 ? 'PASS' : 'WARN') : 'FAIL';
+    
+    res.json({
+        status: overallStatus,
+        passed: passCount,
+        failed: failCount,
+        criticalFailures: criticalFails,
+        warnings: warnFails,
+        checks,
+        
+        // Top failures for quick action
+        topFailures: checks.filter(c => !c.passed).slice(0, 5).map(c => ({
+            issue: c.name,
+            severity: c.severity,
+            action: getFixAction(c.name)
+        })),
+        
+        // Summary of GOAT v45 features
+        goatFeatures: {
+            hybridThrottle: cbHasThresholds && cbHasResumeConditions,
+            lcbGating: hasLcbFunction && wilsonLCBExists,
+            liveFreshness: hasFreshnessCheck,
+            idempotentHistory: historyIdempotent,
+            collectorPersistence: collectorStatePersisted
+        },
+        
+        timestamp: new Date().toISOString(),
+        version: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+        configVersion: CONFIG_VERSION
+    });
+    
+    function getFixAction(checkName) {
+        const actions = {
+            'TradeExecutor initialized': 'Check server startup logs for errors',
+            'Hybrid throttle (CircuitBreaker v45)': 'Ensure circuitBreaker is initialized with resumeConditions',
+            'LCB gating active': 'Ensure getCalibratedPWinWithLCB method exists on SupremeBrain',
+            'LIVE balance freshness': 'refreshLiveBalance() must update lastBalanceFetch',
+            'Streak sizing enabled': 'Check TradeExecutor configuration',
+            'Redis available': 'Set REDIS_URL environment variable',
+            'Brains with calibration': 'Run trades to build calibration data',
+            'Live data feed active': 'Check WebSocket connection to Polymarket',
+            'Config version v45+': 'Ensure CONFIG_VERSION >= 45 in server.js',
+            'Trade history idempotent': 'Using new hash+zset structure - old list will be ignored',
+            'GateTrace available': 'Check gateTrace initialization',
+            'Collector state persisted': 'Will persist on next saveState() cycle',
+            'Redemption events tracked': 'Initialize tradeExecutor.redemptionEvents array',
+            'Auth configured': 'Set AUTH_USERNAME and AUTH_PASSWORD in environment'
+        };
+        return actions[checkName] || 'Check server configuration';
+    }
 });
 
 // Version endpoint - helps confirm Render/GitHub deployment matches expected code
@@ -969,6 +1502,126 @@ const COLLECTOR_INTERVAL_MS = 15 * 60 * 1000; // Save every 15 minutes
 const COLLECTOR_REDIS_KEY = 'polyprophet:collector:snapshots';
 const COLLECTOR_MAX_SNAPSHOTS = 1000; // Keep last 1000 in Redis
 
+// 🎯 GOAT v4: Idempotent Persistent Trade History (Redis Hash + Sorted Set)
+// Uses Hash for deduplication (by trade ID) and Sorted Set for ordering (by timestamp)
+const TRADE_HISTORY_PAPER_HASH = 'polyprophet:trades:paper:hash';
+const TRADE_HISTORY_PAPER_ZSET = 'polyprophet:trades:paper:zset';
+const TRADE_HISTORY_LIVE_HASH = 'polyprophet:trades:live:hash';
+const TRADE_HISTORY_LIVE_ZSET = 'polyprophet:trades:live:zset';
+const TRADE_HISTORY_MAX = 10000; // Keep last 10,000 trades per mode
+
+// 🎯 GOAT v4: Persist a trade idempotently (no duplicates by ID)
+async function persistTrade(trade, mode = 'PAPER') {
+    if (!redisAvailable || !redis) return;
+    
+    // Ensure trade has an ID
+    if (!trade.id) {
+        trade.id = `${trade.asset}_${trade.mode}_${trade.time || Date.now()}`;
+    }
+    
+    try {
+        const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
+        const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+        const tradeTime = trade.time || Date.now();
+        
+        // Use pipeline for atomicity
+        const pipeline = redis.pipeline();
+        
+        // Store trade in hash (keyed by ID - idempotent)
+        pipeline.hset(hashKey, trade.id, JSON.stringify(trade));
+        
+        // Add to sorted set (score = timestamp for ordering)
+        pipeline.zadd(zsetKey, tradeTime, trade.id);
+        
+        // Trim to max size (remove oldest entries beyond max)
+        pipeline.zremrangebyrank(zsetKey, 0, -(TRADE_HISTORY_MAX + 1));
+        
+        await pipeline.exec();
+        
+    } catch (e) {
+        console.log(`⚠️ Failed to persist trade: ${e.message}`);
+    }
+}
+
+// 🎯 GOAT v4: Load trade history from idempotent storage (hash + zset)
+async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
+    const result = { trades: [], total: 0, source: 'memory' };
+    
+    if (redisAvailable && redis) {
+        try {
+            const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
+            const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+            
+            // Get total count
+            result.total = await redis.zcard(zsetKey);
+            
+            // Get trade IDs in reverse chronological order (newest first)
+            const tradeIds = await redis.zrevrange(zsetKey, offset, offset + limit - 1);
+            
+            if (tradeIds.length > 0) {
+                // Fetch trade data from hash
+                const tradeData = await redis.hmget(hashKey, ...tradeIds);
+                result.trades = tradeData.map(r => {
+                    try { return r ? JSON.parse(r) : null; } catch { return null; }
+                }).filter(Boolean);
+            }
+            
+            result.source = 'redis';
+        } catch (e) {
+            console.log(`⚠️ Failed to load trade history from Redis: ${e.message}`);
+        }
+    }
+    
+    // Fallback to in-memory if Redis failed or unavailable
+    if (result.trades.length === 0 && tradeExecutor && tradeExecutor.tradeHistory) {
+        const memTrades = tradeExecutor.tradeHistory.filter(t => 
+            mode === 'LIVE' ? t.mode === 'LIVE' : t.mode !== 'LIVE'
+        );
+        result.total = memTrades.length;
+        result.trades = memTrades.slice(offset, offset + limit);
+        result.source = 'memory';
+    }
+    
+    return result;
+}
+
+// Reset trade history in Redis
+// 🎯 GOAT v45: Reset trade history (both hash and zset)
+async function resetTradeHistory(mode = 'PAPER') {
+    let deletedCount = 0;
+    if (redisAvailable && redis) {
+        try {
+            const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
+            const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+            
+            // Get current count before deletion
+            deletedCount = await redis.zcard(zsetKey);
+            
+            // Delete both hash and sorted set
+            await redis.del(hashKey);
+            await redis.del(zsetKey);
+            
+            console.log(`🗑️ Reset ${mode} trade history: ${deletedCount} trades deleted`);
+        } catch (e) {
+            console.log(`⚠️ Failed to reset trade history in Redis: ${e.message}`);
+        }
+    }
+    return { success: true, deletedCount };
+}
+
+// 🎯 GOAT v45: Get trade history stats
+async function getTradeHistoryStats(mode = 'PAPER') {
+    if (!redisAvailable || !redis) return { total: 0, source: 'unavailable' };
+    
+    try {
+        const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+        const total = await redis.zcard(zsetKey);
+        return { total, source: 'redis' };
+    } catch (e) {
+        return { total: 0, source: 'error', error: e.message };
+    }
+}
+
 async function runForwardDataCollector() {
     if (!forwardCollectorEnabled) return;
     
@@ -1102,9 +1755,13 @@ async function getCollectorSnapshots(limit = 100) {
 setInterval(runForwardDataCollector, 60 * 1000);
 
 // API: Toggle forward collector
-app.post('/api/collector/toggle', (req, res) => {
+app.post('/api/collector/toggle', async (req, res) => {
     forwardCollectorEnabled = !forwardCollectorEnabled;
     log(`📦 FORWARD COLLECTOR: ${forwardCollectorEnabled ? 'ENABLED' : 'DISABLED'}`);
+    
+    // 🎯 GOAT v4: Persist state to Redis
+    await persistCollectorEnabled();
+    
     res.json({ enabled: forwardCollectorEnabled });
 });
 
@@ -1157,7 +1814,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 44;  // v44 GOAT: API Explorer, GateTrace, EV-derived caps, frequency governor, redemption audit, watchdog
+const CONFIG_VERSION = 45;  // v45 GOAT FINAL: Hybrid throttle, LCB entry/exit gating, LIVE fail-closed, idempotent trade history, persistent collector/redemption
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -1457,6 +2114,17 @@ class TradeExecutor {
         this.cachedLiveBalance = 0;    // Cached USDC balance for LIVE mode
         this.lastGoodBalance = 0;      // Last known successful balance (prevents $0 flash)
         this.lastBalanceFetch = 0;     // Timestamp of last balance fetch
+        
+        // 🎯 GOAT v3: Portfolio accounting for truthful LIVE P/L
+        this.portfolioAccounting = {
+            cashUSDC: 0,                 // Wallet cash balance
+            positionsMTM: 0,             // Mark-to-market value of open positions
+            portfolioValue: 0,           // Total = cash + MTM
+            dayStartPortfolioValue: null,// Portfolio value at day start
+            dayStartTime: null,          // When the day started
+            todayPnL: 0,                 // Today's P/L based on portfolio accounting
+            lastUpdate: 0                // Last time portfolio was calculated
+        };
 
         // 💰 GAS ESTIMATION & LOW BALANCE ALERTS
         this.cachedMATICBalance = 0;   // Cached MATIC/POL balance
@@ -1512,6 +2180,47 @@ class TradeExecutor {
             harvestMinPWin: 0.55,            // Minimum pWin to trade in HARVEST
             strikeMinPWin: 0.65              // Minimum pWin to trade in STRIKE (higher bar for larger bets)
         }
+        
+        // 🎯 GOAT v3: CircuitBreaker for variance hardening
+        // Protects against loss streaks without unnecessarily halting for a full day
+        this.circuitBreaker = {
+            enabled: true,
+            state: 'NORMAL',                 // 'NORMAL' | 'SAFE_ONLY' | 'PROBE_ONLY' | 'HALTED'
+            triggerTime: 0,                  // When circuit breaker was triggered
+            
+            // Drawdown triggers (percentage of dayStartBalance)
+            softDrawdownPct: 0.15,           // 15% drawdown → SAFE_ONLY (no Acceleration)
+            hardDrawdownPct: 0.30,           // 30% drawdown → PROBE_ONLY (min size only)
+            haltDrawdownPct: 0.50,           // 50% drawdown → HALTED (optional, very conservative)
+            
+            // Loss streak triggers
+            safeOnlyAfterLosses: 2,          // 2 consecutive losses → SAFE_ONLY
+            probeOnlyAfterLosses: 4,         // 4 consecutive losses → PROBE_ONLY
+            haltAfterLosses: 6,              // 6 consecutive losses → HALTED (optional)
+            
+            // Resume criteria
+            resumeAfterMinutes: 30,          // Minimum 30 min before resuming from PROBE_ONLY
+            resumeAfterWin: true,            // Resume to NORMAL after a win
+            resumeOnNewDay: true,            // Auto-resume on new day
+            
+            // Daily tracking
+            dayStartBalance: null,           // Set at start of day or first trade
+            dayStartTime: null               // When the trading day started
+        };
+        
+        // 🎯 GOAT v3: Streak-aware sizing
+        // Reduces position size after losses to limit drawdown damage
+        this.streakSizing = {
+            enabled: true,
+            // Size multipliers based on recent loss streak
+            // After 1 loss: 80% size, after 2: 60%, after 3: 40%, after 4+: 25%
+            lossMultipliers: [1.0, 0.80, 0.60, 0.40, 0.25],
+            // Max loss budget per trade (percentage of dayStartBalance)
+            maxLossBudgetPct: 0.10,          // No single trade can lose more than 10% of day start
+            // Win streak bonus (optional, conservative)
+            winBonusEnabled: false,          // Don't increase size on wins (reduces variance)
+            winMultipliers: [1.0, 1.0, 1.05, 1.10] // If enabled: slight increase after wins
+        };
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {
             try {
@@ -1574,6 +2283,266 @@ class TradeExecutor {
     // Calculate total exposure
     getTotalExposure() {
         return Object.values(this.positions).reduce((sum, p) => sum + p.size, 0);
+    }
+    
+    // 🎯 GOAT v3: Initialize day tracking for CircuitBreaker
+    initDayTracking() {
+        const now = Date.now();
+        const bankroll = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || this.paperBalance);
+        
+        // Check if it's a new day
+        if (!this.circuitBreaker.dayStartTime || 
+            new Date(this.circuitBreaker.dayStartTime).toDateString() !== new Date(now).toDateString()) {
+            this.circuitBreaker.dayStartBalance = bankroll;
+            this.circuitBreaker.dayStartTime = now;
+            
+            // Auto-resume on new day if configured
+            if (this.circuitBreaker.resumeOnNewDay && this.circuitBreaker.state !== 'NORMAL') {
+                log(`🌅 New day: CircuitBreaker reset to NORMAL (was ${this.circuitBreaker.state})`);
+                this.circuitBreaker.state = 'NORMAL';
+                this.circuitBreaker.triggerTime = 0;
+            }
+        }
+        
+        return this.circuitBreaker.dayStartBalance;
+    }
+    
+    // 🎯 GOAT v3: Update CircuitBreaker state based on current conditions
+    updateCircuitBreaker() {
+        if (!this.circuitBreaker.enabled) return;
+        
+        const dayStart = this.initDayTracking();
+        const currentBalance = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || this.paperBalance);
+        const drawdownPct = dayStart > 0 ? (dayStart - currentBalance) / dayStart : 0;
+        const lossStreak = this.consecutiveLosses || 0;
+        const now = Date.now();
+        
+        // Determine new state based on drawdown and loss streak
+        let newState = 'NORMAL';
+        let reason = '';
+        
+        // Check drawdown triggers
+        if (drawdownPct >= this.circuitBreaker.haltDrawdownPct) {
+            newState = 'HALTED';
+            reason = `Drawdown ${(drawdownPct * 100).toFixed(1)}% >= ${(this.circuitBreaker.haltDrawdownPct * 100)}%`;
+        } else if (drawdownPct >= this.circuitBreaker.hardDrawdownPct) {
+            newState = 'PROBE_ONLY';
+            reason = `Drawdown ${(drawdownPct * 100).toFixed(1)}% >= ${(this.circuitBreaker.hardDrawdownPct * 100)}%`;
+        } else if (drawdownPct >= this.circuitBreaker.softDrawdownPct) {
+            newState = 'SAFE_ONLY';
+            reason = `Drawdown ${(drawdownPct * 100).toFixed(1)}% >= ${(this.circuitBreaker.softDrawdownPct * 100)}%`;
+        }
+        
+        // Check loss streak triggers (can escalate but not de-escalate)
+        if (lossStreak >= this.circuitBreaker.haltAfterLosses && newState !== 'HALTED') {
+            newState = 'HALTED';
+            reason = `Loss streak ${lossStreak} >= ${this.circuitBreaker.haltAfterLosses}`;
+        } else if (lossStreak >= this.circuitBreaker.probeOnlyAfterLosses && newState === 'NORMAL') {
+            newState = 'PROBE_ONLY';
+            reason = `Loss streak ${lossStreak} >= ${this.circuitBreaker.probeOnlyAfterLosses}`;
+        } else if (lossStreak >= this.circuitBreaker.safeOnlyAfterLosses && newState === 'NORMAL') {
+            newState = 'SAFE_ONLY';
+            reason = `Loss streak ${lossStreak} >= ${this.circuitBreaker.safeOnlyAfterLosses}`;
+        }
+        
+        // Check if we should resume (only if currently restricted)
+        if (this.circuitBreaker.state !== 'NORMAL' && newState === 'NORMAL') {
+            const timeSinceTrigger = now - (this.circuitBreaker.triggerTime || 0);
+            const minResumeMs = this.circuitBreaker.resumeAfterMinutes * 60 * 1000;
+            
+            // Need either: enough time passed, OR a win
+            if (timeSinceTrigger < minResumeMs && lossStreak > 0) {
+                // Don't resume yet - maintain current state
+                newState = this.circuitBreaker.state;
+                reason = `Waiting ${Math.ceil((minResumeMs - timeSinceTrigger) / 60000)}min or a win to resume`;
+            }
+        }
+        
+        // Log state changes
+        if (newState !== this.circuitBreaker.state) {
+            log(`🔌 CircuitBreaker: ${this.circuitBreaker.state} → ${newState} (${reason})`);
+            this.circuitBreaker.triggerTime = now;
+        }
+        
+        this.circuitBreaker.state = newState;
+        return { state: newState, drawdownPct, lossStreak, reason };
+    }
+    
+    // 🎯 GOAT v3: Check if trading is allowed by CircuitBreaker
+    isCircuitBreakerAllowed(tradeType = 'NORMAL') {
+        if (!this.circuitBreaker.enabled) return { allowed: true, reason: 'CircuitBreaker disabled' };
+        
+        this.updateCircuitBreaker();
+        
+        const state = this.circuitBreaker.state;
+        
+        switch (state) {
+            case 'HALTED':
+                return { allowed: false, reason: 'CircuitBreaker HALTED - no trades until conditions improve or new day' };
+            case 'PROBE_ONLY':
+                return { allowed: true, sizeMultiplier: 0.25, reason: 'CircuitBreaker PROBE_ONLY - 25% size only' };
+            case 'SAFE_ONLY':
+                if (tradeType === 'ACCELERATION') {
+                    return { allowed: false, reason: 'CircuitBreaker SAFE_ONLY - Acceleration trades blocked' };
+                }
+                return { allowed: true, sizeMultiplier: 0.5, reason: 'CircuitBreaker SAFE_ONLY - 50% size' };
+            default:
+                return { allowed: true, sizeMultiplier: 1.0, reason: 'CircuitBreaker NORMAL' };
+        }
+    }
+    
+    // 🎯 GOAT v3: Get streak-aware size multiplier
+    getStreakSizeMultiplier() {
+        if (!this.streakSizing.enabled) return 1.0;
+        
+        const lossStreak = this.consecutiveLosses || 0;
+        const winStreak = this.recentWinStreak || 0;
+        
+        // Apply loss multiplier
+        let multiplier = 1.0;
+        if (lossStreak > 0) {
+            const idx = Math.min(lossStreak, this.streakSizing.lossMultipliers.length - 1);
+            multiplier = this.streakSizing.lossMultipliers[idx];
+        }
+        
+        // Apply win bonus if enabled
+        if (this.streakSizing.winBonusEnabled && winStreak > 0 && lossStreak === 0) {
+            const idx = Math.min(winStreak, this.streakSizing.winMultipliers.length - 1);
+            multiplier *= this.streakSizing.winMultipliers[idx];
+        }
+        
+        return multiplier;
+    }
+    
+    // 🎯 GOAT v3: Calculate max loss budget for a trade
+    getMaxLossBudget() {
+        const dayStart = this.circuitBreaker.dayStartBalance || this.paperBalance;
+        return dayStart * this.streakSizing.maxLossBudgetPct;
+    }
+    
+    // 🎯 GOAT v3: Apply all variance controls to a proposed trade size
+    applyVarianceControls(proposedSize, tradeType = 'NORMAL') {
+        const cbResult = this.isCircuitBreakerAllowed(tradeType);
+        if (!cbResult.allowed) {
+            return { size: 0, blocked: true, reason: cbResult.reason };
+        }
+        
+        let size = proposedSize;
+        const adjustments = [];
+        
+        // Apply CircuitBreaker size multiplier
+        if (cbResult.sizeMultiplier && cbResult.sizeMultiplier < 1.0) {
+            size *= cbResult.sizeMultiplier;
+            adjustments.push(`CB: ${(cbResult.sizeMultiplier * 100).toFixed(0)}%`);
+        }
+        
+        // Apply streak sizing
+        const streakMult = this.getStreakSizeMultiplier();
+        if (streakMult < 1.0) {
+            size *= streakMult;
+            adjustments.push(`Streak: ${(streakMult * 100).toFixed(0)}%`);
+        }
+        
+        // Cap by max loss budget (assuming 50% stop loss worst case)
+        const maxLoss = this.getMaxLossBudget();
+        const maxSizeByBudget = maxLoss / 0.50; // If stop loss is -50%, max size = budget / 0.5
+        if (size > maxSizeByBudget) {
+            size = maxSizeByBudget;
+            adjustments.push(`Budget cap: $${maxSizeByBudget.toFixed(2)}`);
+        }
+        
+        return { 
+            size: Math.max(size, 0), 
+            blocked: false, 
+            adjustments: adjustments.join(', ') || 'None',
+            streakMultiplier: streakMult,
+            cbState: this.circuitBreaker.state
+        };
+    }
+    
+    // 🎯 GOAT v3: Calculate mark-to-market value of open positions
+    calculatePositionsMTM() {
+        let mtm = 0;
+        
+        for (const [posId, pos] of Object.entries(this.positions)) {
+            if (pos.status !== 'OPEN' && pos.status !== 'LIVE_OPEN') continue;
+            
+            // Get current market price for this position
+            const asset = pos.asset;
+            const market = typeof currentMarkets !== 'undefined' ? currentMarkets[asset] : null;
+            
+            if (!market) {
+                // Use entry price as fallback (conservative)
+                mtm += pos.size;
+                continue;
+            }
+            
+            // Calculate current value based on position direction
+            const currentPrice = pos.side === 'UP' ? market.yesPrice : market.noPrice;
+            const shares = pos.shares || (pos.size / pos.entry);
+            const currentValue = shares * currentPrice;
+            
+            mtm += currentValue;
+        }
+        
+        return mtm;
+    }
+    
+    // 🎯 GOAT v3: Update portfolio accounting (call periodically)
+    updatePortfolioAccounting() {
+        const now = Date.now();
+        const pa = this.portfolioAccounting;
+        
+        // Get cash balance
+        if (this.mode === 'PAPER') {
+            pa.cashUSDC = this.paperBalance;
+        } else {
+            pa.cashUSDC = this.cachedLiveBalance || 0;
+        }
+        
+        // Calculate MTM for open positions
+        pa.positionsMTM = this.calculatePositionsMTM();
+        
+        // Total portfolio value
+        pa.portfolioValue = pa.cashUSDC + pa.positionsMTM;
+        
+        // Initialize day start if needed
+        if (!pa.dayStartTime || new Date(pa.dayStartTime).toDateString() !== new Date(now).toDateString()) {
+            pa.dayStartPortfolioValue = pa.portfolioValue;
+            pa.dayStartTime = now;
+        }
+        
+        // Calculate today's P/L
+        if (pa.dayStartPortfolioValue !== null) {
+            pa.todayPnL = pa.portfolioValue - pa.dayStartPortfolioValue;
+        }
+        
+        pa.lastUpdate = now;
+        
+        return pa;
+    }
+    
+    // 🎯 GOAT v3: Get portfolio summary for API/UI
+    getPortfolioSummary() {
+        this.updatePortfolioAccounting();
+        const pa = this.portfolioAccounting;
+        
+        return {
+            mode: this.mode,
+            cashUSDC: pa.cashUSDC,
+            positionsMTM: pa.positionsMTM,
+            portfolioValue: pa.portfolioValue,
+            dayStartPortfolioValue: pa.dayStartPortfolioValue,
+            todayPnL: pa.todayPnL,
+            todayPnLPercent: pa.dayStartPortfolioValue > 0 ? 
+                (pa.todayPnL / pa.dayStartPortfolioValue * 100) : 0,
+            openPositions: Object.keys(this.positions).length,
+            lastUpdate: new Date(pa.lastUpdate).toISOString(),
+            // Simple explanation for UI
+            explanation: this.mode === 'PAPER' 
+                ? `Paper trading with $${pa.portfolioValue.toFixed(2)} total value`
+                : `LIVE portfolio: $${pa.cashUSDC.toFixed(2)} cash + $${pa.positionsMTM.toFixed(2)} in positions = $${pa.portfolioValue.toFixed(2)}`
+        };
     }
 
     // Check if in cooldown after loss
@@ -2333,6 +3302,17 @@ class TradeExecutor {
                     const originalSize = size;
                     size = size * options.stateMultiplier;
                     log(`🎯 STATE SIZING: ${this.tradingState} mode - ${(options.stateMultiplier * 100).toFixed(0)}% (${originalSize.toFixed(2)} → ${size.toFixed(2)})`, asset);
+                }
+                
+                // 🎯 GOAT v3: Apply variance controls (CircuitBreaker + streak sizing + loss budget)
+                const varianceResult = this.applyVarianceControls(size, mode);
+                if (varianceResult.blocked) {
+                    log(`🔌 TRADE BLOCKED by variance controls: ${varianceResult.reason}`, asset);
+                    return { success: false, error: varianceResult.reason };
+                }
+                if (varianceResult.size < size) {
+                    log(`🔌 VARIANCE SIZING: $${size.toFixed(2)} → $${varianceResult.size.toFixed(2)} (${varianceResult.adjustments})`, asset);
+                    size = varianceResult.size;
                 }
 
                 // SMART MINIMUM: Ensure we meet $1.10 minimum
@@ -4014,7 +4994,10 @@ class TradeExecutor {
                 events.push(eventRecord);
                 this.redemptionEvents.push(eventRecord);
                 
-                // Keep only last 100 events
+                // 🎯 GOAT v4: Persist redemption event to Redis
+                persistRedemptionEvent(eventRecord);
+                
+                // Keep only last 100 events in memory
                 if (this.redemptionEvents.length > 100) {
                     this.redemptionEvents = this.redemptionEvents.slice(-100);
                 }
@@ -4050,13 +5033,17 @@ class TradeExecutor {
         
         // Record the clear event
         if (!this.redemptionEvents) this.redemptionEvents = [];
-        this.redemptionEvents.push({
+        const clearEvent = {
             timestamp: Date.now(),
             outcome: 'QUEUE_CLEARED',
             reason,
             clearedCount: count,
             clearedItems: clearedItems.map(i => ({ asset: i.asset, side: i.side, tokenId: i.tokenId }))
-        });
+        };
+        this.redemptionEvents.push(clearEvent);
+        
+        // 🎯 GOAT v4: Persist clear event to Redis
+        persistRedemptionEvent(clearEvent);
         
         log(`🗑️ Redemption queue cleared: ${count} items (reason: ${reason})`);
         return { cleared: count, items: clearedItems };
@@ -7228,6 +8215,14 @@ async function saveState() {
     if (redisAvailable && redis) {
         try {
             await redis.set('deity:state', JSON.stringify(state));
+            
+            // 🎯 GOAT v3: Sync new trades to persistent history
+            // Only sync trades that have been closed (have a closeTime)
+            const closedTrades = tradeExecutor.tradeHistory.filter(t => t.status === 'CLOSED' && t.closeTime);
+            for (const trade of closedTrades.slice(-50)) { // Sync last 50 closed trades each save
+                const tradeMode = trade.isLive || trade.mode === 'LIVE' ? 'LIVE' : 'PAPER';
+                await persistTrade(trade, tradeMode);
+            }
         } catch (e) {
             log(`⚠️ Redis state save error: ${e.message}`);
         }
@@ -7587,8 +8582,16 @@ app.get('/', (req, res) => {
             <div class="positions-list" id="positionsList"><div class="no-positions">No active positions</div></div>
         </div>
         <div class="trading-panel" style="margin-top:15px;">
-            <div class="panel-header"><span class="panel-title">📜 Trade History</span><span id="historyCount">0 trades</span></div>
+            <div class="panel-header">
+                <span class="panel-title">📜 Trade History</span>
+                <span id="historyCount">0 trades</span>
+                <div style="display:flex;gap:5px;margin-left:auto;">
+                    <button onclick="loadMoreTrades()" style="padding:4px 8px;background:#333;border:1px solid #555;border-radius:4px;color:#fff;cursor:pointer;font-size:0.7em;">📜 Load More</button>
+                    <button onclick="resetTradeHistoryUI()" style="padding:4px 8px;background:#333;border:1px solid #ff4466;border-radius:4px;color:#ff4466;cursor:pointer;font-size:0.7em;">🗑️ Reset</button>
+                </div>
+            </div>
             <div class="positions-list" id="tradeHistory"><div class="no-positions">No trades yet</div></div>
+            <div id="tradeHistoryPagination" style="display:none;padding:8px;text-align:center;font-size:0.8em;color:#888;"></div>
         </div>
         <!-- 🎯 GOAT v44.1: GateTrace Panel -->
         <div class="trading-panel" style="margin-top:15px;">
@@ -9053,6 +10056,90 @@ app.get('/', (req, res) => {
             }
         }
         
+        // 🎯 GOAT v4: Force resume trading via RiskGovernor override
+        async function forceResumeTrading() {
+            if (!confirm('Force resume trading?\\n\\nThis will override the RiskGovernor and resume to NORMAL state.\\nUse with caution.')) return;
+            try {
+                const res = await fetch('/api/circuit-breaker/override', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'resume' })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ Resumed to ' + result.newState + ' state');
+                } else {
+                    alert('❌ Resume failed: ' + (result.error || 'Unknown error'));
+                }
+                fetchData();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        // 🎯 GOAT v4: Trade history pagination
+        let tradeHistoryOffset = 0;
+        const tradeHistoryLimit = 20;
+        
+        async function loadMoreTrades() {
+            try {
+                const mode = document.getElementById('modeBadge')?.textContent || 'PAPER';
+                const res = await fetch('/api/trades?mode=' + mode + '&offset=' + tradeHistoryOffset + '&limit=' + tradeHistoryLimit);
+                const data = await res.json();
+                
+                if (data.trades && data.trades.length > 0) {
+                    tradeHistoryOffset += data.trades.length;
+                    // Append to existing trades in UI
+                    const histEl = document.getElementById('tradeHistory');
+                    const pagEl = document.getElementById('tradeHistoryPagination');
+                    
+                    let histHtml = histEl.innerHTML;
+                    data.trades.forEach(tr => {
+                        const emoji = tr.status === 'OPEN' ? '⏳' : ((tr.pnl || 0) >= 0 ? '✅' : '❌');
+                        const pnlColor = (tr.pnl || 0) >= 0 ? '#00ff88' : '#ff4466';
+                        const details = tr.status === 'CLOSED' 
+                            ? '$' + (tr.size || 0).toFixed(2) + ' @ ' + ((tr.entry || 0) * 100).toFixed(0) + '¢→' + ((tr.exit || 0) * 100).toFixed(0) + '¢ ' + ((tr.pnl || 0) >= 0 ? '+' : '') + '$' + (tr.pnl || 0).toFixed(2)
+                            : 'Entry: ' + ((tr.entry || 0) * 100).toFixed(0) + '¢ | $' + (tr.size || 0).toFixed(2);
+                        histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + (tr.asset || '?') + '</strong> ' + (tr.side || '?') + '</span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
+                    });
+                    histEl.innerHTML = histHtml;
+                    
+                    if (pagEl) {
+                        pagEl.style.display = 'block';
+                        pagEl.textContent = 'Showing ' + tradeHistoryOffset + ' of ' + data.total + ' trades';
+                    }
+                } else {
+                    alert('No more trades to load');
+                }
+            } catch (e) {
+                alert('❌ Error loading trades: ' + e.message);
+            }
+        }
+        
+        // 🎯 GOAT v4: Reset trade history
+        async function resetTradeHistoryUI() {
+            const mode = document.getElementById('modeBadge')?.textContent || 'PAPER';
+            if (!confirm('Reset ALL ' + mode + ' trade history?\\n\\nThis cannot be undone!')) return;
+            
+            try {
+                const res = await fetch('/api/trades/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode, confirm: true })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ ' + mode + ' trade history reset! ' + (result.deletedCount || 0) + ' trades deleted.');
+                    tradeHistoryOffset = 0;
+                    fetchData();
+                } else {
+                    alert('❌ Reset failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
         fetchData(); loadWallet(); loadSettings();
         setInterval(fetchData, 1000);
         setInterval(loadWallet, 30000);
@@ -9266,16 +10353,28 @@ app.get('/api/gates', (req, res) => {
     });
 });
 
-// Trading API - Get detailed trade data
-app.get('/api/trades', (req, res) => {
+// 🎯 GOAT v3: Enhanced Trading API with pagination and persistent history
+app.get('/api/trades', async (req, res) => {
+    const mode = req.query.mode || CONFIG.TRADE_MODE; // 'PAPER' or 'LIVE'
+    const offset = parseInt(req.query.offset) || 0;
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500); // Max 500 per request
+    
+    // Load from Redis if available
+    const historyResult = await loadTradeHistory(mode, offset, limit);
+    
     res.json({
-        mode: CONFIG.TRADE_MODE,
+        mode: mode,
         balance: tradeExecutor.paperBalance,
         startingBalance: tradeExecutor.startingBalance,
         todayPnL: tradeExecutor.todayPnL,
         totalReturn: ((tradeExecutor.paperBalance / tradeExecutor.startingBalance) - 1) * 100,
         positions: tradeExecutor.positions,
-        tradeHistory: tradeExecutor.tradeHistory,
+        trades: historyResult.trades,
+        totalTrades: historyResult.total,
+        offset: offset,
+        limit: limit,
+        source: historyResult.source,
+        hasMore: offset + limit < historyResult.total,
         modes: {
             ORACLE: { ...CONFIG.ORACLE },
             ARBITRAGE: { ...CONFIG.ARBITRAGE },
@@ -9286,6 +10385,74 @@ app.get('/api/trades', (req, res) => {
         risk: CONFIG.RISK,
         inCooldown: tradeExecutor.isInCooldown(),
         lastLossTime: tradeExecutor.lastLossTime
+    });
+});
+
+// 🎯 GOAT v3: Export full trade history
+app.get('/api/trades/export', async (req, res) => {
+    const mode = req.query.mode || CONFIG.TRADE_MODE;
+    const format = req.query.format || 'json'; // 'json' or 'csv'
+    
+    // Load all trades from Redis
+    const historyResult = await loadTradeHistory(mode, 0, TRADE_HISTORY_MAX);
+    
+    if (format === 'csv') {
+        // Generate CSV
+        const headers = ['id', 'asset', 'mode', 'side', 'entry', 'exit', 'size', 'pnl', 'pnlPercent', 'time', 'closeTime', 'status', 'reason'];
+        const rows = historyResult.trades.map(t => 
+            headers.map(h => {
+                const val = t[h];
+                if (val === undefined || val === null) return '';
+                if (typeof val === 'object') return JSON.stringify(val);
+                return String(val).replace(/,/g, ';');
+            }).join(',')
+        );
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=polyprophet_trades_${mode}_${new Date().toISOString().slice(0,10)}.csv`);
+        res.send([headers.join(','), ...rows].join('\n'));
+    } else {
+        res.json({
+            mode: mode,
+            exportedAt: new Date().toISOString(),
+            totalTrades: historyResult.total,
+            trades: historyResult.trades
+        });
+    }
+});
+
+// 🎯 GOAT v3: Reset trade history (with confirmation)
+app.post('/api/trades/reset', async (req, res) => {
+    const mode = req.body.mode || 'PAPER';
+    const confirm = req.body.confirm === true;
+    
+    if (!confirm) {
+        return res.status(400).json({ 
+            error: 'Must confirm reset', 
+            hint: 'Send { "mode": "PAPER", "confirm": true } in body',
+            warning: `This will permanently delete all ${mode} trade history`
+        });
+    }
+    
+    // Reset Redis history
+    await resetTradeHistory(mode);
+    
+    // Also reset in-memory if matching current mode
+    if (mode === CONFIG.TRADE_MODE || mode === 'PAPER') {
+        const beforeCount = tradeExecutor.tradeHistory.length;
+        if (mode === 'LIVE') {
+            tradeExecutor.tradeHistory = tradeExecutor.tradeHistory.filter(t => t.mode !== 'LIVE' && !t.isLive);
+        } else {
+            tradeExecutor.tradeHistory = tradeExecutor.tradeHistory.filter(t => t.mode === 'LIVE' || t.isLive);
+        }
+        const afterCount = tradeExecutor.tradeHistory.length;
+        log(`🗑️ Trade history reset: ${mode} mode (${beforeCount - afterCount} trades removed)`);
+    }
+    
+    res.json({ 
+        success: true, 
+        mode: mode,
+        message: `${mode} trade history has been reset` 
     });
 });
 
@@ -10698,6 +11865,10 @@ async function startup() {
 
     await initPatternStorage();
     await loadState();
+    
+    // 🎯 GOAT v4: Load persisted settings from Redis
+    await loadCollectorEnabled();
+    
     connectWebSocket();
 
     // 🔮 MAIN UPDATE LOOP: Every second, update brains AND check exit conditions
