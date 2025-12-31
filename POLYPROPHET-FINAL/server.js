@@ -537,6 +537,40 @@ app.get('/api/forward-test', async (req, res) => {
 // Returns last 10 cycles of COMPLETE debugging data - EVERY ATOM
 app.get('/api/debug-export', (req, res) => {
     try {
+        // Sanitize full runtime CONFIG for export (debug exports may be shared externally)
+        const sanitizeConfigForExport = () => {
+            let cfg = null;
+            try {
+                cfg = JSON.parse(JSON.stringify(CONFIG));
+            } catch {
+                // Fallback: shallow clone
+                cfg = { ...CONFIG };
+            }
+
+            const redactKeys = [
+                'POLYMARKET_PRIVATE_KEY',
+                'POLYMARKET_API_KEY',
+                'POLYMARKET_SECRET',
+                'POLYMARKET_PASSPHRASE',
+                'POLYMARKET_ADDRESS'
+            ];
+            for (const k of redactKeys) {
+                if (cfg && Object.prototype.hasOwnProperty.call(cfg, k) && cfg[k]) {
+                    cfg[k] = '<REDACTED>';
+                }
+            }
+            return cfg;
+        };
+
+        const configAll = sanitizeConfigForExport();
+        const runtimeConfigSha256 = (() => {
+            try {
+                return crypto.createHash('sha256').update(JSON.stringify(configAll)).digest('hex');
+            } catch {
+                return null;
+            }
+        })();
+
         const exportData = {
             // === META INFO ===
             exportTime: new Date().toISOString(),
@@ -545,6 +579,7 @@ app.get('/api/debug-export', (req, res) => {
             nodeVersion: process.version,
             memoryUsage: process.memoryUsage(),
             code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+            runtimeConfigSha256,
 
             // === GLOBAL CONFIG (ALL MODES) ===
             config: {
@@ -559,13 +594,16 @@ app.get('/api/debug-export', (req, res) => {
                 ASSET_CONTROLS: CONFIG.ASSET_CONTROLS,
                 TELEGRAM_ENABLED: CONFIG.TELEGRAM?.enabled || false
             },
+            // Full CONFIG snapshot (sanitized) to eliminate runtime drift ambiguity
+            configAll,
 
             // === GLOBAL STATE ===
             globalState: {
                 fearGreedIndex: typeof fearGreedIndex !== 'undefined' ? fearGreedIndex : null,
                 fundingRates: typeof fundingRates !== 'undefined' ? fundingRates : null,
                 lastUpdateTimestamp: typeof lastUpdateTimestamp !== 'undefined' ? lastUpdateTimestamp : null,
-                redisAvailable: typeof redisAvailable !== 'undefined' ? redisAvailable : false
+                redisAvailable: typeof redisAvailable !== 'undefined' ? redisAvailable : false,
+                gateTraceSummary: (typeof gateTrace !== 'undefined' && gateTrace && typeof gateTrace.getSummary === 'function') ? gateTrace.getSummary() : null
             },
 
             // === TRADE EXECUTOR STATE ===
@@ -672,7 +710,10 @@ app.get('/api/debug-export', (req, res) => {
                     isProcessing: brain.isProcessing,
 
                     // Scalp Tracking
-                    scalpBounceHistory: brain.scalpBounceHistory
+                    scalpBounceHistory: brain.scalpBounceHistory,
+
+                    // Raw per-tick decision stream for the CURRENT cycle (every second)
+                    currentCycleHistory: brain.currentCycleHistory || []
                 } : null,
 
                 // === HISTORICAL CYCLES (Last 10) ===
@@ -707,7 +748,9 @@ app.get('/api/debug-export', (req, res) => {
 app.get('/api/health', (req, res) => {
     const now = Date.now();
     const lastTrade = tradeExecutor && tradeExecutor.tradeHistory && tradeExecutor.tradeHistory.length > 0
-        ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp
+        ? (tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].closeTime ||
+           tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].time ||
+           tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp)
         : null;
     
     // Update CircuitBreaker to get current state
@@ -4261,8 +4304,16 @@ class TradeExecutor {
         // If this is a hedged main position, also close the hedge
         if (pos.isHedged && pos.hedgeId && this.positions[pos.hedgeId]) {
             const hedge = this.positions[pos.hedgeId];
-            const hedgeMarket = currentMarkets[hedge.asset];
-            const hedgeExitPrice = hedge.side === 'UP' ? (hedgeMarket?.yesPrice || 0.5) : (hedgeMarket?.noPrice || 0.5);
+            // If we're resolving a binary outcome (exitPrice is exactly 0 or 1), the hedge resolves to the opposite payout.
+            const isBinaryResolution = exitPrice === 0 || exitPrice === 1;
+            let hedgeExitPrice;
+            if (isBinaryResolution) {
+                // Hedge is expected to be the opposite direction; if it's not, fall back to same payout.
+                hedgeExitPrice = (hedge.side === pos.side) ? exitPrice : (exitPrice === 1 ? 0 : 1);
+            } else {
+                const hedgeMarket = currentMarkets[hedge.asset];
+                hedgeExitPrice = hedge.side === 'UP' ? (hedgeMarket?.yesPrice || 0.5) : (hedgeMarket?.noPrice || 0.5);
+            }
 
             // Calculate hedge P&L
             const hedgePnl = (hedgeExitPrice - hedge.entry) * hedge.shares;
@@ -4282,19 +4333,11 @@ class TradeExecutor {
                 hedgeTrade.pnlPercent = hedgePnlPercent;
                 hedgeTrade.status = 'CLOSED';
                 hedgeTrade.closeTime = Date.now();
-                hedgeTrade.reason = 'HEDGE CLOSED (with main)';
+                hedgeTrade.reason = (isBinaryResolution ? 'HEDGE RESOLVED (with main)' : 'HEDGE CLOSED (with main)');
             }
 
             delete this.positions[pos.hedgeId];
         }
-
-        // Skip closing if this is a hedge being closed from main (already handled above)
-        if (pos.isHedge) {
-            // Just remove - P&L already calculated when main closed
-            delete this.positions[positionId];
-            return;
-        }
-
 
         // LIVE MODE: Execute actual sell order WITH RETRY
         if (pos.isLive && this.mode === 'LIVE') {
@@ -4675,17 +4718,37 @@ class TradeExecutor {
 
     // Close ALL positions at cycle end (not just ORACLE)
     resolveAllPositions(asset, finalOutcome, yesPrice, noPrice) {
-        Object.entries(this.positions).forEach(([id, pos]) => {
-            if (pos.asset !== asset) return;
+        // IMPORTANT: Resolve non-hedge positions first.
+        // Hedges are normally settled when their main position closes (to avoid double-counting).
+        const ids = Object.keys(this.positions).filter(id => this.positions[id] && this.positions[id].asset === asset);
+
+        // Pass 1: close all NON-HEDGE positions (this will also settle their hedges, if any)
+        for (const id of ids) {
+            const pos = this.positions[id];
+            if (!pos || pos.asset !== asset) continue;
+            if (pos.isHedge) continue;
 
             const won = (pos.side === finalOutcome);
             const exitPrice = won ? 1.0 : 0.0; // Binary resolution
-
-            // All modes resolve at cycle end
             const reason = won ? `${pos.mode} WIN ✅` : `${pos.mode} LOSS ❌`;
             log(`🏁 CYCLE END: ${pos.asset} ${pos.side} -> Outcome: ${finalOutcome}`, asset);
             this.closePosition(id, exitPrice, reason);
+        }
+
+        // Pass 2: close any remaining hedges (orphaned hedges / missing linkage) deterministically
+        const remainingHedges = Object.keys(this.positions).filter(id => {
+            const p = this.positions[id];
+            return p && p.asset === asset && p.isHedge;
         });
+        for (const id of remainingHedges) {
+            const pos = this.positions[id];
+            if (!pos) continue;
+            const won = (pos.side === finalOutcome);
+            const exitPrice = won ? 1.0 : 0.0;
+            const reason = won ? `${pos.mode} WIN ✅ (orphan hedge)` : `${pos.mode} LOSS ❌ (orphan hedge)`;
+            log(`🏁 CYCLE END: Orphan hedge resolved: ${pos.asset} ${pos.side} -> Outcome: ${finalOutcome}`, asset);
+            this.closePosition(id, exitPrice, reason);
+        }
     }
 
     // 🔴 BUG FIX: Force-resolve any stale positions older than 1 cycle (15 minutes)
@@ -7591,8 +7654,13 @@ class SupremeBrain {
         if (!startPrice) return;
 
         const actual = finalPrice >= startPrice ? 'UP' : 'DOWN'; // FIXED: Tie = UP wins
-        const predicted = this.lastSignal ? this.lastSignal.type : 'NEUTRAL';
-        const tier = this.lastSignal ? this.lastSignal.tier : 'NONE';
+        // RAW vs FINAL:
+        // - `lastSignal` is the most recent model signal (can be low-confidence / de-rated / post-lock display).
+        // - The FINAL decision for the cycle must respect TRUE ORACLE locks.
+        const rawPredicted = this.lastSignal ? this.lastSignal.type : 'NEUTRAL';
+        const rawTier = this.lastSignal ? this.lastSignal.tier : 'NONE';
+        const predicted = (this.oracleLocked && this.oracleLockPrediction) ? this.oracleLockPrediction : rawPredicted;
+        const tier = (this.oracleLocked && this.oracleLockPrediction) ? 'CONVICTION' : rawTier;
 
         if (predicted !== 'NEUTRAL') {
             this.stats.total++;
@@ -7685,7 +7753,7 @@ class SupremeBrain {
                 }
 
                 // ==================== DEBUG EXPORT: SAVE CYCLE DATA ====================
-                // Store complete cycle data for debugging (last 5 cycles)
+                // Store complete cycle data for debugging (last 10 cycles)
                 const cycleSnapshot = {
                     cycleEndTime: new Date().toISOString(),
                     cycleStartPrice: startPrice,
@@ -7694,7 +7762,8 @@ class SupremeBrain {
                     prediction: predicted,
                     wasCorrect: isWin,
                     tier: tier,
-                    confidence: this.lastSignal?.confidence || 0,
+                    // Use FINAL state confidence (direction-consistent); fall back to raw signal confidence.
+                    confidence: Number.isFinite(this.confidence) ? this.confidence : (this.lastSignal?.confidence || 0),
                     certaintyAtEnd: this.certaintyScore,
                     certaintyVelocityAtEnd: this.certaintyVelocity,
                     phaseAtEnd: this.currentPhase,
@@ -7711,10 +7780,14 @@ class SupremeBrain {
                     stats: { ...this.stats },
                     winStreak: this.winStreak,
                     lossStreak: this.lossStreak,
+                    // Preserve full raw signal payload for forensic analysis
+                    rawSignal: this.lastSignal || null,
                     modelVotes: this.lastSignal?.modelVotes || {},
                     certaintySeries: [...(this.certaintySeries || [])],
                     modelAgreementHistory: [...(this.modelAgreementHistory || [])],
                     edgeHistory: [...(this.edgeHistory || [])],
+                    // Raw per-tick decision stream for this cycle (every second, last cycle only)
+                    tickHistory: [...(this.currentCycleHistory || [])],
                     marketOdds: currentMarkets[this.asset] ? {
                         yesPrice: currentMarkets[this.asset].yesPrice,
                         noPrice: currentMarkets[this.asset].noPrice
