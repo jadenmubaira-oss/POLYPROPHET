@@ -1993,7 +1993,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 46;  // v46 GOAT FINAL: Fix hedge/illiquidity streak pollution, disable hedging for aggressive mode, fix 30s forced exit for hedges
+const CONFIG_VERSION = 47;  // v47 OPUS FINAL: Stop-loss false-stop fix (Genesis+phase aware), CONVICTION holds to resolution, STRIKE 2x sizing, mid_range_odds allows Genesis-agree
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -2995,15 +2995,30 @@ class TradeExecutor {
         }
     }
     
-    // Get position size multiplier based on trading state
+    // 🎯 v47 SIZING DOCTRINE (from $1M trade tables):
+    // Base sizing: 20% of bankroll (CONFIG.MAX_POSITION_SIZE)
+    // 
+    // State multipliers:
+    // - OBSERVE: 25% of base (probe trades after losses, high bar)
+    // - HARVEST: 100% of base (normal trading)
+    // - STRIKE:  200% of base (aggressive after 3+ wins, verified edge)
+    //
+    // Streak throttling (on top of state):
+    // - After 1 loss: 80%
+    // - After 2 losses: 60%
+    // - After 3 losses: 40%
+    // - After 4+ losses: 25%
+    //
+    // Combined: STRIKE + win streak = up to 200% * 100% = 40% of bankroll
+    //           OBSERVE + loss streak = 25% * 25% = ~1.25% of bankroll (minimal exposure)
     getStateSizeMultiplier() {
         switch (this.tradingState) {
             case 'OBSERVE':
                 return 0.25;  // 25% of normal size (probe trades only)
             case 'HARVEST':
-                return 1.0;   // 100% normal size
+                return 1.0;   // 100% normal size (base 20%)
             case 'STRIKE':
-                return 1.5;   // 150% of normal size (aggressive after verified edge)
+                return 2.0;   // 🎯 v47: Increased to 200% (was 150%) - verified edge justifies aggression
             default:
                 return 1.0;
         }
@@ -3708,6 +3723,7 @@ class TradeExecutor {
                     stopLoss,
                     shares: size / entryPrice,
                     tier: options.tier || 'UNKNOWN', // 🎯 GOAT: Store tier for exit policy
+                    genesisAgree: options.genesisAgree || false, // 🎯 v47: Store genesis agreement for stop-loss bypass
                     // v32: DIAGNOSTIC FIELDS
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -4799,22 +4815,35 @@ class TradeExecutor {
                 // 4. Dynamic Target Logic (Diamond vs Safety)
                 const gainPercent = (currentOdds - pos.entry) / pos.entry;
 
+                // 🎯 v47 PROFIT CAPTURE: CONVICTION trades hold to resolution (full $1 payout)
+                // Non-CONVICTION can take early profit at diamondTarget to reduce variance
+                const isConvictionForExit = pos.tier === 'CONVICTION';
+                const isGenesisAgreeForExit = pos.genesisAgree === true;
+                const holdToResolution = isConvictionForExit || isGenesisAgreeForExit;
+
                 // DIAMOND HANDS: High confidence implied by Regime + Price Action
-                // If price > diamondTarget, we take max profit
-                if (currentOdds >= params.diamondTarget) {
+                // If price > diamondTarget, we take max profit (unless CONVICTION/GENESIS)
+                if (!holdToResolution && currentOdds >= params.diamondTarget) {
                     const profitPercent = (gainPercent * 100).toFixed(0);
                     this.closePosition(id, currentOdds, `💎 ${regime} DIAMOND EXIT +${profitPercent}% (${(params.diamondTarget * 100).toFixed(0)}¢ Target)`);
                     return;
+                }
+                
+                // 🎯 v47: CONVICTION/GENESIS rides to resolution for max payout
+                if (holdToResolution && currentOdds >= params.diamondTarget) {
+                    log(`💎 CONVICTION HOLD: At ${(currentOdds * 100).toFixed(0)}¢ - holding to resolution for max payout ($1)`, pos.asset);
+                    // Continue holding - do not exit
                 }
 
                 // SAFETY NET: Mid-range profit taking if things look shaky
                 // If price > safetyTarget (e.g. +20%) AND we are not at moon yet...
                 // Only take safety exit if Price < 0.80 (Struggling) OR Regime is CHAOS
                 // In CALM, we ignore safety exit (let it ride). In CHAOS, we take it eagerly.
+                // 🎯 v47: Skip safety exit for CONVICTION/GENESIS trades
                 const isStruggling = currentOdds < 0.80;
                 const forceSafety = regime === 'CHAOS'; // Taking profit early in chaos is wise
 
-                if ((isStruggling || forceSafety) && gainPercent >= params.safetyTarget && timeToEnd > 60) {
+                if (!holdToResolution && (isStruggling || forceSafety) && gainPercent >= params.safetyTarget && timeToEnd > 60) {
                     const profitPercent = (gainPercent * 100).toFixed(0);
                     this.closePosition(id, currentOdds, `🧻 ${regime} SAFETY EXIT +${profitPercent}%`);
                     return;
@@ -4825,40 +4854,53 @@ class TradeExecutor {
             // Binary markets resolve to 0¢ or 100¢ - selling at 8¢ locks in -75% loss
             // Better strategy: hold to resolution unless early enough to recover
 
-            // 🎯 GOAT: Smart exit policy for binary markets
+            // 🎯 GOAT v47: Smart exit policy for binary markets (STOP-LOSS FALSE-STOP FIX)
             // - MANUAL trades: Never auto-close (user controls)
             // - ORACLE CONVICTION entries: Hold to resolution (these have 98%+ win rate)
-            // - ORACLE other entries: Allow stop-loss in early cycle only
-            // - Late cycle (final 5 mins): Hold to resolution (selling locks in loss)
+            // - GENESIS_AGREE entries: Hold to resolution (Genesis model matches direction)
+            // - ORACLE other entries: Allow stop-loss in early cycle only (first 5 mins)
+            // - Mid/Late cycle (after 5 mins): Hold to resolution (selling locks in loss, no time to recover)
             if (pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
                 
                 const lossPercent = ((pos.entry - currentOdds) / pos.entry * 100).toFixed(0);
                 const elapsed = (Date.now() - pos.time) / 1000;
                 const cycleTimeRemaining = 900 - elapsed; // 15-min cycle
                 
-                // 🎯 GOAT: Hold to resolution conditions
+                // 🎯 GOAT v47: Hold to resolution conditions (enhanced)
                 const isConvictionEntry = pos.tier === 'CONVICTION';
+                const isGenesisAgree = pos.genesisAgree === true; // Genesis model agreed with entry direction
+                const isEarlyCycle = elapsed < 300; // First 5 mins only
+                const isMidCycle = elapsed >= 300 && cycleTimeRemaining >= 300; // 5-10 min mark
                 const isLateCycle = cycleTimeRemaining < 300; // Final 5 mins
-                const isDeepLoss = parseFloat(lossPercent) >= 60; // -60%+ = hold (selling is worse)
+                const isDeepLoss = parseFloat(lossPercent) >= 50; // -50%+ = hold (selling is worse)
                 
+                // 🎯 v47 FIX: CONVICTION always holds (98%+ win rate)
                 if (isConvictionEntry) {
                     log(`💎 DIAMOND HANDS: CONVICTION entry at ${(pos.entry * 100).toFixed(0)}¢ - holding to resolution (stop at ${(pos.stopLoss * 100).toFixed(0)}¢ bypassed)`, pos.asset);
                     return; // Do NOT exit
                 }
                 
-                if (isLateCycle) {
-                    log(`⏰ LATE CYCLE HOLD: Only ${cycleTimeRemaining.toFixed(0)}s remaining - holding to resolution`, pos.asset);
+                // 🎯 v47 FIX: Genesis agreement = high-confidence direction, hold to resolution
+                if (isGenesisAgree) {
+                    log(`🌱 GENESIS DIAMOND HANDS: Genesis agreed with ${pos.side} at ${(pos.entry * 100).toFixed(0)}¢ - holding to resolution`, pos.asset);
                     return; // Do NOT exit
                 }
                 
+                // 🎯 v47 FIX: Mid-cycle onwards = too late to stop, hold for resolution
+                if (isMidCycle || isLateCycle) {
+                    log(`⏰ CYCLE HOLD: ${isMidCycle ? 'Mid' : 'Late'} cycle (${(elapsed / 60).toFixed(1)}min elapsed) - holding to resolution`, pos.asset);
+                    return; // Do NOT exit
+                }
+                
+                // 🎯 v47 FIX: Deep loss = selling locks in catastrophic loss, hold for 50% resolution chance
                 if (isDeepLoss) {
                     log(`🔒 DEEP LOSS HOLD: At -${lossPercent}% - selling now locks in massive loss, holding for resolution chance`, pos.asset);
                     return; // Do NOT exit - resolution gives 50% chance of recovery
                 }
                 
-                // Early cycle non-conviction entry: allow stop-loss
-                log(`🛑 GUARDIAN STOP LOSS: Exiting at -${lossPercent}% (Odds ${currentOdds} <= ${pos.stopLoss})`, pos.asset);
-                this.closePosition(id, currentOdds, `STOP LOSS -${lossPercent}% 🛑`);
+                // ONLY exit on stop-loss if: early cycle + not conviction + not genesis agree + not deep loss
+                log(`🛑 EARLY CYCLE STOP: Exiting at -${lossPercent}% within first 5min (Odds ${(currentOdds * 100).toFixed(0)}¢ <= ${(pos.stopLoss * 100).toFixed(0)}¢)`, pos.asset);
+                this.closePosition(id, currentOdds, `EARLY STOP -${lossPercent}% 🛑`);
 
                 this.coolOffAsset(pos.asset, CONFIG.RISK.cooldownAfterLoss || 300);
                 return;
@@ -7089,13 +7131,18 @@ class SupremeBrain {
                 const market = currentMarkets[this.asset];
                 if (market) {
                     const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-                    // 🎯 COMPREHENSIVE ANALYSIS: Only trade at extreme odds (<20c or >95c) unless CONVICTION
-                    // CONVICTION can trade mid-range (50-80c) but extremes are preferred (99%+ win rate)
-                    const isExtremeOdds = currentOdds < 0.20 || currentOdds > 0.95;
-                    if (!isExtremeOdds && tier !== 'CONVICTION') {
-                        log(`🚫 ENTRY PRICE FILTER: Mid-range odds ${(currentOdds * 100).toFixed(1)}¢ - only CONVICTION can trade mid-range`, this.asset);
+                    // 🎯 v47 GATE TUNING: Allow mid-range odds if CONVICTION or GENESIS_AGREE
+                    // - CONVICTION tier has 98%+ win rate at any price
+                    // - GENESIS_AGREE = Genesis model (94% accuracy) matches signal direction
+                    // - Otherwise require extreme odds (<20c or >90c) for safety
+                    const isExtremeOdds = currentOdds < 0.20 || currentOdds > 0.90; // v47: lowered from 95c to 90c
+                    const isGenesisAgreeForGate = modelVotes.genesis === finalSignal;
+                    const canTradeMidRange = tier === 'CONVICTION' || isGenesisAgreeForGate;
+                    
+                    if (!isExtremeOdds && !canTradeMidRange) {
+                        log(`🚫 ENTRY PRICE FILTER: Mid-range odds ${(currentOdds * 100).toFixed(1)}¢ - requires CONVICTION or GENESIS agreement`, this.asset);
                         // 🎯 GOAT v44.1: Record extreme odds filter block
-                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'PRICE_FILTER', failedGates: ['mid_range_odds'], inputs: { signal: finalSignal, tier, currentOdds, isExtremeOdds, elapsed } });
+                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'PRICE_FILTER', failedGates: ['mid_range_odds'], inputs: { signal: finalSignal, tier, currentOdds, isExtremeOdds, isGenesisAgreeForGate, elapsed } });
                         // Do not trade - fall through to end
                     } else {
                     const consensusVotes = Math.max(votes.UP, votes.DOWN);
@@ -7218,7 +7265,9 @@ class SupremeBrain {
                             // 🎯 GOAT v44.1: Record successful trade
                             gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
                             
-                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff });
+                            // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
+                            const genesisAgree = modelVotes.genesis === finalSignal;
+                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree });
                         }
                         else {
                             // Safe to proceed with normal checks
@@ -7262,7 +7311,9 @@ class SupremeBrain {
                                 // 🎯 GOAT v44.1: Record successful trade
                                 gateTrace.record(this.asset, { decision: 'TRADE', reason: 'ORACLE_ALL_GATES_PASSED', failedGates: [], inputs: gateInputs, checks: oracleChecks });
                                 
-                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff });
+                                // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
+                                const genesisAgreeStd = modelVotes.genesis === finalSignal;
+                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree: genesisAgreeStd });
                             } else {
                                 log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
                                 // 🎯 GOAT v44.1: Record blocked trade with specific gates that failed
