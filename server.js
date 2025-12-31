@@ -4423,6 +4423,67 @@ class TradeExecutor {
         return pnl;
     }
 
+    // One-time reconciliation for legacy hedge trade records that were left OPEN by older code paths.
+    // This does NOT mutate balances (paperBalance/todayPnL); it only cleans up tradeHistory truthfulness.
+    reconcileLegacyOpenHedgeTrades() {
+        try {
+            const now = Date.now();
+            const maxAgeMs = INTERVAL_SECONDS * 1000; // older than one full cycle = definitely stale
+
+            let reconciled = 0;
+            for (const t of (this.tradeHistory || [])) {
+                if (!t || t.mode !== 'HEDGE' || t.status !== 'OPEN') continue;
+
+                // If we still have a live position for this hedge, leave it alone.
+                if (this.positions && this.positions[t.id]) continue;
+
+                const openedAt = typeof t.time === 'number' ? t.time : 0;
+                const ageMs = openedAt > 0 ? (now - openedAt) : Infinity;
+                if (ageMs < maxAgeMs) continue; // too recent to safely declare stale
+
+                // Try to infer the resolved outcome from the matching main trade (same timestamp, without _HEDGE_)
+                // Example: BTC_HEDGE_123 -> BTC_123
+                let inferredExit = null;
+                let inferredPnl = null;
+                let inferredPnlPercent = null;
+
+                try {
+                    const m = String(t.id || '').match(/^([A-Z]+)_HEDGE_(\d+)$/);
+                    if (m) {
+                        const asset = m[1];
+                        const ts = m[2];
+                        const mainId = `${asset}_${ts}`;
+                        const main = (this.tradeHistory || []).find(x => x && x.id === mainId && x.status === 'CLOSED');
+                        if (main && (main.exit === 0 || main.exit === 1) && Number.isFinite(t.entry) && Number.isFinite(t.size)) {
+                            // Hedge is expected to be the opposite direction of main.
+                            inferredExit = main.exit === 1 ? 0 : 1;
+                            const shares = t.entry > 0 ? (t.size / t.entry) : 0;
+                            inferredPnl = (inferredExit - t.entry) * shares;
+                            inferredPnlPercent = t.entry > 0 ? ((inferredExit / t.entry) - 1) * 100 : 0;
+                        }
+                    }
+                } catch { }
+
+                t.exit = inferredExit;
+                t.pnl = inferredPnl;
+                t.pnlPercent = inferredPnlPercent;
+                t.status = 'CLOSED';
+                t.closeTime = now;
+                t.reason = 'LEGACY HEDGE RECORD CLEANUP (pre-fix)';
+                t.reconciled = true;
+                t.reconciledAppliedToBalance = false;
+
+                reconciled++;
+            }
+
+            if (reconciled > 0) {
+                log(`🧹 Reconciled ${reconciled} legacy OPEN hedge trade records (reporting cleanup only)`);
+            }
+        } catch (e) {
+            // Non-critical; never crash
+        }
+    }
+
     // 🧊 PINNACLE v28: ASSET COOLDOWN - Pause trading on specific asset after loss
     // This prevents the bot from immediately re-entering a losing asset
     coolOffAsset(asset, durationSeconds) {
@@ -8462,6 +8523,8 @@ async function loadState() {
                     if (te.paperBalance !== undefined) tradeExecutor.paperBalance = te.paperBalance;
                     if (te.startingBalance !== undefined) tradeExecutor.startingBalance = te.startingBalance;
                     if (te.tradeHistory && Array.isArray(te.tradeHistory)) tradeExecutor.tradeHistory = te.tradeHistory;
+                    // One-time cleanup for legacy hedge records left OPEN by older code
+                    try { tradeExecutor.reconcileLegacyOpenHedgeTrades(); } catch { }
                     if (te.todayPnL !== undefined) tradeExecutor.todayPnL = te.todayPnL;
                     if (te.consecutiveLosses !== undefined) tradeExecutor.consecutiveLosses = te.consecutiveLosses;
                     if (te.lastLossTime !== undefined) tradeExecutor.lastLossTime = te.lastLossTime;
