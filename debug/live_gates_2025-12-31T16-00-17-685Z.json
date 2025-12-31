@@ -1,0 +1,561 @@
+{
+  "summary": {
+    "totalEvaluations": 152,
+    "totalBlocked": 138,
+    "gateFailures": {
+      "mid_range_odds": 74,
+      "consensus": 10,
+      "odds": 5,
+      "confidence": 1,
+      "negative_EV": 47,
+      "genesis_veto": 7
+    },
+    "byAsset": {
+      "SOL": {
+        "evaluations": 50,
+        "blocked": 50,
+        "traded": 0,
+        "failedGates": {
+          "mid_range_odds": 48,
+          "consensus": 2
+        }
+      },
+      "XRP": {
+        "evaluations": 50,
+        "blocked": 49,
+        "traded": 1,
+        "failedGates": {
+          "consensus": 2,
+          "odds": 2,
+          "confidence": 1,
+          "negative_EV": 47
+        }
+      },
+      "BTC": {
+        "evaluations": 18,
+        "blocked": 10,
+        "traded": 8,
+        "failedGates": {
+          "consensus": 2,
+          "odds": 1,
+          "mid_range_odds": 1,
+          "genesis_veto": 7
+        }
+      },
+      "ETH": {
+        "evaluations": 34,
+        "blocked": 29,
+        "traded": 5,
+        "failedGates": {
+          "mid_range_odds": 25,
+          "consensus": 4,
+          "odds": 2
+        }
+      }
+    }
+  },
+  "recentTraces": {
+    "BTC": [
+      {
+        "timestamp": 1767196169007,
+        "cycleStart": 1767195900000,
+        "decision": "TRADE",
+        "reason": "TREND MODE (80-90% + Trend) 🌊",
+        "failedGates": [],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 0.8165011100493207,
+          "tier": "CONVICTION",
+          "pWin": 0.875,
+          "evRoi": 0.29735074626865665,
+          "edgePercent": 30.597014925373127,
+          "currentOdds": 0.67,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 268,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3
+        }
+      },
+      {
+        "timestamp": 1767196168006,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "ORACLE_GATES_FAILED",
+        "failedGates": [
+          "consensus",
+          "odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 0.7966703668310691,
+          "tier": "CONVICTION",
+          "pWin": 0.875,
+          "evRoi": 0.29735074626865665,
+          "edgePercent": 30.597014925373127,
+          "currentOdds": 0.67,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 267,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3,
+          "evDerivedMaxPrice": 0.8374999999999999,
+          "effectiveMaxPrice": 0.5599999999999999,
+          "hardMaxOdds": 0.45999999999999996
+        },
+        "checks": {
+          "consensus": false,
+          "confidence": true,
+          "edge": true,
+          "regime": true,
+          "momentum": true,
+          "odds": false,
+          "stability": true
+        }
+      },
+      {
+        "timestamp": 1767196119984,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "ORACLE_GATES_FAILED",
+        "failedGates": [
+          "consensus"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 0.7736461138004146,
+          "tier": "CONVICTION",
+          "pWin": 0.875,
+          "evRoi": 0.6665384615384614,
+          "edgePercent": 68.26923076923076,
+          "currentOdds": 0.52,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": false,
+          "stabilityCounter": 0,
+          "elapsed": 219,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3,
+          "evDerivedMaxPrice": 0.8374999999999999,
+          "effectiveMaxPrice": 0.5599999999999999,
+          "hardMaxOdds": 0.45999999999999996
+        },
+        "checks": {
+          "consensus": false,
+          "confidence": true,
+          "edge": true,
+          "regime": true,
+          "momentum": true,
+          "odds": true,
+          "stability": true
+        }
+      },
+      {
+        "timestamp": 1767195565903,
+        "cycleStart": 1767195000000,
+        "decision": "TRADE",
+        "reason": "TREND MODE (80-90% + Trend) 🌊",
+        "failedGates": [],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 0.8207657752475358,
+          "tier": "CONVICTION",
+          "pWin": 0.8571428571428571,
+          "evRoi": 0.05417989417989405,
+          "edgePercent": 5.820105820105807,
+          "currentOdds": 0.81,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 565,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3
+        }
+      },
+      {
+        "timestamp": 1767195564902,
+        "cycleStart": 1767195000000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.81,
+          "isExtremeOdds": false,
+          "elapsed": 564
+        }
+      }
+    ],
+    "ETH": [
+      {
+        "timestamp": 1767196335032,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.82,
+          "isExtremeOdds": false,
+          "elapsed": 435
+        }
+      },
+      {
+        "timestamp": 1767196172014,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.76,
+          "isExtremeOdds": false,
+          "elapsed": 272
+        }
+      },
+      {
+        "timestamp": 1767196171009,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.74,
+          "isExtremeOdds": false,
+          "elapsed": 271
+        }
+      },
+      {
+        "timestamp": 1767196170010,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.74,
+          "isExtremeOdds": false,
+          "elapsed": 270
+        }
+      },
+      {
+        "timestamp": 1767196169009,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.75,
+          "isExtremeOdds": false,
+          "elapsed": 269
+        }
+      }
+    ],
+    "SOL": [
+      {
+        "timestamp": 1767196497050,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.94,
+          "isExtremeOdds": false,
+          "elapsed": 597
+        }
+      },
+      {
+        "timestamp": 1767196192011,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.85,
+          "isExtremeOdds": false,
+          "elapsed": 292
+        }
+      },
+      {
+        "timestamp": 1767196176011,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.79,
+          "isExtremeOdds": false,
+          "elapsed": 276
+        }
+      },
+      {
+        "timestamp": 1767196172017,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.8,
+          "isExtremeOdds": false,
+          "elapsed": 272
+        }
+      },
+      {
+        "timestamp": 1767196171010,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "PRICE_FILTER",
+        "failedGates": [
+          "mid_range_odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "tier": "ADVISORY",
+          "currentOdds": 0.79,
+          "isExtremeOdds": false,
+          "elapsed": 271
+        }
+      }
+    ],
+    "XRP": [
+      {
+        "timestamp": 1767196082991,
+        "cycleStart": 1767195900000,
+        "decision": "TRADE",
+        "reason": "TREND MODE (80-90% + Trend) 🌊",
+        "failedGates": [],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 0.8109,
+          "tier": "CONVICTION",
+          "pWin": 0.875,
+          "evRoi": 0.35734375,
+          "edgePercent": 36.71874999999999,
+          "currentOdds": 0.64,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 182,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3
+        }
+      },
+      {
+        "timestamp": 1767196081988,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "ORACLE_GATES_FAILED",
+        "failedGates": [
+          "consensus",
+          "odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 0.778,
+          "tier": "CONVICTION",
+          "pWin": 0.875,
+          "evRoi": 0.35734375,
+          "edgePercent": 36.71874999999999,
+          "currentOdds": 0.64,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 181,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3,
+          "evDerivedMaxPrice": 0.8374999999999999,
+          "effectiveMaxPrice": 0.5599999999999999,
+          "hardMaxOdds": 0.45999999999999996
+        },
+        "checks": {
+          "consensus": false,
+          "confidence": true,
+          "edge": true,
+          "regime": true,
+          "momentum": true,
+          "odds": false,
+          "stability": true
+        }
+      },
+      {
+        "timestamp": 1767196080981,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "ORACLE_GATES_FAILED",
+        "failedGates": [
+          "consensus",
+          "confidence",
+          "odds"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 0.490875000026571,
+          "tier": "CONVICTION",
+          "pWin": 0.7629687500142345,
+          "evRoi": 0.18355527345958123,
+          "edgePercent": 19.213867189724134,
+          "currentOdds": 0.64,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 180,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3,
+          "evDerivedMaxPrice": 0.7277093750139497,
+          "effectiveMaxPrice": 0.5599999999999999,
+          "hardMaxOdds": 0.45999999999999996
+        },
+        "checks": {
+          "consensus": false,
+          "confidence": false,
+          "edge": true,
+          "regime": true,
+          "momentum": true,
+          "odds": false,
+          "stability": true
+        }
+      },
+      {
+        "timestamp": 1767196079988,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "HARD_BLOCK",
+        "failedGates": [
+          "negative_EV"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 8.856988828003066e-11,
+          "tier": "CONVICTION",
+          "pWin": 0.5000000000474482,
+          "evRoi": -0.22437499992639603,
+          "edgePercent": -21.87499999258623,
+          "currentOdds": 0.64,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 179,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3
+        }
+      },
+      {
+        "timestamp": 1767196078981,
+        "cycleStart": 1767195900000,
+        "decision": "NO_TRADE",
+        "reason": "HARD_BLOCK",
+        "failedGates": [
+          "negative_EV"
+        ],
+        "inputs": {
+          "signal": "UP",
+          "confidence": 2.9523296093343556e-10,
+          "tier": "CONVICTION",
+          "pWin": 0.5000000001581605,
+          "evRoi": -0.22437499975465353,
+          "edgePercent": -21.874999975287427,
+          "currentOdds": 0.64,
+          "consensusRatio": 0,
+          "genesis": "UP",
+          "isTrending": false,
+          "priceMovingRight": true,
+          "stabilityCounter": 0,
+          "elapsed": 178,
+          "adjustedMinConsensus": 0.595,
+          "adjustedMinConfidence": 0.595,
+          "adjustedMinEdge": 4.25,
+          "effectiveMaxOdds": 0.45999999999999996,
+          "effectiveMinStability": 3
+        }
+      }
+    ]
+  },
+  "config": {
+    "ORACLE": {
+      "minConsensus": 0.7,
+      "minConfidence": 0.7,
+      "minEdge": 5,
+      "maxOdds": 0.48,
+      "minStability": 3,
+      "effectiveMaxOdds": 0.45999999999999996,
+      "effectiveMinStability": 3
+    }
+  }
+}
