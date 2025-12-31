@@ -4,8 +4,8 @@
 
 ## Deployment
 
-- **Production service**: `POLYPROPHET-FINAL/`
-- **Render Blueprint**: `render.yaml` (rootDir: `POLYPROPHET-FINAL`)
+- **Production runtime**: repo root `server.js` (**v45 baseline**)
+- **Render Blueprint**: `render.yaml` (no `rootDir` — deploys from repo root)
 
 ### Deploy to Render
 
@@ -18,9 +18,9 @@
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `TRADE_MODE` | `PAPER` or `LIVE` | `PAPER` |
-| `PAPER_BALANCE` | Starting paper balance | `5.00` |
-| `AUTH_USERNAME` | Dashboard login username | `admin` |
-| `AUTH_PASSWORD` | Dashboard login password | `changeme` |
+| `PAPER_BALANCE` | Starting paper balance | `10.00` |
+| `AUTH_USERNAME` | Dashboard login username | `bandito` |
+| `AUTH_PASSWORD` | Dashboard login password | `bandito` |
 | `REDIS_URL` | Redis connection string (optional) | - |
 | `POLYMARKET_PRIVATE_KEY` | Wallet private key (for LIVE) | - |
 | `POLYMARKET_API_KEY` | Polymarket API key (for LIVE) | - |
@@ -46,18 +46,20 @@
 
 ## Documentation
 
-- Full system documentation: `POLYPROPHET-FINAL/MANIFESTO.md`
+- Full system documentation: `POLYPROPHET-FINAL/MANIFESTO.md` (reference)
+- Forensic rebuild summary: `FORENSIC_REBUILD_COMPLETE.md`
 - See `FORENSIC_LEDGER.md` for historical context
 
 ## Repository Structure
 
 ```
 POLYPROPHET/
-├── POLYPROPHET-FINAL/     # Production runtime (deployed via Render)
-│   ├── server.js          # Main server with all GOAT features
-│   ├── public/            # Dashboard UI
-│   ├── package.json       # Dependencies
-│   └── MANIFESTO.md       # Full system documentation
+├── server.js              # ✅ Production runtime (Render starts here)
+├── public/                # ✅ Dashboard UI assets
+├── POLYPROPHET-FINAL/     # Archived/Reference runtime (not deployed)
+│   ├── server.js
+│   ├── public/
+│   └── MANIFESTO.md
 ├── render.yaml            # Render Blueprint configuration
 ├── debug/                 # Debug exports (not deployed)
 └── README.md              # This file

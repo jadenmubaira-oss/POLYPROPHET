@@ -96,9 +96,9 @@ tools/
 # ============================================
 # IMPORTANT: What IS tracked
 # ============================================
-# - POLYPROPHET-FINAL/ (production deployment)
+# - server.js (✅ production runtime)
+# - public/ (✅ production dashboard assets)
 # - render.yaml (Render Blueprint)
 # - README.md (documentation)
 # - package.json, package-lock.json
-# - server.js (root - kept as reference)
-# - public/ (root - kept as reference)
+# - POLYPROPHET-FINAL/ (archived/reference runtime)
