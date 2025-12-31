@@ -1,4 +1,4 @@
-# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v46)
+# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v47)
 
 This README is the **single canonical source of truth** for PolyProphet: goals, scope, strategy, sizing/variance doctrine, halt behavior, verification, and operations.
 
@@ -233,7 +233,7 @@ All historical runtimes, debug artifacts, forensic docs, and chat exports go to 
 
 ---
 
-## 13) Opus 4.5 — server.js implementation tasks (do not change this manifesto)
+## 13) Opus 4.5 — server.js implementation tasks (COMPLETED in v47)
 
 1. **Stop-loss false-stop fix (critical)**
    - Prevent STOP LOSS from closing high-confidence trades that later win at cycle end.
@@ -382,3 +382,4 @@ All historical runtimes, debug artifacts, forensic docs, and chat exports go to 
 | ROI 10-100% | 10% - 100% |
 |---|---|
 | ROI 10-100% | BUST |
+
