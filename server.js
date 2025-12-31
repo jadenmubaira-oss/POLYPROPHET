@@ -244,8 +244,11 @@ app.get('/api/backtest-proof', async (req, res) => {
         for (const cycle of allCycles) {
             if (balance <= 1.0) break; // Stop if balance too low
             
-            // Position sizing: min of (60% balance) or (Kelly-style sizing)
-            const positionSize = Math.min(balance * MAX_POSITION_PCT, balance - 1.0);
+            // Position sizing: realistic caps to prevent astronomical compounding
+            // Cap at $100 max per trade even with large balances (simulates real-world liquidity limits)
+            const MAX_ABSOLUTE_SIZE = 100.0;
+            const percentSize = balance * MAX_POSITION_PCT;
+            const positionSize = Math.min(percentSize, balance - 1.0, MAX_ABSOLUTE_SIZE);
             if (positionSize <= 0) break;
             
             // Entry price with slippage
@@ -876,6 +879,97 @@ app.post('/api/circuit-breaker/override', (req, res) => {
         action: action,
         newState: tradeExecutor.circuitBreaker.state,
         enabled: tradeExecutor.circuitBreaker.enabled
+    });
+});
+
+// 🎯 GOAT v46: Comprehensive halt status endpoint
+app.get('/api/halts', (req, res) => {
+    if (!tradeExecutor) {
+        return res.status(500).json({ error: 'TradeExecutor not initialized' });
+    }
+    
+    const cb = tradeExecutor.circuitBreaker || {};
+    const inCooldown = tradeExecutor.isInCooldown();
+    const cooldownRemaining = inCooldown ? Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - tradeExecutor.lastLossTime)) / 1000) : 0;
+    const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > tradeExecutor.paperBalance * CONFIG.RISK.globalStopLoss;
+    
+    const now = Date.now();
+    const dayStart = cb.dayStartBalance || tradeExecutor.paperBalance;
+    const currentBalance = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || tradeExecutor.paperBalance);
+    const drawdownPct = dayStart > 0 ? ((dayStart - currentBalance) / dayStart) : 0;
+    
+    res.json({
+        // Current status
+        currentState: {
+            isHalted: inCooldown || globalStopTriggered || cb.state === 'HALTED',
+            isThrottled: cb.state === 'SAFE_ONLY' || cb.state === 'PROBE_ONLY',
+            effectiveState: cb.state === 'HALTED' ? 'HALTED' : 
+                           (globalStopTriggered ? 'GLOBAL_STOP' : 
+                           (inCooldown ? 'COOLDOWN' : cb.state)),
+            sizeMultiplier: cb.state === 'HALTED' ? 0 : 
+                           (cb.state === 'PROBE_ONLY' ? 0.25 : 
+                           (cb.state === 'SAFE_ONLY' ? 0.5 : 1.0))
+        },
+        
+        // Active triggers
+        activeTriggers: {
+            cooldown: inCooldown ? {
+                active: true,
+                remainingSeconds: cooldownRemaining,
+                reason: `${tradeExecutor.consecutiveLosses || 0} consecutive losses`,
+                resume: 'Wait for cooldown to expire or win a trade'
+            } : { active: false },
+            
+            globalStopLoss: globalStopTriggered ? {
+                active: true,
+                todayPnL: tradeExecutor.todayPnL,
+                threshold: CONFIG.RISK.globalStopLoss,
+                resume: 'New day or toggle override via POST /api/toggle-stop-loss-override'
+            } : { active: false },
+            
+            circuitBreaker: cb.state !== 'NORMAL' ? {
+                active: true,
+                state: cb.state,
+                drawdownPct: (drawdownPct * 100).toFixed(1) + '%',
+                consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
+                resume: cb.state === 'HALTED' ? 'New day or POST /api/circuit-breaker/override action=reset' : 'Win a trade or wait'
+            } : { active: false }
+        },
+        
+        // Configuration (for reference)
+        thresholds: {
+            cooldown: {
+                triggersAfterLosses: CONFIG.RISK.maxConsecutiveLosses,
+                durationSeconds: CONFIG.RISK.cooldownAfterLoss
+            },
+            globalStopLoss: {
+                maxDailyLossPct: (CONFIG.RISK.globalStopLoss * 100) + '%'
+            },
+            circuitBreaker: {
+                softDrawdownPct: (cb.softDrawdownPct * 100) + '%',
+                hardDrawdownPct: (cb.hardDrawdownPct * 100) + '%',
+                haltDrawdownPct: (cb.haltDrawdownPct * 100) + '%',
+                safeOnlyAfterLosses: cb.safeOnlyAfterLosses,
+                probeOnlyAfterLosses: cb.probeOnlyAfterLosses,
+                haltAfterLosses: cb.haltAfterLosses,
+                resumeAfterMinutes: cb.resumeAfterMinutes,
+                resumeOnNewDay: cb.resumeOnNewDay
+            }
+        },
+        
+        // Balance context
+        balance: {
+            dayStartBalance: dayStart,
+            currentBalance: currentBalance,
+            drawdownPct: (drawdownPct * 100).toFixed(1) + '%',
+            todayPnL: tradeExecutor.todayPnL
+        },
+        
+        // Override endpoints
+        overrides: {
+            circuitBreaker: 'POST /api/circuit-breaker/override with action=reset|disable|enable|halt',
+            globalStopLoss: 'POST /api/toggle-stop-loss-override'
+        }
     });
 });
 
@@ -1899,7 +1993,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 45;  // v45 GOAT FINAL: Hybrid throttle, LCB entry/exit gating, LIVE fail-closed, idempotent trade history, persistent collector/redemption
+const CONFIG_VERSION = 46;  // v46 GOAT FINAL: Fix hedge/illiquidity streak pollution, disable hedging for aggressive mode, fix 30s forced exit for hedges
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -3518,7 +3612,7 @@ class TradeExecutor {
                         entry: entryPrice,
                         time: Date.now(),
                         target,
-                        stopLoss: null, // No stop loss needed - hedge provides protection
+                        stopLoss, // 🔴 FIX v46: Keep stop-loss even with hedge (hedge is supplementary protection)
                         shares: mainSize / entryPrice,
                         isHedged: true,
                         hedgeId: null, // Will be set below
@@ -4389,7 +4483,11 @@ class TradeExecutor {
         }
 
         // 🔴 FIX #14: Track CONSECUTIVE losses - only trigger cooldown after maxConsecutiveLosses
-        if (pnl < 0) {
+        // 🔴 FIX v46: HEDGE and ILLIQUIDITY legs should NOT trigger loss-streak logic
+        // Only main ORACLE positions affect streak/cooldown/state machine
+        const isAuxiliaryLeg = pos.mode === 'HEDGE' || pos.isHedge || pos.mode === 'ILLIQUIDITY';
+        
+        if (pnl < 0 && !isAuxiliaryLeg) {
             this.consecutiveLosses = (this.consecutiveLosses || 0) + 1;
             // 🦅 v20: Track losses in HUNTER mode for retreat trigger
             if (this.aggressionMode === 'HUNTER') {
@@ -4403,8 +4501,8 @@ class TradeExecutor {
             }
             // 🎯 GOLDEN MEAN: Update state machine on loss
             this.updateTradingState('LOSS');
-        } else {
-            // WIN - reset consecutive losses and hunter streak
+        } else if (pnl >= 0 && !isAuxiliaryLeg) {
+            // WIN - reset consecutive losses and hunter streak (only for main positions)
             this.consecutiveLosses = 0;
             this.hunterLossStreak = 0;
             // 🦅 v20: Reset dormancy timer on successful trade
@@ -4412,6 +4510,7 @@ class TradeExecutor {
             // 🎯 GOLDEN MEAN: Update state machine on win
             this.updateTradingState('WIN');
         }
+        // Note: Auxiliary legs (HEDGE/ILLIQUIDITY) don't affect streak logic
 
         // Add WINNING live positions to redemption queue for later claiming
         // Only if position has a tokenId (live trade) and won (exitPrice = 1.0)
@@ -4658,7 +4757,8 @@ class TradeExecutor {
             // For LIVE trading: exit early to guarantee sell execution and avoid resolution edge cases
             // ORACLE mode holds to resolution (binary win/loss), all other modes exit early
             // ILLIQUIDITY is true-arb and should hold to resolution (do not force-close at 30s).
-            if (timeToEnd <= 30 && pos.mode !== 'ORACLE' && pos.mode !== 'ILLIQUIDITY') {
+            // 🔴 FIX v46: HEDGE legs should close WITH their main position, not independently at 30s
+            if (timeToEnd <= 30 && pos.mode !== 'ORACLE' && pos.mode !== 'ILLIQUIDITY' && pos.mode !== 'HEDGE' && !pos.isHedge) {
                 log(`⏰ PRE-RESOLUTION EXIT: ${pos.mode} ${pos.side} position closing at ${(currentOdds * 100).toFixed(1)}%`, pos.asset);
                 this.closePosition(id, currentOdds, 'PRE-RESOLUTION EXIT (30s)');
                 return;
@@ -9733,10 +9833,11 @@ app.get('/', (req, res) => {
         async function applyPreset(preset) {
             const presets = {
                 // 👑 PINNACLE_OPTIMAL: THE ULTIMATE - ALL forensic-analysis-derived optimal settings
+                // 🔴 AGGRESSIVE: Hedging DISABLED (reduces returns, pollutes streak logic)
                 PINNACLE_OPTIMAL: { 
-                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 5, maxOdds: 0.48, minStability: 3, requireTrending: false, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: true, hedgeRatio: 0.20, stopLossEnabled: true, stopLoss: 0.30 }, 
+                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 5, maxOdds: 0.48, minStability: 3, requireTrending: false, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: false, hedgeRatio: 0.20, stopLossEnabled: true, stopLoss: 0.30 }, 
                     ILLIQUIDITY_GAP: { enabled: true, minGap: 0.03, maxEntryTotal: 0.97 },
-                    DEATH_BOUNCE: { enabled: true, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
+                    DEATH_BOUNCE: { enabled: false, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
                     SCALP: { enabled: false }, 
                     ARBITRAGE: { enabled: false }, 
                     MOMENTUM: { enabled: false }, 
@@ -9745,10 +9846,11 @@ app.get('/', (req, res) => {
                     ASSET_CONTROLS: { BTC: { enabled: true, maxTradesPerCycle: 1 }, ETH: { enabled: true, maxTradesPerCycle: 1 }, SOL: { enabled: true, maxTradesPerCycle: 1 }, XRP: { enabled: true, maxTradesPerCycle: 1 } }
                 },
                 // 🏆 APEX v24: 5-Layer Zero-Variance System (THE PINNACLE)
+                // 🔴 AGGRESSIVE: Hedging DISABLED, DEATH_BOUNCE DISABLED (16.7% win rate)
                 APEX_V24: { 
-                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.85, minConfidence: 0.85, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: true, hedgeRatio: 0.20 }, 
+                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.85, minConfidence: 0.85, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: false, hedgeRatio: 0.20 }, 
                     ILLIQUIDITY_GAP: { enabled: true, minGap: 0.03, maxEntryTotal: 0.97 },
-                    DEATH_BOUNCE: { enabled: true, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
+                    DEATH_BOUNCE: { enabled: false, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
                     SCALP: { enabled: false }, 
                     ARBITRAGE: { enabled: false }, 
                     MOMENTUM: { enabled: false }, 
@@ -10410,13 +10512,37 @@ function buildStateSnapshot() {
     const cooldownRemaining = inCooldown ? Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - tradeExecutor.lastLossTime)) / 1000) : 0;
     // 🔴 FIX #18: Only NEGATIVE P/L triggers stop loss (was using Math.abs which triggered on PROFIT!)
     const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > tradeExecutor.paperBalance * CONFIG.RISK.globalStopLoss;
+    
+    // 🔴 v46: Get circuit breaker status
+    const cbStatus = tradeExecutor.circuitBreaker || {};
+    const cbState = cbStatus.state || 'NORMAL';
+    const cbIsRestricted = cbState !== 'NORMAL';
 
-    // 🔴 FIX #15: Determine halt reason for UI display
+    // 🔴 FIX #15 + v46: Determine halt reason for UI display (with circuit breaker)
     let haltReason = null;
-    if (inCooldown) {
-        haltReason = `⏳ COOLDOWN: ${Math.floor(cooldownRemaining / 60)}m ${cooldownRemaining % 60}s remaining after ${tradeExecutor.consecutiveLosses || 0} consecutive losses`;
+    let haltType = null;
+    let resumeCondition = null;
+    
+    if (cbState === 'HALTED') {
+        haltReason = `🔌 CIRCUIT BREAKER HALTED: Trading suspended`;
+        haltType = 'CIRCUIT_BREAKER_HALT';
+        resumeCondition = 'New day or manual override via /api/circuit-breaker/override';
     } else if (globalStopTriggered) {
         haltReason = `🛑 GLOBAL STOP LOSS: Daily loss exceeds ${(CONFIG.RISK.globalStopLoss * 100).toFixed(0)}%`;
+        haltType = 'GLOBAL_STOP_LOSS';
+        resumeCondition = 'New day or toggle override via /api/toggle-stop-loss-override';
+    } else if (inCooldown) {
+        haltReason = `⏳ COOLDOWN: ${Math.floor(cooldownRemaining / 60)}m ${cooldownRemaining % 60}s remaining after ${tradeExecutor.consecutiveLosses || 0} consecutive losses`;
+        haltType = 'LOSS_COOLDOWN';
+        resumeCondition = `Wait ${cooldownRemaining}s or until a win`;
+    } else if (cbState === 'PROBE_ONLY') {
+        haltReason = `🔶 PROBE MODE: 25% position size only`;
+        haltType = 'CIRCUIT_BREAKER_PROBE';
+        resumeCondition = 'Win a trade or wait 30 minutes';
+    } else if (cbState === 'SAFE_ONLY') {
+        haltReason = `🟡 SAFE MODE: 50% position size, no acceleration`;
+        haltType = 'CIRCUIT_BREAKER_SAFE';
+        resumeCondition = 'Win a trade or wait 15 minutes';
     }
 
     response._trading = {
@@ -10445,13 +10571,26 @@ function buildStateSnapshot() {
             UNCERTAINTY: CONFIG.UNCERTAINTY.enabled,
             MOMENTUM: CONFIG.MOMENTUM.enabled
         },
-        // 🔴 FIX #15: Comprehensive halt status for UI
+        // 🔴 FIX #15 + v46: Comprehensive halt status for UI
         inCooldown: inCooldown,
         cooldownRemaining: cooldownRemaining,
         consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
         globalStopTriggered: globalStopTriggered,
         haltReason: haltReason,
-        isHalted: inCooldown || globalStopTriggered
+        haltType: haltType,
+        resumeCondition: resumeCondition,
+        isHalted: inCooldown || globalStopTriggered || cbState === 'HALTED',
+        isThrottled: cbState === 'SAFE_ONLY' || cbState === 'PROBE_ONLY',
+        circuitBreaker: {
+            state: cbState,
+            enabled: cbStatus.enabled,
+            dayStartBalance: cbStatus.dayStartBalance,
+            thresholds: {
+                soft: cbStatus.softDrawdownPct,
+                hard: cbStatus.hardDrawdownPct,
+                halt: cbStatus.haltDrawdownPct
+            }
+        }
     };
 
     return response;

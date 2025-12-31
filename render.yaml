@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # No rootDir - uses repo root (server.js v45)
+    # No rootDir - uses repo root (server.js v46)
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health

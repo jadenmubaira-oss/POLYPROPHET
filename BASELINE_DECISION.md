@@ -1,4 +1,4 @@
-# Baseline Decision (FINAL): Root `server.js` (v45)
+# Baseline Decision (FINAL): Root `server.js` (v46)
 
 ## Decision
 **Production baseline is the repo root `server.js` (CONFIG_VERSION 45).**

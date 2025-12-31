@@ -2,10 +2,13 @@
 
 **MAX PROFIT ASAP WITH MIN VARIANCE**
 
+> See [`GOALS_AND_ACCEPTANCE.md`](GOALS_AND_ACCEPTANCE.md) for the definitive goals, acceptance criteria, and configuration decisions.
+
 ## Deployment
 
-- **Production runtime**: repo root `server.js` (**v45 baseline**)
+- **Production runtime**: repo root `server.js` (**v46 baseline**)
 - **Render Blueprint**: `render.yaml` (no `rootDir` — deploys from repo root)
+- **Verification**: See [`FINAL_VERIFICATION_REPORT.md`](FINAL_VERIFICATION_REPORT.md)
 
 ### Deploy to Render
 
@@ -37,33 +40,45 @@
 ### Protected (auth required)
 - `GET /api/state` - Full state snapshot
 - `GET /api/gates` - GateTrace: why trades are blocked
+- `GET /api/halts` - Halt status, reasons, and resume conditions
 - `GET /api/trades` - Trade history
 - `GET /api/backtest-proof` - Deterministic backtest
 - `GET /api/forward-test` - Forward test with collector snapshots
 - `GET /api/calibration` - Calibration statistics
+- `GET /api/circuit-breaker` - Circuit breaker status
 - `GET /api/verify` - GOAT verification checklist
 - `POST /api/reset-balance` - Reset paper balance
+- `POST /api/circuit-breaker/override` - Manual circuit breaker control
+- `POST /api/toggle-stop-loss-override` - Override global stop loss
 
 ## Documentation
 
-- Full system documentation: `POLYPROPHET-FINAL/MANIFESTO.md` (reference)
-- Forensic rebuild summary: `FORENSIC_REBUILD_COMPLETE.md`
-- See `FORENSIC_LEDGER.md` for historical context
+| Document | Purpose |
+|----------|---------|
+| [`GOALS_AND_ACCEPTANCE.md`](GOALS_AND_ACCEPTANCE.md) | **Source of truth**: goals, acceptance criteria, config decisions |
+| [`GOLDEN_MEAN_RUNBOOK.md`](GOLDEN_MEAN_RUNBOOK.md) | Deployment runbook and monitoring guide |
+| `POLYPROPHET-FINAL/MANIFESTO.md` | Archived reference (not production) |
+| `FORENSIC_REBUILD_COMPLETE.md` | Historical: forensic rebuild notes |
+| `FORENSIC_LEDGER.md` | Historical: repo cleanup notes |
 
 ## Repository Structure
 
 ```
 POLYPROPHET/
-├── server.js              # ✅ Production runtime (Render starts here)
+├── server.js              # ✅ PRODUCTION RUNTIME (Render starts here)
 ├── public/                # ✅ Dashboard UI assets
-├── POLYPROPHET-FINAL/     # Archived/Reference runtime (not deployed)
-│   ├── server.js
-│   ├── public/
-│   └── MANIFESTO.md
 ├── render.yaml            # Render Blueprint configuration
-├── debug/                 # Debug exports (not deployed)
-└── README.md              # This file
+├── GOALS_AND_ACCEPTANCE.md # ✅ Source of truth for goals/criteria
+├── GOLDEN_MEAN_RUNBOOK.md # Deployment runbook
+├── README.md              # This file
+├── debug/                 # Debug exports (local only, not deployed)
+└── POLYPROPHET-FINAL/     # ⚠️ ARCHIVED - Reference only, NOT deployed
+    ├── server.js          # (historical variant)
+    ├── public/
+    └── MANIFESTO.md
 ```
+
+> **Important**: Only `server.js` at repo root is deployed. `POLYPROPHET-FINAL/` is archived for reference.
 
 ## Features
 

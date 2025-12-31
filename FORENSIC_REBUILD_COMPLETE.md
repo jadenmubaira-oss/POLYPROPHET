@@ -1,5 +1,7 @@
 # PolyProphet Forensic Rebuild - COMPLETE
 
+> **HISTORICAL DOCUMENT**: This records the forensic rebuild process. For current goals and acceptance criteria, see [`GOALS_AND_ACCEPTANCE.md`](GOALS_AND_ACCEPTANCE.md).
+
 **Completed**: 2025-12-31T13:40Z  
 **Commit**: `0e08b06`
 

@@ -1,6 +1,8 @@
 # FORENSIC LEDGER (Repo Cleanup + Runtime Fixes)
 
-## Goal
+> **HISTORICAL DOCUMENT**: This records the initial repo cleanup. The production baseline has since moved to root `server.js` (v45). For current goals, see [`GOALS_AND_ACCEPTANCE.md`](GOALS_AND_ACCEPTANCE.md).
+
+## Goal (Historical)
 
 Make the repository **deployment-safe** (no giant logs/drafts slowing or destabilizing deploys), and fix the observed runtime symptom (**UI stuck on `WAIT / 0%`**) by hardening the live price feed ingestion.
 

@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v45",
-    "description": "PolyProphet GOAT v45 - The Pinnacle: MAX PROFIT ASAP WITH MIN VARIANCE",
+    "version": "3.0.0-goat-v46",
+    "description": "PolyProphet GOAT v46 - The Pinnacle: MAX PROFIT ASAP WITH MIN VARIANCE",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
