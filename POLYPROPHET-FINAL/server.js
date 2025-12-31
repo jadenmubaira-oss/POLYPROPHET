@@ -1502,35 +1502,70 @@ const COLLECTOR_INTERVAL_MS = 15 * 60 * 1000; // Save every 15 minutes
 const COLLECTOR_REDIS_KEY = 'polyprophet:collector:snapshots';
 const COLLECTOR_MAX_SNAPSHOTS = 1000; // Keep last 1000 in Redis
 
-// 🎯 GOAT v3: Persistent Trade History (Redis-backed)
-const TRADE_HISTORY_PAPER_KEY = 'polyprophet:trades:paper';
-const TRADE_HISTORY_LIVE_KEY = 'polyprophet:trades:live';
+// 🎯 GOAT v4: Idempotent Persistent Trade History (Redis Hash + Sorted Set)
+// Uses Hash for deduplication (by trade ID) and Sorted Set for ordering (by timestamp)
+const TRADE_HISTORY_PAPER_HASH = 'polyprophet:trades:paper:hash';
+const TRADE_HISTORY_PAPER_ZSET = 'polyprophet:trades:paper:zset';
+const TRADE_HISTORY_LIVE_HASH = 'polyprophet:trades:live:hash';
+const TRADE_HISTORY_LIVE_ZSET = 'polyprophet:trades:live:zset';
 const TRADE_HISTORY_MAX = 10000; // Keep last 10,000 trades per mode
 
-// Persist a trade to Redis
+// 🎯 GOAT v4: Persist a trade idempotently (no duplicates by ID)
 async function persistTrade(trade, mode = 'PAPER') {
     if (!redisAvailable || !redis) return;
+    
+    // Ensure trade has an ID
+    if (!trade.id) {
+        trade.id = `${trade.asset}_${trade.mode}_${trade.time || Date.now()}`;
+    }
+    
     try {
-        const key = mode === 'LIVE' ? TRADE_HISTORY_LIVE_KEY : TRADE_HISTORY_PAPER_KEY;
-        await redis.lpush(key, JSON.stringify(trade));
-        await redis.ltrim(key, 0, TRADE_HISTORY_MAX - 1);
+        const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
+        const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+        const tradeTime = trade.time || Date.now();
+        
+        // Use pipeline for atomicity
+        const pipeline = redis.pipeline();
+        
+        // Store trade in hash (keyed by ID - idempotent)
+        pipeline.hset(hashKey, trade.id, JSON.stringify(trade));
+        
+        // Add to sorted set (score = timestamp for ordering)
+        pipeline.zadd(zsetKey, tradeTime, trade.id);
+        
+        // Trim to max size (remove oldest entries beyond max)
+        pipeline.zremrangebyrank(zsetKey, 0, -(TRADE_HISTORY_MAX + 1));
+        
+        await pipeline.exec();
+        
     } catch (e) {
         console.log(`⚠️ Failed to persist trade: ${e.message}`);
     }
 }
 
-// Load trade history from Redis
+// 🎯 GOAT v4: Load trade history from idempotent storage (hash + zset)
 async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
     const result = { trades: [], total: 0, source: 'memory' };
     
     if (redisAvailable && redis) {
         try {
-            const key = mode === 'LIVE' ? TRADE_HISTORY_LIVE_KEY : TRADE_HISTORY_PAPER_KEY;
-            result.total = await redis.llen(key);
-            const raw = await redis.lrange(key, offset, offset + limit - 1);
-            result.trades = raw.map(r => {
-                try { return JSON.parse(r); } catch { return null; }
-            }).filter(Boolean);
+            const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
+            const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
+            
+            // Get total count
+            result.total = await redis.zcard(zsetKey);
+            
+            // Get trade IDs in reverse chronological order (newest first)
+            const tradeIds = await redis.zrevrange(zsetKey, offset, offset + limit - 1);
+            
+            if (tradeIds.length > 0) {
+                // Fetch trade data from hash
+                const tradeData = await redis.hmget(hashKey, ...tradeIds);
+                result.trades = tradeData.map(r => {
+                    try { return r ? JSON.parse(r) : null; } catch { return null; }
+                }).filter(Boolean);
+            }
+            
             result.source = 'redis';
         } catch (e) {
             console.log(`⚠️ Failed to load trade history from Redis: ${e.message}`);
@@ -1779,7 +1814,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 44;  // v44 GOAT: API Explorer, GateTrace, EV-derived caps, frequency governor, redemption audit, watchdog
+const CONFIG_VERSION = 45;  // v45 GOAT FINAL: Hybrid throttle, LCB entry/exit gating, LIVE fail-closed, idempotent trade history, persistent collector/redemption
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8547,8 +8582,16 @@ app.get('/', (req, res) => {
             <div class="positions-list" id="positionsList"><div class="no-positions">No active positions</div></div>
         </div>
         <div class="trading-panel" style="margin-top:15px;">
-            <div class="panel-header"><span class="panel-title">📜 Trade History</span><span id="historyCount">0 trades</span></div>
+            <div class="panel-header">
+                <span class="panel-title">📜 Trade History</span>
+                <span id="historyCount">0 trades</span>
+                <div style="display:flex;gap:5px;margin-left:auto;">
+                    <button onclick="loadMoreTrades()" style="padding:4px 8px;background:#333;border:1px solid #555;border-radius:4px;color:#fff;cursor:pointer;font-size:0.7em;">📜 Load More</button>
+                    <button onclick="resetTradeHistoryUI()" style="padding:4px 8px;background:#333;border:1px solid #ff4466;border-radius:4px;color:#ff4466;cursor:pointer;font-size:0.7em;">🗑️ Reset</button>
+                </div>
+            </div>
             <div class="positions-list" id="tradeHistory"><div class="no-positions">No trades yet</div></div>
+            <div id="tradeHistoryPagination" style="display:none;padding:8px;text-align:center;font-size:0.8em;color:#888;"></div>
         </div>
         <!-- 🎯 GOAT v44.1: GateTrace Panel -->
         <div class="trading-panel" style="margin-top:15px;">
@@ -10008,6 +10051,90 @@ app.get('/', (req, res) => {
                 const result = await res.json();
                 alert(result.message);
                 fetchData();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        // 🎯 GOAT v4: Force resume trading via RiskGovernor override
+        async function forceResumeTrading() {
+            if (!confirm('Force resume trading?\\n\\nThis will override the RiskGovernor and resume to NORMAL state.\\nUse with caution.')) return;
+            try {
+                const res = await fetch('/api/circuit-breaker/override', { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'resume' })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ Resumed to ' + result.newState + ' state');
+                } else {
+                    alert('❌ Resume failed: ' + (result.error || 'Unknown error'));
+                }
+                fetchData();
+            } catch (e) {
+                alert('❌ Error: ' + e.message);
+            }
+        }
+        
+        // 🎯 GOAT v4: Trade history pagination
+        let tradeHistoryOffset = 0;
+        const tradeHistoryLimit = 20;
+        
+        async function loadMoreTrades() {
+            try {
+                const mode = document.getElementById('modeBadge')?.textContent || 'PAPER';
+                const res = await fetch('/api/trades?mode=' + mode + '&offset=' + tradeHistoryOffset + '&limit=' + tradeHistoryLimit);
+                const data = await res.json();
+                
+                if (data.trades && data.trades.length > 0) {
+                    tradeHistoryOffset += data.trades.length;
+                    // Append to existing trades in UI
+                    const histEl = document.getElementById('tradeHistory');
+                    const pagEl = document.getElementById('tradeHistoryPagination');
+                    
+                    let histHtml = histEl.innerHTML;
+                    data.trades.forEach(tr => {
+                        const emoji = tr.status === 'OPEN' ? '⏳' : ((tr.pnl || 0) >= 0 ? '✅' : '❌');
+                        const pnlColor = (tr.pnl || 0) >= 0 ? '#00ff88' : '#ff4466';
+                        const details = tr.status === 'CLOSED' 
+                            ? '$' + (tr.size || 0).toFixed(2) + ' @ ' + ((tr.entry || 0) * 100).toFixed(0) + '¢→' + ((tr.exit || 0) * 100).toFixed(0) + '¢ ' + ((tr.pnl || 0) >= 0 ? '+' : '') + '$' + (tr.pnl || 0).toFixed(2)
+                            : 'Entry: ' + ((tr.entry || 0) * 100).toFixed(0) + '¢ | $' + (tr.size || 0).toFixed(2);
+                        histHtml += '<div class="position-item"><span>' + emoji + ' <strong>' + (tr.asset || '?') + '</strong> ' + (tr.side || '?') + '</span><span style="color:' + pnlColor + ';font-size:0.85em;">' + details + '</span></div>';
+                    });
+                    histEl.innerHTML = histHtml;
+                    
+                    if (pagEl) {
+                        pagEl.style.display = 'block';
+                        pagEl.textContent = 'Showing ' + tradeHistoryOffset + ' of ' + data.total + ' trades';
+                    }
+                } else {
+                    alert('No more trades to load');
+                }
+            } catch (e) {
+                alert('❌ Error loading trades: ' + e.message);
+            }
+        }
+        
+        // 🎯 GOAT v4: Reset trade history
+        async function resetTradeHistoryUI() {
+            const mode = document.getElementById('modeBadge')?.textContent || 'PAPER';
+            if (!confirm('Reset ALL ' + mode + ' trade history?\\n\\nThis cannot be undone!')) return;
+            
+            try {
+                const res = await fetch('/api/trades/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: mode, confirm: true })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ ' + mode + ' trade history reset! ' + (result.deletedCount || 0) + ' trades deleted.');
+                    tradeHistoryOffset = 0;
+                    fetchData();
+                } else {
+                    alert('❌ Reset failed: ' + (result.error || 'Unknown error'));
+                }
             } catch (e) {
                 alert('❌ Error: ' + e.message);
             }
