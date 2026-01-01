@@ -1993,7 +1993,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 50;  // v50 GOAT FINAL: Renamed to POLYPROPHET, one preset, all fixes
+const CONFIG_VERSION = 51;  // v51 CRITICAL: Fixed regime stop-loss bypassing CONVICTION trades
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4803,12 +4803,31 @@ class TradeExecutor {
                 // Update the position's stop loss to the calculated price
                 pos.stopLoss = stopPrice;
 
-                // Explicit Check for logging clarity
+                // 🎯 v51 CRITICAL FIX: CONVICTION/Genesis bypass BEFORE regime stop-loss
+                // This was causing CONVICTION trades to be stopped incorrectly
+                const isConvictionTrade = pos.tier === 'CONVICTION';
+                const isGenesisAgreeTrade = pos.genesisAgree === true;
+                
+                // Check if stop-loss is triggered
                 if (currentOdds <= pos.stopLoss) {
                     const lossPct = ((pos.entry - currentOdds) / pos.entry * 100).toFixed(0);
-                    log(`🛡️ ${regime} REGIME STOP: Exiting at ${(currentOdds * 100).toFixed(0)}¢ (Stop Price ${(pos.stopLoss * 100).toFixed(0)}¢ / -${stopPct * 100}%)`, pos.asset);
-                    this.closePosition(id, currentOdds, `${regime} STOP LOSS (-${lossPct}%)`);
-                    return;
+                    
+                    // 🎯 v51: CONVICTION trades NEVER stop-loss (94.8% WR)
+                    if (isConvictionTrade) {
+                        log(`💎 CONVICTION BYPASS: ${regime} stop at ${(pos.stopLoss * 100).toFixed(0)}¢ IGNORED - holding to resolution`, pos.asset);
+                        // Do NOT exit - continue to next check
+                    }
+                    // 🎯 v51: Genesis-agree trades NEVER stop-loss
+                    else if (isGenesisAgreeTrade) {
+                        log(`🌱 GENESIS BYPASS: ${regime} stop at ${(pos.stopLoss * 100).toFixed(0)}¢ IGNORED - holding to resolution`, pos.asset);
+                        // Do NOT exit - continue to next check
+                    }
+                    // Other tiers: apply regime stop-loss
+                    else {
+                        log(`🛡️ ${regime} REGIME STOP: Exiting at ${(currentOdds * 100).toFixed(0)}¢ (Stop Price ${(pos.stopLoss * 100).toFixed(0)}¢ / -${stopPct * 100}%)`, pos.asset);
+                        this.closePosition(id, currentOdds, `${regime} STOP LOSS (-${lossPct}%)`);
+                        return;
+                    }
                 }
 
                 // 4. Dynamic Target Logic (Diamond vs Safety)

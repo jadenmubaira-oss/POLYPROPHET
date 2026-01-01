@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v50",
-    "description": "POLYPROPHET GOAT v50 FINAL - ONE preset, MAX PROFIT MIN VARIANCE",
+    "version": "3.0.0-goat-v51",
+    "description": "POLYPROPHET GOAT v51 - CONVICTION bypass fix for regime stop-loss",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

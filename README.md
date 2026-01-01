@@ -1,4 +1,4 @@
-# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v50)
+# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v51)
 
 This README is the **single canonical source of truth** for PolyProphet: goals, scope, strategy, sizing/variance doctrine, halt behavior, verification, and operations.
 
@@ -319,7 +319,13 @@ Renamed from 'PINNACLE v27' to 'APEX v24' to match actual preset
 
 ---
 
-## 15) v50 GOAT FINAL — THE POLYPROPHET
+## 15) v51 GOAT FINAL — THE POLYPROPHET
+
+### Changes in v51
+
+- **CRITICAL FIX**: Regime stop-loss (CALM/VOLATILE/CHAOS) now bypasses CONVICTION trades
+- Previous bug: Regime stop-loss triggered BEFORE the CONVICTION bypass check
+- Now: CONVICTION and Genesis-agree trades hold to resolution regardless of regime
 
 ### Changes in v50
 
