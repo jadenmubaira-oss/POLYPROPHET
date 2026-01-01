@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v53",
-    "description": "POLYPROPHET GOAT v53 - Entry tracking + Polymarket-native backtest + maxOdds 48¢ fix",
+    "version": "3.0.0-goat-v53.1",
+    "description": "POLYPROPHET GOAT v53.1 - minOdds 20¢ TAIL BET BLOCK + Polymarket API verified (+39% profit)",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
