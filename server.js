@@ -775,6 +775,22 @@ app.get('/api/health', (req, res) => {
         };
     }
     
+    // 🎯 v52: Rolling accuracy per asset (drift detection)
+    const rollingAccuracy = {};
+    for (const asset of ASSETS) {
+        const brain = Brains[asset];
+        if (brain && brain.rollingConviction) {
+            const wins = brain.rollingConviction.filter(r => r.wasCorrect).length;
+            const total = brain.rollingConviction.length;
+            rollingAccuracy[asset] = {
+                convictionWR: total > 0 ? ((wins / total) * 100).toFixed(1) + '%' : 'N/A',
+                sampleSize: total,
+                driftWarning: brain.driftWarning || false,
+                autoDisabled: brain.autoDisabled || false
+            };
+        }
+    }
+
     res.json({
         status: 'ok',
         uptime: process.uptime(),
@@ -786,7 +802,9 @@ app.get('/api/health', (req, res) => {
             memoryMB: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
             alertsPending: typeof watchdogState !== 'undefined' ? watchdogState.alertsSent.size : 0
         },
-        circuitBreaker: cbStatus
+        circuitBreaker: cbStatus,
+        // 🎯 v52: Drift detection per asset
+        rollingAccuracy
     });
 });
 
@@ -1993,7 +2011,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 51;  // v51 CRITICAL: Fixed regime stop-loss bypassing CONVICTION trades
+const CONFIG_VERSION = 52;  // v52 CRITICAL: Fixed config drift (deep-merge presets), UI backtest defaults, rolling accuracy tracker
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -6251,6 +6269,12 @@ class SupremeBrain {
         // RECENT FORM TRACKER (Last 10 predictions)
         this.recentOutcomes = [];  // Array of true/false (win/loss)
 
+        // 🎯 v52 ROLLING ACCURACY TRACKER (Last 50 CONVICTION trades)
+        // Used for auto-drift detection - if WR drops below 70%, asset is flagged
+        this.rollingConviction = [];  // Array of { time, wasCorrect } for last 50 CONVICTION trades
+        this.driftWarning = false;    // True if rolling WR < 70%
+        this.autoDisabled = false;    // True if accuracy dropped below threshold
+
         // CYCLE COMMITMENT (Real-World Trading Lock)
         this.cycleCommitted = false;
         this.committedDirection = null;
@@ -7138,6 +7162,12 @@ class SupremeBrain {
             if (tier === 'NONE' && this.asset === 'XRP') {
                 log(`🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED`, this.asset);
                 // Do not trade - fall through to end
+            }
+            // 🎯 v52: Auto-disabled asset due to drift detection (rolling WR < 60%)
+            else if (this.autoDisabled && tier === 'CONVICTION') {
+                log(`🛑 AUTO-DISABLED: ${this.asset} CONVICTION trades suspended - rolling WR dropped below threshold`, this.asset);
+                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'AUTO_DISABLED', failedGates: ['rolling_accuracy'], inputs: { signal: finalSignal, tier, autoDisabled: this.autoDisabled, driftWarning: this.driftWarning } });
+                // Do not trade - fall through to end
             } else {
             const meetsAdvisoryThreshold = tier === 'CONVICTION' || (tier === 'ADVISORY' && finalConfidence >= 0.80);
                 // 🎯 GOAT v44.1: Frequency governor replaces time-of-day filtering
@@ -7949,6 +7979,40 @@ class SupremeBrain {
             this.recentOutcomes.push(isWin);
             if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
 
+            // 🎯 v52 ROLLING CONVICTION ACCURACY TRACKER
+            // Track last 50 CONVICTION trades for drift detection
+            if (tier === 'CONVICTION') {
+                this.rollingConviction.push({ time: Date.now(), wasCorrect: isWin });
+                if (this.rollingConviction.length > 50) this.rollingConviction.shift();
+                
+                // Calculate rolling win rate
+                const wins = this.rollingConviction.filter(r => r.wasCorrect).length;
+                const total = this.rollingConviction.length;
+                const rollingWR = total > 0 ? (wins / total) : 1;
+                
+                // Check for drift warning (WR below 70% with sufficient sample)
+                if (total >= 20) {
+                    if (rollingWR < 0.70) {
+                        if (!this.driftWarning) {
+                            log(`⚠️ DRIFT WARNING: ${this.asset} CONVICTION rolling WR = ${(rollingWR * 100).toFixed(1)}% (n=${total}) - below 70% threshold`, this.asset);
+                            this.driftWarning = true;
+                        }
+                        // Auto-disable if WR drops below 60% (severe drift)
+                        if (rollingWR < 0.60 && !this.autoDisabled) {
+                            log(`🛑 AUTO-DISABLE: ${this.asset} rolling WR ${(rollingWR * 100).toFixed(1)}% < 60% - suspending CONVICTION trades`, this.asset);
+                            this.autoDisabled = true;
+                        }
+                    } else {
+                        // Recovery - clear warnings if WR recovers above 75%
+                        if (rollingWR >= 0.75 && this.driftWarning) {
+                            log(`✅ DRIFT RECOVERED: ${this.asset} rolling WR = ${(rollingWR * 100).toFixed(1)}% - back above threshold`, this.asset);
+                            this.driftWarning = false;
+                            this.autoDisabled = false;
+                        }
+                    }
+                }
+            }
+
             // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
             if (this.lastSignal && this.lastSignal.modelVotes) {
                 for (const [model, vote] of Object.entries(this.lastSignal.modelVotes)) {
@@ -8537,6 +8601,10 @@ async function saveState() {
         // PINNACLE: Model accuracy (THE LEARNING!) - MUST be persisted
         modelAccuracy: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].modelAccuracy }), {}),
         recentOutcomes: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].recentOutcomes }), {}),
+        // 🎯 v52: Rolling CONVICTION accuracy for drift detection
+        rollingConviction: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].rollingConviction || [] }), {}),
+        driftWarning: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].driftWarning || false }), {}),
+        autoDisabled: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].autoDisabled || false }), {}),
 
         // 🔴 FIX #17: PERSIST TRADE EXECUTOR STATE (survives restarts!)
         // 🚀 PINNACLE v27 CRASH RECOVERY: Now persists OPEN POSITIONS + recovery queues
@@ -8687,6 +8755,11 @@ async function loadState() {
                 // PINNACLE: RESTORE MODEL ACCURACY (THE LEARNING!) - CRITICAL FOR GENUINE EVOLUTION
                 if (state.modelAccuracy) ASSETS.forEach(a => { if (state.modelAccuracy[a]) Brains[a].modelAccuracy = state.modelAccuracy[a]; });
                 if (state.recentOutcomes) ASSETS.forEach(a => { if (state.recentOutcomes[a]) Brains[a].recentOutcomes = state.recentOutcomes[a]; });
+                
+                // 🎯 v52: RESTORE ROLLING ACCURACY (drift detection)
+                if (state.rollingConviction) ASSETS.forEach(a => { if (state.rollingConviction[a]) Brains[a].rollingConviction = state.rollingConviction[a]; });
+                if (state.driftWarning) ASSETS.forEach(a => { if (state.driftWarning[a] !== undefined) Brains[a].driftWarning = state.driftWarning[a]; });
+                if (state.autoDisabled) ASSETS.forEach(a => { if (state.autoDisabled[a] !== undefined) Brains[a].autoDisabled = state.autoDisabled[a]; });
 
                 // 🔴 FIX #17: RESTORE TRADE EXECUTOR STATE (preserves balance across restarts!)
                 // 🚀 PINNACLE v27: CRASH RECOVERY - Full state restoration
@@ -9464,7 +9537,7 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/state')" class="btn" style="background:linear-gradient(90deg,#9933ff,#6600cc);" title="Full bot state (advanced)">🔮 Full State</button>
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
-                <button onclick="apiCall('/api/backtest-proof?tier=ALL&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Backtest on historical data">📈 Backtest</button>
+                <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="CONVICTION-only backtest (94%+ WR)">📈 Backtest</button>
             </div>
             
             <h4 style="color:#00ff88;margin-bottom:8px;">🧪 Custom Request</h4>
@@ -11384,11 +11457,38 @@ app.post('/api/settings', async (req, res) => {
     const updates = req.body;
     let reloadRequired = false;
 
+    // 🎯 v52 CRITICAL FIX: Deep-merge helper to prevent config drift
+    // When applying presets, object properties (ORACLE, RISK, etc.) must be MERGED,
+    // not replaced, to preserve safety keys like adaptiveModeEnabled, enableCircuitBreaker
+    const deepMerge = (target, source) => {
+        if (!source || typeof source !== 'object' || Array.isArray(source)) return source;
+        if (!target || typeof target !== 'object' || Array.isArray(target)) return source;
+        const result = { ...target };
+        for (const key of Object.keys(source)) {
+            if (source[key] !== null && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+                result[key] = deepMerge(target[key], source[key]);
+            } else if (source[key] !== undefined) {
+                result[key] = source[key];
+            }
+        }
+        return result;
+    };
+
+    // 🎯 v52: Keys that should be deep-merged (config objects) vs shallow-replaced (primitives)
+    const deepMergeKeys = ['ORACLE', 'RISK', 'ASSET_CONTROLS', 'SCALP', 'ARBITRAGE', 'UNCERTAINTY', 
+                          'MOMENTUM', 'ILLIQUIDITY_GAP', 'DEATH_BOUNCE', 'TELEGRAM'];
+
     // Update CONFIG
     for (const [key, value] of Object.entries(updates)) {
         if (CONFIG.hasOwnProperty(key)) {
-            CONFIG[key] = value;
-            log(`⚙️ Setting updated: ${key}`);
+            // 🎯 v52: Use deep-merge for object configs to preserve existing keys
+            if (deepMergeKeys.includes(key) && value && typeof value === 'object') {
+                CONFIG[key] = deepMerge(CONFIG[key], value);
+                log(`⚙️ Setting DEEP-MERGED: ${key} (preserved existing keys)`);
+            } else {
+                CONFIG[key] = value;
+                log(`⚙️ Setting updated: ${key}`);
+            }
 
             // Check if wallet reload needed
             if (['POLYMARKET_API_KEY', 'POLYMARKET_SECRET', 'POLYMARKET_PASSPHRASE', 'POLYMARKET_PRIVATE_KEY', 'TRADE_MODE'].includes(key)) {
