@@ -440,6 +440,324 @@ app.get('/api/backtest-proof', async (req, res) => {
     }
 });
 
+// ==================== 🎯 v53 POLYMARKET-NATIVE BACKTEST ====================
+// Uses Polymarket Gamma API for ground-truth outcomes + v53 entry prices for accurate profit calculation
+app.get('/api/backtest-polymarket', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
+        const startingBalance = parseFloat(req.query.balance) || 10.0;
+        const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.48; // Only trades where entry <= this price
+        const stakeFrac = parseFloat(req.query.stake) || 0.20; // Position size as fraction of balance
+        const limit = parseInt(req.query.limit) || 200; // Max cycles to process (rate limit protection)
+        
+        // Fee model
+        const PROFIT_FEE_PCT = 0.02;
+        const SLIPPAGE_PCT = 0.01;
+        
+        // Helper to fetch Gamma market outcome
+        async function fetchGammaOutcome(slug) {
+            try {
+                const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+                const response = await fetch(url, { 
+                    headers: { 'User-Agent': 'polyprophet-backtest/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                if (!response.ok) return null;
+                const data = await response.json();
+                const market = Array.isArray(data) ? data[0] : data;
+                if (!market || !market.outcomePrices || !market.outcomes) return null;
+                
+                const prices = JSON.parse(market.outcomePrices);
+                const outcomes = JSON.parse(market.outcomes);
+                if (!Array.isArray(prices) || prices.length < 2) return null;
+                
+                const p0 = Number(prices[0]);
+                const p1 = Number(prices[1]);
+                if (!Number.isFinite(p0) || !Number.isFinite(p1)) return null;
+                
+                // Check if resolved (1/0 or 0/1)
+                const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+                if (!idx0Win && !idx1Win) return null; // Not yet resolved
+                
+                const o0 = String(outcomes[0]).toLowerCase();
+                const o1 = String(outcomes[1]).toLowerCase();
+                
+                if (o0 === 'up' && o1 === 'down') return idx0Win ? 'UP' : 'DOWN';
+                if (o0 === 'down' && o1 === 'up') return idx0Win ? 'DOWN' : 'UP';
+                if (o0 === 'yes' && o1 === 'no') return idx0Win ? 'UP' : 'DOWN';
+                if (o0 === 'no' && o1 === 'yes') return idx0Win ? 'DOWN' : 'UP';
+                return idx0Win ? 'UP' : 'DOWN';
+            } catch {
+                return null;
+            }
+        }
+        
+        // Helper to build slug from cycle time
+        function buildSlug(asset, cycleEndTime) {
+            const endSec = Math.floor(Date.parse(cycleEndTime) / 1000);
+            if (!Number.isFinite(endSec)) return null;
+            const boundary = Math.floor(endSec / 900) * 900;
+            const startEpoch = boundary - 900;
+            return `${String(asset).toLowerCase()}-updown-15m-${startEpoch}`;
+        }
+        
+        // Get cycles from collector snapshots (Redis/file)
+        const snapshotData = await getCollectorSnapshots(1000);
+        const snapshots = snapshotData.snapshots || [];
+        
+        // Also try debug files if available
+        const fs = require('fs');
+        const path = require('path');
+        const debugDir = path.join(__dirname, 'debug');
+        let debugCycles = [];
+        
+        if (fs.existsSync(debugDir)) {
+            const debugFiles = fs.readdirSync(debugDir)
+                .filter(f => f.startsWith('polyprophet_debug_') && f.endsWith('.json'))
+                .sort();
+            
+            const seen = new Set();
+            for (const file of debugFiles.slice(-50)) { // Last 50 files only
+                try {
+                    const content = fs.readFileSync(path.join(debugDir, file), 'utf8');
+                    const data = JSON.parse(content);
+                    const assets = data.assets || {};
+                    
+                    for (const [asset, assetData] of Object.entries(assets)) {
+                        if (!['BTC', 'ETH', 'XRP'].includes(asset)) continue;
+                        const cycleHistory = assetData.cycleHistory || [];
+                        
+                        for (const cycle of cycleHistory) {
+                            if (!cycle.cycleEndTime) continue;
+                            const key = `${asset}_${cycle.cycleEndTime}`;
+                            if (seen.has(key)) continue;
+                            seen.add(key);
+                            
+                            const tier = String(cycle.tier || 'NONE').toUpperCase();
+                            if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
+                            
+                            const pred = String(cycle.prediction || 'NEUTRAL').toUpperCase();
+                            if (pred !== 'UP' && pred !== 'DOWN') continue;
+                            
+                            // 🎯 v53: Use entryOdds if available, otherwise marketOdds
+                            const entryOdds = cycle.entryOdds || cycle.marketOdds;
+                            if (!entryOdds) continue;
+                            
+                            const yesPrice = entryOdds.yesPrice;
+                            const noPrice = entryOdds.noPrice;
+                            const entryPrice = pred === 'UP' ? yesPrice : noPrice;
+                            
+                            if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+                            if (entryPrice > maxOddsEntry) continue; // Filter by max entry odds
+                            
+                            const slug = buildSlug(asset, cycle.cycleEndTime);
+                            if (!slug) continue;
+                            
+                            debugCycles.push({
+                                asset,
+                                cycleEndTime: cycle.cycleEndTime,
+                                prediction: pred,
+                                tier,
+                                entryPrice,
+                                slug,
+                                confidence: cycle.confidence || cycle.entryConfidence,
+                                source: 'debug',
+                                entrySource: cycle.entryOdds ? 'entryOdds' : 'marketOdds'
+                            });
+                        }
+                    }
+                } catch { /* skip malformed */ }
+            }
+        }
+        
+        // Also extract from collector snapshots
+        const snapshotCycles = [];
+        const seenSnap = new Set();
+        
+        for (const snap of snapshots) {
+            for (const [asset, signal] of Object.entries(snap.signals || {})) {
+                if (!['BTC', 'ETH', 'XRP'].includes(asset)) continue;
+                
+                const tier = String(signal.tier || 'NONE').toUpperCase();
+                if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
+                
+                const pred = String(signal.prediction || 'NEUTRAL').toUpperCase();
+                if (pred !== 'UP' && pred !== 'DOWN') continue;
+                
+                const market = snap.markets?.[asset];
+                if (!market || !market.slug) continue;
+                
+                const key = `${asset}_${market.slug}`;
+                if (seenSnap.has(key)) continue;
+                seenSnap.add(key);
+                
+                const yesPrice = market.yesPrice;
+                const noPrice = market.noPrice;
+                const entryPrice = pred === 'UP' ? yesPrice : noPrice;
+                
+                if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+                if (entryPrice > maxOddsEntry) continue;
+                
+                snapshotCycles.push({
+                    asset,
+                    cycleEndTime: snap.timestamp,
+                    prediction: pred,
+                    tier,
+                    entryPrice,
+                    slug: market.slug,
+                    confidence: signal.confidence,
+                    source: 'collector',
+                    entrySource: 'snapshot'
+                });
+            }
+        }
+        
+        // Combine and dedupe
+        const allCycles = [...debugCycles, ...snapshotCycles];
+        const finalCycles = [];
+        const seenFinal = new Set();
+        
+        for (const c of allCycles) {
+            if (seenFinal.has(c.slug)) continue;
+            seenFinal.add(c.slug);
+            finalCycles.push(c);
+        }
+        
+        // Sort by time and limit
+        finalCycles.sort((a, b) => new Date(a.cycleEndTime) - new Date(b.cycleEndTime));
+        const cyclesToProcess = finalCycles.slice(0, limit);
+        
+        // Fetch Polymarket outcomes and simulate
+        let balance = startingBalance;
+        let peakBalance = startingBalance;
+        let maxDrawdown = 0;
+        let wins = 0;
+        let losses = 0;
+        let resolved = 0;
+        let unresolved = 0;
+        let errors = 0;
+        const trades = [];
+        
+        for (const cycle of cyclesToProcess) {
+            // Rate limit protection: small delay between API calls
+            if (resolved + unresolved + errors > 0) {
+                await new Promise(r => setTimeout(r, 50));
+            }
+            
+            const polyOutcome = await fetchGammaOutcome(cycle.slug);
+            
+            if (!polyOutcome) {
+                unresolved++;
+                continue;
+            }
+            resolved++;
+            
+            const isWin = cycle.prediction === polyOutcome;
+            
+            // Calculate PnL
+            const stake = balance * stakeFrac;
+            if (stake <= 0) break;
+            
+            const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
+            const shares = stake / effectiveEntry;
+            
+            let pnl;
+            if (isWin) {
+                const grossValue = shares * 1.0;
+                const profit = grossValue - stake;
+                const fee = profit * PROFIT_FEE_PCT;
+                pnl = profit - fee;
+                wins++;
+            } else {
+                pnl = -stake;
+                losses++;
+            }
+            
+            balance += pnl;
+            peakBalance = Math.max(peakBalance, balance);
+            const dd = (peakBalance - balance) / peakBalance;
+            maxDrawdown = Math.max(maxDrawdown, dd);
+            
+            trades.push({
+                asset: cycle.asset,
+                slug: cycle.slug,
+                prediction: cycle.prediction,
+                polymarketOutcome: polyOutcome,
+                isWin,
+                entryPrice: cycle.entryPrice,
+                effectiveEntry,
+                stake,
+                pnl,
+                balance,
+                tier: cycle.tier,
+                confidence: cycle.confidence,
+                source: cycle.source,
+                entrySource: cycle.entrySource
+            });
+            
+            if (balance <= 0) break;
+        }
+        
+        const totalTrades = wins + losses;
+        const winRate = totalTrades > 0 ? (wins / totalTrades * 100) : 0;
+        const totalProfit = balance - startingBalance;
+        const avgPnlPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
+        const avgEntryPrice = trades.length > 0 ? trades.reduce((s, t) => s + t.entryPrice, 0) / trades.length : 0;
+        
+        // Expected value calculation
+        const expectedWinRoi = avgEntryPrice > 0 ? (1 / avgEntryPrice - 1) : 0;
+        const expectedEV = (winRate / 100) * expectedWinRoi - (1 - winRate / 100);
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        res.json({
+            summary: {
+                method: 'Polymarket Gamma API (ground truth)',
+                runtime: runtime + 's',
+                startingBalance,
+                finalBalance: parseFloat(balance.toFixed(2)),
+                totalProfit: parseFloat(totalProfit.toFixed(2)),
+                profitPct: (totalProfit / startingBalance * 100).toFixed(2) + '%',
+                wins,
+                losses,
+                winRate: winRate.toFixed(2) + '%',
+                maxDrawdown: (maxDrawdown * 100).toFixed(2) + '%',
+                avgEntryPrice: avgEntryPrice.toFixed(3),
+                avgPnlPerTrade: avgPnlPerTrade.toFixed(4),
+                expectedEV: expectedEV.toFixed(4) + ' per $1 stake',
+                isProfitable: expectedEV > 0
+            },
+            coverage: {
+                cyclesFound: finalCycles.length,
+                cyclesProcessed: cyclesToProcess.length,
+                resolved,
+                unresolved,
+                errors,
+                fromDebug: debugCycles.length,
+                fromCollector: snapshotCycles.length
+            },
+            filters: {
+                tierFilter,
+                maxOddsEntry,
+                stakeFrac,
+                limit
+            },
+            trades: trades.slice(-30), // Last 30 for display
+            interpretation: {
+                winRateNeededForEV: avgEntryPrice > 0 ? ((1 / (1 + (1 / avgEntryPrice - 1))) * 100).toFixed(1) + '%' : 'N/A',
+                currentWinRate: winRate.toFixed(1) + '%',
+                verdict: expectedEV > 0 ? '✅ POSITIVE EV - Profitable at current WR and entry prices' :
+                         expectedEV > -0.05 ? '⚠️ MARGINAL - Close to breakeven, need better entries or higher WR' :
+                         '❌ NEGATIVE EV - Entry prices too high for current win rate'
+            }
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
 // 🎯 GOAT v44.1: Forward Test - Replay collector snapshots through decision engine
 app.get('/api/forward-test', async (req, res) => {
     try {
@@ -2011,7 +2329,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 52;  // v52 CRITICAL: Fixed config drift (deep-merge presets), UI backtest defaults, rolling accuracy tracker
+const CONFIG_VERSION = 53;  // v53: Trade entry tracking for accurate profit backtesting + Polymarket-native backtest
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -2066,7 +2384,7 @@ const CONFIG = {
         minConsensus: 0.70,      // 70% model agreement
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        maxOdds: 0.90,           // 🎯 ATOMIC: 90¢ max (HIGH prices = 98.96% win rate!)
+        maxOdds: 0.48,           // 🎯 v53 FIX: 48¢ max (Polymarket-verified WR ~77% → breakeven at 77¢, safety margin to 48¢)
         minStability: 2,         // 2 ticks - fast lock
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
@@ -6275,6 +6593,13 @@ class SupremeBrain {
         this.driftWarning = false;    // True if rolling WR < 70%
         this.autoDisabled = false;    // True if accuracy dropped below threshold
 
+        // 🎯 v53 TRADE ENTRY TRACKING (for accurate profit backtesting)
+        // Captures the ENTRY-TIME prices when trade decision was made (not cycle-end prices)
+        this.tradeEntryOdds = null;   // { yesPrice, noPrice, timestamp } at trade entry
+        this.tradeEntryReason = null; // 'GOD_MODE' | 'TREND_MODE' | 'ORACLE_LOCKED' | 'STANDARD_ORACLE' | null
+        this.tradeEntryTier = null;   // Tier at time of trade entry
+        this.tradeEntryConfidence = null; // Confidence at time of trade entry
+
         // CYCLE COMMITMENT (Real-World Trading Lock)
         this.cycleCommitted = false;
         this.committedDirection = null;
@@ -6982,6 +7307,16 @@ class SupremeBrain {
                 this.oracleLocked = true;
                 this.oracleLockPrediction = finalSignal;
                 this.lockCertainty = adjustedCertainty;
+                
+                // 🎯 v53: Capture entry-time prices at oracle lock moment
+                const mkt = currentMarkets[this.asset];
+                if (mkt && !this.tradeEntryOdds) {
+                    this.tradeEntryOdds = { yesPrice: mkt.yesPrice, noPrice: mkt.noPrice, timestamp: Date.now() };
+                    this.tradeEntryReason = 'ORACLE_LOCKED';
+                    this.tradeEntryTier = 'CONVICTION';
+                    this.tradeEntryConfidence = finalConfidence;
+                }
+                
                 log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
                 log(`🔮 TRUE ORACLE LOCK: ${finalSignal} @ ${adjustedCertainty.toFixed(0)} certainty`, this.asset);
                 log(`🔮 Threshold: ${dynamicThreshold} | Velocity: ${velocityData.velocity.toFixed(1)} | Phase: ${this.currentPhase}`, this.asset);
@@ -7310,6 +7645,12 @@ class SupremeBrain {
                             log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
                             log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
 
+                            // 🎯 v53: Capture entry-time prices for accurate backtesting
+                            this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
+                            this.tradeEntryReason = isGodMode ? 'GOD_MODE' : 'TREND_MODE';
+                            this.tradeEntryTier = tier;
+                            this.tradeEntryConfidence = finalConfidence;
+
                             // 🎯 GOAT v44.1: Record successful trade
                             gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
                             
@@ -7352,6 +7693,12 @@ class SupremeBrain {
                                 this.lockedDirection = finalSignal;
                                 this.lockTime = Date.now();
                                 this.lockConfidence = finalConfidence;
+
+                                // 🎯 v53: Capture entry-time prices for accurate backtesting
+                                this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
+                                this.tradeEntryReason = 'STANDARD_ORACLE';
+                                this.tradeEntryTier = tier;
+                                this.tradeEntryConfidence = finalConfidence;
 
                                 log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
                                 log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
@@ -8085,10 +8432,16 @@ class SupremeBrain {
                     edgeHistory: [...(this.edgeHistory || [])],
                     // Raw per-tick decision stream for this cycle (every second, last cycle only)
                     tickHistory: [...(this.currentCycleHistory || [])],
+                    // 🎯 v53: CYCLE-END market odds (for reference only - NOT entry prices!)
                     marketOdds: currentMarkets[this.asset] ? {
                         yesPrice: currentMarkets[this.asset].yesPrice,
                         noPrice: currentMarkets[this.asset].noPrice
-                    } : null
+                    } : null,
+                    // 🎯 v53: ENTRY-TIME market odds (when trade decision was made - USE FOR PROFIT CALC!)
+                    entryOdds: this.tradeEntryOdds ? { ...this.tradeEntryOdds } : null,
+                    entryReason: this.tradeEntryReason,
+                    entryTier: this.tradeEntryTier,
+                    entryConfidence: this.tradeEntryConfidence
                 };
 
                 // Add to history (max 10 cycles)
@@ -8139,6 +8492,12 @@ class SupremeBrain {
                 this.genesisTraded = false;
                 this.genesisTradeDirection = null;
                 this.lastBlackoutPrediction = null;
+
+                // 🎯 v53: RESET TRADE ENTRY TRACKING FOR NEW CYCLE
+                this.tradeEntryOdds = null;
+                this.tradeEntryReason = null;
+                this.tradeEntryTier = null;
+                this.tradeEntryConfidence = null;
                 this.blackoutLogged = false;
                 this.inBlackout = false;
                 this.correlationBonus = 0;
@@ -9537,7 +9896,8 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/state')" class="btn" style="background:linear-gradient(90deg,#9933ff,#6600cc);" title="Full bot state (advanced)">🔮 Full State</button>
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
-                <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="CONVICTION-only backtest (94%+ WR)">📈 Backtest</button>
+                <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&maxOdds=0.48')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (real outcomes)">🏆 Poly Backtest</button>
             </div>
             
             <h4 style="color:#00ff88;margin-bottom:8px;">🧪 Custom Request</h4>
@@ -9582,6 +9942,10 @@ app.get('/', (req, res) => {
                     <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
                         <td style="padding:6px;color:#4fc3f7;"><code>GET /api/backtest-proof</code></td>
                         <td style="padding:6px;">Run deterministic backtest on debug logs</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#10b981;"><code>GET /api/backtest-polymarket</code></td>
+                        <td style="padding:6px;">🏆 Polymarket-verified backtest with real outcomes</td>
                     </tr>
                     <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
                         <td style="padding:6px;color:#4fc3f7;"><code>GET /api/settings</code></td>

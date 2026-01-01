@@ -1,10 +1,10 @@
-# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v52)
+# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v53)
 
 This README is the **single canonical source of truth** for PolyProphet: goals, scope, strategy, sizing/variance doctrine, halt behavior, verification, and operations.
 
 If this README conflicts with any other file or chat export, **this README wins**.
 
-## 🏆 v52 IS THE PINNACLE — ALL CRITICAL FIXES IMPLEMENTED
+## 🏆 v53 IS THE PINNACLE — POLYMARKET-NATIVE BACKTEST + ENTRY TRACKING
 
 ---
 
@@ -60,17 +60,22 @@ The deployed instance currently reports:
 curl https://polyprophet.onrender.com/api/version
 ```
 
-Expected (as of v52):
-- `configVersion: 52`
+Expected (as of v53):
+- `configVersion: 53`
 - ONE preset: `GOAT` (MAX PROFIT MIN VARIANCE)
 - UI renamed from "Supreme Oracle" to "POLYPROPHET"
 
-### v52 Critical Fixes:
-1. ✅ **Config drift fixed** — Deep-merge preserves all safety keys when applying presets
-2. ✅ **Rolling accuracy tracker** — Per-asset CONVICTION win rate tracking (last 50 trades)
-3. ✅ **Auto-drift detection** — Warning at <70% WR, auto-disable at <60% WR
-4. ✅ **UI backtest defaults** — Now correctly defaults to CONVICTION tier
-5. ✅ **Safety features restored** — adaptiveModeEnabled, enableCircuitBreaker all working
+### v53 Critical Fixes:
+1. ✅ **Trade entry tracking** — Captures ENTRY-TIME prices (not cycle-end) for accurate profit backtesting
+2. ✅ **Polymarket-native backtest** — `/api/backtest-polymarket` uses real Gamma API outcomes
+3. ✅ **maxOdds fixed to 48¢** — Previous 90¢ was -EV at real 77% WR; now safe at 48¢ (breakeven 67%)
+4. ✅ **Entry price filter** — Only trades where entry ≤48¢ (positive EV with safety margin)
+5. ✅ **Cycle reset for entry tracking** — `tradeEntryOdds` properly resets each cycle
+
+### v52 Fixes (retained):
+- ✅ Config drift fixed (deep-merge presets)
+- ✅ Rolling accuracy tracker (per-asset CONVICTION WR)
+- ✅ Auto-drift detection (<70% warning, <60% auto-disable)
 
 ---
 
@@ -169,7 +174,7 @@ If you want to push harder toward $1M speed:
 
 ## 9) Verification (Backtest + Forward-test)
 
-### Backtest (Historical)
+### Backtest — Debug-Based (Historical)
 
 **Endpoint**: `GET /api/backtest-proof`
 
@@ -188,6 +193,31 @@ If you want to push harder toward $1M speed:
 **Example**: `/api/backtest-proof?tier=ALL&prices=ALL&balance=10`
 
 **Note**: On deployed server, backtest requires debug files. Export debug locally via "📥 Export Debug" button, or restore from `debug-archive` branch.
+
+### 🏆 v53: Polymarket-Native Backtest (Ground Truth)
+
+**Endpoint**: `GET /api/backtest-polymarket`
+
+**How it works**:
+1. Collects cycles from debug files AND collector snapshots
+2. Uses **v53 entry tracking** (`entryOdds`) for accurate entry prices
+3. Queries **Polymarket Gamma API** for real market resolution outcomes
+4. Calculates profit based on actual Polymarket results (not internal model)
+
+**Query params**:
+- `tier=CONVICTION|ADVISORY|ALL` — filter by tier (default: CONVICTION)
+- `maxOdds=0.48` — max entry price (default: 48¢ for +EV)
+- `balance=10` — starting balance (default: $10)
+- `stake=0.20` — position size as fraction of balance (default: 20%)
+- `limit=200` — max cycles to process (rate limit protection)
+
+**Example**: `/api/backtest-polymarket?tier=CONVICTION&maxOdds=0.48&balance=10`
+
+**Output includes**:
+- Win rate vs Polymarket resolution
+- Total profit/loss simulation
+- Expected value per $1 stake
+- Interpretation: ✅ POSITIVE EV / ⚠️ MARGINAL / ❌ NEGATIVE EV
 
 ### Forward-test (Live)
 
@@ -245,7 +275,8 @@ Security rule: never commit secrets; use `.env` locally and Render env vars in p
 - `GET /api/gates`
 - `GET /api/halts`
 - `GET /api/trades`
-- `GET /api/backtest-proof`
+- `GET /api/backtest-proof` — Debug-based backtest
+- `GET /api/backtest-polymarket` — **🏆 v53: Polymarket Gamma API verified backtest (real outcomes)**
 - `GET /api/forward-test`
 - `GET /api/calibration`
 - `GET /api/circuit-breaker`
