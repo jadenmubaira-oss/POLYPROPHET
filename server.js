@@ -1993,7 +1993,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 49;  // v49 FINAL: ONE PRESET (GOAT), simplified UI, all fixes from v48
+const CONFIG_VERSION = 50;  // v50 GOAT FINAL: Renamed to POLYPROPHET, one preset, all fixes
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8800,7 +8800,7 @@ app.get('/', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>🔮 Supreme Oracle - Prophet Trading System</title>
+    <title>🔮 POLYPROPHET - MAX PROFIT MIN VARIANCE</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -8893,7 +8893,7 @@ app.get('/', (req, res) => {
 </head>
 <body>
     <nav class="nav">
-        <div class="nav-brand">🔮 Supreme Oracle <span id="codeFingerprint" style="font-size:0.6em;color:#888;margin-left:8px;"></span></div>
+        <div class="nav-brand">🔮 POLYPROPHET <span id="codeFingerprint" style="font-size:0.6em;color:#888;margin-left:8px;"></span></div>
         <div class="nav-links">
             <span id="activePresetBadge" style="background:#333;color:#ffd700;padding:4px 10px;border-radius:12px;font-size:0.8em;margin-right:8px;">🏷️ Loading...</span>
             <button class="nav-btn" onclick="openModal('apiExplorerModal')">🔌 API</button>
@@ -11755,7 +11755,7 @@ app.get('/guide', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Supreme Oracle - Beginner's Guide</title>
+    <title>POLYPROPHET - Beginner's Guide</title>
     <meta charset="UTF-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -11797,7 +11797,7 @@ app.get('/guide', (req, res) => {
         
         <div class="card">
             <h2>📖 What Is This Bot?</h2>
-            <p>The Supreme Oracle is an <span class="term">AI-powered prediction bot</span> for <span class="highlight">Polymarket BTC/ETH price markets</span>. It analyzes price movements using 8 machine learning models and automatically trades when it identifies profitable opportunities.</p>
+            <p>POLYPROPHET is an <span class="term">AI-powered prediction bot</span> for <span class="highlight">Polymarket BTC/ETH price markets</span>. It analyzes price movements using 8 machine learning models and automatically trades when it identifies profitable opportunities.</p>
         </div>
         
         <h2>🎯 The 5 Trading Modes</h2>
@@ -11980,7 +11980,7 @@ app.get('/wallet', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Wallet - Supreme Oracle</title>
+    <title>Wallet - POLYPROPHET</title>
     <meta charset="UTF-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }

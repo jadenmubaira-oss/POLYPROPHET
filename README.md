@@ -1,4 +1,4 @@
-# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v49)
+# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v50)
 
 This README is the **single canonical source of truth** for PolyProphet: goals, scope, strategy, sizing/variance doctrine, halt behavior, verification, and operations.
 
@@ -17,7 +17,7 @@ Interpretation (what “min variance” means in aggressive mode): remove avoida
 ## 2) Market Scope (what we trade)
 
 **Crypto cycles only** on Polymarket:
-- BTC / ETH / SOL / XRP
+- BTC / ETH / XRP only (SOL disabled — 50% WR)
 - 15‑minute windows
 
 Non‑goals:
@@ -58,9 +58,10 @@ The deployed instance currently reports:
 curl https://polyprophet.onrender.com/api/version
 ```
 
-Expected (as of v49):
-- `configVersion: 49`
+Expected (as of v50):
+- `configVersion: 50`
 - ONE preset: `GOAT` (MAX PROFIT MIN VARIANCE)
+- UI renamed from "Supreme Oracle" to "POLYPROPHET"
 
 ---
 
@@ -159,13 +160,43 @@ If you want to push harder toward $1M speed:
 
 ## 9) Verification (Backtest + Forward-test)
 
-Protected endpoints:
-- `GET /api/backtest-proof` (deterministic backtest from debug logs)
-- `GET /api/forward-test` (replay collector snapshots through decision engine)
+### Backtest (Historical)
 
-Public baseline checks:
-- `GET /api/health`
-- `GET /api/version`
+**Endpoint**: `GET /api/backtest-proof`
+
+**How it works**:
+1. Reads debug export files from `debug/` folder
+2. Extracts `cycleHistory` from each asset
+3. Simulates trades with realistic fees (2% on profits) and slippage (1%)
+4. Caps position size at $100 to prevent unrealistic compounding
+
+**Query params**:
+- `tier=CONVICTION|ADVISORY|ALL` — filter by tier (default: CONVICTION)
+- `prices=EXTREME|ALL` — filter by entry price (default: EXTREME = <20¢ or >95¢)
+- `balance=5` — starting balance (default: $5)
+- `minConfigVersion=47` — only use data from specific version+
+
+**Example**: `/api/backtest-proof?tier=ALL&prices=ALL&balance=10`
+
+**Note**: On deployed server, backtest requires debug files. Export debug locally via "📥 Export Debug" button, or restore from `debug-archive` branch.
+
+### Forward-test (Live)
+
+**Endpoint**: `GET /api/forward-test`
+
+**How it works**:
+1. Reads collector snapshots from Redis (or `backtest-data/` folder)
+2. Analyzes signal distribution, tier distribution, confidence
+3. Does NOT simulate P&L — just shows what the bot WOULD have traded
+
+**Enable collector**: `POST /api/collector/toggle`
+
+**Check status**: `GET /api/collector/status`
+
+### Public Health Checks
+
+- `GET /api/health` — bot status, uptime, circuit breaker state
+- `GET /api/version` — config version, git commit
 
 ---
 
@@ -288,11 +319,25 @@ Renamed from 'PINNACLE v27' to 'APEX v24' to match actual preset
 
 ---
 
-## 15) v49 FINAL — ONE PRESET TO RULE THEM ALL
+## 15) v50 GOAT FINAL — THE POLYPROPHET
 
-### Simplification (v49)
+### Changes in v50
 
-All preset bloat removed. There is now **ONE preset: GOAT**.
+- UI renamed from "Supreme Oracle" to **POLYPROPHET**
+- 118 debug files restored locally for backtest
+- Comprehensive backtest validation completed
+
+### Backtest Results (118 debug exports, 2211 cycles)
+
+| Tier | Wins | Losses | Win Rate |
+|------|------|--------|----------|
+| **CONVICTION** | 715 | 39 | **94.8%** |
+| **ADVISORY** | 422 | 8 | **98.1%** |
+| NONE | 446 | 581 | 43.4% |
+
+**Conclusion**: Only trade CONVICTION tier (94.8% WR). NONE tier is worse than coin flip.
+
+### GOAT Preset
 
 Click "👑 APPLY GOAT SETTINGS" in the UI to load optimal settings.
 
