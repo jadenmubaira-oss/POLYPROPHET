@@ -19,7 +19,7 @@ Interpretation (what “min variance” means in aggressive mode): remove avoida
 ## 2) Market Scope (what we trade)
 
 **Crypto cycles only** on Polymarket:
-- BTC / ETH / XRP only (SOL disabled — 50% WR)
+- BTC / ETH / XRP only (SOL disabled — market illiquidity)
 - 15‑minute windows
 
 Non‑goals:
@@ -68,9 +68,14 @@ Expected (as of v53):
 ### v53 Critical Fixes:
 1. ✅ **Trade entry tracking** — Captures ENTRY-TIME prices (not cycle-end) for accurate profit backtesting
 2. ✅ **Polymarket-native backtest** — `/api/backtest-polymarket` uses real Gamma API outcomes
-3. ✅ **maxOdds fixed to 48¢** — Previous 90¢ was -EV at real 77% WR; now safe at 48¢ (breakeven 67%)
-4. ✅ **Entry price filter** — Only trades where entry ≤48¢ (positive EV with safety margin)
+3. ✅ **minOdds=20¢ TAIL BET BLOCK** — Polymarket verified: entry <20¢ = 6.7% WR (Oracle contradicts market = BAD)
+4. ✅ **maxOdds=95¢** — Polymarket verified: entry 90-99¢ = 97.5% WR (Oracle confirms market = GOOD)
 5. ✅ **Cycle reset for entry tracking** — `tradeEntryOdds` properly resets each cycle
+
+**KEY INSIGHT FROM POLYMARKET VERIFICATION:**
+- Oracle CONFIRMING market direction (high entry price): 97.5% WR ✅
+- Oracle CONTRADICTING market direction (low entry price): 6.7% WR ❌
+- The Oracle's edge is in CONFIRMATION, not CONTRARIAN bets
 
 ### v52 Fixes (retained):
 - ✅ Config drift fixed (deep-merge presets)

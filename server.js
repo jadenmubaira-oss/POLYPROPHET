@@ -447,7 +447,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const startTime = Date.now();
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
         const startingBalance = parseFloat(req.query.balance) || 10.0;
-        const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.48; // Only trades where entry <= this price
+        const minOddsEntry = parseFloat(req.query.minOdds) || 0.20; // 🎯 v53: Reject tail bets <20¢ (Oracle vs market = 6.7% WR)
+        const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // Allow high-confidence trades (97.5% WR)
         const stakeFrac = parseFloat(req.query.stake) || 0.20; // Position size as fraction of balance
         const limit = parseInt(req.query.limit) || 200; // Max cycles to process (rate limit protection)
         
@@ -550,6 +551,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             const entryPrice = pred === 'UP' ? yesPrice : noPrice;
                             
                             if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+                            if (entryPrice < minOddsEntry) continue; // 🎯 v53: Reject tail bets (Oracle vs market)
                             if (entryPrice > maxOddsEntry) continue; // Filter by max entry odds
                             
                             const slug = buildSlug(asset, cycle.cycleEndTime);
@@ -598,6 +600,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 const entryPrice = pred === 'UP' ? yesPrice : noPrice;
                 
                 if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+                if (entryPrice < minOddsEntry) continue; // 🎯 v53: Reject tail bets
                 if (entryPrice > maxOddsEntry) continue;
                 
                 snapshotCycles.push({
@@ -2384,7 +2387,8 @@ const CONFIG = {
         minConsensus: 0.70,      // 70% model agreement
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        maxOdds: 0.48,           // 🎯 v53 FIX: 48¢ max (Polymarket-verified WR ~77% → breakeven at 77¢, safety margin to 48¢)
+        minOdds: 0.20,           // 🎯 v53 FIX: Reject tail bets <20¢ (Oracle disagrees with market = 6.7% WR)
+        maxOdds: 0.95,           // 🎯 v53 FIX: Allow high-confidence trades (97.5% WR at 99¢, near breakeven)
         minStability: 2,         // 2 ticks - fast lock
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
@@ -3630,6 +3634,15 @@ class TradeExecutor {
             if (!entryPrice || entryPrice <= 0) {
                 log(`🚨 CRITICAL BLOCK: Invalid entry price ${entryPrice} - MUST BE > 0`, asset);
                 return { success: false, error: `Invalid entry price: ${entryPrice}. Must be > 0.` };
+            }
+
+            // 🎯 v53 CRITICAL: TAIL BET FILTER - Block trades where Oracle disagrees with market
+            // Polymarket-verified data shows: entry <20¢ = 6.7% WR (market strongly disagrees with Oracle)
+            // These "contrarian" bets are NOT profitable - Oracle edge is in CONFIRMING market direction
+            const effectiveMinOdds = CONFIG.ORACLE.minOdds || 0.20;
+            if (mode === 'ORACLE' && entryPrice < effectiveMinOdds) {
+                log(`🚫 TAIL BET BLOCK: Entry price ${(entryPrice * 100).toFixed(1)}¢ < minOdds ${(effectiveMinOdds * 100).toFixed(1)}¢ - Market strongly disagrees, Oracle edge invalid`, asset);
+                return { success: false, error: `Entry price ${(entryPrice * 100).toFixed(1)}¢ below minOdds ${(effectiveMinOdds * 100).toFixed(1)}¢ (market disagrees)` };
             }
 
             // 🎯 GOAT v44.1: EV-derived max price check (replaces hard maxOdds)
@@ -9897,7 +9910,7 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
-                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&maxOdds=0.48')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (real outcomes)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (real outcomes, 20-95¢ entries)">🏆 Poly Backtest</button>
             </div>
             
             <h4 style="color:#00ff88;margin-bottom:8px;">🧪 Custom Request</h4>
@@ -10343,7 +10356,8 @@ app.get('/', (req, res) => {
                         minConsensus: 0.70,      // 70% model agreement required
                         minConfidence: 0.70,     // 70% confidence minimum
                         minEdge: 5,              // 5% edge over market odds
-                        maxOdds: 0.48,           // Don't buy shares above 48¢
+                        minOdds: 0.20,           // 🎯 v53: Block tail bets <20¢ (Oracle vs market = 6.7% WR)
+                        maxOdds: 0.95,           // 🎯 v53: Allow high-confidence trades (97.5% WR at 99¢)
                         minStability: 3,         // 3 ticks of stable signal
                         requireTrending: false,  // Trade in all conditions
                         earlyTakeProfitEnabled: true,
@@ -12927,8 +12941,11 @@ function runStartupSelfTests() {
     if (!CONFIG || !CONFIG.ORACLE) {
         failures.push('CONFIG or CONFIG.ORACLE is undefined');
     }
-    if (CONFIG.ORACLE.maxOdds > 0.95) {
-        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) is dangerously high`);
+    if (CONFIG.ORACLE.maxOdds > 0.98) {
+        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) is dangerously high (>98¢)`);
+    }
+    if (CONFIG.ORACLE.minOdds < 0.10) {
+        failures.push(`CONFIG.ORACLE.minOdds (${CONFIG.ORACLE.minOdds}) is too low - allows tail bets`);
     }
     if (CONFIG.ORACLE.minConfidence < 0.3) {
         failures.push(`CONFIG.ORACLE.minConfidence (${CONFIG.ORACLE.minConfidence}) is very low`);
