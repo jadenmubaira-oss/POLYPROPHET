@@ -1993,7 +1993,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 47;  // v47 OPUS FINAL: Stop-loss false-stop fix (Genesis+phase aware), CONVICTION holds to resolution, STRIKE 2x sizing, mid_range_odds allows Genesis-agree
+const CONFIG_VERSION = 48;  // v48: Tier propagation fix (LATE CYCLE + ILLIQUIDITY), SOL disabled in PINNACLE_OPTIMAL, UI button fix, security audit
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -2440,8 +2440,7 @@ class TradeExecutor {
                 // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
                 // NOTE: Using ethers v5 syntax (required by @polymarket/clob-client)
                 const provider = createDirectProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
-                const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
-                log(`🔑 Reloading wallet from key: ${keyPreview}...`);
+                // 🎯 v48 SECURITY: Removed partial key logging
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
                 // NOTE: ethers v5 natively has _signTypedData - no wrapper needed
                 log(`✅ Wallet Reloaded: ${this.wallet.address}`);
@@ -7359,7 +7358,8 @@ class SupremeBrain {
 
                         // ILLIQUIDITY is a paired trade (BOTH sides). Use total entry cost for logging.
                         const entryPrice = opp.direction === 'BOTH' ? (yesPrice + noPrice) : (opp.direction === 'UP' ? yesPrice : noPrice);
-                        const result = await tradeExecutor.executeTrade(this.asset, opp.direction, opp.mode, finalConfidence, entryPrice, market);
+                        // 🎯 v48 FIX: Pass tier to prevent UNKNOWN tier bug
+                        const result = await tradeExecutor.executeTrade(this.asset, opp.direction, opp.mode, finalConfidence, entryPrice, market, { tier: tier });
 
                         // Mark as traded if successful to prevent duplicate trades this cycle
                         if (result && result.success) {
@@ -7397,7 +7397,9 @@ class SupremeBrain {
                         log(`🎯 LATE ENTRY: ${finalSignal} @ ${(lateEntryPrice * 100).toFixed(1)}¢ with ${lateEdge.toFixed(1)}% edge`, this.asset);
 
                         // Execute as ORACLE trade (hold to resolution)
-                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, lateEntryPrice, market);
+                        // 🎯 v48 FIX: Pass tier and genesisAgree to prevent UNKNOWN tier bug
+                        const lateGenesisAgree = modelVotes.genesis === finalSignal;
+                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, lateEntryPrice, market, { tier: tier, pWin: pWinEff, genesisAgree: lateGenesisAgree });
                     }
                 }
             }
@@ -8977,7 +8979,7 @@ app.get('/', (req, res) => {
                 <button onclick="applyPreset('PINNACLE_OPTIMAL')" style="flex:1;padding:15px;border:3px solid #ffd700;border-radius:10px;background:linear-gradient(145deg,rgba(255,215,0,0.4),rgba(255,165,0,0.25));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 30px rgba(255,215,0,0.5);animation:pulse 1.5s infinite;font-size:1.1em;">👑 PINNACLE<br><small style="font-weight:normal;opacity:0.9;">ALL OPTIMAL SETTINGS</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('APEX_V24')" style="flex:1;padding:12px;border:2px solid #00ffaa;border-radius:8px;background:linear-gradient(145deg,rgba(0,255,170,0.35),rgba(0,200,100,0.2));color:#00ffaa;cursor:pointer;font-weight:bold;box-shadow:0 0 20px rgba(0,255,170,0.4);animation:pulse 2s infinite;">🏆 PINNACLE v27<br><small style="font-weight:normal;opacity:0.8;">FINAL ENDGAME</small></button>
+                <button onclick="applyPreset('APEX_V24')" style="flex:1;padding:12px;border:2px solid #00ffaa;border-radius:8px;background:linear-gradient(145deg,rgba(0,255,170,0.35),rgba(0,200,100,0.2));color:#00ffaa;cursor:pointer;font-weight:bold;box-shadow:0 0 20px rgba(0,255,170,0.4);animation:pulse 2s infinite;">🏆 APEX v24<br><small style="font-weight:normal;opacity:0.8;">ULTRA STRICT</small></button>
             </div>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
                 <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
@@ -9442,16 +9444,16 @@ app.get('/', (req, res) => {
                 <p style="color:#888;font-size:0.75em;margin-top:8px;">Use this key for programmatic access: <code>Authorization: Bearer &lt;key&gt;</code> or <code>?apiKey=&lt;key&gt;</code></p>
             </div>
             
-            <h4 style="color:#ffd700;margin-bottom:10px;">📡 Quick API Calls</h4>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:15px;">
-                <button onclick="apiCall('/api/version')" class="btn" style="background:linear-gradient(90deg,#4fc3f7,#2196f3);">📋 Version</button>
-                <button onclick="apiCall('/api/state')" class="btn" style="background:linear-gradient(90deg,#9933ff,#6600cc);">🔮 Full State</button>
-                <button onclick="apiCall('/api/state-public')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);">🌐 Public State</button>
-                <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);">⚙️ Settings</button>
-                <button onclick="apiCall('/api/trades')" class="btn" style="background:linear-gradient(90deg,#ff4466,#cc2244);">📊 Trades</button>
-                <button onclick="apiCall('/api/pending-sells')" class="btn" style="background:linear-gradient(90deg,#8b5cf6,#6d28d9);">🔄 Pending Sells</button>
-                <button onclick="apiCall('/api/gates')" class="btn" style="background:linear-gradient(90deg,#f59e0b,#d97706);">🚧 Gate Trace</button>
-                <button onclick="apiCall('/api/backtest-proof?tier=ALL&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);">📈 Backtest</button>
+            <h4 style="color:#ffd700;margin-bottom:10px;">📡 Quick API Calls <span style="font-size:0.7em;color:#888;">(Click any button to see results)</span></h4>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:15px;">
+                <button onclick="apiCall('/api/version')" class="btn" style="background:linear-gradient(90deg,#4fc3f7,#2196f3);" title="Shows bot version, uptime, and git commit">📋 Version</button>
+                <button onclick="apiCall('/api/halts')" class="btn" style="background:linear-gradient(90deg,#ff6b6b,#ee5a5a);" title="Is trading paused? Why?">🚨 Halt Status</button>
+                <button onclick="apiCall('/api/trades')" class="btn" style="background:linear-gradient(90deg,#ff4466,#cc2244);" title="Recent wins and losses">📊 Trades</button>
+                <button onclick="apiCall('/api/gates')" class="btn" style="background:linear-gradient(90deg,#f59e0b,#d97706);" title="Why trades were blocked">🚧 Gate Trace</button>
+                <button onclick="apiCall('/api/state')" class="btn" style="background:linear-gradient(90deg,#9933ff,#6600cc);" title="Full bot state (advanced)">🔮 Full State</button>
+                <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
+                <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
+                <button onclick="apiCall('/api/backtest-proof?tier=ALL&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Backtest on historical data">📈 Backtest</button>
             </div>
             
             <h4 style="color:#00ff88;margin-bottom:8px;">🧪 Custom Request</h4>
@@ -9894,7 +9896,8 @@ app.get('/', (req, res) => {
                     MOMENTUM: { enabled: false }, 
                     UNCERTAINTY: { enabled: false }, 
                     RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 2, supremeConfidenceMode: false, firstMoveAdvantage: false, enablePositionPyramiding: false, enableLossCooldown: true },
-                    ASSET_CONTROLS: { BTC: { enabled: true, maxTradesPerCycle: 1 }, ETH: { enabled: true, maxTradesPerCycle: 1 }, SOL: { enabled: true, maxTradesPerCycle: 1 }, XRP: { enabled: true, maxTradesPerCycle: 1 } }
+                    // 🎯 v48 FIX: SOL disabled (50% WR in backtest) to match hardcoded defaults
+                    ASSET_CONTROLS: { BTC: { enabled: true, maxTradesPerCycle: 1 }, ETH: { enabled: true, maxTradesPerCycle: 1 }, SOL: { enabled: false, maxTradesPerCycle: 1 }, XRP: { enabled: true, maxTradesPerCycle: 1 } }
                 },
                 // 🏆 APEX v24: 5-Layer Zero-Variance System (THE PINNACLE)
                 // 🔴 AGGRESSIVE: Hedging DISABLED, DEATH_BOUNCE DISABLED (16.7% win rate)
@@ -10212,17 +10215,102 @@ app.get('/', (req, res) => {
             alert('Response copied to clipboard!');
         }
         
+        // 🎯 v48: Child-friendly API response formatter
+        function formatApiResponse(endpoint, data) {
+            // Format based on endpoint type
+            if (endpoint.includes('/api/version')) {
+                return \`<div style="font-size:1.1em;line-height:1.8;">
+                    <div>📦 <b>Version:</b> <span style="color:#ffd700;">v\${data.configVersion || '?'}</span></div>
+                    <div>🔗 <b>Git Commit:</b> <code>\${(data.gitCommit || '').substring(0,8)}...</code></div>
+                    <div>⏱️ <b>Uptime:</b> \${Math.floor((data.uptime||0)/3600)}h \${Math.floor(((data.uptime||0)%3600)/60)}m</div>
+                    <div>🕐 <b>Server Time:</b> \${data.timestamp ? new Date(data.timestamp).toLocaleString() : 'N/A'}</div>
+                </div>\`;
+            }
+            if (endpoint.includes('/api/halts') || endpoint.includes('/api/health')) {
+                const isHalted = data.currentState?.isHalted || data.circuitBreaker?.state === 'HALTED';
+                const statusColor = isHalted ? '#ff4466' : '#00ff88';
+                const statusIcon = isHalted ? '🔴' : '🟢';
+                return \`<div style="font-size:1.1em;line-height:1.8;">
+                    <div style="font-size:1.3em;margin-bottom:10px;">\${statusIcon} <b style="color:\${statusColor};">\${isHalted ? 'TRADING HALTED' : 'TRADING ACTIVE'}</b></div>
+                    <div>💰 <b>Balance:</b> $\${(data.balance?.currentBalance || data._trading?.balance || 0).toFixed(2)}</div>
+                    <div>📉 <b>Drawdown:</b> \${data.balance?.drawdownPct || data.circuitBreaker?.drawdownPct || '0%'}</div>
+                    <div>❌ <b>Consecutive Losses:</b> \${data.activeTriggers?.circuitBreaker?.consecutiveLosses || data.circuitBreaker?.consecutiveLosses || 0}</div>
+                    <div>🛡️ <b>Circuit Breaker:</b> \${data.activeTriggers?.circuitBreaker?.state || data.circuitBreaker?.state || 'NORMAL'}</div>
+                    \${data.activeTriggers?.globalStopLoss?.active ? '<div style="color:#ff4466;">⚠️ Global Stop Loss Active</div>' : ''}
+                </div>\`;
+            }
+            if (endpoint.includes('/api/trades')) {
+                const trades = Array.isArray(data) ? data : (data.trades || []);
+                if (trades.length === 0) return '<div style="color:#888;">No trades recorded yet.</div>';
+                const wins = trades.filter(t => (t.pnl || 0) > 0).length;
+                const losses = trades.filter(t => (t.pnl || 0) < 0).length;
+                const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
+                let html = \`<div style="margin-bottom:15px;font-size:1.1em;">
+                    <span style="color:#00ff88;">✅ Won: \${wins}</span> | 
+                    <span style="color:#ff4466;">❌ Lost: \${losses}</span> | 
+                    <span style="color:\${totalPnl >= 0 ? '#00ff88' : '#ff4466'};">💰 Total P&L: $\${totalPnl.toFixed(2)}</span>
+                </div>\`;
+                html += '<table style="width:100%;border-collapse:collapse;font-size:0.85em;">';
+                html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Asset</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Result</th></tr>';
+                trades.slice(-10).reverse().forEach(t => {
+                    const pnlColor = (t.pnl || 0) >= 0 ? '#00ff88' : '#ff4466';
+                    const icon = (t.pnl || 0) >= 0 ? '✅' : '❌';
+                    html += \`<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;font-weight:bold;">\${t.asset}</td>
+                        <td style="text-align:center;">\${t.side === 'UP' ? '📈' : '📉'}</td>
+                        <td style="text-align:center;">\${((t.entry || 0) * 100).toFixed(0)}¢</td>
+                        <td style="text-align:center;">\${t.exit !== undefined ? ((t.exit || 0) * 100).toFixed(0) + '¢' : '-'}</td>
+                        <td style="text-align:center;color:\${pnlColor};">$\${(t.pnl || 0).toFixed(2)}</td>
+                        <td style="text-align:center;">\${icon}</td>
+                    </tr>\`;
+                });
+                html += '</table>';
+                return html;
+            }
+            if (endpoint.includes('/api/gates')) {
+                const summary = data.summary || {};
+                const total = summary.totalEvaluations || 0;
+                const blocked = summary.totalBlocked || 0;
+                const passed = total - blocked;
+                const failures = summary.gateFailures || {};
+                let html = \`<div style="font-size:1.1em;margin-bottom:15px;">
+                    <div>📊 <b>Total Evaluated:</b> \${total}</div>
+                    <div style="color:#00ff88;">✅ <b>Passed:</b> \${passed} (\${total > 0 ? ((passed/total)*100).toFixed(1) : 0}%)</div>
+                    <div style="color:#ff4466;">🚫 <b>Blocked:</b> \${blocked} (\${total > 0 ? ((blocked/total)*100).toFixed(1) : 0}%)</div>
+                </div>\`;
+                if (Object.keys(failures).length > 0) {
+                    html += '<div style="margin-top:10px;"><b>Top Block Reasons:</b></div>';
+                    html += '<table style="width:100%;margin-top:8px;">';
+                    Object.entries(failures).sort((a,b) => b[1] - a[1]).slice(0, 5).forEach(([gate, count]) => {
+                        const pct = total > 0 ? ((count/total)*100).toFixed(1) : 0;
+                        html += \`<tr><td style="padding:4px;">🚧 \${gate}</td><td style="text-align:right;">\${count} (\${pct}%)</td></tr>\`;
+                    });
+                    html += '</table>';
+                }
+                return html;
+            }
+            // Default: show formatted JSON with syntax highlighting
+            return null;
+        }
+        
         async function apiCall(endpoint) {
             const responseEl = document.getElementById('apiResponse');
-            responseEl.textContent = 'Loading...';
-            responseEl.style.color = '#888';
+            responseEl.innerHTML = '<span style="color:#888;">Loading...</span>';
             try {
                 const start = performance.now();
                 const res = await fetch(endpoint);
                 const elapsed = (performance.now() - start).toFixed(0);
                 const data = await res.json();
-                responseEl.style.color = res.ok ? '#00ff88' : '#ff4466';
-                responseEl.textContent = '// ' + endpoint + ' (' + res.status + ') - ' + elapsed + 'ms\\n' + JSON.stringify(data, null, 2);
+                
+                // Try child-friendly format first
+                const formatted = formatApiResponse(endpoint, data);
+                if (formatted) {
+                    responseEl.innerHTML = \`<div style="color:#888;font-size:0.8em;margin-bottom:10px;">📡 \${endpoint} (\${res.status}) - \${elapsed}ms</div>\` + formatted;
+                } else {
+                    // Fallback to JSON
+                    responseEl.style.color = res.ok ? '#00ff88' : '#ff4466';
+                    responseEl.textContent = '// ' + endpoint + ' (' + res.status + ') - ' + elapsed + 'ms\\n' + JSON.stringify(data, null, 2);
+                }
             } catch (e) {
                 responseEl.style.color = '#ff4466';
                 responseEl.textContent = 'Error: ' + e.message;

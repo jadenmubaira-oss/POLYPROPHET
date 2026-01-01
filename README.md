@@ -58,9 +58,9 @@ The deployed instance currently reports:
 curl https://polyprophet.onrender.com/api/version
 ```
 
-Expected (as of v46):
-- `configVersion: 46`
-- `gitCommit: 7224ceb...`
+Expected (as of v48):
+- `configVersion: 48`
+- `gitCommit: <new commit after deploy>`
 
 ---
 
@@ -251,6 +251,40 @@ All historical runtimes, debug artifacts, forensic docs, and chat exports go to 
 
 4. **Gate tuning**
    - `mid_range_odds` is the top blocker in recent debug; verify we aren’t missing high-EV cycles.
+
+---
+
+## 14) CRITICAL BUGS FIXED — v48 (COMPLETED)
+
+### Post-deployment forensics (2026-01-01) revealed tier propagation failures:
+
+| Trade ID | Recorded Tier | Entry Confidence | Outcome | Expected Tier |
+|----------|---------------|------------------|---------|---------------|
+| ETH_1767221643946 | UNKNOWN | 80.5% | STOP -49% | CONVICTION |
+| BTC_1767224431695 | UNKNOWN | 75.8% | LOSS -100% | ADVISORY |
+| SOL_1767223247407 | CONVICTION | 81.0% | LOSS -100% | N/A (SOL disabled) |
+
+### ROOT CAUSE 1: Missing tier in LATE CYCLE path (Line 7400) ✅ FIXED
+
+Added `{ tier: tier, pWin: pWinEff, genesisAgree: lateGenesisAgree }` to executeTrade call
+
+### ROOT CAUSE 2: Missing tier in ILLIQUIDITY path (Line 7362) ✅ FIXED
+
+Added `{ tier: tier }` to executeTrade call
+
+### ROOT CAUSE 3: SOL enabled in PINNACLE_OPTIMAL preset (Line 9897) ✅ FIXED
+
+Changed to `SOL: { enabled: false, maxTradesPerCycle: 1 }`
+
+### ROOT CAUSE 4: UI button mislabeled (Line 8980) ✅ FIXED
+
+Renamed from 'PINNACLE v27' to 'APEX v24' to match actual preset
+
+### ADDITIONAL v48 TASKS ✅ COMPLETED
+
+5. **Child-friendly API panel**: Added formatted tables/cards for trades, gates, version, halts endpoints with tooltips
+
+6. **Security audit**: Removed partial key logging (keyPreview)
 
 ---
 

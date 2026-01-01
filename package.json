@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v47",
-    "description": "PolyProphet GOAT v47 - Opus Final: Stop-loss fix, CONVICTION hold-to-resolution, STRIKE 2x, Genesis gate tuning",
+    "version": "3.0.0-goat-v48",
+    "description": "PolyProphet GOAT v48 - Tier propagation fix, SOL disabled, UI fixes, child-friendly API, security audit",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
