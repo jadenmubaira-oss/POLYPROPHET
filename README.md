@@ -1,4 +1,4 @@
-# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v47)
+# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v49)
 
 This README is the **single canonical source of truth** for PolyProphet: goals, scope, strategy, sizing/variance doctrine, halt behavior, verification, and operations.
 
@@ -58,9 +58,9 @@ The deployed instance currently reports:
 curl https://polyprophet.onrender.com/api/version
 ```
 
-Expected (as of v48):
-- `configVersion: 48`
-- `gitCommit: <new commit after deploy>`
+Expected (as of v49):
+- `configVersion: 49`
+- ONE preset: `GOAT` (MAX PROFIT MIN VARIANCE)
 
 ---
 
@@ -254,7 +254,7 @@ All historical runtimes, debug artifacts, forensic docs, and chat exports go to 
 
 ---
 
-## 14) CRITICAL BUGS FIXED — v48 (COMPLETED)
+## 14) BUG FIXES (v48) ✅ COMPLETED
 
 ### Post-deployment forensics (2026-01-01) revealed tier propagation failures:
 
@@ -285,6 +285,68 @@ Renamed from 'PINNACLE v27' to 'APEX v24' to match actual preset
 5. **Child-friendly API panel**: Added formatted tables/cards for trades, gates, version, halts endpoints with tooltips
 
 6. **Security audit**: Removed partial key logging (keyPreview)
+
+---
+
+## 15) v49 FINAL — ONE PRESET TO RULE THEM ALL
+
+### Simplification (v49)
+
+All preset bloat removed. There is now **ONE preset: GOAT**.
+
+Click "👑 APPLY GOAT SETTINGS" in the UI to load optimal settings.
+
+### GOAT Preset Settings
+
+```javascript
+GOAT: {
+  ORACLE: {
+    enabled: true,
+    minConsensus: 0.70,       // 70% model agreement
+    minConfidence: 0.70,      // 70% confidence minimum
+    minEdge: 5,               // 5% edge over market
+    maxOdds: 0.48,            // Max 48¢ entry price
+    minStability: 3,          // 3 ticks stable signal
+    hedgeEnabled: false,      // NO hedging
+    stopLossEnabled: true,
+    stopLoss: 0.30            // 30% (CONVICTION bypasses)
+  },
+  ILLIQUIDITY_GAP: { enabled: true },
+  DEATH_BOUNCE: { enabled: false },
+  RISK: {
+    maxTotalExposure: 0.50,   // Max 50% in positions
+    globalStopLoss: 0.40,     // Halt at 40% daily loss
+    cooldownAfterLoss: 1200,  // 20 min after 3 losses
+    maxConsecutiveLosses: 3,
+    maxGlobalTradesPerCycle: 2
+  },
+  ASSET_CONTROLS: {
+    BTC: { enabled: true },
+    ETH: { enabled: true },
+    SOL: { enabled: false },  // 50% WR - disabled
+    XRP: { enabled: true }
+  }
+}
+```
+
+### Is This The GOAT?
+
+**Evidence from v48 trades:**
+- Tier propagation now works (tier=CONVICTION, genesisAgree=true)
+- Stop-loss bypass working for CONVICTION+Genesis trades
+- Gates blocking 95% of negative-EV opportunities (good)
+- Circuit breaker protecting balance after losses
+
+**What could still go wrong:**
+- Statistical variance (losing streaks happen even at 90% WR)
+- Market regime shifts (Genesis/Oracle calibration may drift)
+- Liquidity issues (wide spreads in thin markets)
+
+**Mitigations in place:**
+- Circuit breaker throttles after 2 losses, halts after 6
+- Cooldown periods prevent revenge trading
+- Global stop loss halts at 40% daily loss
+- Daily reset allows fresh start
 
 ---
 

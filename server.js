@@ -1993,7 +1993,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 48;  // v48: Tier propagation fix (LATE CYCLE + ILLIQUIDITY), SOL disabled in PINNACLE_OPTIMAL, UI button fix, security audit
+const CONFIG_VERSION = 49;  // v49 FINAL: ONE PRESET (GOAT), simplified UI, all fixes from v48
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8974,17 +8974,9 @@ app.get('/', (req, res) => {
                 <button class="live" id="liveBtn" onclick="setMode('LIVE')">🔴 LIVE</button>
             </div>
             
-            <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;">🎮 Quick Presets (Beginner Friendly)</h4>
-            <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('PINNACLE_OPTIMAL')" style="flex:1;padding:15px;border:3px solid #ffd700;border-radius:10px;background:linear-gradient(145deg,rgba(255,215,0,0.4),rgba(255,165,0,0.25));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 30px rgba(255,215,0,0.5);animation:pulse 1.5s infinite;font-size:1.1em;">👑 PINNACLE<br><small style="font-weight:normal;opacity:0.9;">ALL OPTIMAL SETTINGS</small></button>
-            </div>
-            <div style="display:flex;gap:10px;margin-bottom:10px;">
-                <button onclick="applyPreset('APEX_V24')" style="flex:1;padding:12px;border:2px solid #00ffaa;border-radius:8px;background:linear-gradient(145deg,rgba(0,255,170,0.35),rgba(0,200,100,0.2));color:#00ffaa;cursor:pointer;font-weight:bold;box-shadow:0 0 20px rgba(0,255,170,0.4);animation:pulse 2s infinite;">🏆 APEX v24<br><small style="font-weight:normal;opacity:0.8;">ULTRA STRICT</small></button>
-            </div>
+            <h4 style="margin:15px 0 10px;color:#ffd700;font-size:0.95em;">🏆 THE GOAT PRESET</h4>
             <div style="display:flex;gap:10px;margin-bottom:15px;">
-                <button onclick="applyPreset('CONSERVATIVE')" style="flex:1;padding:12px;border:2px solid #00ff88;border-radius:8px;background:rgba(0,255,136,0.15);color:#00ff88;cursor:pointer;font-weight:bold;">🛡️ Safe<br><small style="font-weight:normal;opacity:0.7;">Low Risk</small></button>
-                <button onclick="applyPreset('BALANCED')" style="flex:1;padding:12px;border:2px solid #ffaa00;border-radius:8px;background:rgba(255,170,0,0.15);color:#ffaa00;cursor:pointer;font-weight:bold;">⚖️ Balanced<br><small style="font-weight:normal;opacity:0.7;">Medium Risk</small></button>
-                <button onclick="applyPreset('AGGRESSIVE')" style="flex:1;padding:12px;border:2px solid #ff4466;border-radius:8px;background:rgba(255,68,102,0.15);color:#ff4466;cursor:pointer;font-weight:bold;">🔥 Aggressive<br><small style="font-weight:normal;opacity:0.7;">High Risk</small></button>
+                <button onclick="applyPreset('GOAT')" style="flex:1;padding:20px;border:3px solid #ffd700;border-radius:12px;background:linear-gradient(145deg,rgba(255,215,0,0.5),rgba(255,165,0,0.3));color:#ffd700;cursor:pointer;font-weight:bold;box-shadow:0 0 40px rgba(255,215,0,0.6);animation:pulse 1.5s infinite;font-size:1.2em;">👑 APPLY GOAT SETTINGS<br><small style="font-weight:normal;opacity:0.9;">MAX PROFIT • MIN VARIANCE • FINAL</small></button>
             </div>
             
             <h4 style="margin:15px 0 10px;color:#ffd700;font-size:0.95em;">💰 Core Parameters</h4>
@@ -9884,37 +9876,54 @@ app.get('/', (req, res) => {
         }
         function toggleModeConfig() { const p = document.getElementById('modeConfigPanel'); if(p) p.style.display = p.style.display === 'none' ? 'block' : 'none'; }
         async function applyPreset(preset) {
+            // 🏆 v49 FINAL: ONE PRESET ONLY - THE GOAT
+            // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
-                // 👑 PINNACLE_OPTIMAL: THE ULTIMATE - ALL forensic-analysis-derived optimal settings
-                // 🔴 AGGRESSIVE: Hedging DISABLED (reduces returns, pollutes streak logic)
-                PINNACLE_OPTIMAL: { 
-                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 5, maxOdds: 0.48, minStability: 3, requireTrending: false, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: false, hedgeRatio: 0.20, stopLossEnabled: true, stopLoss: 0.30 }, 
+                GOAT: { 
+                    // ORACLE: Primary prediction engine with forensic-optimized thresholds
+                    ORACLE: { 
+                        enabled: true, 
+                        aggression: 50, 
+                        minConsensus: 0.70,      // 70% model agreement required
+                        minConfidence: 0.70,     // 70% confidence minimum
+                        minEdge: 5,              // 5% edge over market odds
+                        maxOdds: 0.48,           // Don't buy shares above 48¢
+                        minStability: 3,         // 3 ticks of stable signal
+                        requireTrending: false,  // Trade in all conditions
+                        earlyTakeProfitEnabled: true,
+                        earlyTakeProfitThreshold: 0.20,  // Take profit at 20% gain
+                        hedgeEnabled: false,     // NO hedging (pollutes streak logic)
+                        stopLossEnabled: true,
+                        stopLoss: 0.30           // 30% stop loss (CONVICTION bypasses)
+                    },
+                    // ILLIQUIDITY: True arbitrage when YES+NO < 100%
                     ILLIQUIDITY_GAP: { enabled: true, minGap: 0.03, maxEntryTotal: 0.97 },
-                    DEATH_BOUNCE: { enabled: false, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
-                    SCALP: { enabled: false }, 
-                    ARBITRAGE: { enabled: false }, 
-                    MOMENTUM: { enabled: false }, 
-                    UNCERTAINTY: { enabled: false }, 
-                    RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 2, supremeConfidenceMode: false, firstMoveAdvantage: false, enablePositionPyramiding: false, enableLossCooldown: true },
-                    // 🎯 v48 FIX: SOL disabled (50% WR in backtest) to match hardcoded defaults
-                    ASSET_CONTROLS: { BTC: { enabled: true, maxTradesPerCycle: 1 }, ETH: { enabled: true, maxTradesPerCycle: 1 }, SOL: { enabled: false, maxTradesPerCycle: 1 }, XRP: { enabled: true, maxTradesPerCycle: 1 } }
-                },
-                // 🏆 APEX v24: 5-Layer Zero-Variance System (THE PINNACLE)
-                // 🔴 AGGRESSIVE: Hedging DISABLED, DEATH_BOUNCE DISABLED (16.7% win rate)
-                APEX_V24: { 
-                    ORACLE: { enabled: true, aggression: 50, minConsensus: 0.85, minConfidence: 0.85, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20, hedgeEnabled: false, hedgeRatio: 0.20 }, 
-                    ILLIQUIDITY_GAP: { enabled: true, minGap: 0.03, maxEntryTotal: 0.97 },
-                    DEATH_BOUNCE: { enabled: false, minPrice: 0.03, maxPrice: 0.12, targetPrice: 0.18, minScore: 1.5 },
-                    SCALP: { enabled: false }, 
-                    ARBITRAGE: { enabled: false }, 
-                    MOMENTUM: { enabled: false }, 
-                    UNCERTAINTY: { enabled: false }, 
-                    RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } 
-                },
-                GUARDIAN_V23: { ORACLE: { enabled: true, aggression: 50, minConsensus: 0.70, minConfidence: 0.70, minEdge: 10, maxOdds: 0.48, minStability: 4, requireTrending: true, earlyTakeProfitEnabled: true, earlyTakeProfitThreshold: 0.20 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, MOMENTUM: { enabled: false }, UNCERTAINTY: { enabled: false }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.40, cooldownAfterLoss: 1200, maxConsecutiveLosses: 3, maxGlobalTradesPerCycle: 1, supremeConfidenceMode: true, firstMoveAdvantage: false, enablePositionPyramiding: false } },
-                CONSERVATIVE: { ORACLE: { enabled: true, minConsensus: 0.90, minConfidence: 0.92, minEdge: 20, maxOdds: 0.60 }, SCALP: { enabled: false }, ARBITRAGE: { enabled: false }, RISK: { maxTotalExposure: 0.20, globalStopLoss: 0.15, cooldownAfterLoss: 600 } },
-                BALANCED: { ORACLE: { enabled: true, minConsensus: 0.85, minConfidence: 0.85, minEdge: 15, maxOdds: 0.70 }, SCALP: { enabled: true, maxEntryPrice: 0.20, targetMultiple: 2.0 }, ARBITRAGE: { enabled: true, minMispricing: 0.15, targetProfit: 0.50, stopLoss: 0.30 }, RISK: { maxTotalExposure: 0.30, globalStopLoss: 0.20, cooldownAfterLoss: 300 } },
-                AGGRESSIVE: { ORACLE: { enabled: true, minConsensus: 0.75, minConfidence: 0.70, minEdge: 10, maxOdds: 0.80 }, SCALP: { enabled: true, maxEntryPrice: 0.30, targetMultiple: 1.5 }, ARBITRAGE: { enabled: true, minMispricing: 0.10, targetProfit: 0.30, stopLoss: 0.40 }, RISK: { maxTotalExposure: 0.50, globalStopLoss: 0.30, cooldownAfterLoss: 120 } }
+                    // DISABLED MODES (negative EV or low win rate)
+                    DEATH_BOUNCE: { enabled: false },
+                    SCALP: { enabled: false },
+                    ARBITRAGE: { enabled: false },
+                    MOMENTUM: { enabled: false },
+                    UNCERTAINTY: { enabled: false },
+                    // RISK: Aggressive but protected
+                    RISK: { 
+                        maxTotalExposure: 0.50,     // Max 50% of balance in positions
+                        globalStopLoss: 0.40,       // Halt if down 40% in a day
+                        cooldownAfterLoss: 1200,    // 20 min cooldown after 3 losses
+                        maxConsecutiveLosses: 3,    // Throttle after 3 losses
+                        maxGlobalTradesPerCycle: 2, // Max 2 trades per 15-min cycle
+                        supremeConfidenceMode: false,
+                        firstMoveAdvantage: false,
+                        enablePositionPyramiding: false,
+                        enableLossCooldown: true
+                    },
+                    // ASSETS: BTC, ETH, XRP only (SOL disabled - 50% WR)
+                    ASSET_CONTROLS: { 
+                        BTC: { enabled: true, maxTradesPerCycle: 1 }, 
+                        ETH: { enabled: true, maxTradesPerCycle: 1 }, 
+                        SOL: { enabled: false, maxTradesPerCycle: 1 },
+                        XRP: { enabled: true, maxTradesPerCycle: 1 } 
+                    }
+                }
             };
 
             const base = presets[preset];
