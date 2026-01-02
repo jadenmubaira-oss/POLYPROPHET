@@ -5270,14 +5270,23 @@ class TradeExecutor {
                 // CAP: Never risk more than MAX_FRACTION of bankroll
                 // GOAT: In micro-bankroll scenarios ($5 start), maxPct can imply a maxSize below Polymarket minimum.
                 // Instead of deadlocking trading, temporarily allow MIN_ORDER as the effective cap (with a log).
+                // 🏆 v60 FINAL: Add absolute dollar cap for liquidity protection at scale
+                const MAX_ABSOLUTE_SIZE = parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 cap for liquidity
                 let maxSize = bankroll * MAX_FRACTION;
+                
+                // Apply absolute cap (liquidity protection at scale)
+                if (maxSize > MAX_ABSOLUTE_SIZE) {
+                    log(`🔒 LIQUIDITY CAP: $${maxSize.toFixed(2)} → $${MAX_ABSOLUTE_SIZE} (absolute max for liquidity)`, asset);
+                    maxSize = MAX_ABSOLUTE_SIZE;
+                }
+                
                 if (maxSize < MIN_ORDER && bankroll >= MIN_ORDER * 1.5) {
                     log(`⚠️ MICRO BANKROLL: Max position ${(MAX_FRACTION * 100).toFixed(0)}% = $${maxSize.toFixed(2)} < $${MIN_ORDER}. Allowing minimum order to avoid trade drought.`, asset);
                     maxSize = MIN_ORDER;
                 }
                 if (size > maxSize) {
                     size = maxSize;
-                    log(`📊 Size capped: $${size.toFixed(2)} (max ${(MAX_FRACTION * 100).toFixed(0)}% / min-order override if needed)`, asset);
+                    log(`📊 Size capped: $${size.toFixed(2)} (max ${(MAX_FRACTION * 100).toFixed(0)}% / abs $${MAX_ABSOLUTE_SIZE})`, asset);
                 }
 
                 // SMART MINIMUM: Ensure we meet $1.10 minimum (after cap)
