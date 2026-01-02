@@ -21,24 +21,23 @@ Use this exact prompt to “final check EVERYTHING”:
 
 This is what the built-in endpoint reports on the deployed collector snapshot set.
 
-**Endpoint**: `GET /api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1`
+**Recommended (max legitimacy)**:
+
+`GET /api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1&entry=CLOB_HISTORY&fidelity=1`
 
 | Stake | Trades | Polymarket WR | Profit | Max DD |
 |------:|-------:|--------------:|-------:|-------:|
-| 5% | 40 | 75.0% | +39.27% | 16.21% |
-| 10% | 40 | 75.0% | +81.36% | 30.60% |
-| 20% | 40 | 75.0% | +152.61% | 54.24% |
+| 5% | 43 | 74.42% | +36.84% | 16.56% |
+| 10% | 43 | 74.42% | +75.86% | 32.65% |
+| 20% | 43 | 74.42% | +139.48% | 60.63% |
 
 **Time span (this run)**: ~2.7 days (from the endpoint’s `summary.timeSpan`)
 
-**No-duplicates proof (this run)**: `slugHash=ab89ed9a881af81d0667ddd4f0503051b40338ff55d5f2d1a84ccfca86a9141c`
+**No-duplicates proof (this run)**: `slugHash=f49e20b647a2aa677fa4b8ca63ee974025211d051c66b2d799d184446444a9af`
 
 **Key insight**: position size dominates variance. 10% grows faster when the sample is favorable; 5% is the “min-variance default”.
 
 **Tail-bet rule**: `minOdds=0.20` blocks catastrophic <20¢ contrarian bets.
-
-**Max-legitimacy entry pricing (optional)**:
-- Add `&entry=CLOB_HISTORY&fidelity=1` to source entry prices from Polymarket’s **CLOB time-series** (`/prices-history`) instead of our snapshot prices (slower, but most “Polymarket-native”).
 
 ---
 
