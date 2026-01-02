@@ -822,6 +822,10 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
         };
 
         function buildSlugFromTrade(trade) {
+            // Prefer the exact slug captured at entry time (best / ground-truth).
+            if (typeof trade.slug === 'string' && trade.slug.length > 0) {
+                return trade.slug;
+            }
             const asset = String(trade.asset || '').toUpperCase();
             const base = assetSlugBase[asset];
             if (!base) return null;
@@ -895,10 +899,10 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
         const byAsset = {};
         for (const a of ASSETS) {
             if (assetFilter && a !== assetFilter) continue;
-            byAsset[a] = { total: 0, resolved: 0, wins: 0, losses: 0, mismatches: 0, errors: 0, unresolved: 0 };
+            byAsset[a] = { total: 0, resolved: 0, comparable: 0, earlyExit: 0, wins: 0, losses: 0, mismatches: 0, errors: 0, unresolved: 0 };
         }
 
-        let resolved = 0, unresolved = 0, errors = 0, wins = 0, losses = 0, mismatches = 0;
+        let resolved = 0, unresolved = 0, errors = 0, wins = 0, losses = 0, mismatches = 0, comparable = 0, earlyExit = 0;
         const verifiedTrades = [];
 
         for (const trade of candidates) {
@@ -907,7 +911,7 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
             const slug = buildSlugFromTrade(trade);
             const tradeTimeMs = (typeof trade.time === 'number') ? trade.time : (typeof trade.timestamp === 'number' ? trade.timestamp : null);
 
-            if (!byAsset[asset]) byAsset[asset] = { total: 0, resolved: 0, wins: 0, losses: 0, mismatches: 0, errors: 0, unresolved: 0 };
+            if (!byAsset[asset]) byAsset[asset] = { total: 0, resolved: 0, comparable: 0, earlyExit: 0, wins: 0, losses: 0, mismatches: 0, errors: 0, unresolved: 0 };
             byAsset[asset].total++;
 
             if (!slug) {
@@ -958,8 +962,12 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
             if (verifiedWin) { wins++; byAsset[asset].wins++; } else { losses++; byAsset[asset].losses++; }
 
             const recordedPnl = Number.isFinite(trade.pnl) ? trade.pnl : (Number.isFinite(trade.profit) ? trade.profit : null);
-            const recordedWin = recordedPnl !== null ? recordedPnl > 0 : null;
-            const mismatch = (recordedWin !== null) ? (recordedWin !== verifiedWin) : false;
+            const exit = Number(trade.exit);
+            const isBinaryExit = Number.isFinite(exit) && (exit <= 0.01 || exit >= 0.99);
+            const recordedWin = isBinaryExit ? (exit >= 0.99) : (recordedPnl !== null ? recordedPnl > 0 : null);
+            const isComparable = isBinaryExit; // only binary exits are meaningfully comparable to resolution
+            if (isComparable) { comparable++; byAsset[asset].comparable++; } else { earlyExit++; byAsset[asset].earlyExit++; }
+            const mismatch = (isComparable && recordedWin !== null) ? (recordedWin !== verifiedWin) : false;
             if (mismatch) { mismatches++; byAsset[asset].mismatches++; }
 
             // What PnL would be if held to resolution (profit-fee model), using stored entry+size
@@ -985,12 +993,15 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
                 tradeTime: tradeTimeMs ? new Date(tradeTimeMs).toISOString() : null,
                 entry: Number.isFinite(entry) ? entry : null,
                 size: Number.isFinite(size) ? size : null,
+                exit: Number.isFinite(exit) ? exit : null,
                 verifiedOutcome,
                 verifiedWin,
                 recordedPnl,
                 recordedWin,
                 expectedPnl: expectedPnl !== null ? Number(expectedPnl.toFixed(6)) : null,
-                mismatch
+                comparable: isComparable,
+                mismatch,
+                reason: trade.reason || null
             });
         }
 
@@ -1006,6 +1017,8 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
                 limitRequested: limit,
                 assetFilter: assetFilter || 'ALL',
                 candidates: candidates.length,
+                comparable,
+                earlyExit,
                 resolved,
                 unresolved,
                 errors,
@@ -2891,6 +2904,9 @@ class TradeExecutor {
         this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
         this.wallet = null;
         this.tradeHistory = [];
+        // ✅ Ground-truth resolution: pending Polymarket slug resolutions (PAPER mode)
+        // Map<slug, { asset, attempts, fallbackOutcome, startedAt }>
+        this.pendingPolymarketResolutions = new Map();
         // 🚀 PINNACLE v28: CRASH RECOVERY - Initialize recovery queues
         this.pendingSells = {};         // Failed sell orders awaiting retry
         this.redemptionQueue = [];      // Winning positions to claim
@@ -4277,6 +4293,7 @@ class TradeExecutor {
                         shares: mainSize / entryPrice,
                         isHedged: true,
                         hedgeId: null, // Will be set below
+                        slug: market?.slug || null,
                         // v32: DIAGNOSTIC FIELDS
                         entryConfidence: confidence,
                         configVersion: CONFIG_VERSION,
@@ -4297,6 +4314,7 @@ class TradeExecutor {
                         stopLoss: null,
                         shares: hedgeSize / hedgePrice,
                         isHedge: true,
+                        slug: market?.slug || null,
                         mainId: mainPositionId
                     };
 
@@ -4313,6 +4331,7 @@ class TradeExecutor {
                         size: mainSize,
                         time: Date.now(),
                         status: 'OPEN',
+                        slug: market?.slug || null,
                         isHedged: true,
                         // v37+: DIAGNOSTIC FIELDS for forensics / backtests
                         entryConfidence: confidence,
@@ -4330,6 +4349,7 @@ class TradeExecutor {
                         size: hedgeSize,
                         time: Date.now(),
                         status: 'OPEN',
+                        slug: market?.slug || null,
                         isHedge: true,
                         // v37+: keep same forensic fields so audits can attribute behaviour
                         entryConfidence: confidence,
@@ -4370,6 +4390,7 @@ class TradeExecutor {
                     shares: size / entryPrice,
                     tier: options.tier || 'UNKNOWN', // 🎯 GOAT: Store tier for exit policy
                     genesisAgree: options.genesisAgree || false, // 🎯 v47: Store genesis agreement for stop-loss bypass
+                    slug: market?.slug || null,
                     // v32: DIAGNOSTIC FIELDS
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -4385,6 +4406,7 @@ class TradeExecutor {
                     size,
                     time: Date.now(),
                     status: 'OPEN',
+                    slug: market?.slug || null,
                     // v37: DIAGNOSTIC FIELDS for forensics
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -5623,8 +5645,58 @@ class TradeExecutor {
         // IMPORTANT: Resolve non-hedge positions first.
         // Hedges are normally settled when their main position closes (to avoid double-counting).
         const ids = Object.keys(this.positions).filter(id => this.positions[id] && this.positions[id].asset === asset);
+        if (ids.length === 0) return;
 
-        // Pass 1: close all NON-HEDGE positions (this will also settle their hedges, if any)
+        // ✅ PAPER MODE: Prefer Polymarket Gamma resolution when we have the market slug.
+        // This makes streaks/halts truthful (prevents "paper wins" that lose on Polymarket).
+        if (this.mode === 'PAPER') {
+            const slugs = new Set();
+            for (const id of ids) {
+                const pos = this.positions[id];
+                if (!pos || pos.asset !== asset) continue;
+                if (pos.isHedge) continue;
+                if (pos.slug) slugs.add(pos.slug);
+            }
+
+            if (slugs.size > 0) {
+                // Schedule resolution for each unique slug, then close only the no-slug positions via fallback.
+                for (const slug of slugs) {
+                    this.schedulePolymarketResolution(slug, asset, finalOutcome);
+                }
+
+                for (const id of ids) {
+                    const pos = this.positions[id];
+                    if (!pos || pos.asset !== asset) continue;
+                    if (pos.isHedge) continue;
+                    if (pos.slug) continue; // will resolve via Polymarket
+
+                    const won = (pos.side === finalOutcome);
+                    const exitPrice = won ? 1.0 : 0.0;
+                    const reason = won ? `${pos.mode} WIN ✅ (fallback)` : `${pos.mode} LOSS ❌ (fallback)`;
+                    log(`🏁 CYCLE END (fallback): ${pos.asset} ${pos.side} -> Outcome: ${finalOutcome}`, asset);
+                    this.closePosition(id, exitPrice, reason);
+                }
+
+                // Close any remaining ORPHAN hedges only (do not touch hedges whose main is pending Polymarket resolution)
+                const remainingHedges = Object.keys(this.positions).filter(id => {
+                    const p = this.positions[id];
+                    if (!p || p.asset !== asset || !p.isHedge) return false;
+                    return !p.mainId || !this.positions[p.mainId];
+                });
+                for (const id of remainingHedges) {
+                    const pos = this.positions[id];
+                    if (!pos) continue;
+                    const won = (pos.side === finalOutcome);
+                    const exitPrice = won ? 1.0 : 0.0;
+                    const reason = won ? `${pos.mode} WIN ✅ (orphan hedge fallback)` : `${pos.mode} LOSS ❌ (orphan hedge fallback)`;
+                    log(`🏁 CYCLE END (fallback): Orphan hedge resolved: ${pos.asset} ${pos.side} -> Outcome: ${finalOutcome}`, asset);
+                    this.closePosition(id, exitPrice, reason);
+                }
+                return;
+            }
+        }
+
+        // Fallback: resolve all positions from internal finalOutcome.
         for (const id of ids) {
             const pos = this.positions[id];
             if (!pos || pos.asset !== asset) continue;
@@ -5651,6 +5723,113 @@ class TradeExecutor {
             log(`🏁 CYCLE END: Orphan hedge resolved: ${pos.asset} ${pos.side} -> Outcome: ${finalOutcome}`, asset);
             this.closePosition(id, exitPrice, reason);
         }
+    }
+
+    async fetchPolymarketResolvedOutcome(slug) {
+        try {
+            const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+            const response = await fetch(url, {
+                headers: { 'User-Agent': 'polyprophet-runtime/1.0' },
+                signal: AbortSignal.timeout(10000)
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            const market = Array.isArray(data) ? data[0] : data;
+            if (!market || !market.outcomePrices || !market.outcomes) return null;
+
+            const prices = JSON.parse(market.outcomePrices);
+            const outcomes = JSON.parse(market.outcomes);
+            if (!Array.isArray(prices) || prices.length < 2) return null;
+            if (!Array.isArray(outcomes) || outcomes.length < 2) return null;
+
+            const p0 = Number(prices[0]);
+            const p1 = Number(prices[1]);
+            if (!Number.isFinite(p0) || !Number.isFinite(p1)) return null;
+
+            const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+            const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+            if (!idx0Win && !idx1Win) return null; // not yet resolved
+
+            const o0 = String(outcomes[0]).toLowerCase();
+            const o1 = String(outcomes[1]).toLowerCase();
+
+            if (o0 === 'up' && o1 === 'down') return idx0Win ? 'UP' : 'DOWN';
+            if (o0 === 'down' && o1 === 'up') return idx0Win ? 'DOWN' : 'UP';
+            if (o0 === 'yes' && o1 === 'no') return idx0Win ? 'UP' : 'DOWN';
+            if (o0 === 'no' && o1 === 'yes') return idx0Win ? 'DOWN' : 'UP';
+
+            // Fallback: treat index winner as UP vs DOWN (convention)
+            return idx0Win ? 'UP' : 'DOWN';
+        } catch {
+            return null;
+        }
+    }
+
+    schedulePolymarketResolution(slug, asset, fallbackOutcome) {
+        if (!slug) return;
+        if (!(this.pendingPolymarketResolutions instanceof Map)) {
+            this.pendingPolymarketResolutions = new Map();
+        }
+        if (this.pendingPolymarketResolutions.has(slug)) return;
+
+        const startedAt = Date.now();
+        this.pendingPolymarketResolutions.set(slug, { asset, attempts: 0, fallbackOutcome, startedAt });
+
+        const MAX_ATTEMPTS = 12;      // ~60s total with 5s delay
+        const INITIAL_DELAY_MS = 1500; // give Gamma a moment to flip to 1/0
+        const RETRY_DELAY_MS = 5000;
+
+        const tick = async () => {
+            const state = this.pendingPolymarketResolutions.get(slug);
+            if (!state) return;
+
+            // If nothing is open for this slug anymore, stop tracking.
+            const openMainIds = Object.keys(this.positions).filter(id => {
+                const p = this.positions[id];
+                return p && p.asset === asset && !p.isHedge && p.slug === slug;
+            });
+            if (openMainIds.length === 0) {
+                this.pendingPolymarketResolutions.delete(slug);
+                return;
+            }
+
+            state.attempts++;
+
+            const outcome = await this.fetchPolymarketResolvedOutcome(slug);
+            if (outcome === 'UP' || outcome === 'DOWN') {
+                this.pendingPolymarketResolutions.delete(slug);
+                log(`🏁 POLYMARKET RESOLVED: ${asset} slug=${slug} -> ${outcome} (attempt ${state.attempts})`, asset);
+
+                // Close all NON-HEDGE positions for this slug (their hedges settle automatically)
+                for (const id of openMainIds) {
+                    const pos = this.positions[id];
+                    if (!pos) continue;
+                    const won = pos.side === outcome;
+                    const exitPrice = won ? 1.0 : 0.0;
+                    const reason = won ? `${pos.mode} WIN ✅ (Polymarket)` : `${pos.mode} LOSS ❌ (Polymarket)`;
+                    this.closePosition(id, exitPrice, reason);
+                }
+                return;
+            }
+
+            if (state.attempts >= MAX_ATTEMPTS) {
+                this.pendingPolymarketResolutions.delete(slug);
+                log(`⚠️ POLYMARKET RESOLUTION TIMEOUT: ${asset} slug=${slug} after ${MAX_ATTEMPTS} attempts - falling back to internal outcome ${fallbackOutcome}`, asset);
+                for (const id of openMainIds) {
+                    const pos = this.positions[id];
+                    if (!pos) continue;
+                    const won = pos.side === fallbackOutcome;
+                    const exitPrice = won ? 1.0 : 0.0;
+                    const reason = won ? `${pos.mode} WIN ✅ (fallback)` : `${pos.mode} LOSS ❌ (fallback)`;
+                    this.closePosition(id, exitPrice, reason);
+                }
+                return;
+            }
+
+            setTimeout(tick, RETRY_DELAY_MS);
+        };
+
+        setTimeout(tick, INITIAL_DELAY_MS);
     }
 
     // 🔴 BUG FIX: Force-resolve any stale positions older than 1 cycle (15 minutes)
@@ -11684,12 +11863,16 @@ app.get('/api/trades', async (req, res) => {
         totalReturn: ((tradeExecutor.paperBalance / tradeExecutor.startingBalance) - 1) * 100,
         positions: filteredPositions,
         trades: filteredTrades,
-        totalTrades: includeLegacy ? historyResult.total : filteredTrades.length,
+        // totalTrades refers to the underlying history size (for pagination correctness).
+        // returnedTrades tells you how many you got after legacy filtering.
+        totalTrades: historyResult.total,
+        returnedTrades: filteredTrades.length,
         legacyFilteredOut,
         offset: offset,
         limit: limit,
         source: historyResult.source,
-        hasMore: includeLegacy ? (offset + limit < historyResult.total) : false,
+        hasMore: offset + limit < historyResult.total,
+        includeLegacy,
         modes: {
             ORACLE: { ...CONFIG.ORACLE },
             ARBITRAGE: { ...CONFIG.ARBITRAGE },
