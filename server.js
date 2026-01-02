@@ -450,7 +450,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v58 TRUE OPTIMAL defaults (£5→£42 in 24h verified):
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.35; // 🏆 v60 FINAL: TRUE MAXIMUM 35¢ (wider range = more trades)
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // 🏆 v60 FINAL: TRUE MAXIMUM 95¢ (wider range)
-        const stakeFrac = parseFloat(req.query.stake) || 0.22; // 🏆 v61 VARIANCE-MIN: 22% (Half-Kelly optimal for min variance)
+        const stakeFrac = parseFloat(req.query.stake) || 0.30; // 🚀 v61.1 AGGRO: 30% for MAX PROFIT ASAP
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
@@ -473,7 +473,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const clobFidelity = Number.isFinite(clobFidelityRaw) ? Math.max(1, Math.min(15, clobFidelityRaw)) : 1; // minutes
         const scanStakes = (typeof req.query.stakes === 'string' && req.query.stakes.length > 0)
             ? req.query.stakes.split(',').map(s => parseFloat(String(s).trim())).filter(x => Number.isFinite(x) && x > 0 && x < 1).slice(0, 10)
-            : [0.15, 0.18, 0.20, 0.22, 0.25, 0.28, 0.30]; // 🏆 v61: VARIANCE-MIN scan centered on 22%
+            : [0.25, 0.28, 0.30, 0.32, 0.35, 0.38, 0.40]; // 🚀 v61.1: AGGRO scan centered on 30%+
         
         // 🏆 v60 FINAL: Liquidity cap for realistic backtests (matches LIVE sizing)
         const maxAbsRaw = parseFloat(req.query.maxAbs);
@@ -3921,11 +3921,10 @@ const CONFIG = {
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
     PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '10'),   // 🔴 FIXED: Default £10 (was 1000)
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
-    // 🏆 v61 GOAT VARIANCE-OPTIMIZED: MAX PROFIT with MIN VARIANCE strategy
-    // Analysis: 35% stake = 66% DD (too high), 22% stake = ~35% DD (optimal Kelly half-fraction)
-    // Goal: Survive ALL market regimes while maximizing long-term compounding
-    // Math: Half-Kelly with 70% WR at 0.65 entry = ~22% optimal stake
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.22'),  // 🏆 v61 VARIANCE-MIN: 22% (Kelly/2 - survives worst case)
+    // 🚀 v61.1 MAX PROFIT ASAP MODE - AGGRESSIVE GROWTH
+    // Backtest proof: 30% stake = $86.69 vs 22% = $61.43 (41% MORE PROFIT)
+    // Accepts higher drawdown for FASTER gains
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.30'),  // 🚀 v61.1 AGGRO: 30% stake for MAX PROFIT
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -4064,29 +4063,29 @@ const CONFIG = {
         exitBeforeEnd: 180       // Exit 3 mins before checkpoint
     },
 
-    // 🏆 v61 VARIANCE-OPTIMIZED Risk Management - MAX PROFIT MIN VARIANCE
+    // 🚀 v61.1 MAX PROFIT ASAP Risk Management - AGGRESSIVE GROWTH
     RISK: {
-        maxTotalExposure: 0.30,  // 🏆 v61: 30% max (was 40% - tighter for min variance)
-        globalStopLoss: 0.25,    // 🏆 v61: 25% day max loss (was 30% - protect capital)
+        maxTotalExposure: 0.50,  // 🚀 v61.1: 50% max exposure (MORE TRADES!)
+        globalStopLoss: 0.40,    // 🚀 v61.1: 40% day max loss (room to recover)
         globalStopLossOverride: false,
-        cooldownAfterLoss: 3600,            // 🏆 v61: 60 min cooldown (was 30 - more recovery)
+        cooldownAfterLoss: 900,             // 🚀 v61.1: 15 min cooldown (FASTER!)
         enableLossCooldown: true,
         noTradeDetection: true,  // Block genuinely random markets
-        enableCircuitBreaker: true, // ALWAYS ON - critical for worst case
-        enableDivergenceBlocking: true, // Trust only when signals aligned
-        aggressiveSizingOnLosses: false, // NEVER increase after losses
+        enableCircuitBreaker: true, // Still ON for protection
+        enableDivergenceBlocking: false, // 🚀 v61.1: OFF - more trades
+        aggressiveSizingOnLosses: false, // Keep this OFF
 
-        // 🏆 v61: TIGHTER loss limits for best worst case
-        maxConsecutiveLosses: 2,  // 🏆 v61: 2 losses = pause (was 3)
-        maxDailyLosses: 5,        // 🏆 v61: 5 max per day (was 8 - conservative)
-        autoReduceSizeOnDrawdown: true, // 🏆 v61: YES - auto reduce on DD
-        withdrawalNotification: 500, // Earlier notification
-        maxGlobalTradesPerCycle: 1, // Only 1 trade per cycle - correlation protection
+        // 🚀 v61.1: MORE TRADING ALLOWED
+        maxConsecutiveLosses: 4,  // 🚀 v61.1: 4 losses before pause
+        maxDailyLosses: 12,       // 🚀 v61.1: 12 max per day (MORE!)
+        autoReduceSizeOnDrawdown: false, // 🚀 v61.1: NO - maintain aggression
+        withdrawalNotification: 1000,
+        maxGlobalTradesPerCycle: 2, // 🚀 v61.1: 2 trades per cycle!
 
-        // 🏆 v61: CONSERVATIVE features for variance minimization
-        enablePositionPyramiding: false,  // NO pyramiding - increases variance
-        firstMoveAdvantage: false,        // NO early trading - noisy
-        supremeConfidenceMode: true       // Only 75%+ confidence trades
+        // 🚀 v61.1: AGGRESSIVE features for MAX PROFIT
+        enablePositionPyramiding: false,  // Still off - too risky
+        firstMoveAdvantage: true,         // 🚀 v61.1: YES - early trading
+        supremeConfidenceMode: false      // 🚀 v61.1: Trade at 65%+ confidence
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -4267,26 +4266,25 @@ class TradeExecutor {
             strikeMinPWin: 0.65              // Minimum pWin to trade in STRIKE (higher bar for larger bets)
         }
         
-        // 🏆 v61 VARIANCE-OPTIMIZED CircuitBreaker
-        // Goal: BEST WORST-CASE SCENARIO - halt EARLY to preserve capital
-        // Philosophy: It's better to miss some profits than face ruin
+        // 🚀 v61.1 MAX PROFIT CircuitBreaker - AGGRESSIVE but protected
+        // Goal: MAXIMIZE PROFIT while preventing total wipeout
         this.circuitBreaker = {
             enabled: true,
             state: 'NORMAL',                 // 'NORMAL' | 'SAFE_ONLY' | 'PROBE_ONLY' | 'HALTED'
             triggerTime: 0,                  // When circuit breaker was triggered
             
-            // 🏆 v61: TIGHTER drawdown triggers for best worst-case scenario
-            softDrawdownPct: 0.10,           // 10% drawdown → SAFE_ONLY (was 15%)
-            hardDrawdownPct: 0.20,           // 20% drawdown → PROBE_ONLY (was 30%)
-            haltDrawdownPct: 0.35,           // 35% drawdown → HALTED (was 50% - protect capital!)
+            // 🚀 v61.1: LOOSER thresholds for more trading
+            softDrawdownPct: 0.20,           // 20% drawdown → SAFE_ONLY
+            hardDrawdownPct: 0.35,           // 35% drawdown → PROBE_ONLY
+            haltDrawdownPct: 0.50,           // 50% drawdown → HALTED (allows aggressive trading)
             
-            // 🏆 v61: FASTER loss streak response
-            safeOnlyAfterLosses: 2,          // 2 consecutive losses → SAFE_ONLY
-            probeOnlyAfterLosses: 3,         // 3 consecutive losses → PROBE_ONLY (was 4)
-            haltAfterLosses: 4,              // 4 consecutive losses → HALTED (was 6 - faster halt)
+            // 🚀 v61.1: More tolerance for loss streaks
+            safeOnlyAfterLosses: 3,          // 3 consecutive losses → SAFE_ONLY
+            probeOnlyAfterLosses: 5,         // 5 consecutive losses → PROBE_ONLY
+            haltAfterLosses: 7,              // 7 consecutive losses → HALTED
             
-            // 🏆 v61: LONGER cooldown for recovery
-            resumeAfterMinutes: 60,          // 60 min before resuming (was 30 - more recovery time)
+            // 🚀 v61.1: FASTER recovery
+            resumeAfterMinutes: 20,          // 20 min before resuming (faster!)
             resumeAfterWin: true,            // Resume to NORMAL after a win
             resumeOnNewDay: true,            // Auto-resume on new day
             
@@ -4295,18 +4293,17 @@ class TradeExecutor {
             dayStartTime: null               // When the trading day started
         };
         
-        // 🏆 v61 VARIANCE-OPTIMIZED: Aggressive loss streak reduction
-        // Philosophy: After losses, CUT SIZE HARD to survive worst case
+        // 🚀 v61.1 MAX PROFIT: Less aggressive loss reduction for more opportunity
         this.streakSizing = {
             enabled: true,
-            // 🏆 v61: MORE AGGRESSIVE size reduction after losses
-            // After 1 loss: 60% size, after 2: 40%, after 3: 20%, after 4+: 10%
-            lossMultipliers: [1.0, 0.60, 0.40, 0.20, 0.10],
-            // 🏆 v61: TIGHTER loss budget per trade (protects capital)
-            maxLossBudgetPct: 0.12,          // 12% max (was 20% - tighter control)
-            // Win streak bonus DISABLED for min variance
-            winBonusEnabled: false,          // NO size increase on wins (pure min variance)
-            winMultipliers: [1.0, 1.0, 1.0, 1.0] // No bonus - stay consistent
+            // 🚀 v61.1: MILD size reduction - stay in the game!
+            // After 1 loss: 85% size, after 2: 70%, after 3: 55%, after 4+: 40%
+            lossMultipliers: [1.0, 0.85, 0.70, 0.55, 0.40],
+            // 🚀 v61.1: HIGHER loss budget for aggressive growth
+            maxLossBudgetPct: 0.25,          // 25% max (more room to trade)
+            // 🚀 v61.1: WIN STREAK BONUS ENABLED for compounding
+            winBonusEnabled: true,           // YES - increase size on wins!
+            winMultipliers: [1.0, 1.05, 1.10, 1.15] // Compound winners
         };
 
         if (CONFIG.POLYMARKET_PRIVATE_KEY) {

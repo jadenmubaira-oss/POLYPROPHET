@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.1.0-goat-v61-variance-min",
-    "description": "POLYPROPHET GOAT v61 - VARIANCE-OPTIMIZED: 22% stake, tighter circuit breaker, worst-case survival mode",
+    "version": "3.1.1-goat-v61-max-profit",
+    "description": "POLYPROPHET GOAT v61.1 - MAX PROFIT ASAP: 30% stake, aggressive compounding, faster recovery",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
