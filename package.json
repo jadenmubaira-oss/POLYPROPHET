@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v54",
-    "description": "POLYPROPHET GOAT v54 - Polymarket-native backtest+verify (Gamma) + dedupe proof + truthful PAPER/LIVE resolution + 20¢ tail-bet block",
+    "version": "3.0.0-goat-v55",
+    "description": "POLYPROPHET GOAT v55 - Polymarket-native (Gamma+CLOB) backtest+verify + dedupe proof + truthful PAPER/LIVE resolution + TURBO 24h defaults (minOdds 30¢)",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

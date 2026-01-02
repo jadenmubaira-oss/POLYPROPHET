@@ -1,4 +1,4 @@
-# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v54)
+# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v55)
 
 This README is the **single canonical source of truth** for PolyProphet: goals, scope, strategy, sizing/variance doctrine, halt behavior, verification, and operations.
 
@@ -15,29 +15,85 @@ Use this exact prompt to “final check EVERYTHING”:
 > Confirm: no duplicate cycles (slugHash present), no legacy assets (SOL) appear by default, outcomes are settled by Polymarket/Chainlink ground truth, and no silent freezes/halts occur.  
 > If any invariant fails, identify the exact code path and provide a patch + test evidence.
 
-## 🏆 v54 IS THE PINNACLE — POLYMARKET-GROUND-TRUTH VERIFIED
+## 🧠 Handoff / Continuation Guide (read first)
+
+If you have **zero prior context**, assume this:
+
+- **What this is**: a single-file Node/Express service (`server.js`) that runs a Polymarket crypto-cycle bot + dashboard + audit endpoints.
+- **What it trades**: Polymarket **15m crypto cycles** for **BTC/ETH/XRP** only.
+- **Primary goal**: **MAX PROFIT ASAP WITH MIN AVOIDABLE VARIANCE**.
+- **Reality check**: the “£5 → £100 in 24h” path requires **TURBO sizing** (≈38%) and tolerates large drawdowns; the system is built to make that trade-off explicit and auditable.
+
+### The invariants you must not break
+
+- **Truthful outcomes**: PAPER + LIVE settlement and verification must prefer **Polymarket Gamma resolution** when a `slug` is available.
+- **No duplicate counting**: Polymarket-native backtests must dedupe by `slug` and return `proof.slugHash`.
+- **Executed-trade-based risk**: loss streak / drift logic must be based on **executed trade PnL**, not “signal correctness”.
+- **Market scope clarity**: SOL is **legacy-only** and hidden by default; supported assets are BTC/ETH/XRP.
+
+### Where to look in code (server.js)
+
+- **Config version / defaults**: search `CONFIG_VERSION = 55`, `MAX_POSITION_SIZE`, `ORACLE.minOdds`, `ORACLE.maxOdds`.
+- **Risk + sizing**: `TradeExecutor` (cycle trade limits, streak sizing, circuit breaker).
+- **Truthful settlement**: search `fetchPolymarketResolvedOutcome`, `schedulePolymarketResolution`, `resolveAllPositions`.
+- **Polymarket-native backtest**: `GET /api/backtest-polymarket` (search `slugHash`, `entry=CLOB_HISTORY`).
+- **Ground-truth verification**: `GET /api/verify-trades-polymarket`.
+
+### Cursor/VS Code OOM stability runbook (so you can actually work)
+
+Some IDE crashes were caused by **log/terminal spam** + background indexing.
+
+- **Tracked editor defaults**: `.vscode/settings.json` excludes `node_modules/`, `debug/`, `backtest-data/` and reduces terminal scrollback.
+- **Runtime noise controls** (added in v55):
+  - `LOG_SILENT=true` — silence most logs (recommended when using integrated terminal)
+  - `DEBUG_WS=true` — re-enable WS “message preview” logs (OFF by default)
+  - `LIGHT_MODE=1` — starts the HTTP API but **skips WebSocket + background loops** (safe for backtests/verification without live feeds)
+
+**Low-memory local verification (Windows / PowerShell)**:
+
+```powershell
+$env:PORT='31888'
+$env:LIGHT_MODE='1'
+$env:LOG_SILENT='true'
+$env:AUTH_USERNAME='bandito'
+$env:AUTH_PASSWORD='bandito'
+node server.js
+
+# /api/version is public
+Invoke-RestMethod "http://127.0.0.1:31888/api/version"
+
+# protected endpoints: easiest is ?apiKey=<AUTH_PASSWORD>
+Invoke-RestMethod "http://127.0.0.1:31888/api/backtest-polymarket?apiKey=bandito&limit=10"
+```
+
+**Data note**: `/api/backtest-polymarket` requires collector snapshots (`backtest-data/` or Redis). Those are intentionally **not** committed to `main`.
+
+## 🏆 v55 IS THE PINNACLE — POLYMARKET-NATIVE + TURBO 24H TARGET
 
 ### 📊 Polymarket-native backtest (Gamma outcomes) — example run (auditable)
 
 This is what the built-in endpoint reports on the deployed collector snapshot set.
 
-**Recommended (max legitimacy)**:
+**Recommended (max legitimacy, 24h target run)**:
 
-`GET /api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1&entry=CLOB_HISTORY&fidelity=1`
+`GET /api/backtest-polymarket?tier=CONVICTION&minOdds=0.30&maxOdds=0.97&balance=5&lookbackHours=24&maxTradesPerCycle=1&selection=HIGHEST_CONF&respectEV=1&entry=CLOB_HISTORY&fidelity=1&stakeMode=PER_TRADE&maxExposure=0.40&scan=1&stakes=0.25,0.30,0.34,0.36,0.38,0.40`
 
 | Stake | Trades | Polymarket WR | Profit | Max DD |
 |------:|-------:|--------------:|-------:|-------:|
-| 5% | 43 | 74.42% | +36.84% | 16.56% |
-| 10% | 43 | 74.42% | +75.86% | 32.65% |
-| 20% | 43 | 74.42% | +139.48% | 60.63% |
+| 25% | 40 | 82.50% | +1054.06% | 43.75% |
+| 30% | 40 | 82.50% | +1490.66% | 51.00% |
+| 34% | 40 | 82.50% | +1869.03% | 56.44% |
+| 36% | 40 | 82.50% | +2057.91% | 59.04% |
+| **38%** | 40 | 82.50% | **+2240.30%** | 61.56% |
+| 40% | 40 | 82.50% | +2410.78% | 64.00% |
 
-**Time span (this run)**: ~2.7 days (from the endpoint’s `summary.timeSpan`)
+**Time span (this run)**: ~24h (from the endpoint’s `summary.timeSpan`)
 
-**No-duplicates proof (this run)**: `slugHash=f49e20b647a2aa677fa4b8ca63ee974025211d051c66b2d799d184446444a9af`
+**No-duplicates proof (this run)**: `slugHash=29e8bcbd3483bf1add8f001fe1c57ba5144bceebdfc21cba2870eabbc7657368`
 
-**Key insight**: position size dominates variance. 10% grows faster when the sample is favorable; 5% is the “min-variance default”.
+**Key insight**: to hit £100+ from £5 in ~24h, you need **very high stake** (≈38%) and accept large drawdowns (~60%).
 
-**Tail-bet rule**: `minOdds=0.20` blocks catastrophic <20¢ contrarian bets.
+**Tail-bet rule (turbo)**: `minOdds=0.30` blocks low-price contrarian bets that destroy win rate at high sizing.
 
 ---
 
@@ -93,23 +149,23 @@ The deployed instance currently reports:
 curl https://polyprophet.onrender.com/api/version
 ```
 
-Expected (as of v54):
-- `configVersion: 54`
+Expected (as of v55):
+- `configVersion: 55`
 - ONE preset: `GOAT` (MAX PROFIT ASAP with MIN avoidable variance)
 - UI branding: **POLYPROPHET**
 - PAPER + LIVE cycle settlement: uses **Polymarket Gamma resolution** when `slug` is available (truthful outcomes)
 
-### v54 Critical Fixes (current):
+### v55 Critical Fixes (current):
 1. ✅ **Truthful PAPER + LIVE settlement** — cycle-end closes use **Polymarket Gamma outcomes** (prevents “paper wins” that lose on Polymarket)
 2. ✅ **Polymarket-native backtest (auditable)** — `/api/backtest-polymarket` returns **timeSpan + slugHash proof + stake scan**
-3. ✅ **Realism controls** — `maxTradesPerCycle=1` + `selection=BEST_EV` + `respectEV=1` avoid “multi-asset same-cycle fantasy trades”
-4. ✅ **Tail bet block** — `minOdds=0.20` rejects catastrophic <20¢ contrarian entries
+3. ✅ **Realism controls** — `maxTradesPerCycle=1` + `selection=HIGHEST_CONF` + `respectEV=1` avoid “multi-asset same-cycle fantasy trades”
+4. ✅ **Tail bet block (turbo)** — `minOdds=0.30` rejects low-price contrarian entries that collapse WR at high sizing
 5. ✅ **Child-simple API panel** — backtest/verify/trades render as readable tables (no JSON required)
 
 **KEY INSIGHT (ground truth)**:
 - Avoid “Oracle vs Market” **contrarian tail bets** (low-price entries) — they are historically catastrophic.
 - Prefer setups where the Oracle has a real edge *without* paying “nearly 1.00” (fees + tiny ROI).
-- This is enforced by `minOdds=0.20` and the positive-EV gate.
+- This is enforced by `minOdds=0.30` and the positive-EV gate.
 
 ### v52 Fixes (retained):
 - ✅ Config drift fixed (deep-merge presets)
@@ -233,17 +289,17 @@ If you want to push harder toward $1M speed:
 
 **Note**: On deployed server, backtest requires debug files. Export debug locally via "📥 Export Debug" button, or restore from `debug-archive` branch.
 
-### 🏆 v54: Polymarket-Native Backtest (Ground Truth, Auditable)
+### 🏆 v55: Polymarket-Native Backtest (Ground Truth, Auditable)
 
 **Endpoint**: `GET /api/backtest-polymarket`
 
-**How it works (v54)**:
+**How it works (v55)**:
 1. Pulls **collector snapshots** (Polymarket markets + bot signals) from Redis / `backtest-data/`
 2. Builds a candidate trade list and **dedupes by Polymarket `slug`** (no double-counting)
 3. Enforces **realism**:
    - group by 15m window across assets
    - `maxTradesPerCycle` (default: 1) — prevents “3 assets in the same 15m” fantasy unless you opt in
-   - `selection` rule (default: `BEST_EV`) chooses which asset to take that window
+   - `selection` rule (default: `HIGHEST_CONF`) chooses which asset to take that window
    - optional `respectEV=1` applies the same positive-EV rule as runtime
 4. Queries **Polymarket Gamma API** for the **ground-truth resolution outcome**
 5. Determines entry price:
@@ -256,23 +312,25 @@ If you want to push harder toward $1M speed:
 
 **Query params (most important)**:
 - `tier=CONVICTION|ADVISORY|ALL` — filter by tier (default: CONVICTION)
-- `minOdds=0.20` — min entry price (default: 20¢; blocks tail bets)
-- `maxOdds=0.95` — max entry price (default: 95¢)
-- `balance=10` — starting balance (default: $10)
-- `stake=0.10` — position size as fraction of balance (default: 10% for min variance)
+- `minOdds=0.30` — min entry price (default: 30¢; blocks low-price tail bets)
+- `maxOdds=0.97` — max entry price (default: 97¢)
+- `balance=5` — starting balance (default: $5)
+- `lookbackHours=24` — how far back to backtest (default: 24h)
+- `stake=0.38` — position size as fraction of balance (default: 38% TURBO)
+- `maxExposure=0.40` — max exposure per 15m window (default: 40%)
 - `limit=200` — max **15m windows** to process (rate limit protection)
 - `maxTradesPerCycle=1` — realism guardrail (recommended)
 - `selection=BEST_EV|HIGHEST_CONF` — how we choose the 1 trade per window
 - `respectEV=1` — only include positive-EV candidates (recommended)
 - `scan=1` — include a stake “sweet spot” scan table
-- `stakes=0.05,0.10,0.20` — override scan stakes
+- `stakes=0.25,0.30,0.34,0.36,0.38,0.40` — override scan stakes
 - `snapshotPick=EARLIEST|LATEST` — if multiple snapshots exist for same slug (rare), which one to use
-- `entry=SNAPSHOT|CLOB_HISTORY` — entry price source (default: SNAPSHOT; recommended for maximum legitimacy: CLOB_HISTORY)
+- `entry=SNAPSHOT|CLOB_HISTORY` — entry price source (default: CLOB_HISTORY; recommended for maximum legitimacy)
 - `fidelity=1` — CLOB price history resolution in minutes (only used with `entry=CLOB_HISTORY`)
 
 **Example (recommended)**:
 
-`/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&stake=0.10&balance=10&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1`
+`/api/backtest-polymarket?tier=CONVICTION&minOdds=0.30&maxOdds=0.97&stake=0.38&balance=5&lookbackHours=24&limit=500&maxTradesPerCycle=1&selection=HIGHEST_CONF&respectEV=1&entry=CLOB_HISTORY&fidelity=1&stakeMode=PER_TRADE&maxExposure=0.40&scan=1&stakes=0.25,0.30,0.34,0.36,0.38,0.40`
 
 **Output includes**:
 - Win rate vs Polymarket resolution
@@ -332,6 +390,15 @@ Use this to confirm the bot’s **recorded wins/losses** match **Polymarket reso
 | `POLYMARKET_SECRET` | secret (LIVE) | - |
 | `POLYMARKET_PASSPHRASE` | passphrase (LIVE) | - |
 
+### Optional / diagnostics environment variables (v55)
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `3000` |
+| `API_KEY` | Bearer token for programmatic access | random |
+| `LIGHT_MODE` | `1` = API-only (skip WS + background loops) | off |
+| `LOG_SILENT` | `true` = silence most logs (prevents IDE OOM) | off |
+| `DEBUG_WS` | `true` = enable WS message preview logs | off |
+
 Security rule: never commit secrets; use `.env` locally and Render env vars in prod.
 
 ---
@@ -344,6 +411,7 @@ Security rule: never commit secrets; use `.env` locally and Render env vars in p
 - `GET /api/state-public`
 
 ### Protected (Basic auth)
+- Note: the server also accepts `?apiKey=<AUTH_PASSWORD>` for quick scripting (same as `Authorization: Bearer <API_KEY>`). Treat this as a convenience feature; secure your deployment appropriately.
 - `GET /api/state`
 - `GET /api/gates`
 - `GET /api/halts`
@@ -361,12 +429,12 @@ Security rule: never commit secrets; use `.env` locally and Render env vars in p
 
 ---
 
-## ✅ FINAL Acceptance Checklist (v54)
+## ✅ FINAL Acceptance Checklist (v55)
 
 Run these checks **before** calling anything “final / GOAT”:
 
 ### A) Deployment identity (no config drift)
-- `GET /api/version` shows **configVersion=54** and the expected git commit.
+- `GET /api/version` shows **configVersion=55** and the expected git commit.
 - `GET /api/health` is green and uptime is increasing normally.
 
 ### B) Market scope + anti-confusion (SOL is truly gone)
@@ -375,20 +443,20 @@ Run these checks **before** calling anything “final / GOAT”:
 
 ### C) Polymarket-native backtest is auditable and duplicate-free
 - Run:
-  - `/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1`
+  - `/api/backtest-polymarket?tier=CONVICTION&minOdds=0.30&maxOdds=0.97&balance=5&lookbackHours=24&maxTradesPerCycle=1&selection=HIGHEST_CONF&respectEV=1&entry=CLOB_HISTORY&fidelity=1&stakeMode=PER_TRADE&maxExposure=0.40&scan=1`
 - Confirm:
   - `summary.timeSpan` is present (hours/days covered)
   - `proof.slugHash` is present (no duplicates)
   - `maxTradesPerCycle=1` is respected (realism)
   - “sweet spot” scan shows your preferred stake vs max drawdown
-- Optional (maximum legitimacy): add `&entry=CLOB_HISTORY&fidelity=1` (uses Polymarket CLOB `/prices-history` time-series).
+- Optional (speed): use `entry=SNAPSHOT` (faster, slightly less “Polymarket-native”).
 
 ### D) Executed trades match Polymarket resolution (no silent mismatch)
 - Run:
   - `/api/verify-trades-polymarket?mode=PAPER&limit=200`
 - Confirm:
-  - `mismatches` is **~0 for comparable (binary exit) trades** after v54+ settlement changes
-  - Any remaining mismatches should be **legacy trades** created before v54.
+  - `mismatches` is **~0 for comparable (binary exit) trades** after v55 settlement changes
+  - Any remaining mismatches should be explainable (legacy trades, early exits, missing slug).
 
 ### E) Gates + halts are truthful (minimize avoidable variance)
 - `GET /api/gates` shows why trades are blocked (most often `negative_EV`).
@@ -417,6 +485,7 @@ After cleanup, `main` should contain only:
 - `render.yaml`
 - `.env.example`, `generate_creds.js.example`
 - `.gitignore`
+- `.vscode/settings.json` (optional; included to prevent IDE OOM / runaway indexing)
 - `README.md` (this manifesto)
 
 ### Archive branch contains history

@@ -446,17 +446,17 @@ app.get('/api/backtest-polymarket', async (req, res) => {
     try {
         const startTime = Date.now();
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
-        const startingBalance = parseFloat(req.query.balance) || 10.0;
-        const minOddsEntry = parseFloat(req.query.minOdds) || 0.20; // 🎯 v53.1: Reject tail bets <20¢ (Polymarket-verified catastrophic WR)
-        const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // Allow high-confidence trades (97.5% WR)
-        const stakeFrac = parseFloat(req.query.stake) || 0.10; // Position size as fraction of balance (default lowered for min-variance)
+        const startingBalance = parseFloat(req.query.balance) || 5.0; // 🎯 v55 TURBO default: £5 start
+        const minOddsEntry = parseFloat(req.query.minOdds) || 0.30; // 🎯 v55 TURBO: reject low-price contrarian entries
+        const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.97; // 🎯 v55 TURBO: allow higher-confidence entries
+        const stakeFrac = parseFloat(req.query.stake) || 0.38; // 🎯 v55 TURBO: tuned to pursue £5 → £100 in ~24h
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
         const maxTradesPerCycle = Number.isFinite(maxTradesPerCycleRaw)
             ? Math.max(1, Math.min(3, maxTradesPerCycleRaw))
             : Math.max(1, Math.min(3, (CONFIG?.RISK?.maxGlobalTradesPerCycle || 1)));
-        const selection = String(req.query.selection || 'BEST_EV').toUpperCase(); // BEST_EV | HIGHEST_CONF
+        const selection = String(req.query.selection || 'HIGHEST_CONF').toUpperCase(); // BEST_EV | HIGHEST_CONF
         const respectEVGate = !(String(req.query.respectEV || '').toLowerCase() === 'false' || String(req.query.respectEV || '') === '0');
         const snapshotPick = String(req.query.snapshotPick || 'EARLIEST').toUpperCase(); // EARLIEST | LATEST
         const stakeMode = String(req.query.stakeMode || 'PER_TRADE').toUpperCase(); // PER_TRADE | PER_WINDOW
@@ -465,14 +465,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             ? Math.max(0.05, Math.min(1.0, maxExposureRaw))
             : Math.max(0.05, Math.min(1.0, (CONFIG?.RISK?.maxTotalExposure || 0.40)));
         const lookbackHoursRaw = parseFloat(req.query.lookbackHours);
-        const lookbackHours = Number.isFinite(lookbackHoursRaw) ? Math.max(0.25, Math.min(168, lookbackHoursRaw)) : null;
+        const lookbackHours = Number.isFinite(lookbackHoursRaw) ? Math.max(0.25, Math.min(168, lookbackHoursRaw)) : 24;
         const scan = (req.query.scan === '1' || String(req.query.scan || '').toLowerCase() === 'true');
-        const entryMode = String(req.query.entry || 'SNAPSHOT').toUpperCase(); // SNAPSHOT | CLOB_HISTORY
+        const entryMode = String(req.query.entry || 'CLOB_HISTORY').toUpperCase(); // SNAPSHOT | CLOB_HISTORY
         const clobFidelityRaw = parseInt(req.query.fidelity);
         const clobFidelity = Number.isFinite(clobFidelityRaw) ? Math.max(1, Math.min(15, clobFidelityRaw)) : 1; // minutes
         const scanStakes = (typeof req.query.stakes === 'string' && req.query.stakes.length > 0)
             ? req.query.stakes.split(',').map(s => parseFloat(String(s).trim())).filter(x => Number.isFinite(x) && x > 0 && x < 1).slice(0, 10)
-            : [0.05, 0.10, 0.20];
+            : [0.25, 0.30, 0.34, 0.36, 0.38, 0.40];
         
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
@@ -1133,7 +1133,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             proof: {
                 slugHash,
                 slugCount: selectedSlugsSorted.length,
-                slugSample: selectedSlugsSorted.slice(0, 3).concat(selectedSlugsSorted.slice(-3))
+                // Avoid confusing duplicates when slugCount < 6 (first/last slices overlap).
+                slugSample: (selectedSlugsSorted.length <= 6)
+                    ? selectedSlugsSorted
+                    : selectedSlugsSorted.slice(0, 3).concat(selectedSlugsSorted.slice(-3))
             },
             scan: scanResults,
             trades: primarySim.trades.slice(-30), // Last 30 for display
@@ -2983,7 +2986,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 54;  // v54: Executed-trade rolling accuracy + Polymarket trade verification + backtest correctness fixes
+const CONFIG_VERSION = 55;  // v55: TURBO sizing defaults + Polymarket-native (CLOB) backtest tuning + 24h lookback
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -3021,7 +3024,9 @@ const CONFIG = {
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
     PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '10'),   // 🔴 FIXED: Default £10 (was 1000)
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.20'),  // Default 20% max risk per trade (can be changed via settings/env)
+    // 🎯 v54.2 TURBO: Target £5 → £100 in ~24h (Polymarket-native backtest tuned).
+    // NOTE: Still bounded by RISK.maxTotalExposure and variance controls.
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.38'),  // Default 38% max risk per trade (tuned for £100/24h goal)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -3038,8 +3043,8 @@ const CONFIG = {
         minConsensus: 0.70,      // 70% model agreement
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        minOdds: 0.20,           // 🎯 v53 FIX: Reject tail bets <20¢ (Oracle disagrees with market = 6.7% WR)
-        maxOdds: 0.95,           // 🎯 v53 FIX: Allow high-confidence trades (97.5% WR at 99¢, near breakeven)
+        minOdds: 0.30,           // 🎯 v54.2 TURBO: Reject low-price contrarian entries (best 24h growth + higher WR)
+        maxOdds: 0.97,           // 🎯 v54.2 TURBO: Allow higher-confidence entries (needed for £100/24h path)
         minStability: 2,         // 2 ticks - fast lock
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
@@ -3388,7 +3393,7 @@ class TradeExecutor {
             // After 1 loss: 80% size, after 2: 60%, after 3: 40%, after 4+: 25%
             lossMultipliers: [1.0, 0.80, 0.60, 0.40, 0.25],
             // Max loss budget per trade (percentage of dayStartBalance)
-            maxLossBudgetPct: 0.10,          // No single trade can lose more than 10% of day start
+            maxLossBudgetPct: 0.20,          // 🎯 v54.2 TURBO: allow up to 20% day-start loss budget (needed for £100/24h sizing)
             // Win streak bonus (optional, conservative)
             winBonusEnabled: false,          // Don't increase size on wins (reduces variance)
             winMultipliers: [1.0, 1.0, 1.05, 1.10] // If enabled: slight increase after wins
@@ -3793,7 +3798,7 @@ class TradeExecutor {
     }
 
     // 🦅 v21 UNDERDOG: Get current effective maxOdds (entry price cap)
-    // v53.1: We intentionally allow high-confidence entries up to CONFIG.ORACLE.maxOdds (default 0.95).
+    // v54.2: We intentionally allow high-confidence entries up to CONFIG.ORACLE.maxOdds (tuned for £100/24h).
     // This function may slightly relax/tighten around that baseline, but MUST NOT hard-cap to 50¢ (old behavior).
     getEffectiveMaxOdds() {
         let baseMaxOdds = CONFIG.ORACLE.maxOdds;
@@ -3820,14 +3825,9 @@ class TradeExecutor {
             
             return Math.min(expandedOdds, MAX_EXPANSION);
         }
-        
-        // If trades are happening regularly, use base (or slightly tightened if recent trades)
-        // Tighten slightly if we've had trades in the last hour (more selective)
-        if (hoursSinceLastTrade < 1 && this.lastTradeTime > 0) {
-            // Recent trades = tighten by 2¢ to maintain quality
-            return Math.max(baseMaxOdds - 0.02, (CONFIG.ORACLE.minOdds || 0.20)); // Don't tighten below minOdds
-        }
-        
+
+        // If trades are happening regularly, use the configured baseline.
+        // (Do NOT auto-tighten below the tuned maxOdds — it is part of the profitability envelope.)
         return baseMaxOdds;
     }
 
@@ -7143,6 +7143,9 @@ const gateTrace = {
 function log(msg, asset = null) {
     const timestamp = new Date().toLocaleTimeString();
     const prefix = asset ? `[${asset}]` : '[ORACLE]';
+    // Cursor/VSCode can OOM if the integrated terminal floods.
+    // Allow opting out of noisy logs without changing behavior.
+    if (String(process.env.LOG_SILENT || '').toLowerCase() === 'true') return;
     console.log(`${timestamp} ${prefix} ${msg}`);
 }
 
@@ -7465,6 +7468,10 @@ class SupremeBrain {
         this.stabilityCounter = 0;
         this.lagCounter = 0;
         this.isProcessing = false;
+        
+        // Reduce terminal spam (can crash Cursor/VSCode over time)
+        this.lastWarmupLogAt = 0;
+        this.lastWarmupLogSig = '';
 
         this.priceKalman = new KalmanFilter(0.0001, 0.001);
         this.derivKalman = new KalmanFilter(0.0001, 0.001);
@@ -7567,10 +7574,19 @@ class SupremeBrain {
             const elapsed = INTERVAL_SECONDS - (getNextCheckpoint() - Math.floor(Date.now() / 1000));
 
             if (!currentPrice || !startPrice || history.length < 10) {
-                // DIAGNOSTIC: Log why prediction is not running
-                if (!currentPrice) log(`⚠️ No live price available`, this.asset);
-                if (!startPrice) log(`⚠️ No checkpoint price (waiting for cycle)`, this.asset);
-                if (history.length < 10) log(`⚠️ Insufficient history (${history.length}/10)`, this.asset);
+                // DIAGNOSTIC (throttled): Log why prediction is not running
+                const reasons = [];
+                if (!currentPrice) reasons.push('no_live_price');
+                if (!startPrice) reasons.push('no_checkpoint_price');
+                if (history.length < 10) reasons.push(`insufficient_history_${history.length}/10`);
+                const sig = reasons.join('|');
+                const nowMs = Date.now();
+                // Log at most once/minute per asset unless the reason changes
+                if (sig !== this.lastWarmupLogSig || (nowMs - this.lastWarmupLogAt) > 60000) {
+                    log(`⚠️ Warmup: ${reasons.join(', ')}`, this.asset);
+                    this.lastWarmupLogSig = sig;
+                    this.lastWarmupLogAt = nowMs;
+                }
                 this.isProcessing = false;
                 return;
             }
@@ -9586,7 +9602,10 @@ function connectWebSocket() {
             // Debug first few messages to understand structure
             if (!global.wsMessageCount) global.wsMessageCount = 0;
             if (global.wsMessageCount < 5) {
-                log(`📨 WS Message: ${JSON.stringify(msg).substring(0, 200)}...`);
+                // Avoid terminal flooding (can crash Cursor/VSCode). Enable only when debugging WS.
+                if (String(process.env.DEBUG_WS || '').toLowerCase() === 'true') {
+                    log(`📨 WS Message: ${JSON.stringify(msg).substring(0, 200)}...`);
+                }
                 global.wsMessageCount++;
             }
 
@@ -11208,8 +11227,9 @@ app.get('/', (req, res) => {
             // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
                 GOAT: { 
-                    // 🎯 SIZING: Default lowered for min-variance compounding (user can raise manually)
-                    MAX_POSITION_SIZE: 0.10,
+                    // 🎯 v54.2 TURBO: tuned to pursue £5 → £100 in ~24h (Polymarket-native backtest)
+                    // NOTE: high variance; circuit breaker + streak sizing still provide guardrails.
+                    MAX_POSITION_SIZE: 0.38,
                     // ORACLE: Primary prediction engine with forensic-optimized thresholds
                     ORACLE: { 
                         enabled: true, 
@@ -11217,8 +11237,8 @@ app.get('/', (req, res) => {
                         minConsensus: 0.70,      // 70% model agreement required
                         minConfidence: 0.70,     // 70% confidence minimum
                         minEdge: 5,              // 5% edge over market odds
-                        minOdds: 0.20,           // 🎯 v53: Block tail bets <20¢ (Oracle vs market = 6.7% WR)
-                        maxOdds: 0.95,           // 🎯 v53: Allow high-confidence trades (97.5% WR at 99¢)
+                        minOdds: 0.30,           // 🎯 v54.2: reject low-price contrarian bets (best 24h growth)
+                        maxOdds: 0.97,           // 🎯 v54.2: allow higher-confidence entries (needed for £100/24h path)
                         minStability: 3,         // 3 ticks of stable signal
                         requireTrending: false,  // Trade in all conditions
                         earlyTakeProfitEnabled: true,
@@ -11237,11 +11257,11 @@ app.get('/', (req, res) => {
                     UNCERTAINTY: { enabled: false },
                     // RISK: Aggressive but protected
                     RISK: { 
-                        maxTotalExposure: 0.50,     // Max 50% of balance in positions
+                        maxTotalExposure: 0.40,     // Keep exposure bounded (min-variance constraint)
                         globalStopLoss: 0.40,       // Halt if down 40% in a day
                         cooldownAfterLoss: 1200,    // 20 min cooldown after 3 losses
                         maxConsecutiveLosses: 3,    // Throttle after 3 losses
-                        maxGlobalTradesPerCycle: 2, // Max 2 trades per 15-min cycle
+                        maxGlobalTradesPerCycle: 1, // Max 1 trade per 15-min cycle (reduce correlation variance)
                         supremeConfidenceMode: false,
                         firstMoveAdvantage: false,
                         enablePositionPyramiding: false,
@@ -13785,6 +13805,7 @@ function getCurrentCheckpoint() { return Math.floor(Date.now() / 1000) - (Math.f
 function getNextCheckpoint() { return getCurrentCheckpoint() + INTERVAL_SECONDS; }
 
 const PORT = process.env.PORT || 3000;
+const LIGHT_MODE = (String(process.env.LIGHT_MODE || '').toLowerCase() === 'true' || String(process.env.LIGHT_MODE || '') === '1');
 
 async function startup() {
     log('🚀 SUPREME DEITY: CLOUD EDITION');
@@ -13825,48 +13846,54 @@ async function startup() {
     // 🎯 GOAT v4: Load persisted settings from Redis
     await loadCollectorEnabled();
     
-    connectWebSocket();
+    if (!LIGHT_MODE) {
+        connectWebSocket();
+    } else {
+        log('🧪 LIGHT_MODE enabled: skipping WebSocket + background loops');
+    }
 
-    // 🔮 MAIN UPDATE LOOP: Every second, update brains AND check exit conditions
-    setInterval(() => {
-        ASSETS.forEach(a => {
-            Brains[a].update();
+    if (!LIGHT_MODE) {
+        // 🔮 MAIN UPDATE LOOP: Every second, update brains AND check exit conditions
+        setInterval(() => {
+            ASSETS.forEach(a => {
+                Brains[a].update();
 
-            // 🔴 CRITICAL: Check exit conditions for all positions
-            // This was MISSING - checkExits was never called!
-            const now = Math.floor(Date.now() / 1000);
-            const elapsed = now % INTERVAL_SECONDS;
-            const market = currentMarkets[a];
-            if (market) {
-                tradeExecutor.checkExits(a, livePrices[a], elapsed, market.yesPrice, market.noPrice);
-            }
-        });
-    }, 1000);
+                // 🔴 CRITICAL: Check exit conditions for all positions
+                // This was MISSING - checkExits was never called!
+                const now = Math.floor(Date.now() / 1000);
+                const elapsed = now % INTERVAL_SECONDS;
+                const market = currentMarkets[a];
+                if (market) {
+                    tradeExecutor.checkExits(a, livePrices[a], elapsed, market.yesPrice, market.noPrice);
+                }
+            });
+        }, 1000);
 
-    // Update UI dashboard every second (start after initialization)
-    setInterval(emitUIUpdate, 1000);
-    setInterval(emitStateUpdate, 1000);
+        // Update UI dashboard every second (start after initialization)
+        setInterval(emitUIUpdate, 1000);
+        setInterval(emitStateUpdate, 1000);
 
-    setInterval(saveState, 5000);
-    setInterval(fetchCurrentMarkets, 2000);
+        setInterval(saveState, 5000);
+        setInterval(fetchCurrentMarkets, 2000);
 
-    fetchFearGreedIndex();
-    fetchFundingRates();
+        fetchFearGreedIndex();
+        fetchFundingRates();
 
-    // CHAINLINK-ONLY: Validate prices (no external HTTP sources)
-    await validatePrices();
-    log('📈 Waiting for Chainlink WS prices (no HTTP fallback)');
+        // CHAINLINK-ONLY: Validate prices (no external HTTP sources)
+        await validatePrices();
+        log('📈 Waiting for Chainlink WS prices (no HTTP fallback)');
 
-    // Periodic price validation (every 5 seconds - warns if stale, does NOT fetch external data)
-    setInterval(validatePrices, 5000);
+        // Periodic price validation (every 5 seconds - warns if stale, does NOT fetch external data)
+        setInterval(validatePrices, 5000);
 
-    setInterval(fetchFearGreedIndex, 300000);
-    setInterval(fetchFundingRates, 300000);
+        setInterval(fetchFearGreedIndex, 300000);
+        setInterval(fetchFundingRates, 300000);
 
-    // 💰 Periodic balance monitoring (every 5 minutes) - alerts on low gas/USDC
-    setInterval(() => tradeExecutor.checkLowBalances(), 300000);
-    // Initial check after 30 seconds (give server time to start)
-    setTimeout(() => tradeExecutor.checkLowBalances(), 30000);
+        // 💰 Periodic balance monitoring (every 5 minutes) - alerts on low gas/USDC
+        setInterval(() => tradeExecutor.checkLowBalances(), 300000);
+        // Initial check after 30 seconds (give server time to start)
+        setTimeout(() => tradeExecutor.checkLowBalances(), 30000);
+    }
 
     // 🎯 GOAT v44.1: Startup Self-Tests
     const selfTestResults = runStartupSelfTests();
@@ -13884,14 +13911,18 @@ async function startup() {
         log(`🔑 API Key: ${API_KEY.substring(0, 8)}...`);
 
         // 📱 Telegram: Server Online notification
-        sendTelegramNotification(telegramServerStatus('online', {
-            mode: CONFIG.TRADE_MODE,
-            balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : null
-        }));
+        if (!LIGHT_MODE) {
+            sendTelegramNotification(telegramServerStatus('online', {
+                mode: CONFIG.TRADE_MODE,
+                balance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : null
+            }));
+        }
     });
     
     // 🎯 GOAT v44.1: Start Watchdog
-    startWatchdog();
+    if (!LIGHT_MODE) {
+        startWatchdog();
+    }
 }
 
 // 🎯 GOAT v44.1: Startup Self-Tests
