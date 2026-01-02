@@ -449,7 +449,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const startingBalance = parseFloat(req.query.balance) || 5.0; // 🎯 v55 TURBO default: £5 start
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.30; // 🎯 v55 TURBO: reject low-price contrarian entries
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.97; // 🎯 v55 TURBO: allow higher-confidence entries
-        const stakeFrac = parseFloat(req.query.stake) || 0.38; // 🎯 v55 TURBO: tuned to pursue £5 → £100 in ~24h
+        const stakeFrac = parseFloat(req.query.stake) || 0.36; // 🎯 v55.1: MIN-VARIANCE optimal for £5 → £100 in 24h (36% = £108, 59% max DD)
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
@@ -472,7 +472,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const clobFidelity = Number.isFinite(clobFidelityRaw) ? Math.max(1, Math.min(15, clobFidelityRaw)) : 1; // minutes
         const scanStakes = (typeof req.query.stakes === 'string' && req.query.stakes.length > 0)
             ? req.query.stakes.split(',').map(s => parseFloat(String(s).trim())).filter(x => Number.isFinite(x) && x > 0 && x < 1).slice(0, 10)
-            : [0.25, 0.30, 0.34, 0.36, 0.38, 0.40];
+            : [0.30, 0.32, 0.34, 0.36, 0.38, 0.40]; // 🎯 v55.1: centered on 36% optimal
         
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
@@ -2986,7 +2986,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 55;  // v55: TURBO sizing defaults + Polymarket-native (CLOB) backtest tuning + 24h lookback
+const CONFIG_VERSION = 56;  // v56: MIN-VARIANCE optimal (36% stake) for £5 → £100 in 24h target
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -11227,9 +11227,9 @@ app.get('/', (req, res) => {
             // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
                 GOAT: { 
-                    // 🎯 v54.2 TURBO: tuned to pursue £5 → £100 in ~24h (Polymarket-native backtest)
-                    // NOTE: high variance; circuit breaker + streak sizing still provide guardrails.
-                    MAX_POSITION_SIZE: 0.38,
+                    // 🎯 v55.1: MIN-VARIANCE optimal for £5 → £100 in 24h.
+                    // 36% = £108 final with 59% max DD (vs 62% at 38%). Circuit breaker + streak sizing still provide guardrails.
+                    MAX_POSITION_SIZE: 0.36,
                     // ORACLE: Primary prediction engine with forensic-optimized thresholds
                     ORACLE: { 
                         enabled: true, 
