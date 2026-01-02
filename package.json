@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v59",
-    "description": "POLYPROPHET GOAT v59 - TRUE MAXIMUM AUDIT: 90-day optimizer + PAPER no-fallback + dataset cache",
+    "version": "3.0.0-goat-v60",
+    "description": "POLYPROPHET GOAT v60 - FINAL AUDIT: PENDING frees exposure, realized-only drawdown, complete optimizer",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

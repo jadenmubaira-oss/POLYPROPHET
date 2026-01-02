@@ -2438,6 +2438,9 @@ app.get('/api/health', (req, res) => {
         }
     }
 
+    // 🏆 v60: Pending settlements count (not blocking exposure)
+    const pendingSettlements = tradeExecutor?.getPendingSettlements?.() || [];
+    
     res.json({
         status: 'ok',
         uptime: process.uptime(),
@@ -2450,6 +2453,11 @@ app.get('/api/health', (req, res) => {
             alertsPending: typeof watchdogState !== 'undefined' ? watchdogState.alertsSent.size : 0
         },
         circuitBreaker: cbStatus,
+        // 🏆 v60: Pending settlements (awaiting Gamma, not blocking trades)
+        pendingSettlements: {
+            count: pendingSettlements.length,
+            items: pendingSettlements.slice(0, 5) // Show up to 5 in health
+        },
         // 🎯 v52: Drift detection per asset
         rollingAccuracy
     });
@@ -3665,7 +3673,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 59;  // v59: TRUE MAXIMUM AUDIT + PAPER no-fallback + dataset cache + optimizer endpoint
+const CONFIG_VERSION = 60;  // v60: FINAL AUDIT - PENDING frees exposure, realized-only drawdown, stale cleanup skip
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4140,8 +4148,26 @@ class TradeExecutor {
     }
 
     // Calculate total exposure
+    // 🏆 v60: Exclude PENDING_RESOLUTION positions so they don't block new trades (user choice: free_exposure)
     getTotalExposure() {
-        return Object.values(this.positions).reduce((sum, p) => sum + p.size, 0);
+        return Object.values(this.positions)
+            .filter(p => p && p.status !== 'PENDING_RESOLUTION')
+            .reduce((sum, p) => sum + p.size, 0);
+    }
+    
+    // 🏆 v60: Get pending settlements (for UI/reconciliation)
+    getPendingSettlements() {
+        return Object.entries(this.positions)
+            .filter(([id, p]) => p && p.status === 'PENDING_RESOLUTION')
+            .map(([id, p]) => ({
+                id,
+                asset: p.asset,
+                side: p.side,
+                size: p.size,
+                slug: p.pendingSlug || p.slug,
+                pendingSince: p.pendingSince,
+                mode: p.mode
+            }));
     }
     
     // 🎯 GOAT v3: Initialize day tracking for CircuitBreaker
@@ -6911,11 +6937,16 @@ class TradeExecutor {
 
     // 🔴 BUG FIX: Force-resolve any stale positions older than 1 cycle (15 minutes)
     // This catches positions that weren't resolved due to missing price data
+    // 🏆 v60: Skip PENDING_RESOLUTION positions - they're waiting for Gamma, not stale
     cleanupStalePositions() {
         const now = Date.now();
         const maxAge = INTERVAL_SECONDS * 1000; // 15 minutes in ms
 
         Object.entries(this.positions).forEach(([id, pos]) => {
+            // Skip PENDING_RESOLUTION - these are explicitly waiting for Gamma to resolve
+            if (pos.status === 'PENDING_RESOLUTION') {
+                return;
+            }
             const age = now - pos.time;
             if (age > maxAge) {
                 log(`⚠️ STALE POSITION: ${pos.asset} ${pos.side} opened ${Math.floor(age / 60000)}m ago - force closing`, pos.asset);
