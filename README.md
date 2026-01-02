@@ -154,8 +154,8 @@ BEFORE LIVE TRADING:
 
 1. [ ] GET /api/version → configVersion=60
 2. [ ] GET /api/health → status="ok", circuitBreaker.state="NORMAL"
-3. [ ] GET /api/backtest-polymarket?stake=0.35&scan=1
-       → ~77% WR, £120+ from £5 in 78h
+3. [ ] GET /api/backtest-polymarket?stake=0.35&scan=1&maxAbs=100
+       → LIVE-realistic backtest with $100 liquidity cap
 4. [ ] GET /api/verify-trades-polymarket → <10% mismatch
 5. [ ] GET /api/reconcile-pending → 0 pending
 6. [ ] GET /api/circuit-breaker → enabled=true
@@ -286,8 +286,11 @@ resolution method: Polymarket Gamma API
 ## REPRODUCTION
 
 ```bash
-# TRUE MAXIMUM backtest
-curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&scan=1&apiKey=bandito"
+# LIVE-REALISTIC backtest (with $100 liquidity cap)
+curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&scan=1&maxAbs=100&apiKey=bandito"
+
+# Optimistic backtest (no liquidity cap - theoretical max)
+curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&scan=1&maxAbs=999999&apiKey=bandito"
 
 # Health check
 curl "https://polyprophet.onrender.com/api/health?apiKey=bandito"

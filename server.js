@@ -475,6 +475,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             ? req.query.stakes.split(',').map(s => parseFloat(String(s).trim())).filter(x => Number.isFinite(x) && x > 0 && x < 1).slice(0, 10)
             : [0.30, 0.32, 0.34, 0.36, 0.38, 0.40]; // 🎯 v55.1: centered on 36% optimal
         
+        // 🏆 v60 FINAL: Liquidity cap for realistic backtests (matches LIVE sizing)
+        const maxAbsRaw = parseFloat(req.query.maxAbs);
+        const maxAbsoluteStake = Number.isFinite(maxAbsRaw) && maxAbsRaw > 0
+            ? maxAbsRaw
+            : parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 default
+        
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
         const SLIPPAGE_PCT = 0.01;
@@ -927,11 +933,15 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 if (stakeMode === 'PER_WINDOW') {
                     let budget = windowBalanceStart * stakeFraction;
                     budget = Math.min(budget, maxBudget);
-                    const each = n > 0 ? (budget / n) : 0;
+                    let each = n > 0 ? (budget / n) : 0;
+                    // 🏆 v60 FINAL: Apply absolute liquidity cap (LIVE-realistic)
+                    each = Math.min(each, maxAbsoluteStake);
                     stakes = windowCycles.map(() => each);
                 } else {
                     // PER_TRADE (default): stakeFraction applies per trade, but cap total exposure for the window.
                     let each = windowBalanceStart * stakeFraction;
+                    // 🏆 v60 FINAL: Apply absolute liquidity cap BEFORE window exposure calc (LIVE-realistic)
+                    each = Math.min(each, maxAbsoluteStake);
                     const totalDesired = each * n;
                     if (totalDesired > maxBudget && totalDesired > 0) {
                         const scale = maxBudget / totalDesired;
@@ -1126,6 +1136,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 respectEVGate,
                 stakeMode,
                 maxExposure,
+                maxAbsoluteStake, // 🏆 v60: Liquidity cap for LIVE-realistic backtests
                 entry: entryMode,
                 fidelity: clobFidelity,
                 scan,
@@ -1348,6 +1359,12 @@ app.get('/api/optimize-polymarket', async (req, res) => {
         const PROFIT_FEE_PCT = 0.02;
         const SLIPPAGE_PCT = 0.01;
         
+        // 🏆 v60 FINAL: Liquidity cap for realistic optimizer (matches LIVE sizing)
+        const maxAbsRaw = parseFloat(req.query.maxAbs);
+        const maxAbsoluteStake = Number.isFinite(maxAbsRaw) && maxAbsRaw > 0
+            ? maxAbsRaw
+            : parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 default
+        
         // Load cached dataset
         const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
         let allEntries = [];
@@ -1474,7 +1491,8 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                     if (evRoi <= 0) continue;
                     
                     // Execute trade
-                    const stake = balance * stakeFrac;
+                    // 🏆 v60 FINAL: Apply absolute liquidity cap (LIVE-realistic)
+                    const stake = Math.min(balance * stakeFrac, maxAbsoluteStake);
                     const isWin = pred.prediction === entry.resolvedOutcome;
                     
                     let pnl;
