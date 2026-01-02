@@ -11341,29 +11341,56 @@ app.get('/', (req, res) => {
                 </div>\`;
             }
             if (endpoint.includes('/api/trades')) {
-                const trades = Array.isArray(data) ? data : (data.trades || []);
-                if (trades.length === 0) return '<div style="color:#888;">No trades recorded yet.</div>';
+                const trades = Array.isArray(data) ? data : (Array.isArray(data && data.trades) ? data.trades : []);
+
+                const balance = Number((data && data.balance !== undefined) ? data.balance : 0);
+                const starting = Number((data && data.startingBalance !== undefined) ? data.startingBalance : (Number.isFinite(balance) ? balance : 0));
+                const totalReturnPct = Number((data && data.totalReturn !== undefined)
+                    ? data.totalReturn
+                    : ((starting > 0 ? ((balance / starting) - 1) * 100 : 0)));
+                const totalTrades = Number((data && data.totalTrades !== undefined) ? data.totalTrades : trades.length);
+                const returnedTrades = Number((data && data.returnedTrades !== undefined) ? data.returnedTrades : trades.length);
+                const legacyFilteredOut = Number((data && data.legacyFilteredOut !== undefined) ? data.legacyFilteredOut : 0);
+                const openPositions = (data && data.positions && typeof data.positions === 'object')
+                    ? Object.keys(data.positions).length
+                    : 0;
+
                 const wins = trades.filter(t => (t.pnl || 0) > 0).length;
                 const losses = trades.filter(t => (t.pnl || 0) < 0).length;
                 const totalPnl = trades.reduce((sum, t) => sum + (t.pnl || 0), 0);
-                let html = \`<div style="margin-bottom:15px;font-size:1.1em;">
-                    <span style="color:#00ff88;">✅ Won: \${wins}</span> | 
-                    <span style="color:#ff4466;">❌ Lost: \${losses}</span> | 
-                    <span style="color:\${totalPnl >= 0 ? '#00ff88' : '#ff4466'};">💰 Total P&L: $\${totalPnl.toFixed(2)}</span>
-                </div>\`;
+
+                let html = '<div style="margin-bottom:12px;font-size:1.1em;line-height:1.7;">' +
+                    '<div>💰 <b>Balance:</b> $' + (Number.isFinite(balance) ? balance.toFixed(2) : 'N/A') +
+                    ' <span style="color:#888;">(start: $' + (Number.isFinite(starting) ? starting.toFixed(2) : 'N/A') + ')</span></div>' +
+                    '<div>📈 <b>Total return:</b> <span style="color:' + (totalReturnPct >= 0 ? '#00ff88' : '#ff4466') + ';">' +
+                    (Number.isFinite(totalReturnPct) ? totalReturnPct.toFixed(2) : 'N/A') + '%</span></div>' +
+                    '<div>🧾 <b>Trades:</b> ' + returnedTrades +
+                    (totalTrades !== returnedTrades ? '<span style="color:#888;"> / ' + totalTrades + ' total</span>' : '') +
+                    (legacyFilteredOut > 0 ? '<span style="color:#888;"> (legacy hidden: ' + legacyFilteredOut + ')</span>' : '') +
+                    '</div>' +
+                    '<div>📌 <b>Open positions:</b> ' + openPositions + '</div>' +
+                    '<div style="margin-top:6px;">' +
+                    '<span style="color:#00ff88;">✅ Won: ' + wins + '</span> | ' +
+                    '<span style="color:#ff4466;">❌ Lost: ' + losses + '</span> | ' +
+                    '<span style="color:' + (totalPnl >= 0 ? '#00ff88' : '#ff4466') + ';">💰 Total P&L (returned list): $' + totalPnl.toFixed(2) + '</span>' +
+                    '</div>' +
+                    '</div>';
+
+                if (trades.length === 0) return html + '<div style="color:#888;">No trades recorded yet.</div>';
+
                 html += '<table style="width:100%;border-collapse:collapse;font-size:0.85em;">';
                 html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Asset</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>Result</th></tr>';
                 trades.slice(-10).reverse().forEach(t => {
                     const pnlColor = (t.pnl || 0) >= 0 ? '#00ff88' : '#ff4466';
                     const icon = (t.pnl || 0) >= 0 ? '✅' : '❌';
-                    html += \`<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
-                        <td style="padding:6px;font-weight:bold;">\${t.asset}</td>
-                        <td style="text-align:center;">\${t.side === 'UP' ? '📈' : '📉'}</td>
-                        <td style="text-align:center;">\${((t.entry || 0) * 100).toFixed(0)}¢</td>
-                        <td style="text-align:center;">\${t.exit !== undefined ? ((t.exit || 0) * 100).toFixed(0) + '¢' : '-'}</td>
-                        <td style="text-align:center;color:\${pnlColor};">$\${(t.pnl || 0).toFixed(2)}</td>
-                        <td style="text-align:center;">\${icon}</td>
-                    </tr>\`;
+                    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
+                        '<td style="padding:6px;font-weight:bold;">' + (t.asset || '') + '</td>' +
+                        '<td style="text-align:center;">' + (t.side === 'UP' ? '📈' : '📉') + '</td>' +
+                        '<td style="text-align:center;">' + (((t.entry || 0) * 100).toFixed(0)) + '¢</td>' +
+                        '<td style="text-align:center;">' + (t.exit !== undefined ? (((t.exit || 0) * 100).toFixed(0) + '¢') : '-') + '</td>' +
+                        '<td style="text-align:center;color:' + pnlColor + ';">$' + (Number(t.pnl || 0).toFixed(2)) + '</td>' +
+                        '<td style="text-align:center;">' + icon + '</td>' +
+                        '</tr>';
                 });
                 html += '</table>';
                 return html;
@@ -11393,18 +11420,25 @@ app.get('/', (req, res) => {
             if (endpoint.includes('/api/backtest-polymarket')) {
                 const s = data.summary || {};
                 const cov = data.coverage || {};
+                const proof = data.proof || {};
+                const scan = Array.isArray(data.scan) ? data.scan : null;
                 const interp = data.interpretation || {};
                 const profit = Number(s.totalProfit || 0);
                 const profitColor = profit >= 0 ? '#00ff88' : '#ff4466';
                 const icon = profit >= 0 ? '✅' : '❌';
+                const windowsProcessed = (cov.windowsProcessed !== undefined) ? cov.windowsProcessed : (cov.cyclesProcessed || 0);
+                const slugsFound = (cov.uniqueSlugsFound !== undefined) ? cov.uniqueSlugsFound : (cov.cyclesFound || 0);
+                const slugHash = String(proof.slugHash || '');
                 
                 let html = '<div style="font-size:1.1em;line-height:1.8;">' +
-                    '<div style="font-size:1.3em;margin-bottom:10px;">🏆 <b>Polymarket Backtest</b></div>' +
+                    '<div style="font-size:1.3em;margin-bottom:10px;">🏆 <b>Polymarket Backtest (native)</b></div>' +
                     '<div>' + icon + ' <b style="color:' + profitColor + ';">Profit:</b> $' + profit.toFixed(2) + ' <span style="color:#888;">(' + (s.profitPct || 'N/A') + ')</span></div>' +
                     '<div>🎯 <b>Win rate:</b> ' + (s.winRate || 'N/A') + ' <span style="color:#888;">(' + (s.wins || 0) + 'W / ' + (s.losses || 0) + 'L)</span></div>' +
                     '<div>📉 <b>Max drawdown:</b> ' + (s.maxDrawdown || 'N/A') + '</div>' +
+                    '<div>🧠 <b>Selection:</b> ' + (s.selection || 'N/A') + ' <span style="color:#888;">(maxTradesPerCycle: ' + (s.maxTradesPerCycle || '?') + ', EV gate: ' + (s.respectEVGate ? 'ON' : 'OFF') + ')</span></div>' +
                     '<div>⏱️ <b>Runtime:</b> ' + (s.runtime || 'N/A') + '</div>' +
-                    '<div>🧾 <b>Resolved:</b> ' + (cov.resolved || 0) + ' <span style="color:#888;">(unresolved: ' + (cov.unresolved || 0) + ', found: ' + (cov.cyclesFound || 0) + ')</span></div>' +
+                    '<div>🧾 <b>Resolved:</b> ' + (cov.resolved || 0) + ' <span style="color:#888;">(unresolved: ' + (cov.unresolved || 0) + ', slugs: ' + slugsFound + ', windows: ' + windowsProcessed + ')</span></div>' +
+                    '<div>🧾 <b>No-duplicates proof:</b> <code>' + (slugHash ? (slugHash.substring(0, 16) + '…') : 'N/A') + '</code> <span style="color:#888;">(' + (proof.slugCount || 0) + ' slugs)</span></div>' +
                     '<div>📌 <b>Verdict:</b> ' + (interp.verdict || 'N/A') + '</div>' +
                     '</div>';
                 
@@ -11413,6 +11447,25 @@ app.get('/', (req, res) => {
                 if (srcKeys.length > 0) {
                     const srcStr = srcKeys.map(k => k + ': ' + entrySources[k]).join(' | ');
                     html += '<div style="margin-top:10px;color:#888;font-size:0.85em;">Entry price sources: <b>' + srcStr + '</b></div>';
+                }
+
+                if (scan && scan.length > 0) {
+                    html += '<div style="margin-top:12px;color:#aaa;"><b>Sweet-spot scan (stake vs drawdown)</b></div>';
+                    html += '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:0.85em;">';
+                    html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Stake</th><th>Trades</th><th>WinRate</th><th>Profit</th><th>Max DD</th></tr>';
+                    scan.forEach(r => {
+                        const pct = String(r.profitPct || '');
+                        const isPos = pct.indexOf('-') === -1;
+                        const c = isPos ? '#00ff88' : '#ff4466';
+                        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
+                            '<td style="padding:6px;font-weight:bold;">' + (Number(r.stake) * 100).toFixed(0) + '%</td>' +
+                            '<td style="text-align:center;">' + (r.trades || 0) + '</td>' +
+                            '<td style="text-align:center;">' + (r.winRate || 'N/A') + '</td>' +
+                            '<td style="text-align:center;color:' + c + ';">' + (r.profitPct || 'N/A') + '</td>' +
+                            '<td style="text-align:center;">' + (r.maxDrawdown || 'N/A') + '</td>' +
+                            '</tr>';
+                    });
+                    html += '</table>';
                 }
                 
                 const trades = Array.isArray(data.trades) ? data.trades : [];
@@ -11450,23 +11503,29 @@ app.get('/', (req, res) => {
                 const mismatches = Number(s.mismatches || 0);
                 const mismatchColor = mismatches > 0 ? '#ff4466' : '#00ff88';
                 const mismatchIcon = mismatches > 0 ? '🚨' : '✅';
+                const comparable = Number(s.comparable || 0);
+                const earlyExit = Number(s.earlyExit || 0);
+                const mismatchRate = comparable > 0 ? ((mismatches / comparable) * 100).toFixed(1) : '0.0';
                 
                 let html = '<div style="font-size:1.1em;line-height:1.8;">' +
                     '<div style="font-size:1.3em;margin-bottom:10px;">✅ <b>Trade Verification (Polymarket)</b></div>' +
                     '<div>🧾 <b>Trades checked:</b> ' + candidates + '</div>' +
+                    '<div>🔎 <b>Comparable (binary exits):</b> ' + comparable + ' <span style="color:#888;">| Early exits: ' + earlyExit + '</span></div>' +
                     '<div>📌 <b>Resolved:</b> ' + (s.resolved || 0) + ' <span style="color:#888;">(unresolved: ' + (s.unresolved || 0) + ', errors: ' + (s.errors || 0) + ')</span></div>' +
-                    '<div>' + mismatchIcon + ' <b style="color:' + mismatchColor + ';">Mismatches:</b> ' + mismatches + '</div>' +
+                    '<div>' + mismatchIcon + ' <b style="color:' + mismatchColor + ';">Mismatches:</b> ' + mismatches + ' <span style="color:#888;">(' + mismatchRate + '% of comparable)</span></div>' +
                     '<div style="color:#888;">Runtime: ' + (s.runtime || 'N/A') + ' | WinRate vs resolution: ' + (s.winRate || 'N/A') + '</div>' +
                     '</div>';
                 
                 const byAsset = data.byAsset || {};
                 html += '<div style="margin-top:12px;color:#aaa;"><b>By asset</b></div>';
                 html += '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:0.85em;">';
-                html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Asset</th><th>Resolved</th><th>W</th><th>L</th><th>Mismatches</th></tr>';
+                html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Asset</th><th>Resolved</th><th>Comparable</th><th>Early</th><th>W</th><th>L</th><th>Mismatches</th></tr>';
                 Object.entries(byAsset).forEach(([asset, a]) => {
                     html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
                         '<td style="padding:6px;font-weight:bold;">' + asset + '</td>' +
                         '<td style="text-align:center;">' + (a.resolved || 0) + '</td>' +
+                        '<td style="text-align:center;">' + (a.comparable || 0) + '</td>' +
+                        '<td style="text-align:center;">' + (a.earlyExit || 0) + '</td>' +
                         '<td style="text-align:center;color:#00ff88;">' + (a.wins || 0) + '</td>' +
                         '<td style="text-align:center;color:#ff4466;">' + (a.losses || 0) + '</td>' +
                         '<td style="text-align:center;color:' + ((a.mismatches || 0) > 0 ? '#ff4466' : '#00ff88') + ';">' + (a.mismatches || 0) + '</td>' +
@@ -11479,14 +11538,15 @@ app.get('/', (req, res) => {
                 if (mismatched.length > 0) {
                     html += '<div style="margin-top:12px;color:#ffcc66;"><b>First 10 mismatches</b></div>';
                     html += '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:0.8em;">';
-                    html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Trade</th><th>Side</th><th>Resolved</th><th>Recorded P&L</th></tr>';
+                    html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Trade</th><th>Side</th><th>Exit</th><th>Resolved</th><th>Reason</th></tr>';
                     mismatched.forEach(t => {
-                        const rp = (t.recordedPnl === null || t.recordedPnl === undefined) ? 'N/A' : ('$' + Number(t.recordedPnl).toFixed(2));
+                        const exitStr = (t.exit === null || t.exit === undefined) ? '-' : ((Number(t.exit) * 100).toFixed(0) + '¢');
                         html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
                             '<td style="padding:6px;"><code>' + String(t.id || '').substring(0, 24) + '...</code></td>' +
                             '<td style="text-align:center;">' + (t.side || '?') + '</td>' +
+                            '<td style="text-align:center;">' + exitStr + '</td>' +
                             '<td style="text-align:center;">' + (t.verifiedOutcome || '?') + '</td>' +
-                            '<td style="text-align:center;color:#ff4466;">' + rp + '</td>' +
+                            '<td style="text-align:center;color:#888;">' + (t.reason || '') + '</td>' +
                             '</tr>';
                     });
                     html += '</table>';
