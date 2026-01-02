@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v53.1",
-    "description": "POLYPROPHET GOAT v53.1 - minOdds 20¢ TAIL BET BLOCK + Polymarket API verified (+39% profit)",
+    "version": "3.0.0-goat-v54",
+    "description": "POLYPROPHET GOAT v54 - Polymarket-native backtest+verify (Gamma) + dedupe proof + truthful PAPER/LIVE resolution + 20¢ tail-bet block",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

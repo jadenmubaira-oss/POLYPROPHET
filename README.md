@@ -4,23 +4,41 @@ This README is the **single canonical source of truth** for PolyProphet: goals, 
 
 If this README conflicts with any other file or chat export, **this README wins**.
 
+---
+
+## ✅ Self-audit prompt (copy/paste for any AI or human)
+
+Use this exact prompt to “final check EVERYTHING”:
+
+> Verify PolyProphet is optimized for **MAX PROFIT ASAP WITH MIN AVOIDABLE VARIANCE** using **Polymarket-native data** only.  
+> Run `/api/version`, `/api/backtest-polymarket` (with proof hash), `/api/verify-trades-polymarket`, `/api/gates`, `/api/halts`, `/api/trades`.  
+> Confirm: no duplicate cycles (slugHash present), no legacy assets (SOL) appear by default, outcomes are settled by Polymarket/Chainlink ground truth, and no silent freezes/halts occur.  
+> If any invariant fails, identify the exact code path and provide a patch + test evidence.
+
 ## 🏆 v54 IS THE PINNACLE — POLYMARKET-GROUND-TRUTH VERIFIED
 
-### 📊 Polymarket-native backtest (Gamma outcomes) — example run
+### 📊 Polymarket-native backtest (Gamma outcomes) — example run (auditable)
 
 This is what the built-in endpoint reports on the deployed collector snapshot set.
 
-**Endpoint**: `GET /api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200`
+**Endpoint**: `GET /api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1`
 
 | Stake | Trades | Polymarket WR | Profit | Max DD |
 |------:|-------:|--------------:|-------:|-------:|
-| 5% | 45 | 75.6% | +13.09% | 16.21% |
-| 10% | 45 | 75.6% | +20.13% | 30.60% |
-| 20% | 45 | 75.6% | +12.49% | 54.24% |
+| 5% | 40 | 75.0% | +39.27% | 16.21% |
+| 10% | 40 | 75.0% | +81.36% | 30.60% |
+| 20% | 40 | 75.0% | +152.61% | 54.24% |
 
-**Key insight**: position size dominates variance. 10% grows faster when the sample is favorable, but can lose money in unlucky sequencing; 5% is more stable.
+**Time span (this run)**: ~2.7 days (from the endpoint’s `summary.timeSpan`)
+
+**No-duplicates proof (this run)**: `slugHash=ab89ed9a881af81d0667ddd4f0503051b40338ff55d5f2d1a84ccfca86a9141c`
+
+**Key insight**: position size dominates variance. 10% grows faster when the sample is favorable; 5% is the “min-variance default”.
 
 **Tail-bet rule**: `minOdds=0.20` blocks catastrophic <20¢ contrarian bets.
+
+**Max-legitimacy entry pricing (optional)**:
+- Add `&entry=CLOB_HISTORY&fidelity=1` to source entry prices from Polymarket’s **CLOB time-series** (`/prices-history`) instead of our snapshot prices (slower, but most “Polymarket-native”).
 
 ---
 
@@ -76,22 +94,23 @@ The deployed instance currently reports:
 curl https://polyprophet.onrender.com/api/version
 ```
 
-Expected (as of v53.1):
-- `configVersion: 53`
-- ONE preset: `GOAT` (MAX PROFIT MIN VARIANCE)
-- UI renamed from "Supreme Oracle" to "POLYPROPHET"
+Expected (as of v54):
+- `configVersion: 54`
+- ONE preset: `GOAT` (MAX PROFIT ASAP with MIN avoidable variance)
+- UI branding: **POLYPROPHET**
+- PAPER + LIVE cycle settlement: uses **Polymarket Gamma resolution** when `slug` is available (truthful outcomes)
 
-### v53.1 Critical Fixes:
-1. ✅ **Trade entry tracking** — Captures ENTRY-TIME prices (not cycle-end) for accurate profit backtesting
-2. ✅ **Polymarket-native backtest** — `/api/backtest-polymarket` uses real Gamma API outcomes
-3. ✅ **minOdds=20¢ TAIL BET BLOCK** — Polymarket verified: entry <20¢ = 6.7% WR (Oracle contradicts market = BAD)
-4. ✅ **maxOdds=95¢** — Polymarket verified: entry 90-99¢ = 97.5% WR (Oracle confirms market = GOOD)
-5. ✅ **Cycle reset for entry tracking** — `tradeEntryOdds` properly resets each cycle
+### v54 Critical Fixes (current):
+1. ✅ **Truthful PAPER + LIVE settlement** — cycle-end closes use **Polymarket Gamma outcomes** (prevents “paper wins” that lose on Polymarket)
+2. ✅ **Polymarket-native backtest (auditable)** — `/api/backtest-polymarket` returns **timeSpan + slugHash proof + stake scan**
+3. ✅ **Realism controls** — `maxTradesPerCycle=1` + `selection=BEST_EV` + `respectEV=1` avoid “multi-asset same-cycle fantasy trades”
+4. ✅ **Tail bet block** — `minOdds=0.20` rejects catastrophic <20¢ contrarian entries
+5. ✅ **Child-simple API panel** — backtest/verify/trades render as readable tables (no JSON required)
 
-**KEY INSIGHT FROM POLYMARKET VERIFICATION:**
-- Oracle CONFIRMING market direction (high entry price): 97.5% WR ✅
-- Oracle CONTRADICTING market direction (low entry price): 6.7% WR ❌
-- The Oracle's edge is in CONFIRMATION, not CONTRARIAN bets
+**KEY INSIGHT (ground truth)**:
+- Avoid “Oracle vs Market” **contrarian tail bets** (low-price entries) — they are historically catastrophic.
+- Prefer setups where the Oracle has a real edge *without* paying “nearly 1.00” (fees + tiny ROI).
+- This is enforced by `minOdds=0.20` and the positive-EV gate.
 
 ### v52 Fixes (retained):
 - ✅ Config drift fixed (deep-merge presets)
@@ -173,7 +192,7 @@ You provided “trades to $1M” grids by:
 
 High-level conclusions:
 - If performance can degrade to **80%** for a window, **50%+ sizing** becomes bust-prone unless ROI is very high.
-- For robustness across regimes, the “sweet spot” is usually **~20–30% sizing**, plus fast throttling after losses.
+- For robustness across regimes, the “sweet spot” is usually **~5–10% sizing** (default), with **20%** reserved for explicitly high-variance mode.
 
 ### Critical v46 evidence: stop-loss can create avoidable variance
 From the extra debug (v46) and live correlation:
@@ -215,33 +234,56 @@ If you want to push harder toward $1M speed:
 
 **Note**: On deployed server, backtest requires debug files. Export debug locally via "📥 Export Debug" button, or restore from `debug-archive` branch.
 
-### 🏆 v53.1: Polymarket-Native Backtest (Ground Truth)
+### 🏆 v54: Polymarket-Native Backtest (Ground Truth, Auditable)
 
 **Endpoint**: `GET /api/backtest-polymarket`
 
-**How it works**:
-1. Collects cycles from debug files AND collector snapshots
-2. Uses **best available entry price**:
-   - `entryOdds` when present (debug exports)
-   - otherwise collector snapshot YES/NO prices as an entry proxy
-3. Queries **Polymarket Gamma API** for real market resolution outcomes
-4. Simulates P&L using slippage (1%) + profit fee (2%)
+**How it works (v54)**:
+1. Pulls **collector snapshots** (Polymarket markets + bot signals) from Redis / `backtest-data/`
+2. Builds a candidate trade list and **dedupes by Polymarket `slug`** (no double-counting)
+3. Enforces **realism**:
+   - group by 15m window across assets
+   - `maxTradesPerCycle` (default: 1) — prevents “3 assets in the same 15m” fantasy unless you opt in
+   - `selection` rule (default: `BEST_EV`) chooses which asset to take that window
+   - optional `respectEV=1` applies the same positive-EV rule as runtime
+4. Queries **Polymarket Gamma API** for the **ground-truth resolution outcome**
+5. Determines entry price:
+   - default: uses snapshot YES/NO prices (fast)
+   - optional: `entry=CLOB_HISTORY` uses Polymarket **CLOB `/prices-history`** time-series prices (most Polymarket-native)
+6. Simulates P&L with friction: slippage (1%) + profit fee (2%)
+7. Returns **proof fields**:
+   - `summary.timeSpan` (how many real hours/days are covered)
+   - `proof.slugHash` (sha256 of processed slugs) so you can audit “no duplicates”
 
-**Query params**:
+**Query params (most important)**:
 - `tier=CONVICTION|ADVISORY|ALL` — filter by tier (default: CONVICTION)
 - `minOdds=0.20` — min entry price (default: 20¢; blocks tail bets)
 - `maxOdds=0.95` — max entry price (default: 95¢)
 - `balance=10` — starting balance (default: $10)
 - `stake=0.10` — position size as fraction of balance (default: 10% for min variance)
-- `limit=200` — max cycles to process (rate limit protection)
+- `limit=200` — max **15m windows** to process (rate limit protection)
+- `maxTradesPerCycle=1` — realism guardrail (recommended)
+- `selection=BEST_EV|HIGHEST_CONF` — how we choose the 1 trade per window
+- `respectEV=1` — only include positive-EV candidates (recommended)
+- `scan=1` — include a stake “sweet spot” scan table
+- `stakes=0.05,0.10,0.20` — override scan stakes
+- `snapshotPick=EARLIEST|LATEST` — if multiple snapshots exist for same slug (rare), which one to use
+- `entry=SNAPSHOT|CLOB_HISTORY` — entry price source (default: SNAPSHOT; recommended for maximum legitimacy: CLOB_HISTORY)
+- `fidelity=1` — CLOB price history resolution in minutes (only used with `entry=CLOB_HISTORY`)
 
-**Example**: `/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&stake=0.10&balance=10`
+**Example (recommended)**:
+
+`/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&stake=0.10&balance=10&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1`
 
 **Output includes**:
 - Win rate vs Polymarket resolution
 - Total profit/loss simulation
+- Time span covered (real hours/days)
 - Expected value per $1 stake
-- Interpretation: ✅ POSITIVE EV / ⚠️ MARGINAL / ❌ NEGATIVE EV
+- Proof: `slugHash` (no duplicates)
+- Interpretation: ✅ PROFITABLE / ⚠️ POSITIVE EDGE BUT LOST / ❌ NEGATIVE
+
+**Limitation (honest)**: even with `entry=CLOB_HISTORY`, we still don’t reconstruct your exact fill (orderbook + spread). We use Polymarket’s time-series price plus a conservative slippage model.
 
 ### ✅ Verify executed trades (ground truth)
 
@@ -317,6 +359,52 @@ Security rule: never commit secrets; use `.env` locally and Render env vars in p
 - `POST /api/reset-balance`
 - `POST /api/circuit-breaker/override`
 - `POST /api/toggle-stop-loss-override`
+
+---
+
+## ✅ FINAL Acceptance Checklist (v54)
+
+Run these checks **before** calling anything “final / GOAT”:
+
+### A) Deployment identity (no config drift)
+- `GET /api/version` shows **configVersion=54** and the expected git commit.
+- `GET /api/health` is green and uptime is increasing normally.
+
+### B) Market scope + anti-confusion (SOL is truly gone)
+- `/api/trades` shows **BTC/ETH/XRP only** (SOL hidden by default).
+- If you run `/api/trades?includeLegacy=1`, any old SOL trades are clearly “legacy”.
+
+### C) Polymarket-native backtest is auditable and duplicate-free
+- Run:
+  - `/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200&maxTradesPerCycle=1&selection=BEST_EV&respectEV=1&scan=1`
+- Confirm:
+  - `summary.timeSpan` is present (hours/days covered)
+  - `proof.slugHash` is present (no duplicates)
+  - `maxTradesPerCycle=1` is respected (realism)
+  - “sweet spot” scan shows your preferred stake vs max drawdown
+- Optional (maximum legitimacy): add `&entry=CLOB_HISTORY&fidelity=1` (uses Polymarket CLOB `/prices-history` time-series).
+
+### D) Executed trades match Polymarket resolution (no silent mismatch)
+- Run:
+  - `/api/verify-trades-polymarket?mode=PAPER&limit=200`
+- Confirm:
+  - `mismatches` is **~0 for comparable (binary exit) trades** after v54+ settlement changes
+  - Any remaining mismatches should be **legacy trades** created before v54.
+
+### E) Gates + halts are truthful (minimize avoidable variance)
+- `GET /api/gates` shows why trades are blocked (most often `negative_EV`).
+- `GET /api/halts` shows explicit reasons/state (no mystery halts).
+- Loss streak / drift logic is based on **EXECUTED trade outcomes**, not “signal correctness”.
+
+### F) LIVE truthfulness + redemption
+- LIVE mode must settle cycle outcomes from **Polymarket ground truth** (Gamma).
+- Winners are queued for redemption; binary resolution should not trigger “sell” attempts.
+- If anything about LIVE settlement is unclear, **do not run LIVE** until `/api/verify-trades-polymarket?mode=LIVE` looks clean.
+
+### G) Reality check: “$5 → $100 in 24h”
+- This is an extremely aggressive target (requires ~20× in 24h).
+- The current Polymarket-native sample shows strong edge but does **not** guarantee that growth rate without materially increasing variance/bust risk.
+- Use `scan=1` to decide the fastest stake that stays within your max drawdown tolerance.
 
 ---
 

@@ -460,6 +460,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const respectEVGate = !(String(req.query.respectEV || '').toLowerCase() === 'false' || String(req.query.respectEV || '') === '0');
         const snapshotPick = String(req.query.snapshotPick || 'EARLIEST').toUpperCase(); // EARLIEST | LATEST
         const scan = (req.query.scan === '1' || String(req.query.scan || '').toLowerCase() === 'true');
+        const entryMode = String(req.query.entry || 'SNAPSHOT').toUpperCase(); // SNAPSHOT | CLOB_HISTORY
+        const clobFidelityRaw = parseInt(req.query.fidelity);
+        const clobFidelity = Number.isFinite(clobFidelityRaw) ? Math.max(1, Math.min(15, clobFidelityRaw)) : 1; // minutes
         const scanStakes = (typeof req.query.stakes === 'string' && req.query.stakes.length > 0)
             ? req.query.stakes.split(',').map(s => parseFloat(String(s).trim())).filter(x => Number.isFinite(x) && x > 0 && x < 1).slice(0, 10)
             : [0.05, 0.10, 0.20];
@@ -512,8 +515,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             return (pw * winRoiNet) - (1 - pw);
         }
         
-        // Helper to fetch Gamma market outcome
-        async function fetchGammaOutcome(slug) {
+        // Helper to fetch Gamma market outcome + token ids (Polymarket-native)
+        async function fetchGammaResolvedMarket(slug) {
             try {
                 const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
                 const response = await fetch(url, { 
@@ -542,14 +545,59 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 const o0 = String(outcomes[0]).toLowerCase();
                 const o1 = String(outcomes[1]).toLowerCase();
                 
-                if (o0 === 'up' && o1 === 'down') return idx0Win ? 'UP' : 'DOWN';
-                if (o0 === 'down' && o1 === 'up') return idx0Win ? 'DOWN' : 'UP';
-                if (o0 === 'yes' && o1 === 'no') return idx0Win ? 'UP' : 'DOWN';
-                if (o0 === 'no' && o1 === 'yes') return idx0Win ? 'DOWN' : 'UP';
-                return idx0Win ? 'UP' : 'DOWN';
+                let outcome = idx0Win ? 'UP' : 'DOWN';
+                if (o0 === 'up' && o1 === 'down') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
+                else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
+
+                const clobTokenIds = parseMaybeJsonArray(market.clobTokenIds) || null;
+                return { outcome, outcomes, clobTokenIds };
             } catch {
                 return null;
             }
+        }
+
+        async function fetchClobEntryPrice(tokenId, cycleStartEpochSec, cycleEndEpochSec, targetEpochSec) {
+            try {
+                if (!tokenId || !Number.isFinite(cycleStartEpochSec) || !Number.isFinite(cycleEndEpochSec)) return null;
+                const startTs = Math.floor(cycleStartEpochSec);
+                const endTs = Math.floor(cycleEndEpochSec);
+                const targetTs = Number.isFinite(targetEpochSec) ? Math.floor(targetEpochSec) : startTs;
+                const url = `https://clob.polymarket.com/prices-history?market=${encodeURIComponent(String(tokenId))}&startTs=${startTs}&endTs=${endTs}&fidelity=${clobFidelity}`;
+
+                const response = await fetch(url, {
+                    headers: { 'User-Agent': 'polyprophet-backtest/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                if (!response.ok) return null;
+                const data = await response.json();
+                const history = Array.isArray(data?.history) ? data.history : [];
+                if (history.length === 0) return null;
+
+                let best = null;
+                let bestDiff = Infinity;
+                for (const h of history) {
+                    const t = Number(h?.t);
+                    const p = Number(h?.p);
+                    if (!Number.isFinite(t) || !Number.isFinite(p) || p <= 0) continue;
+                    const diff = Math.abs(t - targetTs);
+                    if (diff < bestDiff) {
+                        bestDiff = diff;
+                        best = p;
+                    }
+                }
+                return Number.isFinite(best) ? best : null;
+            } catch {
+                return null;
+            }
+        }
+
+        function outcomeLabelToDir(label) {
+            const s = String(label || '').trim().toLowerCase();
+            if (s === 'up' || s === 'yes') return 'UP';
+            if (s === 'down' || s === 'no') return 'DOWN';
+            return null;
         }
         
         // Helper to build slug from cycle time (debug exports fallback)
@@ -771,7 +819,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         });
 
         // Fetch outcomes once (cached) so we can do stake scans without extra Gamma calls.
-        const outcomeCache = new Map(); // slug -> 'UP'|'DOWN'|null
+        const outcomeCache = new Map(); // slug -> { outcome, outcomes, clobTokenIds } | null
         const resolvedCycles = [];
         let resolved = 0;
         let unresolved = 0;
@@ -782,18 +830,54 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 await new Promise(r => setTimeout(r, 50));
             }
 
-            let polyOutcome = outcomeCache.get(cycle.slug);
-            if (polyOutcome === undefined) {
-                polyOutcome = await fetchGammaOutcome(cycle.slug);
-                outcomeCache.set(cycle.slug, polyOutcome || null);
+            let gammaResolved = outcomeCache.get(cycle.slug);
+            if (gammaResolved === undefined) {
+                gammaResolved = await fetchGammaResolvedMarket(cycle.slug);
+                outcomeCache.set(cycle.slug, gammaResolved || null);
             }
 
-            if (!polyOutcome) {
+            if (!gammaResolved) {
                 unresolved++;
                 continue;
             }
             resolved++;
-            resolvedCycles.push({ ...cycle, polymarketOutcome: polyOutcome });
+            resolvedCycles.push({
+                ...cycle,
+                polymarketOutcome: gammaResolved.outcome,
+                gammaOutcomes: gammaResolved.outcomes,
+                clobTokenIds: gammaResolved.clobTokenIds
+            });
+        }
+
+        // Optional: replace snapshot entry prices with Polymarket CLOB time-series prices (more "native", slower).
+        if (entryMode === 'CLOB_HISTORY') {
+            for (const c of resolvedCycles) {
+                try {
+                    if (c.source !== 'collector') continue;
+                    if (!Array.isArray(c.gammaOutcomes) || !Array.isArray(c.clobTokenIds)) continue;
+                    if (!Number.isFinite(c.cycleStartEpochSec)) continue;
+
+                    const targetEpochSec = Number.isFinite(c.observedAtMs) ? Math.floor(c.observedAtMs / 1000) : c.cycleStartEpochSec;
+                    const cycleEndEpochSec = c.cycleStartEpochSec + 900;
+
+                    // Map prediction (UP/DOWN) -> tokenId based on Gamma outcomes ordering
+                    let tokenId = null;
+                    for (let i = 0; i < c.gammaOutcomes.length && i < c.clobTokenIds.length; i++) {
+                        const dir = outcomeLabelToDir(c.gammaOutcomes[i]);
+                        if (dir === c.prediction) {
+                            tokenId = c.clobTokenIds[i];
+                            break;
+                        }
+                    }
+
+                    if (!tokenId) continue;
+                    const px = await fetchClobEntryPrice(tokenId, c.cycleStartEpochSec, cycleEndEpochSec, targetEpochSec);
+                    if (Number.isFinite(px) && px > 0) {
+                        c.entryPrice = px;
+                        c.entrySource = 'clobHistory';
+                    }
+                } catch { /* ignore */ }
+            }
         }
 
         function simulate(stakeFraction) {
@@ -940,7 +1024,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 isProfitable: primarySim.totalProfit > 0,
                 maxTradesPerCycle,
                 selection,
-                respectEVGate
+                respectEVGate,
+                entryMode,
+                clobFidelity: clobFidelity
             },
             coverage: {
                 candidatesFound: allCycles.length,
@@ -970,6 +1056,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 maxTradesPerCycle,
                 selection,
                 respectEVGate,
+                entry: entryMode,
+                fidelity: clobFidelity,
                 scan,
                 stakes: scanStakes
             },
@@ -11449,7 +11537,7 @@ app.get('/', (req, res) => {
                     '<div>' + icon + ' <b style="color:' + profitColor + ';">Profit:</b> $' + profit.toFixed(2) + ' <span style="color:#888;">(' + (s.profitPct || 'N/A') + ')</span></div>' +
                     '<div>🎯 <b>Win rate:</b> ' + (s.winRate || 'N/A') + ' <span style="color:#888;">(' + (s.wins || 0) + 'W / ' + (s.losses || 0) + 'L)</span></div>' +
                     '<div>📉 <b>Max drawdown:</b> ' + (s.maxDrawdown || 'N/A') + '</div>' +
-                    '<div>🧠 <b>Selection:</b> ' + (s.selection || 'N/A') + ' <span style="color:#888;">(maxTradesPerCycle: ' + (s.maxTradesPerCycle || '?') + ', EV gate: ' + (s.respectEVGate ? 'ON' : 'OFF') + ')</span></div>' +
+                    '<div>🧠 <b>Selection:</b> ' + (s.selection || 'N/A') + ' <span style="color:#888;">(maxTradesPerCycle: ' + (s.maxTradesPerCycle || '?') + ', EV gate: ' + (s.respectEVGate ? 'ON' : 'OFF') + ', entry: ' + (s.entryMode || 'SNAPSHOT') + ')</span></div>' +
                     '<div>⏱️ <b>Runtime:</b> ' + (s.runtime || 'N/A') + '</div>' +
                     '<div>🧾 <b>Resolved:</b> ' + (cov.resolved || 0) + ' <span style="color:#888;">(unresolved: ' + (cov.unresolved || 0) + ', slugs: ' + slugsFound + ', windows: ' + windowsProcessed + ')</span></div>' +
                     '<div>🧾 <b>No-duplicates proof:</b> <code>' + (slugHash ? (slugHash.substring(0, 16) + '…') : 'N/A') + '</code> <span style="color:#888;">(' + (proof.slugCount || 0) + ' slugs)</span></div>' +
