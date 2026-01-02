@@ -15140,3 +15140,477 @@
 22:45:14 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
 22:45:14 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
 22:45:14 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:15 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:15 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:15 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:15 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.3x normal)
+22:45:15 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:15 [XRP] 📊 Odds: YES 64.0% | NO 43.0%
+22:45:16 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:16 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:16 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 64¢ + No 43¢ ≠ 100%)
+22:45:16 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.3x normal)
+22:45:16 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:16 [BTC] 📊 Odds: YES 53.0% | NO 48.0%
+22:45:17 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:17 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:17 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:17 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 64¢ + No 43¢ ≠ 100%)
+22:45:17 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.3x normal)
+22:45:17 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:17 [XRP] 📊 Odds: YES 64.0% | NO 43.0%
+22:45:18 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:18 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:18 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 64¢ + No 43¢ ≠ 100%)
+22:45:18 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:18 [BTC] 📊 Odds: YES 57.0% | NO 44.0%
+22:45:19 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:19 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:19 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:19 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 64¢ + No 43¢ ≠ 100%)
+22:45:19 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:20 [XRP] 📊 Odds: YES 66.0% | NO 35.0%
+22:45:20 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:20 [ETH] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:20 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:20 [BTC] 📊 Odds: YES 59.0% | NO 43.0%
+22:45:21 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:21 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.0x normal)
+22:45:21 [BTC] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:21 [BTC] ℹ️ NEUTRAL signal - edge set to 0
+22:45:21 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:21 [XRP] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:22 [XRP] 📊 Odds: YES 66.0% | NO 44.0%
+22:45:22 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.2x normal)
+22:45:22 [BTC] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:22 [BTC] ✅ PREDICTION FLIP: NEUTRAL @ 10.2%
+22:45:22 [BTC] ℹ️ NEUTRAL signal - edge set to 0
+22:45:22 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:22 [XRP] ⚠️ LIQUIDITY VOID: Spread 10.0% (Yes 66¢ + No 44¢ ≠ 100%)
+22:45:22 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:22 [BTC] 📊 Odds: YES 59.0% | NO 42.0%
+22:45:23 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:23 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:45:23 [BTC] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:23 [BTC] ℹ️ NEUTRAL signal - edge set to 0
+22:45:23 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 74% agree)
+22:45:23 [XRP] ⚠️ LIQUIDITY VOID: Spread 10.0% (Yes 66¢ + No 44¢ ≠ 100%)
+22:45:23 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:24 [XRP] 📊 Odds: YES 66.0% | NO 44.0%
+22:45:24 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:24 [ETH] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:24 [XRP] ⚠️ LIQUIDITY VOID: Spread 10.0% (Yes 66¢ + No 44¢ ≠ 100%)
+22:45:24 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:24 [BTC] 📊 Odds: YES 59.0% | NO 42.0%
+22:45:25 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:25 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:25 [BTC] ✅ PREDICTION FLIP: UP @ 24.3%
+22:45:25 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:25 [XRP] ⚠️ LIQUIDITY VOID: Spread 10.0% (Yes 66¢ + No 44¢ ≠ 100%)
+22:45:25 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:26 [XRP] 📊 Odds: YES 66.0% | NO 43.0%
+22:45:26 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:26 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:26 [XRP] ⚠️ LIQUIDITY VOID: Spread 9.0% (Yes 66¢ + No 43¢ ≠ 100%)
+22:45:26 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:26 [BTC] 📊 Odds: YES 56.0% | NO 45.0%
+22:45:27 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:27 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:27 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:27 [XRP] ⚠️ LIQUIDITY VOID: Spread 9.0% (Yes 66¢ + No 43¢ ≠ 100%)
+22:45:27 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:28 [XRP] 📊 Odds: YES 66.0% | NO 40.0%
+22:45:28 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:28 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:28 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 66¢ + No 40¢ ≠ 100%)
+22:45:28 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:28 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:29 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:29 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:29 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:29 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 66¢ + No 40¢ ≠ 100%)
+22:45:29 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:29 [XRP] 📊 Odds: YES 66.0% | NO 40.0%
+22:45:30 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:30 [BTC] 📊 DIAG: Conf=25.3% ConvThresh=71.6% AdvThresh=54.4% Tier=NONE Elapsed=30s Locked=false
+22:45:30 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:30 [ETH] 📊 DIAG: Conf=28.5% ConvThresh=70.6% AdvThresh=53.4% Tier=NONE Elapsed=30s Locked=false
+22:45:30 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 66¢ + No 40¢ ≠ 100%)
+22:45:30 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:30 [XRP] 📊 DIAG: Conf=0.0% ConvThresh=69.2% AdvThresh=52.0% Tier=NONE Elapsed=30s Locked=false
+22:45:30 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 28 | Vel: 0.0
+22:45:30 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:31 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:31 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:31 [BTC] 📊 DIAG: Conf=27.0% ConvThresh=71.6% AdvThresh=54.4% Tier=NONE Elapsed=31s Locked=false
+22:45:31 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:31 [ETH] 📊 DIAG: Conf=32.2% ConvThresh=70.6% AdvThresh=53.4% Tier=NONE Elapsed=31s Locked=false
+22:45:31 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 66¢ + No 40¢ ≠ 100%)
+22:45:31 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:31 [XRP] 📊 DIAG: Conf=0.0% ConvThresh=69.2% AdvThresh=52.0% Tier=NONE Elapsed=31s Locked=false
+22:45:31 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 22 | Vel: -6.0
+22:45:32 [XRP] 📊 Odds: YES 66.0% | NO 42.0%
+22:45:32 [BTC] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:32 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:32 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 66¢ + No 42¢ ≠ 100%)
+22:45:32 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:32 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:33 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:33 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:33 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:33 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 66¢ + No 42¢ ≠ 100%)
+22:45:33 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:34 [XRP] 📊 Odds: YES 60.0% | NO 46.0%
+22:45:34 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:34 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:34 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 60¢ + No 46¢ ≠ 100%)
+22:45:34 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:34 [BTC] 📊 Odds: YES 51.0% | NO 51.0%
+22:45:35 [ETH] 📊 Odds: YES 47.0% | NO 54.0%
+22:45:35 [BTC] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:35 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:35 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 60¢ + No 46¢ ≠ 100%)
+22:45:35 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:36 [XRP] 📊 Odds: YES 58.0% | NO 48.0%
+22:45:36 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:36 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:36 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 58¢ + No 48¢ ≠ 100%)
+22:45:36 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:36 [BTC] 📊 Odds: YES 48.0% | NO 53.0%
+22:45:37 [ETH] 📊 Odds: YES 50.0% | NO 51.0%
+22:45:37 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:37 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:37 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 58¢ + No 48¢ ≠ 100%)
+22:45:37 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:38 [XRP] 📊 Odds: YES 53.0% | NO 50.0%
+22:45:38 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:38 [ETH] ✨ CONSENSUS BONUS: High agreement (91%)
+22:45:38 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 73% agree)
+22:45:38 [BTC] 📊 Odds: YES 47.0% | NO 55.0%
+22:45:39 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:39 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:39 [ETH] ✨ CONSENSUS BONUS: High agreement (91%)
+22:45:39 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 73% agree)
+22:45:40 [XRP] 📊 Odds: YES 51.0% | NO 51.0%
+22:45:40 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:40 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.9x normal)
+22:45:40 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:40 [ETH] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:40 [XRP] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:40 [BTC] 📊 Odds: YES 46.0% | NO 55.0%
+22:45:41 [ETH] 📊 Odds: YES 55.0% | NO 47.0%
+22:45:41 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:41 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.9x normal)
+22:45:41 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:41 [ETH] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:41 [XRP] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:42 [XRP] 📊 Odds: YES 56.0% | NO 50.0%
+22:45:42 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:42 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.9x normal)
+22:45:42 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:42 [ETH] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:42 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 56¢ + No 50¢ ≠ 100%)
+22:45:42 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:42 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:42 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:42 [BTC] 📊 Odds: YES 45.0% | NO 56.0%
+22:45:43 [ETH] 📊 Odds: YES 55.0% | NO 46.0%
+22:45:43 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:43 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.9x normal)
+22:45:43 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:43 [ETH] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:43 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 56¢ + No 50¢ ≠ 100%)
+22:45:43 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:43 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:43 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:44 [XRP] 📊 Odds: YES 56.0% | NO 51.0%
+22:45:44 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:44 [BTC] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:44 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 83% agree)
+22:45:44 [BTC] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:44 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:44 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 56¢ + No 51¢ ≠ 100%)
+22:45:44 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:44 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:44 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:44 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:44 [BTC] 📊 Odds: YES 44.0% | NO 57.0%
+22:45:45 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:45 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:45 [BTC] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:45 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 83% agree)
+22:45:45 [BTC] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:45 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:45 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 56¢ + No 51¢ ≠ 100%)
+22:45:45 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:45 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:45 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:45 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:46 [XRP] 📊 Odds: YES 52.0% | NO 51.0%
+22:45:46 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:46 [BTC] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:46 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 83% agree)
+22:45:46 [BTC] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:46 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:46 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:46 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:46 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:46 [XRP] 🚫 BLOCKED: Extreme divergence from market (3U/0D)
+22:45:46 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:46 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:46 [BTC] 📊 Odds: YES 43.0% | NO 58.0%
+22:45:47 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:47 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:47 [BTC] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:47 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 83% agree)
+22:45:47 [BTC] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:47 [ETH] ✨ CONSENSUS BONUS: High agreement (81%)
+22:45:47 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:47 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:47 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:47 [XRP] 🚫 BLOCKED: Extreme divergence from market (3U/0D)
+22:45:47 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:47 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:48 [XRP] 📊 Odds: YES 53.0% | NO 51.0%
+22:45:48 [BTC] ✨ CONSENSUS BONUS: High agreement (90%)
+22:45:48 [BTC] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:48 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 90% agree)
+22:45:48 [BTC] 🚫 BLOCKED: Extreme divergence from market (3U/0D)
+22:45:48 [BTC] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:48 [BTC] ℹ️ NEUTRAL signal - edge set to 0
+22:45:48 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:48 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:48 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:48 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:45:48 [XRP] 🚫 BLOCKED: Extreme divergence from market (3U/0D)
+22:45:48 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:48 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:48 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:45:49 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:49 [BTC] ✨ CONSENSUS BONUS: High agreement (90%)
+22:45:49 [BTC] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:49 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 90% agree)
+22:45:49 [BTC] 🚫 BLOCKED: Extreme divergence from market (3U/0D)
+22:45:49 [BTC] ✅ PREDICTION FLIP: NEUTRAL @ 2.6%
+22:45:49 [BTC] ℹ️ NEUTRAL signal - edge set to 0
+22:45:49 [ETH] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:49 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:49 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:49 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:45:49 [XRP] ⚠️ Contrarian (2U/0D)
+22:45:49 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:49 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:50 [XRP] 📊 Odds: YES 53.0% | NO 51.0%
+22:45:50 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:50 [BTC] ⚠️ Contrarian (2U/0D)
+22:45:50 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:50 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:50 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:50 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:50 [XRP] ⚠️ Contrarian (2U/0D)
+22:45:50 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:50 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:50 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:45:51 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:51 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:51 [BTC] ⚠️ Contrarian (2U/0D)
+22:45:51 [BTC] ✅ PREDICTION FLIP: DOWN @ 14.0%
+22:45:51 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:51 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:51 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:51 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:51 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:51 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:51 [XRP] 📊 Odds: YES 53.0% | NO 51.0%
+22:45:52 [BTC] ✨ CONSENSUS BONUS: High agreement (90%)
+22:45:52 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:52 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:52 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:52 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:52 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:52 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:52 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:45:53 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:53 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:53 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:53 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:53 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:53 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:53 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:53 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:54 [XRP] 📊 Odds: YES 54.0% | NO 51.0%
+22:45:54 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:54 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:54 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 54¢ + No 51¢ ≠ 100%)
+22:45:54 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:54 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:54 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:54 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:54 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:45:55 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:55 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 72% agree)
+22:45:55 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:55 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 54¢ + No 51¢ ≠ 100%)
+22:45:55 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:55 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:55 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:55 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:56 [XRP] 📊 Odds: YES 53.0% | NO 51.0%
+22:45:56 [BTC] ✨ CONSENSUS BONUS: High agreement (87%)
+22:45:56 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 87% agree)
+22:45:56 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:56 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:56 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:56 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:56 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:56 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:45:57 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:57 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:57 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:57 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:45:57 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:57 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:45:57 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:57 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:58 [XRP] 📊 Odds: YES 53.0% | NO 51.0%
+22:45:58 [BTC] ✨ CONSENSUS BONUS: High agreement (87%)
+22:45:58 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 87% agree)
+22:45:58 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:45:58 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:58 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:58 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:58 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:58 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:58 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:45:59 [ETH] 📊 Odds: YES 54.0% | NO 47.0%
+22:45:59 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 72% agree)
+22:45:59 [ETH] ✨ CONSENSUS BONUS: High agreement (95%)
+22:45:59 [XRP] ✨ CONSENSUS BONUS: High agreement (88%)
+22:45:59 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:45:59 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 88% agree)
+22:45:59 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:45:59 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:00 [XRP] 📊 Odds: YES 51.0% | NO 53.0%
+22:46:00 [BTC] ✨ CONSENSUS BONUS: High agreement (87%)
+22:46:00 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 87% agree)
+22:46:00 [BTC] 📊 DIAG: Conf=25.0% ConvThresh=73.3% AdvThresh=56.0% Tier=NONE Elapsed=60s Locked=false
+22:46:00 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.6x normal)
+22:46:00 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:00 [ETH] 📊 DIAG: Conf=10.9% ConvThresh=70.6% AdvThresh=53.4% Tier=NONE Elapsed=60s Locked=false
+22:46:00 [ETH] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:46:00 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.5x normal)
+22:46:00 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:00 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:00 [XRP] 📊 DIAG: Conf=3.1% ConvThresh=71.8% AdvThresh=54.6% Tier=NONE Elapsed=60s Locked=false
+22:46:00 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 22 | Vel: -50.0
+22:46:00 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:00 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:00 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:46:01 [ETH] 📊 Odds: YES 53.0% | NO 48.0%
+22:46:01 [BTC] ✨ CONSENSUS BONUS: High agreement (87%)
+22:46:01 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 87% agree)
+22:46:01 [BTC] 📊 DIAG: Conf=25.0% ConvThresh=73.3% AdvThresh=56.0% Tier=NONE Elapsed=61s Locked=false
+22:46:01 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:46:01 [ETH] 📊 DIAG: Conf=26.9% ConvThresh=71.8% AdvThresh=54.6% Tier=NONE Elapsed=61s Locked=false
+22:46:01 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.2x normal)
+22:46:01 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:01 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:01 [XRP] 📊 DIAG: Conf=0.5% ConvThresh=71.8% AdvThresh=54.6% Tier=NONE Elapsed=61s Locked=false
+22:46:01 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 22 | Vel: 0.0
+22:46:01 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:01 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:02 [XRP] 📊 Odds: YES 48.0% | NO 57.0%
+22:46:02 [BTC] ✨ CONSENSUS BONUS: High agreement (87%)
+22:46:02 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 87% agree)
+22:46:02 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.2x normal)
+22:46:02 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:02 [ETH] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:46:02 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.7x normal)
+22:46:02 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:02 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:02 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:02 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:02 [BTC] 📊 Odds: YES 41.0% | NO 60.0%
+22:46:03 [ETH] 📊 Odds: YES 53.0% | NO 48.0%
+22:46:03 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 72% agree)
+22:46:03 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.6x normal)
+22:46:03 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:03 [ETH] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:46:03 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.2x normal)
+22:46:03 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:03 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:03 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:03 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:04 [XRP] 📊 Odds: YES 44.0% | NO 58.0%
+22:46:04 [BTC] ✨ CONSENSUS BONUS: High agreement (87%)
+22:46:04 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 87% agree)
+22:46:04 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:46:04 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:04 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:04 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:46:04 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:04 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:04 [BTC] 📊 Odds: YES 39.0% | NO 62.0%
+22:46:05 [ETH] 📊 Odds: YES 53.0% | NO 48.0%
+22:46:05 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:05 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:46:05 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:05 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:05 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:46:05 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:05 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:06 [XRP] 📊 Odds: YES 44.0% | NO 61.0%
+22:46:06 [BTC] ✨ CONSENSUS BONUS: High agreement (87%)
+22:46:06 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 87% agree)
+22:46:06 [ETH] ✨ CONSENSUS BONUS: High agreement (94%)
+22:46:06 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 44¢ + No 61¢ ≠ 100%)
+22:46:06 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:06 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:06 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:06 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:06 [BTC] 📊 Odds: YES 37.0% | NO 64.0%
+22:46:07 [ETH] 📊 Odds: YES 53.0% | NO 48.0%
+22:46:07 [BTC] ✨ CONSENSUS BONUS: High agreement (90%)
+22:46:07 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 44¢ + No 61¢ ≠ 100%)
+22:46:07 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:46:07 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:07 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:07 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:08 [XRP] 📊 Odds: YES 45.0% | NO 59.0%
+22:46:08 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:08 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:08 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:08 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:46:08 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:08 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:08 [BTC] 📊 Odds: YES 37.0% | NO 64.0%
+22:46:09 [ETH] 📊 Odds: YES 51.0% | NO 51.0%
+22:46:09 [BTC] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:09 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:09 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:09 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:46:09 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:09 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:10 [XRP] 📊 Odds: YES 42.0% | NO 59.0%
+22:46:10 [BTC] ✨ CONSENSUS BONUS: High agreement (90%)
+22:46:10 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:10 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:10 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:46:10 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:10 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:10 [BTC] 📊 Odds: YES 36.0% | NO 65.0%
+22:46:11 [ETH] 📊 Odds: YES 48.0% | NO 53.0%
+22:46:11 [BTC] ✨ CONSENSUS BONUS: High agreement (90%)
+22:46:11 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:11 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:11 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:46:11 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:11 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:12 [XRP] 📊 Odds: YES 42.0% | NO 60.0%
+22:46:12 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 76% agree)
+22:46:12 [XRP] ✨ CONSENSUS BONUS: High agreement (89%)
+22:46:12 [XRP] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:46:12 [XRP] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 89% agree)
+22:46:12 [XRP] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:46:12 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:46:13 [BTC] 📊 Odds: YES 35.0% | NO 66.0%

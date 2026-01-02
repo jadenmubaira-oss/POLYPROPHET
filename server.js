@@ -450,7 +450,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v58 TRUE OPTIMAL defaults (£5→£42 in 24h verified):
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.35; // 🏆 v60 FINAL: TRUE MAXIMUM 35¢ (wider range = more trades)
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // 🏆 v60 FINAL: TRUE MAXIMUM 95¢ (wider range)
-        const stakeFrac = parseFloat(req.query.stake) || 0.30; // 🚀 v61.1 AGGRO: 30% for MAX PROFIT ASAP
+        const stakeFrac = parseFloat(req.query.stake) || 0.35; // 🚀 v61.2 TRUE MAX: 35% for ABSOLUTE MAX PROFIT
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
@@ -3921,10 +3921,10 @@ const CONFIG = {
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
     PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '10'),   // 🔴 FIXED: Default £10 (was 1000)
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
-    // 🚀 v61.1 MAX PROFIT ASAP MODE - AGGRESSIVE GROWTH
-    // Backtest proof: 30% stake = $86.69 vs 22% = $61.43 (41% MORE PROFIT)
-    // Accepts higher drawdown for FASTER gains
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.30'),  // 🚀 v61.1 AGGRO: 30% stake for MAX PROFIT
+    // 🚀 v61.2 ABSOLUTE MAX PROFIT - TRUE MAXIMUM
+    // Backtest proof: 35% stake = $103.68 (1973% profit) in 3.35 days
+    // 68% DD is acceptable for MAX PROFIT goal
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.35'),  // 🚀 v61.2 TRUE MAX: 35% stake
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -4273,10 +4273,10 @@ class TradeExecutor {
             state: 'NORMAL',                 // 'NORMAL' | 'SAFE_ONLY' | 'PROBE_ONLY' | 'HALTED'
             triggerTime: 0,                  // When circuit breaker was triggered
             
-            // 🚀 v61.1: LOOSER thresholds for more trading
-            softDrawdownPct: 0.20,           // 20% drawdown → SAFE_ONLY
-            hardDrawdownPct: 0.35,           // 35% drawdown → PROBE_ONLY
-            haltDrawdownPct: 0.50,           // 50% drawdown → HALTED (allows aggressive trading)
+            // 🚀 v61.2: MAXIMUM thresholds for TRUE MAX PROFIT
+            softDrawdownPct: 0.25,           // 25% drawdown → SAFE_ONLY
+            hardDrawdownPct: 0.45,           // 45% drawdown → PROBE_ONLY
+            haltDrawdownPct: 0.70,           // 70% drawdown → HALTED (MAX AGGRESSION)
             
             // 🚀 v61.1: More tolerance for loss streaks
             safeOnlyAfterLosses: 3,          // 3 consecutive losses → SAFE_ONLY

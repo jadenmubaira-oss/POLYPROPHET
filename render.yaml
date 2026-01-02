@@ -17,9 +17,9 @@ services:
         value: PAPER
       - key: PAPER_BALANCE
         value: "5.00"
-      # 🚀 v61.1: MAX PROFIT ASAP position size (30%)
+      # 🚀 v61.2: ABSOLUTE MAX PROFIT position size (35%)
       - key: MAX_POSITION_SIZE
-        value: "0.30"
+        value: "0.35"
       # 🏆 v61: Liquidity cap
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"
