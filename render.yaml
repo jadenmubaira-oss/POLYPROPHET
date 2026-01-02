@@ -4,17 +4,26 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # No rootDir - uses repo root (server.js v46)
+    # v61 VARIANCE-OPTIMIZED deployment
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      # 🏆 v61: Set TRADE_MODE via Render dashboard for LIVE trading
+      # Keep PAPER here for safety - override in dashboard for LIVE
       - key: TRADE_MODE
         value: PAPER
       - key: PAPER_BALANCE
-        value: "10.00"
+        value: "5.00"
+      # 🏆 v61: VARIANCE-OPTIMIZED position size (22%)
+      - key: MAX_POSITION_SIZE
+        value: "0.22"
+      # 🏆 v61: Liquidity cap
+      - key: MAX_ABSOLUTE_POSITION_SIZE
+        value: "100"
+      # Auth - CHANGE THESE in Render dashboard!
       - key: AUTH_USERNAME
         value: bandito
       - key: AUTH_PASSWORD
