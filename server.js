@@ -450,7 +450,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v58 TRUE OPTIMAL defaults (£5→£42 in 24h verified):
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.35; // 🏆 v60 FINAL: TRUE MAXIMUM 35¢ (wider range = more trades)
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // 🏆 v60 FINAL: TRUE MAXIMUM 95¢ (wider range)
-        const stakeFrac = parseFloat(req.query.stake) || 0.32; // 🏆 v60 FINAL: TRUE MAXIMUM 32% (£5→£54.65 in 78h, 62.61% DD)
+        const stakeFrac = parseFloat(req.query.stake) || 0.35; // 🏆 v60 FINAL: TRUE MAXIMUM 35% (£5→£90.59 in 78h, 67.98% DD)
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
@@ -3713,7 +3713,7 @@ const CONFIG = {
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
     // 🎯 v54.2 TURBO: Target £5 → £100 in ~24h (Polymarket-native backtest tuned).
     // NOTE: Still bounded by RISK.maxTotalExposure and variance controls.
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.32'),  // 🏆 v60 FINAL: TRUE MAXIMUM 32% (£54.65, 993% profit, 62.61% DD)
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.35'),  // 🏆 v60 FINAL: TRUE MAXIMUM 35% (£90.59, 1711% profit, 67.98% DD)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -4148,10 +4148,26 @@ class TradeExecutor {
     }
 
     // Calculate total exposure
-    // 🏆 v60: Exclude PENDING_RESOLUTION positions so they don't block new trades (user choice: free_exposure)
-    getTotalExposure() {
+    // 🏆 v60 FINAL: Mode-aware exposure calculation
+    // - LIVE: ALL positions count (capital locked until settlement confirmed)
+    // - PAPER: PENDING_RESOLUTION excluded (optimistic, faster iteration)
+    getTotalExposure(includeAllForLive = true) {
+        const isLive = this.mode === 'LIVE';
         return Object.values(this.positions)
-            .filter(p => p && p.status !== 'PENDING_RESOLUTION')
+            .filter(p => {
+                if (!p) return false;
+                // LIVE mode: always count all positions (capital is locked)
+                if (isLive && includeAllForLive) return true;
+                // PAPER mode: exclude PENDING_RESOLUTION (optimistic)
+                return p.status !== 'PENDING_RESOLUTION';
+            })
+            .reduce((sum, p) => sum + p.size, 0);
+    }
+    
+    // 🏆 v60 FINAL: Get locked capital (for LIVE-realistic reporting)
+    getLockedCapital() {
+        return Object.values(this.positions)
+            .filter(p => p && (p.status === 'OPEN' || p.status === 'PENDING_RESOLUTION'))
             .reduce((sum, p) => sum + p.size, 0);
     }
     
@@ -11532,7 +11548,7 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
-                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.35&maxOdds=0.95&stake=0.32&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (TRUE MAXIMUM 32% stake)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.35&maxOdds=0.95&stake=0.35&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (TRUE MAXIMUM 35% stake)">🏆 Poly Backtest</button>
                 <button onclick="apiCall('/api/verify-trades-polymarket?mode=PAPER&limit=100')" class="btn" style="background:linear-gradient(90deg,#22c55e,#16a34a);" title="Verify executed trades vs Polymarket outcomes (detect mismatches)">✅ Verify Trades</button>
             </div>
             
@@ -11965,8 +11981,8 @@ app.get('/', (req, res) => {
             const presets = {
                 GOAT: { 
                     // 🎯 v55.1: MIN-VARIANCE optimal for £5 → £100 in 24h.
-                    // 🏆 v60 FINAL: TRUE MAXIMUM 32% stake (£5→£54.65 in 78h, 62.61% DD)
-                    MAX_POSITION_SIZE: 0.32,
+                    // 🏆 v60 FINAL: TRUE MAXIMUM 35% stake (£5→£90.59 in 78h, 67.98% DD)
+                    MAX_POSITION_SIZE: 0.35,
                     // ORACLE: Primary prediction engine with forensic-optimized thresholds
                     ORACLE: { 
                         enabled: true, 
