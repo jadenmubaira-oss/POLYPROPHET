@@ -447,8 +447,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const startTime = Date.now();
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
         const startingBalance = parseFloat(req.query.balance) || 5.0; // 🎯 v55 TURBO default: £5 start
-        const minOddsEntry = parseFloat(req.query.minOdds) || 0.30; // 🎯 v55 TURBO: reject low-price contrarian entries
-        const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.97; // 🎯 v55 TURBO: allow higher-confidence entries
+        // 🔴 v57 CALIBRATION-OPTIMIZED defaults based on 9636 cycles:
+        const minOddsEntry = parseFloat(req.query.minOdds) || 0.50; // 🔴 v57: Block contrarian bets (<50¢ = 28% WR)
+        const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.90; // 🔴 v57: Cap at 90¢ (90-95¢ = 81% WR degraded)
         const stakeFrac = parseFloat(req.query.stake) || 0.36; // 🎯 v55.1: MIN-VARIANCE optimal for £5 → £100 in 24h (36% = £108, 59% max DD)
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
@@ -2986,7 +2987,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 56;  // v56: MIN-VARIANCE optimal (36% stake) for £5 → £100 in 24h target
+const CONFIG_VERSION = 57;  // v57: CALIBRATION-OPTIMIZED (minOdds 50¢, maxOdds 90¢) + settlement timeout fix (60 attempts)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -3043,8 +3044,13 @@ const CONFIG = {
         minConsensus: 0.70,      // 70% model agreement
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        minOdds: 0.30,           // 🎯 v54.2 TURBO: Reject low-price contrarian entries (best 24h growth + higher WR)
-        maxOdds: 0.97,           // 🎯 v54.2 TURBO: Allow higher-confidence entries (needed for £100/24h path)
+        // 🔴 v57 CALIBRATION-OPTIMIZED: Based on 9636 cycles of real data:
+        // - Entry <50¢: 28.4% WR (CATASTROPHIC - Oracle vs Market = Market wins 72%)
+        // - Entry 50-60¢: 98.4% WR
+        // - Entry 60-90¢: 98-100% WR
+        // - Entry 90-95¢: 81.0% WR (degraded)
+        minOdds: 0.50,           // 🔴 v57: Block ALL contrarian bets (was 0.30) - calibration proves <50¢ = 28% WR
+        maxOdds: 0.90,           // 🔴 v57: Cap at 90¢ (was 0.97) - calibration shows 90-95¢ degrades to 81% WR
         minStability: 2,         // 2 ticks - fast lock
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
@@ -6146,8 +6152,11 @@ class TradeExecutor {
         this.pendingPolymarketResolutions.set(slug, { asset, attempts: 0, fallbackOutcome, startedAt });
 
         const isLiveMode = this.mode === 'LIVE';
-        const MAX_ATTEMPTS = isLiveMode ? Infinity : 12;      // PAPER: ~60s total with 5s delay; LIVE: keep trying (truth > speed)
-        const INITIAL_DELAY_MS = 1500; // give Gamma a moment to flip to 1/0
+        // 🔴 v57 FIX: PAPER mode must also wait for Polymarket truth - no premature fallback!
+        // Calibration shows Chainlink fallback causes 4/20 mismatches (20% error rate).
+        // Better to wait longer for truth than record wrong outcomes.
+        const MAX_ATTEMPTS = isLiveMode ? Infinity : 60;      // PAPER: ~5 min total with 5s delay (was 12 = 60s - too short!)
+        const INITIAL_DELAY_MS = 3000; // give Gamma more time to flip to 1/0 (was 1500)
         const RETRY_DELAY_MS = isLiveMode ? 15000 : 5000;
 
         const tick = async () => {
@@ -6185,13 +6194,17 @@ class TradeExecutor {
 
             if (state.attempts >= MAX_ATTEMPTS) {
                 this.pendingPolymarketResolutions.delete(slug);
-                log(`⚠️ POLYMARKET RESOLUTION TIMEOUT: ${asset} slug=${slug} after ${MAX_ATTEMPTS} attempts - falling back to internal outcome ${fallbackOutcome}`, asset);
+                // 🔴 v57 FIX: Log WARNING - fallback is unreliable (Chainlink != Polymarket)
+                // Calibration shows 20% mismatch rate when using Chainlink fallback
+                log(`🚨 POLYMARKET RESOLUTION TIMEOUT: ${asset} slug=${slug} after ${MAX_ATTEMPTS} attempts (~${Math.round(MAX_ATTEMPTS * 5 / 60)}min)`, asset);
+                log(`⚠️ WARNING: Using Chainlink fallback (${fallbackOutcome}) - MAY NOT MATCH POLYMARKET TRUTH!`, asset);
                 for (const id of openMainIds) {
                     const pos = this.positions[id];
                     if (!pos) continue;
                     const won = pos.side === fallbackOutcome;
                     const exitPrice = won ? 1.0 : 0.0;
-                    const reason = won ? `${pos.mode} WIN ✅ (fallback)` : `${pos.mode} LOSS ❌ (fallback)`;
+                    // Mark clearly as UNVERIFIED fallback - streak logic should treat with caution
+                    const reason = won ? `${pos.mode} WIN ⚠️ (UNVERIFIED-fallback)` : `${pos.mode} LOSS ⚠️ (UNVERIFIED-fallback)`;
                     this.closePosition(id, exitPrice, reason);
                 }
                 return;
@@ -10795,7 +10808,7 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
-                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&stake=0.10')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (real outcomes, 20-95¢ entries)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.50&maxOdds=0.90&stake=0.36&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (calibration-optimized 50-90¢ entries)">🏆 Poly Backtest</button>
                 <button onclick="apiCall('/api/verify-trades-polymarket?mode=PAPER&limit=100')" class="btn" style="background:linear-gradient(90deg,#22c55e,#16a34a);" title="Verify executed trades vs Polymarket outcomes (detect mismatches)">✅ Verify Trades</button>
             </div>
             
@@ -11237,8 +11250,9 @@ app.get('/', (req, res) => {
                         minConsensus: 0.70,      // 70% model agreement required
                         minConfidence: 0.70,     // 70% confidence minimum
                         minEdge: 5,              // 5% edge over market odds
-                        minOdds: 0.30,           // 🎯 v54.2: reject low-price contrarian bets (best 24h growth)
-                        maxOdds: 0.97,           // 🎯 v54.2: allow higher-confidence entries (needed for £100/24h path)
+                        // 🔴 v57 CALIBRATION-OPTIMIZED (9636 cycles):
+                        minOdds: 0.50,           // 🔴 v57: Block contrarian bets - calibration proves <50¢ = 28% WR
+                        maxOdds: 0.90,           // 🔴 v57: Cap at 90¢ - calibration shows 90-95¢ = 81% WR (degraded)
                         minStability: 3,         // 3 ticks of stable signal
                         requireTrending: false,  // Trade in all conditions
                         earlyTakeProfitEnabled: true,
