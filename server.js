@@ -450,7 +450,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v58 TRUE OPTIMAL defaults (£5→£42 in 24h verified):
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.40; // 🏆 v58: Allow high-pWin 40-50¢ entries
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.92; // 🏆 v58: Extend to 92¢ for more trades
-        const stakeFrac = parseFloat(req.query.stake) || 0.34; // 🏆 v58: TRUE OPTIMAL 34% (£5→£42 in 24h, 62% max DD)
+        const stakeFrac = parseFloat(req.query.stake) || 0.30; // 🏆 v60: PARETO OPTIMAL 30% (£5→£36 in 35h, 59% max DD)
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
@@ -3713,7 +3713,7 @@ const CONFIG = {
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
     // 🎯 v54.2 TURBO: Target £5 → £100 in ~24h (Polymarket-native backtest tuned).
     // NOTE: Still bounded by RISK.maxTotalExposure and variance controls.
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.38'),  // Default 38% max risk per trade (tuned for £100/24h goal)
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.30'),  // 🏆 v60: PARETO OPTIMAL 30% (better profit + lower DD than 34%)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -11532,7 +11532,7 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
-                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.40&maxOdds=0.92&stake=0.34&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (TRUE OPTIMAL 40-92¢ entries)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.40&maxOdds=0.92&stake=0.30&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (PARETO OPTIMAL 30% stake)">🏆 Poly Backtest</button>
                 <button onclick="apiCall('/api/verify-trades-polymarket?mode=PAPER&limit=100')" class="btn" style="background:linear-gradient(90deg,#22c55e,#16a34a);" title="Verify executed trades vs Polymarket outcomes (detect mismatches)">✅ Verify Trades</button>
             </div>
             
@@ -11965,8 +11965,8 @@ app.get('/', (req, res) => {
             const presets = {
                 GOAT: { 
                     // 🎯 v55.1: MIN-VARIANCE optimal for £5 → £100 in 24h.
-                    // 🏆 v58: TRUE OPTIMAL 34% stake (£5→£42 in 24h verified, 62% max DD)
-                    MAX_POSITION_SIZE: 0.34,
+                    // 🏆 v60: PARETO OPTIMAL 30% stake (£5→£36 in 35h, 59% max DD)
+                    MAX_POSITION_SIZE: 0.30,
                     // ORACLE: Primary prediction engine with forensic-optimized thresholds
                     ORACLE: { 
                         enabled: true, 
