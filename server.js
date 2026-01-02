@@ -11656,9 +11656,25 @@ app.get('/api/trades', async (req, res) => {
     const mode = req.query.mode || CONFIG.TRADE_MODE; // 'PAPER' or 'LIVE'
     const offset = parseInt(req.query.offset) || 0;
     const limit = Math.min(parseInt(req.query.limit) || 100, 500); // Max 500 per request
+    const includeLegacy = req.query.includeLegacy === '1' || String(req.query.includeLegacy || '').toLowerCase() === 'true';
     
     // Load from Redis if available
     const historyResult = await loadTradeHistory(mode, offset, limit);
+
+    // Hide legacy assets (e.g. SOL) by default to prevent future confusion.
+    const allowedAssets = new Set(ASSETS.map(a => String(a).toUpperCase()));
+    const rawTrades = Array.isArray(historyResult.trades) ? historyResult.trades : [];
+    const filteredTrades = includeLegacy
+        ? rawTrades
+        : rawTrades.filter(t => {
+            const asset = String(t?.asset || '').toUpperCase();
+            return !asset || allowedAssets.has(asset);
+        });
+    const legacyFilteredOut = rawTrades.length - filteredTrades.length;
+    const rawPositions = tradeExecutor && tradeExecutor.positions ? tradeExecutor.positions : {};
+    const filteredPositions = includeLegacy
+        ? rawPositions
+        : Object.fromEntries(Object.entries(rawPositions).filter(([_, p]) => allowedAssets.has(String(p?.asset || '').toUpperCase())));
     
     res.json({
         mode: mode,
@@ -11666,13 +11682,14 @@ app.get('/api/trades', async (req, res) => {
         startingBalance: tradeExecutor.startingBalance,
         todayPnL: tradeExecutor.todayPnL,
         totalReturn: ((tradeExecutor.paperBalance / tradeExecutor.startingBalance) - 1) * 100,
-        positions: tradeExecutor.positions,
-        trades: historyResult.trades,
-        totalTrades: historyResult.total,
+        positions: filteredPositions,
+        trades: filteredTrades,
+        totalTrades: includeLegacy ? historyResult.total : filteredTrades.length,
+        legacyFilteredOut,
         offset: offset,
         limit: limit,
         source: historyResult.source,
-        hasMore: offset + limit < historyResult.total,
+        hasMore: includeLegacy ? (offset + limit < historyResult.total) : false,
         modes: {
             ORACLE: { ...CONFIG.ORACLE },
             ARBITRAGE: { ...CONFIG.ARBITRAGE },
