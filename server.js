@@ -4063,29 +4063,29 @@ const CONFIG = {
         exitBeforeEnd: 180       // Exit 3 mins before checkpoint
     },
 
-    // 🚀 v61.1 MAX PROFIT ASAP Risk Management - AGGRESSIVE GROWTH
+    // 🚀 v61.2 MAX PROFIT - HIGH QUALITY AGGRESSIVE
     RISK: {
-        maxTotalExposure: 0.50,  // 🚀 v61.1: 50% max exposure (MORE TRADES!)
-        globalStopLoss: 0.40,    // 🚀 v61.1: 40% day max loss (room to recover)
+        maxTotalExposure: 0.45,  // 🚀 v61.2: 45% max exposure
+        globalStopLoss: 0.35,    // 🚀 v61.2: 35% day max loss
         globalStopLossOverride: false,
-        cooldownAfterLoss: 900,             // 🚀 v61.1: 15 min cooldown (FASTER!)
+        cooldownAfterLoss: 1200,            // 🚀 v61.2: 20 min cooldown
         enableLossCooldown: true,
         noTradeDetection: true,  // Block genuinely random markets
         enableCircuitBreaker: true, // Still ON for protection
-        enableDivergenceBlocking: false, // 🚀 v61.1: OFF - more trades
+        enableDivergenceBlocking: true, // 🚀 v61.2: ON - quality only
         aggressiveSizingOnLosses: false, // Keep this OFF
 
-        // 🚀 v61.1: MORE TRADING ALLOWED
-        maxConsecutiveLosses: 4,  // 🚀 v61.1: 4 losses before pause
-        maxDailyLosses: 12,       // 🚀 v61.1: 12 max per day (MORE!)
-        autoReduceSizeOnDrawdown: false, // 🚀 v61.1: NO - maintain aggression
+        // 🚀 v61.2: QUALITY > QUANTITY
+        maxConsecutiveLosses: 3,  // 🚀 v61.2: 3 losses before pause
+        maxDailyLosses: 10,       // 🚀 v61.2: 10 max per day
+        autoReduceSizeOnDrawdown: false, // NO - maintain aggression
         withdrawalNotification: 1000,
-        maxGlobalTradesPerCycle: 2, // 🚀 v61.1: 2 trades per cycle!
+        maxGlobalTradesPerCycle: 1, // 🚀 v61.2: 1 QUALITY trade per cycle
 
-        // 🚀 v61.1: AGGRESSIVE features for MAX PROFIT
-        enablePositionPyramiding: false,  // Still off - too risky
-        firstMoveAdvantage: true,         // 🚀 v61.1: YES - early trading
-        supremeConfidenceMode: false      // 🚀 v61.1: Trade at 65%+ confidence
+        // 🚀 v61.2: HIGH QUALITY AGGRESSIVE
+        enablePositionPyramiding: false,
+        firstMoveAdvantage: false,        // 🚀 v61.2: NO - wait for confirmation
+        supremeConfidenceMode: true       // 🚀 v61.2: 75%+ confidence ONLY
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================

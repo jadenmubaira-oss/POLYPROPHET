@@ -12574,3 +12574,2569 @@
 22:40:03 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
 22:40:03 [XRP] 📊 EDGE: conf=74.0% vs market=64.0% (+1% slip) = 14.6% edge
 22:40:03 [BTC] 📊 Odds: YES 86.0% | NO 15.0%
+22:40:04 [ETH] 📊 Odds: YES 40.0% | NO 63.0%
+22:40:04 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:04 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:04 [BTC] 🔮 SUPREME MODE: Warning - 65.8% < 75% (trade allowed but lower tier)
+22:40:04 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (9.7x normal)
+22:40:04 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 64¢ + No 44¢ ≠ 100%)
+22:40:04 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.4x normal)
+22:40:04 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:04 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:04 [XRP] 📊 EDGE: conf=74.0% vs market=64.0% (+1% slip) = 14.6% edge
+22:40:04 [XRP] 📊 Odds: YES 61.0% | NO 47.0%
+22:40:05 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:05 [BTC] 🔮 SUPREME MODE: Warning - 52.5% < 75% (trade allowed but lower tier)
+22:40:05 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.9x normal)
+22:40:05 [ETH] 📊 EDGE: conf=71.9% vs market=63.0% (+1% slip) = 13.0% edge
+22:40:05 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 61¢ + No 47¢ ≠ 100%)
+22:40:05 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:05 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:05 [XRP] 📊 EDGE: conf=73.4% vs market=61.0% (+1% slip) = 19.2% edge
+22:40:05 [BTC] 📊 Odds: YES 86.0% | NO 15.0%
+22:40:06 [ETH] 📊 Odds: YES 40.0% | NO 63.0%
+22:40:06 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:06 [BTC] 🔮 SUPREME MODE: Warning - 52.5% < 75% (trade allowed but lower tier)
+22:40:06 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.9x normal)
+22:40:06 [ETH] 📊 EDGE: conf=74.1% vs market=63.0% (+1% slip) = 16.4% edge
+22:40:06 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 61¢ + No 47¢ ≠ 100%)
+22:40:06 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:06 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:06 [XRP] 📊 EDGE: conf=73.4% vs market=61.0% (+1% slip) = 19.2% edge
+22:40:07 [XRP] 📊 Odds: YES 58.0% | NO 49.0%
+22:40:07 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:07 [BTC] 🔮 SUPREME MODE: Warning - 52.5% < 75% (trade allowed but lower tier)
+22:40:07 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 58¢ + No 49¢ ≠ 100%)
+22:40:07 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:07 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:07 [XRP] 📊 EDGE: conf=72.8% vs market=58.0% (+1% slip) = 24.4% edge
+22:40:07 [BTC] 📊 Odds: YES 87.0% | NO 14.0%
+22:40:08 [ETH] 📊 Odds: YES 40.0% | NO 62.0%
+22:40:08 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:08 [BTC] 🔮 SUPREME MODE: Warning - 52.5% < 75% (trade allowed but lower tier)
+22:40:08 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:08 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:08 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:08 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 58¢ + No 49¢ ≠ 100%)
+22:40:08 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:08 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:08 [XRP] 📊 EDGE: conf=72.8% vs market=58.0% (+1% slip) = 24.4% edge
+22:40:09 [XRP] 📊 Odds: YES 57.0% | NO 47.0%
+22:40:09 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:09 [BTC] 🔮 SUPREME MODE: Warning - 52.5% < 75% (trade allowed but lower tier)
+22:40:09 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:09 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:09 [ETH] ✅ PREDICTION FLIP: NEUTRAL @ 21.7%
+22:40:09 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:09 [XRP] ✨ CONSENSUS BONUS: High agreement (83%)
+22:40:09 [XRP] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:40:09 [BTC] 📊 Odds: YES 87.0% | NO 14.0%
+22:40:10 [ETH] 📊 Odds: YES 37.0% | NO 64.0%
+22:40:10 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:10 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:10 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:10 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:10 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:11 [XRP] 📊 Odds: YES 57.0% | NO 46.0%
+22:40:11 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:11 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:11 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:11 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:11 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:11 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:11 [BTC] 📊 Odds: YES 87.0% | NO 14.0%
+22:40:12 [ETH] 📊 Odds: YES 37.0% | NO 65.0%
+22:40:12 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:12 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:12 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:13 [XRP] 📊 Odds: YES 57.0% | NO 46.0%
+22:40:13 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:13 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:13 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:13 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:13 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:13 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:14 [BTC] 📊 Odds: YES 87.0% | NO 14.0%
+22:40:14 [ETH] 📊 Odds: YES 37.0% | NO 65.0%
+22:40:14 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:14 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:14 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:14 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:14 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:14 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:14 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:14 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:14 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:14 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:14 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:40:15 [XRP] 📊 Odds: YES 57.0% | NO 45.0%
+22:40:15 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:15 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:15 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:15 [ETH] ⚠️ Contrarian (2U/0D)
+22:40:15 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:15 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:15 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:15 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:40:15 [BTC] 📊 Odds: YES 87.0% | NO 14.0%
+22:40:16 [ETH] 📊 Odds: YES 36.0% | NO 65.0%
+22:40:16 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:16 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:16 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:16 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:16 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:16 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:16 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:40:17 [XRP] 📊 Odds: YES 57.0% | NO 45.0%
+22:40:17 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:17 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:17 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:17 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:17 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:17 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:17 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:17 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:17 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:17 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:40:17 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:18 [ETH] 📊 Odds: YES 36.0% | NO 65.0%
+22:40:18 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:18 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:18 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:18 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:18 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:18 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:19 [XRP] 📊 Odds: YES 57.0% | NO 45.0%
+22:40:19 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:19 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:19 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:19 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:19 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:19 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:19 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:20 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:20 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:20 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:20 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:20 [ETH] ✅ PREDICTION FLIP: UP @ 15.6%
+22:40:20 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:20 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:20 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:20 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:40:20 [ETH] 📊 Odds: YES 36.0% | NO 65.0%
+22:40:21 [XRP] 📊 Odds: YES 60.0% | NO 45.0%
+22:40:21 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:21 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:21 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:21 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:21 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:21 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:21 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:40:21 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:21 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:21 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:40:21 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:22 [ETH] 📊 Odds: YES 37.0% | NO 64.0%
+22:40:22 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:22 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:22 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:22 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:22 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:22 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:22 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:40:22 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:22 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:22 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:40:23 [XRP] 📊 Odds: YES 63.0% | NO 44.0%
+22:40:23 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:23 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:23 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:23 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 63¢ + No 44¢ ≠ 100%)
+22:40:23 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:23 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:23 [XRP] 📊 EDGE: conf=73.8% vs market=63.0% (+1% slip) = 16.1% edge
+22:40:24 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:24 [ETH] 📊 Odds: YES 42.0% | NO 59.0%
+22:40:24 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:40:24 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:24 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:24 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 63¢ + No 44¢ ≠ 100%)
+22:40:24 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:24 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:24 [XRP] 📊 EDGE: conf=73.8% vs market=63.0% (+1% slip) = 16.1% edge
+22:40:25 [XRP] 📊 Odds: YES 66.0% | NO 40.0%
+22:40:25 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:25 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:25 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:25 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:40:25 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:25 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:25 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 66¢ + No 40¢ ≠ 100%)
+22:40:25 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:25 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:25 [XRP] 📊 EDGE: conf=74.4% vs market=66.0% (+1% slip) = 11.7% edge
+22:40:25 [BTC] 📊 Odds: YES 88.0% | NO 14.0%
+22:40:26 [ETH] 📊 Odds: YES 42.0% | NO 59.0%
+22:40:26 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:26 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:26 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:26 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:26 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:26 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:26 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 66¢ + No 40¢ ≠ 100%)
+22:40:26 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:26 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:26 [XRP] 📊 EDGE: conf=74.4% vs market=66.0% (+1% slip) = 11.7% edge
+22:40:26 [XRP] 📊 Odds: YES 66.0% | NO 37.0%
+22:40:27 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:27 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:27 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:27 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:27 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:27 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:27 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:27 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:27 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:40:27 [XRP] 📊 EDGE: conf=74.4% vs market=66.0% (+1% slip) = 11.7% edge
+22:40:27 [BTC] 📊 Odds: YES 88.0% | NO 14.0%
+22:40:28 [ETH] 📊 Odds: YES 42.0% | NO 60.0%
+22:40:28 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:28 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:28 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:28 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:28 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:28 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:28 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:28 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:28 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:40:28 [XRP] 📊 EDGE: conf=74.4% vs market=66.0% (+1% slip) = 11.7% edge
+22:40:28 [XRP] 📊 Odds: YES 66.0% | NO 35.0%
+22:40:29 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:29 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:29 [BTC] 📊 EDGE: conf=74.1% vs market=88.0% (+1% slip) = -16.7% edge
+22:40:29 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:40:29 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:29 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:29 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:29 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:29 [XRP] 🔮 SUPREME MODE: Warning - 73.4% < 75% (trade allowed but lower tier)
+22:40:29 [XRP] 📊 EDGE: conf=74.4% vs market=66.0% (+1% slip) = 11.7% edge
+22:40:29 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:30 [ETH] 📊 Odds: YES 41.0% | NO 60.0%
+22:40:30 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:30 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:30 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:30 [BTC] 📊 DIAG: Conf=71.0% ConvThresh=78.8% AdvThresh=61.6% Tier=ADVISORY Elapsed=630s Locked=false
+22:40:30 [BTC] 📊 EDGE: conf=71.0% vs market=88.0% (+1% slip) = -20.1% edge
+22:40:30 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:30 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:30 [ETH] 📊 DIAG: Conf=20.8% ConvThresh=69.4% AdvThresh=52.2% Tier=NONE Elapsed=630s Locked=false
+22:40:30 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:30 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:30 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:30 [XRP] 🔮 SUPREME MODE: Warning - 73.4% < 75% (trade allowed but lower tier)
+22:40:30 [XRP] 📊 DIAG: Conf=73.7% ConvThresh=74.4% AdvThresh=57.2% Tier=ADVISORY Elapsed=630s Locked=false
+22:40:30 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 87 | Vel: 0.0
+22:40:30 [XRP] 📊 EDGE: conf=73.7% vs market=66.0% (+1% slip) = 10.6% edge
+22:40:30 [XRP] 📊 Odds: YES 70.0% | NO 36.0%
+22:40:31 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:31 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:31 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:31 [BTC] 📊 DIAG: Conf=70.1% ConvThresh=78.8% AdvThresh=61.6% Tier=ADVISORY Elapsed=631s Locked=false
+22:40:31 [BTC] 📊 EDGE: conf=70.1% vs market=88.0% (+1% slip) = -21.1% edge
+22:40:31 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:31 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:31 [ETH] 📊 DIAG: Conf=20.6% ConvThresh=69.4% AdvThresh=52.2% Tier=NONE Elapsed=631s Locked=false
+22:40:31 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:31 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 70¢ + No 36¢ ≠ 100%)
+22:40:31 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:31 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:31 [XRP] 📊 DIAG: Conf=72.3% ConvThresh=75.3% AdvThresh=58.0% Tier=ADVISORY Elapsed=631s Locked=false
+22:40:31 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 87 | Vel: 0.0
+22:40:31 [XRP] 📊 EDGE: conf=72.3% vs market=70.0% (+1% slip) = 2.3% edge
+22:40:31 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:32 [ETH] 📊 Odds: YES 40.0% | NO 61.0%
+22:40:32 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:32 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:32 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:32 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:32 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:32 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:32 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 70¢ + No 36¢ ≠ 100%)
+22:40:32 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:32 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:32 [XRP] 📊 EDGE: conf=75.3% vs market=70.0% (+1% slip) = 6.4% edge
+22:40:32 [XRP] 📊 Odds: YES 69.0% | NO 34.0%
+22:40:33 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:33 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:33 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:33 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:33 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:33 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:33 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:33 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:33 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:40:33 [XRP] 📊 EDGE: conf=72.4% vs market=69.0% (+1% slip) = 4.0% edge
+22:40:33 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:34 [ETH] 📊 Odds: YES 40.0% | NO 62.0%
+22:40:34 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:34 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:34 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:34 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:34 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:34 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:34 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:34 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:34 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:40:34 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:35 [XRP] 📊 Odds: YES 69.0% | NO 36.0%
+22:40:35 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:35 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:35 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:35 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:35 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:35 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:35 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:35 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:35 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:35 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:35 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:35 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:35 [BTC] 📊 Odds: YES 88.0% | NO 13.0%
+22:40:36 [ETH] 📊 Odds: YES 40.0% | NO 61.0%
+22:40:36 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:36 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:36 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:36 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:36 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:36 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:36 [XRP] 📊 Odds: YES 69.0% | NO 36.0%
+22:40:37 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:37 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:37 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:37 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:37 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:37 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:37 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:37 [BTC] 📊 Odds: YES 89.0% | NO 12.0%
+22:40:38 [ETH] 📊 Odds: YES 40.0% | NO 61.0%
+22:40:38 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:38 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:38 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:38 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:38 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:38 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:38 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:38 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:38 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:38 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:39 [XRP] 📊 Odds: YES 69.0% | NO 34.0%
+22:40:39 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:39 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:39 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:39 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:39 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:39 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:39 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:39 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:39 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:39 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:39 [BTC] 📊 Odds: YES 89.0% | NO 12.0%
+22:40:40 [ETH] 📊 Odds: YES 40.0% | NO 61.0%
+22:40:40 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:40 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:40 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:40 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:40 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:40 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:40 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:40 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:40 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:40 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:40 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:40 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:41 [XRP] 📊 Odds: YES 69.0% | NO 34.0%
+22:40:41 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:41 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:41 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:41 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:41 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:41 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:41 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:41 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:41 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:41 [BTC] 📊 Odds: YES 89.0% | NO 13.0%
+22:40:42 [ETH] 📊 Odds: YES 41.0% | NO 61.0%
+22:40:42 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:42 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:42 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:42 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:42 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:42 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:42 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:42 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:42 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:42 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:43 [XRP] 📊 Odds: YES 69.0% | NO 33.0%
+22:40:43 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:43 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:43 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:43 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:43 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:43 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:43 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:43 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:43 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:43 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:43 [BTC] 📊 Odds: YES 89.0% | NO 13.0%
+22:40:44 [ETH] 📊 Odds: YES 41.0% | NO 60.0%
+22:40:44 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:44 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:44 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:44 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:44 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:44 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:44 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:44 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:44 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:45 [XRP] 📊 Odds: YES 69.0% | NO 33.0%
+22:40:45 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:45 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:45 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:45 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:45 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:45 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:45 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:45 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:45 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:45 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:45 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:45 [BTC] 📊 Odds: YES 89.0% | NO 12.0%
+22:40:46 [ETH] 📊 Odds: YES 42.0% | NO 60.0%
+22:40:46 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:40:46 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:46 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:40:46 [ETH] ✅ PREDICTION FLIP: NEUTRAL @ 13.6%
+22:40:46 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:40:46 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:46 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:46 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:46 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:47 [XRP] 📊 Odds: YES 69.0% | NO 33.0%
+22:40:47 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:47 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:47 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:47 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:47 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:47 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:47 [BTC] 📊 Odds: YES 89.0% | NO 12.0%
+22:40:48 [ETH] 📊 Odds: YES 42.0% | NO 60.0%
+22:40:48 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:48 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:48 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:48 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:48 [ETH] ✅ PREDICTION FLIP: UP @ 15.4%
+22:40:48 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:48 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:48 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:48 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:49 [XRP] 📊 Odds: YES 69.0% | NO 33.0%
+22:40:49 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:49 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:49 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:40:49 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:49 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:49 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:49 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:49 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:49 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:49 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:50 [BTC] 📊 Odds: YES 91.0% | NO 10.0%
+22:40:50 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:50 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:50 [BTC] 🔮 SUPREME MODE: Warning - 74.7% < 75% (trade allowed but lower tier)
+22:40:50 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:50 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:50 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:50 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:50 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:50 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:40:50 [XRP] 📊 EDGE: conf=75.0% vs market=69.0% (+1% slip) = 7.7% edge
+22:40:51 [ETH] 📊 Odds: YES 42.0% | NO 60.0%
+22:40:51 [XRP] 📊 Odds: YES 72.0% | NO 34.0%
+22:40:51 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:51 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:51 [BTC] 🔮 SUPREME MODE: Warning - 74.7% < 75% (trade allowed but lower tier)
+22:40:51 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:51 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:51 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:51 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 72¢ + No 34¢ ≠ 100%)
+22:40:51 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:51 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:51 [XRP] 📊 EDGE: conf=72.7% vs market=72.0% (+1% slip) = 0.0% edge
+22:40:52 [BTC] 📊 Odds: YES 93.0% | NO 8.0%
+22:40:52 [ETH] 📊 Odds: YES 42.0% | NO 60.0%
+22:40:52 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:52 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:52 [BTC] 🔮 SUPREME MODE: Warning - 74.7% < 75% (trade allowed but lower tier)
+22:40:52 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:52 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:52 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:52 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 72¢ + No 34¢ ≠ 100%)
+22:40:52 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:52 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:52 [XRP] 📊 EDGE: conf=75.6% vs market=72.0% (+1% slip) = 4.0% edge
+22:40:53 [XRP] 📊 Odds: YES 72.0% | NO 35.0%
+22:40:53 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:53 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:53 [BTC] 🔮 SUPREME MODE: Warning - 74.7% < 75% (trade allowed but lower tier)
+22:40:53 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:53 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:53 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:53 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 72¢ + No 35¢ ≠ 100%)
+22:40:53 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:53 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:53 [XRP] 📊 EDGE: conf=72.9% vs market=72.0% (+1% slip) = 0.3% edge
+22:40:53 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:40:54 [ETH] 📊 Odds: YES 42.0% | NO 60.0%
+22:40:54 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:54 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:54 [BTC] 🔮 SUPREME MODE: Warning - 74.7% < 75% (trade allowed but lower tier)
+22:40:54 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:54 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:54 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:54 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 72¢ + No 35¢ ≠ 100%)
+22:40:54 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:54 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:54 [XRP] 📊 EDGE: conf=75.6% vs market=72.0% (+1% slip) = 4.0% edge
+22:40:55 [XRP] 📊 Odds: YES 72.0% | NO 40.0%
+22:40:55 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.6x normal)
+22:40:55 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:55 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:55 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:55 [XRP] ⚠️ LIQUIDITY VOID: Spread 12.0% (Yes 72¢ + No 40¢ ≠ 100%)
+22:40:55 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:55 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:55 [XRP] 📊 EDGE: conf=72.9% vs market=72.0% (+1% slip) = 0.3% edge
+22:40:55 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:40:56 [ETH] 📊 Odds: YES 42.0% | NO 60.0%
+22:40:56 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.6x normal)
+22:40:56 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:56 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:56 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:56 [XRP] ⚠️ LIQUIDITY VOID: Spread 12.0% (Yes 72¢ + No 40¢ ≠ 100%)
+22:40:56 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:56 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:56 [XRP] 📊 EDGE: conf=75.6% vs market=72.0% (+1% slip) = 4.0% edge
+22:40:57 [XRP] 📊 Odds: YES 64.0% | NO 43.0%
+22:40:57 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:40:57 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:57 [BTC] 🔮 SUPREME MODE: Warning - 74.7% < 75% (trade allowed but lower tier)
+22:40:57 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:57 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:57 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:57 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 64¢ + No 43¢ ≠ 100%)
+22:40:57 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:57 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:57 [XRP] 📊 EDGE: conf=74.0% vs market=64.0% (+1% slip) = 14.6% edge
+22:40:58 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:40:58 [ETH] 📊 Odds: YES 43.0% | NO 60.0%
+22:40:58 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (6.4x normal)
+22:40:58 [BTC] 📊 EDGE: conf=71.6% vs market=94.0% (+1% slip) = -24.6% edge
+22:40:58 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:58 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:40:58 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:58 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 64¢ + No 43¢ ≠ 100%)
+22:40:58 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:58 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:58 [XRP] 📊 EDGE: conf=74.0% vs market=64.0% (+1% slip) = 14.6% edge
+22:40:59 [XRP] 📊 Odds: YES 65.0% | NO 40.0%
+22:40:59 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (8.2x normal)
+22:40:59 [BTC] 📊 EDGE: conf=74.0% vs market=94.0% (+1% slip) = -22.1% edge
+22:40:59 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:40:59 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:40:59 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:40:59 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 65¢ + No 40¢ ≠ 100%)
+22:40:59 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:40:59 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:40:59 [XRP] 📊 EDGE: conf=74.3% vs market=65.0% (+1% slip) = 13.1% edge
+22:40:59 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:41:00 [ETH] 📊 Odds: YES 42.0% | NO 59.0%
+22:41:00 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.7x normal)
+22:41:00 [BTC] 📊 DIAG: Conf=74.7% ConvThresh=80.0% AdvThresh=62.8% Tier=ADVISORY Elapsed=660s Locked=false
+22:41:00 [BTC] 📊 EDGE: conf=74.7% vs market=94.0% (+1% slip) = -21.3% edge
+22:41:00 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:00 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:00 [ETH] 📊 DIAG: Conf=20.6% ConvThresh=69.6% AdvThresh=52.4% Tier=NONE Elapsed=660s Locked=false
+22:41:00 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:00 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 65¢ + No 40¢ ≠ 100%)
+22:41:00 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:00 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:00 [XRP] 📊 DIAG: Conf=65.0% ConvThresh=74.3% AdvThresh=57.0% Tier=ADVISORY Elapsed=660s Locked=false
+22:41:00 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 87 | Vel: 5.0
+22:41:00 [XRP] 📊 EDGE: conf=74.3% vs market=65.0% (+1% slip) = 13.1% edge
+22:41:01 [XRP] 📊 Odds: YES 65.0% | NO 44.0%
+22:41:01 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.7x normal)
+22:41:01 [BTC] 📊 DIAG: Conf=74.9% ConvThresh=80.0% AdvThresh=62.8% Tier=ADVISORY Elapsed=661s Locked=false
+22:41:01 [BTC] 📊 EDGE: conf=74.9% vs market=94.0% (+1% slip) = -21.1% edge
+22:41:01 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:01 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:01 [ETH] 📊 DIAG: Conf=20.6% ConvThresh=69.6% AdvThresh=52.4% Tier=NONE Elapsed=661s Locked=false
+22:41:01 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:01 [XRP] ⚠️ LIQUIDITY VOID: Spread 9.0% (Yes 65¢ + No 44¢ ≠ 100%)
+22:41:01 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:01 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:01 [XRP] 📊 DIAG: Conf=65.0% ConvThresh=74.3% AdvThresh=57.0% Tier=ADVISORY Elapsed=661s Locked=false
+22:41:01 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 87 | Vel: 0.0
+22:41:01 [XRP] 📊 EDGE: conf=74.3% vs market=65.0% (+1% slip) = 13.1% edge
+22:41:01 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:41:02 [ETH] 📊 Odds: YES 42.0% | NO 59.0%
+22:41:02 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.7x normal)
+22:41:02 [BTC] 📊 EDGE: conf=75.0% vs market=94.0% (+1% slip) = -21.0% edge
+22:41:02 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:02 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:02 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:02 [XRP] ⚠️ LIQUIDITY VOID: Spread 9.0% (Yes 65¢ + No 44¢ ≠ 100%)
+22:41:02 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:02 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:02 [XRP] 📊 EDGE: conf=74.3% vs market=65.0% (+1% slip) = 13.1% edge
+22:41:03 [XRP] 📊 Odds: YES 57.0% | NO 48.0%
+22:41:03 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:41:03 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.0x normal)
+22:41:03 [BTC] 📊 EDGE: conf=75.0% vs market=94.0% (+1% slip) = -21.0% edge
+22:41:03 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:03 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:03 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:03 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:03 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:04 [ETH] 📊 Odds: YES 44.0% | NO 59.0%
+22:41:05 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:05 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:05 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:05 [BTC] 📊 EDGE: conf=71.3% vs market=94.0% (+1% slip) = -24.9% edge
+22:41:05 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:05 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:41:05 [XRP] 📊 Odds: YES 57.0% | NO 50.0%
+22:41:06 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.4x normal)
+22:41:06 [BTC] 📊 EDGE: conf=73.9% vs market=94.0% (+1% slip) = -22.2% edge
+22:41:06 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:06 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:06 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:06 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 57¢ + No 50¢ ≠ 100%)
+22:41:06 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:06 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:06 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:41:06 [ETH] 📊 Odds: YES 44.0% | NO 58.0%
+22:41:07 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.4x normal)
+22:41:07 [BTC] 📊 EDGE: conf=74.7% vs market=94.0% (+1% slip) = -21.4% edge
+22:41:07 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:07 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:07 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:07 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 57¢ + No 50¢ ≠ 100%)
+22:41:07 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:07 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:07 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:41:07 [XRP] 📊 Odds: YES 57.0% | NO 47.0%
+22:41:07 [BTC] 📊 Odds: YES 94.0% | NO 7.0%
+22:41:08 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:08 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:08 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:08 [BTC] 📊 EDGE: conf=71.2% vs market=94.0% (+1% slip) = -25.0% edge
+22:41:08 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:08 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 80% agree)
+22:41:08 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:08 [ETH] 📊 Odds: YES 44.0% | NO 58.0%
+22:41:09 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:09 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:09 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:09 [BTC] 📊 EDGE: conf=70.2% vs market=94.0% (+1% slip) = -26.1% edge
+22:41:09 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:09 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:09 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:09 [XRP] 📊 Odds: YES 57.0% | NO 47.0%
+22:41:09 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:10 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:10 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:10 [BTC] 📊 EDGE: conf=74.2% vs market=96.0% (+1% slip) = -23.4% edge
+22:41:10 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:10 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:10 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:10 [ETH] 📊 Odds: YES 44.0% | NO 58.0%
+22:41:11 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.5x normal)
+22:41:11 [BTC] 📊 EDGE: conf=74.8% vs market=96.0% (+1% slip) = -22.9% edge
+22:41:11 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:11 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 75% agree)
+22:41:11 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:11 [XRP] 📊 Odds: YES 57.0% | NO 46.0%
+22:41:11 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:12 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.6x normal)
+22:41:12 [BTC] 📊 EDGE: conf=74.9% vs market=96.0% (+1% slip) = -22.7% edge
+22:41:12 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:12 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:12 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:12 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:12 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:12 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:12 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:12 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:12 [ETH] 📊 Odds: YES 59.0% | NO 44.0%
+22:41:13 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.6x normal)
+22:41:13 [BTC] 📊 EDGE: conf=75.0% vs market=96.0% (+1% slip) = -22.7% edge
+22:41:13 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (13.3x normal)
+22:41:13 [ETH] ⚠️ REALITY CHECK: Price moving against UP prediction
+22:41:13 [ETH] 🚫 BLOCKED: Extreme divergence from market (3U/0D)
+22:41:13 [ETH] ✅ PREDICTION FLIP: NEUTRAL @ 2.6%
+22:41:13 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:13 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:13 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:13 [XRP] 🔮 SUPREME MODE: Warning - 72.3% < 75% (trade allowed but lower tier)
+22:41:13 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:41:13 [XRP] 📊 Odds: YES 57.0% | NO 46.0%
+22:41:13 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:14 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.3x normal)
+22:41:14 [BTC] 📊 EDGE: conf=75.0% vs market=97.0% (+1% slip) = -23.5% edge
+22:41:14 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (11.0x normal)
+22:41:14 [ETH] ⚠️ Contrarian (2U/0D)
+22:41:14 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:14 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:14 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:14 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:41:14 [ETH] 📊 Odds: YES 59.0% | NO 43.0%
+22:41:15 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.3x normal)
+22:41:15 [BTC] 📊 EDGE: conf=75.0% vs market=97.0% (+1% slip) = -23.4% edge
+22:41:15 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (11.0x normal)
+22:41:15 [ETH] ⚠️ Contrarian (2U/0D)
+22:41:15 [ETH] ✅ PREDICTION FLIP: DOWN @ 34.3%
+22:41:15 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:15 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:15 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:15 [XRP] 📊 EDGE: conf=72.6% vs market=57.0% (+1% slip) = 26.2% edge
+22:41:15 [XRP] 📊 Odds: YES 56.0% | NO 46.0%
+22:41:16 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:16 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:16 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:16 [BTC] 🔮 SUPREME MODE: Warning - 74.7% < 75% (trade allowed but lower tier)
+22:41:16 [BTC] 📊 EDGE: conf=74.8% vs market=97.0% (+1% slip) = -23.7% edge
+22:41:16 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.0x normal)
+22:41:16 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:16 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:16 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:16 [XRP] 📊 EDGE: conf=72.4% vs market=56.0% (+1% slip) = 28.1% edge
+22:41:16 [ETH] 📊 Odds: YES 70.0% | NO 31.0%
+22:41:17 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.0x normal)
+22:41:17 [BTC] 📊 EDGE: conf=74.9% vs market=97.0% (+1% slip) = -23.5% edge
+22:41:17 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (15.7x normal)
+22:41:17 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:17 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:17 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:17 [XRP] 📊 EDGE: conf=72.4% vs market=56.0% (+1% slip) = 28.1% edge
+22:41:17 [XRP] 📊 Odds: YES 60.0% | NO 45.0%
+22:41:18 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:18 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:18 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:18 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:18 [BTC] 📊 EDGE: conf=71.3% vs market=97.0% (+1% slip) = -27.2% edge
+22:41:18 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (22.6x normal)
+22:41:18 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:18 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:18 [ETH] ⚠️ CONFIDENCE DECAY: Signal invalidated
+22:41:18 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:41:18 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:18 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:18 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:18 [ETH] 📊 Odds: YES 67.0% | NO 34.0%
+22:41:19 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:19 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:19 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:19 [BTC] 📊 EDGE: conf=70.2% vs market=97.0% (+1% slip) = -28.4% edge
+22:41:19 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (16.3x normal)
+22:41:19 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:19 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:19 [ETH] ✅ PREDICTION FLIP: UP @ 68.6%
+22:41:19 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:41:19 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:19 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:19 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:19 [XRP] 📊 Odds: YES 60.0% | NO 45.0%
+22:41:20 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:20 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:20 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:20 [BTC] 📊 EDGE: conf=74.3% vs market=97.0% (+1% slip) = -24.2% edge
+22:41:20 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (11.5x normal)
+22:41:20 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:20 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:20 [ETH] 📊 EDGE: conf=70.8% vs market=67.0% (+1% slip) = 4.6% edge
+22:41:20 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:41:20 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:20 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:20 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:20 [ETH] 📊 Odds: YES 76.0% | NO 28.0%
+22:41:21 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:21 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:21 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:21 [BTC] 📊 EDGE: conf=71.1% vs market=97.0% (+1% slip) = -27.5% edge
+22:41:21 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (21.2x normal)
+22:41:21 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:21 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:21 [ETH] 📊 EDGE: conf=71.5% vs market=76.0% (+1% slip) = -6.9% edge
+22:41:21 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:41:21 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:21 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:21 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:21 [XRP] 📊 Odds: YES 59.0% | NO 44.0%
+22:41:22 [BTC] 📊 Odds: YES 98.0% | NO 4.0%
+22:41:22 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:22 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:22 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:22 [BTC] 📊 EDGE: conf=70.1% vs market=98.0% (+1% slip) = -29.2% edge
+22:41:22 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (19.1x normal)
+22:41:22 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:22 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:22 [ETH] 📊 EDGE: conf=71.7% vs market=76.0% (+1% slip) = -6.6% edge
+22:41:22 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:22 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:22 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:22 [XRP] 📊 EDGE: conf=73.0% vs market=59.0% (+1% slip) = 22.6% edge
+22:41:22 [ETH] 📊 Odds: YES 80.0% | NO 22.0%
+22:41:23 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:23 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:23 [BTC] 📊 EDGE: conf=74.2% vs market=98.0% (+1% slip) = -25.0% edge
+22:41:23 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (7.0x normal)
+22:41:23 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:23 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:23 [ETH] 📊 EDGE: conf=71.7% vs market=80.0% (+1% slip) = -11.2% edge
+22:41:23 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:23 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:23 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:23 [XRP] 📊 EDGE: conf=73.0% vs market=59.0% (+1% slip) = 22.6% edge
+22:41:23 [XRP] 📊 Odds: YES 59.0% | NO 44.0%
+22:41:24 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:24 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:24 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:24 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:24 [BTC] 📊 EDGE: conf=71.1% vs market=97.0% (+1% slip) = -27.5% edge
+22:41:24 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.5x normal)
+22:41:24 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:24 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:24 [ETH] 📊 EDGE: conf=71.7% vs market=80.0% (+1% slip) = -11.2% edge
+22:41:24 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:24 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:24 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:24 [XRP] 📊 EDGE: conf=73.0% vs market=59.0% (+1% slip) = 22.6% edge
+22:41:24 [ETH] 📊 Odds: YES 81.0% | NO 22.0%
+22:41:25 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:25 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:25 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:25 [BTC] 📊 EDGE: conf=70.1% vs market=97.0% (+1% slip) = -28.4% edge
+22:41:25 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (8.1x normal)
+22:41:25 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:25 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:25 [ETH] 📊 EDGE: conf=71.7% vs market=81.0% (+1% slip) = -12.3% edge
+22:41:25 [XRP] 📊 Odds: YES 59.0% | NO 44.0%
+22:41:26 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:26 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:26 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:26 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:26 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.2x normal)
+22:41:26 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:26 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:26 [ETH] 📊 EDGE: conf=71.7% vs market=81.0% (+1% slip) = -12.3% edge
+22:41:26 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:26 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:26 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:26 [ETH] 📊 Odds: YES 84.0% | NO 17.0%
+22:41:27 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:27 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:27 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:27 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.6x normal)
+22:41:27 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:27 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:27 [ETH] 📊 EDGE: conf=71.7% vs market=84.0% (+1% slip) = -15.4% edge
+22:41:27 [XRP] 📊 Odds: YES 59.0% | NO 44.0%
+22:41:28 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:28 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:28 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:28 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:28 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:41:28 [ETH] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:41:28 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:28 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:28 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:28 [ETH] 📊 Odds: YES 78.0% | NO 23.0%
+22:41:29 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:29 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:29 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:29 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (7.1x normal)
+22:41:29 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:29 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:29 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:29 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:29 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:29 [XRP] 📊 EDGE: conf=73.0% vs market=59.0% (+1% slip) = 22.6% edge
+22:41:29 [XRP] 📊 Odds: YES 60.0% | NO 45.0%
+22:41:30 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:30 [BTC] 📊 DIAG: Conf=51.8% ConvThresh=80.6% AdvThresh=63.4% Tier=NONE Elapsed=690s Locked=false
+22:41:30 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (8.2x normal)
+22:41:30 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:30 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:30 [ETH] 📊 DIAG: Conf=70.7% ConvThresh=76.8% AdvThresh=59.6% Tier=ADVISORY Elapsed=690s Locked=false
+22:41:30 [ETH] 📊 EDGE: conf=70.7% vs market=78.0% (+1% slip) = -10.3% edge
+22:41:30 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:41:30 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:30 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:30 [XRP] 📊 DIAG: Conf=64.6% ConvThresh=73.3% AdvThresh=56.0% Tier=ADVISORY Elapsed=690s Locked=false
+22:41:30 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 72 | Vel: 0.0
+22:41:30 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:30 [ETH] 📊 Odds: YES 71.0% | NO 31.0%
+22:41:31 [BTC] 📊 DIAG: Conf=46.4% ConvThresh=80.6% AdvThresh=63.4% Tier=NONE Elapsed=691s Locked=false
+22:41:31 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (8.2x normal)
+22:41:31 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:31 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:31 [ETH] 📊 DIAG: Conf=71.4% ConvThresh=75.4% AdvThresh=58.2% Tier=ADVISORY Elapsed=691s Locked=false
+22:41:31 [ETH] 📊 EDGE: conf=71.4% vs market=71.0% (+1% slip) = -0.4% edge
+22:41:31 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 60¢ + No 45¢ ≠ 100%)
+22:41:31 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:31 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:31 [XRP] 📊 DIAG: Conf=64.7% ConvThresh=73.3% AdvThresh=56.0% Tier=ADVISORY Elapsed=691s Locked=false
+22:41:31 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 72 | Vel: 0.0
+22:41:31 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:31 [XRP] 📊 Odds: YES 59.0% | NO 45.0%
+22:41:32 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:32 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (8.2x normal)
+22:41:32 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:32 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:32 [ETH] 📊 EDGE: conf=71.7% vs market=71.0% (+1% slip) = -0.1% edge
+22:41:32 [ETH] 📊 Odds: YES 72.0% | NO 31.0%
+22:41:33 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (10.3x normal)
+22:41:33 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:33 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:33 [ETH] 📊 EDGE: conf=71.7% vs market=72.0% (+1% slip) = -1.4% edge
+22:41:33 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:33 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:33 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:33 [XRP] 📊 Odds: YES 56.0% | NO 45.0%
+22:41:34 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:34 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:34 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:34 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:34 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (8.5x normal)
+22:41:34 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:34 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:34 [ETH] 📊 EDGE: conf=71.7% vs market=72.0% (+1% slip) = -1.3% edge
+22:41:34 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:34 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:34 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:41:34 [XRP] 📊 EDGE: conf=72.4% vs market=56.0% (+1% slip) = 28.1% edge
+22:41:34 [ETH] 📊 Odds: YES 71.0% | NO 30.0%
+22:41:35 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:35 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:35 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:35 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (8.7x normal)
+22:41:35 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:35 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:35 [ETH] 📊 EDGE: conf=71.7% vs market=71.0% (+1% slip) = 0.1% edge
+22:41:35 [XRP] 📊 Odds: YES 55.0% | NO 52.0%
+22:41:36 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:36 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (7.5x normal)
+22:41:36 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:36 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:36 [ETH] 📊 EDGE: conf=71.7% vs market=71.0% (+1% slip) = 0.1% edge
+22:41:36 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 55¢ + No 52¢ ≠ 100%)
+22:41:36 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:36 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:36 [XRP] 📊 EDGE: conf=72.2% vs market=55.0% (+1% slip) = 30.1% edge
+22:41:36 [ETH] 📊 Odds: YES 71.0% | NO 30.0%
+22:41:37 [XRP] 📊 Odds: YES 53.0% | NO 53.0%
+22:41:37 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:37 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:37 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:37 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (7.1x normal)
+22:41:37 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:37 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:37 [ETH] 📊 EDGE: conf=71.7% vs market=71.0% (+1% slip) = 0.1% edge
+22:41:37 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 53¢ + No 53¢ ≠ 100%)
+22:41:37 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:37 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:37 [XRP] 📊 EDGE: conf=71.8% vs market=53.0% (+1% slip) = 34.2% edge
+22:41:38 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:38 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:38 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:38 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:38 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:38 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:38 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:38 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 53¢ + No 53¢ ≠ 100%)
+22:41:38 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:38 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:38 [XRP] 📊 EDGE: conf=71.8% vs market=53.0% (+1% slip) = 34.2% edge
+22:41:38 [ETH] 📊 Odds: YES 71.0% | NO 30.0%
+22:41:39 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.9x normal)
+22:41:39 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:39 [ETH] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:39 [ETH] 📊 EDGE: conf=71.7% vs market=71.0% (+1% slip) = 0.1% edge
+22:41:39 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 53¢ + No 53¢ ≠ 100%)
+22:41:39 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:39 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:39 [XRP] 📊 EDGE: conf=71.8% vs market=53.0% (+1% slip) = 34.2% edge
+22:41:39 [XRP] 📊 Odds: YES 51.0% | NO 53.0%
+22:41:40 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:40 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:41:40 [ETH] 📊 Odds: YES 67.0% | NO 35.0%
+22:41:41 [XRP] 📊 Odds: YES 50.0% | NO 53.0%
+22:41:41 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:41 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:41 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:41 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:41 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:42 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:42 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:42 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:42 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:42 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:42 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:42 [ETH] ✅ PREDICTION FLIP: NEUTRAL @ 25.0%
+22:41:42 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:42 [ETH] 📊 Odds: YES 67.0% | NO 34.0%
+22:41:43 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:43 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:43 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:43 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:43 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:43 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:43 [XRP] 📊 Odds: YES 50.0% | NO 54.0%
+22:41:44 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:44 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:44 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:44 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:44 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:44 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:44 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:44 [ETH] 📊 Odds: YES 67.0% | NO 34.0%
+22:41:45 [XRP] 📊 Odds: YES 51.0% | NO 54.0%
+22:41:45 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:45 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:45 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:45 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:45 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:45 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:45 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 51¢ + No 54¢ ≠ 100%)
+22:41:45 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:45 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:46 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:46 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:46 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:46 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:46 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 51¢ + No 54¢ ≠ 100%)
+22:41:46 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:46 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:46 [XRP] 📊 EDGE: conf=71.4% vs market=51.0% (+1% slip) = 38.7% edge
+22:41:46 [ETH] 📊 Odds: YES 69.0% | NO 34.0%
+22:41:47 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:47 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:47 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:47 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 51¢ + No 54¢ ≠ 100%)
+22:41:47 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:47 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:47 [XRP] 📊 EDGE: conf=71.4% vs market=51.0% (+1% slip) = 38.7% edge
+22:41:47 [XRP] 📊 Odds: YES 51.0% | NO 54.0%
+22:41:48 [BTC] 📊 Odds: YES 96.0% | NO 5.0%
+22:41:48 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:48 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:48 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:41:48 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:41:48 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:41:48 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 51¢ + No 54¢ ≠ 100%)
+22:41:48 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:48 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:48 [XRP] 📊 EDGE: conf=71.4% vs market=51.0% (+1% slip) = 38.7% edge
+22:41:48 [ETH] 📊 Odds: YES 75.0% | NO 27.0%
+22:41:49 [XRP] 📊 Odds: YES 51.0% | NO 54.0%
+22:41:49 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:49 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:49 [BTC] 📊 EDGE: conf=73.8% vs market=96.0% (+1% slip) = -23.9% edge
+22:41:49 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:41:49 [ETH] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:41:49 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 51¢ + No 54¢ ≠ 100%)
+22:41:49 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:49 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:49 [XRP] 📊 EDGE: conf=71.4% vs market=51.0% (+1% slip) = 38.7% edge
+22:41:50 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:41:50 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:50 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:50 [BTC] 📊 EDGE: conf=75.3% vs market=98.0% (+1% slip) = -23.9% edge
+22:41:50 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:41:50 [ETH] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:41:50 [ETH] ✅ PREDICTION FLIP: UP @ 42.7%
+22:41:50 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 51¢ + No 54¢ ≠ 100%)
+22:41:50 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:50 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:50 [XRP] 📊 EDGE: conf=71.4% vs market=51.0% (+1% slip) = 38.7% edge
+22:41:50 [ETH] 📊 Odds: YES 78.0% | NO 23.0%
+22:41:51 [XRP] 📊 Odds: YES 53.0% | NO 55.0%
+22:41:51 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:51 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:51 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:51 [BTC] 📊 EDGE: conf=71.4% vs market=98.0% (+1% slip) = -27.9% edge
+22:41:51 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 53¢ + No 55¢ ≠ 100%)
+22:41:51 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:51 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:51 [XRP] 📊 EDGE: conf=71.8% vs market=53.0% (+1% slip) = 34.2% edge
+22:41:52 [BTC] 📊 Odds: YES 97.0% | NO 4.0%
+22:41:52 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:52 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:52 [BTC] 📊 EDGE: conf=74.6% vs market=97.0% (+1% slip) = -23.8% edge
+22:41:52 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 53¢ + No 55¢ ≠ 100%)
+22:41:52 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:52 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:52 [XRP] 📊 EDGE: conf=71.8% vs market=53.0% (+1% slip) = 34.2% edge
+22:41:52 [ETH] 📊 Odds: YES 82.0% | NO 20.0%
+22:41:53 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:53 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:53 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:53 [BTC] 📊 EDGE: conf=71.2% vs market=97.0% (+1% slip) = -27.3% edge
+22:41:53 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 53¢ + No 55¢ ≠ 100%)
+22:41:53 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.3x normal)
+22:41:53 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:53 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:53 [XRP] 📊 EDGE: conf=71.8% vs market=53.0% (+1% slip) = 34.2% edge
+22:41:53 [XRP] 📊 Odds: YES 62.0% | NO 49.0%
+22:41:54 [BTC] 📊 Odds: YES 98.0% | NO 4.0%
+22:41:54 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:54 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:54 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:54 [BTC] 📊 EDGE: conf=70.2% vs market=98.0% (+1% slip) = -29.1% edge
+22:41:54 [XRP] ⚠️ LIQUIDITY VOID: Spread 11.0% (Yes 62¢ + No 49¢ ≠ 100%)
+22:41:54 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:54 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:54 [XRP] 📊 EDGE: conf=73.6% vs market=62.0% (+1% slip) = 17.6% edge
+22:41:54 [ETH] 📊 Odds: YES 83.0% | NO 18.0%
+22:41:55 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:55 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:55 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:55 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:41:55 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:55 [ETH] 🔮 SUPREME MODE: Warning - 72.2% < 75% (trade allowed but lower tier)
+22:41:55 [XRP] ⚠️ LIQUIDITY VOID: Spread 11.0% (Yes 62¢ + No 49¢ ≠ 100%)
+22:41:55 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:55 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:55 [XRP] 📊 EDGE: conf=73.6% vs market=62.0% (+1% slip) = 17.6% edge
+22:41:55 [XRP] 📊 Odds: YES 60.0% | NO 48.0%
+22:41:56 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:41:56 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:56 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:56 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:56 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 60¢ + No 48¢ ≠ 100%)
+22:41:56 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (7.2x normal)
+22:41:56 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:56 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:56 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:56 [ETH] 📊 Odds: YES 83.0% | NO 18.0%
+22:41:57 [XRP] 📊 Odds: YES 60.0% | NO 47.0%
+22:41:57 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:57 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:57 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:57 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 60¢ + No 47¢ ≠ 100%)
+22:41:57 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (7.2x normal)
+22:41:57 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:57 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:57 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:58 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:41:58 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.7x normal)
+22:41:58 [BTC] 📊 EDGE: conf=73.4% vs market=98.0% (+1% slip) = -25.8% edge
+22:41:58 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 60¢ + No 47¢ ≠ 100%)
+22:41:58 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.3x normal)
+22:41:58 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:58 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:58 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:41:58 [ETH] 📊 Odds: YES 85.0% | NO 17.0%
+22:41:59 [XRP] 📊 Odds: YES 60.0% | NO 46.0%
+22:41:59 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:41:59 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:59 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:41:59 [BTC] 📊 EDGE: conf=70.8% vs market=98.0% (+1% slip) = -28.4% edge
+22:41:59 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 60¢ + No 46¢ ≠ 100%)
+22:41:59 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:41:59 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:41:59 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:42:00 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:00 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:00 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:00 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:00 [BTC] 📊 DIAG: Conf=70.0% ConvThresh=80.8% AdvThresh=63.6% Tier=ADVISORY Elapsed=720s Locked=false
+22:42:00 [BTC] 📊 EDGE: conf=70.0% vs market=98.0% (+1% slip) = -29.2% edge
+22:42:00 [ETH] 📊 DIAG: Conf=49.6% ConvThresh=78.2% AdvThresh=61.0% Tier=NONE Elapsed=720s Locked=false
+22:42:00 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 60¢ + No 46¢ ≠ 100%)
+22:42:00 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:00 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:00 [XRP] 📊 DIAG: Conf=64.7% ConvThresh=73.3% AdvThresh=56.0% Tier=ADVISORY Elapsed=720s Locked=false
+22:42:00 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 83 | Vel: 0.0
+22:42:00 [XRP] 📊 EDGE: conf=73.3% vs market=60.0% (+1% slip) = 20.9% edge
+22:42:00 [ETH] 📊 Odds: YES 87.0% | NO 14.0%
+22:42:01 [XRP] 📊 Odds: YES 65.0% | NO 41.0%
+22:42:01 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:01 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:01 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:01 [BTC] 📊 DIAG: Conf=62.5% ConvThresh=80.8% AdvThresh=63.6% Tier=NONE Elapsed=721s Locked=false
+22:42:01 [ETH] 📊 DIAG: Conf=49.6% ConvThresh=78.6% AdvThresh=61.4% Tier=NONE Elapsed=721s Locked=false
+22:42:01 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 65¢ + No 41¢ ≠ 100%)
+22:42:01 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:01 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:01 [XRP] 📊 DIAG: Conf=64.7% ConvThresh=74.3% AdvThresh=57.0% Tier=ADVISORY Elapsed=721s Locked=false
+22:42:01 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 83 | Vel: 0.0
+22:42:01 [XRP] 📊 EDGE: conf=74.3% vs market=65.0% (+1% slip) = 13.1% edge
+22:42:02 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:02 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:02 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:02 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:02 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:02 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:02 [ETH] 🔮 SUPREME MODE: Warning - 72.2% < 75% (trade allowed but lower tier)
+22:42:02 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 65¢ + No 41¢ ≠ 100%)
+22:42:02 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:02 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:02 [XRP] 📊 EDGE: conf=74.3% vs market=65.0% (+1% slip) = 13.1% edge
+22:42:02 [ETH] 📊 Odds: YES 89.0% | NO 14.0%
+22:42:03 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.2x normal)
+22:42:03 [BTC] 📊 EDGE: conf=70.6% vs market=98.0% (+1% slip) = -28.7% edge
+22:42:03 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:03 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:03 [ETH] 🔮 SUPREME MODE: Warning - 72.2% < 75% (trade allowed but lower tier)
+22:42:03 [ETH] 📊 EDGE: conf=70.1% vs market=89.0% (+1% slip) = -22.0% edge
+22:42:03 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 65¢ + No 41¢ ≠ 100%)
+22:42:03 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.5x normal)
+22:42:03 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:03 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:03 [XRP] 📊 EDGE: conf=74.3% vs market=65.0% (+1% slip) = 13.1% edge
+22:42:03 [XRP] 📊 Odds: YES 72.0% | NO 36.0%
+22:42:04 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:04 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:04 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:04 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:04 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:04 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:04 [ETH] 🔮 SUPREME MODE: Warning - 72.2% < 75% (trade allowed but lower tier)
+22:42:04 [ETH] 📊 EDGE: conf=71.6% vs market=89.0% (+1% slip) = -20.4% edge
+22:42:04 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 72¢ + No 36¢ ≠ 100%)
+22:42:04 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:04 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:04 [XRP] 📊 EDGE: conf=75.6% vs market=72.0% (+1% slip) = 4.0% edge
+22:42:04 [ETH] 📊 Odds: YES 92.0% | NO 10.0%
+22:42:05 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:05 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:05 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:05 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:05 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:05 [ETH] 🔮 SUPREME MODE: Warning - 72.2% < 75% (trade allowed but lower tier)
+22:42:05 [ETH] 📊 EDGE: conf=72.0% vs market=92.0% (+1% slip) = -22.5% edge
+22:42:05 [XRP] ⚠️ LIQUIDITY VOID: Spread 8.0% (Yes 72¢ + No 36¢ ≠ 100%)
+22:42:05 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:05 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:05 [XRP] 📊 EDGE: conf=72.9% vs market=72.0% (+1% slip) = 0.3% edge
+22:42:05 [XRP] 📊 Odds: YES 72.0% | NO 35.0%
+22:42:06 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:06 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:06 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:06 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:06 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 72¢ + No 35¢ ≠ 100%)
+22:42:06 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:06 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:06 [XRP] 📊 EDGE: conf=75.6% vs market=72.0% (+1% slip) = 4.0% edge
+22:42:06 [ETH] 📊 Odds: YES 91.0% | NO 10.0%
+22:42:07 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:07 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:07 [BTC] 📊 EDGE: conf=74.1% vs market=98.0% (+1% slip) = -25.1% edge
+22:42:07 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 72¢ + No 35¢ ≠ 100%)
+22:42:07 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:07 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:07 [XRP] 📊 EDGE: conf=72.9% vs market=72.0% (+1% slip) = 0.3% edge
+22:42:07 [XRP] 📊 Odds: YES 72.0% | NO 33.0%
+22:42:08 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:08 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:08 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:08 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:08 [BTC] 📊 EDGE: conf=71.0% vs market=98.0% (+1% slip) = -28.2% edge
+22:42:08 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 72¢ + No 33¢ ≠ 100%)
+22:42:08 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:08 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:08 [XRP] 📊 EDGE: conf=75.6% vs market=72.0% (+1% slip) = 4.0% edge
+22:42:08 [ETH] 📊 Odds: YES 92.0% | NO 9.0%
+22:42:09 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:09 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:09 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:09 [BTC] 📊 EDGE: conf=70.1% vs market=98.0% (+1% slip) = -29.2% edge
+22:42:09 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 72¢ + No 33¢ ≠ 100%)
+22:42:09 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:09 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:09 [XRP] 📊 EDGE: conf=72.9% vs market=72.0% (+1% slip) = 0.3% edge
+22:42:09 [XRP] 📊 Odds: YES 73.0% | NO 33.0%
+22:42:10 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:10 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:10 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:10 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:10 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 73¢ + No 33¢ ≠ 100%)
+22:42:10 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:10 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:10 [XRP] 📊 EDGE: conf=75.8% vs market=73.0% (+1% slip) = 2.9% edge
+22:42:10 [ETH] 📊 Odds: YES 94.0% | NO 7.0%
+22:42:11 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:11 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:11 [BTC] 📊 EDGE: conf=74.1% vs market=98.0% (+1% slip) = -25.1% edge
+22:42:11 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 73¢ + No 33¢ ≠ 100%)
+22:42:11 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:11 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:11 [XRP] 📊 EDGE: conf=73.0% vs market=73.0% (+1% slip) = -1.0% edge
+22:42:11 [XRP] 📊 Odds: YES 73.0% | NO 32.0%
+22:42:12 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:12 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:12 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:12 [BTC] 📊 EDGE: conf=75.4% vs market=98.0% (+1% slip) = -23.8% edge
+22:42:12 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 73¢ + No 32¢ ≠ 100%)
+22:42:12 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:12 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:12 [XRP] 📊 EDGE: conf=75.8% vs market=73.0% (+1% slip) = 2.9% edge
+22:42:12 [ETH] 📊 Odds: YES 94.0% | NO 8.0%
+22:42:13 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:13 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:13 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:13 [BTC] 📊 EDGE: conf=71.4% vs market=98.0% (+1% slip) = -27.8% edge
+22:42:13 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:42:13 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 73¢ + No 32¢ ≠ 100%)
+22:42:13 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:13 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:13 [XRP] 📊 EDGE: conf=73.0% vs market=73.0% (+1% slip) = -1.0% edge
+22:42:13 [XRP] 📊 Odds: YES 73.0% | NO 32.0%
+22:42:14 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:14 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:14 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:14 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:14 [BTC] 📊 EDGE: conf=70.2% vs market=98.0% (+1% slip) = -29.0% edge
+22:42:14 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 73¢ + No 32¢ ≠ 100%)
+22:42:14 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:14 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:14 [XRP] 📊 EDGE: conf=75.8% vs market=73.0% (+1% slip) = 2.9% edge
+22:42:14 [ETH] 📊 Odds: YES 94.0% | NO 8.0%
+22:42:15 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:15 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:15 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:15 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 73¢ + No 32¢ ≠ 100%)
+22:42:15 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:15 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:15 [XRP] 📊 EDGE: conf=73.0% vs market=73.0% (+1% slip) = -1.0% edge
+22:42:15 [XRP] 📊 Odds: YES 75.0% | NO 27.0%
+22:42:16 [BTC] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:16 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:16 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:16 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:16 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:16 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:16 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:16 [XRP] 📊 EDGE: conf=76.3% vs market=75.0% (+1% slip) = 0.7% edge
+22:42:16 [ETH] 📊 Odds: YES 94.0% | NO 7.0%
+22:42:17 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:17 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:17 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:17 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:42:17 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:17 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:17 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:17 [XRP] 📊 EDGE: conf=76.3% vs market=75.0% (+1% slip) = 0.7% edge
+22:42:17 [XRP] 📊 Odds: YES 77.0% | NO 27.0%
+22:42:18 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:18 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:18 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:18 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:18 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:42:18 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:18 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:18 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:18 [XRP] 📊 EDGE: conf=76.6% vs market=77.0% (+1% slip) = -1.4% edge
+22:42:18 [ETH] 📊 Odds: YES 95.0% | NO 6.0%
+22:42:19 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:19 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:19 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:19 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:19 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:19 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:19 [XRP] 📊 EDGE: conf=76.6% vs market=77.0% (+1% slip) = -1.4% edge
+22:42:19 [XRP] 📊 Odds: YES 79.0% | NO 26.0%
+22:42:20 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:20 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:20 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:20 [BTC] 📊 EDGE: conf=74.1% vs market=99.0% (+1% slip) = -25.9% edge
+22:42:20 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 79¢ + No 26¢ ≠ 100%)
+22:42:20 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:20 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:20 [XRP] 📊 EDGE: conf=77.0% vs market=79.0% (+1% slip) = -3.4% edge
+22:42:20 [ETH] 📊 Odds: YES 95.0% | NO 6.0%
+22:42:21 [XRP] 📊 Odds: YES 79.0% | NO 25.0%
+22:42:21 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:21 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:21 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:21 [XRP] 📊 EDGE: conf=77.0% vs market=79.0% (+1% slip) = -3.4% edge
+22:42:22 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:22 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:22 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:22 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:22 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:22 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:22 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:22 [XRP] 📊 EDGE: conf=77.0% vs market=79.0% (+1% slip) = -3.4% edge
+22:42:22 [ETH] 📊 Odds: YES 95.0% | NO 6.0%
+22:42:23 [XRP] 📊 Odds: YES 79.0% | NO 25.0%
+22:42:23 [XRP] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:23 [XRP] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:42:23 [XRP] 📊 EDGE: conf=77.0% vs market=79.0% (+1% slip) = -3.4% edge
+22:42:24 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:24 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:24 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:24 [XRP] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:24 [XRP] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:42:24 [XRP] 📊 EDGE: conf=77.0% vs market=79.0% (+1% slip) = -3.4% edge
+22:42:24 [ORACLE] Fear & Greed: 28
+22:42:24 [ETH] 📊 Odds: YES 95.0% | NO 6.0%
+22:42:25 [XRP] 📊 Odds: YES 79.0% | NO 24.0%
+22:42:25 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:25 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:25 [BTC] 📊 EDGE: conf=73.7% vs market=99.0% (+1% slip) = -26.3% edge
+22:42:25 [XRP] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:25 [XRP] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:42:25 [XRP] 📊 EDGE: conf=77.0% vs market=79.0% (+1% slip) = -3.4% edge
+22:42:26 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:26 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:26 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:26 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:26 [BTC] 📊 EDGE: conf=70.9% vs market=99.0% (+1% slip) = -29.1% edge
+22:42:26 [XRP] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:26 [XRP] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:42:26 [XRP] 📊 EDGE: conf=77.0% vs market=79.0% (+1% slip) = -3.4% edge
+22:42:26 [ETH] 📊 Odds: YES 96.0% | NO 5.0%
+22:42:27 [XRP] 📊 Odds: YES 84.0% | NO 23.0%
+22:42:27 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:27 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:27 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:27 [BTC] 📊 EDGE: conf=70.1% vs market=99.0% (+1% slip) = -29.9% edge
+22:42:27 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 84¢ + No 23¢ ≠ 100%)
+22:42:27 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:27 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:27 [XRP] 📊 EDGE: conf=78.0% vs market=84.0% (+1% slip) = -8.0% edge
+22:42:28 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:28 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:28 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:28 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:28 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 84¢ + No 23¢ ≠ 100%)
+22:42:28 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:28 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:28 [XRP] 📊 EDGE: conf=78.0% vs market=84.0% (+1% slip) = -8.0% edge
+22:42:28 [ETH] 📊 Odds: YES 97.0% | NO 4.0%
+22:42:29 [XRP] 📊 Odds: YES 87.0% | NO 16.0%
+22:42:29 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:29 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:29 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:29 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:29 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:29 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:29 [XRP] 📊 EDGE: conf=78.6% vs market=87.0% (+1% slip) = -10.5% edge
+22:42:30 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:30 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.9x normal)
+22:42:30 [BTC] 📊 DIAG: Conf=73.4% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=750s Locked=false
+22:42:30 [BTC] 📊 EDGE: conf=73.4% vs market=99.0% (+1% slip) = -26.6% edge
+22:42:30 [ETH] 📊 DIAG: Conf=45.0% ConvThresh=80.6% AdvThresh=63.4% Tier=NONE Elapsed=750s Locked=false
+22:42:30 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (6.7x normal)
+22:42:30 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:30 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:30 [XRP] 📊 DIAG: Conf=73.8% ConvThresh=78.6% AdvThresh=61.4% Tier=ADVISORY Elapsed=750s Locked=false
+22:42:30 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 73 | Vel: -10.0
+22:42:30 [XRP] 📊 EDGE: conf=78.6% vs market=87.0% (+1% slip) = -10.5% edge
+22:42:30 [ETH] 📊 Odds: YES 97.0% | NO 5.0%
+22:42:31 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.0x normal)
+22:42:31 [BTC] 📊 DIAG: Conf=74.5% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=751s Locked=false
+22:42:31 [BTC] 📊 EDGE: conf=74.5% vs market=99.0% (+1% slip) = -25.5% edge
+22:42:31 [ETH] 📊 DIAG: Conf=45.0% ConvThresh=80.6% AdvThresh=63.4% Tier=NONE Elapsed=751s Locked=false
+22:42:31 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (6.6x normal)
+22:42:31 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:31 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:31 [XRP] 📊 DIAG: Conf=73.8% ConvThresh=78.6% AdvThresh=61.4% Tier=ADVISORY Elapsed=751s Locked=false
+22:42:31 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 77 | Vel: 4.0
+22:42:31 [XRP] 📊 EDGE: conf=78.6% vs market=87.0% (+1% slip) = -10.5% edge
+22:42:31 [XRP] 📊 Odds: YES 87.0% | NO 14.0%
+22:42:32 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:32 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.0x normal)
+22:42:32 [BTC] 📊 EDGE: conf=74.9% vs market=99.0% (+1% slip) = -25.1% edge
+22:42:32 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (6.6x normal)
+22:42:32 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:32 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:32 [XRP] 📊 EDGE: conf=78.6% vs market=87.0% (+1% slip) = -10.5% edge
+22:42:32 [ETH] 📊 Odds: YES 97.0% | NO 4.0%
+22:42:33 [XRP] 📊 Odds: YES 91.0% | NO 13.0%
+22:42:33 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:33 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:33 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:33 [BTC] 📊 EDGE: conf=71.3% vs market=99.0% (+1% slip) = -28.7% edge
+22:42:33 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:33 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:33 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:33 [XRP] 📊 EDGE: conf=79.5% vs market=91.0% (+1% slip) = -13.6% edge
+22:42:34 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:34 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:34 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:34 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:34 [BTC] 📊 EDGE: conf=70.2% vs market=99.0% (+1% slip) = -29.8% edge
+22:42:34 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:34 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:34 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:34 [XRP] 📊 EDGE: conf=79.5% vs market=91.0% (+1% slip) = -13.6% edge
+22:42:34 [ETH] 📊 Odds: YES 96.0% | NO 6.0%
+22:42:35 [XRP] 📊 Odds: YES 91.0% | NO 11.0%
+22:42:35 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:42:35 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:42:35 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:42:35 [XRP] ✨ CONSENSUS BONUS: High agreement (83%)
+22:42:35 [XRP] 🔮 SUPREME MODE: Warning - 54.5% < 75% (trade allowed but lower tier)
+22:42:36 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:36 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:36 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:36 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:36 [XRP] 📊 EDGE: conf=79.5% vs market=91.0% (+1% slip) = -13.6% edge
+22:42:36 [ETH] 📊 Odds: YES 96.0% | NO 6.0%
+22:42:37 [XRP] 📊 Odds: YES 90.0% | NO 11.0%
+22:42:37 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:37 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:37 [XRP] 🔮 SUPREME MODE: Warning - 71.2% < 75% (trade allowed but lower tier)
+22:42:37 [XRP] 📊 EDGE: conf=79.3% vs market=90.0% (+1% slip) = -12.8% edge
+22:42:38 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:38 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:42:38 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:42:38 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:42:38 [ETH] 📊 Odds: YES 97.0% | NO 4.0%
+22:42:39 [XRP] 📊 Odds: YES 93.0% | NO 11.0%
+22:42:40 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:41 [ETH] 📊 Odds: YES 97.0% | NO 6.0%
+22:42:41 [XRP] 📊 Odds: YES 93.0% | NO 11.0%
+22:42:41 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:41 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:41 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:41 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:41 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:41 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:42:42 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:42 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:42 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:42 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:42 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:42:42 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:42:42 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:42:42 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:42 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:42 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:42:42 [XRP] 📊 EDGE: conf=79.8% vs market=93.0% (+1% slip) = -15.0% edge
+22:42:42 [ETH] 📊 Odds: YES 97.0% | NO 5.0%
+22:42:43 [XRP] 📊 Odds: YES 93.0% | NO 11.0%
+22:42:43 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:43 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:43 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:43 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:42:43 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:42:43 [ETH] ✅ PREDICTION FLIP: NEUTRAL @ 24.0%
+22:42:43 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:42:43 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:43 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:43 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:42:43 [XRP] 📊 EDGE: conf=79.8% vs market=93.0% (+1% slip) = -15.0% edge
+22:42:44 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:44 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:44 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:44 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:44 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:44 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:44 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:42:44 [XRP] 📊 EDGE: conf=79.8% vs market=93.0% (+1% slip) = -15.0% edge
+22:42:44 [ETH] 📊 Odds: YES 97.0% | NO 5.0%
+22:42:45 [XRP] 📊 Odds: YES 90.0% | NO 13.0%
+22:42:45 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:45 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:45 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:45 [ETH] ✅ PREDICTION FLIP: UP @ 38.7%
+22:42:45 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:45 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:45 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:42:45 [XRP] 📊 EDGE: conf=79.3% vs market=90.0% (+1% slip) = -12.8% edge
+22:42:46 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:46 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:46 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:46 [BTC] 📊 EDGE: conf=74.1% vs market=99.0% (+1% slip) = -25.9% edge
+22:42:46 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:42:46 [ETH] 📊 Odds: YES 97.0% | NO 5.0%
+22:42:47 [XRP] 📊 Odds: YES 94.0% | NO 13.0%
+22:42:47 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:47 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:47 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:47 [BTC] 📊 EDGE: conf=71.0% vs market=99.0% (+1% slip) = -29.0% edge
+22:42:47 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 94¢ + No 13¢ ≠ 100%)
+22:42:47 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:47 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:47 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:48 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:48 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:48 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:48 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:48 [BTC] 📊 EDGE: conf=70.1% vs market=99.0% (+1% slip) = -29.9% edge
+22:42:48 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 94¢ + No 13¢ ≠ 100%)
+22:42:48 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:48 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:48 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:48 [ETH] 📊 Odds: YES 97.0% | NO 5.0%
+22:42:49 [XRP] 📊 Odds: YES 94.0% | NO 13.0%
+22:42:49 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:49 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:49 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:49 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 94¢ + No 13¢ ≠ 100%)
+22:42:49 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:49 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:49 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:50 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:50 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:50 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:50 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:50 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 94¢ + No 13¢ ≠ 100%)
+22:42:50 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:50 [XRP] 🔮 SUPREME MODE: Warning - 71.7% < 75% (trade allowed but lower tier)
+22:42:50 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:50 [ETH] 📊 Odds: YES 96.0% | NO 6.0%
+22:42:51 [XRP] 📊 Odds: YES 90.0% | NO 13.0%
+22:42:51 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:51 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:51 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:51 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:51 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:51 [XRP] 📊 EDGE: conf=76.7% vs market=90.0% (+1% slip) = -15.6% edge
+22:42:52 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:52 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:52 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:52 [BTC] 📊 EDGE: conf=74.1% vs market=99.0% (+1% slip) = -25.9% edge
+22:42:52 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:52 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:52 [XRP] 📊 EDGE: conf=79.3% vs market=90.0% (+1% slip) = -12.8% edge
+22:42:52 [ETH] 📊 Odds: YES 97.0% | NO 4.0%
+22:42:53 [XRP] 📊 Odds: YES 90.0% | NO 13.0%
+22:42:53 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:53 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:53 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:53 [BTC] 📊 EDGE: conf=71.0% vs market=99.0% (+1% slip) = -29.0% edge
+22:42:53 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:53 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:53 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:42:53 [XRP] 📊 EDGE: conf=79.3% vs market=90.0% (+1% slip) = -12.8% edge
+22:42:54 [BTC] 📊 Odds: YES 99.0% | NO 2.0%
+22:42:54 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:54 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:54 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:54 [BTC] 📊 EDGE: conf=70.1% vs market=99.0% (+1% slip) = -29.9% edge
+22:42:54 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:54 [XRP] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:54 [XRP] 🔮 SUPREME MODE: Warning - 69.2% < 75% (trade allowed but lower tier)
+22:42:54 [XRP] 📊 EDGE: conf=79.3% vs market=90.0% (+1% slip) = -12.8% edge
+22:42:54 [ETH] 📊 Odds: YES 98.0% | NO 3.0%
+22:42:55 [XRP] 📊 Odds: YES 94.0% | NO 11.0%
+22:42:55 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:55 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:55 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:55 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 94¢ + No 11¢ ≠ 100%)
+22:42:55 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:56 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:42:56 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:56 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:56 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:56 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 94¢ + No 11¢ ≠ 100%)
+22:42:56 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:57 [ETH] 📊 Odds: YES 97.0% | NO 4.0%
+22:42:57 [XRP] 📊 Odds: YES 94.0% | NO 11.0%
+22:42:57 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:57 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:57 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:57 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 94¢ + No 11¢ ≠ 100%)
+22:42:57 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.1x normal)
+22:42:57 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:58 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:42:58 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:58 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:58 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:58 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 94¢ + No 11¢ ≠ 100%)
+22:42:58 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.1x normal)
+22:42:58 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:42:58 [ETH] 📊 Odds: YES 97.0% | NO 5.0%
+22:42:59 [XRP] 📊 Odds: YES 94.0% | NO 11.0%
+22:42:59 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:42:59 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:42:59 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:42:59 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 94¢ + No 11¢ ≠ 100%)
+22:42:59 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:43:00 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:00 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:00 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:00 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:00 [BTC] 📊 DIAG: Conf=69.7% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=780s Locked=false
+22:43:00 [ETH] 📊 DIAG: Conf=45.0% ConvThresh=80.6% AdvThresh=63.4% Tier=NONE Elapsed=780s Locked=false
+22:43:00 [XRP] ⚠️ LIQUIDITY VOID: Spread 5.0% (Yes 94¢ + No 11¢ ≠ 100%)
+22:43:00 [XRP] 📊 DIAG: Conf=76.5% ConvThresh=80.0% AdvThresh=62.8% Tier=ADVISORY Elapsed=780s Locked=false
+22:43:00 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 73 | Vel: 0.0
+22:43:00 [XRP] 📊 EDGE: conf=80.0% vs market=94.0% (+1% slip) = -15.7% edge
+22:43:00 [ETH] 📊 Odds: YES 98.0% | NO 3.0%
+22:43:01 [XRP] 📊 Odds: YES 95.0% | NO 11.0%
+22:43:01 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:01 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:01 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:01 [BTC] 📊 DIAG: Conf=69.7% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=781s Locked=false
+22:43:01 [ETH] 📊 DIAG: Conf=45.0% ConvThresh=80.8% AdvThresh=63.6% Tier=NONE Elapsed=781s Locked=false
+22:43:01 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 95¢ + No 11¢ ≠ 100%)
+22:43:01 [XRP] 📊 DIAG: Conf=76.5% ConvThresh=80.2% AdvThresh=63.0% Tier=ADVISORY Elapsed=781s Locked=false
+22:43:01 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 73 | Vel: 0.0
+22:43:01 [XRP] 📊 EDGE: conf=80.2% vs market=95.0% (+1% slip) = -16.4% edge
+22:43:02 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:02 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:02 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:02 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:02 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 95¢ + No 11¢ ≠ 100%)
+22:43:02 [XRP] 📊 EDGE: conf=80.2% vs market=95.0% (+1% slip) = -16.4% edge
+22:43:02 [ETH] 📊 Odds: YES 98.0% | NO 3.0%
+22:43:03 [XRP] 📊 Odds: YES 96.0% | NO 11.0%
+22:43:03 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:03 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:03 [BTC] 📊 EDGE: conf=74.1% vs market=99.0% (+1% slip) = -25.9% edge
+22:43:03 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:43:03 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 96¢ + No 11¢ ≠ 100%)
+22:43:03 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:04 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:04 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:04 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:04 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:04 [BTC] 📊 EDGE: conf=71.0% vs market=99.0% (+1% slip) = -29.0% edge
+22:43:04 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 96¢ + No 11¢ ≠ 100%)
+22:43:04 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:05 [ETH] 📊 Odds: YES 98.0% | NO 3.0%
+22:43:05 [XRP] 📊 Odds: YES 96.0% | NO 10.0%
+22:43:05 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:05 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:05 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:05 [BTC] 📊 EDGE: conf=70.1% vs market=99.0% (+1% slip) = -29.9% edge
+22:43:05 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 96¢ + No 10¢ ≠ 100%)
+22:43:05 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:06 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:06 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:06 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:06 [BTC] 📊 EDGE: conf=74.2% vs market=99.0% (+1% slip) = -25.8% edge
+22:43:06 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 96¢ + No 10¢ ≠ 100%)
+22:43:06 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:06 [ETH] 📊 Odds: YES 98.0% | NO 3.0%
+22:43:07 [XRP] 📊 Odds: YES 96.0% | NO 13.0%
+22:43:07 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:07 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:07 [BTC] 📊 EDGE: conf=75.5% vs market=99.0% (+1% slip) = -24.5% edge
+22:43:07 [XRP] ⚠️ LIQUIDITY VOID: Spread 9.0% (Yes 96¢ + No 13¢ ≠ 100%)
+22:43:07 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:08 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:08 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:08 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:08 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:08 [BTC] 📊 EDGE: conf=71.4% vs market=99.0% (+1% slip) = -28.6% edge
+22:43:08 [XRP] ⚠️ LIQUIDITY VOID: Spread 9.0% (Yes 96¢ + No 13¢ ≠ 100%)
+22:43:08 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:09 [ETH] 📊 Odds: YES 98.0% | NO 3.0%
+22:43:09 [XRP] 📊 Odds: YES 95.0% | NO 12.0%
+22:43:09 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:09 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:09 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:09 [BTC] 📊 EDGE: conf=70.2% vs market=99.0% (+1% slip) = -29.8% edge
+22:43:09 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 95¢ + No 12¢ ≠ 100%)
+22:43:09 [XRP] 📊 EDGE: conf=80.2% vs market=95.0% (+1% slip) = -16.4% edge
+22:43:10 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:10 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:10 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:10 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:10 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:43:10 [XRP] ⚠️ LIQUIDITY VOID: Spread 7.0% (Yes 95¢ + No 12¢ ≠ 100%)
+22:43:10 [XRP] 📊 EDGE: conf=80.2% vs market=95.0% (+1% slip) = -16.4% edge
+22:43:11 [ETH] 📊 Odds: YES 98.0% | NO 3.0%
+22:43:11 [XRP] 📊 Odds: YES 96.0% | NO 10.0%
+22:43:11 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:11 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:11 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:11 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:43:11 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 96¢ + No 10¢ ≠ 100%)
+22:43:11 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:12 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:12 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:12 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:12 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:12 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:43:12 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 96¢ + No 10¢ ≠ 100%)
+22:43:12 [XRP] 📊 EDGE: conf=80.4% vs market=96.0% (+1% slip) = -17.0% edge
+22:43:12 [ETH] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:13 [XRP] 📊 Odds: YES 97.0% | NO 5.0%
+22:43:13 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:13 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:13 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:13 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:13 [XRP] 🔮 SUPREME MODE: Warning - 74.4% < 75% (trade allowed but lower tier)
+22:43:13 [XRP] 📊 EDGE: conf=80.6% vs market=97.0% (+1% slip) = -17.7% edge
+22:43:14 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:14 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:14 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:14 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:14 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:43:14 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:14 [XRP] 📊 EDGE: conf=78.1% vs market=97.0% (+1% slip) = -20.3% edge
+22:43:14 [ETH] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:15 [XRP] 📊 Odds: YES 98.0% | NO 4.0%
+22:43:15 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:15 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:15 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:15 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:15 [XRP] 🔮 SUPREME MODE: Warning - 74.4% < 75% (trade allowed but lower tier)
+22:43:15 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:16 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:16 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:16 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:16 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:16 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:16 [XRP] 🔮 SUPREME MODE: Warning - 74.4% < 75% (trade allowed but lower tier)
+22:43:16 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:17 [ETH] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:17 [XRP] 📊 Odds: YES 97.0% | NO 7.0%
+22:43:17 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:17 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:17 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:17 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:17 [XRP] 🔮 SUPREME MODE: Warning - 74.4% < 75% (trade allowed but lower tier)
+22:43:17 [XRP] 📊 EDGE: conf=80.6% vs market=97.0% (+1% slip) = -17.7% edge
+22:43:18 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:18 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:18 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:18 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:18 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.7x normal)
+22:43:18 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:18 [XRP] 📊 EDGE: conf=78.1% vs market=97.0% (+1% slip) = -20.3% edge
+22:43:18 [ETH] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:19 [XRP] 📊 Odds: YES 98.0% | NO 5.0%
+22:43:19 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:19 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:19 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:19 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.7x normal)
+22:43:19 [ETH] 📊 EDGE: conf=72.3% vs market=99.0% (+1% slip) = -27.7% edge
+22:43:19 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:19 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:20 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:20 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:20 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:20 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:20 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (9.4x normal)
+22:43:20 [ETH] 📊 EDGE: conf=74.2% vs market=99.0% (+1% slip) = -25.8% edge
+22:43:20 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:20 [XRP] 📊 EDGE: conf=78.2% vs market=98.0% (+1% slip) = -21.0% edge
+22:43:21 [ETH] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:21 [XRP] 📊 Odds: YES 98.0% | NO 5.0%
+22:43:21 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (7.0x normal)
+22:43:21 [BTC] 📊 EDGE: conf=73.4% vs market=99.0% (+1% slip) = -26.6% edge
+22:43:21 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (6.5x normal)
+22:43:21 [ETH] 📊 EDGE: conf=74.8% vs market=99.0% (+1% slip) = -25.2% edge
+22:43:21 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:21 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:22 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:22 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.2x normal)
+22:43:22 [BTC] 📊 EDGE: conf=74.5% vs market=99.0% (+1% slip) = -25.5% edge
+22:43:22 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:22 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:22 [ETH] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:23 [XRP] 📊 Odds: YES 98.0% | NO 4.0%
+22:43:23 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.2x normal)
+22:43:23 [BTC] 📊 EDGE: conf=74.9% vs market=99.0% (+1% slip) = -25.1% edge
+22:43:23 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:23 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:24 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:24 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:24 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:24 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:24 [BTC] 📊 EDGE: conf=71.3% vs market=99.0% (+1% slip) = -28.7% edge
+22:43:24 [ETH] 🔮 SUPREME MODE: Warning - 50.4% < 75% (trade allowed but lower tier)
+22:43:24 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:24 [XRP] 🔮 SUPREME MODE: Warning - 72.0% < 75% (trade allowed but lower tier)
+22:43:24 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:24 [ETH] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:25 [XRP] 📊 Odds: YES 97.0% | NO 4.0%
+22:43:25 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:25 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:25 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:25 [BTC] 📊 EDGE: conf=70.2% vs market=99.0% (+1% slip) = -29.8% edge
+22:43:25 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:25 [XRP] 🔮 SUPREME MODE: Warning - 72.0% < 75% (trade allowed but lower tier)
+22:43:25 [XRP] 📊 EDGE: conf=80.6% vs market=97.0% (+1% slip) = -17.7% edge
+22:43:26 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:26 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:26 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:26 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:26 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:26 [XRP] 🔮 SUPREME MODE: Warning - 72.0% < 75% (trade allowed but lower tier)
+22:43:26 [XRP] 📊 EDGE: conf=80.6% vs market=97.0% (+1% slip) = -17.7% edge
+22:43:27 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:27 [XRP] 📊 Odds: YES 98.0% | NO 3.0%
+22:43:27 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:27 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:27 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:27 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:27 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:28 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:28 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:28 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:28 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:28 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:28 [XRP] 🔮 SUPREME MODE: Warning - 72.0% < 75% (trade allowed but lower tier)
+22:43:28 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:28 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:29 [XRP] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:29 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:29 [BTC] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:43:29 [BTC] 🔮 SUPREME MODE: Warning - 69.7% < 75% (trade allowed but lower tier)
+22:43:29 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:43:29 [XRP] 🔮 SUPREME MODE: Warning - 72.0% < 75% (trade allowed but lower tier)
+22:43:29 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:30 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:30 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:30 [BTC] 📊 DIAG: Conf=73.4% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=810s Locked=false
+22:43:30 [BTC] 📊 EDGE: conf=73.4% vs market=99.0% (+1% slip) = -26.6% edge
+22:43:30 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.5x normal)
+22:43:30 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:30 [ETH] 📊 DIAG: Conf=66.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=810s Locked=false
+22:43:30 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:30 [XRP] 📊 DIAG: Conf=76.8% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=810s Locked=false
+22:43:30 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 77 | Vel: 0.0
+22:43:30 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:30 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:31 [XRP] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:31 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:31 [BTC] 📊 DIAG: Conf=74.5% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=811s Locked=false
+22:43:31 [BTC] 📊 EDGE: conf=74.5% vs market=99.0% (+1% slip) = -25.5% edge
+22:43:31 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.5x normal)
+22:43:31 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:31 [ETH] 📊 DIAG: Conf=72.3% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=811s Locked=false
+22:43:31 [ETH] 📊 EDGE: conf=72.3% vs market=99.0% (+1% slip) = -27.7% edge
+22:43:31 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:31 [XRP] 📊 DIAG: Conf=76.8% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=811s Locked=false
+22:43:31 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 77 | Vel: 0.0
+22:43:31 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:32 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:32 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:32 [BTC] 📊 EDGE: conf=74.9% vs market=99.0% (+1% slip) = -25.1% edge
+22:43:32 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:43:32 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:32 [ETH] 📊 EDGE: conf=74.2% vs market=99.0% (+1% slip) = -25.8% edge
+22:43:32 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:32 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:32 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:33 [XRP] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:33 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:33 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:33 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.0x normal)
+22:43:33 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:33 [ETH] 📊 EDGE: conf=74.8% vs market=99.0% (+1% slip) = -25.2% edge
+22:43:33 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:33 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:34 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:34 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:34 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:34 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.0x normal)
+22:43:34 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:34 [ETH] 📊 EDGE: conf=74.9% vs market=99.0% (+1% slip) = -25.1% edge
+22:43:34 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:34 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:34 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:35 [XRP] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:35 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:35 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:35 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.8x normal)
+22:43:35 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:35 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:35 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:35 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:36 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:36 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:36 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:36 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:36 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:36 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:36 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:36 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:37 [XRP] 📊 Odds: YES 99.0% | NO 5.0%
+22:43:37 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:37 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:37 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:37 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:37 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:37 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:38 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:38 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:38 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:38 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:38 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:38 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:38 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:39 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:39 [XRP] 📊 Odds: YES 98.0% | NO 2.0%
+22:43:39 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:39 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:39 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:39 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:39 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:39 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:40 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:40 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.0x normal)
+22:43:40 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:40 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:40 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.6x normal)
+22:43:40 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:40 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:40 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:40 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:41 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:41 [XRP] 📊 Odds: YES 98.0% | NO 2.0%
+22:43:41 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.3x normal)
+22:43:41 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:41 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:41 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.3x normal)
+22:43:41 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:41 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:41 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:41 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:42 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:42 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.9x normal)
+22:43:42 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:42 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:42 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.4x normal)
+22:43:42 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:42 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:42 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:42 [XRP] 📊 EDGE: conf=80.8% vs market=98.0% (+1% slip) = -18.3% edge
+22:43:43 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:43 [XRP] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:43 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.4x normal)
+22:43:43 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:43 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:43 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.4x normal)
+22:43:43 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:43 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:43 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:43 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:44 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:44 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.4x normal)
+22:43:45 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:45 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:45 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (5.4x normal)
+22:43:45 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:45 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:45 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:45 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:45 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:45 [XRP] 📊 Odds: YES 99.0% | NO 2.0%
+22:43:46 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:43:46 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:46 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:46 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:46 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:46 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:46 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:46 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:47 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:47 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:47 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:47 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:47 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:47 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:47 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:47 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:48 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:48 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:48 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:48 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:48 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:48 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:48 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:49 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:49 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:49 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:49 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:49 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:49 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:49 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:49 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:50 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:50 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:50 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:50 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:50 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:50 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:50 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:51 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:51 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:51 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:51 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:51 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:51 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:51 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:51 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:52 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.8x normal)
+22:43:52 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:52 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:52 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:52 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:52 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:52 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:52 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:53 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:53 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:53 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:53 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:53 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:53 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:53 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:53 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:54 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:54 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:54 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:54 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:54 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:54 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:54 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:55 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:55 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:55 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:55 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:55 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:55 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:55 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:55 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:56 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:56 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:56 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:56 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:56 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:56 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:56 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:57 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:57 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:57 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:57 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:57 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:57 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:57 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:57 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:58 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:58 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:58 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:58 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:58 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:58 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:58 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:59 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:59 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:59 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:59 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:43:59 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:43:59 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:43:59 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:43:59 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:00 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.2x normal)
+22:44:00 [BTC] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:44:00 [BTC] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=840s Locked=false
+22:44:00 [BTC] ⬛ BLACKOUT ACTIVE: Holding UP for final 60s - NO CHANGES
+22:44:00 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:00 [ETH] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:44:00 [ETH] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=840s Locked=false
+22:44:00 [ETH] ⬛ BLACKOUT ACTIVE: Holding UP for final 60s - NO CHANGES
+22:44:00 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:00 [XRP] ⏱️ FINAL MINUTE: No new signals - holding current prediction
+22:44:00 [XRP] 📊 DIAG: Conf=76.8% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=840s Locked=false
+22:44:00 [XRP] ⬛ BLACKOUT ACTIVE: Holding UP for final 60s - NO CHANGES
+22:44:00 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 73 | Vel: -4.0
+22:44:00 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:00 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:01 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:01 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.2x normal)
+22:44:01 [BTC] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=841s Locked=false
+22:44:01 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:01 [ETH] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=841s Locked=false
+22:44:01 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:01 [XRP] 📊 DIAG: Conf=76.8% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=841s Locked=false
+22:44:01 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 73 | Vel: 0.0
+22:44:01 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:01 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:02 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:02 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:02 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:02 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:03 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:03 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:03 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:03 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:03 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:04 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.3x normal)
+22:44:04 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:04 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:04 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:04 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:05 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:05 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:05 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:05 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:05 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:06 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:06 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:06 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:06 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:07 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:07 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:44:07 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:07 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:07 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:07 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:08 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:08 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:08 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:08 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:09 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:09 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:09 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:09 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:09 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:10 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.8x normal)
+22:44:10 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:10 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.4x normal)
+22:44:10 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:10 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:10 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:11 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:11 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:11 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:11 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:11 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:12 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:12 [ETH] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.5x normal)
+22:44:12 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:12 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:12 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:13 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:13 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:13 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:13 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:13 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:14 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:14 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:14 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:14 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:15 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:15 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:15 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:15 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:15 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:16 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:16 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:16 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:16 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:17 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:17 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:17 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:17 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:17 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:18 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:18 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:18 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:18 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:19 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:19 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:19 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:19 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:19 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:20 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:20 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:20 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:20 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:21 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:21 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:21 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:21 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:21 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:22 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:22 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:22 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.2x normal)
+22:44:22 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:22 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:23 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:23 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:23 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:23 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:23 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:24 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:24 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:24 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (4.0x normal)
+22:44:24 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:24 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:25 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:25 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:25 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:25 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:25 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:26 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:26 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:26 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:26 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:27 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:27 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:27 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:27 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:27 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:28 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:28 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:28 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:28 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:29 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:29 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:29 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:29 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:29 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:30 [BTC] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=870s Locked=false
+22:44:30 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:30 [ETH] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=870s Locked=false
+22:44:30 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:30 [XRP] 📊 DIAG: Conf=76.8% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=870s Locked=false
+22:44:30 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 73 | Vel: -4.0
+22:44:30 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:30 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:31 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:31 [BTC] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=871s Locked=false
+22:44:31 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:31 [ETH] 📊 DIAG: Conf=75.0% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=871s Locked=false
+22:44:31 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:31 [XRP] 📊 DIAG: Conf=76.8% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=871s Locked=false
+22:44:31 [XRP] 🔮 ORACLE HOLDING: UP | Certainty: 77 | Vel: 4.0
+22:44:31 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:31 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:32 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:32 [ETH] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:32 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:32 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:33 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:33 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:33 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:33 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:34 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:34 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:34 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:35 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:35 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:35 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:35 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:36 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:36 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:36 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:37 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:37 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:37 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:37 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:38 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:38 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:38 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:39 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:39 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:39 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:39 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:40 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:40 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:40 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:41 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:41 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:41 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:42 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:42 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:43 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:43 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:43 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:44 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:44 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:45 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:45 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:45 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:46 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:46 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:47 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:47 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:47 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:48 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:48 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:49 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:49 [BTC] 📊 EDGE: conf=71.6% vs market=99.0% (+1% slip) = -28.4% edge
+22:44:49 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:49 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:50 [BTC] 📊 EDGE: conf=74.0% vs market=99.0% (+1% slip) = -26.0% edge
+22:44:50 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:50 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:51 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:51 [BTC] 📊 EDGE: conf=74.7% vs market=99.0% (+1% slip) = -25.3% edge
+22:44:51 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:51 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:52 [BTC] 📊 EDGE: conf=74.9% vs market=99.0% (+1% slip) = -25.1% edge
+22:44:52 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:52 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:53 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:53 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:53 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:53 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:54 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:54 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:54 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:55 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:55 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:55 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:55 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:56 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:56 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:56 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:57 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:57 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:57 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:57 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:58 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:58 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:58 [BTC] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:59 [ETH] 📊 Odds: YES 99.0% | NO 1.0%
+22:44:59 [BTC] 📊 EDGE: conf=75.0% vs market=99.0% (+1% slip) = -25.0% edge
+22:44:59 [XRP] 📊 EDGE: conf=81.0% vs market=99.0% (+1% slip) = -18.9% edge
+22:44:59 [XRP] 📊 Odds: YES 99.0% | NO 1.0%
+22:45:00 [BTC] 🔓 LOCKS RESET for new cycle
+22:45:00 [BTC] ✅ WIN (ADVISORY). Evolving: ATR x1.00
+22:45:00 [BTC] 📊 DEBUG: Saved cycle data (2/10 cycles stored)
+22:45:00 [BTC] 📊 Evaluated checkpoint 1767393000 (fresh data)
+22:45:00 [BTC] 🔄 NEW Checkpoint: $90285.96 
+22:45:00 [ETH] 🔓 LOCKS RESET for new cycle
+22:45:00 [ETH] ✅ WIN (ADVISORY). Evolving: ATR x2.80
+22:45:00 [ETH] 📊 DEBUG: Saved cycle data (2/10 cycles stored)
+22:45:00 [ETH] 📊 Evaluated checkpoint 1767393000 (fresh data)
+22:45:00 [ETH] 🔄 NEW Checkpoint: $3135.48 
+22:45:00 [XRP] 🔓 LOCKS RESET for new cycle
+22:45:00 [XRP] ✅ WIN (CONVICTION). Evolving: ATR x1.00
+22:45:00 [XRP] 📊 DEBUG: Saved cycle data (2/10 cycles stored)
+22:45:00 [XRP] 📊 Evaluated checkpoint 1767393000 (fresh data)
+22:45:00 [XRP] 🔄 NEW Checkpoint: $2.02 
+22:45:00 [BTC] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:45:00 [BTC] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:00 [BTC] 📊 DIAG: Conf=22.5% ConvThresh=61.4% AdvThresh=44.2% Tier=NONE Elapsed=0s Locked=false
+22:45:00 [BTC] ℹ️ NEUTRAL signal - edge set to 0
+22:45:00 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:00 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:45:00 [ETH] 📊 DIAG: Conf=28.1% ConvThresh=61.4% AdvThresh=44.2% Tier=NONE Elapsed=0s Locked=false
+22:45:00 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:45:00 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:00 [XRP] 📊 DIAG: Conf=94.3% ConvThresh=81.0% AdvThresh=63.8% Tier=CONVICTION Elapsed=0s Locked=false
+22:45:00 [XRP] 💎 CYCLE COMMITMENT: UP @CONVICTION tier, 99.0% odds (LOCKED FOR CYCLE)
+22:45:00 [XRP] 📊 EDGE: conf=94.3% vs market=99.0% (+1% slip) = -5.7% edge
+22:45:00 [BTC] 📊 Odds: YES 51.0% | NO 50.0%
+22:45:01 [ETH] 📊 Odds: YES 46.0% | NO 56.0%
+22:45:01 [BTC] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:01 [BTC] 📊 DIAG: Conf=43.4% ConvThresh=71.4% AdvThresh=54.2% Tier=NONE Elapsed=1s Locked=false
+22:45:01 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:01 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:45:01 [ETH] 📊 DIAG: Conf=28.1% ConvThresh=72.4% AdvThresh=55.2% Tier=NONE Elapsed=1s Locked=false
+22:45:01 [ETH] ✅ PREDICTION FLIP: NEUTRAL @ 28.1%
+22:45:01 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:45:01 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:01 [XRP] 📊 DIAG: Conf=78.1% ConvThresh=81.0% AdvThresh=63.8% Tier=ADVISORY Elapsed=1s Locked=false
+22:45:01 [XRP] ✅ PREDICTION FLIP: UP @ 78.1%
+22:45:01 [XRP] 📊 EDGE: conf=78.1% vs market=99.0% (+1% slip) = -21.9% edge
+22:45:01 [XRP] 📊 Odds: YES 64.0% | NO 42.0%
+22:45:02 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:02 [BTC] ✅ PREDICTION FLIP: UP @ 40.5%
+22:45:02 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:02 [ETH] 🛡️ CONFIDENCE FLOOR: Enforced 15% min (models 60% agree)
+22:45:02 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:45:02 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 64¢ + No 42¢ ≠ 100%)
+22:45:02 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:02 [XRP] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:02 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:03 [ETH] 📊 Odds: YES 46.0% | NO 55.0%
+22:45:03 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:03 [ETH] ⚠️ Contrarian (2U/0D)
+22:45:03 [XRP] ⚠️ LIQUIDITY VOID: Spread 6.0% (Yes 64¢ + No 42¢ ≠ 100%)
+22:45:03 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.8x normal)
+22:45:03 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:03 [XRP] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:03 [XRP] 📊 Odds: YES 58.0% | NO 43.0%
+22:45:04 [BTC] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:04 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.8x normal)
+22:45:04 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:04 [XRP] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:04 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:05 [ETH] 📊 Odds: YES 45.0% | NO 56.0%
+22:45:05 [BTC] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:05 [ETH] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:05 [ETH] 🔮 SUPREME MODE: Warning - 60.9% < 75% (trade allowed but lower tier)
+22:45:05 [ETH] ⚠️ Contrarian (2U/0D)
+22:45:05 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:45:05 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:05 [XRP] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:05 [XRP] 📊 Odds: YES 60.0% | NO 42.0%
+22:45:06 [BTC] ✨ CONSENSUS BONUS: High agreement (83%)
+22:45:06 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:06 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:45:06 [XRP] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:06 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:06 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:07 [ETH] 📊 Odds: YES 46.0% | NO 56.0%
+22:45:07 [BTC] 🛡️ CONFIDENCE FLOOR: Enforced 25% min (models 71% agree)
+22:45:07 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:07 [ETH] 🚀 MOMENTUM BOOST: +8% (price moving in our favor)
+22:45:07 [ETH] 🔮 SUPREME MODE: Warning - 66.6% < 75% (trade allowed but lower tier)
+22:45:07 [ETH] ⚠️ Contrarian (2U/0D)
+22:45:07 [XRP] ⚠️ CIRCUIT BREAKER: Extreme volatility detected (3.1x normal)
+22:45:07 [XRP] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:07 [XRP] 💎 CYCLE COMMITTED: Holding UP (no flip-flops allowed)
+22:45:07 [XRP] 📊 Odds: YES 60.0% | NO 42.0%
+22:45:08 [BTC] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:08 [ETH] 🎲 NO-TRADE: Market genuinely random (choppy + weak signal). Waiting for edge.
+22:45:08 [ETH] ℹ️ NEUTRAL signal - edge set to 0
+22:45:08 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:08 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:09 [ETH] 📊 Odds: YES 45.0% | NO 56.0%
+22:45:09 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:09 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:09 [ETH] 💎 CYCLE COMMITMENT: UP @ADVISORY tier, 45.0% odds (LOCKED FOR CYCLE)
+22:45:09 [XRP] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:09 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:09 [XRP] 📊 Odds: YES 60.0% | NO 43.0%
+22:45:10 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:10 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:10 [ETH] ✅ PREDICTION FLIP: UP @ 69.5%
+22:45:10 [XRP] ✨ CONSENSUS BONUS: High agreement (86%)
+22:45:10 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:10 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:11 [ETH] 📊 Odds: YES 46.0% | NO 56.0%
+22:45:11 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:11 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:11 [XRP] ✨ CONSENSUS BONUS: High agreement (84%)
+22:45:11 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:11 [XRP] 📊 Odds: YES 60.0% | NO 43.0%
+22:45:12 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:12 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:12 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:12 [XRP] 🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED
+22:45:12 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
+22:45:13 [ETH] 📊 Odds: YES 45.0% | NO 56.0%
+22:45:13 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:13 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:13 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:13 [XRP] 🔮 ═══════════════════════════════════════════════════
+22:45:13 [XRP] 🔮 TRUE ORACLE LOCK: UP @ 83 certainty
+22:45:13 [XRP] 🔮 Threshold: 80 | Velocity: 6.0 | Phase: GENESIS
+22:45:13 [XRP] 🔮 Genesis: UP (AGREES ✅)
+22:45:13 [XRP] 🔮 This prediction is FINAL and will NOT change this cycle.
+22:45:13 [XRP] 🔮 ═══════════════════════════════════════════════════
+22:45:14 [XRP] 📊 Odds: YES 64.0% | NO 40.0%
+22:45:14 [BTC] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:14 [ETH] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:14 [XRP] ✨ CONSENSUS BONUS: High agreement (100%)
+22:45:14 [BTC] 📊 Odds: YES 52.0% | NO 49.0%
