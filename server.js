@@ -132,7 +132,7 @@ app.use((req, res, next) => {
     }
 
     res.statusCode = 401;
-    res.setHeader('WWW-Authenticate', 'Basic realm="Supreme Deity"');
+    res.setHeader('WWW-Authenticate', 'Basic realm="POLYPROPHET"');
     res.json({ error: 'Access denied', hint: 'Use Basic Auth (username:password) or Bearer token (Authorization: Bearer <API_KEY>)' });
 });
 
@@ -447,10 +447,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const startTime = Date.now();
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
         const startingBalance = parseFloat(req.query.balance) || 10.0;
-        const minOddsEntry = parseFloat(req.query.minOdds) || 0.20; // 🎯 v53: Reject tail bets <20¢ (Oracle vs market = 6.7% WR)
+        const minOddsEntry = parseFloat(req.query.minOdds) || 0.20; // 🎯 v53.1: Reject tail bets <20¢ (Polymarket-verified catastrophic WR)
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // Allow high-confidence trades (97.5% WR)
-        const stakeFrac = parseFloat(req.query.stake) || 0.20; // Position size as fraction of balance
+        const stakeFrac = parseFloat(req.query.stake) || 0.10; // Position size as fraction of balance (default lowered for min-variance)
         const limit = parseInt(req.query.limit) || 200; // Max cycles to process (rate limit protection)
+        const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
@@ -520,7 +521,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 .sort();
             
             const seen = new Set();
-            for (const file of debugFiles.slice(-50)) { // Last 50 files only
+            const debugFilesLimit = Math.min(debugFilesParam, 500); // Default: last 200 files
+            for (const file of debugFiles.slice(-debugFilesLimit)) {
                 try {
                     const content = fs.readFileSync(path.join(debugDir, file), 'utf8');
                     const data = JSON.parse(content);
@@ -630,7 +632,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         
         // Sort by time and limit
         finalCycles.sort((a, b) => new Date(a.cycleEndTime) - new Date(b.cycleEndTime));
-        const cyclesToProcess = finalCycles.slice(0, limit);
+        // Use most recent cycles (still processed in chronological order for compounding)
+        const cyclesToProcess = finalCycles.slice(-limit);
         
         // Fetch Polymarket outcomes and simulate
         let balance = startingBalance;
@@ -708,10 +711,22 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const totalProfit = balance - startingBalance;
         const avgPnlPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
         const avgEntryPrice = trades.length > 0 ? trades.reduce((s, t) => s + t.entryPrice, 0) / trades.length : 0;
+        const avgEffectiveEntry = trades.length > 0 ? trades.reduce((s, t) => s + t.effectiveEntry, 0) / trades.length : 0;
         
-        // Expected value calculation
-        const expectedWinRoi = avgEntryPrice > 0 ? (1 / avgEntryPrice - 1) : 0;
-        const expectedEV = (winRate / 100) * expectedWinRoi - (1 - winRate / 100);
+        // EV calculation (aligned to the actual sample's win/loss + fee/slippage model)
+        // Use avg win ROI computed from the WINNING trades' actual effectiveEntry (fixes win/price correlation).
+        const winTrades = trades.filter(t => t && t.isWin && Number.isFinite(t.effectiveEntry) && t.effectiveEntry > 0);
+        const avgWinRoiNet = winTrades.length > 0
+            ? (winTrades.reduce((s, t) => s + ((1 / t.effectiveEntry - 1) * (1 - PROFIT_FEE_PCT)), 0) / winTrades.length)
+            : 0;
+        const expectedEV = (winRate / 100) * avgWinRoiNet - (1 - winRate / 100);
+        const winRateNeededForEV = avgWinRoiNet > 0 ? (1 / (1 + avgWinRoiNet)) * 100 : null;
+
+        const entrySources = {};
+        for (const t of trades) {
+            const k = t.entrySource || 'unknown';
+            entrySources[k] = (entrySources[k] || 0) + 1;
+        }
         
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
         
@@ -728,9 +743,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 winRate: winRate.toFixed(2) + '%',
                 maxDrawdown: (maxDrawdown * 100).toFixed(2) + '%',
                 avgEntryPrice: avgEntryPrice.toFixed(3),
+                avgEffectiveEntry: avgEffectiveEntry.toFixed(3),
                 avgPnlPerTrade: avgPnlPerTrade.toFixed(4),
+                avgWinRoiNet: avgWinRoiNet.toFixed(4) + ' per $1 stake (wins only)',
                 expectedEV: expectedEV.toFixed(4) + ' per $1 stake',
-                isProfitable: expectedEV > 0
+                isProfitable: totalProfit > 0
             },
             coverage: {
                 cyclesFound: finalCycles.length,
@@ -739,22 +756,267 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 unresolved,
                 errors,
                 fromDebug: debugCycles.length,
-                fromCollector: snapshotCycles.length
+                fromCollector: snapshotCycles.length,
+                entrySources
             },
             filters: {
                 tierFilter,
+                minOddsEntry,
                 maxOddsEntry,
                 stakeFrac,
-                limit
+                limit,
+                debugFiles: debugFilesParam
             },
             trades: trades.slice(-30), // Last 30 for display
             interpretation: {
-                winRateNeededForEV: avgEntryPrice > 0 ? ((1 / (1 + (1 / avgEntryPrice - 1))) * 100).toFixed(1) + '%' : 'N/A',
+                winRateNeededForEV: winRateNeededForEV !== null ? winRateNeededForEV.toFixed(1) + '%' : 'N/A',
                 currentWinRate: winRate.toFixed(1) + '%',
-                verdict: expectedEV > 0 ? '✅ POSITIVE EV - Profitable at current WR and entry prices' :
-                         expectedEV > -0.05 ? '⚠️ MARGINAL - Close to breakeven, need better entries or higher WR' :
-                         '❌ NEGATIVE EV - Entry prices too high for current win rate'
+                verdict: totalTrades === 0 ? 'ℹ️ No resolved cycles/trades found for these filters' :
+                         totalProfit > 0 ? '✅ PROFITABLE (simulated compounding P&L)' :
+                         expectedEV > 0 ? '⚠️ POSITIVE EDGE BUT LOST IN THIS SAMPLE (variance / sequencing risk) — consider lower stake' :
+                         expectedEV > -0.05 ? '⚠️ MARGINAL / CLOSE TO BREAKEVEN — need better entries or higher WR' :
+                         '❌ NEGATIVE — entry prices too high for current win rate'
             }
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== ✅ POLYMARKET TRADE VERIFICATION (GROUND TRUTH) ====================
+// Verifies EXECUTED trades against Polymarket Gamma API outcomes (detects divergence + silent errors)
+app.get('/api/verify-trades-polymarket', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const mode = (req.query.mode || CONFIG.TRADE_MODE || 'PAPER').toUpperCase();
+        const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+        const offset = Math.max(0, parseInt(req.query.offset) || 0);
+        const assetFilter = req.query.asset ? String(req.query.asset).toUpperCase() : null;
+
+        const PROFIT_FEE_PCT = 0.02;
+
+        // Load most recent trades (newest first)
+        const history = await loadTradeHistory(mode, offset, limit);
+        const rawTrades = Array.isArray(history.trades) ? history.trades : [];
+
+        // Only verify CLOSED ORACLE trades for supported assets
+        const candidates = rawTrades.filter(t => {
+            if (!t) return false;
+            const status = String(t.status || '').toUpperCase();
+            const tMode = String(t.mode || '').toUpperCase();
+            const asset = String(t.asset || '').toUpperCase();
+            if (status !== 'CLOSED') return false;
+            if (tMode !== 'ORACLE') return false;
+            if (t.isHedge) return false;
+            if (!ASSETS.includes(asset)) return false;
+            if (assetFilter && asset !== assetFilter) return false;
+            return true;
+        });
+
+        // Slug format used by Polymarket crypto cycles (matches collector/debug exports)
+        // Examples: btc-updown-15m-<epoch>, eth-updown-15m-<epoch>, xrp-updown-15m-<epoch>
+        const assetSlugBase = {
+            BTC: 'btc-updown-15m-',
+            ETH: 'eth-updown-15m-',
+            XRP: 'xrp-updown-15m-'
+        };
+
+        function buildSlugFromTrade(trade) {
+            const asset = String(trade.asset || '').toUpperCase();
+            const base = assetSlugBase[asset];
+            if (!base) return null;
+
+            const tradeTimeMs =
+                (typeof trade.time === 'number' ? trade.time : (typeof trade.timestamp === 'number' ? trade.timestamp : (typeof trade.closeTime === 'number' ? trade.closeTime : 0)));
+            if (!tradeTimeMs) return null;
+
+            const tradeSec = Math.floor(tradeTimeMs / 1000);
+            let startEpochSec;
+
+            // Prefer stored cycleElapsed for precision when available
+            if (Number.isFinite(trade.cycleElapsed)) {
+                const elapsed = Math.max(0, Math.min(899, Math.floor(trade.cycleElapsed)));
+                const cycleStartSec = tradeSec - elapsed;
+                startEpochSec = cycleStartSec - (cycleStartSec % 900);
+            } else {
+                startEpochSec = tradeSec - (tradeSec % 900);
+            }
+
+            return `${base}${startEpochSec}`;
+        }
+
+        async function fetchGammaOutcome(slug) {
+            try {
+                const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+                const response = await fetch(url, {
+                    headers: { 'User-Agent': 'polyprophet-verify/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                if (!response.ok) return { ok: false, error: `HTTP ${response.status}` };
+                const data = await response.json();
+                const market = Array.isArray(data) ? data[0] : data;
+                if (!market) return { ok: false, error: 'Market not found' };
+                if (!market.outcomePrices) return { ok: false, error: 'Missing outcomePrices' };
+
+                const prices = JSON.parse(market.outcomePrices);
+                if (!Array.isArray(prices) || prices.length < 2) return { ok: false, error: 'Invalid outcomePrices' };
+
+                const p0 = Number(prices[0]);
+                const p1 = Number(prices[1]);
+                if (!Number.isFinite(p0) || !Number.isFinite(p1)) return { ok: false, error: 'Non-numeric outcomePrices' };
+
+                // Treat as resolved if it is effectively 1/0 or 0/1
+                const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+                if (!idx0Win && !idx1Win) {
+                    return { ok: true, resolved: false, p0, p1, closed: market.closed === true };
+                }
+
+                // Map winner index -> UP/DOWN using outcomes ordering
+                let outcome = idx0Win ? 'UP' : 'DOWN';
+                try {
+                    const outcomes = market.outcomes ? JSON.parse(market.outcomes) : null;
+                    const o0 = Array.isArray(outcomes) && outcomes.length >= 2 ? String(outcomes[0]).toLowerCase() : null;
+                    const o1 = Array.isArray(outcomes) && outcomes.length >= 2 ? String(outcomes[1]).toLowerCase() : null;
+                    if (o0 === 'up' && o1 === 'down') outcome = idx0Win ? 'UP' : 'DOWN';
+                    else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
+                    else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
+                    else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
+                } catch { /* ignore */ }
+
+                return { ok: true, resolved: true, outcome, p0, p1, closed: market.closed === true };
+            } catch (e) {
+                return { ok: false, error: e.message };
+            }
+        }
+
+        const outcomeCache = new Map(); // slug -> {ok,resolved,outcome,...}
+
+        const byAsset = {};
+        for (const a of ASSETS) {
+            if (assetFilter && a !== assetFilter) continue;
+            byAsset[a] = { total: 0, resolved: 0, wins: 0, losses: 0, mismatches: 0, errors: 0, unresolved: 0 };
+        }
+
+        let resolved = 0, unresolved = 0, errors = 0, wins = 0, losses = 0, mismatches = 0;
+        const verifiedTrades = [];
+
+        for (const trade of candidates) {
+            const asset = String(trade.asset || '').toUpperCase();
+            const side = String(trade.side || '').toUpperCase();
+            const slug = buildSlugFromTrade(trade);
+            const tradeTimeMs = (typeof trade.time === 'number') ? trade.time : (typeof trade.timestamp === 'number' ? trade.timestamp : null);
+
+            if (!byAsset[asset]) byAsset[asset] = { total: 0, resolved: 0, wins: 0, losses: 0, mismatches: 0, errors: 0, unresolved: 0 };
+            byAsset[asset].total++;
+
+            if (!slug) {
+                errors++; byAsset[asset].errors++;
+                verifiedTrades.push({
+                    id: trade.id,
+                    asset,
+                    side,
+                    slug: null,
+                    error: 'Unable to derive Polymarket slug from trade timestamp'
+                });
+                continue;
+            }
+
+            let outcomeResult = outcomeCache.get(slug);
+            if (!outcomeResult) {
+                outcomeResult = await fetchGammaOutcome(slug);
+                outcomeCache.set(slug, outcomeResult);
+            }
+
+            if (!outcomeResult.ok) {
+                errors++; byAsset[asset].errors++;
+                verifiedTrades.push({
+                    id: trade.id,
+                    asset,
+                    side,
+                    slug,
+                    error: outcomeResult.error || 'Unknown Gamma API error'
+                });
+                continue;
+            }
+
+            if (!outcomeResult.resolved) {
+                unresolved++; byAsset[asset].unresolved++;
+                verifiedTrades.push({
+                    id: trade.id,
+                    asset,
+                    side,
+                    slug,
+                    resolved: false
+                });
+                continue;
+            }
+
+            resolved++; byAsset[asset].resolved++;
+            const verifiedOutcome = outcomeResult.outcome;
+            const verifiedWin = side === verifiedOutcome;
+            if (verifiedWin) { wins++; byAsset[asset].wins++; } else { losses++; byAsset[asset].losses++; }
+
+            const recordedPnl = Number.isFinite(trade.pnl) ? trade.pnl : (Number.isFinite(trade.profit) ? trade.profit : null);
+            const recordedWin = recordedPnl !== null ? recordedPnl > 0 : null;
+            const mismatch = (recordedWin !== null) ? (recordedWin !== verifiedWin) : false;
+            if (mismatch) { mismatches++; byAsset[asset].mismatches++; }
+
+            // What PnL would be if held to resolution (profit-fee model), using stored entry+size
+            const entry = Number(trade.entry);
+            const size = Number(trade.size);
+            let expectedPnl = null;
+            if (Number.isFinite(entry) && entry > 0 && Number.isFinite(size) && size > 0) {
+                if (verifiedWin) {
+                    const shares = size / entry;
+                    const grossProfit = shares - size;
+                    const fee = grossProfit * PROFIT_FEE_PCT;
+                    expectedPnl = grossProfit - fee;
+                } else {
+                    expectedPnl = -size;
+                }
+            }
+
+            verifiedTrades.push({
+                id: trade.id,
+                asset,
+                side,
+                slug,
+                tradeTime: tradeTimeMs ? new Date(tradeTimeMs).toISOString() : null,
+                entry: Number.isFinite(entry) ? entry : null,
+                size: Number.isFinite(size) ? size : null,
+                verifiedOutcome,
+                verifiedWin,
+                recordedPnl,
+                recordedWin,
+                expectedPnl: expectedPnl !== null ? Number(expectedPnl.toFixed(6)) : null,
+                mismatch
+            });
+        }
+
+        const winRate = (wins + losses) > 0 ? (wins / (wins + losses)) * 100 : 0;
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+
+        res.json({
+            summary: {
+                method: 'Polymarket Gamma API (ground truth) vs executed trades',
+                runtime: runtime + 's',
+                mode,
+                offset,
+                limitRequested: limit,
+                assetFilter: assetFilter || 'ALL',
+                candidates: candidates.length,
+                resolved,
+                unresolved,
+                errors,
+                wins,
+                losses,
+                winRate: winRate.toFixed(2) + '%',
+                mismatches
+            },
+            byAsset,
+            trades: verifiedTrades.slice(0, 50), // first 50 (already newest-first)
+            source: history.source
         });
     } catch (e) {
         res.status(500).json({ error: e.message, stack: e.stack });
@@ -1934,7 +2196,8 @@ if (process.env.REDIS_URL) {
 }
 
 // ==================== IMMUTABLE DATA LAYER (Node.js Port) ====================
-const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
+// GOAL: Crypto checkpoints only (BTC/ETH/XRP). SOL is intentionally removed to avoid future confusion.
+const ASSETS = ['BTC', 'ETH', 'XRP'];
 const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
 const WS_ENDPOINT = 'wss://ws-live-data.polymarket.com';
@@ -2092,9 +2355,15 @@ async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
     
     // Fallback to in-memory if Redis failed or unavailable
     if (result.trades.length === 0 && tradeExecutor && tradeExecutor.tradeHistory) {
-        const memTrades = tradeExecutor.tradeHistory.filter(t => 
-            mode === 'LIVE' ? t.mode === 'LIVE' : t.mode !== 'LIVE'
-        );
+        const memTrades = tradeExecutor.tradeHistory.filter(t => {
+            const status = String(t?.status || '').toUpperCase();
+            const isLiveTrade =
+                !!t?.isLive ||
+                status.startsWith('LIVE') ||
+                String(t?.tradeMode || '').toUpperCase() === 'LIVE' ||
+                String(t?.mode || '').toUpperCase() === 'LIVE';
+            return mode === 'LIVE' ? isLiveTrade : !isLiveTrade;
+        });
         result.total = memTrades.length;
         result.trades = memTrades.slice(offset, offset + limit);
         result.source = 'memory';
@@ -2332,7 +2601,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 53;  // v53: Trade entry tracking for accurate profit backtesting + Polymarket-native backtest
+const CONFIG_VERSION = 54;  // v54: Executed-trade rolling accuracy + Polymarket trade verification + backtest correctness fixes
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -2531,11 +2800,10 @@ const CONFIG = {
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
     },
 
-    // PER-ASSET TRADING CONTROLS - 🏆 v30: SOL DISABLED (50% WR in backtest)
+    // PER-ASSET TRADING CONTROLS (BTC/ETH/XRP only)
     ASSET_CONTROLS: {
         BTC: { enabled: true, maxTradesPerCycle: 1 },
         ETH: { enabled: true, maxTradesPerCycle: 1 },   // 100% WR in backtest!
-        SOL: { enabled: false, maxTradesPerCycle: 1 },  // 🚫 v30: DISABLED - 50% WR kills profits
         XRP: { enabled: true, maxTradesPerCycle: 1 }
     }
 };
@@ -3139,21 +3407,21 @@ class TradeExecutor {
         log(`🦅 AGGRESSION MODE: ${oldMode} → ${mode}`);
     }
 
-    // 🦅 v21 UNDERDOG: Get current mode-adjusted maxOdds
-    // SNIPER = strict (0.48), HUNTER = fair value (0.50) - NEVER above breakeven
-    // 🎯 ADAPTIVE THRESHOLD: Expands by 10¢ when no trades in 2+ hours, tightens when trades resume
+    // 🦅 v21 UNDERDOG: Get current effective maxOdds (entry price cap)
+    // v53.1: We intentionally allow high-confidence entries up to CONFIG.ORACLE.maxOdds (default 0.95).
+    // This function may slightly relax/tighten around that baseline, but MUST NOT hard-cap to 50¢ (old behavior).
     getEffectiveMaxOdds() {
         let baseMaxOdds = CONFIG.ORACLE.maxOdds;
         
         // Mode-based adjustment
         if (this.aggressionMode === 'HUNTER') {
-            baseMaxOdds = Math.min(baseMaxOdds + 0.02, 0.50); // 🛡️ v21: Cap at 50¢ (breakeven)
+            baseMaxOdds = Math.min(baseMaxOdds + 0.02, 0.98); // slight relax, keep hard ceiling
         }
         
         // 🎯 ADAPTIVE THRESHOLD EXPANSION: Expand by 10¢ if no trades in 2+ hours
         const timeSinceLastTrade = Date.now() - this.lastTradeTime;
         const hoursSinceLastTrade = timeSinceLastTrade / (1000 * 60 * 60);
-        const MAX_EXPANSION = 0.90; // Cap at 90¢ maximum
+        const MAX_EXPANSION = 0.98; // Hard ceiling (above this is near-breakeven even at very high WR)
         
         if (hoursSinceLastTrade >= 2) {
             // Expand by 10¢ (0.10) for every 2 hours of dormancy
@@ -3172,7 +3440,7 @@ class TradeExecutor {
         // Tighten slightly if we've had trades in the last hour (more selective)
         if (hoursSinceLastTrade < 1 && this.lastTradeTime > 0) {
             // Recent trades = tighten by 2¢ to maintain quality
-            return Math.max(baseMaxOdds - 0.02, 0.20); // Don't go below 20¢
+            return Math.max(baseMaxOdds - 0.02, (CONFIG.ORACLE.minOdds || 0.20)); // Don't tighten below minOdds
         }
         
         return baseMaxOdds;
@@ -3203,13 +3471,36 @@ class TradeExecutor {
         const ONE_HOUR = 60 * 60 * 1000;
         const TWO_HOURS = 2 * ONE_HOUR;
         
-        // Count trades in last hour and last 2 hours
-        const recentTrades = (this.tradeHistory || []).filter(t => (now - t.timestamp) < ONE_HOUR);
+        // Count CLOSED ORACLE trades in last hour and last 2 hours
+        // (use the actual stored trade fields: time/closeTime + pnl)
+        const oracleClosedTrades = (this.tradeHistory || []).filter(t => {
+            const mode = String(t?.mode || '').toUpperCase();
+            const status = String(t?.status || '').toUpperCase();
+            return mode === 'ORACLE' && status === 'CLOSED';
+        });
+        const tradeTs = (t) => {
+            const ts = (typeof t?.closeTime === 'number')
+                ? t.closeTime
+                : (typeof t?.time === 'number' ? t.time : (typeof t?.timestamp === 'number' ? t.timestamp : 0));
+            return Number.isFinite(ts) ? ts : 0;
+        };
+        const tradePnl = (t) => {
+            const pnl = Number.isFinite(t?.pnl) ? t.pnl : (Number.isFinite(t?.profit) ? t.profit : NaN);
+            return Number.isFinite(pnl) ? pnl : 0;
+        };
+
+        const recentTrades = oracleClosedTrades.filter(t => {
+            const ts = tradeTs(t);
+            return ts > 0 && (now - ts) < ONE_HOUR;
+        });
         const tradesLastHour = recentTrades.length;
-        const tradesLast2Hours = (this.tradeHistory || []).filter(t => (now - t.timestamp) < TWO_HOURS).length;
+        const tradesLast2Hours = oracleClosedTrades.filter(t => {
+            const ts = tradeTs(t);
+            return ts > 0 && (now - ts) < TWO_HOURS;
+        }).length;
         
         // Count wins in recent trades
-        const recentWins = recentTrades.filter(t => t.profit > 0).length;
+        const recentWins = recentTrades.filter(t => tradePnl(t) > 0).length;
         const recentWinRate = tradesLastHour > 0 ? recentWins / tradesLastHour : 0.5;
         
         // Target: 2-4 trades per hour (enough activity without overtrading)
@@ -3648,13 +3939,20 @@ class TradeExecutor {
             // 🎯 GOAT v44.1: EV-derived max price check (replaces hard maxOdds)
             // If pWin is provided, compute EV-derived max entry; otherwise use hardMaxOdds as fallback
             // This prevents blocking trades that have positive EV at higher prices
-            const pWinProvided = options.pWin;
+            const pWinProvided = (options.pWin !== null && options.pWin !== undefined && Number.isFinite(options.pWin)) ? options.pWin : null;
             const PROFIT_FEE_PCT_EXEC = 0.02;
             const SAFETY_MARGIN_EXEC = 0.02;
-            const evDerivedMaxExec = (pWinProvided !== null && pWinProvided !== undefined && Number.isFinite(pWinProvided)) 
-                ? Math.max(0.10, (pWinProvided * (1 - PROFIT_FEE_PCT_EXEC)) - SAFETY_MARGIN_EXEC) 
-                : CONFIG.ORACLE.maxOdds;
-            const hardMaxOddsExec = CONFIG.ORACLE.maxOdds + 0.10; // Allow 10c above hard cap if EV-positive
+            const hardMinOddsExec = CONFIG.ORACLE.minOdds || 0.20;
+            const hardMaxOddsExec = (typeof this.getEffectiveMaxOdds === 'function')
+                ? this.getEffectiveMaxOdds()
+                : (CONFIG.ORACLE.maxOdds || 0.95);
+            let evDerivedMaxExec = hardMaxOddsExec;
+            if (pWinProvided !== null) {
+                const p = Math.max(0, Math.min(1, pWinProvided));
+                const pAfterFee = p * (1 - PROFIT_FEE_PCT_EXEC);
+                const breakeven = pAfterFee / (pAfterFee + (1 - p));
+                evDerivedMaxExec = Math.max(hardMinOddsExec, Math.min(0.99, breakeven - SAFETY_MARGIN_EXEC));
+            }
             const effectiveMaxExec = Math.min(evDerivedMaxExec, hardMaxOddsExec);
             
             if (mode === 'ORACLE' && entryPrice > effectiveMaxExec) {
@@ -4851,6 +5149,40 @@ class TradeExecutor {
         // Only main ORACLE positions affect streak/cooldown/state machine
         const isAuxiliaryLeg = pos.mode === 'HEDGE' || pos.isHedge || pos.mode === 'ILLIQUIDITY';
         
+        // 🎯 v52: Rolling CONVICTION accuracy tracker (EXECUTED trades only)
+        // Prevents false drift warnings/auto-disable from "signal-only" cycle correctness.
+        if (!isAuxiliaryLeg && pos.mode === 'ORACLE' && pos.tier === 'CONVICTION') {
+            try {
+                const brain = (typeof Brains !== 'undefined' && Brains) ? Brains[pos.asset] : null;
+                if (brain) {
+                    if (!Array.isArray(brain.rollingConviction)) brain.rollingConviction = [];
+                    brain.rollingConviction.push({ time: Date.now(), wasCorrect: pnl >= 0, tradeId: positionId });
+                    if (brain.rollingConviction.length > 50) brain.rollingConviction.shift();
+
+                    const wins = brain.rollingConviction.filter(r => r.wasCorrect).length;
+                    const total = brain.rollingConviction.length;
+                    const rollingWR = total > 0 ? (wins / total) : 1;
+
+                    if (total >= 20) {
+                        if (rollingWR < 0.70) {
+                            if (!brain.driftWarning) {
+                                log(`⚠️ DRIFT WARNING: ${pos.asset} CONVICTION rolling WR = ${(rollingWR * 100).toFixed(1)}% (n=${total}) - below 70% threshold`, pos.asset);
+                                brain.driftWarning = true;
+                            }
+                            if (rollingWR < 0.60 && !brain.autoDisabled) {
+                                log(`🛑 AUTO-DISABLE: ${pos.asset} rolling WR ${(rollingWR * 100).toFixed(1)}% < 60% - suspending CONVICTION trades`, pos.asset);
+                                brain.autoDisabled = true;
+                            }
+                        } else if (rollingWR >= 0.75 && brain.driftWarning) {
+                            log(`✅ DRIFT RECOVERED: ${pos.asset} rolling WR = ${(rollingWR * 100).toFixed(1)}% - back above threshold`, pos.asset);
+                            brain.driftWarning = false;
+                            brain.autoDisabled = false;
+                        }
+                    }
+                }
+            } catch { }
+        }
+
         if (pnl < 0 && !isAuxiliaryLeg) {
             this.consecutiveLosses = (this.consecutiveLosses || 0) + 1;
             // 🦅 v20: Track losses in HUNTER mode for retreat trigger
@@ -7180,7 +7512,10 @@ class SupremeBrain {
 
             // ==================== DEITY-LEVEL: CONFIDENCE FLOOR PROTECTION ====================
             // Prevent confidence death spiral - if models agree, maintain minimum confidence
-            const consensusRatioCheck = totalVotes > 0 ? Math.max(votes.UP, votes.DOWN) / totalVotes : 0;
+            const upVotesCF = Number(votes.UP) || 0;
+            const downVotesCF = Number(votes.DOWN) || 0;
+            const totalVotesCF = upVotesCF + downVotesCF;
+            const consensusRatioCheck = totalVotesCF > 0 ? Math.max(upVotesCF, downVotesCF) / totalVotesCF : 0;
             if (consensusRatioCheck >= 0.70 && finalConfidence < 0.25) {
                 log(`🛡️ CONFIDENCE FLOOR: Enforced 25% min (models ${(consensusRatioCheck * 100).toFixed(0)}% agree)`, this.asset);
                 finalConfidence = 0.25;
@@ -7541,8 +7876,12 @@ class SupremeBrain {
                         gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'PRICE_FILTER', failedGates: ['mid_range_odds'], inputs: { signal: finalSignal, tier, currentOdds, isExtremeOdds, isGenesisAgreeForGate, elapsed } });
                         // Do not trade - fall through to end
                     } else {
-                    const consensusVotes = Math.max(votes.UP, votes.DOWN);
-                    const consensusRatio = totalVotes > 0 ? consensusVotes / totalVotes : 0;
+                    // Consensus ratio (robust numeric calc; used in gates + trace)
+                    const upVotesNum = Number(votes.UP) || 0;
+                    const downVotesNum = Number(votes.DOWN) || 0;
+                    const totalVotesForConsensus = upVotesNum + downVotesNum;
+                    const consensusVotes = Math.max(upVotesNum, downVotesNum);
+                    const consensusRatio = totalVotesForConsensus > 0 ? consensusVotes / totalVotesForConsensus : 0;
                     // 🎯 GOAT: EV/EDGE uses tier-conditioned calibrated probability (pWin), not raw signal score
                     // This accounts for the fact that CONVICTION tier at extreme prices has ~99% win rate
                     const PROFIT_FEE_PCT = 0.02; // conservative: fee on profits at settlement
@@ -7594,6 +7933,9 @@ class SupremeBrain {
                         edgePercent,
                         currentOdds,
                         consensusRatio,
+                        upVotes: upVotesNum,
+                        downVotes: downVotesNum,
+                        totalVotes: totalVotesForConsensus,
                         genesis: modelVotes.genesis,
                         isTrending,
                         priceMovingRight,
@@ -7602,6 +7944,7 @@ class SupremeBrain {
                         adjustedMinConsensus,
                         adjustedMinConfidence,
                         adjustedMinEdge,
+                        effectiveMinOdds: CONFIG.ORACLE.minOdds || 0.20,
                         effectiveMaxOdds: tradeExecutor.getEffectiveMaxOdds(),
                         effectiveMinStability: tradeExecutor.getEffectiveMinStability()
                     };
@@ -7676,12 +8019,21 @@ class SupremeBrain {
 
                             // 🎯 GOAT v44.1: EV-derived max price instead of hard maxOdds
                             // If pWin implies positive EV even at higher prices, allow entry
-                            // Formula: breakeven_price = pWin * (1 - fee) - safety_margin
-                            const SAFETY_MARGIN = 0.02; // 2% safety
-                            const evDerivedMaxPrice = pWinEff !== null ? Math.max(0.10, (pWinEff * (1 - PROFIT_FEE_PCT)) - SAFETY_MARGIN) : 0.48;
-                            const hardMaxOdds = tradeExecutor.getEffectiveMaxOdds(); // Keep as secondary safety cap
-                            const effectiveMaxPrice = Math.min(evDerivedMaxPrice, hardMaxOdds + 0.10); // Allow up to 10c above hardMaxOdds if EV justifies
-                            const oddsCheckPassed = currentOdds <= effectiveMaxPrice;
+                            // Correct breakeven under profit-fee model:
+                            // ROI_win = (1/price - 1) * (1 - fee)
+                            // Need pWin * ROI_win > (1 - pWin)
+                            // => price_max = pAfterFee / (pAfterFee + (1 - pWin))
+                            const SAFETY_MARGIN = 0.02; // 2¢ absolute safety margin
+                            const hardMinOdds = CONFIG.ORACLE.minOdds || 0.20;
+                            const hardMaxOdds = tradeExecutor.getEffectiveMaxOdds();
+                            const pClamped = (pWinEff !== null && Number.isFinite(pWinEff)) ? Math.max(0, Math.min(1, pWinEff)) : null;
+                            const pAfterFee = pClamped !== null ? (pClamped * (1 - PROFIT_FEE_PCT)) : null;
+                            const breakevenPrice = (pAfterFee !== null)
+                                ? (pAfterFee / (pAfterFee + (1 - pClamped)))
+                                : hardMaxOdds;
+                            const evDerivedMaxPrice = Math.max(hardMinOdds, Math.min(0.99, breakevenPrice - SAFETY_MARGIN));
+                            const effectiveMaxPrice = Math.min(evDerivedMaxPrice, hardMaxOdds);
+                            const oddsCheckPassed = (currentOdds >= hardMinOdds) && (currentOdds <= effectiveMaxPrice);
                             
                             const oracleChecks = {
                                 consensus: consensusRatio >= adjustedMinConsensus,
@@ -7694,8 +8046,10 @@ class SupremeBrain {
                             };
                             
                             // Add EV-derived info to gate inputs for tracing
+                            gateInputs.evBreakevenPrice = breakevenPrice;
                             gateInputs.evDerivedMaxPrice = evDerivedMaxPrice;
                             gateInputs.effectiveMaxPrice = effectiveMaxPrice;
+                            gateInputs.hardMinOdds = hardMinOdds;
                             gateInputs.hardMaxOdds = hardMaxOdds;
 
                             const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
@@ -8101,7 +8455,7 @@ class SupremeBrain {
     // Get dynamic lock threshold based on velocity
     getDynamicLockThreshold() {
         // PINNACLE FIX: Base threshold lowered from 80 to 70
-        // Debug export showed: ETH locks at 67-83, SOL at 68-79, XRP at 77-83
+        // Debug export showed: ETH locks at 67-83, XRP at 77-83
         // BTC never reaches 80 (max 54) - lowering enables more locks
         let threshold = 70;
 
@@ -8157,8 +8511,6 @@ class SupremeBrain {
         // Correlation strength varies by asset
         if (this.asset === 'ETH') {
             return 10; // ETH strongly follows BTC
-        } else if (this.asset === 'SOL') {
-            return 7;  // SOL follows but is more volatile
         } else if (this.asset === 'XRP') {
             return 4;  // XRP is less correlated
         }
@@ -8340,38 +8692,8 @@ class SupremeBrain {
             if (this.recentOutcomes.length > 10) this.recentOutcomes.shift();
 
             // 🎯 v52 ROLLING CONVICTION ACCURACY TRACKER
-            // Track last 50 CONVICTION trades for drift detection
-            if (tier === 'CONVICTION') {
-                this.rollingConviction.push({ time: Date.now(), wasCorrect: isWin });
-                if (this.rollingConviction.length > 50) this.rollingConviction.shift();
-                
-                // Calculate rolling win rate
-                const wins = this.rollingConviction.filter(r => r.wasCorrect).length;
-                const total = this.rollingConviction.length;
-                const rollingWR = total > 0 ? (wins / total) : 1;
-                
-                // Check for drift warning (WR below 70% with sufficient sample)
-                if (total >= 20) {
-                    if (rollingWR < 0.70) {
-                        if (!this.driftWarning) {
-                            log(`⚠️ DRIFT WARNING: ${this.asset} CONVICTION rolling WR = ${(rollingWR * 100).toFixed(1)}% (n=${total}) - below 70% threshold`, this.asset);
-                            this.driftWarning = true;
-                        }
-                        // Auto-disable if WR drops below 60% (severe drift)
-                        if (rollingWR < 0.60 && !this.autoDisabled) {
-                            log(`🛑 AUTO-DISABLE: ${this.asset} rolling WR ${(rollingWR * 100).toFixed(1)}% < 60% - suspending CONVICTION trades`, this.asset);
-                            this.autoDisabled = true;
-                        }
-                    } else {
-                        // Recovery - clear warnings if WR recovers above 75%
-                        if (rollingWR >= 0.75 && this.driftWarning) {
-                            log(`✅ DRIFT RECOVERED: ${this.asset} rolling WR = ${(rollingWR * 100).toFixed(1)}% - back above threshold`, this.asset);
-                            this.driftWarning = false;
-                            this.autoDisabled = false;
-                        }
-                    }
-                }
-            }
+            // IMPORTANT: Updated from EXECUTED trade outcomes only (see TradeExecutor.closePosition),
+            // to avoid false drift/halts from signal-only cycle correctness.
 
             // FINAL SEVEN: MODEL WEIGHT ADAPTATION (Learning Loop)
             if (this.lastSignal && this.lastSignal.modelVotes) {
@@ -8677,7 +8999,8 @@ function connectWebSocket() {
         log('📡 Subscribed to crypto_prices_chainlink');
 
         // Backup price feed subscription
-        const pricesSub = { action: 'subscribe', subscriptions: [{ topic: 'crypto_prices', type: 'update', filters: 'btcusdt,ethusdt,solusdt,xrpusdt' }] };
+        // Backup feed filter must be a JSON-encoded string (server validates `filters` with a JSON regex).
+        const pricesSub = { action: 'subscribe', subscriptions: [{ topic: 'crypto_prices', type: 'update', filters: '["btcusdt","ethusdt","xrpusdt"]' }] };
         ws.send(JSON.stringify(pricesSub));
         log('📡 Subscribed to crypto_prices backup');
 
@@ -8718,7 +9041,7 @@ function connectWebSocket() {
             }
 
             if (msg.topic === 'crypto_prices_chainlink') {
-                const map = { 'btc/usd': 'BTC', 'eth/usd': 'ETH', 'sol/usd': 'SOL', 'xrp/usd': 'XRP' };
+                const map = { 'btc/usd': 'BTC', 'eth/usd': 'ETH', 'xrp/usd': 'XRP' };
                 const asset = map[msg.payload?.symbol];
                 if (asset && msg.payload?.value) {
                     const price = parseFloat(msg.payload.value);
@@ -8744,7 +9067,7 @@ function connectWebSocket() {
                 }
             }
             if (msg.topic === 'crypto_prices' && msg.type === 'update') {
-                const map = { btcusdt: 'BTC', ethusdt: 'ETH', solusdt: 'SOL', xrpusdt: 'XRP' };
+                const map = { btcusdt: 'BTC', ethusdt: 'ETH', xrpusdt: 'XRP' };
                 const asset = map[msg.payload?.symbol];
                 if (asset && msg.payload?.value) {
                     const price = parseFloat(msg.payload.value);
@@ -8904,7 +9227,7 @@ async function fetchFearGreedIndex() {
 }
 
 async function fetchFundingRates() {
-    const symbolMap = { 'BTC': 'BTCUSDT', 'ETH': 'ETHUSDT', 'SOL': 'SOLUSDT', 'XRP': 'XRPUSDT' };
+    const symbolMap = { 'BTC': 'BTCUSDT', 'ETH': 'ETHUSDT', 'XRP': 'XRPUSDT' };
     for (const asset of ASSETS) {
         try {
             const data = await fetchJSON(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${symbolMap[asset]}`);
@@ -8974,6 +9297,7 @@ async function saveState() {
         modelAccuracy: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].modelAccuracy }), {}),
         recentOutcomes: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].recentOutcomes }), {}),
         // 🎯 v52: Rolling CONVICTION accuracy for drift detection
+        rollingConvictionMode: 'EXECUTED_TRADES',
         rollingConviction: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].rollingConviction || [] }), {}),
         driftWarning: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].driftWarning || false }), {}),
         autoDisabled: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].autoDisabled || false }), {}),
@@ -9129,9 +9453,20 @@ async function loadState() {
                 if (state.recentOutcomes) ASSETS.forEach(a => { if (state.recentOutcomes[a]) Brains[a].recentOutcomes = state.recentOutcomes[a]; });
                 
                 // 🎯 v52: RESTORE ROLLING ACCURACY (drift detection)
-                if (state.rollingConviction) ASSETS.forEach(a => { if (state.rollingConviction[a]) Brains[a].rollingConviction = state.rollingConviction[a]; });
-                if (state.driftWarning) ASSETS.forEach(a => { if (state.driftWarning[a] !== undefined) Brains[a].driftWarning = state.driftWarning[a]; });
-                if (state.autoDisabled) ASSETS.forEach(a => { if (state.autoDisabled[a] !== undefined) Brains[a].autoDisabled = state.autoDisabled[a]; });
+                // Rolling conviction is now EXECUTED-trade based (not signal-only).
+                const rollingMode = state.rollingConvictionMode || 'LEGACY_SIGNAL_ONLY';
+                if (rollingMode !== 'EXECUTED_TRADES') {
+                    ASSETS.forEach(a => {
+                        Brains[a].rollingConviction = [];
+                        Brains[a].driftWarning = false;
+                        Brains[a].autoDisabled = false;
+                    });
+                    log(`🔄 Reset rollingConviction (legacy mode=${rollingMode}) - now tracks EXECUTED trades only`);
+                } else {
+                    if (state.rollingConviction) ASSETS.forEach(a => { if (state.rollingConviction[a]) Brains[a].rollingConviction = state.rollingConviction[a]; });
+                    if (state.driftWarning) ASSETS.forEach(a => { if (state.driftWarning[a] !== undefined) Brains[a].driftWarning = state.driftWarning[a]; });
+                    if (state.autoDisabled) ASSETS.forEach(a => { if (state.autoDisabled[a] !== undefined) Brains[a].autoDisabled = state.autoDisabled[a]; });
+                }
 
                 // 🔴 FIX #17: RESTORE TRADE EXECUTOR STATE (preserves balance across restarts!)
                 // 🚀 PINNACLE v27: CRASH RECOVERY - Full state restoration
@@ -9446,7 +9781,7 @@ app.get('/', (req, res) => {
             <h4 style="margin:15px 0 10px;color:#ffd700;font-size:0.95em;">💰 Core Parameters</h4>
             <div class="form-grid">
                 <div class="form-group"><label>Paper Balance ($)</label><input type="number" id="paperBalance" placeholder="Loading..."></div>
-                <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" placeholder="Loading..." min="1" max="25"></div>
+                <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" placeholder="Loading..." min="1" max="50"></div>
             </div>
             <button class="btn" onclick="resetPaperBalance()" style="width:100%;margin-bottom:15px;background:#ff6600;">🔄 Reset Paper Balance to Starting Value</button>
             
@@ -9542,17 +9877,6 @@ app.get('/', (req, res) => {
                 <!-- RISK -->
                 <div style="padding:10px;background:rgba(255,0,100,0.1);border-left:3px solid #ff0066;border-radius:4px;">
                     <strong style="color:#ff0066;">⚠️ RISK MANAGEMENT - SMART AGGRESSIVE MODE</strong>
-                    
-                    <!-- Preset Profiles -->
-                    <div style="margin:12px 0;padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;">
-                        <label style="color:#888;font-size:0.9em;display:block;margin-bottom:8px;">📋 Quick Presets:</label>
-                        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">
-                            <button onclick="applyRiskPreset('SAFE')" style="padding:8px;background:rgba(0,255,136,0.2);border:1px solid #00ff88;color:#00ff88;border-radius:4px;cursor:pointer;font-size:0.85em;">🛡️ Safe</button>
-                            <button onclick="applyRiskPreset('BALANCED')" style="padding:8px;background:rgba(255,215,0,0.2);border:1px solid #ffd700;color:#ffd700;border-radius:4px;cursor:pointer;font-size:0.85em;">⚖️ Balanced</button>
-                            <button onclick="applyRiskPreset('AGGRESSIVE')" style="padding:8px;background:rgba(255,68,102,0.2);border:1px solid #ff4466;color:#ff4466;border-radius:4px;cursor:pointer;font-size:0.85em;">🔥 Aggressive</button>
-                            <button onclick="applyRiskPreset('ORACLE')" style="padding:8px;background:rgba(153,51,255,0.2);border:1px solid #9933ff;color:#9933ff;border-radius:4px;cursor:pointer;font-size:0.85em;">🔮 Oracle</button>
-                        </div>
-                    </div>
 
                     <div class="form-grid" style="margin-top:8px;">
                         <!-- Safety Toggles -->
@@ -9603,7 +9927,6 @@ app.get('/', (req, res) => {
 
                         <!-- Position Limits -->
                         <div class="form-group"><label>Max Exposure (%)</label><input type="number" id="riskMaxExposure" value="50" min="10" max="100"></div>
-                        <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPositionSize" value="20" min="5" max="50"></div>
                         
                         <!-- Cooldown & Stop Loss -->
                         <div class="form-group"><label>Loss Cooldown (s)</label><input type="number" id="riskCooldown" value="60" min="0" max="900"></div>
@@ -9658,13 +9981,6 @@ app.get('/', (req, res) => {
                         </label>
                     </div>
                     <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
-                        <span style="color:#14f195;">◎ SOL</span>
-                        <label style="display:flex;align-items:center;gap:8px;">
-                            <input type="checkbox" id="solEnabled" checked> Enabled
-                            <input type="number" id="solMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
-                        </label>
-                    </div>
-                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
                         <span style="color:#00d4ff;">✕ XRP</span>
                         <label style="display:flex;align-items:center;gap:8px;">
                             <input type="checkbox" id="xrpEnabled" checked> Enabled
@@ -9704,7 +10020,7 @@ app.get('/', (req, res) => {
             
             <!-- BASICS TAB -->
             <div id="guide-basics" class="guide-content active">
-                <div class="guide-section"><h3>🎯 What Is This Bot?</h3><p>An AI prediction bot for Polymarket's 15-minute crypto checkpoint markets. It uses 8 machine learning models to predict whether BTC, ETH, SOL, or XRP will go UP or DOWN in each 15-minute window.</p></div>
+                <div class="guide-section"><h3>🎯 What Is This Bot?</h3><p>An AI prediction bot for Polymarket's 15-minute crypto checkpoint markets. It predicts whether BTC, ETH, or XRP will go UP or DOWN in each 15-minute window.</p></div>
                 <div class="guide-section"><h3>📊 Reading the Dashboard</h3>
                     <p><strong>Prediction:</strong> The direction the bot thinks the price will go (UP = 📈 green, DOWN = 📉 red)</p>
                     <p><strong>Confidence:</strong> How sure the bot is (0-100%). Higher = more certain.</p>
@@ -9788,7 +10104,7 @@ app.get('/', (req, res) => {
                 </div>
                 <div class="guide-section">
                     <h3>🎛️ Per-Asset Controls</h3>
-                    <p><strong>Enable/Disable:</strong> Turn trading on/off for each coin (BTC, ETH, SOL, XRP)</p>
+                    <p><strong>Enable/Disable:</strong> Turn trading on/off for each coin (BTC, ETH, XRP)</p>
                     <p><strong>Max Trades /cycle:</strong> Limit how many trades per 15-minute period per coin. Default is 1 to prevent overtrading.</p>
                     <p><strong>Min Wait Before Trading:</strong> How many seconds to wait after a cycle starts before allowing trades. Default 60s prevents premature trades from noisy early data.</p>
                 </div>
@@ -9910,7 +10226,8 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
-                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (real outcomes, 20-95¢ entries)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&stake=0.10')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (real outcomes, 20-95¢ entries)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/verify-trades-polymarket?mode=PAPER&limit=100')" class="btn" style="background:linear-gradient(90deg,#22c55e,#16a34a);" title="Verify executed trades vs Polymarket outcomes (detect mismatches)">✅ Verify Trades</button>
             </div>
             
             <h4 style="color:#00ff88;margin-bottom:8px;">🧪 Custom Request</h4>
@@ -10033,7 +10350,7 @@ app.get('/', (req, res) => {
                 if (!data) { console.error('No data received'); return; }
                 
                 // RENDER PREDICTION CARDS
-                const assets = ['BTC', 'ETH', 'SOL', 'XRP'];
+                const assets = ['BTC', 'ETH', 'XRP'];
                 let html = '';
                 assets.forEach(asset => {
                     try {
@@ -10291,8 +10608,6 @@ app.get('/', (req, res) => {
                     document.getElementById('maxConsecutiveLosses').value = (data.RISK.maxConsecutiveLosses ?? 5);
                     document.getElementById('maxDailyLosses').value = (data.RISK.maxDailyLosses ?? 8);
                     document.getElementById('withdrawalNotification').value = (data.RISK.withdrawalNotification ?? 1000);
-                    // Max position size
-                    document.getElementById('maxPositionSize').value = ((data.MAX_POSITION_SIZE ?? 0.25) * 100);
                     // Resume button visibility
                     const resumeBtn = document.getElementById('resumeTradingBtn');
                     if (resumeBtn) {
@@ -10324,12 +10639,6 @@ app.get('/', (req, res) => {
                         if (ethEnabledEl) ethEnabledEl.checked = data.ASSET_CONTROLS.ETH.enabled !== false;
                         if (ethMaxEl) ethMaxEl.value = (data.ASSET_CONTROLS.ETH.maxTradesPerCycle ?? 1);
                     }
-                    if (data.ASSET_CONTROLS.SOL) {
-                        const solEnabledEl = document.getElementById('solEnabled');
-                        const solMaxEl = document.getElementById('solMaxTrades');
-                        if (solEnabledEl) solEnabledEl.checked = data.ASSET_CONTROLS.SOL.enabled !== false;
-                        if (solMaxEl) solMaxEl.value = (data.ASSET_CONTROLS.SOL.maxTradesPerCycle ?? 1);
-                    }
                     if (data.ASSET_CONTROLS.XRP) {
                         const xrpEnabledEl = document.getElementById('xrpEnabled');
                         const xrpMaxEl = document.getElementById('xrpMaxTrades');
@@ -10349,6 +10658,8 @@ app.get('/', (req, res) => {
             // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
                 GOAT: { 
+                    // 🎯 SIZING: Default lowered for min-variance compounding (user can raise manually)
+                    MAX_POSITION_SIZE: 0.10,
                     // ORACLE: Primary prediction engine with forensic-optimized thresholds
                     ORACLE: { 
                         enabled: true, 
@@ -10386,11 +10697,10 @@ app.get('/', (req, res) => {
                         enablePositionPyramiding: false,
                         enableLossCooldown: true
                     },
-                    // ASSETS: BTC, ETH, XRP only (SOL disabled - 50% WR)
+                    // ASSETS: BTC, ETH, XRP only (SOL removed - illiquidity + future confusion risk)
                     ASSET_CONTROLS: { 
                         BTC: { enabled: true, maxTradesPerCycle: 1 }, 
                         ETH: { enabled: true, maxTradesPerCycle: 1 }, 
-                        SOL: { enabled: false, maxTradesPerCycle: 1 },
                         XRP: { enabled: true, maxTradesPerCycle: 1 } 
                     }
                 }
@@ -10489,10 +10799,9 @@ app.get('/', (req, res) => {
                 ASSET_CONTROLS: {
                     BTC: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) },
                     ETH: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) },
-                    SOL: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) },
                     XRP: { enabled: true, maxTradesPerCycle: parseInt(document.getElementById('maxTradesPerCycle').value) }
                 }
-            }; updates.MAX_POSITION_SIZE = parseFloat(document.getElementById('maxPositionSize').value) / 100;
+            };
             const apiKey = document.getElementById('apiKey').value;
             const apiSecret = document.getElementById('apiSecret').value;
             const apiPassphrase = document.getElementById('apiPassphrase').value;
@@ -10515,7 +10824,6 @@ app.get('/', (req, res) => {
             updates.ASSET_CONTROLS = {
                 BTC: { enabled: document.getElementById('btcEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('btcMaxTrades').value) || 1 },
                 ETH: { enabled: document.getElementById('ethEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('ethMaxTrades').value) || 1 },
-                SOL: { enabled: document.getElementById('solEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('solMaxTrades').value) || 1 },
                 XRP: { enabled: document.getElementById('xrpEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('xrpMaxTrades').value) || 1 }
             };
             
@@ -10528,71 +10836,6 @@ app.get('/', (req, res) => {
                 document.getElementById('settingsStatus').className = 'status-msg success';
                 fetchData();
             } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Error saving'; document.getElementById('settingsStatus').className = 'status-msg error'; }
-        }
-        
-        function applyRiskPreset(preset) {
-            if (preset === 'SAFE') {
-                document.getElementById('riskMaxExposure').value = 30;
-                document.getElementById('maxPositionSize').value = 10;
-                document.getElementById('riskCooldown').value = 300;
-                document.getElementById('riskStopLoss').value = 20;
-                document.getElementById('maxConsecutiveLosses').value = 2;
-                document.getElementById('maxDailyLosses').value = 3;
-                document.getElementById('maxTradesPerCycle').value = 1;
-                document.getElementById('enableLossCooldown').checked = true;
-                document.getElementById('enableCircuitBreaker').checked = true;
-                document.getElementById('enableDivergenceBlocking').checked = true;
-                document.getElementById('aggressiveSizingOnLosses').checked = false;
-                document.getElementById('firstMoveAdvantage').checked = false;
-                document.getElementById('supremeConfidenceMode').checked = false;
-                document.getElementById('enablePositionPyramiding').checked = false;
-            } else if (preset === 'BALANCED') {
-                document.getElementById('riskMaxExposure').value = 50;
-                document.getElementById('maxPositionSize').value = 20;
-                document.getElementById('riskCooldown').value = 60;
-                document.getElementById('riskStopLoss').value = 30;
-                document.getElementById('maxConsecutiveLosses').value = 3;
-                document.getElementById('maxDailyLosses').value = 5;
-                document.getElementById('maxTradesPerCycle').value = 3;
-                document.getElementById('enableLossCooldown').checked = true;
-                document.getElementById('enableCircuitBreaker').checked = true;
-                document.getElementById('enableDivergenceBlocking').checked = true;
-                document.getElementById('aggressiveSizingOnLosses').checked = false;
-                document.getElementById('firstMoveAdvantage').checked = false;
-                document.getElementById('supremeConfidenceMode').checked = false;
-                document.getElementById('enablePositionPyramiding').checked = false;
-            } else if (preset === 'AGGRESSIVE') {
-                document.getElementById('riskMaxExposure').value = 100;
-                document.getElementById('maxPositionSize').value = 25;
-                document.getElementById('riskCooldown').value = 0;
-                document.getElementById('riskStopLoss').value = 50;
-                document.getElementById('maxConsecutiveLosses').value = 5;
-                document.getElementById('maxDailyLosses').value = 10;
-                document.getElementById('maxTradesPerCycle').value = 5;
-                document.getElementById('enableLossCooldown').checked = false;
-                document.getElementById('enableCircuitBreaker').checked = false;
-                document.getElementById('enableDivergenceBlocking').checked = false;
-                document.getElementById('aggressiveSizingOnLosses').checked = true;
-                document.getElementById('firstMoveAdvantage').checked = false;
-                document.getElementById('supremeConfidenceMode').checked = false;
-                document.getElementById('enablePositionPyramiding').checked = false;
-            } else if (preset === 'ORACLE') {
-                document.getElementById('riskMaxExposure').value = 75;
-                document.getElementById('maxPositionSize').value = 25;
-                document.getElementById('riskCooldown').value = 0;
-                document.getElementById('riskStopLoss').value = 40;
-                document.getElementById('maxConsecutiveLosses').value = 5;
-                document.getElementById('maxDailyLosses').value = 8;
-                document.getElementById('maxTradesPerCycle').value = 5;
-                document.getElementById('enableLossCooldown').checked = false;
-                document.getElementById('enableCircuitBreaker').checked = false;
-                document.getElementById('enableDivergenceBlocking').checked = false;
-                document.getElementById('aggressiveSizingOnLosses').checked = true;
-                document.getElementById('firstMoveAdvantage').checked = true;
-                document.getElementById('supremeConfidenceMode').checked = true;
-                document.getElementById('enablePositionPyramiding').checked = true;
-            }
-            saveAllSettings();
         }
         
         async function resetPaperBalance() {
@@ -10766,6 +11009,110 @@ app.get('/', (req, res) => {
                     });
                     html += '</table>';
                 }
+                return html;
+            }
+            if (endpoint.includes('/api/backtest-polymarket')) {
+                const s = data.summary || {};
+                const cov = data.coverage || {};
+                const interp = data.interpretation || {};
+                const profit = Number(s.totalProfit || 0);
+                const profitColor = profit >= 0 ? '#00ff88' : '#ff4466';
+                const icon = profit >= 0 ? '✅' : '❌';
+                
+                let html = '<div style="font-size:1.1em;line-height:1.8;">' +
+                    '<div style="font-size:1.3em;margin-bottom:10px;">🏆 <b>Polymarket Backtest</b></div>' +
+                    '<div>' + icon + ' <b style="color:' + profitColor + ';">Profit:</b> $' + profit.toFixed(2) + ' <span style="color:#888;">(' + (s.profitPct || 'N/A') + ')</span></div>' +
+                    '<div>🎯 <b>Win rate:</b> ' + (s.winRate || 'N/A') + ' <span style="color:#888;">(' + (s.wins || 0) + 'W / ' + (s.losses || 0) + 'L)</span></div>' +
+                    '<div>📉 <b>Max drawdown:</b> ' + (s.maxDrawdown || 'N/A') + '</div>' +
+                    '<div>⏱️ <b>Runtime:</b> ' + (s.runtime || 'N/A') + '</div>' +
+                    '<div>🧾 <b>Resolved:</b> ' + (cov.resolved || 0) + ' <span style="color:#888;">(unresolved: ' + (cov.unresolved || 0) + ', found: ' + (cov.cyclesFound || 0) + ')</span></div>' +
+                    '<div>📌 <b>Verdict:</b> ' + (interp.verdict || 'N/A') + '</div>' +
+                    '</div>';
+                
+                const entrySources = cov.entrySources || {};
+                const srcKeys = Object.keys(entrySources);
+                if (srcKeys.length > 0) {
+                    const srcStr = srcKeys.map(k => k + ': ' + entrySources[k]).join(' | ');
+                    html += '<div style="margin-top:10px;color:#888;font-size:0.85em;">Entry price sources: <b>' + srcStr + '</b></div>';
+                }
+                
+                const trades = Array.isArray(data.trades) ? data.trades : [];
+                if (trades.length === 0) {
+                    html += '<div style="margin-top:12px;color:#888;">No trades were simulated for these filters.</div>';
+                    return html;
+                }
+                
+                html += '<div style="margin-top:12px;color:#aaa;"><b>Last 10 simulated trades</b></div>';
+                html += '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:0.85em;">';
+                html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Asset</th><th>Entry</th><th>Resolved</th><th>P&L</th><th>Balance</th></tr>';
+                trades.slice(-10).reverse().forEach(t => {
+                    const pnl = Number(t.pnl || 0);
+                    const pnlColor = pnl >= 0 ? '#00ff88' : '#ff4466';
+                    const outIcon = t.isWin ? '✅' : '❌';
+                    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
+                        '<td style="padding:6px;font-weight:bold;">' + (t.asset || '') + '</td>' +
+                        '<td style="text-align:center;">' + (((t.entryPrice || 0) * 100).toFixed(1)) + '¢</td>' +
+                        '<td style="text-align:center;">' + outIcon + ' ' + (t.polymarketOutcome || '?') + '</td>' +
+                        '<td style="text-align:center;color:' + pnlColor + ';">$' + pnl.toFixed(2) + '</td>' +
+                        '<td style="text-align:center;">$' + Number(t.balance || 0).toFixed(2) + '</td>' +
+                        '</tr>';
+                });
+                html += '</table>';
+                
+                return html;
+            }
+            if (endpoint.includes('/api/verify-trades-polymarket')) {
+                const s = data.summary || {};
+                const candidates = Number(s.candidates || 0);
+                if (candidates === 0) {
+                    return '<div style="color:#888;">No CLOSED ORACLE trades found to verify yet.</div>';
+                }
+                
+                const mismatches = Number(s.mismatches || 0);
+                const mismatchColor = mismatches > 0 ? '#ff4466' : '#00ff88';
+                const mismatchIcon = mismatches > 0 ? '🚨' : '✅';
+                
+                let html = '<div style="font-size:1.1em;line-height:1.8;">' +
+                    '<div style="font-size:1.3em;margin-bottom:10px;">✅ <b>Trade Verification (Polymarket)</b></div>' +
+                    '<div>🧾 <b>Trades checked:</b> ' + candidates + '</div>' +
+                    '<div>📌 <b>Resolved:</b> ' + (s.resolved || 0) + ' <span style="color:#888;">(unresolved: ' + (s.unresolved || 0) + ', errors: ' + (s.errors || 0) + ')</span></div>' +
+                    '<div>' + mismatchIcon + ' <b style="color:' + mismatchColor + ';">Mismatches:</b> ' + mismatches + '</div>' +
+                    '<div style="color:#888;">Runtime: ' + (s.runtime || 'N/A') + ' | WinRate vs resolution: ' + (s.winRate || 'N/A') + '</div>' +
+                    '</div>';
+                
+                const byAsset = data.byAsset || {};
+                html += '<div style="margin-top:12px;color:#aaa;"><b>By asset</b></div>';
+                html += '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:0.85em;">';
+                html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Asset</th><th>Resolved</th><th>W</th><th>L</th><th>Mismatches</th></tr>';
+                Object.entries(byAsset).forEach(([asset, a]) => {
+                    html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
+                        '<td style="padding:6px;font-weight:bold;">' + asset + '</td>' +
+                        '<td style="text-align:center;">' + (a.resolved || 0) + '</td>' +
+                        '<td style="text-align:center;color:#00ff88;">' + (a.wins || 0) + '</td>' +
+                        '<td style="text-align:center;color:#ff4466;">' + (a.losses || 0) + '</td>' +
+                        '<td style="text-align:center;color:' + ((a.mismatches || 0) > 0 ? '#ff4466' : '#00ff88') + ';">' + (a.mismatches || 0) + '</td>' +
+                        '</tr>';
+                });
+                html += '</table>';
+                
+                const trades = Array.isArray(data.trades) ? data.trades : [];
+                const mismatched = trades.filter(t => t && t.mismatch === true).slice(0, 10);
+                if (mismatched.length > 0) {
+                    html += '<div style="margin-top:12px;color:#ffcc66;"><b>First 10 mismatches</b></div>';
+                    html += '<table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:0.8em;">';
+                    html += '<tr style="background:rgba(255,255,255,0.1);"><th style="padding:6px;text-align:left;">Trade</th><th>Side</th><th>Resolved</th><th>Recorded P&L</th></tr>';
+                    mismatched.forEach(t => {
+                        const rp = (t.recordedPnl === null || t.recordedPnl === undefined) ? 'N/A' : ('$' + Number(t.recordedPnl).toFixed(2));
+                        html += '<tr style="border-bottom:1px solid rgba(255,255,255,0.1);">' +
+                            '<td style="padding:6px;"><code>' + String(t.id || '').substring(0, 24) + '...</code></td>' +
+                            '<td style="text-align:center;">' + (t.side || '?') + '</td>' +
+                            '<td style="text-align:center;">' + (t.verifiedOutcome || '?') + '</td>' +
+                            '<td style="text-align:center;color:#ff4466;">' + rp + '</td>' +
+                            '</tr>';
+                    });
+                    html += '</table>';
+                }
+                
                 return html;
             }
             // Default: show formatted JSON with syntax highlighting
@@ -11293,9 +11640,11 @@ app.get('/api/gates', (req, res) => {
                 minConsensus: CONFIG.ORACLE.minConsensus,
                 minConfidence: CONFIG.ORACLE.minConfidence,
                 minEdge: CONFIG.ORACLE.minEdge,
+                minOdds: CONFIG.ORACLE.minOdds || 0.20,
                 maxOdds: CONFIG.ORACLE.maxOdds,
                 minStability: CONFIG.ORACLE.minStability,
                 effectiveMaxOdds: tradeExecutor.getEffectiveMaxOdds(),
+                effectiveMinOdds: CONFIG.ORACLE.minOdds || 0.20,
                 effectiveMinStability: tradeExecutor.getEffectiveMinStability()
             }
         }
@@ -11423,7 +11772,7 @@ app.post('/api/manual-buy', async (req, res) => {
         return res.status(400).json({ success: false, error: 'Missing asset, direction, or size' });
     }
 
-    if (!['BTC', 'ETH', 'SOL', 'XRP'].includes(asset)) {
+    if (!['BTC', 'ETH', 'XRP'].includes(asset)) {
         return res.status(400).json({ success: false, error: 'Invalid asset' });
     }
 
@@ -11936,7 +12285,7 @@ app.get('/settings', (req, res) => {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Settings - Supreme Deity Oracle</title>
+    <title>Settings - POLYPROPHET</title>
     <meta charset="UTF-8">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12290,7 +12639,7 @@ app.get('/guide', (req, res) => {
     </nav>
     
     <div class="container">
-        <h1>🔮 Supreme Oracle - Beginner's Guide</h1>
+        <h1>🔮 POLYPROPHET - Beginner's Guide</h1>
         
         <div class="card">
             <h2>📖 What Is This Bot?</h2>

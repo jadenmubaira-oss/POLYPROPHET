@@ -31,7 +31,7 @@ Interpretation (what “min variance” means in aggressive mode): remove avoida
 ## 2) Market Scope (what we trade)
 
 **Crypto cycles only** on Polymarket:
-- BTC / ETH / XRP only (SOL disabled — market illiquidity)
+- BTC / ETH / XRP only (**SOL removed from code** to avoid future confusion)
 - 15‑minute windows
 
 Non‑goals:
@@ -180,7 +180,7 @@ This is avoidable/self-inflicted variance: a safety mechanism that sometimes tur
 
 ### Sizing doctrine (spec)
 Default doctrine to survive worst-case variance while compounding fast:
-- **Base size**: ~20% of bankroll per ORACLE trade
+- **Base size**: ~10% of bankroll per ORACLE trade (min-variance default; 20% is aggressive/high-variance)
 - **Acceleration**: allow size increases only after verified win streaks (STRIKE mode)
 - **Throttle immediately** after losses (SAFE_ONLY / PROBE_ONLY)
 
@@ -211,30 +211,41 @@ If you want to push harder toward $1M speed:
 
 **Note**: On deployed server, backtest requires debug files. Export debug locally via "📥 Export Debug" button, or restore from `debug-archive` branch.
 
-### 🏆 v53: Polymarket-Native Backtest (Ground Truth)
+### 🏆 v53.1: Polymarket-Native Backtest (Ground Truth)
 
 **Endpoint**: `GET /api/backtest-polymarket`
 
 **How it works**:
 1. Collects cycles from debug files AND collector snapshots
-2. Uses **v53 entry tracking** (`entryOdds`) for accurate entry prices
+2. Uses **best available entry price**:
+   - `entryOdds` when present (debug exports)
+   - otherwise collector snapshot YES/NO prices as an entry proxy
 3. Queries **Polymarket Gamma API** for real market resolution outcomes
-4. Calculates profit based on actual Polymarket results (not internal model)
+4. Simulates P&L using slippage (1%) + profit fee (2%)
 
 **Query params**:
 - `tier=CONVICTION|ADVISORY|ALL` — filter by tier (default: CONVICTION)
-- `maxOdds=0.48` — max entry price (default: 48¢ for +EV)
+- `minOdds=0.20` — min entry price (default: 20¢; blocks tail bets)
+- `maxOdds=0.95` — max entry price (default: 95¢)
 - `balance=10` — starting balance (default: $10)
-- `stake=0.20` — position size as fraction of balance (default: 20%)
+- `stake=0.10` — position size as fraction of balance (default: 10% for min variance)
 - `limit=200` — max cycles to process (rate limit protection)
 
-**Example**: `/api/backtest-polymarket?tier=CONVICTION&maxOdds=0.48&balance=10`
+**Example**: `/api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&stake=0.10&balance=10`
 
 **Output includes**:
 - Win rate vs Polymarket resolution
 - Total profit/loss simulation
 - Expected value per $1 stake
 - Interpretation: ✅ POSITIVE EV / ⚠️ MARGINAL / ❌ NEGATIVE EV
+
+### ✅ Verify executed trades (ground truth)
+
+**Endpoint**: `GET /api/verify-trades-polymarket`
+
+Use this to confirm the bot’s **recorded wins/losses** match **Polymarket resolution** (detects divergence / silent outcome mismatches).
+
+**Example**: `/api/verify-trades-polymarket?mode=PAPER&limit=100`
 
 ### Forward-test (Live)
 
@@ -293,7 +304,8 @@ Security rule: never commit secrets; use `.env` locally and Render env vars in p
 - `GET /api/halts`
 - `GET /api/trades`
 - `GET /api/backtest-proof` — Debug-based backtest
-- `GET /api/backtest-polymarket` — **🏆 v53: Polymarket Gamma API verified backtest (real outcomes)**
+- `GET /api/backtest-polymarket` — **🏆 Polymarket Gamma API verified backtest (real outcomes)**
+- `GET /api/verify-trades-polymarket` — **✅ Verify executed trades vs Polymarket outcomes (detect divergence/mismatches)**
 - `GET /api/forward-test`
 - `GET /api/calibration`
 - `GET /api/circuit-breaker`
@@ -320,172 +332,11 @@ After cleanup, `main` should contain only:
 All historical runtimes, debug artifacts, forensic docs, and chat exports go to an `archive` branch (preserved, but not in `main`).
 
 ---
+## 13) Historical notes (archived)
 
-## 13) Opus 4.5 — server.js implementation tasks (COMPLETED in v47)
+This README is intentionally kept **current-only** (to avoid future confusion).
+Older forensic notes, intermediate versions, and legacy presets are preserved in git history / archive branches if needed.
 
-1. **Stop-loss false-stop fix (critical)**
-   - Prevent STOP LOSS from closing high-confidence trades that later win at cycle end.
-   - Options:
-     - disable stop-loss for CONVICTION+Genesis-agree trades
-     - make stop-loss phase-aware (early cycle vs late cycle)
-
-2. **Profit capture vs resolution**
-   - Decide whether CONVICTION trades should hold to resolution (higher ROI) vs early exit (lower variance).
-   - Backtest both.
-
-3. **Sizing policy enforcement**
-   - Implement the base/accelerate/throttle doctrine explicitly.
-   - Validate against your $1M trade tables under 90% and 80% regimes.
-
-4. **Gate tuning**
-   - `mid_range_odds` is the top blocker in recent debug; verify we aren’t missing high-EV cycles.
-
----
-
-## 14) BUG FIXES (v48) ✅ COMPLETED
-
-### Post-deployment forensics (2026-01-01) revealed tier propagation failures:
-
-| Trade ID | Recorded Tier | Entry Confidence | Outcome | Expected Tier |
-|----------|---------------|------------------|---------|---------------|
-| ETH_1767221643946 | UNKNOWN | 80.5% | STOP -49% | CONVICTION |
-| BTC_1767224431695 | UNKNOWN | 75.8% | LOSS -100% | ADVISORY |
-| SOL_1767223247407 | CONVICTION | 81.0% | LOSS -100% | N/A (SOL disabled) |
-
-### ROOT CAUSE 1: Missing tier in LATE CYCLE path (Line 7400) ✅ FIXED
-
-Added `{ tier: tier, pWin: pWinEff, genesisAgree: lateGenesisAgree }` to executeTrade call
-
-### ROOT CAUSE 2: Missing tier in ILLIQUIDITY path (Line 7362) ✅ FIXED
-
-Added `{ tier: tier }` to executeTrade call
-
-### ROOT CAUSE 3: SOL enabled in PINNACLE_OPTIMAL preset (Line 9897) ✅ FIXED
-
-Changed to `SOL: { enabled: false, maxTradesPerCycle: 1 }`
-
-### ROOT CAUSE 4: UI button mislabeled (Line 8980) ✅ FIXED
-
-Renamed from 'PINNACLE v27' to 'APEX v24' to match actual preset
-
-### ADDITIONAL v48 TASKS ✅ COMPLETED
-
-5. **Child-friendly API panel**: Added formatted tables/cards for trades, gates, version, halts endpoints with tooltips
-
-6. **Security audit**: Removed partial key logging (keyPreview)
-
----
-
-## 15) v51 GOAT FINAL — THE POLYPROPHET
-
-### Changes in v51
-
-- **CRITICAL FIX**: Regime stop-loss (CALM/VOLATILE/CHAOS) now bypasses CONVICTION trades
-- Previous bug: Regime stop-loss triggered BEFORE the CONVICTION bypass check
-- Now: CONVICTION and Genesis-agree trades hold to resolution regardless of regime
-
-### Changes in v50
-
-- UI renamed from "Supreme Oracle" to **POLYPROPHET**
-- 118 debug files restored locally for backtest
-- Comprehensive backtest validation completed
-
-### Backtest Results (118 debug exports, 2211 cycles)
-
-| Tier | Wins | Losses | Win Rate |
-|------|------|--------|----------|
-| **CONVICTION** | 715 | 39 | **94.8%** |
-| **ADVISORY** | 422 | 8 | **98.1%** |
-| NONE | 446 | 581 | 43.4% |
-
-**Conclusion**: Only trade CONVICTION tier (94.8% WR). NONE tier is worse than coin flip.
-
-### GOAT Preset
-
-Click "👑 APPLY GOAT SETTINGS" in the UI to load optimal settings.
-
-### GOAT Preset Settings
-
-```javascript
-GOAT: {
-  ORACLE: {
-    enabled: true,
-    minConsensus: 0.70,       // 70% model agreement
-    minConfidence: 0.70,      // 70% confidence minimum
-    minEdge: 5,               // 5% edge over market
-    maxOdds: 0.48,            // Max 48¢ entry price
-    minStability: 3,          // 3 ticks stable signal
-    hedgeEnabled: false,      // NO hedging
-    stopLossEnabled: true,
-    stopLoss: 0.30            // 30% (CONVICTION bypasses)
-  },
-  ILLIQUIDITY_GAP: { enabled: true },
-  DEATH_BOUNCE: { enabled: false },
-  RISK: {
-    maxTotalExposure: 0.50,   // Max 50% in positions
-    globalStopLoss: 0.40,     // Halt at 40% daily loss
-    cooldownAfterLoss: 1200,  // 20 min after 3 losses
-    maxConsecutiveLosses: 3,
-    maxGlobalTradesPerCycle: 2
-  },
-  ASSET_CONTROLS: {
-    BTC: { enabled: true },
-    ETH: { enabled: true },
-    SOL: { enabled: false },  // 50% WR - disabled
-    XRP: { enabled: true }
-  }
-}
-```
-
-### v52 Verified Performance (2026-01-01)
-
-#### Backtest (121 debug files, cycleHistory):
-| Tier | Wins | Losses | Win Rate | Sample |
-|------|------|--------|----------|--------|
-| **CONVICTION** | 727 | 42 | **94.54%** | n=769 |
-| ADVISORY | 424 | 8 | 98.15% | n=432 |
-| NONE | 448 | 585 | 43.37% | n=1033 |
-
-Time period: 2025-12-18 to 2026-01-01 (2 weeks, 2,234 unique cycles)
-
-#### Forward Test (Polymarket-verified, real outcomes):
-| Asset | CONVICTION W/L | Win Rate |
-|-------|----------------|----------|
-| BTC | 10W/2L | **83.3%** |
-| ETH | 10W/2L | **83.3%** |
-| XRP | 16W/6L | **72.7%** |
-| **COMBINED** | 36W/10L | **78.3%** |
-
-Time period: 30 Polymarket snapshots (~7 hours)
-
-**Discrepancy note**: Forward test (78%) is lower than backtest (94%) due to:
-1. Different time periods (2 weeks vs 7 hours)
-2. Sample size (769 vs 46)
-3. XRP underperforming in recent hours
-
-### Is This The GOAT?
-
-**YES — v52 is the PINNACLE** ✅
-
-**Evidence from v52:**
-- Config drift FIXED (deep-merge preserves all safety keys)
-- Rolling accuracy tracker ACTIVE (auto-disables at <60% WR)
-- All safety features RESTORED (adaptiveModeEnabled, enableCircuitBreaker)
-- Both backtest AND forward test show profitable CONVICTION trading
-
-**What could still go wrong:**
-- Statistical variance (losing streaks happen even at 90% WR)
-- Market regime shifts (Genesis/Oracle calibration may drift) → NOW AUTO-DETECTED
-- Liquidity issues (wide spreads in thin markets)
-
-**Mitigations in v52:**
-- Circuit breaker throttles after 2 losses, halts after 6
-- Rolling accuracy tracker warns at <70%, disables at <60%
-- Cooldown periods prevent revenge trading
-- Global stop loss halts at 40% daily loss
-- Daily reset allows fresh start
-
----
 
 ## Appendix A — Trades to $1M tables (from chat)
 
