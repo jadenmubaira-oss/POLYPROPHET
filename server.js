@@ -5275,6 +5275,7 @@ class TradeExecutor {
     closePosition(positionId, exitPrice, reason) {
         const pos = this.positions[positionId];
         if (!pos) return;
+        const isBinaryExit = (typeof exitPrice === 'number') && (exitPrice <= 0.01 || exitPrice >= 0.99);
 
         // ==================== 🏆 APEX v24: HEDGED POSITION CLOSING ====================
         // If this is a hedged main position, also close the hedge
@@ -5315,8 +5316,8 @@ class TradeExecutor {
             delete this.positions[pos.hedgeId];
         }
 
-        // LIVE MODE: Execute actual sell order WITH RETRY
-        if (pos.isLive && this.mode === 'LIVE') {
+        // LIVE MODE: Execute actual sell order WITH RETRY (skip at binary resolution — redeem instead)
+        if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit) {
             log(`📤 Executing LIVE sell order with retry for ${pos.asset} ${pos.side}...`, pos.asset);
             // Use async retry - don't block
             this.executeSellOrderWithRetry(pos, 5, 3000).then(result => {
@@ -5845,9 +5846,9 @@ class TradeExecutor {
         const ids = Object.keys(this.positions).filter(id => this.positions[id] && this.positions[id].asset === asset);
         if (ids.length === 0) return;
 
-        // ✅ PAPER MODE: Prefer Polymarket Gamma resolution when we have the market slug.
-        // This makes streaks/halts truthful (prevents "paper wins" that lose on Polymarket).
-        if (this.mode === 'PAPER') {
+        // ✅ PAPER + LIVE: Prefer Polymarket Gamma resolution when we have the market slug.
+        // This makes streaks/halts truthful and ensures LIVE settles to Polymarket/Chainlink ground truth.
+        if (this.mode === 'PAPER' || this.mode === 'LIVE') {
             const slugs = new Set();
             for (const id of ids) {
                 const pos = this.positions[id];
@@ -5935,8 +5936,8 @@ class TradeExecutor {
             const market = Array.isArray(data) ? data[0] : data;
             if (!market || !market.outcomePrices || !market.outcomes) return null;
 
-            const prices = JSON.parse(market.outcomePrices);
-            const outcomes = JSON.parse(market.outcomes);
+            const prices = Array.isArray(market.outcomePrices) ? market.outcomePrices : (typeof market.outcomePrices === 'string' ? JSON.parse(market.outcomePrices) : null);
+            const outcomes = Array.isArray(market.outcomes) ? market.outcomes : (typeof market.outcomes === 'string' ? JSON.parse(market.outcomes) : null);
             if (!Array.isArray(prices) || prices.length < 2) return null;
             if (!Array.isArray(outcomes) || outcomes.length < 2) return null;
 
@@ -5973,9 +5974,10 @@ class TradeExecutor {
         const startedAt = Date.now();
         this.pendingPolymarketResolutions.set(slug, { asset, attempts: 0, fallbackOutcome, startedAt });
 
-        const MAX_ATTEMPTS = 12;      // ~60s total with 5s delay
+        const isLiveMode = this.mode === 'LIVE';
+        const MAX_ATTEMPTS = isLiveMode ? Infinity : 12;      // PAPER: ~60s total with 5s delay; LIVE: keep trying (truth > speed)
         const INITIAL_DELAY_MS = 1500; // give Gamma a moment to flip to 1/0
-        const RETRY_DELAY_MS = 5000;
+        const RETRY_DELAY_MS = isLiveMode ? 15000 : 5000;
 
         const tick = async () => {
             const state = this.pendingPolymarketResolutions.get(slug);
