@@ -1156,6 +1156,684 @@ app.get('/api/backtest-polymarket', async (req, res) => {
     }
 });
 
+// ==================== 🏆 v59 DATASET CACHE BUILDER ====================
+// Builds/caches Polymarket-native dataset for fast backtesting over long periods
+// Stores: Gamma outcomes + CLOB price history per slug in Redis/file
+const DATASET_CACHE_KEY_PREFIX = 'polyprophet:dataset:';
+const DATASET_INTRACYCLE_KEY_PREFIX = 'polyprophet:intracycle:';
+
+async function getCachedDatasetEntry(slug) {
+    try {
+        if (redisAvailable) {
+            const data = await redis.get(`${DATASET_CACHE_KEY_PREFIX}${slug}`);
+            if (data) return JSON.parse(data);
+        }
+        // File fallback
+        const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
+        const filePath = path.join(dataDir, `${slug}.json`);
+        if (fs.existsSync(filePath)) {
+            return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+    } catch {}
+    return null;
+}
+
+async function setCachedDatasetEntry(slug, entry) {
+    try {
+        const jsonData = JSON.stringify(entry);
+        if (redisAvailable) {
+            await redis.setex(`${DATASET_CACHE_KEY_PREFIX}${slug}`, 86400 * 30, jsonData); // 30 day TTL
+        }
+        // Also save to file for persistence
+        const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
+        if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+        fs.writeFileSync(path.join(dataDir, `${slug}.json`), jsonData);
+    } catch {}
+}
+
+app.get('/api/build-dataset', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const lookbackDays = Math.min(parseInt(req.query.days) || 90, 365);
+        const asset = req.query.asset ? String(req.query.asset).toUpperCase() : null; // BTC, ETH, XRP or null for all
+        const forceRefresh = req.query.refresh === '1';
+        
+        const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP'];
+        const nowSec = Math.floor(Date.now() / 1000);
+        const startSec = nowSec - (lookbackDays * 86400);
+        
+        // Generate all possible slug epochs (15-min intervals)
+        const allSlugs = [];
+        for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
+            for (const a of ASSETS_TO_BUILD) {
+                allSlugs.push(`${a.toLowerCase()}-updown-15m-${epochSec}`);
+            }
+        }
+        
+        let cached = 0;
+        let fetched = 0;
+        let errors = 0;
+        let resolved = 0;
+        let unresolved = 0;
+        const entries = [];
+        
+        for (const slug of allSlugs) {
+            // Check cache first
+            if (!forceRefresh) {
+                const existing = await getCachedDatasetEntry(slug);
+                if (existing) {
+                    cached++;
+                    entries.push(existing);
+                    continue;
+                }
+            }
+            
+            // Fetch from Gamma API
+            await new Promise(r => setTimeout(r, 50)); // Rate limit
+            try {
+                const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+                const response = await fetch(url, {
+                    headers: { 'User-Agent': 'polyprophet-dataset-builder/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                
+                if (!response.ok) {
+                    errors++;
+                    continue;
+                }
+                
+                const data = await response.json();
+                const market = Array.isArray(data) ? data[0] : data;
+                if (!market) {
+                    unresolved++;
+                    continue;
+                }
+                
+                const prices = JSON.parse(market.outcomePrices || '[]');
+                const outcomes = JSON.parse(market.outcomes || '[]');
+                const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
+                
+                if (!Array.isArray(prices) || prices.length < 2) {
+                    unresolved++;
+                    continue;
+                }
+                
+                const p0 = Number(prices[0]);
+                const p1 = Number(prices[1]);
+                const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+                
+                if (!idx0Win && !idx1Win) {
+                    unresolved++;
+                    continue;
+                }
+                
+                resolved++;
+                fetched++;
+                
+                // Determine outcome
+                const o0 = String(outcomes[0] || '').toLowerCase();
+                const o1 = String(outcomes[1] || '').toLowerCase();
+                let outcome = idx0Win ? 'UP' : 'DOWN';
+                if (o0 === 'up' && o1 === 'down') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
+                else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
+                
+                // Extract cycle timing from slug
+                const slugMatch = slug.match(/(btc|eth|xrp)-updown-15m-(\d+)$/);
+                const assetFromSlug = slugMatch ? slugMatch[1].toUpperCase() : null;
+                const cycleStartEpochSec = slugMatch ? parseInt(slugMatch[2]) : null;
+                
+                const entry = {
+                    slug,
+                    asset: assetFromSlug,
+                    cycleStartEpochSec,
+                    cycleEndEpochSec: cycleStartEpochSec ? cycleStartEpochSec + 900 : null,
+                    resolvedOutcome: outcome,
+                    outcomes,
+                    clobTokenIds,
+                    resolutionSource: market.resolutionSource || null,
+                    volume: Number(market.volume || 0),
+                    cachedAt: Date.now()
+                };
+                
+                await setCachedDatasetEntry(slug, entry);
+                entries.push(entry);
+                
+            } catch (e) {
+                errors++;
+            }
+        }
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        res.json({
+            success: true,
+            summary: {
+                runtime: runtime + 's',
+                lookbackDays,
+                totalSlugs: allSlugs.length,
+                cached,
+                fetched,
+                resolved,
+                unresolved,
+                errors,
+                entriesBuilt: entries.length
+            },
+            sampleEntries: entries.slice(-10)
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== 🏆 v59 TRUE-MAXIMUM OPTIMIZER ====================
+// Searches parameter space for optimal (minOdds, maxOdds, stake, exitPolicy) combination
+// Uses cached dataset for fast simulation; produces Pareto frontier report
+app.get('/api/optimize-polymarket', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const lookbackDays = Math.min(parseInt(req.query.days) || 90, 365);
+        const startingBalance = parseFloat(req.query.balance) || 5.0;
+        const simulations = parseInt(req.query.sims) || 1000; // Monte Carlo simulations per strategy
+        
+        // Search space parameters
+        const minOddsRange = [0.35, 0.38, 0.40, 0.42, 0.45, 0.48, 0.50, 0.55];
+        const maxOddsRange = [0.85, 0.88, 0.90, 0.92, 0.94, 0.95, 0.97];
+        const stakeRange = [0.15, 0.20, 0.25, 0.28, 0.30, 0.32, 0.34, 0.36, 0.38, 0.40, 0.45];
+        const exitPolicies = ['HOLD_RESOLUTION']; // For now, only hold-to-resolution
+        
+        // Fee model
+        const PROFIT_FEE_PCT = 0.02;
+        const SLIPPAGE_PCT = 0.01;
+        
+        // Load cached dataset
+        const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
+        let allEntries = [];
+        
+        if (fs.existsSync(dataDir)) {
+            const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.json'));
+            for (const file of files) {
+                try {
+                    const entry = JSON.parse(fs.readFileSync(path.join(dataDir, file), 'utf8'));
+                    if (entry && entry.resolvedOutcome && entry.cycleStartEpochSec) {
+                        allEntries.push(entry);
+                    }
+                } catch {}
+            }
+        }
+        
+        // Also try Redis
+        if (redisAvailable && allEntries.length < 1000) {
+            try {
+                const keys = await redis.keys(`${DATASET_CACHE_KEY_PREFIX}*`);
+                for (const key of keys.slice(0, 10000)) {
+                    const data = await redis.get(key);
+                    if (data) {
+                        const entry = JSON.parse(data);
+                        if (entry && entry.resolvedOutcome && entry.cycleStartEpochSec) {
+                            allEntries.push(entry);
+                        }
+                    }
+                }
+            } catch {}
+        }
+        
+        if (allEntries.length < 100) {
+            return res.status(400).json({
+                error: 'Not enough cached data. Run /api/build-dataset first.',
+                entriesFound: allEntries.length
+            });
+        }
+        
+        // Filter by lookback period
+        const nowSec = Math.floor(Date.now() / 1000);
+        const cutoffSec = nowSec - (lookbackDays * 86400);
+        allEntries = allEntries.filter(e => e.cycleStartEpochSec >= cutoffSec);
+        
+        // Sort by time
+        allEntries.sort((a, b) => a.cycleStartEpochSec - b.cycleStartEpochSec);
+        
+        // Load collector snapshots for entry prices and predictions
+        const snapshotData = await getCollectorSnapshots(5000);
+        const snapshots = snapshotData.snapshots || [];
+        
+        // Build prediction map: slug -> { prediction, entryPrice, confidence, pWin }
+        const predictionMap = new Map();
+        for (const snap of snapshots) {
+            for (const [asset, signal] of Object.entries(snap.signals || {})) {
+                const market = snap.markets?.[asset];
+                if (!market?.slug) continue;
+                const pred = String(signal.prediction || '').toUpperCase();
+                if (pred !== 'UP' && pred !== 'DOWN') continue;
+                const yesPrice = market.yesPrice;
+                const noPrice = market.noPrice;
+                const entryPrice = pred === 'UP' ? yesPrice : noPrice;
+                if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
+                
+                // Store (prefer earliest snapshot for same slug)
+                if (!predictionMap.has(market.slug)) {
+                    predictionMap.set(market.slug, {
+                        prediction: pred,
+                        entryPrice,
+                        confidence: signal.confidence,
+                        pWin: signal.pWin ?? signal.confidence,
+                        asset
+                    });
+                }
+            }
+        }
+        
+        // Simulation function
+        function simulateStrategy(minOdds, maxOdds, stakeFrac, exitPolicy) {
+            let balance = startingBalance;
+            let peakBalance = startingBalance;
+            let maxDrawdown = 0;
+            let wins = 0, losses = 0;
+            const dailyReturns = [];
+            let currentDayStart = null;
+            let currentDayBalance = startingBalance;
+            
+            // Group by day for daily return calculation
+            const byDay = new Map();
+            for (const entry of allEntries) {
+                const day = Math.floor(entry.cycleStartEpochSec / 86400);
+                if (!byDay.has(day)) byDay.set(day, []);
+                byDay.get(day).push(entry);
+            }
+            
+            const days = Array.from(byDay.keys()).sort((a, b) => a - b);
+            
+            for (const day of days) {
+                const dayEntries = byDay.get(day);
+                const dayStartBalance = balance;
+                
+                // Process each cycle in the day (max 1 trade per cycle)
+                const byWindow = new Map();
+                for (const entry of dayEntries) {
+                    const w = entry.cycleStartEpochSec;
+                    if (!byWindow.has(w)) byWindow.set(w, entry);
+                }
+                
+                for (const entry of byWindow.values()) {
+                    if (balance <= 0) break;
+                    
+                    const pred = predictionMap.get(entry.slug);
+                    if (!pred) continue;
+                    
+                    // Apply filters
+                    if (pred.entryPrice < minOdds) continue;
+                    if (pred.entryPrice > maxOdds) continue;
+                    
+                    // Calculate EV and filter negative EV
+                    const pWin = Number(pred.pWin) || 0.5;
+                    const effectiveEntry = Math.min(0.99, pred.entryPrice * (1 + SLIPPAGE_PCT));
+                    const winRoiNet = (1 / effectiveEntry - 1) * (1 - PROFIT_FEE_PCT);
+                    const evRoi = pWin * winRoiNet - (1 - pWin);
+                    if (evRoi <= 0) continue;
+                    
+                    // Execute trade
+                    const stake = balance * stakeFrac;
+                    const isWin = pred.prediction === entry.resolvedOutcome;
+                    
+                    let pnl;
+                    if (isWin) {
+                        const shares = stake / effectiveEntry;
+                        const grossValue = shares * 1.0;
+                        const profit = grossValue - stake;
+                        const fee = profit * PROFIT_FEE_PCT;
+                        pnl = profit - fee;
+                        wins++;
+                    } else {
+                        pnl = -stake;
+                        losses++;
+                    }
+                    
+                    balance += pnl;
+                    peakBalance = Math.max(peakBalance, balance);
+                    const dd = peakBalance > 0 ? (peakBalance - balance) / peakBalance : 0;
+                    maxDrawdown = Math.max(maxDrawdown, dd);
+                }
+                
+                // Record daily return
+                if (dayStartBalance > 0) {
+                    dailyReturns.push((balance - dayStartBalance) / dayStartBalance);
+                }
+            }
+            
+            const totalTrades = wins + losses;
+            const winRate = totalTrades > 0 ? wins / totalTrades : 0;
+            
+            // Calculate statistics
+            dailyReturns.sort((a, b) => a - b);
+            const median24hReturn = dailyReturns.length > 0 ? dailyReturns[Math.floor(dailyReturns.length / 2)] : 0;
+            const p10Return = dailyReturns.length >= 10 ? dailyReturns[Math.floor(dailyReturns.length * 0.1)] : (dailyReturns[0] || 0);
+            const p1Return = dailyReturns.length >= 100 ? dailyReturns[Math.floor(dailyReturns.length * 0.01)] : p10Return;
+            const worstReturn = dailyReturns[0] || 0;
+            const meanReturn = dailyReturns.length > 0 ? dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length : 0;
+            
+            return {
+                minOdds, maxOdds, stakeFrac, exitPolicy,
+                finalBalance: balance,
+                totalProfit: balance - startingBalance,
+                profitPct: ((balance - startingBalance) / startingBalance) * 100,
+                totalTrades,
+                winRate: winRate * 100,
+                maxDrawdown: maxDrawdown * 100,
+                median24hReturn: median24hReturn * 100,
+                p10Return: p10Return * 100,
+                p1Return: p1Return * 100,
+                worstReturn: worstReturn * 100,
+                meanReturn: meanReturn * 100,
+                daysSimulated: days.length
+            };
+        }
+        
+        // Run optimization grid search
+        const results = [];
+        let processed = 0;
+        const totalCombinations = minOddsRange.length * maxOddsRange.length * stakeRange.length * exitPolicies.length;
+        
+        for (const minOdds of minOddsRange) {
+            for (const maxOdds of maxOddsRange) {
+                if (maxOdds <= minOdds) continue;
+                for (const stake of stakeRange) {
+                    for (const exitPolicy of exitPolicies) {
+                        const result = simulateStrategy(minOdds, maxOdds, stake, exitPolicy);
+                        results.push(result);
+                        processed++;
+                    }
+                }
+            }
+        }
+        
+        // Sort by different criteria to find Pareto frontier
+        const byMedian = [...results].sort((a, b) => b.median24hReturn - a.median24hReturn);
+        const byP10 = [...results].sort((a, b) => b.p10Return - a.p10Return);
+        const byMinDD = [...results].sort((a, b) => a.maxDrawdown - b.maxDrawdown);
+        const byProfit = [...results].sort((a, b) => b.profitPct - a.profitPct);
+        
+        // Find Pareto-optimal strategies (not dominated on both median return and max drawdown)
+        const paretoFrontier = [];
+        for (const r of results) {
+            const dominated = results.some(other => 
+                other.median24hReturn > r.median24hReturn && other.maxDrawdown < r.maxDrawdown
+            );
+            if (!dominated) paretoFrontier.push(r);
+        }
+        paretoFrontier.sort((a, b) => b.median24hReturn - a.median24hReturn);
+        
+        // Select "best overall" - highest median return with max DD < 70%
+        const bestOverall = byMedian.find(r => r.maxDrawdown < 70) || byMedian[0];
+        
+        // Select "min variance" - best 10th percentile return
+        const minVariance = byP10[0];
+        
+        // Select "max profit" - highest total profit
+        const maxProfit = byProfit[0];
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        res.json({
+            success: true,
+            summary: {
+                runtime: runtime + 's',
+                lookbackDays,
+                entriesUsed: allEntries.length,
+                predictionsAvailable: predictionMap.size,
+                combinationsTested: processed,
+                paretoFrontierSize: paretoFrontier.length
+            },
+            recommendations: {
+                bestOverall: {
+                    params: { minOdds: bestOverall.minOdds, maxOdds: bestOverall.maxOdds, stake: bestOverall.stakeFrac },
+                    metrics: {
+                        median24hReturn: bestOverall.median24hReturn.toFixed(2) + '%',
+                        p10Return: bestOverall.p10Return.toFixed(2) + '%',
+                        maxDrawdown: bestOverall.maxDrawdown.toFixed(2) + '%',
+                        totalProfit: bestOverall.profitPct.toFixed(2) + '%',
+                        winRate: bestOverall.winRate.toFixed(2) + '%',
+                        trades: bestOverall.totalTrades
+                    },
+                    description: 'Best median return with acceptable drawdown (<70%)'
+                },
+                minVariance: {
+                    params: { minOdds: minVariance.minOdds, maxOdds: minVariance.maxOdds, stake: minVariance.stakeFrac },
+                    metrics: {
+                        median24hReturn: minVariance.median24hReturn.toFixed(2) + '%',
+                        p10Return: minVariance.p10Return.toFixed(2) + '%',
+                        maxDrawdown: minVariance.maxDrawdown.toFixed(2) + '%',
+                        totalProfit: minVariance.profitPct.toFixed(2) + '%',
+                        winRate: minVariance.winRate.toFixed(2) + '%',
+                        trades: minVariance.totalTrades
+                    },
+                    description: 'Best 10th percentile return (most consistent)'
+                },
+                maxProfit: {
+                    params: { minOdds: maxProfit.minOdds, maxOdds: maxProfit.maxOdds, stake: maxProfit.stakeFrac },
+                    metrics: {
+                        median24hReturn: maxProfit.median24hReturn.toFixed(2) + '%',
+                        p10Return: maxProfit.p10Return.toFixed(2) + '%',
+                        maxDrawdown: maxProfit.maxDrawdown.toFixed(2) + '%',
+                        totalProfit: maxProfit.profitPct.toFixed(2) + '%',
+                        winRate: maxProfit.winRate.toFixed(2) + '%',
+                        trades: maxProfit.totalTrades
+                    },
+                    description: 'Highest total profit (may have high variance)'
+                }
+            },
+            paretoFrontier: paretoFrontier.slice(0, 20).map(r => ({
+                minOdds: r.minOdds,
+                maxOdds: r.maxOdds,
+                stake: r.stakeFrac,
+                median24h: r.median24hReturn.toFixed(2) + '%',
+                p10: r.p10Return.toFixed(2) + '%',
+                maxDD: r.maxDrawdown.toFixed(2) + '%',
+                winRate: r.winRate.toFixed(2) + '%'
+            })),
+            varianceScenarios: bestOverall ? {
+                best24h: `£5 → £${(5 * (1 + byMedian[0].median24hReturn / 100)).toFixed(2)} (based on median)`,
+                expected24h: `£5 → £${(5 * (1 + bestOverall.median24hReturn / 100)).toFixed(2)} (best overall)`,
+                worst24h: `£5 → £${(5 * (1 + bestOverall.worstReturn / 100)).toFixed(2)} (worst observed day)`,
+                p10_24h: `£5 → £${(5 * (1 + bestOverall.p10Return / 100)).toFixed(2)} (10th percentile)`,
+                projections: {
+                    day1: `£${(5 * Math.pow(1 + bestOverall.meanReturn / 100, 1)).toFixed(2)}`,
+                    day2: `£${(5 * Math.pow(1 + bestOverall.meanReturn / 100, 2)).toFixed(2)}`,
+                    day3: `£${(5 * Math.pow(1 + bestOverall.meanReturn / 100, 3)).toFixed(2)}`,
+                    day7: `£${(5 * Math.pow(1 + bestOverall.meanReturn / 100, 7)).toFixed(2)}`
+                }
+            } : null
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== 🏆 v59 PENDING POSITIONS RECONCILIATION ====================
+// Checks and resolves PENDING_RESOLUTION positions when Gamma becomes available
+app.get('/api/reconcile-pending', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const positions = tradeExecutor?.positions || {};
+        
+        const pendingPositions = Object.entries(positions).filter(([id, pos]) => 
+            pos && pos.status === 'PENDING_RESOLUTION'
+        );
+        
+        if (pendingPositions.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No pending positions to reconcile',
+                pending: 0,
+                resolved: 0
+            });
+        }
+        
+        let resolved = 0;
+        let stillPending = 0;
+        const results = [];
+        
+        for (const [id, pos] of pendingPositions) {
+            const slug = pos.pendingSlug || pos.slug;
+            if (!slug) {
+                stillPending++;
+                continue;
+            }
+            
+            // Try to fetch outcome from Gamma
+            await new Promise(r => setTimeout(r, 100)); // Rate limit
+            const outcome = await tradeExecutor.fetchPolymarketResolvedOutcome(slug);
+            
+            if (outcome === 'UP' || outcome === 'DOWN') {
+                const won = pos.side === outcome;
+                const exitPrice = won ? 1.0 : 0.0;
+                const reason = won ? `${pos.mode} WIN ✅ (Polymarket reconciled)` : `${pos.mode} LOSS ❌ (Polymarket reconciled)`;
+                tradeExecutor.closePosition(id, exitPrice, reason);
+                resolved++;
+                results.push({ id, slug, outcome, won, status: 'RESOLVED' });
+            } else {
+                stillPending++;
+                results.push({ id, slug, outcome: null, status: 'STILL_PENDING' });
+            }
+        }
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        res.json({
+            success: true,
+            runtime: runtime + 's',
+            pending: pendingPositions.length,
+            resolved,
+            stillPending,
+            results
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== 🏆 v59 INTRACYCLE ANALYSIS ====================
+// Analyzes price movement patterns within cycles to evaluate exit strategies
+app.get('/api/intracycle-analysis', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const lookbackHours = Math.min(parseInt(req.query.hours) || 24, 168);
+        const asset = req.query.asset ? String(req.query.asset).toUpperCase() : 'XRP';
+        
+        const nowSec = Math.floor(Date.now() / 1000);
+        const cutoffSec = nowSec - (lookbackHours * 3600);
+        
+        // Find recent cycles
+        const cycles = [];
+        for (let epochSec = cutoffSec - (cutoffSec % 900); epochSec < nowSec - 900; epochSec += 900) {
+            cycles.push({
+                slug: `${asset.toLowerCase()}-updown-15m-${epochSec}`,
+                startEpochSec: epochSec,
+                endEpochSec: epochSec + 900
+            });
+        }
+        
+        const results = [];
+        let flatAtStart = 0;
+        let movedEarly = 0;
+        let earlyTPWouldTrigger = 0;
+        let holdWasBetter = 0;
+        
+        for (const cycle of cycles.slice(-50)) { // Limit to avoid rate limits
+            await new Promise(r => setTimeout(r, 100));
+            
+            try {
+                // Fetch Gamma market data
+                const gammaUrl = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(cycle.slug)}`;
+                const gammaResp = await fetch(gammaUrl, {
+                    headers: { 'User-Agent': 'polyprophet-intracycle/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                
+                if (!gammaResp.ok) continue;
+                const gammaData = await gammaResp.json();
+                const market = Array.isArray(gammaData) ? gammaData[0] : gammaData;
+                if (!market) continue;
+                
+                const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
+                if (!clobTokenIds[0]) continue;
+                
+                // Fetch CLOB price history
+                const clobUrl = `https://clob.polymarket.com/prices-history?market=${clobTokenIds[0]}&startTs=${cycle.startEpochSec}&endTs=${cycle.endEpochSec}&fidelity=1`;
+                const clobResp = await fetch(clobUrl, {
+                    headers: { 'User-Agent': 'polyprophet-intracycle/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                
+                if (!clobResp.ok) continue;
+                const clobData = await clobResp.json();
+                const history = clobData?.history || [];
+                
+                if (history.length < 2) continue;
+                
+                // Analyze price movement
+                const prices = history.map(h => ({ t: h.t, p: Number(h.p) })).filter(h => Number.isFinite(h.p));
+                if (prices.length < 2) continue;
+                
+                const startPrice = prices[0].p;
+                const endPrice = prices[prices.length - 1].p;
+                const maxPrice = Math.max(...prices.map(p => p.p));
+                const minPrice = Math.min(...prices.map(p => p.p));
+                
+                // Check if flat at start (within 5¢ of 50¢)
+                const isFlatAtStart = Math.abs(startPrice - 0.5) < 0.05;
+                if (isFlatAtStart) flatAtStart++;
+                else movedEarly++;
+                
+                // Check if early TP at 70% would have triggered
+                const hitTP = maxPrice >= 0.70;
+                if (hitTP) earlyTPWouldTrigger++;
+                
+                // Check if holding to resolution was better
+                const resolvedToEnd = endPrice >= 0.95 || endPrice <= 0.05;
+                if (resolvedToEnd && maxPrice < 0.90) holdWasBetter++;
+                
+                results.push({
+                    slug: cycle.slug,
+                    startPrice: startPrice.toFixed(3),
+                    endPrice: endPrice.toFixed(3),
+                    maxPrice: maxPrice.toFixed(3),
+                    minPrice: minPrice.toFixed(3),
+                    dataPoints: prices.length,
+                    flatAtStart: isFlatAtStart,
+                    hitTP70: hitTP,
+                    resolved: resolvedToEnd
+                });
+            } catch {}
+        }
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        const total = results.length;
+        
+        res.json({
+            success: true,
+            runtime: runtime + 's',
+            cyclesAnalyzed: total,
+            summary: {
+                flatAtStartPct: total > 0 ? ((flatAtStart / total) * 100).toFixed(1) + '%' : 'N/A',
+                movedEarlyPct: total > 0 ? ((movedEarly / total) * 100).toFixed(1) + '%' : 'N/A',
+                earlyTP70WouldTriggerPct: total > 0 ? ((earlyTPWouldTrigger / total) * 100).toFixed(1) + '%' : 'N/A',
+                holdWasBetterPct: total > 0 ? ((holdWasBetter / total) * 100).toFixed(1) + '%' : 'N/A'
+            },
+            interpretation: {
+                recommendation: flatAtStart > movedEarly ? 
+                    'HOLD_TO_RESOLUTION: Most cycles start flat at 50¢, no early exit opportunity' :
+                    'EVALUATE_EARLY_EXIT: Significant early price movement detected',
+                evidence: `${flatAtStart}/${total} cycles flat at start, ${earlyTPWouldTrigger}/${total} would hit 70% TP`
+            },
+            samples: results.slice(-10)
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
 // ==================== ✅ POLYMARKET TRADE VERIFICATION (GROUND TRUTH) ====================
 // Verifies EXECUTED trades against Polymarket Gamma API outcomes (detects divergence + silent errors)
 app.get('/api/verify-trades-polymarket', async (req, res) => {
@@ -2987,7 +3665,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 58;  // v58: TRUE OPTIMAL (minOdds 40¢, maxOdds 92¢, stake 34%) - £5→£42 in 24h VERIFIED
+const CONFIG_VERSION = 59;  // v59: TRUE MAXIMUM AUDIT + PAPER no-fallback + dataset cache + optimizer endpoint
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -6192,9 +6870,26 @@ class TradeExecutor {
             }
 
             if (state.attempts >= MAX_ATTEMPTS) {
+                // 🏆 v59 FIX: PAPER mode NEVER fallback - keep position as PENDING_RESOLUTION
+                // This ensures 0% wrong outcomes in PAPER mode. User chose "no_fallback_paper".
+                if (this.mode === 'PAPER') {
+                    log(`⏳ POLYMARKET RESOLUTION PENDING: ${asset} slug=${slug} after ${MAX_ATTEMPTS} attempts - keeping as PENDING (no fallback in PAPER)`, asset);
+                    // Mark positions as pending resolution (don't close them - will reconcile later)
+                    for (const id of openMainIds) {
+                        const pos = this.positions[id];
+                        if (!pos) continue;
+                        pos.status = 'PENDING_RESOLUTION';
+                        pos.pendingSince = Date.now();
+                        pos.pendingSlug = slug;
+                        log(`⏳ Position ${id} marked PENDING_RESOLUTION - awaiting Gamma`, asset);
+                    }
+                    // Schedule retry in 5 minutes to check again
+                    setTimeout(tick, 300000); // 5 min retry
+                    return;
+                }
+                
+                // LIVE mode: still use fallback (better to close than leave hanging)
                 this.pendingPolymarketResolutions.delete(slug);
-                // 🔴 v57 FIX: Log WARNING - fallback is unreliable (Chainlink != Polymarket)
-                // Calibration shows 20% mismatch rate when using Chainlink fallback
                 log(`🚨 POLYMARKET RESOLUTION TIMEOUT: ${asset} slug=${slug} after ${MAX_ATTEMPTS} attempts (~${Math.round(MAX_ATTEMPTS * 5 / 60)}min)`, asset);
                 log(`⚠️ WARNING: Using Chainlink fallback (${fallbackOutcome}) - MAY NOT MATCH POLYMARKET TRUTH!`, asset);
                 for (const id of openMainIds) {
@@ -6202,7 +6897,6 @@ class TradeExecutor {
                     if (!pos) continue;
                     const won = pos.side === fallbackOutcome;
                     const exitPrice = won ? 1.0 : 0.0;
-                    // Mark clearly as UNVERIFIED fallback - streak logic should treat with caution
                     const reason = won ? `${pos.mode} WIN ⚠️ (UNVERIFIED-fallback)` : `${pos.mode} LOSS ⚠️ (UNVERIFIED-fallback)`;
                     this.closePosition(id, exitPrice, reason);
                 }

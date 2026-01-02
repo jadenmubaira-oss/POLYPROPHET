@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.0.0-goat-v58",
-    "description": "POLYPROPHET GOAT v58 - TRUE OPTIMAL (40-92¢ pWin-gated, 34% stake) = £5→£42 in 24h VERIFIED (8× growth, 75% WR)",
+    "version": "3.0.0-goat-v59",
+    "description": "POLYPROPHET GOAT v59 - TRUE MAXIMUM AUDIT: 90-day optimizer + PAPER no-fallback + dataset cache",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
