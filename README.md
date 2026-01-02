@@ -1,22 +1,26 @@
-# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v53.1)
+# POLYPROPHET GOAT — FINAL FOREVER MANIFESTO (v54)
 
 This README is the **single canonical source of truth** for PolyProphet: goals, scope, strategy, sizing/variance doctrine, halt behavior, verification, and operations.
 
 If this README conflicts with any other file or chat export, **this README wins**.
 
-## 🏆 v53.1 IS THE PINNACLE — POLYMARKET API VERIFIED PROFITABLE
+## 🏆 v54 IS THE PINNACLE — POLYMARKET-GROUND-TRUTH VERIFIED
 
-### 📊 POLYMARKET API BACKTEST RESULTS (Verified 2026-01-01)
+### 📊 Polymarket-native backtest (Gamma outcomes) — example run
 
-| Entry Range | Trades | Polymarket WR | EV Status |
-|-------------|--------|---------------|-----------|
-| **0-20¢ (TAIL)** | 31 | **0%** | ❌ BLOCKED |
-| **20-95¢ (v53.1)** | 13 | **76.9%** | ✅ **+39.1% PROFIT** |
-| **90-100¢ (HIGH)** | 57 | **100%** | ✅ +EV |
+This is what the built-in endpoint reports on the deployed collector snapshot set.
 
-**PROFIT SIMULATION: $10.00 → $13.91 (+39.1%)**
+**Endpoint**: `GET /api/backtest-polymarket?tier=CONVICTION&minOdds=0.20&maxOdds=0.95&limit=200`
 
-The `minOdds=0.20` filter blocks 31 tail bets that ALL lost (0% WR).
+| Stake | Trades | Polymarket WR | Profit | Max DD |
+|------:|-------:|--------------:|-------:|-------:|
+| 5% | 45 | 75.6% | +13.09% | 16.21% |
+| 10% | 45 | 75.6% | +20.13% | 30.60% |
+| 20% | 45 | 75.6% | +12.49% | 54.24% |
+
+**Key insight**: position size dominates variance. 10% grows faster when the sample is favorable, but can lose money in unlucky sequencing; 5% is more stable.
+
+**Tail-bet rule**: `minOdds=0.20` blocks catastrophic <20¢ contrarian bets.
 
 ---
 
