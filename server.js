@@ -450,12 +450,67 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.20; // 🎯 v53.1: Reject tail bets <20¢ (Polymarket-verified catastrophic WR)
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // Allow high-confidence trades (97.5% WR)
         const stakeFrac = parseFloat(req.query.stake) || 0.10; // Position size as fraction of balance (default lowered for min-variance)
-        const limit = parseInt(req.query.limit) || 200; // Max cycles to process (rate limit protection)
+        const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
+        const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
+        const maxTradesPerCycle = Number.isFinite(maxTradesPerCycleRaw)
+            ? Math.max(1, Math.min(3, maxTradesPerCycleRaw))
+            : Math.max(1, Math.min(3, (CONFIG?.RISK?.maxGlobalTradesPerCycle || 1)));
+        const selection = String(req.query.selection || 'BEST_EV').toUpperCase(); // BEST_EV | HIGHEST_CONF
+        const respectEVGate = !(String(req.query.respectEV || '').toLowerCase() === 'false' || String(req.query.respectEV || '') === '0');
+        const snapshotPick = String(req.query.snapshotPick || 'EARLIEST').toUpperCase(); // EARLIEST | LATEST
+        const scan = (req.query.scan === '1' || String(req.query.scan || '').toLowerCase() === 'true');
+        const scanStakes = (typeof req.query.stakes === 'string' && req.query.stakes.length > 0)
+            ? req.query.stakes.split(',').map(s => parseFloat(String(s).trim())).filter(x => Number.isFinite(x) && x > 0 && x < 1).slice(0, 10)
+            : [0.05, 0.10, 0.20];
         
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
         const SLIPPAGE_PCT = 0.01;
+
+        const crypto = require('crypto');
+
+        const clamp01 = (x) => {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return null;
+            return Math.max(0, Math.min(1, n));
+        };
+
+        function parseMaybeJsonArray(x) {
+            if (Array.isArray(x)) return x;
+            if (typeof x === 'string') {
+                try { return JSON.parse(x); } catch { return null; }
+            }
+            return null;
+        }
+
+        function parseSlugStartEpochSec(slug) {
+            const m = String(slug || '').match(/(\d+)\s*$/);
+            if (!m) return null;
+            const n = parseInt(m[1], 10);
+            return Number.isFinite(n) ? n : null;
+        }
+
+        function normalizeCycleTimesFromSlug(slug) {
+            const startEpochSec = parseSlugStartEpochSec(slug);
+            if (!Number.isFinite(startEpochSec)) return null;
+            const endEpochSec = startEpochSec + 900;
+            return {
+                cycleStartEpochSec: startEpochSec,
+                cycleEndEpochSec: endEpochSec,
+                cycleStartTime: new Date(startEpochSec * 1000).toISOString(),
+                cycleEndTime: new Date(endEpochSec * 1000).toISOString()
+            };
+        }
+
+        function calcEvRoi(pWin, entryPrice) {
+            const pw = clamp01(pWin);
+            const ep = Number(entryPrice);
+            if (!Number.isFinite(pw) || !Number.isFinite(ep) || ep <= 0) return null;
+            const effectiveEntry = Math.min(0.99, ep * (1 + SLIPPAGE_PCT));
+            const winRoiNet = (1 / effectiveEntry - 1) * (1 - PROFIT_FEE_PCT);
+            return (pw * winRoiNet) - (1 - pw);
+        }
         
         // Helper to fetch Gamma market outcome
         async function fetchGammaOutcome(slug) {
@@ -470,9 +525,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 const market = Array.isArray(data) ? data[0] : data;
                 if (!market || !market.outcomePrices || !market.outcomes) return null;
                 
-                const prices = JSON.parse(market.outcomePrices);
-                const outcomes = JSON.parse(market.outcomes);
+                const prices = parseMaybeJsonArray(market.outcomePrices);
+                const outcomes = parseMaybeJsonArray(market.outcomes);
                 if (!Array.isArray(prices) || prices.length < 2) return null;
+                if (!Array.isArray(outcomes) || outcomes.length < 2) return null;
                 
                 const p0 = Number(prices[0]);
                 const p1 = Number(prices[1]);
@@ -496,7 +552,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             }
         }
         
-        // Helper to build slug from cycle time
+        // Helper to build slug from cycle time (debug exports fallback)
         function buildSlug(asset, cycleEndTime) {
             const endSec = Math.floor(Date.parse(cycleEndTime) / 1000);
             if (!Number.isFinite(endSec)) return null;
@@ -558,17 +614,23 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             
                             const slug = buildSlug(asset, cycle.cycleEndTime);
                             if (!slug) continue;
+                            const times = normalizeCycleTimesFromSlug(slug);
+                            if (!times) continue;
+                            const observedAtMs = Date.parse(cycle.cycleEndTime);
                             
                             debugCycles.push({
                                 asset,
-                                cycleEndTime: cycle.cycleEndTime,
+                                cycleEndTime: times.cycleEndTime,
                                 prediction: pred,
                                 tier,
                                 entryPrice,
                                 slug,
                                 confidence: cycle.confidence || cycle.entryConfidence,
+                                pWin: null,
                                 source: 'debug',
-                                entrySource: cycle.entryOdds ? 'entryOdds' : 'marketOdds'
+                                entrySource: cycle.entryOdds ? 'entryOdds' : 'marketOdds',
+                                observedAtMs: Number.isFinite(observedAtMs) ? observedAtMs : null,
+                                cycleStartEpochSec: times.cycleStartEpochSec
                             });
                         }
                     }
@@ -578,9 +640,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         
         // Also extract from collector snapshots
         const snapshotCycles = [];
-        const seenSnap = new Set();
-        
         for (const snap of snapshots) {
+            const observedAtMs = Number.isFinite(snap?.timestampMs) ? snap.timestampMs : Date.parse(snap?.timestamp);
             for (const [asset, signal] of Object.entries(snap.signals || {})) {
                 if (!['BTC', 'ETH', 'XRP'].includes(asset)) continue;
                 
@@ -592,10 +653,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 
                 const market = snap.markets?.[asset];
                 if (!market || !market.slug) continue;
-                
-                const key = `${asset}_${market.slug}`;
-                if (seenSnap.has(key)) continue;
-                seenSnap.add(key);
+                const times = normalizeCycleTimesFromSlug(market.slug);
+                if (!times) continue;
                 
                 const yesPrice = market.yesPrice;
                 const noPrice = market.noPrice;
@@ -607,151 +666,278 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 
                 snapshotCycles.push({
                     asset,
-                    cycleEndTime: snap.timestamp,
+                    cycleEndTime: times.cycleEndTime,
                     prediction: pred,
                     tier,
                     entryPrice,
                     slug: market.slug,
                     confidence: signal.confidence,
+                    pWin: signal.pWin ?? null,
                     source: 'collector',
-                    entrySource: 'snapshot'
+                    entrySource: 'snapshot',
+                    observedAtMs: Number.isFinite(observedAtMs) ? observedAtMs : null,
+                    cycleStartEpochSec: times.cycleStartEpochSec
                 });
             }
         }
         
-        // Combine and dedupe
+        // Combine and dedupe by slug, selecting the "best" candidate deterministically.
+        // This prevents duplicates across debug/collector sources and across repeated collector snapshots.
         const allCycles = [...debugCycles, ...snapshotCycles];
-        const finalCycles = [];
-        const seenFinal = new Set();
-        
-        for (const c of allCycles) {
-            if (seenFinal.has(c.slug)) continue;
-            seenFinal.add(c.slug);
-            finalCycles.push(c);
+        const bySlug = new Map(); // slug -> chosen cycle
+        let collisions = 0;
+        let replaced = 0;
+        let kept = 0;
+
+        function isBetterCandidate(a, b) {
+            // Prefer Polymarket-native collector snapshots for entry prices,
+            // unless debug exports contain an explicit entryOdds capture.
+            const quality = (c) => {
+                if (!c) return -1;
+                if (c.source === 'debug' && c.entrySource === 'entryOdds') return 4;     // best: captured entry odds
+                if (c.source === 'collector' && c.entrySource === 'snapshot') return 3; // good: direct Polymarket snapshot
+                if (c.source === 'debug' && c.entrySource === 'marketOdds') return 2;   // weaker: end-of-cycle odds
+                return 1;
+            };
+
+            const qa = quality(a), qb = quality(b);
+            if (qa !== qb) return qa > qb;
+
+            const ta = Number.isFinite(a?.observedAtMs) ? a.observedAtMs : null;
+            const tb = Number.isFinite(b?.observedAtMs) ? b.observedAtMs : null;
+            if (ta !== null && tb !== null && ta !== tb) {
+                return snapshotPick === 'LATEST' ? (ta > tb) : (ta < tb);
+            }
+            return false;
         }
-        
-        // Sort by time and limit
-        finalCycles.sort((a, b) => new Date(a.cycleEndTime) - new Date(b.cycleEndTime));
-        // Use most recent cycles (still processed in chronological order for compounding)
-        const cyclesToProcess = finalCycles.slice(-limit);
-        
-        // Fetch Polymarket outcomes and simulate
-        let balance = startingBalance;
-        let peakBalance = startingBalance;
-        let maxDrawdown = 0;
-        let wins = 0;
-        let losses = 0;
+
+        for (const c of allCycles) {
+            if (!c || !c.slug) continue;
+            const prev = bySlug.get(c.slug);
+            if (!prev) {
+                bySlug.set(c.slug, c);
+                kept++;
+                continue;
+            }
+            collisions++;
+            if (isBetterCandidate(c, prev)) {
+                bySlug.set(c.slug, c);
+                replaced++;
+            }
+        }
+
+        const finalCycles = Array.from(bySlug.values());
+
+        // Group by cycle window (shared start epoch across assets), then select up to maxTradesPerCycle per window.
+        const byWindow = new Map(); // cycleStartEpochSec -> cycles[]
+        for (const c of finalCycles) {
+            const k = Number.isFinite(c.cycleStartEpochSec) ? c.cycleStartEpochSec : parseSlugStartEpochSec(c.slug);
+            if (!Number.isFinite(k)) continue;
+            if (!byWindow.has(k)) byWindow.set(k, []);
+            byWindow.get(k).push(c);
+        }
+
+        const windowKeys = Array.from(byWindow.keys()).sort((a, b) => a - b);
+        const windowsToProcess = windowKeys.slice(-limit);
+        const selectedCycles = [];
+        let evBlocked = 0;
+
+        for (const w of windowsToProcess) {
+            const cycles = byWindow.get(w) || [];
+            const enriched = [];
+            for (const c of cycles) {
+                const pWinUsed = clamp01(c.pWin ?? c.confidence);
+                const evRoi = calcEvRoi(pWinUsed, c.entryPrice);
+                if (respectEVGate && (evRoi === null || evRoi <= 0)) { evBlocked++; continue; }
+                enriched.push({ ...c, pWinUsed, evRoi });
+            }
+            if (enriched.length === 0) continue;
+
+            enriched.sort((a, b) => {
+                if (selection === 'HIGHEST_CONF') {
+                    return (Number(b.pWinUsed) - Number(a.pWinUsed));
+                }
+                // Default: BEST_EV
+                return (Number(b.evRoi) - Number(a.evRoi));
+            });
+            selectedCycles.push(...enriched.slice(0, maxTradesPerCycle));
+        }
+
+        // Sort selected cycles deterministically for compounding (by cycle window, then asset)
+        selectedCycles.sort((a, b) => {
+            const aw = Number(a.cycleStartEpochSec), bw = Number(b.cycleStartEpochSec);
+            if (aw !== bw) return aw - bw;
+            return String(a.asset).localeCompare(String(b.asset));
+        });
+
+        // Fetch outcomes once (cached) so we can do stake scans without extra Gamma calls.
+        const outcomeCache = new Map(); // slug -> 'UP'|'DOWN'|null
+        const resolvedCycles = [];
         let resolved = 0;
         let unresolved = 0;
         let errors = 0;
-        const trades = [];
-        
-        for (const cycle of cyclesToProcess) {
-            // Rate limit protection: small delay between API calls
+
+        for (const cycle of selectedCycles) {
             if (resolved + unresolved + errors > 0) {
                 await new Promise(r => setTimeout(r, 50));
             }
-            
-            const polyOutcome = await fetchGammaOutcome(cycle.slug);
-            
+
+            let polyOutcome = outcomeCache.get(cycle.slug);
+            if (polyOutcome === undefined) {
+                polyOutcome = await fetchGammaOutcome(cycle.slug);
+                outcomeCache.set(cycle.slug, polyOutcome || null);
+            }
+
             if (!polyOutcome) {
                 unresolved++;
                 continue;
             }
             resolved++;
-            
-            const isWin = cycle.prediction === polyOutcome;
-            
-            // Calculate PnL
-            const stake = balance * stakeFrac;
-            if (stake <= 0) break;
-            
-            const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
-            const shares = stake / effectiveEntry;
-            
-            let pnl;
-            if (isWin) {
-                const grossValue = shares * 1.0;
-                const profit = grossValue - stake;
-                const fee = profit * PROFIT_FEE_PCT;
-                pnl = profit - fee;
-                wins++;
-            } else {
-                pnl = -stake;
-                losses++;
-            }
-            
-            balance += pnl;
-            peakBalance = Math.max(peakBalance, balance);
-            const dd = (peakBalance - balance) / peakBalance;
-            maxDrawdown = Math.max(maxDrawdown, dd);
-            
-            trades.push({
-                asset: cycle.asset,
-                slug: cycle.slug,
-                prediction: cycle.prediction,
-                polymarketOutcome: polyOutcome,
-                isWin,
-                entryPrice: cycle.entryPrice,
-                effectiveEntry,
-                stake,
-                pnl,
-                balance,
-                tier: cycle.tier,
-                confidence: cycle.confidence,
-                source: cycle.source,
-                entrySource: cycle.entrySource
-            });
-            
-            if (balance <= 0) break;
+            resolvedCycles.push({ ...cycle, polymarketOutcome: polyOutcome });
         }
-        
-        const totalTrades = wins + losses;
-        const winRate = totalTrades > 0 ? (wins / totalTrades * 100) : 0;
-        const totalProfit = balance - startingBalance;
-        const avgPnlPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
-        const avgEntryPrice = trades.length > 0 ? trades.reduce((s, t) => s + t.entryPrice, 0) / trades.length : 0;
-        const avgEffectiveEntry = trades.length > 0 ? trades.reduce((s, t) => s + t.effectiveEntry, 0) / trades.length : 0;
-        
-        // EV calculation (aligned to the actual sample's win/loss + fee/slippage model)
-        // Use avg win ROI computed from the WINNING trades' actual effectiveEntry (fixes win/price correlation).
-        const winTrades = trades.filter(t => t && t.isWin && Number.isFinite(t.effectiveEntry) && t.effectiveEntry > 0);
-        const avgWinRoiNet = winTrades.length > 0
-            ? (winTrades.reduce((s, t) => s + ((1 / t.effectiveEntry - 1) * (1 - PROFIT_FEE_PCT)), 0) / winTrades.length)
-            : 0;
-        const expectedEV = (winRate / 100) * avgWinRoiNet - (1 - winRate / 100);
-        const winRateNeededForEV = avgWinRoiNet > 0 ? (1 / (1 + avgWinRoiNet)) * 100 : null;
 
+        function simulate(stakeFraction) {
+            let balance = startingBalance;
+            let peakBalance = startingBalance;
+            let maxDrawdown = 0;
+            let wins = 0;
+            let losses = 0;
+            const trades = [];
+
+            for (const cycle of resolvedCycles) {
+                const isWin = cycle.prediction === cycle.polymarketOutcome;
+
+                const stake = balance * stakeFraction;
+                if (stake <= 0) break;
+
+                const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
+                const shares = stake / effectiveEntry;
+
+                let pnl;
+                if (isWin) {
+                    const grossValue = shares * 1.0;
+                    const profit = grossValue - stake;
+                    const fee = profit * PROFIT_FEE_PCT;
+                    pnl = profit - fee;
+                    wins++;
+                } else {
+                    pnl = -stake;
+                    losses++;
+                }
+
+                balance += pnl;
+                peakBalance = Math.max(peakBalance, balance);
+                const dd = (peakBalance - balance) / peakBalance;
+                maxDrawdown = Math.max(maxDrawdown, dd);
+
+                trades.push({
+                    asset: cycle.asset,
+                    slug: cycle.slug,
+                    cycleStartEpochSec: cycle.cycleStartEpochSec,
+                    prediction: cycle.prediction,
+                    polymarketOutcome: cycle.polymarketOutcome,
+                    isWin,
+                    entryPrice: cycle.entryPrice,
+                    effectiveEntry,
+                    stake,
+                    pnl,
+                    balance,
+                    tier: cycle.tier,
+                    confidence: cycle.confidence,
+                    pWinUsed: cycle.pWinUsed,
+                    evRoi: cycle.evRoi,
+                    source: cycle.source,
+                    entrySource: cycle.entrySource
+                });
+
+                if (balance <= 0) break;
+            }
+
+            const totalTrades = wins + losses;
+            const winRate = totalTrades > 0 ? (wins / totalTrades * 100) : 0;
+            const totalProfit = balance - startingBalance;
+            const avgPnlPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
+            const avgEntryPrice = trades.length > 0 ? trades.reduce((s, t) => s + t.entryPrice, 0) / trades.length : 0;
+            const avgEffectiveEntry = trades.length > 0 ? trades.reduce((s, t) => s + t.effectiveEntry, 0) / trades.length : 0;
+
+            const winTrades = trades.filter(t => t && t.isWin && Number.isFinite(t.effectiveEntry) && t.effectiveEntry > 0);
+            const avgWinRoiNet = winTrades.length > 0
+                ? (winTrades.reduce((s, t) => s + ((1 / t.effectiveEntry - 1) * (1 - PROFIT_FEE_PCT)), 0) / winTrades.length)
+                : 0;
+            const expectedEV = (winRate / 100) * avgWinRoiNet - (1 - winRate / 100);
+            const winRateNeededForEV = avgWinRoiNet > 0 ? (1 / (1 + avgWinRoiNet)) * 100 : null;
+
+            return {
+                stakeFrac: stakeFraction,
+                totalTrades,
+                wins,
+                losses,
+                winRate,
+                balance,
+                totalProfit,
+                avgPnlPerTrade,
+                maxDrawdown,
+                avgEntryPrice,
+                avgEffectiveEntry,
+                avgWinRoiNet,
+                expectedEV,
+                winRateNeededForEV,
+                trades
+            };
+        }
+
+        const primarySim = simulate(stakeFrac);
+        const scanResults = scan ? scanStakes.map(sf => simulate(sf)).map(r => ({
+            stake: r.stakeFrac,
+            trades: r.totalTrades,
+            winRate: (r.winRate).toFixed(2) + '%',
+            finalBalance: Number(r.balance.toFixed(2)),
+            profitPct: ((r.totalProfit / startingBalance) * 100).toFixed(2) + '%',
+            maxDrawdown: (r.maxDrawdown * 100).toFixed(2) + '%'
+        })) : null;
+        
         const entrySources = {};
-        for (const t of trades) {
+        for (const t of primarySim.trades) {
             const k = t.entrySource || 'unknown';
             entrySources[k] = (entrySources[k] || 0) + 1;
         }
         
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        const selectedSlugsSorted = selectedCycles.map(c => c.slug).slice().sort();
+        const slugHash = crypto.createHash('sha256').update(selectedSlugsSorted.join('\n')).digest('hex');
         
         res.json({
             summary: {
                 method: 'Polymarket Gamma API (ground truth)',
                 runtime: runtime + 's',
                 startingBalance,
-                finalBalance: parseFloat(balance.toFixed(2)),
-                totalProfit: parseFloat(totalProfit.toFixed(2)),
-                profitPct: (totalProfit / startingBalance * 100).toFixed(2) + '%',
-                wins,
-                losses,
-                winRate: winRate.toFixed(2) + '%',
-                maxDrawdown: (maxDrawdown * 100).toFixed(2) + '%',
-                avgEntryPrice: avgEntryPrice.toFixed(3),
-                avgEffectiveEntry: avgEffectiveEntry.toFixed(3),
-                avgPnlPerTrade: avgPnlPerTrade.toFixed(4),
-                avgWinRoiNet: avgWinRoiNet.toFixed(4) + ' per $1 stake (wins only)',
-                expectedEV: expectedEV.toFixed(4) + ' per $1 stake',
-                isProfitable: totalProfit > 0
+                finalBalance: parseFloat(primarySim.balance.toFixed(2)),
+                totalProfit: parseFloat(primarySim.totalProfit.toFixed(2)),
+                profitPct: (primarySim.totalProfit / startingBalance * 100).toFixed(2) + '%',
+                wins: primarySim.wins,
+                losses: primarySim.losses,
+                winRate: primarySim.winRate.toFixed(2) + '%',
+                maxDrawdown: (primarySim.maxDrawdown * 100).toFixed(2) + '%',
+                avgEntryPrice: primarySim.avgEntryPrice.toFixed(3),
+                avgEffectiveEntry: primarySim.avgEffectiveEntry.toFixed(3),
+                avgPnlPerTrade: primarySim.avgPnlPerTrade.toFixed(4),
+                avgWinRoiNet: primarySim.avgWinRoiNet.toFixed(4) + ' per $1 stake (wins only)',
+                expectedEV: primarySim.expectedEV.toFixed(4) + ' per $1 stake',
+                isProfitable: primarySim.totalProfit > 0,
+                maxTradesPerCycle,
+                selection,
+                respectEVGate
             },
             coverage: {
-                cyclesFound: finalCycles.length,
-                cyclesProcessed: cyclesToProcess.length,
+                candidatesFound: allCycles.length,
+                uniqueSlugsFound: finalCycles.length,
+                windowCountFound: windowKeys.length,
+                windowsProcessed: windowsToProcess.length,
+                tradesSelected: selectedCycles.length,
+                collisions,
+                replacements: replaced,
+                kept,
+                evBlocked,
                 resolved,
                 unresolved,
                 errors,
@@ -765,16 +951,28 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 maxOddsEntry,
                 stakeFrac,
                 limit,
-                debugFiles: debugFilesParam
+                debugFiles: debugFilesParam,
+                snapshotPick,
+                maxTradesPerCycle,
+                selection,
+                respectEVGate,
+                scan,
+                stakes: scanStakes
             },
-            trades: trades.slice(-30), // Last 30 for display
+            proof: {
+                slugHash,
+                slugCount: selectedSlugsSorted.length,
+                slugSample: selectedSlugsSorted.slice(0, 3).concat(selectedSlugsSorted.slice(-3))
+            },
+            scan: scanResults,
+            trades: primarySim.trades.slice(-30), // Last 30 for display
             interpretation: {
-                winRateNeededForEV: winRateNeededForEV !== null ? winRateNeededForEV.toFixed(1) + '%' : 'N/A',
-                currentWinRate: winRate.toFixed(1) + '%',
-                verdict: totalTrades === 0 ? 'ℹ️ No resolved cycles/trades found for these filters' :
-                         totalProfit > 0 ? '✅ PROFITABLE (simulated compounding P&L)' :
-                         expectedEV > 0 ? '⚠️ POSITIVE EDGE BUT LOST IN THIS SAMPLE (variance / sequencing risk) — consider lower stake' :
-                         expectedEV > -0.05 ? '⚠️ MARGINAL / CLOSE TO BREAKEVEN — need better entries or higher WR' :
+                winRateNeededForEV: primarySim.winRateNeededForEV !== null ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
+                currentWinRate: primarySim.winRate.toFixed(1) + '%',
+                verdict: primarySim.totalTrades === 0 ? 'ℹ️ No resolved cycles/trades found for these filters' :
+                         primarySim.totalProfit > 0 ? '✅ PROFITABLE (simulated compounding P&L)' :
+                         primarySim.expectedEV > 0 ? '⚠️ POSITIVE EDGE BUT LOST IN THIS SAMPLE (variance / sequencing risk) — consider lower stake' :
+                         primarySim.expectedEV > -0.05 ? '⚠️ MARGINAL / CLOSE TO BREAKEVEN — need better entries or higher WR' :
                          '❌ NEGATIVE — entry prices too high for current win rate'
             }
         });
