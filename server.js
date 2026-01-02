@@ -459,6 +459,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const selection = String(req.query.selection || 'BEST_EV').toUpperCase(); // BEST_EV | HIGHEST_CONF
         const respectEVGate = !(String(req.query.respectEV || '').toLowerCase() === 'false' || String(req.query.respectEV || '') === '0');
         const snapshotPick = String(req.query.snapshotPick || 'EARLIEST').toUpperCase(); // EARLIEST | LATEST
+        const stakeMode = String(req.query.stakeMode || 'PER_TRADE').toUpperCase(); // PER_TRADE | PER_WINDOW
+        const maxExposureRaw = parseFloat(req.query.maxExposure);
+        const maxExposure = Number.isFinite(maxExposureRaw)
+            ? Math.max(0.05, Math.min(1.0, maxExposureRaw))
+            : Math.max(0.05, Math.min(1.0, (CONFIG?.RISK?.maxTotalExposure || 0.40)));
+        const lookbackHoursRaw = parseFloat(req.query.lookbackHours);
+        const lookbackHours = Number.isFinite(lookbackHoursRaw) ? Math.max(0.25, Math.min(168, lookbackHoursRaw)) : null;
         const scan = (req.query.scan === '1' || String(req.query.scan || '').toLowerCase() === 'true');
         const entryMode = String(req.query.entry || 'SNAPSHOT').toUpperCase(); // SNAPSHOT | CLOB_HISTORY
         const clobFidelityRaw = parseInt(req.query.fidelity);
@@ -786,7 +793,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         }
 
         const windowKeys = Array.from(byWindow.keys()).sort((a, b) => a - b);
-        const windowsToProcess = windowKeys.slice(-limit);
+        let eligibleWindowKeys = windowKeys;
+        if (lookbackHours !== null) {
+            const nowSec = Math.floor(Date.now() / 1000);
+            const cutoff = nowSec - Math.floor(lookbackHours * 3600);
+            eligibleWindowKeys = windowKeys.filter(k => Number(k) >= cutoff);
+        }
+        const windowsToProcess = eligibleWindowKeys.slice(-limit);
         const selectedCycles = [];
         let evBlocked = 0;
 
@@ -888,51 +901,101 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let losses = 0;
             const trades = [];
 
-            for (const cycle of resolvedCycles) {
-                const isWin = cycle.prediction === cycle.polymarketOutcome;
+            // Resolve trades per-window (no intra-window compounding when maxTradesPerCycle > 1).
+            const byResolvedWindow = new Map(); // cycleStartEpochSec -> cycles[]
+            for (const c of resolvedCycles) {
+                const k = Number.isFinite(c?.cycleStartEpochSec) ? c.cycleStartEpochSec : parseSlugStartEpochSec(c?.slug);
+                if (!Number.isFinite(k)) continue;
+                if (!byResolvedWindow.has(k)) byResolvedWindow.set(k, []);
+                byResolvedWindow.get(k).push(c);
+            }
 
-                const stake = balance * stakeFraction;
-                if (stake <= 0) break;
+            const windowsForSim = windowsToProcess.filter(k => byResolvedWindow.has(k));
 
-                const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
-                const shares = stake / effectiveEntry;
+            for (const w of windowsForSim) {
+                const windowCycles = byResolvedWindow.get(w) || [];
+                if (windowCycles.length === 0) continue;
 
-                let pnl;
-                if (isWin) {
-                    const grossValue = shares * 1.0;
-                    const profit = grossValue - stake;
-                    const fee = profit * PROFIT_FEE_PCT;
-                    pnl = profit - fee;
-                    wins++;
+                const windowBalanceStart = balance;
+                if (!Number.isFinite(windowBalanceStart) || windowBalanceStart <= 0) break;
+
+                const n = windowCycles.length;
+                const maxBudget = windowBalanceStart * maxExposure;
+
+                let stakes = [];
+                if (stakeMode === 'PER_WINDOW') {
+                    let budget = windowBalanceStart * stakeFraction;
+                    budget = Math.min(budget, maxBudget);
+                    const each = n > 0 ? (budget / n) : 0;
+                    stakes = windowCycles.map(() => each);
                 } else {
-                    pnl = -stake;
-                    losses++;
+                    // PER_TRADE (default): stakeFraction applies per trade, but cap total exposure for the window.
+                    let each = windowBalanceStart * stakeFraction;
+                    const totalDesired = each * n;
+                    if (totalDesired > maxBudget && totalDesired > 0) {
+                        const scale = maxBudget / totalDesired;
+                        each *= scale;
+                    }
+                    stakes = windowCycles.map(() => each);
                 }
 
-                balance += pnl;
+                let windowPnl = 0;
+                for (let i = 0; i < windowCycles.length; i++) {
+                    const cycle = windowCycles[i];
+                    const stake = Number(stakes[i]);
+                    if (!Number.isFinite(stake) || stake <= 0) continue;
+
+                    const isWin = cycle.prediction === cycle.polymarketOutcome;
+
+                    const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
+                    const shares = stake / effectiveEntry;
+
+                    let pnl;
+                    if (isWin) {
+                        const grossValue = shares * 1.0;
+                        const profit = grossValue - stake;
+                        const fee = profit * PROFIT_FEE_PCT;
+                        pnl = profit - fee;
+                        wins++;
+                    } else {
+                        pnl = -stake;
+                        losses++;
+                    }
+
+                    windowPnl += pnl;
+                    trades.push({
+                        asset: cycle.asset,
+                        slug: cycle.slug,
+                        cycleStartEpochSec: cycle.cycleStartEpochSec,
+                        prediction: cycle.prediction,
+                        polymarketOutcome: cycle.polymarketOutcome,
+                        isWin,
+                        entryPrice: cycle.entryPrice,
+                        effectiveEntry,
+                        stake,
+                        pnl,
+                        windowStartBalance: windowBalanceStart,
+                        tier: cycle.tier,
+                        confidence: cycle.confidence,
+                        pWinUsed: cycle.pWinUsed,
+                        evRoi: cycle.evRoi,
+                        source: cycle.source,
+                        entrySource: cycle.entrySource
+                    });
+                }
+
+                balance = windowBalanceStart + windowPnl;
                 peakBalance = Math.max(peakBalance, balance);
-                const dd = (peakBalance - balance) / peakBalance;
+                const dd = peakBalance > 0 ? ((peakBalance - balance) / peakBalance) : 0;
                 maxDrawdown = Math.max(maxDrawdown, dd);
 
-                trades.push({
-                    asset: cycle.asset,
-                    slug: cycle.slug,
-                    cycleStartEpochSec: cycle.cycleStartEpochSec,
-                    prediction: cycle.prediction,
-                    polymarketOutcome: cycle.polymarketOutcome,
-                    isWin,
-                    entryPrice: cycle.entryPrice,
-                    effectiveEntry,
-                    stake,
-                    pnl,
-                    balance,
-                    tier: cycle.tier,
-                    confidence: cycle.confidence,
-                    pWinUsed: cycle.pWinUsed,
-                    evRoi: cycle.evRoi,
-                    source: cycle.source,
-                    entrySource: cycle.entrySource
-                });
+                // Annotate last trade in this window with the end balance for easier reading
+                if (trades.length > 0) {
+                    const last = trades[trades.length - 1];
+                    if (last && last.cycleStartEpochSec === w) {
+                        last.windowEndBalance = balance;
+                    }
+                }
 
                 if (balance <= 0) break;
             }
@@ -1025,6 +1088,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 maxTradesPerCycle,
                 selection,
                 respectEVGate,
+                lookbackHours,
+                stakeMode,
+                maxExposure,
                 entryMode,
                 clobFidelity: clobFidelity
             },
@@ -1053,9 +1119,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 limit,
                 debugFiles: debugFilesParam,
                 snapshotPick,
+                lookbackHours,
                 maxTradesPerCycle,
                 selection,
                 respectEVGate,
+                stakeMode,
+                maxExposure,
                 entry: entryMode,
                 fidelity: clobFidelity,
                 scan,
