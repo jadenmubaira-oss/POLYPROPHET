@@ -905,12 +905,26 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
         const selectedSlugsSorted = selectedCycles.map(c => c.slug).slice().sort();
         const slugHash = crypto.createHash('sha256').update(selectedSlugsSorted.join('\n')).digest('hex');
+        const timeSpan = (() => {
+            if (!Array.isArray(windowsToProcess) || windowsToProcess.length === 0) return null;
+            const startEpoch = windowsToProcess[0];
+            const endEpoch = windowsToProcess[windowsToProcess.length - 1] + 900;
+            const hours = (endEpoch - startEpoch) / 3600;
+            return {
+                start: new Date(startEpoch * 1000).toISOString(),
+                end: new Date(endEpoch * 1000).toISOString(),
+                hours: Number.isFinite(hours) ? Number(hours.toFixed(2)) : null,
+                days: Number.isFinite(hours) ? Number((hours / 24).toFixed(2)) : null
+            };
+        })();
         
         res.json({
             summary: {
                 method: 'Polymarket Gamma API (ground truth)',
                 runtime: runtime + 's',
                 startingBalance,
+                timeSpan,
+                totalTrades: primarySim.totalTrades,
                 finalBalance: parseFloat(primarySim.balance.toFixed(2)),
                 totalProfit: parseFloat(primarySim.totalProfit.toFixed(2)),
                 profitPct: (primarySim.totalProfit / startingBalance * 100).toFixed(2) + '%',
