@@ -4314,6 +4314,7 @@ const CONFIG = {
         maxTotalExposure: 0.45,  // 🚀 v61.2: 45% max exposure
         globalStopLoss: 0.35,    // 🚀 v61.2: 35% day max loss
         globalStopLossOverride: false,
+        liveDailyLossCap: 1.00,  // 🏆 v68 LIVE SAFETY: Hard $1 daily loss cap for LIVE mode
         cooldownAfterLoss: 1200,            // 🚀 v61.2: 20 min cooldown
         enableLossCooldown: true,
         noTradeDetection: true,  // Block genuinely random markets
@@ -5703,6 +5704,13 @@ class TradeExecutor {
                 log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of bankroll`, asset);
                 log(`   To override: Set RISK.globalStopLossOverride = true in Settings`, asset);
                 return { success: false, error: `Global stop loss triggered - trading halted for the day. Override available in Settings.` };
+            }
+
+            // 🏆 v68 LIVE SAFETY: Hard dollar cap for LIVE mode daily losses
+            // This is a safety net for bounded LIVE validation
+            if (this.mode === 'LIVE' && CONFIG.RISK.liveDailyLossCap > 0 && this.todayPnL < -CONFIG.RISK.liveDailyLossCap) {
+                log(`🛡️ LIVE DAILY LOSS CAP: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds $${CONFIG.RISK.liveDailyLossCap.toFixed(2)} cap - LIVE trading halted`, asset);
+                return { success: false, error: `LIVE daily loss cap ($${CONFIG.RISK.liveDailyLossCap}) triggered - trading halted. Adjust in Settings to continue.` };
             }
 
             // Calculate position size (mode-specific)
