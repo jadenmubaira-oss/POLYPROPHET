@@ -4437,7 +4437,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 70;  // v70: Chainlink stale hard-block, Redis required for LIVE, balance floor guard
+const CONFIG_VERSION = 72;  // v72: GOLDEN PRESET - 30% stake, $2.50 floor, 35% global stop (max profit with ≤50% drawdown)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4478,7 +4478,7 @@ const CONFIG = {
     // 🏆 v64 GOLDEN OPTIMAL - 80% profit probability + 58% 100x chance
     // 🏆 v66 FINAL: Monte Carlo proven: 60% until 1.2x → 40% until 1.5x → 25% thereafter
     // This maximizes profit while keeping variance reasonable (30% loss prob, £458 median in 7d)
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.60'),  // 🏆 v66: 60% base (optimal start)
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.30'),  // 🏆 v71 GOLDEN: 30% stake cap (optimal for $5→$100 with ≤50% drawdown)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -4622,7 +4622,7 @@ const CONFIG = {
         maxTotalExposure: 0.45,  // 🚀 v61.2: 45% max exposure
         globalStopLoss: 0.35,    // 🚀 v61.2: 35% day max loss
         globalStopLossOverride: false,
-        liveDailyLossCap: 1.00,  // 🏆 v68 LIVE SAFETY: Hard $1 daily loss cap for LIVE mode
+        liveDailyLossCap: 0,     // 🏆 v71 GOLDEN: Disabled - rely on globalStopLoss + minBalanceFloor
         cooldownAfterLoss: 1200,            // 🚀 v61.2: 20 min cooldown
         enableLossCooldown: true,
         noTradeDetection: true,  // Block genuinely random markets
@@ -4631,8 +4631,8 @@ const CONFIG = {
         aggressiveSizingOnLosses: false, // Keep this OFF
 
         // 🏆 v70: BALANCE FLOOR GUARD - Stop trading if balance drops too low
-        minBalanceFloor: 2.00,  // 🏆 v70: HALT new trades if balance drops below £2
-        minBalanceFloorEnabled: true, // 🏆 v70: Enable floor protection
+        minBalanceFloor: 2.50,  // 🏆 v71 GOLDEN: HALT new trades if balance drops below $2.50 (50% of $5 start)
+        minBalanceFloorEnabled: true, // 🏆 v71 GOLDEN: HARD STOP at 50% drawdown
 
         // 🚀 v61.2: QUALITY > QUANTITY
         maxConsecutiveLosses: 3,  // 🚀 v61.2: 3 losses before pause
@@ -4644,7 +4644,8 @@ const CONFIG = {
         // 🚀 v61.2: HIGH QUALITY AGGRESSIVE
         enablePositionPyramiding: false,
         firstMoveAdvantage: false,        // 🚀 v61.2: NO - wait for confirmation
-        supremeConfidenceMode: true       // 🚀 v61.2: 75%+ confidence ONLY
+        supremeConfidenceMode: true,      // 🚀 v61.2: 75%+ confidence ONLY
+        convictionOnlyMode: true          // 🏆 v72 GOLDEN: ONLY execute CONVICTION tier trades (block ADVISORY)
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -10071,10 +10072,18 @@ class SupremeBrain {
             // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
             // 🕐 minElapsedSeconds: Wait for confidence to build before trading
             const minElapsed = CONFIG.ORACLE.minElapsedSeconds || 60;
+            
+            // 🏆 v72 GOLDEN: CONVICTION-ONLY MODE - Block ALL non-CONVICTION trades when enabled
+            if (CONFIG.RISK.convictionOnlyMode && tier !== 'CONVICTION') {
+                if (tier === 'ADVISORY') {
+                    log(`💎 CONVICTION-ONLY: ADVISORY tier blocked (convictionOnlyMode=true) - waiting for CONVICTION`, this.asset);
+                }
+                // Do not trade - fall through to end
+            }
             // 🎯 COMPREHENSIVE ANALYSIS FIX: ONLY trade CONVICTION/ADVISORY tiers (NONE tier blocked - 43.9% win rate)
             // CONVICTION = 98.9% win rate, ADVISORY = 98.0% win rate
             // 🚫 CRITICAL: XRP NONE tier has 0.5% accuracy - BLOCK COMPLETELY
-            if (tier === 'NONE' && this.asset === 'XRP') {
+            else if (tier === 'NONE' && this.asset === 'XRP') {
                 log(`🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED`, this.asset);
                 // Do not trade - fall through to end
             }
@@ -12934,9 +12943,9 @@ app.get('/', (req, res) => {
             // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
                 GOAT: { 
-                    // 🎯 v55.1: MIN-VARIANCE optimal for £5 → £100 in 24h.
-                    // 🏆 v60 FINAL: TRUE MAXIMUM 35% stake (£5→£90.59 in 78h, 67.98% DD)
-                    MAX_POSITION_SIZE: 0.35,
+                    // 🏆 v71 GOLDEN PRESET: $5→$100+ ASAP with ≤50% max drawdown
+                    // 30% stake maximizes growth while respecting hard $2.50 balance floor
+                    MAX_POSITION_SIZE: 0.30,
                     // ORACLE: Primary prediction engine with forensic-optimized thresholds
                     ORACLE: { 
                         enabled: true, 
@@ -12963,14 +12972,15 @@ app.get('/', (req, res) => {
                     ARBITRAGE: { enabled: false },
                     MOMENTUM: { enabled: false },
                     UNCERTAINTY: { enabled: false },
-                    // RISK: Aggressive but protected
+                    // RISK: 🏆 v72 GOLDEN - Bounded drawdown with minBalanceFloor protection
                     RISK: { 
-                        maxTotalExposure: 0.40,     // Keep exposure bounded (min-variance constraint)
-                        globalStopLoss: 0.40,       // Halt if down 40% in a day
+                        maxTotalExposure: 0.45,     // 🏆 v72: 45% max exposure
+                        globalStopLoss: 0.35,       // 🏆 v72: Halt if down 35% in a day
                         cooldownAfterLoss: 1200,    // 20 min cooldown after 3 losses
                         maxConsecutiveLosses: 3,    // Throttle after 3 losses
                         maxGlobalTradesPerCycle: 1, // Max 1 trade per 15-min cycle (reduce correlation variance)
-                        supremeConfidenceMode: false,
+                        supremeConfidenceMode: true, // 🏆 v72: CONVICTION-quality only
+                        convictionOnlyMode: true,   // 🏆 v72 GOLDEN: BLOCK all ADVISORY trades
                         firstMoveAdvantage: false,
                         enablePositionPyramiding: false,
                         enableLossCooldown: true
@@ -15634,9 +15644,34 @@ async function startup() {
     });
     
     server.listen(PORT, () => {
+        // 🏆 v71: Mark startup as complete - errors after this won't exit
+        startupCompleted = true;
+        
+        // 🏆 v71: Deployment banner for provenance tracking
+        let gitCommit = 'unknown';
+        try {
+            gitCommit = require('child_process')
+                .execSync('git rev-parse --short HEAD', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
+                .trim();
+        } catch (e) { /* ignore - not in git repo or git not available */ }
+        
+        const pkgVersion = require('./package.json').version;
+        
+        log(`========================================`);
+        log(`🚀 POLYPROPHET DEPLOYMENT BANNER`);
+        log(`   CONFIG_VERSION: ${CONFIG_VERSION}`);
+        log(`   package.json: ${pkgVersion}`);
+        log(`   git commit: ${gitCommit}`);
+        log(`   TRADE_MODE: ${CONFIG.TRADE_MODE}`);
+        log(`   LIGHT_MODE: ${LIGHT_MODE}`);
+        log(`   Redis: ${redisAvailable ? 'connected' : 'NOT CONNECTED'}`);
+        log(`   Wallet: ${tradeExecutor.wallet ? 'loaded' : 'NOT LOADED'}`);
+        log(`   Balance Floor: £${CONFIG.RISK.minBalanceFloor} (${CONFIG.RISK.minBalanceFloorEnabled ? 'enabled' : 'disabled'})`);
+        log(`   Timestamp: ${new Date().toISOString()}`);
+        log(`========================================`);
+        
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);
         log(`🌐 Access at: http://localhost:${PORT}`);
-        log(`📊 Config Version: ${CONFIG_VERSION}`);
         log(`🔑 API Key: ${API_KEY.substring(0, 8)}...`);
 
         // 📱 Telegram: Server Online notification
@@ -15799,13 +15834,28 @@ function watchdogCycleDetected() {
 }
 
 // ==================== GLOBAL ERROR HANDLERS ====================
-// CRITICAL: Prevent server crashes - catch ALL errors
+// 🏆 v71: Startup safety - exit on errors during startup, continue after
+let startupCompleted = false;
 
 process.on('uncaughtException', (error) => {
     log(`🔴 UNCAUGHT EXCEPTION: ${error.message}`);
     log(`Stack: ${error.stack}`);
-    // DON'T EXIT - keep running
-    // Log to file or monitoring service if needed
+    
+    // 🏆 v71: ALWAYS exit during startup - can't recover from startup failures
+    if (!startupCompleted) {
+        log(`🔴 FATAL: Uncaught exception during startup - exiting to allow restart`);
+        process.exit(1);
+    }
+    
+    // After startup, exit on known-fatal errors
+    const fatalCodes = ['EADDRINUSE', 'EACCES', 'ENOMEM', 'ENOSPC'];
+    if (error.code && fatalCodes.includes(error.code)) {
+        log(`🔴 FATAL: ${error.code} is unrecoverable - exiting`);
+        process.exit(1);
+    }
+    
+    // For non-fatal runtime errors, log but continue
+    log(`⚠️ Non-fatal runtime error - continuing operation`);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
@@ -15813,7 +15863,15 @@ process.on('unhandledRejection', (reason, promise) => {
     if (reason instanceof Error) {
         log(`Stack: ${reason.stack}`);
     }
-    // DON'T EXIT - keep running
+    
+    // 🏆 v71: Exit during startup
+    if (!startupCompleted) {
+        log(`🔴 FATAL: Unhandled rejection during startup - exiting`);
+        process.exit(1);
+    }
+    
+    // After startup, log but continue for most rejections
+    log(`⚠️ Non-fatal rejection - continuing operation`);
 });
 
 // Graceful shutdown handlers

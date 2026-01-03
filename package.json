@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.6.0-goat-v70",
-    "description": "POLYPROPHET v70 - Chainlink stale hard-block, Redis required for LIVE, balance floor guard",
+    "version": "3.8.0-golden-v72",
+    "description": "POLYPROPHET v72 GOLDEN PRESET - 30% stake, $2.50 floor, max profit with ≤50% drawdown",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

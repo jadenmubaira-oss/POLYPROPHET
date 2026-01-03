@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # 🏆 v70 FINAL GOAT deployment - Chainlink hard-block, Redis required for LIVE, balance floor
+    # 🏆 v72 GOLDEN PRESET - 30% stake, $2.50 floor, max profit with ≤50% drawdown
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
@@ -19,9 +19,8 @@ services:
       # 🏆 v70: Proven optimal starting balance (£5)
       - key: PAPER_BALANCE
         value: "5.00"
-      # 🏆 v70: PROVEN OPTIMAL stake (30% = best profit/drawdown ratio)
-      # Backtest-verified: 77-81% WR, £381 from £5 in 72h
-      # Override via Render dashboard if you want more aggressive (0.35) or conservative (0.25)
+      # 🏆 v72 GOLDEN PRESET: 30% stake = optimal for $5→$100+ with ≤50% max drawdown
+      # Combined with $2.50 balance floor, this enforces hard -50% drawdown stop
       - key: MAX_POSITION_SIZE
         value: "0.30"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes

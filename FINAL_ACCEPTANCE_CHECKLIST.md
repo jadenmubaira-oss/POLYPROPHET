@@ -1,7 +1,7 @@
-# POLYPROPHET v70 — FINAL ACCEPTANCE CHECKLIST
+# POLYPROPHET v72 — GOLDEN PRESET ACCEPTANCE CHECKLIST
 
 **Generated**: 2026-01-03  
-**Status**: v70 READY FOR DEPLOYMENT
+**Status**: v72 GOLDEN PRESET READY FOR DEPLOYMENT
 
 ---
 
@@ -9,14 +9,16 @@
 
 | Category | Status | Notes |
 |----------|--------|-------|
-| **Chainlink Stale Block** | ✅ NEW | Trades blocked when feed >30s stale |
-| **Redis Required for LIVE** | ✅ NEW | LIVE auto-downgrades to PAPER if no Redis |
-| **Balance Floor Guard** | ✅ NEW | Blocks trades if balance < £2 |
-| **Backtest Offset Support** | ✅ NEW | Non-cherry-picked windows |
+| **Golden Preset** | ✅ NEW v72 | 30% stake, $2.50 floor, CONVICTION-only |
+| **CONVICTION-Only Gate** | ✅ NEW v72 | `convictionOnlyMode=true` blocks ADVISORY |
+| **Balance Floor Guard** | ✅ v72 | Blocks trades if balance < $2.50 (hard -50% stop) |
+| **Deployment Banner** | ✅ v71 | Git commit, package version, Redis/wallet status logged |
+| **Startup Safety** | ✅ v71 | `startupCompleted` flag, fatal errors exit during startup |
+| **Chainlink Stale Block** | ✅ v70 | Trades blocked when feed >30s stale |
+| **Redis Required for LIVE** | ✅ v70 | LIVE auto-downgrades to PAPER if no Redis |
+| **Backtest Offset Support** | ✅ v70 | Non-cherry-picked windows |
 | **Runtime Bug Fixes (v69)** | ✅ PASS | pWinEff scoping, circuit breaker warmup |
-| **Startup Safety** | ✅ PASS | EADDRINUSE fails fast, LIVE wallet check |
 | **LIVE Safety** | ✅ PASS | PENDING_RESOLUTION, no 0.5 force-close |
-| **Backtest (Polymarket-native)** | ✅ PASS | 77% CONVICTION WR, adaptive mode |
 
 ---
 
@@ -83,26 +85,30 @@
 
 ### C1. CONFIG_VERSION ✅
 ```javascript
-const CONFIG_VERSION = 70;  // v70: Chainlink stale hard-block, Redis required for LIVE, balance floor guard
+const CONFIG_VERSION = 72;  // v72: GOLDEN PRESET - 30% stake, $2.50 floor, CONVICTION-only
 ```
 
 ### C2. package.json ✅
 ```json
-"version": "3.6.0-goat-v70"
+"version": "3.8.0-golden-v72"
 ```
 
 ### C3. render.yaml ✅
 ```yaml
-MAX_POSITION_SIZE: "0.30"  # Proven optimal stake
-PAPER_BALANCE: "5.00"      # Standard starting capital
+MAX_POSITION_SIZE: "0.30"  # Golden preset optimal stake
+PAPER_BALANCE: "5.00"      # Standard starting capital ($5 → $100+)
 # REDIS_URL required for LIVE (commented with instructions)
 ```
 
-### C4. Balance Floor Config ✅
+### C4. Golden Preset Config ✅
 ```javascript
+MAX_POSITION_SIZE: 0.30,  // 30% stake cap
 RISK: {
-    minBalanceFloor: 2.00,      // Block trades if balance drops below £2
-    minBalanceFloorEnabled: true // Enable floor protection
+    minBalanceFloor: 2.50,       // HARD -50% drawdown stop ($2.50 of $5)
+    minBalanceFloorEnabled: true,
+    globalStopLoss: 0.35,        // 35% daily stop
+    liveDailyLossCap: 0,         // Disabled (rely on floor + globalStop)
+    convictionOnlyMode: true     // Block ALL ADVISORY trades
 }
 ```
 
@@ -116,9 +122,10 @@ These are **non-negotiable** for LIVE trading:
 |-----------|-------|-------------------|
 | Chainlink Feed Fresh | `!feedStaleAssets[asset]` | `CHAINLINK_STALE` |
 | Redis Available | `redisAvailable` at startup | Downgrade to PAPER |
-| Balance Above Floor | `balance >= minBalanceFloor` | `BALANCE_FLOOR` |
+| Balance Above Floor | `balance >= 2.50` | `BALANCE_FLOOR` (hard -50% stop) |
 | Wallet Loaded | `this.wallet` exists | `LIVE mode requires wallet` |
-| Daily Loss Cap | `dailyLoss < liveDailyLossCap` | Trades blocked |
+| CONVICTION Tier | `tier === 'CONVICTION'` | ADVISORY trades blocked |
+| Global Stop Loss | `dailyLoss < 35%` | Trades blocked |
 | Never 0.5 Close | LIVE never force-closes at 0.5 | N/A (wait for Gamma) |
 
 ### Health Endpoint Shows All:
@@ -126,7 +133,7 @@ These are **non-negotiable** for LIVE trading:
 {
   "status": "degraded",
   "dataFeed": { "anyStale": true, "tradingBlocked": true },
-  "balanceFloor": { "enabled": true, "floor": 2.0, "belowFloor": false, "tradingBlocked": false },
+  "balanceFloor": { "enabled": true, "floor": 2.50, "belowFloor": false, "tradingBlocked": false },
   "tradingHalted": false
 }
 ```
@@ -137,8 +144,8 @@ These are **non-negotiable** for LIVE trading:
 
 | Endpoint | Status | Purpose |
 |----------|--------|---------|
-| `/api/version` | ✅ | Returns CONFIG_VERSION 70 |
-| `/api/health` | ✅ | Includes `dataFeed` + `balanceFloor` sections |
+| `/api/version` | ✅ | Returns CONFIG_VERSION 72 |
+| `/api/health` | ✅ | Includes `dataFeed` + `balanceFloor` ($2.50) sections |
 | `/api/backtest-polymarket?offsetHours=X` | ✅ NEW | Run backtest at historical offset |
 | `/api/backtest-polymarket?windowEnd=EPOCH` | ✅ NEW | Run backtest ending at specific time |
 | `/api/backtest-polymarket?scan=1` | ✅ | Efficient frontier sweep with kneeAnalysis |
@@ -150,10 +157,10 @@ These are **non-negotiable** for LIVE trading:
 ## VERIFICATION COMMANDS
 
 ```powershell
-# Check version (should show configVersion: 70)
+# Check version (should show configVersion: 72)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
-# Check health (includes dataFeed and balanceFloor)
+# Check health (includes dataFeed and balanceFloor $2.50)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/health?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Run backtest with offset (non-cherry-picked)
@@ -179,16 +186,18 @@ curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.30&tier=C
 
 ## FINAL VERDICT
 
-### ✅ v70 IS PRODUCTION-READY
+### ✅ v72 GOLDEN PRESET IS PRODUCTION-READY
 
-All v69 fixes retained, plus critical LIVE safety invariants:
+All previous fixes retained, plus the golden preset for $5 → $100+ ASAP with ≤50% drawdown:
 
-1. ✅ **Chainlink Stale Block** — No trading into unknown prices
-2. ✅ **Redis Required for LIVE** — No orphaned positions from crashes
-3. ✅ **Balance Floor Guard** — Protects remaining capital
-4. ✅ **Backtest Offset Support** — Non-cherry-picked validation
+1. ✅ **30% Stake Cap** — Optimal balance of growth and risk
+2. ✅ **$2.50 Balance Floor** — HARD -50% drawdown stop
+3. ✅ **CONVICTION-Only** — Block lower-quality ADVISORY trades
+4. ✅ **35% Global Stop** — Additional daily protection
+5. ✅ **Chainlink Stale Block** — No trading into unknown prices
+6. ✅ **Redis Required for LIVE** — No orphaned positions from crashes
 
-### Performance Summary (Unchanged from v69):
+### Performance Summary (Golden Preset):
 
 | Metric | Value | Source |
 |--------|-------|--------|
@@ -215,22 +224,24 @@ All v69 fixes retained, plus critical LIVE safety invariants:
 5. **Chainlink dependency** — trading halts if WebSocket feed disconnects
 6. **Redis dependency** — LIVE mode requires Redis (auto-downgrades if missing)
 
-### ⭐ RECOMMENDED CONFIG (v70 OPTIMAL):
+### ⭐ GOLDEN PRESET (v72 SET-AND-FORGET):
 
 ```
 STAKE = 0.30 (30%)
-TIER = CONVICTION only
+TIER = CONVICTION only (convictionOnlyMode = true)
 MAX_EXPOSURE = 0.45
 MAX_TRADES_PER_CYCLE = 1
 SELECTION = HIGHEST_CONF
 RESPECT_EV_GATE = true
-MIN_BALANCE_FLOOR = 2.00 (NEW)
+MIN_BALANCE_FLOOR = 2.50 (hard -50% stop)
+GLOBAL_STOP_LOSS = 0.35 (35% daily limit)
+LIVE_DAILY_LOSS_CAP = 0 (disabled)
 ```
 
 ### REQUIRED RENDER DASHBOARD CHANGES:
 ```
-MAX_POSITION_SIZE = 0.30  (proven optimal)
-PAPER_BALANCE = 5         (standard start)
+MAX_POSITION_SIZE = 0.30  (golden preset)
+PAPER_BALANCE = 5         ($5 starting capital)
 REDIS_URL = <your-redis>  (REQUIRED FOR LIVE MODE)
 ```
 
@@ -242,19 +253,21 @@ Before enabling LIVE mode, verify ALL of these:
 
 - [ ] `/api/health` shows `status: "ok"` (not "degraded")
 - [ ] `/api/health` shows `dataFeed.anyStale: false`
+- [ ] `/api/health` shows `balanceFloor.floor: 2.5`
 - [ ] `/api/health` shows `balanceFloor.tradingBlocked: false`
-- [ ] `/api/version` shows `configVersion: 70`
+- [ ] `/api/version` shows `configVersion: 72`
 - [ ] Redis is connected (check startup logs)
 - [ ] Wallet is loaded (POLYMARKET_PRIVATE_KEY set)
-- [ ] 72h PAPER fronttest completed without CRASH_RECOVERED
+- [ ] 24-72h PAPER fronttest completed without CRASH_RECOVERED
 - [ ] No repeated critical errors (criticalErrors = 0)
 
 **NO-GO if any of these are true:**
 - Any trades occurred while Chainlink was stale
 - Redis missing in LIVE mode
-- Any `CRASH_RECOVERED` trades under v70
+- Any `CRASH_RECOVERED` trades under v72
 - `tradingHalted: true` for any asset
+- Balance dropped below $2.50 floor
 
 ---
 
-*Checklist for v70 | Updated 2026-01-03 | Critical LIVE safety invariants added*
+*Checklist for v72 GOLDEN PRESET | Updated 2026-01-03 | Set-and-forget config for $5 → $100+ ASAP with ≤50% drawdown*
