@@ -491,6 +491,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v68: Adaptive mode - apply v68 profit lock-in schedule (matches runtime applyVarianceControls)
         const adaptiveMode = req.query.adaptive === '1' || String(req.query.adaptive || '').toLowerCase() === 'true';
         
+        // 🏆 v74: Kelly sizing mode - apply mathematically optimal position sizing
+        const kellyEnabled = req.query.kelly === '1' || String(req.query.kelly || '').toLowerCase() === 'true';
+        const kellyFractionParam = parseFloat(req.query.kellyK);
+        const kellyFraction = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1 
+            ? kellyFractionParam : 0.50; // Default half-Kelly
+        const kellyMaxFraction = Number.isFinite(parseFloat(req.query.kellyMax)) 
+            ? parseFloat(req.query.kellyMax) : 0.35; // Default cap
+        
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
         const SLIPPAGE_PCT = 0.01;
@@ -924,6 +932,19 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             if (profitMultiple >= 1.1) return 0.65;
             return 1.0;
         }
+        
+        // 🏆 v74: Kelly optimal fraction calculation
+        // f* = (b*p - (1-p)) / b where b = payout odds after fees, p = win probability
+        function calcKellyFraction(pWin, entryPrice) {
+            if (!Number.isFinite(pWin) || !Number.isFinite(entryPrice) || pWin < 0.5 || entryPrice <= 0 || entryPrice >= 1) {
+                return null; // Invalid inputs
+            }
+            const effectiveEntry = Math.min(0.99, entryPrice * (1 + SLIPPAGE_PCT));
+            const b = (1 / effectiveEntry - 1) * (1 - PROFIT_FEE_PCT); // Payout odds after fee
+            if (b <= 0) return null;
+            const fStar = (b * pWin - (1 - pWin)) / b;
+            return fStar > 0 ? fStar : null; // Only return positive Kelly
+        }
 
         function simulate(stakeFraction) {
             let balance = startingBalance;
@@ -973,15 +994,39 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     stakes = windowCycles.map(() => each);
                 } else {
                     // PER_TRADE (default): stakeFraction applies per trade, but cap total exposure for the window.
-                    let each = windowBalanceStart * effectiveStakeFraction;
-                    // 🏆 v60 FINAL: Apply absolute liquidity cap BEFORE window exposure calc (LIVE-realistic)
-                    each = Math.min(each, maxAbsoluteStake);
-                    const totalDesired = each * n;
-                    if (totalDesired > maxBudget && totalDesired > 0) {
-                        const scale = maxBudget / totalDesired;
-                        each *= scale;
+                    // 🏆 v74: Apply Kelly sizing per trade when enabled
+                    if (kellyEnabled) {
+                        // Kelly mode: calculate optimal stake per trade based on pWin and entry price
+                        stakes = windowCycles.map(cycle => {
+                            const pWin = clamp01(cycle.pWinUsed);
+                            const kellyF = calcKellyFraction(pWin, cycle.entryPrice);
+                            
+                            if (kellyF !== null) {
+                                // Apply fractional Kelly with max cap
+                                let kellyStake = windowBalanceStart * Math.min(kellyF * kellyFraction, kellyMaxFraction);
+                                // Also apply profit lock-in if adaptive
+                                if (adaptiveMode) {
+                                    const profitMult = balance / startingBalance;
+                                    kellyStake *= getProfitLockMultiplier(profitMult);
+                                }
+                                return Math.min(kellyStake, maxAbsoluteStake);
+                            } else {
+                                // Fallback to base stake for invalid Kelly
+                                let fallback = windowBalanceStart * effectiveStakeFraction;
+                                return Math.min(fallback, maxAbsoluteStake);
+                            }
+                        });
+                    } else {
+                        let each = windowBalanceStart * effectiveStakeFraction;
+                        // 🏆 v60 FINAL: Apply absolute liquidity cap BEFORE window exposure calc (LIVE-realistic)
+                        each = Math.min(each, maxAbsoluteStake);
+                        const totalDesired = each * n;
+                        if (totalDesired > maxBudget && totalDesired > 0) {
+                            const scale = maxBudget / totalDesired;
+                            each *= scale;
+                        }
+                        stakes = windowCycles.map(() => each);
                     }
-                    stakes = windowCycles.map(() => each);
                 }
 
                 let windowPnl = 0;
@@ -1157,7 +1202,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 stakeMode,
                 maxExposure,
                 entryMode,
-                clobFidelity: clobFidelity
+                clobFidelity: clobFidelity,
+                adaptiveMode,
+                kellyEnabled,
+                kellyFraction: kellyEnabled ? kellyFraction : null,
+                kellyMaxFraction: kellyEnabled ? kellyMaxFraction : null
             },
             coverage: {
                 candidatesFound: allCycles.length,
@@ -4437,7 +4486,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 73;  // v73: YOUR FINAL PRESET - 35% stake, $2.00 floor, max profit ASAP with ≤60% drawdown
+const CONFIG_VERSION = 74;  // v74: GOLDEN KELLY - Half-Kelly sizing for optimal risk-adjusted returns
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4645,7 +4694,15 @@ const CONFIG = {
         enablePositionPyramiding: false,
         firstMoveAdvantage: false,        // 🚀 v61.2: NO - wait for confirmation
         supremeConfidenceMode: true,      // 🚀 v61.2: 75%+ confidence ONLY
-        convictionOnlyMode: true          // 🏆 v73 FINAL: ONLY execute CONVICTION tier trades (block ADVISORY)
+        convictionOnlyMode: true,         // 🏆 v73 FINAL: ONLY execute CONVICTION tier trades (block ADVISORY)
+        
+        // 🏆 v74 KELLY SIZING: Mathematically optimal position sizing based on edge
+        // Kelly formula: f* = (b*p - (1-p)) / b where b = payout odds, p = win probability
+        // Half-Kelly (k=0.5) provides ~75% of full Kelly growth with ~50% of variance
+        kellyEnabled: true,               // Enable Kelly-based position sizing
+        kellyFraction: 0.50,              // k=0.5 (half-Kelly) - balance growth vs variance
+        kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
+        kellyMaxFraction: 0.35            // Never exceed this fraction regardless of Kelly calculation
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -6098,6 +6155,56 @@ class TradeExecutor {
 
                 // Calculate size based on actual bankroll
                 size = bankroll * basePct;
+
+                // 🏆 v74 KELLY SIZING: Apply mathematically optimal position sizing
+                // Only for ORACLE mode with valid pWin and entryPrice
+                if (CONFIG.RISK.kellyEnabled && mode === 'ORACLE' && entryPrice > 0) {
+                    // Resolve pWin for Kelly calculation
+                    let pWinKelly = Number.isFinite(options.pWin) ? options.pWin : null;
+                    if (pWinKelly === null && typeof Brains !== 'undefined' && Brains[asset] && typeof Brains[asset].getCalibratedWinProb === 'function') {
+                        const s = Brains[asset].stats || {};
+                        const tier = options.tier || Brains[asset].tier || 'UNKNOWN';
+                        const priorRate = (tier === 'CONVICTION' && s.convictionTotal > 0) 
+                            ? (s.convictionWins / s.convictionTotal) 
+                            : (s.total > 0 ? (s.wins / s.total) : 0.5);
+                        pWinKelly = Brains[asset].getCalibratedWinProb(confidence, { priorRate, priorStrength: 40, minSamples: 0 });
+                    }
+                    
+                    const KELLY_FEE_PCT = 0.02;
+                    const KELLY_SLIPPAGE_PCT = 0.01;
+                    
+                    if (Number.isFinite(pWinKelly) && pWinKelly >= CONFIG.RISK.kellyMinPWin) {
+                        // Kelly formula: f* = (b*p - (1-p)) / b
+                        // b = payout odds = (1/price - 1) * (1 - fee)
+                        const effectiveEntry = Math.min(0.99, entryPrice * (1 + KELLY_SLIPPAGE_PCT));
+                        const b = (1 / effectiveEntry - 1) * (1 - KELLY_FEE_PCT);
+                        
+                        if (b > 0) {
+                            const fullKelly = (b * pWinKelly - (1 - pWinKelly)) / b;
+                            
+                            if (fullKelly > 0) {
+                                // Apply fractional Kelly (e.g., half-Kelly with k=0.5)
+                                const kellyFraction = CONFIG.RISK.kellyFraction || 0.5;
+                                let kellySize = bankroll * Math.min(fullKelly * kellyFraction, CONFIG.RISK.kellyMaxFraction);
+                                
+                                // Kelly should REDUCE size in unfavorable conditions, not increase it
+                                // If Kelly suggests smaller size than base, use Kelly
+                                // If Kelly suggests larger (very high edge), cap at base or kellyMaxFraction
+                                if (kellySize < size) {
+                                    log(`🎲 KELLY SIZING: pWin=${(pWinKelly * 100).toFixed(1)}%, entry=${(entryPrice * 100).toFixed(1)}¢, f*=${(fullKelly * 100).toFixed(1)}% → ${kellyFraction}f*=$${kellySize.toFixed(2)} (was $${size.toFixed(2)})`, asset);
+                                    size = kellySize;
+                                } else {
+                                    log(`📊 KELLY CHECK: f*=${(fullKelly * 100).toFixed(1)}% suggests $${kellySize.toFixed(2)}, keeping base $${size.toFixed(2)}`, asset);
+                                }
+                            } else {
+                                // Negative Kelly = negative edge, should be blocked by EV gate
+                                log(`⚠️ KELLY WARNING: Negative Kelly (f*=${(fullKelly * 100).toFixed(2)}%) - should be EV blocked`, asset);
+                            }
+                        }
+                    } else if (Number.isFinite(pWinKelly)) {
+                        log(`📉 KELLY: pWin ${(pWinKelly * 100).toFixed(1)}% < min ${(CONFIG.RISK.kellyMinPWin * 100).toFixed(0)}% - using base sizing`, asset);
+                    }
+                }
 
                 //  FIX #23: WARMUP PERIOD - Reduce size for first 2 cycles after startup
                 const elapsedSinceStartup = Date.now() - this.startupTime;

@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # 🏆 v73 FINAL PRESET - 35% stake, $2.00 floor, max profit ASAP with ≤60% drawdown
+    # 🏆 v74 GOLDEN KELLY - Half-Kelly sizing for optimal risk-adjusted returns
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
@@ -19,8 +19,8 @@ services:
       # 🏆 v70: Proven optimal starting balance (£5)
       - key: PAPER_BALANCE
         value: "5.00"
-      # 🏆 v73 FINAL PRESET: 35% stake = max profit ASAP with ≤60% max drawdown
-      # Combined with $2.00 balance floor, this enforces hard -60% drawdown stop
+      # 🏆 v74 GOLDEN KELLY: 35% max stake with Half-Kelly sizing
+      # Kelly dynamically reduces stake on weak edges for optimal risk-adjusted returns
       - key: MAX_POSITION_SIZE
         value: "0.35"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
