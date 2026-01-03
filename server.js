@@ -3932,7 +3932,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 65;  // v65: CRITICAL FIX - supremeConfidenceMode now BLOCKS <75% (was only warning), restores 77% WR
+const CONFIG_VERSION = 66;  // v66: CRITICAL FIX - supremeConfidenceMode block moved to CORRECT LOCATION (before trade execution, after confidence modifications)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9165,15 +9165,9 @@ class SupremeBrain {
                 finalConfidence = 0.15;
             }
 
-            // 🏆 v65 FIX: SUPREME CONFIDENCE ENFORCEMENT - NOW ACTUALLY BLOCKS!
-            // This was the critical bug: trades below 75% were being allowed, dropping WR to 66%
-            // Backtest shows: CONVICTION only = 77% WR, ALL tiers = 64% WR
-            // FIX: Actually BLOCK trades below 75% confidence when supremeConfidenceMode is enabled
-            if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
-                log(`🚫 SUPREME MODE BLOCK: ${(finalConfidence * 100).toFixed(1)}% < 75% minimum - TRADE BLOCKED`, this.asset);
-                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'SUPREME_MODE_BLOCK', failedGates: ['confidence_75'], inputs: { finalConfidence, supremeConfidenceMode: true } });
-                return; // BLOCK the trade - this is critical for maintaining 77% WR
-            }
+            // 🏆 v66 NOTE: SUPREME MODE BLOCK was moved to correct location (line ~9620)
+            // Previous v65 fix was here but was ineffective because confidence gets modified AFTER this point
+            // The block now happens RIGHT BEFORE trade execution, after all confidence modifications
 
             // Penalize poor win rate
             if (this.stats.total > 10) {
@@ -9620,6 +9614,15 @@ class SupremeBrain {
                     else {
                         // ==================== v42 IMMUTABLE PROPHET: GOD / TREND MODES ====================
 
+                        // 🏆 v66 CRITICAL FIX: SUPREME MODE BLOCK - NOW IN CORRECT POSITION
+                        // Previous v65 fix was in wrong location (before confidence modifications)
+                        // This check must happen AFTER all confidence modifications, RIGHT BEFORE trade execution
+                        if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
+                            log(`🚫 SUPREME MODE BLOCK: ${(finalConfidence * 100).toFixed(1)}% < 75% minimum - TRADE BLOCKED (correct location)`, this.asset);
+                            gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'SUPREME_MODE_BLOCK', failedGates: ['confidence_75'], inputs: { finalConfidence, supremeConfidenceMode: true, tier, odds: currentOdds } });
+                            // Do not trade - fall through to end
+                        }
+                        else {
                         // 1. GOD MODE (>90%): 0 Historical Failures -> EXECUTE IMMEDIATELY
                         const isGodMode = finalConfidence > 0.90;
 
@@ -9726,6 +9729,7 @@ class SupremeBrain {
                                 gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'ORACLE_GATES_FAILED', failedGates: failedChecks, inputs: gateInputs, checks: oracleChecks });
                             }
                         }
+                        } // 🏆 v66: Close SUPREME MODE BLOCK else
                             }
                         }
                     }
