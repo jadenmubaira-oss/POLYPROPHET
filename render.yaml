@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # 🏆 v72 GOLDEN PRESET - 30% stake, $2.50 floor, max profit with ≤50% drawdown
+    # 🏆 v73 FINAL PRESET - 35% stake, $2.00 floor, max profit ASAP with ≤60% drawdown
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
@@ -19,10 +19,10 @@ services:
       # 🏆 v70: Proven optimal starting balance (£5)
       - key: PAPER_BALANCE
         value: "5.00"
-      # 🏆 v72 GOLDEN PRESET: 30% stake = optimal for $5→$100+ with ≤50% max drawdown
-      # Combined with $2.50 balance floor, this enforces hard -50% drawdown stop
+      # 🏆 v73 FINAL PRESET: 35% stake = max profit ASAP with ≤60% max drawdown
+      # Combined with $2.00 balance floor, this enforces hard -60% drawdown stop
       - key: MAX_POSITION_SIZE
-        value: "0.30"
+        value: "0.35"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"

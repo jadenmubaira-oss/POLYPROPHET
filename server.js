@@ -4437,7 +4437,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 72;  // v72: GOLDEN PRESET - 30% stake, $2.50 floor, 35% global stop (max profit with ≤50% drawdown)
+const CONFIG_VERSION = 73;  // v73: YOUR FINAL PRESET - 35% stake, $2.00 floor, max profit ASAP with ≤60% drawdown
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4478,7 +4478,7 @@ const CONFIG = {
     // 🏆 v64 GOLDEN OPTIMAL - 80% profit probability + 58% 100x chance
     // 🏆 v66 FINAL: Monte Carlo proven: 60% until 1.2x → 40% until 1.5x → 25% thereafter
     // This maximizes profit while keeping variance reasonable (30% loss prob, £458 median in 7d)
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.30'),  // 🏆 v71 GOLDEN: 30% stake cap (optimal for $5→$100 with ≤50% drawdown)
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.35'),  // 🏆 v73 FINAL: 35% stake cap (max profit ASAP with ≤60% drawdown)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -4620,7 +4620,7 @@ const CONFIG = {
     // 🚀 v61.2 MAX PROFIT - HIGH QUALITY AGGRESSIVE
     RISK: {
         maxTotalExposure: 0.45,  // 🚀 v61.2: 45% max exposure
-        globalStopLoss: 0.35,    // 🚀 v61.2: 35% day max loss
+        globalStopLoss: 0.35,    // 🏆 v73: 35% day max loss
         globalStopLossOverride: false,
         liveDailyLossCap: 0,     // 🏆 v71 GOLDEN: Disabled - rely on globalStopLoss + minBalanceFloor
         cooldownAfterLoss: 1200,            // 🚀 v61.2: 20 min cooldown
@@ -4631,8 +4631,8 @@ const CONFIG = {
         aggressiveSizingOnLosses: false, // Keep this OFF
 
         // 🏆 v70: BALANCE FLOOR GUARD - Stop trading if balance drops too low
-        minBalanceFloor: 2.50,  // 🏆 v71 GOLDEN: HALT new trades if balance drops below $2.50 (50% of $5 start)
-        minBalanceFloorEnabled: true, // 🏆 v71 GOLDEN: HARD STOP at 50% drawdown
+        minBalanceFloor: 2.00,  // 🏆 v73 FINAL: HALT new trades if balance drops below $2.00 (60% of $5 start)
+        minBalanceFloorEnabled: true, // 🏆 v73 FINAL: HARD STOP at 60% drawdown
 
         // 🚀 v61.2: QUALITY > QUANTITY
         maxConsecutiveLosses: 3,  // 🚀 v61.2: 3 losses before pause
@@ -4645,7 +4645,7 @@ const CONFIG = {
         enablePositionPyramiding: false,
         firstMoveAdvantage: false,        // 🚀 v61.2: NO - wait for confirmation
         supremeConfidenceMode: true,      // 🚀 v61.2: 75%+ confidence ONLY
-        convictionOnlyMode: true          // 🏆 v72 GOLDEN: ONLY execute CONVICTION tier trades (block ADVISORY)
+        convictionOnlyMode: true          // 🏆 v73 FINAL: ONLY execute CONVICTION tier trades (block ADVISORY)
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -12943,9 +12943,9 @@ app.get('/', (req, res) => {
             // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
                 GOAT: { 
-                    // 🏆 v71 GOLDEN PRESET: $5→$100+ ASAP with ≤50% max drawdown
-                    // 30% stake maximizes growth while respecting hard $2.50 balance floor
-                    MAX_POSITION_SIZE: 0.30,
+                    // 🏆 v73 FINAL PRESET: $5→$100+ ASAP with ≤60% max drawdown
+                    // 35% stake maximizes growth while respecting hard $2.00 balance floor
+                    MAX_POSITION_SIZE: 0.35,
                     // ORACLE: Primary prediction engine with forensic-optimized thresholds
                     ORACLE: { 
                         enabled: true, 
@@ -12972,15 +12972,15 @@ app.get('/', (req, res) => {
                     ARBITRAGE: { enabled: false },
                     MOMENTUM: { enabled: false },
                     UNCERTAINTY: { enabled: false },
-                    // RISK: 🏆 v72 GOLDEN - Bounded drawdown with minBalanceFloor protection
+                    // RISK: 🏆 v73 FINAL - Bounded drawdown with minBalanceFloor protection
                     RISK: { 
-                        maxTotalExposure: 0.45,     // 🏆 v72: 45% max exposure
-                        globalStopLoss: 0.35,       // 🏆 v72: Halt if down 35% in a day
+                        maxTotalExposure: 0.50,     // 🏆 v73: 50% max exposure (allows 35% + buffer)
+                        globalStopLoss: 0.35,       // 🏆 v73: Halt if down 35% in a day
                         cooldownAfterLoss: 1200,    // 20 min cooldown after 3 losses
                         maxConsecutiveLosses: 3,    // Throttle after 3 losses
                         maxGlobalTradesPerCycle: 1, // Max 1 trade per 15-min cycle (reduce correlation variance)
-                        supremeConfidenceMode: true, // 🏆 v72: CONVICTION-quality only
-                        convictionOnlyMode: true,   // 🏆 v72 GOLDEN: BLOCK all ADVISORY trades
+                        supremeConfidenceMode: true, // 🏆 v73: CONVICTION-quality only
+                        convictionOnlyMode: true,   // 🏆 v73 FINAL: BLOCK all ADVISORY trades
                         firstMoveAdvantage: false,
                         enablePositionPyramiding: false,
                         enableLossCooldown: true

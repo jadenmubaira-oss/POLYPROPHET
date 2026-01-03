@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.8.0-golden-v72",
-    "description": "POLYPROPHET v72 GOLDEN PRESET - 30% stake, $2.50 floor, max profit with ≤50% drawdown",
+    "version": "3.9.0-final-v73",
+    "description": "POLYPROPHET v73 FINAL PRESET - 35% stake, $2.00 floor, max profit ASAP with ≤60% drawdown",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
