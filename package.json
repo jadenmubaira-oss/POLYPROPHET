@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.2.0-goat-v65-critical-fix",
-    "description": "POLYPROPHET GOAT v65 - CRITICAL FIX: supremeConfidenceMode now BLOCKS <75% trades, restores 77% WR",
+    "version": "3.3.0-goat-v66-final",
+    "description": "POLYPROPHET GOAT v66 - FINAL: SUPREME MODE BLOCK in correct location, 77% WR restored",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
