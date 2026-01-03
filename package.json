@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.5.0-goat-v69",
-    "description": "POLYPROPHET v69 - FIX pWinEff scoping bug + circuit breaker warmup false triggers",
+    "version": "3.6.0-goat-v70",
+    "description": "POLYPROPHET v70 - Chainlink stale hard-block, Redis required for LIVE, balance floor guard",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

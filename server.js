@@ -467,6 +467,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             : Math.max(0.05, Math.min(1.0, (CONFIG?.RISK?.maxTotalExposure || 0.40)));
         const lookbackHoursRaw = parseFloat(req.query.lookbackHours);
         const lookbackHours = Number.isFinite(lookbackHoursRaw) ? Math.max(0.25, Math.min(168, lookbackHoursRaw)) : 24;
+        // 🏆 v70: Offset parameter to run backtests on non-cherry-picked windows
+        // offsetHours=24 means run the same lookback window starting 24h earlier
+        const offsetHoursRaw = parseFloat(req.query.offsetHours);
+        const offsetHours = Number.isFinite(offsetHoursRaw) ? Math.max(0, offsetHoursRaw) : 0;
+        // 🏆 v70: windowEnd parameter - explicit end timestamp (epoch seconds)
+        const windowEndRaw = parseInt(req.query.windowEnd);
+        const windowEndEpochSec = Number.isFinite(windowEndRaw) ? windowEndRaw : null;
         const scan = (req.query.scan === '1' || String(req.query.scan || '').toLowerCase() === 'true');
         const entryMode = String(req.query.entry || 'CLOB_HISTORY').toUpperCase(); // SNAPSHOT | CLOB_HISTORY
         const clobFidelityRaw = parseInt(req.query.fidelity);
@@ -805,9 +812,15 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const windowKeys = Array.from(byWindow.keys()).sort((a, b) => a - b);
         let eligibleWindowKeys = windowKeys;
         if (lookbackHours !== null) {
+            // 🏆 v70: Apply offsetHours and windowEnd for non-cherry-picked backtests
+            // windowEnd: explicit end timestamp (epoch seconds)
+            // offsetHours: shift the window backwards by this many hours
             const nowSec = Math.floor(Date.now() / 1000);
-            const cutoff = nowSec - Math.floor(lookbackHours * 3600);
-            eligibleWindowKeys = windowKeys.filter(k => Number(k) >= cutoff);
+            const effectiveEndSec = windowEndEpochSec !== null 
+                ? windowEndEpochSec 
+                : (nowSec - Math.floor(offsetHours * 3600));
+            const cutoff = effectiveEndSec - Math.floor(lookbackHours * 3600);
+            eligibleWindowKeys = windowKeys.filter(k => Number(k) >= cutoff && Number(k) <= effectiveEndSec);
         }
         const windowsToProcess = eligibleWindowKeys.slice(-limit);
         const selectedCycles = [];
@@ -1172,6 +1185,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 debugFiles: debugFilesParam,
                 snapshotPick,
                 lookbackHours,
+                offsetHours, // 🏆 v70: Window offset for non-cherry-picked runs
+                windowEnd: windowEndEpochSec, // 🏆 v70: Explicit window end timestamp
                 maxTradesPerCycle,
                 selection,
                 respectEVGate,
@@ -2921,13 +2936,34 @@ app.get('/api/health', (req, res) => {
     // 🏆 v60: Pending settlements count (not blocking exposure)
     const pendingSettlements = tradeExecutor?.getPendingSettlements?.() || [];
     
+    // 🏆 v70: Determine overall status including feed staleness
+    const staleAssetsList = ASSETS.filter(a => feedStaleAssets[a]);
+    const isDataDegraded = anyFeedStale || anyTradingHalted;
+    
     res.json({
-        status: anyTradingHalted ? 'degraded' : 'ok',
+        status: isDataDegraded ? 'degraded' : 'ok',
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
         code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
         // 🏆 v69: Trading halt status (critical error protection)
         tradingHalted: anyTradingHalted,
+        // 🏆 v70: Chainlink feed staleness (trading BLOCKED when stale)
+        dataFeed: {
+            anyStale: anyFeedStale,
+            staleAssets: staleAssetsList,
+            tradingBlocked: anyFeedStale,
+            perAsset: ASSETS.reduce((acc, a) => ({ ...acc, [a]: { stale: feedStaleAssets[a] } }), {})
+        },
+        // 🏆 v70: Balance floor guard status
+        balanceFloor: {
+            enabled: CONFIG.RISK.minBalanceFloorEnabled,
+            floor: CONFIG.RISK.minBalanceFloor,
+            currentBalance: tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0),
+            belowFloor: CONFIG.RISK.minBalanceFloorEnabled && 
+                        (tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0)) < CONFIG.RISK.minBalanceFloor,
+            tradingBlocked: CONFIG.RISK.minBalanceFloorEnabled && 
+                            (tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0)) < CONFIG.RISK.minBalanceFloor
+        },
         watchdog: {
             lastCycleAge: typeof watchdogState !== 'undefined' ? Math.round((now - watchdogState.lastCycleDetected) / 1000) : null,
             lastTradeAge: lastTrade ? Math.round((now - lastTrade) / 1000) : null,
@@ -4010,6 +4046,10 @@ let lastUpdateTimestamp = Date.now();
 let fearGreedIndex = 50;
 let fundingRates = {};
 
+// 🏆 v70: Chainlink feed staleness tracking - HARD BLOCK trades when stale
+let feedStaleAssets = {}; // { BTC: true, ETH: false, ... }
+let anyFeedStale = false; // Quick check for any stale feed
+
 // Initialize State
 ASSETS.forEach(asset => {
     priceHistory[asset] = [];
@@ -4019,6 +4059,7 @@ ASSETS.forEach(asset => {
     livePrices[asset] = null;
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
+    feedStaleAssets[asset] = true; // 🏆 v70: Start stale until first Chainlink data arrives
 });
 
 // ==================== DEBUG EXPORT: CYCLE HISTORY STORAGE ====================
@@ -4396,7 +4437,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 69;  // v69: FIX pWinEff scoping bug + circuit breaker warmup false triggers
+const CONFIG_VERSION = 70;  // v70: Chainlink stale hard-block, Redis required for LIVE, balance floor guard
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4588,6 +4629,10 @@ const CONFIG = {
         enableCircuitBreaker: true, // Still ON for protection
         enableDivergenceBlocking: true, // 🚀 v61.2: ON - quality only
         aggressiveSizingOnLosses: false, // Keep this OFF
+
+        // 🏆 v70: BALANCE FLOOR GUARD - Stop trading if balance drops too low
+        minBalanceFloor: 2.00,  // 🏆 v70: HALT new trades if balance drops below £2
+        minBalanceFloorEnabled: true, // 🏆 v70: Enable floor protection
 
         // 🚀 v61.2: QUALITY > QUANTITY
         maxConsecutiveLosses: 3,  // 🚀 v61.2: 3 losses before pause
@@ -5727,6 +5772,22 @@ class TradeExecutor {
             log(`🛑 LIVE PREREQUISITE FAILED: No wallet loaded - cannot execute LIVE trades`, asset);
             log(`   Fix: Set POLYMARKET_PRIVATE_KEY in environment variables`, asset);
             return { success: false, error: 'LIVE mode requires wallet - set POLYMARKET_PRIVATE_KEY' };
+        }
+
+        // 🏆 v70: CHAINLINK STALE HARD BLOCK - Do NOT trade when price feed is stale
+        if (feedStaleAssets[asset]) {
+            log(`🛑 CHAINLINK STALE: ${asset} price feed is stale (>30s) - TRADE BLOCKED`, asset);
+            return { success: false, error: `CHAINLINK_STALE: ${asset} feed unavailable - trading blocked until WS reconnects` };
+        }
+
+        // 🏆 v70: BALANCE FLOOR GUARD - Stop new trades if balance dropped below floor
+        if (CONFIG.RISK.minBalanceFloorEnabled) {
+            const currentBal = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
+            if (currentBal < CONFIG.RISK.minBalanceFloor) {
+                log(`🛑 BALANCE FLOOR: Current balance £${currentBal.toFixed(2)} < floor £${CONFIG.RISK.minBalanceFloor.toFixed(2)} - TRADE BLOCKED`, asset);
+                log(`   New trades halted to preserve remaining capital. Deposit more funds or adjust minBalanceFloor in Settings.`, asset);
+                return { success: false, error: `BALANCE_FLOOR: Balance £${currentBal.toFixed(2)} below £${CONFIG.RISK.minBalanceFloor.toFixed(2)} floor - trading halted` };
+            }
         }
 
         // ==================== 🎯 GOLDEN MEAN: EV + LIQUIDITY GUARDS ====================
@@ -11450,6 +11511,7 @@ const DB_FILE = 'deity_state.json';
 
 // ==================== PRICE VALIDATION (Chainlink-Only) ====================
 // Polymarket outcomes are determined by Chainlink - DO NOT use other price sources!
+// 🏆 v70: Now sets feedStaleAssets flags that HARD BLOCK trading
 async function validatePrices() {
     const now = Date.now();
     let staleAssets = [];
@@ -11459,14 +11521,20 @@ async function validatePrices() {
             priceHistory[asset][priceHistory[asset].length - 1]?.t : 0;
         const age = now - lastPriceTime;
 
-        // Warn if Chainlink WS hasn't sent data in >30 seconds
+        // 🏆 v70: Set feed staleness flag per asset (>30s without data = stale)
         if (!livePrices[asset] || age > 30000) {
             staleAssets.push(asset);
+            feedStaleAssets[asset] = true;
+        } else {
+            feedStaleAssets[asset] = false;
         }
     }
 
+    // 🏆 v70: Update global anyFeedStale flag
+    anyFeedStale = staleAssets.length > 0;
+
     if (staleAssets.length > 0) {
-        log(`⚠️ CHAINLINK STALE: ${staleAssets.join(', ')} - No WS data for >30s. DO NOT TRADE!`);
+        log(`⚠️ CHAINLINK STALE: ${staleAssets.join(', ')} - No WS data for >30s. TRADING BLOCKED!`);
         log(`   Waiting for Chainlink WS to reconnect...`);
     }
 
@@ -15478,6 +15546,16 @@ async function startup() {
                 resolve();
             }, 2000);
         });
+    }
+
+    // 🏆 v70: LIVE MODE REQUIRES REDIS - Crashes/restarts without persistence create orphaned positions
+    if (CONFIG.TRADE_MODE === 'LIVE' && !redisAvailable) {
+        log(`🔴 FATAL: LIVE mode REQUIRES Redis for state persistence!`);
+        log(`   LIVE trading without Redis risks CRASH_RECOVERED positions and lost funds.`);
+        log(`   Set REDIS_URL in environment or switch to PAPER mode.`);
+        log(`   Downgrading to PAPER mode for safety...`);
+        CONFIG.TRADE_MODE = 'PAPER';
+        log(`⚠️ TRADE_MODE forcibly set to PAPER due to missing Redis.`);
     }
 
     await initPatternStorage();
