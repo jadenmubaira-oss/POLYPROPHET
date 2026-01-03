@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.3.0-goat-v66-final",
-    "description": "POLYPROPHET GOAT v66 - FINAL: SUPREME MODE BLOCK in correct location, 77% WR restored",
+    "version": "3.4.0-goat-v68",
+    "description": "POLYPROPHET v68 - LIVE Safety: PENDING_RESOLUTION marking, rate-safe Gamma polling, dataset-backed backtest",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

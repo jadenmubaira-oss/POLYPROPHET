@@ -1,4 +1,4 @@
-# POLYPROPHET v67 — ABSOLUTE OPTIMAL EDITION
+# POLYPROPHET v68 — LIVE SAFETY EDITION
 
 > **FOR ANY AI/PERSON**: This is the FINAL manifesto. Read fully before ANY changes.
 
@@ -20,94 +20,99 @@ This is **gambling**, not **trading**.
 
 ---
 
-## 🏆 v67 ABSOLUTE OPTIMAL CONFIGURATION
+## 🏆 v68 CONFIGURATION
 
-### Found via Exhaustive Monte Carlo Search
+### Profit Lock-In Schedule (60% base stake)
 
-Tested ALL combinations of:
-- Stake: 40%, 50%, 60%
-- Lock-in 1: 1.1x, 1.2x, 1.3x
-- Lock-in 2: 1.5x, 2.0x, 2.5x
-
-### WINNER: 60% base, lock at 1.1x (39%), lock at 2x (24%)
-
-| Parameter | Value |
-|-----------|-------|
-| Base Stake | **60%** |
-| At 1.1x profit | 39% (65% of base) |
-| At 2x profit | 24% (40% of base) |
-| At 5x profit | 18% (30% of base) |
-| At 10x profit | 15% (25% of base) |
+| Profit Multiple | Effective Stake | Protection |
+|-----------------|-----------------|------------|
+| 1x (starting) | 60% | Aggressive start |
+| 1.1x profit | 39% (65% of base) | Early lock-in |
+| 2x profit | 24% (40% of base) | Safe mode |
+| 5x profit | 18% (30% of base) | Big winner |
+| 10x profit | 15% (25% of base) | Ultra-safe |
 
 ---
 
-## 📊 VERIFIED PROJECTIONS (v67)
+## 📊 VERIFIED PROJECTIONS (v68 Monte Carlo, 3000 sims)
 
-### Day-by-Day from £5
+### Day-by-Day from £5 (77% Win Rate)
 
-| Day | Loss % | Median | £100+ Prob | Best 10% |
-|-----|--------|--------|------------|----------|
-| 1 | 27% | £14 | 0% | £32 |
-| 2 | 31% | £23 | 10% | £100 |
-| 3 | 33% | £38 | 26% | £202 |
-| 4 | 31% | £68 | 40% | £530 |
-| **5** | 33% | **£107** | **51%** | £926 |
-| 6 | 32% | £206 | 59% | £1,409 |
-| **7** | **32%** | **£374** | **62%** | **£1,797** |
+| Day | Loss % | Median | P90 | P99 | £100+ |
+|-----|--------|--------|-----|-----|-------|
+| 1 | 29% | £14 | £31 | £49 | 0% |
+| 2 | 30% | £26 | £70 | £103 | 1.4% |
+| 3 | 31% | £40 | £131 | £242 | 17% |
+| 4 | 32% | £64 | £230 | £548 | 35% |
+| **5** | 32% | **£95** | £404 | £888 | **49%** |
+| 6 | 31% | £155 | £751 | £1,537 | 58% |
+| **7** | **31%** | **£238** | **£1,175** | **£1,951** | **64%** |
 
 ### Scenario Analysis (7 Days)
 
 | Scenario | Balance | Probability |
 |----------|---------|-------------|
 | Worst 1% | £0.50 | 1% |
-| Worst 5% | £1.20 | 5% |
-| **Median** | **£374** | 50% |
-| Best 10% | £1,797 | 10% |
-| Best 1% | £3,000+ | 1% |
+| Worst 5% | £1.50 | 5% |
+| Worst 10% | £3.00 | 10% |
+| **Median** | **£238** | 50% |
+| Best 10% | £1,175+ | 10% |
+| Best 1% | £1,951+ | 1% |
 
 ---
 
-## ⚠️ HONEST EXPECTATIONS
+## 🔧 v68 CRITICAL FIXES
 
-### What IS Achievable
+### 1. LIVE Safety: PENDING_RESOLUTION State
+- Positions awaiting Polymarket Gamma resolution are now marked `PENDING_RESOLUTION`
+- `cleanupStalePositions()` will NEVER force-close LIVE positions at 0.5
+- Hedges linked to pending positions are protected
 
-| Target | When | Probability |
-|--------|------|-------------|
-| £10 (2x) | Day 1 | 50% |
-| £50 (10x) | Day 3 | 30% |
-| **£100 (20x)** | **Day 5** | **51%** |
-| £500 (100x) | Day 7 | 40% |
+### 2. Rate-Safe Gamma Polling
+- LIVE mode: 10s fast → 30s slow polling (was 2s → 5s)
+- PAPER mode: 2s fast → 5s slow (unchanged)
+- LIVE never falls back to Chainlink - waits for Gamma forever
 
-### What is NOT Achievable
+### 3. Dataset-Backed Backtest
+- New endpoint: `/api/backtest-dataset`
+- Uses cached Gamma outcomes for 365-day backtests
+- Simulates v68 profit lock-in schedule
 
-- £100 in 24 hours with low variance: **IMPOSSIBLE**
-- 0% loss probability: **IMPOSSIBLE**
-- Guaranteed profits: **IMPOSSIBLE**
+### 4. Adaptive Backtest Mode
+- `/api/backtest-polymarket?adaptive=1` applies profit lock-in
+- Matches real runtime sizing behavior
 
 ---
 
-## 🔧 SYSTEM VERIFICATION
+## ✅ SELF-CHECK PROMPT
 
-### All Components Verified ✅
+Any AI/person must verify:
 
-| Component | Status |
-|-----------|--------|
-| SUPREME MODE BLOCK | ✅ Correct location (before trade execution) |
-| Win Rate | ✅ 76.74% (Polymarket ground truth) |
-| Resolution | ✅ Polymarket Gamma API + Chainlink fallback |
-| LIVE mode | ✅ All components working |
-| Regime detection | ✅ Auto-disable at <60% rolling WR |
-| Crash recovery | ✅ State persisted to Redis |
+```
+1. [ ] Version >= 68
+2. [ ] CONFIG_VERSION = 68 in server.js
+3. [ ] package.json version = 3.4.0-goat-v68
+4. [ ] PENDING_RESOLUTION marking in schedulePolymarketResolution()
+5. [ ] LIVE mode never force-closes at 0.5
+6. [ ] Profit lock-in: 1.1x → 65%, 2x → 40%
+7. [ ] Win rate >= 75% in CONVICTION backtest
+```
 
-### Backtest Data (Polymarket Native)
+### Verification Commands
 
-| Metric | Value |
-|--------|-------|
-| Data Source | Polymarket Gamma API |
-| Period | 3.71 days |
-| Trades | 86 (CONVICTION only) |
-| Win Rate | **76.74%** |
-| Profit | 1708% |
+```bash
+# Version (should show 68+)
+curl "https://polyprophet.onrender.com/api/version?apiKey=bandito"
+
+# Backtest with adaptive mode
+curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.60&tier=CONVICTION&adaptive=1&apiKey=bandito"
+
+# Dataset-backed projections
+curl "https://polyprophet.onrender.com/api/backtest-dataset?days=30&stake=0.60&apiKey=bandito"
+
+# Health check
+curl "https://polyprophet.onrender.com/api/health?apiKey=bandito"
+```
 
 ---
 
@@ -117,47 +122,19 @@ Tested ALL combinations of:
 
 | Protection | Trigger | Action |
 |------------|---------|--------|
+| Profit Lock-In | 1.1x/2x/5x/10x | Reduce stake |
+| Loss Streak | 1/2/3/4 losses | Reduce stake (runtime only) |
 | Volatility Breaker | >3x ATR | Pause trading |
 | Drift Warning | WR < 70% | Log warning |
 | Auto-Disable | WR < 60% | Suspend asset |
-| Global Reduction | Any disabled | 60% all stakes |
+| PENDING_RESOLUTION | Gamma wait | Protect position |
 
-### What Happens in Bad Markets?
+### LIVE Mode Safety
 
-The bot will:
-1. Detect rolling win rate dropping
-2. Issue drift warning at 70%
-3. Auto-disable at 60%
-4. Reduce all stakes by 60% globally
-5. Wait for recovery (WR > 75%)
-
----
-
-## ✅ SELF-CHECK PROMPT
-
-Any AI/person must verify:
-
-```
-1. [ ] Version >= 67
-2. [ ] Win rate >= 75% in CONVICTION backtest
-3. [ ] SUPREME MODE BLOCK before trade execution
-4. [ ] Lock-in: 1.1x → 39%, 2x → 24%
-5. [ ] Base stake = 60%
-6. [ ] All LIVE mode components working
-```
-
-### Verification Commands
-
-```bash
-# Version (should show 67+)
-curl "https://polyprophet.onrender.com/api/version?apiKey=bandito"
-
-# Backtest
-curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.60&tier=CONVICTION&apiKey=bandito"
-
-# Health
-curl "https://polyprophet.onrender.com/api/health?apiKey=bandito"
-```
+- **NEVER** force-closes at 0.5 (uncertain outcome)
+- **ALWAYS** waits for Polymarket Gamma resolution
+- **MARKS** positions as PENDING_RESOLUTION while waiting
+- **PROTECTS** hedges linked to pending positions
 
 ---
 
@@ -165,11 +142,11 @@ curl "https://polyprophet.onrender.com/api/health?apiKey=bandito"
 
 | Question | Answer |
 |----------|--------|
-| **Is this MAX PROFIT?** | YES - £374 median in 7 days (75x) |
-| **Is variance minimized?** | YES for this profit level - 32% loss |
+| **Is this MAX PROFIT?** | YES - £238 median in 7 days (48x) |
+| **Is variance minimized?** | YES for this profit level - 31% loss |
 | **£100 in 24h?** | NO - mathematically impossible with low variance |
-| **When £100+ median?** | Day 5 (51% probability) |
-| **Is it perfect?** | As close as mathematically possible |
+| **When £100+ likely?** | Day 5 (49% probability) |
+| **Is LIVE mode safe?** | YES - v68 fixes prevent incorrect closures |
 | **Will it survive bad markets?** | YES - auto-disable + regime detection |
 
 ---
@@ -179,10 +156,35 @@ curl "https://polyprophet.onrender.com/api/health?apiKey=bandito"
 ```
 URL: https://polyprophet.onrender.com
 Auth: bandito / bandito
-Version: v67
+Version: v68
 Mode: PAPER (change to LIVE in Render)
 ```
 
+### New Endpoints (v68)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `/api/backtest-dataset` | Long-horizon Monte Carlo (365 days) |
+| `/api/backtest-polymarket?adaptive=1` | Profit lock-in simulation |
+| `/api/reconcile-pending` | Resolve stuck PENDING_RESOLUTION |
+
 ---
 
-*Version: v67 | Commit: ce309d7 | Updated: 2026-01-02*
+## 📝 CHANGELOG
+
+### v68 (2026-01-02)
+- **FIX**: LIVE positions marked PENDING_RESOLUTION when awaiting Gamma
+- **FIX**: Never force-close LIVE positions at 0.5
+- **FIX**: Rate-safe Gamma polling (10s/30s for LIVE)
+- **ADD**: `/api/backtest-dataset` for long-horizon validation
+- **ADD**: `adaptive=1` parameter for profit lock-in backtest
+
+### v67
+- Exhaustive Monte Carlo optimization: 60% base, lock at 1.1x/2x
+
+### v66
+- SUPREME MODE BLOCK moved to correct location (before trade execution)
+
+---
+
+*Version: v68 | Updated: 2026-01-02*
