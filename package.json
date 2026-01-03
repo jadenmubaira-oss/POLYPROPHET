@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.0.0-golden-kelly-v74",
-    "description": "POLYPROPHET v74 GOLDEN KELLY - Half-Kelly sizing for optimal risk-adjusted returns",
+    "version": "4.1.0-low-drawdown-v75",
+    "description": "POLYPROPHET v75 LOW-DRAWDOWN - Risk envelope + fixed global stop + BTC/ETH focus",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

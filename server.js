@@ -3131,10 +3131,12 @@ app.get('/api/halts', (req, res) => {
     const cb = tradeExecutor.circuitBreaker || {};
     const inCooldown = tradeExecutor.isInCooldown();
     const cooldownRemaining = inCooldown ? Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - tradeExecutor.lastLossTime)) / 1000) : 0;
-    const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > tradeExecutor.paperBalance * CONFIG.RISK.globalStopLoss;
     
-    const now = Date.now();
+    // 🏆 v75 FIX: Use dayStartBalance (not current balance) for stable global stop threshold
     const dayStart = cb.dayStartBalance || tradeExecutor.paperBalance;
+    const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > dayStart * CONFIG.RISK.globalStopLoss;
+
+    const now = Date.now();
     const currentBalance = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || tradeExecutor.paperBalance);
     const drawdownPct = dayStart > 0 ? ((dayStart - currentBalance) / dayStart) : 0;
     
@@ -4486,7 +4488,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 74;  // v74: GOLDEN KELLY - Half-Kelly sizing for optimal risk-adjusted returns
+const CONFIG_VERSION = 75;  // v75: LOW-DRAWDOWN SWEET SPOT - Fixed global stop baseline, risk envelope, asset filtering
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4702,7 +4704,15 @@ const CONFIG = {
         kellyEnabled: true,               // Enable Kelly-based position sizing
         kellyFraction: 0.50,              // k=0.5 (half-Kelly) - balance growth vs variance
         kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
-        kellyMaxFraction: 0.35            // Never exceed this fraction regardless of Kelly calculation
+        kellyMaxFraction: 0.35,           // Never exceed this fraction regardless of Kelly calculation
+        
+        // 🏆 v75 RISK ENVELOPE: Hard caps on per-trade risk to prevent heavy drawdowns
+        // This ensures NO SINGLE TRADE can violate the remaining loss budget
+        riskEnvelopeEnabled: true,        // Enable risk envelope sizing
+        intradayLossBudgetPct: 0.35,      // Max % of dayStartBalance that can be lost in a day (matches globalStopLoss)
+        trailingDrawdownPct: 0.15,        // Max % drawdown from peak balance before size reduction
+        perTradeLossCap: 0.10,            // Max % of remaining budget a single trade can risk
+        minOrderRiskOverride: true        // If true, allow $1.10 min order even if it exceeds risk envelope (micro-bankroll)
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -4712,11 +4722,23 @@ const CONFIG = {
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
     },
 
-    // PER-ASSET TRADING CONTROLS (BTC/ETH/XRP only)
+    // 🏆 v75 ASSET UNIVERSE POLICY: Default BTC+ETH only (higher accuracy in debug data)
+    // XRP: 59.5% accuracy vs BTC: 79%, ETH: 77.3% - disabled by default for low-drawdown goals
+    // Can be auto-enabled if rolling win rate proves itself (see assetAutoEnable rules below)
     ASSET_CONTROLS: {
         BTC: { enabled: true, maxTradesPerCycle: 1 },
-        ETH: { enabled: true, maxTradesPerCycle: 1 },   // 100% WR in backtest!
-        XRP: { enabled: true, maxTradesPerCycle: 1 }
+        ETH: { enabled: true, maxTradesPerCycle: 1 },
+        XRP: { enabled: false, maxTradesPerCycle: 1 }   // 🏆 v75: Disabled by default (low accuracy 59.5%)
+    },
+    
+    // 🏆 v75 ASSET AUTO-ENABLE: Guarded rules for enabling XRP/SOL based on proven performance
+    ASSET_AUTO_ENABLE: {
+        enabled: true,                      // Enable automatic asset qualification
+        minRollingSamples: 20,              // Minimum samples before auto-enable is considered
+        minRollingWinRate: 0.65,            // Must have >=65% rolling win rate to auto-enable
+        minRollingEV: 0.05,                 // Must have >=5% expected value per trade
+        checkIntervalTrades: 5,             // Re-check after every N trades
+        disableOnDrift: true                // Auto-disable if win rate drops below threshold
     }
 };
 
@@ -4907,7 +4929,10 @@ class TradeExecutor {
             
             // Daily tracking
             dayStartBalance: null,           // Set at start of day or first trade
-            dayStartTime: null               // When the trading day started
+            dayStartTime: null,              // When the trading day started
+            
+            // 🏆 v75: Peak balance tracking for trailing drawdown
+            peakBalance: null                // Highest balance reached (for trailing DD calculation)
         };
         
         // 🚀 v61.1 MAX PROFIT: Less aggressive loss reduction for more opportunity
@@ -5154,6 +5179,105 @@ class TradeExecutor {
         return dayStart * this.streakSizing.maxLossBudgetPct;
     }
     
+    // 🏆 v75 RISK ENVELOPE: Get remaining risk budget based on intraday + trailing drawdown
+    getRiskEnvelopeBudget() {
+        if (!CONFIG.RISK.riskEnvelopeEnabled) {
+            return { maxTradeSize: Infinity, reason: 'Risk envelope disabled' };
+        }
+        
+        const currentBalance = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || this.paperBalance);
+        const dayStart = this.circuitBreaker.dayStartBalance || currentBalance;
+        
+        // Update peak balance tracking
+        if (!this.circuitBreaker.peakBalance || currentBalance > this.circuitBreaker.peakBalance) {
+            this.circuitBreaker.peakBalance = currentBalance;
+        }
+        const peakBalance = this.circuitBreaker.peakBalance;
+        
+        // Calculate remaining intraday loss budget
+        // How much more can we lose today before hitting the daily stop?
+        const intradayBudgetPct = CONFIG.RISK.intradayLossBudgetPct || 0.35;
+        const maxIntradayLoss = dayStart * intradayBudgetPct;
+        const usedIntradayLoss = Math.max(0, dayStart - currentBalance);
+        const remainingIntradayBudget = Math.max(0, maxIntradayLoss - usedIntradayLoss);
+        
+        // Calculate trailing drawdown budget
+        // How much can we lose from peak before hitting trailing DD limit?
+        const trailingDDPct = CONFIG.RISK.trailingDrawdownPct || 0.15;
+        const maxTrailingDD = peakBalance * trailingDDPct;
+        const usedTrailingDD = Math.max(0, peakBalance - currentBalance);
+        const remainingTrailingBudget = Math.max(0, maxTrailingDD - usedTrailingDD);
+        
+        // The effective remaining budget is the SMALLER of the two
+        const effectiveBudget = Math.min(remainingIntradayBudget, remainingTrailingBudget);
+        
+        // Per-trade cap: no single trade should risk more than X% of remaining budget
+        const perTradeCap = CONFIG.RISK.perTradeLossCap || 0.10;
+        const maxTradeSize = effectiveBudget * perTradeCap;
+        
+        const reason = remainingTrailingBudget < remainingIntradayBudget
+            ? `Trailing DD (${(trailingDDPct * 100).toFixed(0)}% from peak $${peakBalance.toFixed(2)})`
+            : `Intraday budget (${(intradayBudgetPct * 100).toFixed(0)}% of dayStart $${dayStart.toFixed(2)})`;
+        
+        return {
+            maxTradeSize,
+            effectiveBudget,
+            remainingIntradayBudget,
+            remainingTrailingBudget,
+            dayStart,
+            peakBalance,
+            currentBalance,
+            reason
+        };
+    }
+    
+    // 🏆 v75: Apply risk envelope to proposed trade size
+    applyRiskEnvelope(proposedSize, bankroll) {
+        const envelope = this.getRiskEnvelopeBudget();
+        
+        if (envelope.maxTradeSize === Infinity) {
+            return { size: proposedSize, capped: false, envelope };
+        }
+        
+        const MIN_ORDER = 1.10; // Polymarket minimum
+        
+        // If proposed size exceeds envelope, cap it
+        if (proposedSize > envelope.maxTradeSize) {
+            // Special case: micro-bankroll where MIN_ORDER exceeds envelope
+            if (envelope.maxTradeSize < MIN_ORDER) {
+                if (CONFIG.RISK.minOrderRiskOverride && bankroll >= MIN_ORDER * 1.5) {
+                    // Allow minimum order but log the risk override
+                    log(`⚠️ RISK ENVELOPE OVERRIDE: Budget $${envelope.maxTradeSize.toFixed(2)} < MIN_ORDER $${MIN_ORDER}. Allowing minimum (${envelope.reason})`);
+                    return { 
+                        size: MIN_ORDER, 
+                        capped: true, 
+                        riskOverride: true,
+                        envelope,
+                        reason: `MIN_ORDER override (budget $${envelope.maxTradeSize.toFixed(2)})`
+                    };
+                } else {
+                    // Block trade entirely - budget exhausted
+                    return { 
+                        size: 0, 
+                        blocked: true, 
+                        envelope,
+                        reason: `Risk budget exhausted: $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason})`
+                    };
+                }
+            }
+            
+            log(`🛡️ RISK ENVELOPE: $${proposedSize.toFixed(2)} → $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason})`);
+            return { 
+                size: envelope.maxTradeSize, 
+                capped: true, 
+                envelope,
+                reason: envelope.reason
+            };
+        }
+        
+        return { size: proposedSize, capped: false, envelope };
+    }
+    
     // 🏆 v62 ADAPTIVE GOAT: Apply all variance controls with PROFIT PROTECTION
     applyVarianceControls(proposedSize, tradeType = 'NORMAL') {
         const cbResult = this.isCircuitBreakerAllowed(tradeType);
@@ -5340,8 +5464,50 @@ class TradeExecutor {
     }
 
     // 🔒 Check if asset trading is enabled
+    // 🏆 v75: Enhanced with auto-enable logic for guarded XRP/SOL enablement
     isAssetEnabled(asset) {
-        return CONFIG.ASSET_CONTROLS?.[asset]?.enabled !== false;
+        // First check manual override
+        const manualEnabled = CONFIG.ASSET_CONTROLS?.[asset]?.enabled;
+        if (manualEnabled === true) return true;
+        if (manualEnabled === false && !CONFIG.ASSET_AUTO_ENABLE?.enabled) return false;
+        
+        // 🏆 v75 AUTO-ENABLE: Check if asset has proven itself via rolling performance
+        if (CONFIG.ASSET_AUTO_ENABLE?.enabled && typeof Brains !== 'undefined' && Brains[asset]) {
+            const brain = Brains[asset];
+            const rolling = brain.rollingConviction || [];
+            
+            // Need minimum samples
+            if (rolling.length < (CONFIG.ASSET_AUTO_ENABLE.minRollingSamples || 20)) {
+                return manualEnabled !== false; // Fall back to manual setting if not enough data
+            }
+            
+            // Calculate rolling win rate
+            const wins = rolling.filter(r => r.outcome === 'WIN').length;
+            const winRate = wins / rolling.length;
+            
+            // Calculate rolling EV (approximate from win rate and typical payout)
+            // Assuming ~50¢ average entry (2x payout on win)
+            const avgPayout = 0.8; // 80% profit on ~55¢ entry
+            const avgLoss = 1.0;   // 100% loss on wrong bet
+            const ev = (winRate * avgPayout) - ((1 - winRate) * avgLoss);
+            
+            const meetsWinRate = winRate >= (CONFIG.ASSET_AUTO_ENABLE.minRollingWinRate || 0.65);
+            const meetsEV = ev >= (CONFIG.ASSET_AUTO_ENABLE.minRollingEV || 0.05);
+            
+            if (meetsWinRate && meetsEV) {
+                // Asset has proven itself - auto-enable
+                log(`🟢 ASSET AUTO-ENABLE: ${asset} qualified (WR: ${(winRate * 100).toFixed(1)}%, EV: ${(ev * 100).toFixed(1)}%)`);
+                return true;
+            }
+            
+            // Check if we should auto-disable a previously enabled asset
+            if (CONFIG.ASSET_AUTO_ENABLE.disableOnDrift && brain.autoEnabled && !meetsWinRate) {
+                log(`🔴 ASSET AUTO-DISABLE: ${asset} lost qualification (WR: ${(winRate * 100).toFixed(1)}% < ${(CONFIG.ASSET_AUTO_ENABLE.minRollingWinRate * 100).toFixed(0)}%)`);
+                brain.autoEnabled = false;
+            }
+        }
+        
+        return manualEnabled !== false;
     }
 
     // 📊 Get max trades per cycle for an asset
@@ -6090,11 +6256,15 @@ class TradeExecutor {
             // 🔄 DAILY P/L RESET: Check if new day and reset if needed
             this.resetDailyPnL();
 
+            // 🏆 v75: Initialize day tracking to get stable dayStartBalance
+            const dayStartBalance = this.initDayTracking();
+
             // 🛑 GLOBAL STOP LOSS: Halt trading if day loss exceeds threshold
+            // 🏆 v75 FIX: Use dayStartBalance (not current bankroll) for stable threshold
             // Can be bypassed with CONFIG.RISK.globalStopLossOverride = true
-            const maxDayLoss = bankroll * CONFIG.RISK.globalStopLoss;
+            const maxDayLoss = dayStartBalance * CONFIG.RISK.globalStopLoss;
             if (!CONFIG.RISK.globalStopLossOverride && this.todayPnL < -maxDayLoss) {
-                log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of bankroll`, asset);
+                log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of day-start balance ($${dayStartBalance.toFixed(2)})`, asset);
                 log(`   To override: Set RISK.globalStopLossOverride = true in Settings`, asset);
                 return { success: false, error: `Global stop loss triggered - trading halted for the day. Override available in Settings.` };
             }
@@ -6230,6 +6400,19 @@ class TradeExecutor {
                 if (varianceResult.size < size) {
                     log(`🔌 VARIANCE SIZING: $${size.toFixed(2)} → $${varianceResult.size.toFixed(2)} (${varianceResult.adjustments})`, asset);
                     size = varianceResult.size;
+                }
+                
+                // 🏆 v75 RISK ENVELOPE: Apply hard caps based on remaining intraday + trailing drawdown budget
+                const envelopeResult = this.applyRiskEnvelope(size, bankroll);
+                if (envelopeResult.blocked) {
+                    log(`🛡️ TRADE BLOCKED by risk envelope: ${envelopeResult.reason}`, asset);
+                    return { success: false, error: envelopeResult.reason };
+                }
+                if (envelopeResult.capped) {
+                    size = envelopeResult.size;
+                    if (envelopeResult.riskOverride) {
+                        log(`⚠️ RISK ENVELOPE OVERRIDE: Micro-bankroll MIN_ORDER allowed despite budget`, asset);
+                    }
                 }
 
                 // SMART MINIMUM: Ensure we meet $1.10 minimum

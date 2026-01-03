@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # 🏆 v74 GOLDEN KELLY - Half-Kelly sizing for optimal risk-adjusted returns
+    # 🏆 v75 LOW-DRAWDOWN - Risk envelope + fixed global stop + BTC/ETH focus
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
