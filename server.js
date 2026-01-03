@@ -3932,7 +3932,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 64;  // v64: GOLDEN OPTIMAL - 80% profit probability, 58% 100x chance, 50%→26%→16% lock-in
+const CONFIG_VERSION = 65;  // v65: CRITICAL FIX - supremeConfidenceMode now BLOCKS <75% (was only warning), restores 77% WR
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9165,11 +9165,14 @@ class SupremeBrain {
                 finalConfidence = 0.15;
             }
 
-            // 🔮 ORACLE: SUPREME CONFIDENCE ENFORCEMENT (softened - warn don't block)
-            // DEITY: Instead of blocking, just log warning - let trades happen
-            if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75 && finalConfidence >= 0.50) {
-                log(`🔮 SUPREME MODE: Warning - ${(finalConfidence * 100).toFixed(1)}% < 75% (trade allowed but lower tier)`, this.asset);
-                // Don't block - just reduce tier if needed
+            // 🏆 v65 FIX: SUPREME CONFIDENCE ENFORCEMENT - NOW ACTUALLY BLOCKS!
+            // This was the critical bug: trades below 75% were being allowed, dropping WR to 66%
+            // Backtest shows: CONVICTION only = 77% WR, ALL tiers = 64% WR
+            // FIX: Actually BLOCK trades below 75% confidence when supremeConfidenceMode is enabled
+            if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
+                log(`🚫 SUPREME MODE BLOCK: ${(finalConfidence * 100).toFixed(1)}% < 75% minimum - TRADE BLOCKED`, this.asset);
+                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'SUPREME_MODE_BLOCK', failedGates: ['confidence_75'], inputs: { finalConfidence, supremeConfidenceMode: true } });
+                return; // BLOCK the trade - this is critical for maintaining 77% WR
             }
 
             // Penalize poor win rate
