@@ -1,0 +1,32 @@
+{
+  "capturedAt": "2026-01-03T15:05:00Z",
+  "version": {
+    "configVersion": 69,
+    "gitCommit": "63290fc3027a988502ca30d9ffd9c6d41dc8920c"
+  },
+  "health": {
+    "status": "ok",
+    "tradingHalted": false,
+    "uptime": 596,
+    "circuitBreaker": "NORMAL",
+    "pendingSettlements": 0
+  },
+  "assets": {
+    "BTC": {"prediction": "DOWN", "tier": "NONE", "tradingHalted": false, "criticalErrors": 0},
+    "ETH": {"prediction": "DOWN", "tier": "CONVICTION", "tradingHalted": false, "criticalErrors": 0, "locked": true},
+    "XRP": {"prediction": "DOWN", "tier": "CONVICTION", "tradingHalted": false, "criticalErrors": 0, "recentAccuracy": "90%"}
+  },
+  "fronttestChecks": {
+    "noCrashRecovered": "MONITORING - no new trades yet under v69",
+    "noTradingHalts": "PASS - tradingHalted=false for all",
+    "noCriticalErrors": "PASS - criticalErrors=0 for all",
+    "circuitBreakerNormal": "PASS",
+    "pendingResolutionsBounded": "PASS - count=0"
+  },
+  "note": "v69 deployed and running. Continue monitoring for 24-72h to confirm no CRASH_RECOVERED trades occur.",
+  "userActionRequired": [
+    "Update Render dashboard: MAX_POSITION_SIZE=0.30, PAPER_BALANCE=5",
+    "Monitor /api/health every few hours for tradingHalted",
+    "Check tradeHistory after 24h for any CRASH_RECOVERED entries"
+  ]
+}

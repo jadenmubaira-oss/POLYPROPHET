@@ -94,7 +94,8 @@ return 1.0;
 ### C4. Config Drift Note ⚠️
 - **Code default**: MAX_POSITION_SIZE = 0.60 (60%)
 - **Render.yaml**: MAX_POSITION_SIZE = 0.35 (35%)
-- **Render env takes precedence** - verify deployed value matches intentions
+- **Optimal (proven)**: MAX_POSITION_SIZE = 0.30 (30%)
+- **Render env takes precedence** — **USER ACTION REQUIRED**: Set to 0.30 in Render dashboard
 
 ---
 
@@ -201,32 +202,42 @@ All v68 issues remain fixed, plus:
 
 | Metric | Value | Source |
 |--------|-------|--------|
-| Backtest Win Rate | **78.43%** | 102 trades over 96h (4 days) |
-| Sweet Spot Stake | **30%** | Profit/DD ratio = **149.9** |
-| Conservative Stake | 25% | Max drawdown 48.88% |
-| 4-Day Profit (25%) | **£313 from £5** | 6156% return |
-| 4-Day Profit (30%) | **£446 from £5** | 8817% return |
-| 4-Day Profit (35%) | **£502 from £5** | 9939% return |
-| **£100 Reached** | **Day 1** | ~12h with 30% stake (empirical) |
+| Backtest Win Rate | **77-81%** | 47-105 trades across windows |
+| Sweet Spot Stake | **30%** | Best profit/DD ratio |
+| Conservative Stake | 25% | Max drawdown ~49% |
+| 4-Day Profit (30%) | **£381 from £5** | 72h backtest |
+| 7-Day Profit (30%) | **£472 from £5** | 168h backtest |
+
+### Block-Bootstrap Projections (1000 simulations):
+
+| Horizon | P10 (Worst) | P50 (Median) | P90 (Best) | £100+ Prob | Drop <£3 |
+|---------|-------------|--------------|------------|------------|----------|
+| 24h     | £5.93       | £18.60       | £60.62     | **2%**     | 19%      |
+| 48h     | £12.83      | £69.88       | £358.70    | **41%**    | 19%      |
+| 72h     | £34.57      | £289.47      | £2184.85   | **73%**    | 17%      |
+| 7d      | £140.96     | £1609.67     | £17860     | **93%**    | 19%      |
 
 ### Critical Discovery (2026-01-03):
 
-- **CONVICTION tier only** = 78.43% WR → £446 profit
-- **ALL tiers** = 62.69% WR → **£0.08 (98% LOSS)**
+- **CONVICTION tier only** = 77-81% WR → £381+ profit
+- **ALL tiers** = 67% WR → **£3.55 (29% LOSS, 98% DD)**
+- **maxTradesPerCycle=1** = £381 vs £87 with 2/cycle
 - **Quality over quantity** is THE key to success
 
-### Fronttest Finding:
+### Fronttest Finding (v69):
 
-- **Deployed v68 has 4/6 CRASH_RECOVERED trades** due to pWinEff + circuit breaker bugs
-- **v69 code fixes all identified issues** — ready to deploy
-- **ACTION REQUIRED**: Deploy v69, reset balance to £5, set stake to 0.30
+- **v69 DEPLOYED** (2026-01-03, commit 63290fc)
+- tradingHalted = false for all assets
+- criticalErrors = 0 for all assets
+- No new CRASH_RECOVERED trades under v69 yet
 
 ### Known Limitations:
 
 1. Max drawdown ~59% — balance can drop significantly during streaks
-2. LIVE mode minimally tested - start with small amounts
-3. Polymarket Gamma dependency for resolution
-4. **v68 deployed with bugs** — v69 deployment required
+2. **~19% risk of dropping below £3** — floor is not guaranteed
+3. **£100 in 24h is only 2% likely** — 48-72h is realistic (41-73%)
+4. LIVE mode minimally tested - start with small amounts
+5. Polymarket Gamma dependency for resolution
 
 ### ⭐ RECOMMENDED CONFIG (SWEET SPOT):
 
@@ -239,8 +250,18 @@ SELECTION = HIGHEST_CONF
 RESPECT_EV_GATE = true
 ```
 
-**Expected Result**: £5 → £100+ in 24-48h, £446+ in 4 days
+### REQUIRED RENDER DASHBOARD CHANGES:
+```
+MAX_POSITION_SIZE = 0.30  (currently 0.60)
+PAPER_BALANCE = 5         (currently 10)
+REDIS_URL = <your-redis>  (optional, for state persistence)
+```
+
+**Realistic Expectation**: 
+- £100+ in 24h: **2% probability** (lucky variance needed)
+- £100+ in 48h: **41% probability** (achievable with some luck)
+- £100+ in 72h: **73% probability** (strong odds)
 
 ---
 
-*Checklist for v69 | Updated 2026-01-03 | Verified with Polymarket-native empirical replay*
+*Checklist for v69 | Updated 2026-01-03 | Verified with Polymarket-native backtest + block-bootstrap projections*

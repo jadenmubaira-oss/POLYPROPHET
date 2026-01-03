@@ -4,19 +4,29 @@
 
 ---
 
-## 🚨 EMPIRICAL TRUTH: £100 in 24-48 Hours IS ACHIEVABLE
+## 🚨 EMPIRICAL TRUTH: Realistic Expectations
 
 ### Polymarket-Native Backtest Results (2026-01-03)
 
 | Stake | Final (4 days) | Profit % | Max DD | £100 Reached? |
 |-------|----------------|----------|--------|---------------|
-| 20%   | £135           | 2602%    | 38.88% | ✅ Day 2-3     |
-| 25%   | £313           | 6156%    | 48.88% | ✅ Day 1-2     |
-| **30%** | **£446**     | **8817%** | **58.84%** | ✅ **Day 1** |
-| 35%   | £502           | 9939%    | 67.98% | ✅ Day 1       |
+| 25%   | £54-313        | 976-6156% | 36-49% | Possible Day 2-3 |
+| **30%** | **£71-381**  | **1324-7518%** | **43-59%** | **Possible Day 1-2** |
+| 35%   | £88-502        | 1653-9939% | 49-68% | Likely Day 1-2 |
 
-**CONCLUSION**: £100 from £5 is **achievable in 24-48h** with 30% stake and CONVICTION tier.
-Win rate: **78.43%** (102 trades, empirically verified against Polymarket Gamma).
+### Block-Bootstrap Projections (1000 simulations, empirical returns)
+
+| Horizon | P10 (Worst) | P50 (Median) | P90 (Best) | £100+ Prob | Drop <£3 Risk |
+|---------|-------------|--------------|------------|------------|---------------|
+| 24h     | £5.93       | £18.60       | £60.62     | **2%**     | 19%           |
+| 48h     | £12.83      | £69.88       | £358.70    | **41%**    | 19%           |
+| 72h     | £34.57      | £289.47      | £2184.85   | **73%**    | 17%           |
+| 7d      | £140.96     | £1609.67     | £17860     | **93%**    | 19%           |
+
+**HONEST ASSESSMENT**: 
+- £100 in 24h is **unlikely** (2% probability) - requires favorable variance
+- £100 in 48-72h is **realistic** (41-73% probability)
+- Win rate: **77-81%** (47-105 trades across windows, empirically verified)
 
 ### Critical Discovery: CONVICTION Tier is THE Key
 - CONVICTION only: 78.43% WR, £446 profit
@@ -219,31 +229,34 @@ The optimal "sweet spot" is **30% stake** (profit/DD ratio = 149.9).
 | Question | Answer |
 |----------|--------|
 | **Is this MAX PROFIT?** | YES - £502 from £5 in 4 days (9939%) with 35% stake |
-| **Is variance minimized?** | YES with 25% stake - 48.88% max drawdown, £313 final |
-| **Optimal sweet spot?** | **30% stake** (best profit/drawdown ratio = 149.9) |
-| **£100 in 24h?** | **YES** - Balance crossed £110 within 12 hours in backtest |
-| **When £100+ guaranteed?** | Day 1-2 with 30%+ stake (empirically verified) |
+| **Is variance minimized?** | YES with 25% stake - 49% max drawdown |
+| **Optimal sweet spot?** | **30% stake** (best profit/drawdown ratio) |
+| **£100 in 24h?** | **UNLIKELY** (2% probability) - requires favorable variance |
+| **£100 in 48h?** | **REALISTIC** (41% probability) - achievable with some luck |
+| **£100 in 72h?** | **LIKELY** (73% probability) - strong odds |
 | **Is LIVE mode safe?** | YES - wallet check + $1/day cap + no 0.5 force-close |
-| **Will it survive bad markets?** | YES - auto-disable + regime detection + circuit breaker |
+| **Will it survive bad markets?** | Has protections (auto-disable, circuit breaker) - not guaranteed |
 | **Code audit passed?** | YES - v69 fixes pWinEff, circuit breaker, startup bugs |
-| **Backtest verified?** | YES - Polymarket Gamma + CLOB history, **78.43% win rate (102 trades)** |
-| **Fronttest status?** | v68 deployed has CRASH_RECOVERED bugs; **v69 ready to deploy** |
+| **Backtest verified?** | YES - Polymarket Gamma + CLOB history, **77-81% win rate** |
+| **Fronttest status?** | **v69 DEPLOYED** (2026-01-03), no CRASH_RECOVERED under v69 |
 
 ### Key Findings (2026-01-03)
 
-1. **CONVICTION tier only** - This is THE critical success factor (78% vs 63% WR)
-2. **30% stake is optimal** - Best profit/drawdown ratio
-3. **£100 from £5 in 24-48h** - Empirically verified, not gambling
-4. **Monte Carlo was wrong** - Used wrong trade frequency and entry price assumptions
-5. **v68 has bugs** - CRASH_RECOVERED trades; deploy v69 immediately
+1. **CONVICTION tier only** - THE critical success factor (78% vs 67% WR)
+2. **maxTradesPerCycle=1** - Quality over quantity (£381 vs £87 with 2/cycle)
+3. **30% stake is optimal** - Best profit/drawdown ratio
+4. **£100 in 24h is only 2% likely** - 48-72h is more realistic (41-73%)
+5. **~19% risk of dropping below £3** at some point - floor risk exists
+6. **v69 deployed** - Fixes CRASH_RECOVERED bugs from v68
 
 ### Known Limitations (Honesty)
 
 1. **Max drawdown ~59%** - During losing streaks, balance can drop significantly
-2. **LIVE mode untested at scale** - Only paper-validated; start with small amounts
-3. **Polymarket dependency** - If Gamma API fails, resolution waits forever in LIVE
-4. **No guarantees** - Past performance does not predict future results
-5. **Deploy v69 required** - v68 on server has CRASH_RECOVERED bugs
+2. **~19% risk of dropping below £3** - Floor is not guaranteed (block-bootstrap analysis)
+3. **LIVE mode untested at scale** - Only paper-validated; start with small amounts
+4. **Polymarket dependency** - If Gamma API fails, resolution waits forever in LIVE
+5. **No guarantees** - Past performance does not predict future results
+6. **Projections are probabilistic** - 73% chance of £100 in 72h means 27% chance of less
 
 ---
 
@@ -252,8 +265,17 @@ The optimal "sweet spot" is **30% stake** (profit/DD ratio = 149.9).
 ```
 URL: https://polyprophet.onrender.com
 Auth: bandito / bandito
-Version: v69
-Mode: PAPER (change to LIVE in Render)
+Version: v69 (deployed 2026-01-03)
+Mode: PAPER (change to LIVE in Render dashboard)
+Current Config Issue: MAX_POSITION_SIZE=0.60 (should be 0.30)
+Action Required: Update Render dashboard env vars
+```
+
+### Required Render Dashboard Changes
+```
+MAX_POSITION_SIZE=0.30   (currently 0.60)
+PAPER_BALANCE=5          (currently 10) 
+REDIS_URL=<your-redis>   (optional but recommended for state persistence)
 ```
 
 ### New Endpoints (v69)
