@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.1.1-goat-v61-max-profit",
-    "description": "POLYPROPHET GOAT v61.1 - MAX PROFIT ASAP: 30% stake, aggressive compounding, faster recovery",
+    "version": "3.2.0-goat-v65-critical-fix",
+    "description": "POLYPROPHET GOAT v65 - CRITICAL FIX: supremeConfidenceMode now BLOCKS <75% trades, restores 77% WR",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
