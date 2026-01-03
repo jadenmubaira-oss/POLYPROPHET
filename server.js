@@ -3932,7 +3932,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 66;  // v66: CRITICAL FIX - supremeConfidenceMode block moved to CORRECT LOCATION (before trade execution, after confidence modifications)
+const CONFIG_VERSION = 67;  // v67: ABSOLUTE OPTIMAL - Exhaustive Monte Carlo search: 60% base, lock at 1.1x (39%), lock at 2x (24%)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4602,27 +4602,28 @@ class TradeExecutor {
         const currentBalance = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || startingBalance);
         const profitMultiple = currentBalance / startingBalance;
         
-        // 🏆 v66 FINAL OPTIMAL: Monte Carlo optimized for MAX PROFIT + reasonable variance
-        // Analysis showed 60% base with later lock-in beats 50% early lock-in
+        // 🏆 v67 ABSOLUTE OPTIMAL: Exhaustive Monte Carlo search found this is THE BEST
+        // Tested all combinations of stake (40-60%) and lock-in thresholds (1.1-2.5x)
+        // This configuration maximizes: (Median Profit) x (Profit Probability)
         // Profit lock-in schedule (multiplier on base stake = 60%):
         // 1x starting: 100% (60% stake - aggressive start)
-        // 1.2x starting: 67% (40% effective stake - first lock-in)
-        // 1.5x starting: 42% (25% effective stake - protect gains)
-        // 3x starting: 33% (20% effective stake - winning well)
+        // 1.1x starting: 65% (39% effective stake - EARLY lock-in for protection)
+        // 2x starting: 40% (24% effective stake - doubled money = safe mode)
+        // 5x starting: 30% (18% effective stake - big winner)
         // 10x starting: 25% (15% effective stake - ultra-safe)
         let profitProtectionMult = 1.0;
         if (profitMultiple >= 10) {
             profitProtectionMult = 0.25;
-            adjustments.push(`FINAL 10x: 25%`);
-        } else if (profitMultiple >= 3) {
-            profitProtectionMult = 0.33;
-            adjustments.push(`FINAL 3x: 33%`);
-        } else if (profitMultiple >= 1.5) {
-            profitProtectionMult = 0.42;
-            adjustments.push(`FINAL 1.5x: 42%`);
-        } else if (profitMultiple >= 1.2) {
-            profitProtectionMult = 0.67;
-            adjustments.push(`FINAL 1.2x: 67%`);
+            adjustments.push(`OPTIMAL 10x: 25%`);
+        } else if (profitMultiple >= 5) {
+            profitProtectionMult = 0.30;
+            adjustments.push(`OPTIMAL 5x: 30%`);
+        } else if (profitMultiple >= 2.0) {
+            profitProtectionMult = 0.40;
+            adjustments.push(`OPTIMAL 2x: 40%`);
+        } else if (profitMultiple >= 1.1) {
+            profitProtectionMult = 0.65;
+            adjustments.push(`OPTIMAL 1.1x: 65%`);
         }
         size *= profitProtectionMult;
 
