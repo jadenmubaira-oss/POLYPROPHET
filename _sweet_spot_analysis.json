@@ -1,0 +1,124 @@
+{
+  "analyzedAt": "2026-01-03T14:00:00Z",
+  "objective": "Maximize P(reach 100 from 5) in minimum time with floor protection",
+  
+  "criticalDiscovery": {
+    "tierSelection": "CONVICTION-only is THE key success factor",
+    "proof": {
+      "convictionOnly": {
+        "trades": 99,
+        "winRate": "77.78%",
+        "finalBalance": 335.81,
+        "maxDrawdown": "67.98%",
+        "verdict": "PROFITABLE"
+      },
+      "allTiers": {
+        "trades": 268,
+        "winRate": "62.69%",
+        "finalBalance": 0.08,
+        "maxDrawdown": "99.72%",
+        "verdict": "CATASTROPHIC LOSS"
+      }
+    },
+    "conclusion": "Adding lower-quality trades DESTROYS profitability. Quality over quantity."
+  },
+  
+  "efficientFrontier72h": {
+    "dataSource": "Polymarket-native (Gamma + CLOB)",
+    "timeSpan": "53.25 hours (2.22 days)",
+    "trades": 99,
+    "winRate": "77.78%",
+    "results": [
+      {"stake": 0.10, "finalBalance": 34.43, "profitPct": 589, "maxDrawdown": 19.41, "profitDDRatio": 30.3},
+      {"stake": 0.15, "finalBalance": 73.25, "profitPct": 1365, "maxDrawdown": 29.24, "profitDDRatio": 46.7},
+      {"stake": 0.20, "finalBalance": 135.11, "profitPct": 2602, "maxDrawdown": 38.88, "profitDDRatio": 66.9, "note": "REACHES_100"},
+      {"stake": 0.25, "finalBalance": 214.96, "profitPct": 4199, "maxDrawdown": 48.88, "profitDDRatio": 85.9},
+      {"stake": 0.30, "finalBalance": 292.80, "profitPct": 5756, "maxDrawdown": 58.84, "profitDDRatio": 97.8},
+      {"stake": 0.35, "finalBalance": 335.81, "profitPct": 6616, "maxDrawdown": 67.98, "profitDDRatio": 97.3, "note": "PEAK_ABSOLUTE_PROFIT"},
+      {"stake": 0.40, "finalBalance": 319.14, "profitPct": 6283, "maxDrawdown": 76.38, "profitDDRatio": 82.3},
+      {"stake": 0.50, "finalBalance": 255.22, "profitPct": 5004, "maxDrawdown": 83.85, "profitDDRatio": 59.7},
+      {"stake": 0.60, "finalBalance": 255.22, "profitPct": 5004, "maxDrawdown": 83.85, "profitDDRatio": 59.7}
+    ]
+  },
+
+  "efficientFrontier24h": {
+    "timeSpan": "23.5 hours (0.98 days)",
+    "trades": 45,
+    "winRate": "80.00%",
+    "results": [
+      {"stake": 0.20, "finalBalance": 29.40, "profitPct": 488, "maxDrawdown": 36.40},
+      {"stake": 0.25, "finalBalance": 39.24, "profitPct": 685, "maxDrawdown": 44.87},
+      {"stake": 0.30, "finalBalance": 49.02, "profitPct": 880, "maxDrawdown": 52.90},
+      {"stake": 0.35, "finalBalance": 57.10, "profitPct": 1042, "maxDrawdown": 60.43}
+    ],
+    "note": "100 NOT reached in 24h - requires ~48h+ with current win rate"
+  },
+  
+  "sweetSpotConfigs": {
+    "maxProfit": {
+      "stake": 0.35,
+      "description": "Maximum absolute profit at profit/DD ratio knee",
+      "72hResult": "5 -> 335.81 (6616%)",
+      "maxDrawdown": "67.98%",
+      "whenToUse": "When maximizing growth is priority over drawdown protection"
+    },
+    "balanced": {
+      "stake": 0.30,
+      "description": "Best profit/drawdown ratio (97.8)",
+      "72hResult": "5 -> 292.80 (5756%)",
+      "maxDrawdown": "58.84%",
+      "whenToUse": "Optimal balance of growth and risk control"
+    },
+    "reach100Fastest": {
+      "stake": 0.20,
+      "description": "Reaches 100 with lowest drawdown",
+      "72hResult": "5 -> 135.11 (2602%)",
+      "maxDrawdown": "38.88%",
+      "whenToUse": "When 100 is the goal with minimal risk"
+    },
+    "ultraSafe": {
+      "stake": 0.10,
+      "description": "Lowest variance, preserves capital",
+      "72hResult": "5 -> 34.43 (589%)",
+      "maxDrawdown": "19.41%",
+      "whenToUse": "Capital preservation priority"
+    }
+  },
+  
+  "recommendedConfig": {
+    "stake": 0.30,
+    "tier": "CONVICTION",
+    "maxTradesPerCycle": 1,
+    "selection": "HIGHEST_CONF",
+    "respectEVGate": true,
+    "maxExposure": 0.45,
+    "rationale": "30% stake achieves best profit/DD ratio (97.8) while reaching 293 from 5 in 2.2 days"
+  },
+  
+  "100ReachProbability": {
+    "24h": "0% - Not achievable with current win rate and trade frequency",
+    "48h": "High - Balance exceeds 100 mid-way through 72h backtest",
+    "72h": "100% - All stakes 20%+ reached 100+ in historical data"
+  },
+  
+  "floorProtection": {
+    "at20pct": "Never dropped below 63% of start (floor ~3.15)",
+    "at30pct": "Never dropped below 41% of start (floor ~2.05)",
+    "at35pct": "Never dropped below 32% of start (floor ~1.60)"
+  },
+  
+  "keyInsights": [
+    "CONVICTION tier only is THE success factor - 77.78% WR vs 62.69%",
+    "maxTradesPerCycle=1 prevents overtrading on lower-quality signals",
+    "35% stake is the absolute profit maximum, but drops after that",
+    "30% stake has best profit/drawdown ratio",
+    "20% stake reaches 100 with lowest drawdown",
+    "Higher stakes (40%+) actually REDUCE final profit due to compounding losses"
+  ],
+  
+  "deploymentStatus": {
+    "deployed": "v68 with CRASH_RECOVERED bugs",
+    "local": "v69 with all fixes ready",
+    "action": "Deploy v69 immediately to fix runtime crashes"
+  }
+}

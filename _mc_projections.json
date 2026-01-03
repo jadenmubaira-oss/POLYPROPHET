@@ -1,0 +1,102 @@
+{
+  "generatedAt": "2026-01-03T13:15:00Z",
+  "parameters": {
+    "startingBalance": 5,
+    "stakeFraction": 0.25,
+    "winRateUsed": "77.5%",
+    "simulations": 5000,
+    "adaptiveMode": false,
+    "tradesPerDay": 16,
+    "source": "Polymarket-native dataset (30.7 days)"
+  },
+  "dayByDay": [
+    {
+      "day": 1,
+      "trades": 16,
+      "worstCase": { "p1": 3.66, "p5": 3.72, "p10": 3.75 },
+      "median": { "p50": 4.31 },
+      "bestCase": { "p90": 19.94, "p95": 30.58, "p99": 46.89 },
+      "lossProbability": "54.5%",
+      "target100Probability": "0.0%"
+    },
+    {
+      "day": 2,
+      "trades": 32,
+      "worstCase": { "p1": 3.63, "p5": 3.72, "p10": 3.75 },
+      "median": { "p50": 4.31 },
+      "bestCase": { "p90": 51.85, "p95": 79.52, "p99": 187.01 },
+      "lossProbability": "57.8%",
+      "target100Probability": "4.1%"
+    },
+    {
+      "day": 3,
+      "trades": 48,
+      "worstCase": { "p1": 3.63, "p5": 3.72, "p10": 3.75 },
+      "median": { "p50": 4.31 },
+      "bestCase": { "p90": 134.84, "p95": 206.78, "p99": 491.52 },
+      "lossProbability": "58.4%",
+      "target100Probability": "14.8%"
+    },
+    {
+      "day": 4,
+      "trades": 64,
+      "worstCase": { "p1": 3.61, "p5": 3.72, "p10": 3.75 },
+      "median": { "p50": 4.31 },
+      "bestCase": { "p90": 350.64, "p95": 710.02, "p99": 1009.12 },
+      "lossProbability": "58.7%",
+      "target100Probability": "23.4%"
+    },
+    {
+      "day": 5,
+      "trades": 80,
+      "worstCase": { "p1": 3.61, "p5": 3.72, "p10": 3.75 },
+      "median": { "p50": 4.31 },
+      "bestCase": { "p90": 778.75, "p95": 1084.00, "p99": 1551.21 },
+      "lossProbability": "58.2%",
+      "target100Probability": "33.3%"
+    },
+    {
+      "day": 6,
+      "trades": 96,
+      "worstCase": { "p1": 3.61, "p5": 3.72, "p10": 3.75 },
+      "median": { "p50": 4.31 },
+      "bestCase": { "p90": 1186.84, "p95": 1488.28, "p99": 2085.45 },
+      "lossProbability": "57.5%",
+      "target100Probability": "37.7%"
+    },
+    {
+      "day": 7,
+      "trades": 112,
+      "worstCase": { "p1": 3.58, "p5": 3.72, "p10": 3.75 },
+      "median": { "p50": 4.31 },
+      "bestCase": { "p90": 1582.46, "p95": 1945.80, "p99": 2542.85 },
+      "lossProbability": "58.4%",
+      "target100Probability": "38.1%"
+    }
+  ],
+  "keyInsights": {
+    "bimodalDistribution": "~58% of paths end in loss due to variance, while top 10% achieve massive gains",
+    "day1Target100": "0% probability of reaching £100 from £5 in 24 hours",
+    "day3Target100": "14.8% probability of reaching £100 from £5 in 3 days",
+    "day7Target100": "38.1% probability of reaching £100 from £5 in 7 days",
+    "day7Best10Pct": "Top 10% of paths reach £1582+ by day 7",
+    "worstCaseFloor": "Even in worst 1% of cases, capital never goes below £3.58 (28% max loss)"
+  },
+  "userGoalAnalysis": {
+    "goal": "£100 in 24h from £5 with MIN VARIANCE",
+    "feasibility": "NOT ACHIEVABLE with low variance",
+    "explanation": [
+      "£100 from £5 requires 1900% return in 24h",
+      "With 77.5% win rate and 25% stake, 0% of Monte Carlo paths reach this",
+      "Even top 1% (p99) only reaches £46.89 in day 1",
+      "To achieve £100 in 24h would require ~60% stake AND winning streak",
+      "Higher stake means higher variance (opposite of user's goal)"
+    ],
+    "recommendation": "Accept 3-5 day timeline for £100 target with ~15-25% probability"
+  },
+  "disclaimers": [
+    "Monte Carlo based on historical 77.5% win rate which may not persist",
+    "Actual outcomes depend on market conditions and trade sequencing",
+    "Past backtest performance does not guarantee future results"
+  ]
+}

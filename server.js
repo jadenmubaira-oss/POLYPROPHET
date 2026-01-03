@@ -1075,6 +1075,26 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             maxDrawdown: (r.maxDrawdown * 100).toFixed(2) + '%'
         })) : null;
         
+        // 🏆 v69: Knee analysis - find optimal stake based on profit/drawdown ratio
+        let kneeAnalysis = null;
+        if (scanResults && scanResults.length >= 2) {
+            const analyzed = scanResults.map(r => {
+                const profitNum = parseFloat(r.profitPct);
+                const ddNum = parseFloat(r.maxDrawdown);
+                const ratio = ddNum > 0 ? profitNum / ddNum : 0;
+                return { ...r, profitDDRatio: Number(ratio.toFixed(2)) };
+            });
+            const bestRatioIdx = analyzed.reduce((best, curr, idx) => 
+                curr.profitDDRatio > analyzed[best].profitDDRatio ? idx : best, 0);
+            const conservative = analyzed.find(a => parseFloat(a.maxDrawdown) <= 50) || analyzed[0];
+            kneeAnalysis = {
+                optimalKnee: analyzed[bestRatioIdx],
+                conservative: conservative,
+                all: analyzed,
+                rule: 'maximize(profitPct / maxDrawdown)'
+            };
+        }
+
         const entrySources = {};
         for (const t of primarySim.trades) {
             const k = t.entrySource || 'unknown';
@@ -1173,6 +1193,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     : selectedSlugsSorted.slice(0, 3).concat(selectedSlugsSorted.slice(-3))
             },
             scan: scanResults,
+            kneeAnalysis, // 🏆 v69: Optimal stake selection based on profit/drawdown ratio
             trades: primarySim.trades.slice(-30), // Last 30 for display
             interpretation: {
                 winRateNeededForEV: primarySim.winRateNeededForEV !== null ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
@@ -1358,6 +1379,245 @@ app.get('/api/build-dataset', async (req, res) => {
         });
     } catch (e) {
         res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== 🏆 v69 JOB-BASED DATASET BUILDER ====================
+// Avoids request timeout for large builds (365 days) by running in background
+const datasetJobs = new Map(); // jobId -> { status, progress, ... }
+
+function generateJobId() {
+    return `ds_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
+async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
+    const job = datasetJobs.get(jobId);
+    if (!job) return;
+    
+    try {
+        job.status = 'running';
+        job.startedAt = Date.now();
+        
+        const ASSETS_TO_BUILD = assets;
+        const nowSec = Math.floor(Date.now() / 1000);
+        const startSec = nowSec - (lookbackDays * 86400);
+        
+        // Generate all possible slug epochs (15-min intervals)
+        const allSlugs = [];
+        for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
+            for (const a of ASSETS_TO_BUILD) {
+                allSlugs.push(`${a.toLowerCase()}-updown-15m-${epochSec}`);
+            }
+        }
+        
+        job.totalSlugs = allSlugs.length;
+        job.cached = 0;
+        job.fetched = 0;
+        job.resolved = 0;
+        job.unresolved = 0;
+        job.errors = 0;
+        job.processed = 0;
+        
+        for (const slug of allSlugs) {
+            if (job.status === 'cancelled') break;
+            
+            // Check cache first
+            if (!forceRefresh) {
+                const existing = await getCachedDatasetEntry(slug);
+                if (existing) {
+                    job.cached++;
+                    job.processed++;
+                    continue;
+                }
+            }
+            
+            // Rate limit: 50-100ms between requests
+            await new Promise(r => setTimeout(r, 75));
+            
+            try {
+                const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+                const response = await fetch(url, {
+                    headers: { 'User-Agent': 'polyprophet-dataset-builder/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                
+                if (!response.ok) {
+                    job.errors++;
+                    job.processed++;
+                    continue;
+                }
+                
+                const data = await response.json();
+                const market = Array.isArray(data) ? data[0] : data;
+                if (!market) {
+                    job.unresolved++;
+                    job.processed++;
+                    continue;
+                }
+                
+                const prices = JSON.parse(market.outcomePrices || '[]');
+                const outcomes = JSON.parse(market.outcomes || '[]');
+                const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
+                
+                if (!Array.isArray(prices) || prices.length < 2) {
+                    job.unresolved++;
+                    job.processed++;
+                    continue;
+                }
+                
+                const p0 = Number(prices[0]);
+                const p1 = Number(prices[1]);
+                const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+                
+                if (!idx0Win && !idx1Win) {
+                    job.unresolved++;
+                    job.processed++;
+                    continue;
+                }
+                
+                job.resolved++;
+                job.fetched++;
+                
+                // Determine outcome
+                const o0 = String(outcomes[0] || '').toLowerCase();
+                const o1 = String(outcomes[1] || '').toLowerCase();
+                let outcome = idx0Win ? 'UP' : 'DOWN';
+                if (o0 === 'up' && o1 === 'down') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
+                else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
+                
+                // Extract cycle timing from slug
+                const slugMatch = slug.match(/(btc|eth|xrp)-updown-15m-(\d+)$/);
+                const assetFromSlug = slugMatch ? slugMatch[1].toUpperCase() : null;
+                const cycleStartEpochSec = slugMatch ? parseInt(slugMatch[2]) : null;
+                
+                const entry = {
+                    slug,
+                    asset: assetFromSlug,
+                    cycleStartEpochSec,
+                    cycleEndEpochSec: cycleStartEpochSec ? cycleStartEpochSec + 900 : null,
+                    resolvedOutcome: outcome,
+                    outcomes,
+                    clobTokenIds,
+                    resolutionSource: market.resolutionSource || null,
+                    volume: Number(market.volume || 0),
+                    cachedAt: Date.now()
+                };
+                
+                await setCachedDatasetEntry(slug, entry);
+                job.processed++;
+                
+            } catch (e) {
+                job.errors++;
+                job.processed++;
+            }
+        }
+        
+        job.status = job.status === 'cancelled' ? 'cancelled' : 'completed';
+        job.completedAt = Date.now();
+        job.runtime = ((job.completedAt - job.startedAt) / 1000).toFixed(2) + 's';
+        
+    } catch (e) {
+        job.status = 'failed';
+        job.error = e.message;
+        job.completedAt = Date.now();
+    }
+}
+
+app.post('/api/dataset/build', express.json(), async (req, res) => {
+    try {
+        const lookbackDays = Math.min(parseInt(req.body?.days || req.query.days) || 90, 365);
+        const assetParam = req.body?.asset || req.query.asset;
+        const asset = assetParam ? String(assetParam).toUpperCase() : null;
+        const forceRefresh = req.body?.refresh === true || req.query.refresh === '1';
+        
+        const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP'];
+        
+        const jobId = generateJobId();
+        const job = {
+            id: jobId,
+            status: 'pending',
+            lookbackDays,
+            assets: ASSETS_TO_BUILD,
+            forceRefresh,
+            createdAt: Date.now(),
+            totalSlugs: 0,
+            processed: 0,
+            cached: 0,
+            fetched: 0,
+            resolved: 0,
+            unresolved: 0,
+            errors: 0
+        };
+        
+        datasetJobs.set(jobId, job);
+        
+        // Start job in background (don't await)
+        runDatasetBuildJob(jobId, lookbackDays, ASSETS_TO_BUILD, forceRefresh);
+        
+        res.json({
+            success: true,
+            jobId,
+            message: `Dataset build job started for ${lookbackDays} days (${ASSETS_TO_BUILD.join(', ')})`,
+            statusUrl: `/api/dataset/status?id=${jobId}`
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/dataset/status', async (req, res) => {
+    try {
+        const jobId = req.query.id;
+        
+        if (!jobId) {
+            // Return all active jobs
+            const jobs = Array.from(datasetJobs.values())
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .slice(0, 20);
+            return res.json({ jobs });
+        }
+        
+        const job = datasetJobs.get(jobId);
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found', jobId });
+        }
+        
+        const progress = job.totalSlugs > 0 ? ((job.processed / job.totalSlugs) * 100).toFixed(1) : 0;
+        const eta = job.status === 'running' && job.processed > 0
+            ? Math.round(((Date.now() - job.startedAt) / job.processed) * (job.totalSlugs - job.processed) / 1000)
+            : null;
+        
+        res.json({
+            ...job,
+            progress: progress + '%',
+            etaSeconds: eta,
+            etaFormatted: eta ? `${Math.floor(eta / 60)}m ${eta % 60}s` : null
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/dataset/cancel', express.json(), async (req, res) => {
+    try {
+        const jobId = req.body?.id || req.query.id;
+        const job = datasetJobs.get(jobId);
+        
+        if (!job) {
+            return res.status(404).json({ error: 'Job not found', jobId });
+        }
+        
+        if (job.status === 'running') {
+            job.status = 'cancelled';
+            return res.json({ success: true, message: 'Job cancellation requested' });
+        }
+        
+        res.json({ success: false, message: `Job already ${job.status}` });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
@@ -2638,7 +2898,9 @@ app.get('/api/health', (req, res) => {
     }
     
     // 🎯 v52: Rolling accuracy per asset (drift detection)
+    // 🏆 v69: Include trading halt status
     const rollingAccuracy = {};
+    let anyTradingHalted = false;
     for (const asset of ASSETS) {
         const brain = Brains[asset];
         if (brain && brain.rollingConviction) {
@@ -2648,8 +2910,11 @@ app.get('/api/health', (req, res) => {
                 convictionWR: total > 0 ? ((wins / total) * 100).toFixed(1) + '%' : 'N/A',
                 sampleSize: total,
                 driftWarning: brain.driftWarning || false,
-                autoDisabled: brain.autoDisabled || false
+                autoDisabled: brain.autoDisabled || false,
+                tradingHalted: brain.tradingHalted || false,
+                criticalErrors: brain.criticalErrorCount || 0
             };
+            if (brain.tradingHalted) anyTradingHalted = true;
         }
     }
 
@@ -2657,10 +2922,12 @@ app.get('/api/health', (req, res) => {
     const pendingSettlements = tradeExecutor?.getPendingSettlements?.() || [];
     
     res.json({
-        status: 'ok',
+        status: anyTradingHalted ? 'degraded' : 'ok',
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
         code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+        // 🏆 v69: Trading halt status (critical error protection)
+        tradingHalted: anyTradingHalted,
         watchdog: {
             lastCycleAge: typeof watchdogState !== 'undefined' ? Math.round((now - watchdogState.lastCycleDetected) / 1000) : null,
             lastTradeAge: lastTrade ? Math.round((now - lastTrade) / 1000) : null,
@@ -4129,7 +4396,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 68;  // v68: LIVE SAFETY FIX - Mark positions PENDING_RESOLUTION, protect hedges, never force-close LIVE at 0.5
+const CONFIG_VERSION = 69;  // v69: FIX pWinEff scoping bug + circuit breaker warmup false triggers
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -5454,6 +5721,13 @@ class TradeExecutor {
     // ENTRY: Execute a trade for any mode
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
+
+        // 🏆 v69: LIVE MODE PREREQUISITE CHECK - Wallet MUST be loaded for LIVE trading
+        if (this.mode === 'LIVE' && !this.wallet) {
+            log(`🛑 LIVE PREREQUISITE FAILED: No wallet loaded - cannot execute LIVE trades`, asset);
+            log(`   Fix: Set POLYMARKET_PRIVATE_KEY in environment variables`, asset);
+            return { success: false, error: 'LIVE mode requires wallet - set POLYMARKET_PRIVATE_KEY' };
+        }
 
         // ==================== 🎯 GOLDEN MEAN: EV + LIQUIDITY GUARDS ====================
         // These checks ensure we only trade when Expected Value is positive after fees
@@ -8758,6 +9032,11 @@ class SupremeBrain {
         this.lockState = 'NEUTRAL';
         this.lockStrength = 0;
         this.lastSignal = null;
+        
+        // 🏆 v69: Critical error tracking - halt trading if too many errors
+        this.criticalErrorCount = 0;
+        this.criticalErrorResetTime = 0;
+        this.tradingHalted = false;
 
         // FINAL SEVEN: CONFIDENCE CALIBRATION (FIXED: Added all confidence ranges)
         this.calibrationBuckets = {
@@ -8886,6 +9165,12 @@ class SupremeBrain {
 
     async update() {
         if (this.isProcessing) return;
+        
+        // 🏆 v69: Skip if trading halted due to repeated critical errors
+        if (this.tradingHalted) {
+            return; // Silent skip - already logged when halted
+        }
+        
         this.isProcessing = true;
         try {
             const currentPrice = livePrices[this.asset];
@@ -9189,9 +9474,12 @@ class SupremeBrain {
             const isSpoofing = MathLib.isSpoofing(history);
 
             // 🔴 VOLATILITY CIRCUIT BREAKER: Pause if extreme volatility (3x normal ATR)
+            // 🏆 v69 FIX: During warmup, normalATR can be near-zero causing absurd ratios (35000x)
+            // Use currentATR as floor for normalATR to prevent false triggers during warmup
             const currentATR = MathLib.calculateATR(history.slice(-30), 5);
-            const normalATR = MathLib.calculateATR(history.slice(-100, -30), 20);
-            const isExtremeVolatility = currentATR > normalATR * 3.0;
+            const rawNormalATR = MathLib.calculateATR(history.slice(-100, -30), 20);
+            const normalATR = Math.max(rawNormalATR, currentATR * 0.1, 0.0001); // Floor: 10% of current or absolute min
+            const isExtremeVolatility = history.length >= 30 && currentATR > normalATR * 3.0; // Only check if we have enough history
 
             // 🔴 GOD MODE: LIQUIDITY VOID DETECTION (Wide spreads = danger zone)
             // If Yes + No significantly != 100 (spread > 5%), liquidity is thin
@@ -10054,8 +10342,9 @@ class SupremeBrain {
 
                         // Execute as ORACLE trade (hold to resolution)
                         // 🎯 v48 FIX: Pass tier and genesisAgree to prevent UNKNOWN tier bug
+                        // 🏆 v69 FIX: pWinEff is out of scope here (defined in earlier block); use finalConfidence as pWin proxy
                         const lateGenesisAgree = modelVotes.genesis === finalSignal;
-                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, lateEntryPrice, market, { tier: tier, pWin: pWinEff, genesisAgree: lateGenesisAgree });
+                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, lateEntryPrice, market, { tier: tier, pWin: finalConfidence, genesisAgree: lateGenesisAgree });
                     }
                 }
             }
@@ -10108,6 +10397,29 @@ class SupremeBrain {
 
         } catch (e) {
             log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
+            
+            // 🏆 v69: Track critical errors and halt trading if too many occur
+            const now = Date.now();
+            const RESET_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+            const MAX_ERRORS_BEFORE_HALT = 10;
+            
+            // Reset counter if enough time has passed
+            if (now - this.criticalErrorResetTime > RESET_WINDOW_MS) {
+                this.criticalErrorCount = 0;
+                this.criticalErrorResetTime = now;
+            }
+            
+            this.criticalErrorCount++;
+            
+            if (this.criticalErrorCount >= MAX_ERRORS_BEFORE_HALT && !this.tradingHalted) {
+                this.tradingHalted = true;
+                log(`🛑 TRADING HALTED for ${this.asset}: ${this.criticalErrorCount} critical errors in ${RESET_WINDOW_MS / 1000}s`, this.asset);
+                // Send alert if Telegram is enabled
+                if (CONFIG.TELEGRAM?.enabled) {
+                    sendTelegramNotification(telegramSystemAlert('🛑 TRADING HALTED', 
+                        `${this.asset} trading suspended due to ${this.criticalErrorCount} critical errors. Manual review required.`, '🛑'));
+                }
+            }
         } finally {
             this.isProcessing = false;
         }
@@ -15231,6 +15543,17 @@ async function startup() {
     } else {
         log(`✅ STARTUP SELF-TESTS: ${selfTestResults.total}/${selfTestResults.total} PASSED`);
     }
+    
+    // 🏆 v69: Handle listen errors properly - EADDRINUSE should exit so Render restarts
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            log(`🔴 FATAL: Port ${PORT} is already in use - exiting to allow restart`);
+            process.exit(1);
+        } else {
+            log(`🔴 SERVER ERROR: ${err.message}`);
+            process.exit(1);
+        }
+    });
     
     server.listen(PORT, () => {
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);

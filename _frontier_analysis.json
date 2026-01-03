@@ -1,0 +1,63 @@
+{
+  "analyzedAt": "2026-01-03T13:00:00Z",
+  "dataSource": "Polymarket-native (Gamma + CLOB)",
+  "timeSpan": {
+    "hours": 52.5,
+    "days": 2.19,
+    "trades": 98
+  },
+  "winRate": "77.55%",
+  "efficientFrontier": [
+    { "stake": 0.20, "finalBalance": 130.54, "profitPct": 2511, "maxDrawdown": 38.88, "profitDDRatio": 64.6 },
+    { "stake": 0.25, "finalBalance": 205.95, "profitPct": 4019, "maxDrawdown": 48.88, "profitDDRatio": 82.2 },
+    { "stake": 0.28, "finalBalance": 251.45, "profitPct": 4929, "maxDrawdown": 54.93, "profitDDRatio": 89.7 },
+    { "stake": 0.30, "finalBalance": 278.19, "profitPct": 5464, "maxDrawdown": 58.84, "profitDDRatio": 92.9 },
+    { "stake": 0.32, "finalBalance": 299.71, "profitPct": 5894, "maxDrawdown": 62.61, "profitDDRatio": 94.1 },
+    { "stake": 0.35, "finalBalance": 318.30, "profitPct": 6266, "maxDrawdown": 67.98, "profitDDRatio": 92.2 }
+  ],
+  "kneeSelectionRule": "maximize(profitPct / maxDrawdown)",
+  "recommendedConfigs": {
+    "conservative": {
+      "stake": 0.20,
+      "maxExposure": 0.35,
+      "description": "Lowest variance, <40% drawdown",
+      "expectedProfit": "~2500% in 2 days from £5 start",
+      "suitableFor": "Risk-averse, capital preservation priority"
+    },
+    "balanced": {
+      "stake": 0.25,
+      "maxExposure": 0.40,
+      "description": "Good profit with <50% drawdown",
+      "expectedProfit": "~4000% in 2 days from £5 start",
+      "suitableFor": "Moderate risk tolerance, balance growth/safety"
+    },
+    "optimal_knee": {
+      "stake": 0.32,
+      "maxExposure": 0.45,
+      "description": "Best profit/drawdown ratio (94.1)",
+      "expectedProfit": "~5900% in 2 days from £5 start",
+      "suitableFor": "Profit maximization with managed variance"
+    },
+    "aggressive": {
+      "stake": 0.35,
+      "maxExposure": 0.50,
+      "description": "Maximum profit, higher drawdown risk",
+      "expectedProfit": "~6300% in 2 days from £5 start",
+      "suitableFor": "High risk tolerance, maximum growth priority"
+    }
+  },
+  "finalRecommendation": {
+    "stake": 0.25,
+    "maxExposure": 0.40,
+    "maxTradesPerCycle": 1,
+    "selection": "HIGHEST_CONF",
+    "respectEVGate": true,
+    "rationale": "User requested MIN VARIANCE - 25% stake keeps max drawdown below 50% while still achieving 40x+ returns in ~2 days"
+  },
+  "caveats": [
+    "Past performance does not guarantee future results",
+    "77.55% win rate may not persist in different market conditions",
+    "Drawdown figures are backtested, actual drawdowns may differ",
+    "£100 in 24h from £5 requires >1900% return, which this achieves but with variance risk"
+  ]
+}

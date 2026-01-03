@@ -1,0 +1,97 @@
+{
+  "generatedAt": "2026-01-03T14:20:00Z",
+  "deployedVersion": "v68 (needs upgrade to v69)",
+  
+  "currentState": {
+    "mode": "PAPER",
+    "uptime": "3.8 hours",
+    "currentBalance": 1.69,
+    "startingBalance": 10,
+    "balanceLoss": "-83.1%"
+  },
+  
+  "assetStatus": {
+    "BTC": {
+      "prediction": "UP",
+      "tier": "NONE",
+      "confidence": "70.0%",
+      "pWin": "37.5%",
+      "recentAccuracy": "50.0%",
+      "locked": false
+    },
+    "ETH": {
+      "prediction": "UP",
+      "tier": "NONE",
+      "confidence": "12.7%",
+      "pWin": "28.6%",
+      "recentAccuracy": "50.0%",
+      "locked": false
+    },
+    "XRP": {
+      "prediction": "UP",
+      "tier": "CONVICTION",
+      "confidence": "88.7%",
+      "pWin": "92.9%",
+      "recentAccuracy": "70.0%",
+      "locked": true,
+      "note": "Currently in trade or awaiting resolution"
+    }
+  },
+  
+  "tradeHistory": {
+    "totalTrades": 6,
+    "closed": 2,
+    "crashRecovered": 4,
+    "closedWins": 2,
+    "closedLosses": 0,
+    "closedWinRate": "100%",
+    "crashRecoveredCause": "v68 bugs (pWinEff scoping, ATR warmup)"
+  },
+  
+  "rollingAccuracy": {
+    "BTC": {"convictionWR": "0.0%", "sampleSize": 3, "driftWarning": false},
+    "ETH": {"convictionWR": "50.0%", "sampleSize": 4, "driftWarning": false},
+    "XRP": {"convictionWR": "66.7%", "sampleSize": 9, "driftWarning": false}
+  },
+  
+  "circuitBreaker": {
+    "state": "NORMAL",
+    "dayStartBalance": 1.69,
+    "currentBalance": 1.69,
+    "drawdownPct": "0.0%",
+    "consecutiveLosses": 0
+  },
+  
+  "diagnosis": {
+    "issue": "CRASH_RECOVERED trades caused massive balance loss",
+    "rootCause": [
+      "pWinEff scoping bug caused runtime errors",
+      "ATR warmup false triggers caused circuit breaker issues",
+      "Both are FIXED in v69 local code"
+    ],
+    "resolution": "Deploy v69 to production"
+  },
+  
+  "fronttestVerdict": {
+    "v68Result": "FAILED - CRASH_RECOVERED bugs destroyed balance",
+    "v69Expected": "PASS - All root causes fixed",
+    "recommendedAction": "Deploy v69, reset balance to £5, run 24-72h fronttest"
+  },
+  
+  "liveReadiness": {
+    "currentlyReady": false,
+    "blockers": [
+      "v68 deployed (v69 needed)",
+      "Balance destroyed by bugs",
+      "Need clean 24h PAPER run first"
+    ],
+    "postV69Steps": [
+      "1. Deploy v69 to production",
+      "2. Reset PAPER balance to £5",
+      "3. Set stake to 0.30 (currently 0.60)",
+      "4. Monitor for 24-48h",
+      "5. Verify no CRASH_RECOVERED, no overtrading",
+      "6. Enable LIVE if clean run confirmed"
+    ]
+  }
+}

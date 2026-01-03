@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "3.4.0-goat-v68",
-    "description": "POLYPROPHET v68 - LIVE Safety: PENDING_RESOLUTION marking, rate-safe Gamma polling, dataset-backed backtest",
+    "version": "3.5.0-goat-v69",
+    "description": "POLYPROPHET v69 - FIX pWinEff scoping bug + circuit breaker warmup false triggers",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

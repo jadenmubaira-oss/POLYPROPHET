@@ -1,0 +1,60 @@
+{
+  "generatedAt": "2026-01-03T14:15:00Z",
+  
+  "summary": {
+    "candidatesFound": 132,
+    "tradesSelected": 103,
+    "evBlocked": 10,
+    "unresolved": 1,
+    "resolved": 102,
+    "blockedPercentage": "7.5%"
+  },
+  
+  "gateBreakdown": {
+    "EVGate": {
+      "blocked": 10,
+      "percentage": "7.5%",
+      "purpose": "Filters trades with negative expected value",
+      "impact": "Prevents taking -EV bets that would hurt long-term growth"
+    },
+    "TierFilter": {
+      "blocked": "~200+ (ALL vs CONVICTION)",
+      "purpose": "Only trades CONVICTION-tier predictions",
+      "impact": "CRITICAL - WR drops from 78% to 63% without this"
+    },
+    "OddsFilter": {
+      "minOdds": 0.35,
+      "maxOdds": 0.95,
+      "blocked": "unknown - included in pre-filter",
+      "purpose": "Avoid extreme odds with poor risk/reward"
+    },
+    "MaxTradesPerCycle": {
+      "setting": 1,
+      "purpose": "Prevents overtrading in single 15-min window",
+      "impact": "Quality over quantity - ensures best signal taken"
+    }
+  },
+  
+  "counterfactualAnalysis": {
+    "noEVGate": {
+      "result": "Same trades executed - EV gate mainly catches edge cases",
+      "verdict": "Keep enabled for safety margin"
+    },
+    "allTiers": {
+      "result": "268 trades, 62.69% WR, £0.08 final (98% LOSS)",
+      "verdict": "CATASTROPHIC - tier filtering is essential"
+    },
+    "maxTradesPerCycle3": {
+      "result": "Same as allTiers - overtrading destroys profitability",
+      "verdict": "Keep at 1"
+    }
+  },
+  
+  "recommendation": {
+    "keepEVGate": true,
+    "keepTierFilter": "CONVICTION only",
+    "keepMaxTradesPerCycle": 1,
+    "keepOddsFilter": "0.35-0.95",
+    "rationale": "Current gates are correctly calibrated. Removing any significantly hurts performance."
+  }
+}
