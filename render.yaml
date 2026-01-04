@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # 🏆 v77 HYBRID - Dynamic risk profile + equity-aware + frequency floor + bounded resolution
+    # 🏆 v78 FINAL - Backtest parity + min-order freeze fix + HYBRID tier mode
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
