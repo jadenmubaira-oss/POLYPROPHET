@@ -8908,7 +8908,12 @@ class TradeExecutor {
             const hedgePnlPercent = hedge.entry > 0 ? ((hedgeExitPrice / hedge.entry) - 1) * 100 : 0;
 
             // Add hedge returns to balance
-            this.paperBalance += hedge.size + hedgePnl;
+            // 🏆 v81 FIX: Only credit paperBalance for PAPER hedges (not LIVE)
+            if (!hedge.isLive || this.mode !== 'LIVE') {
+                this.paperBalance += hedge.size + hedgePnl;
+            } else {
+                log(`ℹ️ LIVE hedge closed: ${hedge.asset} - balance NOT credited (settled on-chain)`, hedge.asset);
+            }
             this.todayPnL += hedgePnl;
 
             log(`🛡️ HEDGE CLOSED: ${hedge.side} Entry ${(hedge.entry * 100).toFixed(1)}¢ → Exit ${(hedgeExitPrice * 100).toFixed(1)}¢ = ${hedgePnl >= 0 ? '+' : ''}$${hedgePnl.toFixed(2)}`, hedge.asset);
