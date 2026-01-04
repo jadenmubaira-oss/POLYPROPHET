@@ -1,4 +1,4 @@
-# POLYPROPHET v81 — P0 CORRECTNESS FIXES
+# POLYPROPHET v82 — VALIDATION & PROJECTION ACCURACY
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
@@ -674,6 +674,28 @@ curl "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito"
 
 ## CHANGELOG
 
+### v82 (2026-01-04) — VALIDATION & PROJECTION ACCURACY
+
+**Extended data retention and runtime-parity projections:**
+
+1. **📊 Extended Collector Retention**: Increased from 1000 to 3000 snapshots (~31 days of 15-min intervals). Enables meaningful long-term validation instead of cherry-picked windows.
+
+2. **🎯 `/api/backtest-dataset` Runtime Parity**: Now matches actual runtime behavior:
+   - Kelly sizing with `kellyMax` parameter (default 0.32)
+   - Profit lock-in (adaptive mode)
+   - Balance floor check (`$2.00` default)
+   - Min-order override in bootstrap mode (`$1.10`)
+   - Liquidity cap (`$100`)
+
+3. **📈 Ruin & Target Probabilities**: New explicit outputs:
+   - `ruinProbability.belowFloor` — P(balance < floor)
+   - `ruinProbability.belowMinOrder` — P(can't trade)
+   - `targetProbability.reach20/50/100` — P(hitting growth targets)
+
+4. **💰 LIVE Reporting Consistency**: `/api/halts` now shows both `cashBalance` and `equityBalance` for transparent LIVE mode monitoring.
+
+---
+
 ### v81 (2026-01-04) — P0 CORRECTNESS FIXES
 
 **Critical LIVE mode and crash recovery reliability improvements:**
@@ -838,4 +860,4 @@ curl "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito"
 
 ---
 
-*Version: v81 | Updated: 2026-01-04 | Single Source of Truth*
+*Version: v82 | Updated: 2026-01-04 | Single Source of Truth*

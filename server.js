@@ -1944,24 +1944,32 @@ app.post('/api/dataset/cancel', express.json(), async (req, res) => {
     }
 });
 
-// ==================== 🏆 v68 DATASET-BACKED BACKTEST ====================
+// ==================== 🏆 v82 DATASET-BACKED BACKTEST ====================
 // Uses cached Gamma outcomes for long-horizon validation (up to 365 days)
-// Simulates the real v68 profit lock-in schedule for accurate variance modeling
+// 🏆 v82: Now matches runtime behavior - Kelly sizing, balance floor, min-order override, ruin probabilities
 app.get('/api/backtest-dataset', async (req, res) => {
     try {
         const startTime = Date.now();
         const lookbackDays = Math.min(parseInt(req.query.days) || 30, 365);
         const startingBalance = parseFloat(req.query.balance) || 5.0;
-        const stakeFrac = parseFloat(req.query.stake) || 0.60; // v68 default: 60%
-        const adaptiveMode = req.query.adaptive !== '0'; // Default: on
-        const winRateOverride = parseFloat(req.query.winRate); // Optional: use historical win rate if not set
-        const asset = req.query.asset ? String(req.query.asset).toUpperCase() : null; // BTC, ETH, XRP or null for all
-        const simulations = Math.min(parseInt(req.query.sims) || 2000, 10000); // Monte Carlo sims
         
+        // 🏆 v82: Match runtime defaults - Kelly enabled with 0.32 cap
+        const kellyMaxParam = parseFloat(req.query.kellyMax);
+        const kellyMax = Number.isFinite(kellyMaxParam) ? kellyMaxParam : 0.32; // Match runtime CONFIG.RISK.kellyMaxFraction
+        const adaptiveMode = req.query.adaptive !== '0'; // Default: on (profit lock-in)
+        const winRateOverride = parseFloat(req.query.winRate);
+        const asset = req.query.asset ? String(req.query.asset).toUpperCase() : null;
+        const simulations = Math.min(parseInt(req.query.sims) || 5000, 20000); // 🏆 v82: More sims for accuracy
+        
+        // 🏆 v82: Runtime-matching constants
         const PROFIT_FEE_PCT = 0.02;
-        const TRADES_PER_DAY = 16; // ~16 trades per day (not all windows have trades)
+        const TRADES_PER_DAY = 16;
+        const MIN_ORDER = 1.10;
+        const BALANCE_FLOOR = parseFloat(req.query.floor) || 2.0; // Match runtime CONFIG.RISK.minBalanceFloor
+        const MAX_ABSOLUTE_STAKE = 100; // Liquidity cap
+        const AVG_ENTRY_PRICE = parseFloat(req.query.entry) || 0.67; // Typical entry price
         
-        // Load cached dataset
+        // Load cached dataset (unchanged)
         const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
         let allEntries = [];
         
@@ -1979,7 +1987,6 @@ app.get('/api/backtest-dataset', async (req, res) => {
             }
         }
         
-        // Also try Redis
         if (redisAvailable && allEntries.length < 1000) {
             try {
                 const keys = await redis.keys(`${DATASET_CACHE_KEY_PREFIX}*`);
@@ -2007,22 +2014,15 @@ app.get('/api/backtest-dataset', async (req, res) => {
             }
         }
         allEntries = uniqueEntries;
-        
-        // Sort by cycle start time
         allEntries.sort((a, b) => a.cycleStartEpochSec - b.cycleStartEpochSec);
         
-        // Calculate historical win rate from dataset
-        const upWins = allEntries.filter(e => e.resolvedOutcome === 'UP').length;
-        const downWins = allEntries.filter(e => e.resolvedOutcome === 'DOWN').length;
-        // Assume 50/50 prediction split for historical WR (conservative)
-        const historicalWinRate = Number.isFinite(winRateOverride) ? winRateOverride : 0.77; // v68 default: 77% CONVICTION WR
-        
+        const historicalWinRate = Number.isFinite(winRateOverride) ? winRateOverride : 0.77;
         const entriesCount = allEntries.length;
         const timeSpanDays = entriesCount > 0 
             ? (allEntries[entriesCount - 1].cycleStartEpochSec - allEntries[0].cycleStartEpochSec) / 86400
             : 0;
         
-        // 🏆 v68 Profit lock-in schedule (mirrors runtime)
+        // 🏆 v82: Profit lock-in schedule (mirrors runtime applyVarianceControls)
         function getProfitLockMult(profitMultiple) {
             if (profitMultiple >= 10) return 0.25;
             if (profitMultiple >= 5) return 0.30;
@@ -2031,88 +2031,135 @@ app.get('/api/backtest-dataset', async (req, res) => {
             return 1.0;
         }
         
-        // Monte Carlo simulation for day-by-day projections
-        // NOTE: Loss streak multiplier not included - that's for real-time protection only
+        // 🏆 v82: Monte Carlo with runtime-matching behavior
         const dayResults = {};
         for (let day = 1; day <= Math.min(7, lookbackDays); day++) {
             const tradesForDay = day * TRADES_PER_DAY;
             const balances = [];
-            let lossCount = 0;
-            let reachTarget = 0;
+            let ruinFloorCount = 0;      // Balance dropped below BALANCE_FLOOR
+            let ruinMinOrderCount = 0;    // Can't place MIN_ORDER trades
+            let reach20 = 0, reach50 = 0, reach100 = 0;
             
             for (let sim = 0; sim < simulations; sim++) {
                 let balance = startingBalance;
+                let hitFloor = false, hitMinOrder = false;
+                let hit20 = false, hit50 = false, hit100 = false;
                 
-                for (let t = 0; t < tradesForDay && balance >= 1.10; t++) {
-                    // Calculate effective stake with v68 profit lock-in
-                    let effectiveStake = stakeFrac;
-                    if (adaptiveMode) {
-                        const profitMult = balance / startingBalance;
-                        effectiveStake *= getProfitLockMult(profitMult);
+                for (let t = 0; t < tradesForDay; t++) {
+                    // 🏆 v82: Check balance floor (matches runtime minBalanceFloorEnabled)
+                    if (balance < BALANCE_FLOOR) {
+                        hitFloor = true;
+                        break;
                     }
                     
-                    const size = Math.min(balance * effectiveStake, 100); // Max $100 liquidity cap
-                    if (size < 1.10) continue;
+                    // 🏆 v82: Apply Kelly cap with profit lock-in (matches runtime)
+                    let effectiveKellyMax = kellyMax;
+                    if (adaptiveMode) {
+                        const profitMult = balance / startingBalance;
+                        effectiveKellyMax = kellyMax * getProfitLockMult(profitMult);
+                    }
                     
-                    // Simulate trade
+                    // Calculate stake size
+                    let size = balance * effectiveKellyMax;
+                    size = Math.min(size, MAX_ABSOLUTE_STAKE);
+                    
+                    // 🏆 v82: Bootstrap min-order override (matches runtime stage 0 behavior)
+                    // If balance is small but above MIN_ORDER, allow MIN_ORDER trade
+                    if (size < MIN_ORDER && balance >= MIN_ORDER) {
+                        size = MIN_ORDER;
+                    }
+                    
+                    // Can't trade if stake < MIN_ORDER
+                    if (size < MIN_ORDER) {
+                        hitMinOrder = true;
+                        break;
+                    }
+                    
+                    // Simulate trade outcome
                     const won = Math.random() < historicalWinRate;
                     if (won) {
-                        const avgEntry = 0.62; // Average entry price ~62¢
-                        const profit = (size / avgEntry - size) * (1 - PROFIT_FEE_PCT);
+                        const profit = (size / AVG_ENTRY_PRICE - size) * (1 - PROFIT_FEE_PCT);
                         balance += profit;
                     } else {
                         balance -= size;
                     }
+                    
+                    // Track target hits
+                    if (balance >= 20) hit20 = true;
+                    if (balance >= 50) hit50 = true;
+                    if (balance >= 100) hit100 = true;
                 }
                 
                 balances.push(balance);
-                if (balance < startingBalance) lossCount++;
-                if (balance >= 100) reachTarget++;
+                if (hitFloor || balance < BALANCE_FLOOR) ruinFloorCount++;
+                if (hitMinOrder || balance < MIN_ORDER) ruinMinOrderCount++;
+                if (hit20) reach20++;
+                if (hit50) reach50++;
+                if (hit100) reach100++;
             }
             
             // Calculate percentiles
             balances.sort((a, b) => a - b);
+            const pct = (x) => ((x / simulations) * 100).toFixed(1) + '%';
+            const q = (p) => balances[Math.floor(simulations * p)].toFixed(2);
+            
             dayResults[day] = {
                 day,
                 trades: tradesForDay,
-                lossProbability: ((lossCount / simulations) * 100).toFixed(1) + '%',
-                target100Probability: ((reachTarget / simulations) * 100).toFixed(1) + '%',
+                // 🏆 v82: Explicit ruin probabilities
+                ruinProbability: {
+                    belowFloor: pct(ruinFloorCount),
+                    belowMinOrder: pct(ruinMinOrderCount),
+                    floor: BALANCE_FLOOR,
+                    minOrder: MIN_ORDER
+                },
+                // 🏆 v82: Target hit probabilities
+                targetProbability: {
+                    reach20: pct(reach20),
+                    reach50: pct(reach50),
+                    reach100: pct(reach100)
+                },
                 percentiles: {
-                    p1: balances[Math.floor(simulations * 0.01)].toFixed(2),
-                    p5: balances[Math.floor(simulations * 0.05)].toFixed(2),
-                    p10: balances[Math.floor(simulations * 0.10)].toFixed(2),
-                    p50: balances[Math.floor(simulations * 0.50)].toFixed(2),
-                    p90: balances[Math.floor(simulations * 0.90)].toFixed(2),
-                    p95: balances[Math.floor(simulations * 0.95)].toFixed(2),
-                    p99: balances[Math.floor(simulations * 0.99)].toFixed(2)
+                    p1: q(0.01), p5: q(0.05), p10: q(0.10),
+                    p50: q(0.50),
+                    p90: q(0.90), p95: q(0.95), p99: q(0.99)
                 }
             };
         }
         
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        const day7 = dayResults[7] || {};
         
         res.json({
             summary: {
-                method: 'Dataset-backed Monte Carlo (v68 adaptive)',
+                method: 'Dataset-backed Monte Carlo (v82 runtime-parity)',
                 runtime: runtime + 's',
                 datasetEntries: entriesCount,
                 datasetTimeSpan: timeSpanDays.toFixed(1) + ' days',
                 startingBalance,
-                stakeFraction: stakeFrac,
+                // 🏆 v82: Runtime-matching parameters
+                kellyMax,
                 adaptiveMode,
                 winRateUsed: (historicalWinRate * 100).toFixed(1) + '%',
+                avgEntryPrice: AVG_ENTRY_PRICE,
+                balanceFloor: BALANCE_FLOOR,
+                minOrder: MIN_ORDER,
                 simulations,
                 asset: asset || 'ALL'
             },
             dayByDay: Object.values(dayResults),
+            // 🏆 v82: Enhanced interpretation with ruin + target probabilities
             interpretation: {
-                day1Median: `£${startingBalance} → £${dayResults[1]?.percentiles?.p50 || 'N/A'}`,
-                day5Median: dayResults[5] ? `£${startingBalance} → £${dayResults[5].percentiles.p50}` : 'N/A',
-                day7Median: dayResults[7] ? `£${startingBalance} → £${dayResults[7].percentiles.p50}` : 'N/A',
-                day7LossProb: dayResults[7]?.lossProbability || 'N/A',
-                day7Best10Pct: dayResults[7] ? `£${dayResults[7].percentiles.p90}+` : 'N/A'
+                day7Median: day7.percentiles ? `£${startingBalance} → £${day7.percentiles.p50}` : 'N/A',
+                day7_p10: day7.percentiles ? `£${day7.percentiles.p10}` : 'N/A',
+                day7_p90: day7.percentiles ? `£${day7.percentiles.p90}` : 'N/A',
+                day7RuinBelowFloor: day7.ruinProbability?.belowFloor || 'N/A',
+                day7RuinBelowMinOrder: day7.ruinProbability?.belowMinOrder || 'N/A',
+                day7Reach20: day7.targetProbability?.reach20 || 'N/A',
+                day7Reach50: day7.targetProbability?.reach50 || 'N/A',
+                day7Reach100: day7.targetProbability?.reach100 || 'N/A'
             },
-            disclaimer: 'Monte Carlo projections based on historical win rate and v68 profit lock-in schedule. Past performance does not guarantee future results.'
+            disclaimer: 'Monte Carlo projections using v82 runtime-matching behavior (Kelly sizing, profit lock-in, balance floor, min-order override). Past performance does not guarantee future results.'
         });
     } catch (e) {
         res.status(500).json({ error: e.message, stack: e.stack });
@@ -4478,6 +4525,9 @@ app.get('/api/halts', (req, res) => {
         balance: {
             dayStartBalance: dayStart,
             currentBalance: currentBalance,
+            // 🏆 v82: Show both cash + equity for LIVE mode transparency
+            cashBalance: tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || 0),
+            equityBalance: typeof tradeExecutor.getBankrollForRisk === 'function' ? tradeExecutor.getBankrollForRisk() : currentBalance,
             drawdownPct: (drawdownPct * 100).toFixed(1) + '%',
             todayPnL: tradeExecutor.todayPnL
         },
@@ -5401,7 +5451,7 @@ let forwardCollectorEnabled = false; // Set to true to enable
 let lastCollectorSave = 0;
 const COLLECTOR_INTERVAL_MS = 15 * 60 * 1000; // Save every 15 minutes
 const COLLECTOR_REDIS_KEY = 'polyprophet:collector:snapshots';
-const COLLECTOR_MAX_SNAPSHOTS = 1000; // Keep last 1000 in Redis
+const COLLECTOR_MAX_SNAPSHOTS = 3000; // 🏆 v82: Keep ~31 days of 15-min snapshots for validation
 
 // 🎯 GOAT v4: Persist forward-collector enabled state (survives restarts)
 // NOTE: Previously referenced by startup()/API but missing, causing startup to fail before server.listen().
@@ -5764,7 +5814,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 81;  // v81: P0 fixes - crash recovery idempotency, LIVE paper balance isolation, partial fills, circuit breaker equity  // v80: Critical bug fixes - crash recovery settlement, graceful shutdown, circuit breaker wiring, 0.32 sweet spot
+const CONFIG_VERSION = 82;  // v82: Extended collector retention (31d), backtest-dataset parity, LIVE reporting consistency
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
