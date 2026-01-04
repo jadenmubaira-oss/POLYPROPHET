@@ -867,6 +867,22 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const selectedCycles = [];
         let evBlocked = 0;
 
+        // 🏆 v79: Frequency floor simulation for HYBRID tier backtests
+        // HYBRID should approximate runtime convictionOnlyMode + frequency floor:
+        // - Prefer CONVICTION always when available
+        // - Only allow ADVISORY when below target trades/hour, with stricter pWin/EV gates and reduced size
+        const floorCfg = CONFIG?.RISK?.tradeFrequencyFloor || null;
+        const floorEnabled = (tierFilter === 'HYBRID') && !!floorCfg?.enabled;
+        const floorLookbackSec = Math.max(60, Math.floor((floorCfg?.lookbackMinutes || 120) * 60));
+        const floorHours = floorLookbackSec / 3600;
+        const floorTargetTotal = floorEnabled ? ((floorCfg?.targetTradesPerHour || 1) * floorHours) : 0;
+        const floorMaxAdvisory = floorEnabled ? ((floorCfg?.maxAdvisoryPerHour || 2) * floorHours) : 0;
+        const floorMinPWin = floorCfg?.advisoryPWinThreshold || 0.65;
+        const floorMinEv = floorCfg?.advisoryEvRoiThreshold || 0.08;
+        const floorSizeReduction = floorCfg?.sizeReduction || 0.50;
+        let recentTradeTimesSec = [];
+        let recentAdvisoryTimesSec = [];
+
         for (const w of windowsToProcess) {
             const cycles = byWindow.get(w) || [];
             const enriched = [];
@@ -878,6 +894,49 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             }
             if (enriched.length === 0) continue;
 
+            // HYBRID: Prefer CONVICTION; allow ADVISORY only via frequency-floor gate
+            if (tierFilter === 'HYBRID') {
+                const cutoff = Number(w) - floorLookbackSec;
+                recentTradeTimesSec = recentTradeTimesSec.filter(t => t >= cutoff);
+                recentAdvisoryTimesSec = recentAdvisoryTimesSec.filter(t => t >= cutoff);
+
+                const conv = enriched.filter(x => String(x.tier || '').toUpperCase() === 'CONVICTION');
+                if (conv.length > 0) {
+                    conv.sort((a, b) => {
+                        if (selection === 'HIGHEST_CONF') return (Number(b.pWinUsed) - Number(a.pWinUsed));
+                        return (Number(b.evRoi) - Number(a.evRoi));
+                    });
+                    const picked = conv.slice(0, maxTradesPerCycle);
+                    selectedCycles.push(...picked);
+                    for (let i = 0; i < picked.length; i++) recentTradeTimesSec.push(Number(w));
+                    continue;
+                }
+
+                // No CONVICTION candidates in this window → consider ADVISORY only if floor is active
+                if (!floorEnabled) continue;
+                if (recentTradeTimesSec.length >= floorTargetTotal) continue;
+                if (recentAdvisoryTimesSec.length >= floorMaxAdvisory) continue;
+
+                const advEligible = enriched
+                    .filter(x => String(x.tier || '').toUpperCase() === 'ADVISORY')
+                    .filter(x => Number(x.pWinUsed) >= floorMinPWin && Number(x.evRoi) >= floorMinEv)
+                    .map(x => ({ ...x, frequencyFloorMultiplier: floorSizeReduction }));
+
+                if (advEligible.length === 0) continue;
+                advEligible.sort((a, b) => {
+                    if (selection === 'HIGHEST_CONF') return (Number(b.pWinUsed) - Number(a.pWinUsed));
+                    return (Number(b.evRoi) - Number(a.evRoi));
+                });
+                const pickedAdv = advEligible.slice(0, maxTradesPerCycle);
+                selectedCycles.push(...pickedAdv);
+                for (let i = 0; i < pickedAdv.length; i++) {
+                    recentTradeTimesSec.push(Number(w));
+                    recentAdvisoryTimesSec.push(Number(w));
+                }
+                continue;
+            }
+
+            // Non-HYBRID: default selection rules
             enriched.sort((a, b) => {
                 if (selection === 'HIGHEST_CONF') {
                     return (Number(b.pWinUsed) - Number(a.pWinUsed));
@@ -1111,6 +1170,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     const cycle = windowCycles[i];
                     let stake = Number(stakes[i]);
                     if (!Number.isFinite(stake) || stake <= 0) continue;
+
+                    // 🏆 v79: Frequency floor sizing (HYBRID backtest)
+                    // Advisory trades allowed via frequency-floor should be smaller (matches runtime sizeReduction).
+                    if (cycle && Number.isFinite(cycle.frequencyFloorMultiplier) && cycle.frequencyFloorMultiplier > 0 && cycle.frequencyFloorMultiplier < 1) {
+                        stake = stake * cycle.frequencyFloorMultiplier;
+                    }
                     
                     // 🏆 v78: Risk envelope simulation with DYNAMIC PROFILE (matches runtime applyRiskEnvelope)
                     if (riskEnvelopeEnabled) {
