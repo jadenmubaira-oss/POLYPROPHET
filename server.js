@@ -8204,7 +8204,11 @@ class TradeExecutor {
                             isLive: true,
                             status: 'LIVE_OPEN',
                             orderID: response.orderID,
-                            tokenId: tokenId
+                            tokenId: tokenId,
+                            // ✅ Critical for truthful LIVE settlement + redemption
+                            slug: market?.slug || null,
+                            conditionId: market?.conditionId || null,
+                            marketUrl: market?.marketUrl || (market?.slug ? `https://polymarket.com/event/${market.slug}` : null)
                         };
 
                         this.tradeHistory.push({
@@ -8220,7 +8224,10 @@ class TradeExecutor {
                             orderID: response.orderID,
                             // CRITICAL: Distinguish execution mode from strategy mode (mode=ORACLE/etc)
                             isLive: true,
-                            tradeMode: 'LIVE'
+                            tradeMode: 'LIVE',
+                            tokenId: tokenId,
+                            slug: market?.slug || null,
+                            conditionId: market?.conditionId || null
                         });
 
                         // PINNACLE: Prevent memory leak - keep max 1000 trades in history
@@ -8274,7 +8281,11 @@ class TradeExecutor {
                                         mainId: positionId,
                                         status: 'LIVE_OPEN',
                                         orderID: hedgeResponse.orderID,
-                                        tokenId: hedgeTokenId
+                                        tokenId: hedgeTokenId,
+                                        // ✅ Keep market identifiers for truthful settlement/recovery
+                                        slug: market?.slug || null,
+                                        conditionId: market?.conditionId || null,
+                                        marketUrl: market?.marketUrl || (market?.slug ? `https://polymarket.com/event/${market.slug}` : null)
                                     };
 
                                     // Link main to hedge
@@ -8292,7 +8303,11 @@ class TradeExecutor {
                                         status: 'LIVE_OPEN',
                                         isHedge: true,
                                         isLive: true,
-                                        tradeMode: 'LIVE'
+                                        tradeMode: 'LIVE',
+                                        orderID: hedgeResponse.orderID,
+                                        tokenId: hedgeTokenId,
+                                        slug: market?.slug || null,
+                                        conditionId: market?.conditionId || null
                                     });
                                 } else {
                                     log(`⚠️ LIVE HEDGE FAILED: ${JSON.stringify(hedgeResponse)}`, asset);
@@ -8532,11 +8547,11 @@ class TradeExecutor {
             }
 
             // Store positions (resolution will close them)
-            this.positions[yesId] = { asset, mode: 'ILLIQUIDITY', side: 'UP', tokenType: 'YES', size: sizeYes, entry: yesPrice, time: Date.now(), target: null, stopLoss: null, shares, isLive: true, status: 'LIVE_OPEN', orderID: yesOrderID, tokenId: yesTokenId };
-            this.positions[noId] = { asset, mode: 'ILLIQUIDITY', side: 'DOWN', tokenType: 'NO', size: sizeNo, entry: noPrice, time: Date.now(), target: null, stopLoss: null, shares, isLive: true, status: 'LIVE_OPEN', orderID: noOrderID, tokenId: noTokenId };
+            this.positions[yesId] = { asset, mode: 'ILLIQUIDITY', side: 'UP', tokenType: 'YES', size: sizeYes, entry: yesPrice, time: Date.now(), target: null, stopLoss: null, shares, isLive: true, status: 'LIVE_OPEN', orderID: yesOrderID, tokenId: yesTokenId, slug: market?.slug || null, conditionId: market?.conditionId || null, marketUrl: market?.marketUrl || (market?.slug ? `https://polymarket.com/event/${market.slug}` : null) };
+            this.positions[noId] = { asset, mode: 'ILLIQUIDITY', side: 'DOWN', tokenType: 'NO', size: sizeNo, entry: noPrice, time: Date.now(), target: null, stopLoss: null, shares, isLive: true, status: 'LIVE_OPEN', orderID: noOrderID, tokenId: noTokenId, slug: market?.slug || null, conditionId: market?.conditionId || null, marketUrl: market?.marketUrl || (market?.slug ? `https://polymarket.com/event/${market.slug}` : null) };
 
-            this.tradeHistory.push({ id: yesId, asset, mode: 'ILLIQUIDITY', side: 'UP', entry: yesPrice, size: sizeYes, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: yesOrderID, isLive: true, tradeMode: 'LIVE' });
-            this.tradeHistory.push({ id: noId, asset, mode: 'ILLIQUIDITY', side: 'DOWN', entry: noPrice, size: sizeNo, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: noOrderID, isLive: true, tradeMode: 'LIVE' });
+            this.tradeHistory.push({ id: yesId, asset, mode: 'ILLIQUIDITY', side: 'UP', entry: yesPrice, size: sizeYes, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: yesOrderID, tokenId: yesTokenId, isLive: true, tradeMode: 'LIVE', slug: market?.slug || null, conditionId: market?.conditionId || null });
+            this.tradeHistory.push({ id: noId, asset, mode: 'ILLIQUIDITY', side: 'DOWN', entry: noPrice, size: sizeNo, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: noOrderID, tokenId: noTokenId, isLive: true, tradeMode: 'LIVE', slug: market?.slug || null, conditionId: market?.conditionId || null });
             if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
 
             this.incrementCycleTradeCount(asset);
@@ -8782,6 +8797,11 @@ class TradeExecutor {
                 // Preserve LIVE/PAPER separation for persistence + UI filtering
                 hedgeTrade.isLive = !!hedge.isLive;
                 hedgeTrade.tradeMode = hedge.isLive ? 'LIVE' : 'PAPER';
+                if (hedge.slug) hedgeTrade.slug = hedge.slug;
+                if (hedge.conditionId) hedgeTrade.conditionId = hedge.conditionId;
+                if (hedge.marketUrl) hedgeTrade.marketUrl = hedge.marketUrl;
+                if (hedge.tokenId) hedgeTrade.tokenId = hedge.tokenId;
+                if (hedge.orderID) hedgeTrade.orderID = hedge.orderID;
             }
 
             delete this.positions[pos.hedgeId];
@@ -8839,6 +8859,9 @@ class TradeExecutor {
             trade.tradeMode = pos.isLive ? 'LIVE' : 'PAPER';
             if (pos.tokenId) trade.tokenId = pos.tokenId;
             if (pos.orderID) trade.orderID = pos.orderID;
+            if (pos.slug) trade.slug = pos.slug;
+            if (pos.conditionId) trade.conditionId = pos.conditionId;
+            if (pos.marketUrl) trade.marketUrl = pos.marketUrl;
         }
 
         // 🔴 FIX #14: Track CONSECUTIVE losses - only trigger cooldown after maxConsecutiveLosses
