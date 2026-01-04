@@ -1,4 +1,4 @@
-# POLYPROPHET v80 — CRITICAL FIXES
+# POLYPROPHET v81 — P0 CORRECTNESS FIXES
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
@@ -674,6 +674,20 @@ curl "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito"
 
 ## CHANGELOG
 
+### v81 (2026-01-04) — P0 CORRECTNESS FIXES
+
+**Critical LIVE mode and crash recovery reliability improvements:**
+
+1. **🔒 Crash Recovery Idempotency**: Fixed potential double-settlement when same trade exists in both `tradeHistory` and `recoveryQueue`. Now checks if trade was already reconciled before processing.
+
+2. **💰 LIVE Paper Balance Isolation**: `closePosition()` no longer credits `paperBalance` for LIVE trades. LIVE settlements are handled on-chain, eliminating phantom balance inflation.
+
+3. **📊 Partial Fill Accuracy**: LIVE trades now store `actualShares` (from `size_matched`) instead of requested `shares`. Position sizing and P&L calculations are now accurate for partial fills.
+
+4. **📈 Circuit Breaker Equity-Based**: LIVE mode circuit breaker now uses total equity (`getBankrollForRisk()` = cash + open positions MTM) instead of just `cachedLiveBalance`. Drawdown calculations are now correct when positions are open.
+
+---
+
 ### v80 (2026-01-04) — CRITICAL FIXES
 
 - **FIX**: Crash recovery settlement - `CRASH_RECOVERED` trades now reconciled with Gamma API outcomes at startup
@@ -824,4 +838,4 @@ curl "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito"
 
 ---
 
-*Version: v80 | Updated: 2026-01-04 | Single Source of Truth*
+*Version: v81 | Updated: 2026-01-04 | Single Source of Truth*

@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.5.0-v80",
-    "description": "POLYPROPHET v80 - Critical bug fixes: crash recovery settlement, graceful shutdown, 0.32 sweet spot",
+    "version": "4.5.1-v81",
+    "description": "POLYPROPHET v81 - P0 fixes: crash recovery idempotency, LIVE paper balance isolation, partial fills, circuit breaker equity",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

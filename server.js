@@ -5764,7 +5764,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 80;  // v80: Critical bug fixes - crash recovery settlement, graceful shutdown, circuit breaker wiring, 0.32 sweet spot
+const CONFIG_VERSION = 81;  // v81: P0 fixes - crash recovery idempotency, LIVE paper balance isolation, partial fills, circuit breaker equity  // v80: Critical bug fixes - crash recovery settlement, graceful shutdown, circuit breaker wiring, 0.32 sweet spot
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -6470,7 +6470,10 @@ class TradeExecutor {
     // 🎯 GOAT v3: Initialize day tracking for CircuitBreaker
     initDayTracking() {
         const now = Date.now();
-        const bankroll = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || this.paperBalance);
+        // 🏆 v81 FIX: Use total equity (cash + positions) for LIVE mode, not just cash
+        const bankroll = this.mode === 'PAPER' 
+            ? this.paperBalance 
+            : (typeof this.getBankrollForRisk === 'function' ? this.getBankrollForRisk() : (this.cachedLiveBalance || this.paperBalance));
 
         // Check if it's a new day
         if (!this.circuitBreaker.dayStartTime ||
@@ -6498,7 +6501,10 @@ class TradeExecutor {
         if (!this.circuitBreaker.enabled) return;
         
         const dayStart = this.initDayTracking();
-        const currentBalance = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || this.paperBalance);
+        // 🏆 v81 FIX: Use total equity (cash + positions) for LIVE mode drawdown calculation
+        const currentBalance = this.mode === 'PAPER' 
+            ? this.paperBalance 
+            : (typeof this.getBankrollForRisk === 'function' ? this.getBankrollForRisk() : (this.cachedLiveBalance || this.paperBalance));
         const drawdownPct = dayStart > 0 ? (dayStart - currentBalance) / dayStart : 0;
         const lossStreak = this.consecutiveLosses || 0;
         const now = Date.now();
@@ -8304,18 +8310,25 @@ class TradeExecutor {
                             log(`⚠️ Order fill unconfirmed after 6s - tracking with caution`, asset);
                         }
 
-                        // Store position with order details
+                        // 🏆 v81 FIX: Store ACTUAL filled shares/size, not requested
+                        // Partial fills are common on CLOB - actualShares may differ from requested
+                        const actualSize = actualShares * entryPrice;
+                        if (actualShares !== shares) {
+                            log(`📊 PARTIAL FILL: Requested ${shares.toFixed(4)} shares, got ${actualShares.toFixed(4)} (size: ${actualSize.toFixed(2)} vs ${size.toFixed(2)})`, asset);
+                        }
+                        
+                        // Store position with order details (using ACTUAL filled values)
                         this.positions[positionId] = {
                             asset,
                             mode,
                             side: direction,
                             tokenType,
-                            size,
+                            size: actualSize,
                             entry: entryPrice,
                             time: Date.now(),
                             target,
                             stopLoss,
-                            shares,
+                            shares: actualShares,
                             isLive: true,
                             status: 'LIVE_OPEN',
                             orderID: response.orderID,
@@ -8332,8 +8345,8 @@ class TradeExecutor {
                             mode,
                             side: direction,
                             entry: entryPrice,
-                            size,
-                            shares,
+                            size: actualSize,
+                            shares: actualShares,
                             time: Date.now(),
                             status: 'LIVE_OPEN',
                             orderID: response.orderID,
@@ -8943,7 +8956,13 @@ class TradeExecutor {
         // 🔴 FORENSIC FIX: Guard against division by zero in pnl percentage
         const pnlPercent = pos.entry > 0 ? ((exitPrice / pos.entry) - 1) * 100 : 0;
 
-        this.paperBalance += pos.size + pnl;
+        // 🏆 v81 FIX: Only credit paperBalance for PAPER trades (not LIVE)
+        // LIVE balance is handled on-chain via actual token settlement
+        if (!pos.isLive || this.mode !== 'LIVE') {
+            this.paperBalance += pos.size + pnl;
+        } else {
+            log(`ℹ️ LIVE position closed: ${pos.asset} - balance NOT credited (settled on-chain)`, pos.asset);
+        }
         this.todayPnL += pnl;
 
         const emoji = pnl >= 0 ? '✅' : '❌';
@@ -9310,6 +9329,17 @@ class TradeExecutor {
             for (let i = recoveryItems.length - 1; i >= 0; i--) {
                 const item = recoveryItems[i];
                 if (item.crashReconciled) continue;
+                
+                // 🔒 IDEMPOTENCY: Check if this trade was already settled via tradeHistory loop above
+                const matchingTrade = this.tradeHistory.find(t => t.id === item.id);
+                if (matchingTrade && matchingTrade.crashReconciled) {
+                    // Already settled - just remove from queue without double-crediting
+                    log(`🔒 IDEMPOTENCY: ${item.id} already reconciled via tradeHistory - skipping recoveryQueue`, item.asset);
+                    item.crashReconciled = true;
+                    item.reason = 'DEDUPED_VIA_TRADEHISTORY';
+                    this.recoveryQueue.splice(i, 1);
+                    continue;
+                }
 
                 try {
                     const itemTimeSec = Math.floor(item.time / 1000);
