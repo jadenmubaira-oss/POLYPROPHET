@@ -509,7 +509,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const kellyFraction = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1 
             ? kellyFractionParam : (CONFIG?.RISK?.kellyFraction || 0.50); // Match runtime default
         const kellyMaxFraction = Number.isFinite(parseFloat(req.query.kellyMax)) 
-            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.35); // Match runtime default
+            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.32); // 🏆 v80: Match sweet spot
         
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
         // Default to BTC+ETH only (XRP disabled by default in runtime)
@@ -4175,6 +4175,24 @@ app.get('/api/health', (req, res) => {
             items: stalePendingPositions.slice(0, 5),
             action: stalePendingPositions.length > 0 ? 'Use /api/reconcile-pending or wait for Gamma' : null
         },
+        // 🏆 v80: Crash recovery status
+        crashRecovery: (() => {
+            const unreconciled = (tradeExecutor?.tradeHistory || []).filter(t => 
+                t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
+            );
+            const recoveryQueue = tradeExecutor?.recoveryQueue || [];
+            const missingPrincipal = unreconciled.reduce((sum, t) => sum + (t.size || 0), 0) + 
+                                    recoveryQueue.reduce((sum, item) => sum + (item.size || 0), 0);
+            return {
+                unreconciledCount: unreconciled.length,
+                recoveryQueueCount: recoveryQueue.length,
+                totalMissingPrincipal: missingPrincipal,
+                needsReconcile: unreconciled.length > 0 || recoveryQueue.length > 0,
+                action: (unreconciled.length > 0 || recoveryQueue.length > 0) 
+                    ? 'POST /api/reconcile-crash-trades to settle crashed positions' 
+                    : null
+            };
+        })(),
         // 🎯 v52: Drift detection per asset
         rollingAccuracy
     });
@@ -5746,7 +5764,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 79;  // v79: FINAL - long-horizon dataset builder, historical prices API, enhanced backtesting
+const CONFIG_VERSION = 80;  // v80: Critical bug fixes - crash recovery settlement, graceful shutdown, circuit breaker wiring, 0.32 sweet spot
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -5787,7 +5805,7 @@ const CONFIG = {
     // 🏆 v64 GOLDEN OPTIMAL - 80% profit probability + 58% 100x chance
     // 🏆 v66 FINAL: Monte Carlo proven: 60% until 1.2x → 40% until 1.5x → 25% thereafter
     // This maximizes profit while keeping variance reasonable (30% loss prob, £458 median in 7d)
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.35'),  // 🏆 v73 FINAL: 35% stake cap (max profit ASAP with ≤60% drawdown)
+    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.32'),  // 🏆 v80: Sweet spot 32% stake cap (max profit with min ruin risk)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
@@ -5970,13 +5988,14 @@ const CONFIG = {
             sizeReduction: 0.50               // Size ADVISORY trades at 50% of CONVICTION size
         },
         
-        // 🏆 v74 KELLY SIZING: Mathematically optimal position sizing based on edge
+        // 🏆 v80 KELLY SIZING: Mathematically optimal position sizing based on edge
         // Kelly formula: f* = (b*p - (1-p)) / b where b = payout odds, p = win probability
         // Half-Kelly (k=0.5) provides ~75% of full Kelly growth with ~50% of variance
+        // 🏆 v80: kellyMaxFraction=0.32 is the "sweet spot" - max profit with min ruin risk
         kellyEnabled: true,               // Enable Kelly-based position sizing
         kellyFraction: 0.50,              // k=0.5 (half-Kelly) - balance growth vs variance
         kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
-        kellyMaxFraction: 0.35,           // Never exceed this fraction regardless of Kelly calculation
+        kellyMaxFraction: 0.32,           // 🏆 v80: Sweet spot - never exceed 32% stake
         
         // 🏆 v75 RISK ENVELOPE: Hard caps on per-trade risk to prevent heavy drawdowns
         // This ensures NO SINGLE TRADE can violate the remaining loss budget
@@ -6716,13 +6735,30 @@ class TradeExecutor {
         const MIN_ORDER = 1.10; // Polymarket minimum
         const effectiveBudget = envelope.effectiveBudget || 0;
         const stageName = envelope.profile?.stageName || 'UNKNOWN';
+        const minOrderRiskOverride = envelope.profile?.minOrderRiskOverride || false;
         
         // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
         // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
         // If effectiveBudget >= MIN_ORDER, we should ALWAYS allow at least MIN_ORDER
         
         // Case 1: Budget truly exhausted - block trade
+        // 🏆 v80 FIX: Respect minOrderRiskOverride from dynamic profile
+        // In Bootstrap mode (Stage 0), minOrderRiskOverride=true allows MIN_ORDER even when budget is tight
         if (effectiveBudget < MIN_ORDER) {
+            // Check if we have enough ACTUAL balance for MIN_ORDER (ignore budget exhaustion)
+            const actualBalance = this.mode === 'LIVE' ? this.getBankrollForRisk() : this.paperBalance;
+            
+            if (minOrderRiskOverride && actualBalance >= MIN_ORDER) {
+                log(`🛡️ RISK ENVELOPE [${stageName}]: Budget exhausted ($${effectiveBudget.toFixed(2)}) but MIN_ORDER override active - allowing $${MIN_ORDER.toFixed(2)}`);
+                return { 
+                    size: MIN_ORDER, 
+                    capped: proposedSize > MIN_ORDER,
+                    overrideUsed: true,
+                    envelope,
+                    reason: `Bootstrap min-order override (stage: ${stageName}, balance $${actualBalance.toFixed(2)})`
+                };
+            }
+            
             return { 
                 size: 0, 
                 blocked: true, 
@@ -9098,6 +9134,267 @@ class TradeExecutor {
         } catch (e) {
             // Non-critical; never crash
         }
+    }
+
+    // 🏆 v80 CRASH RECOVERY SETTLEMENT: Reconcile CRASH_RECOVERED trades with actual Gamma outcomes
+    // This fixes the critical bug where crashed positions lose their stake permanently
+    async reconcileCrashRecoveredTrades() {
+        const results = {
+            total: 0,
+            settled: 0,
+            wins: 0,
+            losses: 0,
+            netPnL: 0,
+            stillPending: 0,
+            errors: 0,
+            details: []
+        };
+
+        try {
+            // Find all CRASH_RECOVERED trades in history
+            const crashRecovered = (this.tradeHistory || []).filter(t => 
+                t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
+            );
+
+            if (crashRecovered.length === 0) {
+                log(`✅ CRASH RECONCILE: No unreconciled CRASH_RECOVERED trades found`);
+                return results;
+            }
+
+            results.total = crashRecovered.length;
+            log(`🔄 CRASH RECONCILE: Processing ${crashRecovered.length} CRASH_RECOVERED trades...`);
+
+            for (const trade of crashRecovered) {
+                try {
+                    // Reconstruct the slug from trade time
+                    const tradeTimeSec = Math.floor(trade.time / 1000);
+                    const cycleStartSec = tradeTimeSec - (tradeTimeSec % 900);
+                    const slug = trade.slug || `${trade.asset.toLowerCase()}-updown-15m-${cycleStartSec}`;
+
+                    // Query Gamma API for outcome
+                    const gammaUrl = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+                    const response = await fetch(gammaUrl, {
+                        headers: { 'User-Agent': 'polyprophet-crash-recovery/1.0' },
+                        signal: AbortSignal.timeout(10000)
+                    });
+
+                    if (!response.ok) {
+                        results.errors++;
+                        results.details.push({ id: trade.id, status: 'API_ERROR', error: `HTTP ${response.status}` });
+                        continue;
+                    }
+
+                    const data = await response.json();
+                    const market = Array.isArray(data) ? data[0] : data;
+
+                    if (!market || !market.outcomePrices) {
+                        results.stillPending++;
+                        results.details.push({ id: trade.id, status: 'NOT_FOUND', slug });
+                        continue;
+                    }
+
+                    // Parse outcome prices
+                    let prices;
+                    try {
+                        prices = typeof market.outcomePrices === 'string' 
+                            ? JSON.parse(market.outcomePrices) 
+                            : market.outcomePrices;
+                    } catch {
+                        results.errors++;
+                        results.details.push({ id: trade.id, status: 'PARSE_ERROR', slug });
+                        continue;
+                    }
+
+                    if (!Array.isArray(prices) || prices.length < 2) {
+                        results.stillPending++;
+                        results.details.push({ id: trade.id, status: 'INVALID_PRICES', slug });
+                        continue;
+                    }
+
+                    const p0 = Number(prices[0]);
+                    const p1 = Number(prices[1]);
+
+                    // Check if resolved (1/0 or 0/1)
+                    const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                    const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+
+                    if (!idx0Win && !idx1Win) {
+                        results.stillPending++;
+                        results.details.push({ id: trade.id, status: 'NOT_RESOLVED', slug, prices: [p0, p1] });
+                        continue;
+                    }
+
+                    // Determine outcome direction
+                    let outcomes;
+                    try {
+                        outcomes = typeof market.outcomes === 'string' 
+                            ? JSON.parse(market.outcomes) 
+                            : market.outcomes;
+                    } catch {
+                        outcomes = ['Yes', 'No'];
+                    }
+
+                    const o0 = String(outcomes[0] || '').toLowerCase();
+                    const o1 = String(outcomes[1] || '').toLowerCase();
+
+                    let resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
+                    if (o0 === 'up' && o1 === 'down') resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
+                    else if (o0 === 'down' && o1 === 'up') resolvedOutcome = idx0Win ? 'DOWN' : 'UP';
+                    else if (o0 === 'yes' && o1 === 'no') resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
+                    else if (o0 === 'no' && o1 === 'yes') resolvedOutcome = idx0Win ? 'DOWN' : 'UP';
+
+                    // Calculate exit price and PnL
+                    const tradeSide = String(trade.side || '').toUpperCase();
+                    const tradeWon = tradeSide === resolvedOutcome;
+                    const exitPrice = tradeWon ? 1.0 : 0.0;
+                    const shares = trade.shares || (trade.size / trade.entry);
+                    const pnl = (exitPrice - trade.entry) * shares;
+                    const pnlPercent = trade.entry > 0 ? ((exitPrice / trade.entry) - 1) * 100 : 0;
+
+                    // Credit back to paperBalance (the stake was already deducted when trade opened)
+                    // For a win: we get back stake + profit = size + pnl
+                    // For a loss: we get back 0 (stake already deducted, exit at 0)
+                    const creditAmount = trade.size + pnl;
+                    
+                    if (this.mode === 'PAPER') {
+                        this.paperBalance += creditAmount;
+                        this.todayPnL += pnl;
+                        log(`💰 CRASH RECONCILE: ${trade.asset} ${tradeSide} ${tradeWon ? 'WON' : 'LOST'} → +$${creditAmount.toFixed(2)} credited (PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)})`, trade.asset);
+                    }
+
+                    // Update trade record
+                    trade.exit = exitPrice;
+                    trade.pnl = pnl;
+                    trade.pnlPercent = pnlPercent;
+                    trade.status = 'CLOSED';
+                    trade.closeTime = Date.now();
+                    trade.reason = `CRASH_RECOVERY_SETTLED (${resolvedOutcome})`;
+                    trade.crashReconciled = true;
+                    trade.crashReconcileTime = Date.now();
+                    trade.gammaOutcome = resolvedOutcome;
+
+                    results.settled++;
+                    results.netPnL += pnl;
+                    if (tradeWon) results.wins++;
+                    else results.losses++;
+
+                    results.details.push({
+                        id: trade.id,
+                        asset: trade.asset,
+                        side: tradeSide,
+                        status: 'SETTLED',
+                        outcome: resolvedOutcome,
+                        won: tradeWon,
+                        entry: trade.entry,
+                        exit: exitPrice,
+                        size: trade.size,
+                        pnl: pnl,
+                        credited: creditAmount
+                    });
+
+                    // Rate limit to avoid hammering Gamma API
+                    await new Promise(r => setTimeout(r, 100));
+
+                } catch (e) {
+                    results.errors++;
+                    results.details.push({ id: trade.id, status: 'ERROR', error: e.message });
+                }
+            }
+
+            // Also reconcile items in recoveryQueue
+            const recoveryItems = [...(this.recoveryQueue || [])];
+            for (let i = recoveryItems.length - 1; i >= 0; i--) {
+                const item = recoveryItems[i];
+                if (item.crashReconciled) continue;
+
+                try {
+                    const itemTimeSec = Math.floor(item.time / 1000);
+                    const cycleStartSec = itemTimeSec - (itemTimeSec % 900);
+                    const slug = item.slug || `${item.asset.toLowerCase()}-updown-15m-${cycleStartSec}`;
+
+                    const response = await fetch(`https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`, {
+                        headers: { 'User-Agent': 'polyprophet-crash-recovery/1.0' },
+                        signal: AbortSignal.timeout(10000)
+                    });
+
+                    if (!response.ok) continue;
+
+                    const data = await response.json();
+                    const market = Array.isArray(data) ? data[0] : data;
+                    if (!market || !market.outcomePrices) continue;
+
+                    let prices;
+                    try {
+                        prices = typeof market.outcomePrices === 'string' ? JSON.parse(market.outcomePrices) : market.outcomePrices;
+                    } catch { continue; }
+
+                    const p0 = Number(prices[0]);
+                    const p1 = Number(prices[1]);
+                    const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                    const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+
+                    if (!idx0Win && !idx1Win) continue;
+
+                    let outcomes;
+                    try {
+                        outcomes = typeof market.outcomes === 'string' ? JSON.parse(market.outcomes) : market.outcomes;
+                    } catch { outcomes = ['Yes', 'No']; }
+
+                    const o0 = String(outcomes[0] || '').toLowerCase();
+                    const o1 = String(outcomes[1] || '').toLowerCase();
+                    let resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
+                    if (o0 === 'up' && o1 === 'down') resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
+                    else if (o0 === 'down' && o1 === 'up') resolvedOutcome = idx0Win ? 'DOWN' : 'UP';
+
+                    const itemSide = String(item.side || '').toUpperCase();
+                    const itemWon = itemSide === resolvedOutcome;
+                    const exitPrice = itemWon ? 1.0 : 0.0;
+                    const shares = item.shares || (item.size / item.entry);
+                    const pnl = (exitPrice - item.entry) * shares;
+                    const creditAmount = item.size + pnl;
+
+                    if (this.mode === 'PAPER' && !item.isLive) {
+                        this.paperBalance += creditAmount;
+                        this.todayPnL += pnl;
+                        log(`💰 RECOVERY QUEUE RECONCILE: ${item.asset} ${itemSide} ${itemWon ? 'WON' : 'LOST'} → +$${creditAmount.toFixed(2)} credited`, item.asset);
+                    }
+
+                    // Remove from recovery queue
+                    const idx = this.recoveryQueue.findIndex(r => r.id === item.id);
+                    if (idx !== -1) {
+                        this.recoveryQueue.splice(idx, 1);
+                    }
+
+                    // Update corresponding trade history if exists
+                    const trade = this.tradeHistory.find(t => t.id === item.id);
+                    if (trade) {
+                        trade.exit = exitPrice;
+                        trade.pnl = pnl;
+                        trade.pnlPercent = item.entry > 0 ? ((exitPrice / item.entry) - 1) * 100 : 0;
+                        trade.status = 'CLOSED';
+                        trade.closeTime = Date.now();
+                        trade.reason = `RECOVERY_QUEUE_SETTLED (${resolvedOutcome})`;
+                        trade.crashReconciled = true;
+                    }
+
+                    results.settled++;
+                    results.netPnL += pnl;
+                    if (itemWon) results.wins++;
+                    else results.losses++;
+
+                    await new Promise(r => setTimeout(r, 100));
+
+                } catch { }
+            }
+
+            log(`✅ CRASH RECONCILE COMPLETE: ${results.settled}/${results.total} settled, W${results.wins}/L${results.losses}, Net PnL: ${results.netPnL >= 0 ? '+' : ''}$${results.netPnL.toFixed(2)}, Balance: $${this.paperBalance.toFixed(2)}`);
+
+        } catch (e) {
+            log(`❌ CRASH RECONCILE ERROR: ${e.message}`);
+            results.errors++;
+        }
+
+        return results;
     }
 
     // 🧊 PINNACLE v28: ASSET COOLDOWN - Pause trading on specific asset after loss
@@ -14382,8 +14679,107 @@ app.get('/', (req, res) => {
                 </ol>
             </div>
             <p style="color:#666;font-size:0.8em;margin-top:10px;text-align:center;">Auto-updates every 10 seconds | API: <code>/api/pending-sells</code></p>
+            
+            <!-- 🏆 v80: CRASH RECOVERY RECONCILE SECTION -->
+            <div style="margin-top:20px;padding:15px;background:rgba(255,100,50,0.1);border-radius:8px;border-left:3px solid #ff6633;">
+                <h4 style="color:#ff6633;margin-bottom:10px;">🔄 Crash Recovery Reconcile</h4>
+                <div id="crashRecoveryStats" style="color:#aaa;font-size:0.85em;margin-bottom:12px;">Loading...</div>
+                <div style="display:flex;gap:10px;">
+                    <button onclick="reconcileCrashTrades()" id="reconcileBtn" class="btn" style="background:linear-gradient(90deg,#ff6633,#cc4400);padding:10px 20px;">
+                        ⚡ Reconcile Crashed Trades
+                    </button>
+                    <button onclick="viewCrashStats()" class="btn" style="background:linear-gradient(90deg,#888,#666);padding:10px 20px;">
+                        📊 View Details
+                    </button>
+                </div>
+                <div id="reconcileResult" style="margin-top:10px;display:none;padding:10px;background:rgba(0,255,100,0.1);border-radius:6px;color:#00ff88;font-size:0.85em;"></div>
+                <p style="color:#888;font-size:0.75em;margin-top:8px;">If trades show "CRASH_RECOVERED" but balance wasn't credited, click Reconcile to query Gamma API and settle them.</p>
+            </div>
         </div>
     </div>
+    
+    <script>
+        // 🏆 v80: Crash recovery functions
+        async function loadCrashRecoveryStats() {
+            try {
+                const resp = await fetch('/api/crash-recovery-stats');
+                const data = await resp.json();
+                const statsEl = document.getElementById('crashRecoveryStats');
+                
+                if (data.success) {
+                    const hasIssues = data.unreconciled.count > 0 || data.recoveryQueue.count > 0;
+                    statsEl.innerHTML = hasIssues 
+                        ? '<span style="color:#ff6633;">⚠️ ' + data.unreconciled.count + ' unreconciled trades, ' + data.recoveryQueue.count + ' in recovery queue (Missing: $' + data.unreconciled.totalMissingPrincipal.toFixed(2) + ')</span>'
+                        : '<span style="color:#00ff88;">✅ All crashed trades reconciled. No missing funds.</span>';
+                    document.getElementById('reconcileBtn').disabled = !hasIssues;
+                } else {
+                    statsEl.innerHTML = '<span style="color:#ff4444;">Error loading stats</span>';
+                }
+            } catch (e) {
+                document.getElementById('crashRecoveryStats').innerHTML = '<span style="color:#ff4444;">Error: ' + e.message + '</span>';
+            }
+        }
+        
+        async function reconcileCrashTrades() {
+            const btn = document.getElementById('reconcileBtn');
+            const resultEl = document.getElementById('reconcileResult');
+            btn.disabled = true;
+            btn.textContent = '⏳ Reconciling...';
+            resultEl.style.display = 'none';
+            
+            try {
+                const resp = await fetch('/api/reconcile-crash-trades', { method: 'POST' });
+                const data = await resp.json();
+                
+                if (data.success) {
+                    resultEl.style.display = 'block';
+                    resultEl.style.background = 'rgba(0,255,100,0.1)';
+                    resultEl.style.color = '#00ff88';
+                    resultEl.innerHTML = '✅ Reconciled ' + data.settled + '/' + data.total + ' trades. ' +
+                        'W' + data.wins + '/L' + data.losses + ', Net PnL: $' + data.netPnL.toFixed(2) + 
+                        ', New Balance: $' + data.newBalance.toFixed(2);
+                } else {
+                    resultEl.style.display = 'block';
+                    resultEl.style.background = 'rgba(255,0,0,0.1)';
+                    resultEl.style.color = '#ff4444';
+                    resultEl.innerHTML = '❌ Error: ' + data.error;
+                }
+            } catch (e) {
+                resultEl.style.display = 'block';
+                resultEl.style.background = 'rgba(255,0,0,0.1)';
+                resultEl.style.color = '#ff4444';
+                resultEl.innerHTML = '❌ Network error: ' + e.message;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '⚡ Reconcile Crashed Trades';
+            await loadCrashRecoveryStats();
+        }
+        
+        async function viewCrashStats() {
+            try {
+                const resp = await fetch('/api/crash-recovery-stats');
+                const data = await resp.json();
+                const resultEl = document.getElementById('reconcileResult');
+                resultEl.style.display = 'block';
+                resultEl.style.background = 'rgba(100,150,255,0.1)';
+                resultEl.style.color = '#88ccff';
+                resultEl.innerHTML = '<pre style="margin:0;white-space:pre-wrap;font-size:0.8em;">' + JSON.stringify(data, null, 2) + '</pre>';
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+        
+        // Load crash recovery stats when modal opens
+        document.getElementById('pendingSellsModal').addEventListener('click', function(e) {
+            if (e.target === this) return;
+            loadCrashRecoveryStats();
+        });
+        
+        // Also load on page load
+        setTimeout(loadCrashRecoveryStats, 2000);
+    </script>
+    
     <!-- 🎯 GOAT v44.1: API EXPLORER MODAL -->
     <div class="modal-overlay" id="apiExplorerModal">
         <div class="modal" style="max-width:900px;max-height:90vh;overflow-y:auto;">
@@ -14408,7 +14804,7 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
-                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.35&maxOdds=0.95&stake=0.35&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (TRUE MAXIMUM 35% stake)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.35&maxOdds=0.95&stake=0.32&kellyMax=0.32&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (v80 sweet spot 32% stake)">🏆 Poly Backtest</button>
                 <button onclick="apiCall('/api/verify-trades-polymarket?mode=PAPER&limit=100')" class="btn" style="background:linear-gradient(90deg,#22c55e,#16a34a);" title="Verify executed trades vs Polymarket outcomes (detect mismatches)">✅ Verify Trades</button>
             </div>
             
@@ -14842,7 +15238,7 @@ app.get('/', (req, res) => {
                 GOAT: { 
                     // 🏆 v79 FINAL (LOCKED): This MUST match README "The One Config"
                     // Goal: MAX PROFIT ASAP with bounded variance + PAPER/LIVE parity
-                    MAX_POSITION_SIZE: 0.35,
+                    MAX_POSITION_SIZE: 0.32,
                     // ORACLE: Primary prediction engine with parity vs backtest defaults
                     ORACLE: { 
                         enabled: true, 
@@ -14925,7 +15321,7 @@ app.get('/', (req, res) => {
                         kellyEnabled: true,
                         kellyFraction: 0.50,
                         kellyMinPWin: 0.55,
-                        kellyMaxFraction: 0.35,
+                        kellyMaxFraction: 0.32,
 
                         riskEnvelopeEnabled: true,
                         intradayLossBudgetPct: 0.35,
@@ -15771,8 +16167,10 @@ function buildStateSnapshot() {
     // Add trading system data
     const inCooldown = tradeExecutor.isInCooldown();
     const cooldownRemaining = inCooldown ? Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - tradeExecutor.lastLossTime)) / 1000) : 0;
-    // 🔴 FIX #18: Only NEGATIVE P/L triggers stop loss (was using Math.abs which triggered on PROFIT!)
-    const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > tradeExecutor.paperBalance * CONFIG.RISK.globalStopLoss;
+    // 🏆 v80 FIX: Use dayStartBalance (not current balance) for global stop loss calculation
+    // This matches the actual runtime check in executeTrade() and prevents false halt status
+    const dayStartBalance = tradeExecutor.circuitBreaker?.dayStartBalance || tradeExecutor.paperBalance;
+    const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > dayStartBalance * CONFIG.RISK.globalStopLoss;
     
     // 🔴 v46: Get circuit breaker status
     const cbStatus = tradeExecutor.circuitBreaker || {};
@@ -16280,6 +16678,75 @@ app.post('/api/clear-recovery-queue', (req, res) => {
     });
 });
 
+// 🏆 v80: Reconcile crash-recovered trades with Gamma outcomes
+// This is the critical fix for "trades not credited back" issue
+app.post('/api/reconcile-crash-trades', async (req, res) => {
+    try {
+        log(`🔄 CRASH RECONCILE: Manual trigger via API`);
+        const results = await tradeExecutor.reconcileCrashRecoveredTrades();
+        
+        res.json({
+            success: true,
+            message: `Reconciled ${results.settled}/${results.total} crashed trades`,
+            ...results,
+            newBalance: tradeExecutor.paperBalance
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// Get crash recovery statistics
+app.get('/api/crash-recovery-stats', (req, res) => {
+    const crashRecoveredTrades = (tradeExecutor.tradeHistory || []).filter(t => 
+        t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
+    );
+    const reconciledTrades = (tradeExecutor.tradeHistory || []).filter(t => 
+        t && t.crashReconciled
+    );
+    const recoveryQueueItems = tradeExecutor.recoveryQueue || [];
+    
+    // Calculate total missing principal from unreconciled trades
+    const missingPrincipal = crashRecoveredTrades.reduce((sum, t) => sum + (t.size || 0), 0);
+    const recoveryQueuePrincipal = recoveryQueueItems.reduce((sum, item) => sum + (item.size || 0), 0);
+    
+    res.json({
+        success: true,
+        unreconciled: {
+            count: crashRecoveredTrades.length,
+            trades: crashRecoveredTrades.map(t => ({
+                id: t.id,
+                asset: t.asset,
+                side: t.side,
+                entry: t.entry,
+                size: t.size,
+                time: t.time,
+                slug: t.slug
+            })),
+            totalMissingPrincipal: missingPrincipal
+        },
+        reconciled: {
+            count: reconciledTrades.length,
+            totalPnL: reconciledTrades.reduce((sum, t) => sum + (t.pnl || 0), 0)
+        },
+        recoveryQueue: {
+            count: recoveryQueueItems.length,
+            totalPrincipal: recoveryQueuePrincipal,
+            items: recoveryQueueItems.map(item => ({
+                id: item.id,
+                asset: item.asset,
+                side: item.side,
+                size: item.size,
+                isLive: item.isLive
+            }))
+        },
+        currentBalance: tradeExecutor.paperBalance,
+        recommendation: crashRecoveredTrades.length > 0 || recoveryQueueItems.length > 0 
+            ? 'Run POST /api/reconcile-crash-trades to settle crashed positions' 
+            : 'All crashed trades have been reconciled'
+    });
+});
+
 // Get pending sells (failed sell orders)
 app.get('/api/pending-sells', (req, res) => {
     const pending = tradeExecutor.pendingSells || {};
@@ -16544,6 +17011,15 @@ app.post('/api/settings', async (req, res) => {
     // Reload wallet if needed
     if (reloadRequired) {
         tradeExecutor.reloadWallet();
+    }
+    
+    // 🏆 v80: Sync circuit breaker enable setting to runtime
+    if (CONFIG.RISK && typeof CONFIG.RISK.enableCircuitBreaker === 'boolean') {
+        const wasEnabled = tradeExecutor.circuitBreaker.enabled;
+        tradeExecutor.circuitBreaker.enabled = CONFIG.RISK.enableCircuitBreaker;
+        if (wasEnabled !== CONFIG.RISK.enableCircuitBreaker) {
+            log(`🔌 Circuit Breaker: ${CONFIG.RISK.enableCircuitBreaker ? 'ENABLED' : 'DISABLED'} (setting changed)`);
+        }
     }
 
     // PERSIST SETTINGS TO REDIS (survives restarts!)
@@ -17529,6 +18005,37 @@ async function startup() {
     // 🎯 GOAT v4: Load persisted settings from Redis
     await loadCollectorEnabled();
     
+    // 🏆 v80: Wire enableCircuitBreaker setting to runtime
+    if (CONFIG.RISK && typeof CONFIG.RISK.enableCircuitBreaker === 'boolean') {
+        tradeExecutor.circuitBreaker.enabled = CONFIG.RISK.enableCircuitBreaker;
+        log(`🔌 Circuit Breaker: ${CONFIG.RISK.enableCircuitBreaker ? 'ENABLED' : 'DISABLED'} (from settings)`);
+    }
+    
+    // 🏆 v80: Automatically reconcile crash-recovered trades at startup
+    if (!LIGHT_MODE) {
+        try {
+            const crashStats = (tradeExecutor.tradeHistory || []).filter(t => 
+                t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
+            );
+            const recoveryItems = (tradeExecutor.recoveryQueue || []).length;
+            
+            if (crashStats.length > 0 || recoveryItems > 0) {
+                log(`🔄 STARTUP: Found ${crashStats.length} crashed trades + ${recoveryItems} recovery queue items - auto-reconciling...`);
+                // Delay reconcile to allow Gamma API availability
+                setTimeout(async () => {
+                    try {
+                        const results = await tradeExecutor.reconcileCrashRecoveredTrades();
+                        log(`✅ AUTO-RECONCILE: ${results.settled} settled, Net PnL: $${results.netPnL.toFixed(2)}, Balance: $${tradeExecutor.paperBalance.toFixed(2)}`);
+                    } catch (e) {
+                        log(`⚠️ AUTO-RECONCILE failed: ${e.message}`);
+                    }
+                }, 10000); // Wait 10s for server to stabilize
+            }
+        } catch (e) {
+            log(`⚠️ Crash recovery check failed: ${e.message}`);
+        }
+    }
+    
     if (!LIGHT_MODE) {
         connectWebSocket();
     } else {
@@ -17736,9 +18243,11 @@ function startWatchdog() {
         }
         
         // Check 2: Trade drought
-        const lastTradeTime = tradeExecutor.tradeHistory.length > 0 
-            ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp 
+        // 🏆 v80 FIX: Use correct timestamp field (.time or .closeTime, not .timestamp)
+        const lastTrade = tradeExecutor.tradeHistory.length > 0 
+            ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1] 
             : null;
+        const lastTradeTime = lastTrade ? (lastTrade.closeTime || lastTrade.time) : null;
         if (lastTradeTime) {
             const tradeAge = (now - lastTradeTime) / (1000 * 60 * 60);
             if (tradeAge > TRADE_DROUGHT_HOURS) {
@@ -17829,17 +18338,40 @@ process.on('unhandledRejection', (reason, promise) => {
     log(`⚠️ Non-fatal rejection - continuing operation`);
 });
 
-// Graceful shutdown handlers
-process.on('SIGTERM', () => {
-    log('🛑 SIGTERM received - shutting down gracefully...');
-    saveState();
-    process.exit(0);
-});
+// 🏆 v80: Graceful shutdown handlers with proper async saveState
+let isShuttingDown = false;
 
-process.on('SIGINT', () => {
-    log('🛑 SIGINT received - shutting down gracefully...');
-    saveState();
+async function gracefulShutdown(signal) {
+    if (isShuttingDown) {
+        log(`⚠️ ${signal}: Shutdown already in progress, forcing exit...`);
+        process.exit(1);
+    }
+    isShuttingDown = true;
+    
+    log(`🛑 ${signal} received - shutting down gracefully...`);
+    
+    try {
+        // Stop accepting new trades
+        if (tradeExecutor) {
+            tradeExecutor.tradingHalted = true;
+        }
+        
+        // Wait for saveState with timeout
+        const savePromise = saveState();
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('saveState timeout')), 10000)
+        );
+        
+        await Promise.race([savePromise, timeoutPromise]);
+        log('✅ State saved successfully before shutdown');
+    } catch (e) {
+        log(`⚠️ Error during shutdown: ${e.message}`);
+    }
+    
     process.exit(0);
-});
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 startup();

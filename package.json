@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.4.0-final-v79",
-    "description": "POLYPROPHET v79 FINAL - Long-horizon datasets + historical prices + enhanced backtesting",
+    "version": "4.5.0-v80",
+    "description": "POLYPROPHET v80 - Critical bug fixes: crash recovery settlement, graceful shutdown, 0.32 sweet spot",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
