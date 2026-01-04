@@ -14803,6 +14803,8 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/state')" class="btn" style="background:linear-gradient(90deg,#9933ff,#6600cc);" title="Full bot state (advanced)">🔮 Full State</button>
                 <button onclick="apiCall('/api/settings')" class="btn" style="background:linear-gradient(90deg,#ff9900,#cc7700);" title="Current configuration">⚙️ Settings</button>
                 <button onclick="apiCall('/api/health')" class="btn" style="background:linear-gradient(90deg,#00ff88,#00cc66);" title="Is the bot healthy?">💚 Health</button>
+                <button onclick="apiCall('/api/crash-recovery-stats')" class="btn" style="background:linear-gradient(90deg,#ff6633,#cc4400);" title="Check crashed trades and missing funds">🔄 Crash Recovery</button>
+                <button onclick="apiCall('/api/risk-controls')" class="btn" style="background:linear-gradient(90deg,#ff0066,#cc0044);" title="Current risk gates and dynamic profile">⚠️ Risk Controls</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
                 <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.35&maxOdds=0.95&stake=0.32&kellyMax=0.32&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (v80 sweet spot 32% stake)">🏆 Poly Backtest</button>
                 <button onclick="apiCall('/api/verify-trades-polymarket?mode=PAPER&limit=100')" class="btn" style="background:linear-gradient(90deg,#22c55e,#16a34a);" title="Verify executed trades vs Polymarket outcomes (detect mismatches)">✅ Verify Trades</button>
@@ -14859,9 +14861,25 @@ app.get('/', (req, res) => {
                         <td style="padding:6px;color:#4fc3f7;"><code>GET /api/settings</code></td>
                         <td style="padding:6px;">Current configuration values</td>
                     </tr>
-                    <tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
                         <td style="padding:6px;color:#4fc3f7;"><code>POST /api/settings</code></td>
                         <td style="padding:6px;">Update configuration</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#ff6633;"><code>GET /api/crash-recovery-stats</code></td>
+                        <td style="padding:6px;">🔄 v80: Check unreconciled crashed trades and missing funds</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#ff6633;"><code>POST /api/reconcile-crash-trades</code></td>
+                        <td style="padding:6px;">🔄 v80: Settle crashed trades with Gamma outcomes</td>
+                    </tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                        <td style="padding:6px;color:#ff0066;"><code>GET /api/risk-controls</code></td>
+                        <td style="padding:6px;">⚠️ Risk gates, dynamic profile, envelope status</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:6px;color:#00ff88;"><code>GET /api/health</code></td>
+                        <td style="padding:6px;">💚 Full health check including crash recovery status</td>
                     </tr>
                 </table>
             </div>
