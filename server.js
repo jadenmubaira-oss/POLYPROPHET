@@ -2032,6 +2032,460 @@ app.get('/api/backtest-dataset', async (req, res) => {
     }
 });
 
+// ==================== 🏆 v77 ENHANCED DATASET BUILDER ====================
+// Fetches Polymarket outcomes + CLOB historical prices for comprehensive backtesting
+// Stores: outcome, entry prices at various cycle points, volume, spread data
+app.get('/api/dataset/build-enhanced', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const lookbackDays = Math.min(parseInt(req.query.days) || 7, 90);
+        const assetParam = req.query.asset;
+        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH'];
+        const forceRefresh = req.query.refresh === '1';
+        const clobFidelity = parseInt(req.query.fidelity) || 60; // seconds between CLOB samples
+        
+        const nowSec = Math.floor(Date.now() / 1000);
+        const startSec = nowSec - (lookbackDays * 86400);
+        
+        // Generate all possible slug epochs (15-min intervals)
+        const allSlugs = [];
+        for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
+            for (const a of ASSETS) {
+                allSlugs.push({ slug: `${a.toLowerCase()}-updown-15m-${epochSec}`, asset: a, epochSec });
+            }
+        }
+        
+        let cached = 0, fetched = 0, errors = 0, resolved = 0, unresolved = 0;
+        const entries = [];
+        const ENHANCED_CACHE_KEY = 'deity:enhanced-dataset:';
+        
+        for (const { slug, asset, epochSec } of allSlugs.slice(0, 500)) { // Limit to prevent timeout
+            // Check cache first
+            if (!forceRefresh && redisAvailable) {
+                try {
+                    const existing = await redis.get(ENHANCED_CACHE_KEY + slug);
+                    if (existing) {
+                        cached++;
+                        entries.push(JSON.parse(existing));
+                        continue;
+                    }
+                } catch {}
+            }
+            
+            // Rate limit
+            await new Promise(r => setTimeout(r, 100));
+            
+            try {
+                // 1. Fetch outcome from Gamma API
+                const gammaUrl = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+                const gammaResp = await fetch(gammaUrl, {
+                    headers: { 'User-Agent': 'polyprophet-enhanced-builder/1.0' },
+                    signal: AbortSignal.timeout(10000)
+                });
+                
+                if (!gammaResp.ok) { errors++; continue; }
+                
+                const gammaData = await gammaResp.json();
+                const market = Array.isArray(gammaData) ? gammaData[0] : gammaData;
+                if (!market) { unresolved++; continue; }
+                
+                const prices = JSON.parse(market.outcomePrices || '[]');
+                const outcomes = JSON.parse(market.outcomes || '[]');
+                const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
+                
+                if (!Array.isArray(prices) || prices.length < 2) { unresolved++; continue; }
+                
+                const p0 = Number(prices[0]);
+                const p1 = Number(prices[1]);
+                const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+                
+                if (!idx0Win && !idx1Win) { unresolved++; continue; }
+                
+                // Determine outcome
+                const o0 = String(outcomes[0] || '').toLowerCase();
+                const o1 = String(outcomes[1] || '').toLowerCase();
+                let outcome = idx0Win ? 'UP' : 'DOWN';
+                if (o0 === 'up' && o1 === 'down') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
+                else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
+                
+                resolved++;
+                
+                // 2. Fetch CLOB price history for entry price analysis
+                let clobHistory = [];
+                if (clobTokenIds.length >= 2) {
+                    try {
+                        const clobUrl = `https://clob.polymarket.com/prices-history?market=${clobTokenIds[0]}&startTs=${epochSec}&endTs=${epochSec + 900}&fidelity=${clobFidelity}`;
+                        const clobResp = await fetch(clobUrl, {
+                            headers: { 'User-Agent': 'polyprophet-enhanced-builder/1.0' },
+                            signal: AbortSignal.timeout(10000)
+                        });
+                        if (clobResp.ok) {
+                            const clobData = await clobResp.json();
+                            if (Array.isArray(clobData.history)) {
+                                clobHistory = clobData.history.map(h => ({
+                                    t: h.t,
+                                    p: Number(h.p) // YES price
+                                }));
+                            }
+                        }
+                    } catch {}
+                }
+                
+                // Calculate entry prices at various points
+                const entryPrices = {};
+                if (clobHistory.length > 0) {
+                    // Early (first 60s)
+                    const early = clobHistory.find(h => h.t >= epochSec && h.t < epochSec + 60);
+                    if (early) entryPrices.early = early.p;
+                    
+                    // Mid (around 5 minutes)
+                    const mid = clobHistory.find(h => h.t >= epochSec + 240 && h.t < epochSec + 360);
+                    if (mid) entryPrices.mid = mid.p;
+                    
+                    // Late (around 10 minutes)
+                    const late = clobHistory.find(h => h.t >= epochSec + 540 && h.t < epochSec + 660);
+                    if (late) entryPrices.late = late.p;
+                    
+                    // Final (last 60s)
+                    const final = clobHistory.slice(-1)[0];
+                    if (final) entryPrices.final = final.p;
+                    
+                    // Spread (max - min)
+                    const allPrices = clobHistory.map(h => h.p);
+                    entryPrices.high = Math.max(...allPrices);
+                    entryPrices.low = Math.min(...allPrices);
+                    entryPrices.spread = entryPrices.high - entryPrices.low;
+                }
+                
+                const entry = {
+                    slug,
+                    asset,
+                    cycleStartEpochSec: epochSec,
+                    cycleEndEpochSec: epochSec + 900,
+                    resolvedOutcome: outcome,
+                    outcomes,
+                    clobTokenIds,
+                    entryPrices,
+                    clobSamples: clobHistory.length,
+                    volume: Number(market.volume || 0),
+                    cachedAt: Date.now()
+                };
+                
+                // Cache the entry
+                if (redisAvailable) {
+                    try {
+                        await redis.setex(ENHANCED_CACHE_KEY + slug, 86400 * 30, JSON.stringify(entry));
+                    } catch {}
+                }
+                
+                entries.push(entry);
+                fetched++;
+                
+            } catch (e) {
+                errors++;
+            }
+        }
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        res.json({
+            success: true,
+            summary: {
+                runtime: runtime + 's',
+                lookbackDays,
+                assets: ASSETS,
+                totalSlugs: allSlugs.length,
+                processed: Math.min(allSlugs.length, 500),
+                cached,
+                fetched,
+                resolved,
+                unresolved,
+                errors,
+                entriesBuilt: entries.length
+            },
+            sampleEntries: entries.slice(-5),
+            note: 'Enhanced entries include CLOB price history for multi-point entry price analysis'
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== 🏆 v77 CHAINLINK SIGNAL REPLAY BACKTESTER ====================
+// Fetches historical crypto prices, simulates brain signals, compares to Polymarket outcomes
+// Uses CryptoCompare API for historical price data (Chainlink doesn't provide easy historical access)
+app.get('/api/backtest-signal-replay', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        const lookbackDays = Math.min(parseInt(req.query.days) || 7, 30);
+        const assetParam = req.query.asset;
+        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH'];
+        const startingBalance = parseFloat(req.query.balance) || 5.0;
+        const stakeFrac = parseFloat(req.query.stake) || 0.35;
+        const tierFilter = String(req.query.tier || 'CONVICTION').toUpperCase();
+        
+        const nowSec = Math.floor(Date.now() / 1000);
+        const startSec = nowSec - (lookbackDays * 86400);
+        
+        // Asset to CryptoCompare symbol mapping
+        const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP' };
+        
+        // 1. Fetch historical minute-level price data from CryptoCompare
+        const priceDataByAsset = {};
+        for (const asset of ASSETS) {
+            const symbol = CRYPTO_SYMBOLS[asset];
+            if (!symbol) continue;
+            
+            try {
+                // CryptoCompare histominute API (up to 2000 data points)
+                // For longer periods, we need to make multiple requests
+                const limit = Math.min(2000, lookbackDays * 24 * 60);
+                const url = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=${symbol}&tsym=USD&limit=${limit}&toTs=${nowSec}`;
+                
+                const resp = await fetch(url, {
+                    headers: { 'User-Agent': 'polyprophet-signal-replay/1.0' },
+                    signal: AbortSignal.timeout(30000)
+                });
+                
+                if (resp.ok) {
+                    const data = await resp.json();
+                    if (data.Response === 'Success' && Array.isArray(data.Data?.Data)) {
+                        priceDataByAsset[asset] = data.Data.Data.map(d => ({
+                            t: d.time,
+                            p: d.close,
+                            h: d.high,
+                            l: d.low,
+                            v: d.volumeto
+                        }));
+                    }
+                }
+            } catch {}
+        }
+        
+        if (Object.keys(priceDataByAsset).length === 0) {
+            return res.status(500).json({ error: 'Failed to fetch historical price data' });
+        }
+        
+        // 2. Load Polymarket outcomes for comparison
+        const ENHANCED_CACHE_KEY = 'deity:enhanced-dataset:';
+        const outcomeMap = new Map(); // slug -> outcome
+        
+        // Generate slugs for the lookback period
+        for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
+            for (const asset of ASSETS) {
+                const slug = `${asset.toLowerCase()}-updown-15m-${epochSec}`;
+                
+                // Try to get from cache
+                if (redisAvailable) {
+                    try {
+                        const cached = await redis.get(ENHANCED_CACHE_KEY + slug);
+                        if (cached) {
+                            const entry = JSON.parse(cached);
+                            if (entry.resolvedOutcome) {
+                                outcomeMap.set(slug, {
+                                    outcome: entry.resolvedOutcome,
+                                    entryPrices: entry.entryPrices || {}
+                                });
+                            }
+                        }
+                    } catch {}
+                }
+                
+                // Also try regular dataset cache
+                if (!outcomeMap.has(slug)) {
+                    try {
+                        const cached = await redis.get(`${DATASET_CACHE_KEY_PREFIX}${slug}`);
+                        if (cached) {
+                            const entry = JSON.parse(cached);
+                            if (entry.resolvedOutcome) {
+                                outcomeMap.set(slug, { outcome: entry.resolvedOutcome, entryPrices: {} });
+                            }
+                        }
+                    } catch {}
+                }
+            }
+        }
+        
+        // 3. Simulate brain signals for each cycle
+        // Simple signal generation based on price movement (approximating the real brain)
+        function generateSignal(priceHistory, cycleStartSec, cycleEndSec) {
+            // Filter prices for this cycle
+            const cyclePrices = priceHistory.filter(p => p.t >= cycleStartSec && p.t <= cycleEndSec);
+            if (cyclePrices.length < 5) return null;
+            
+            const startPrice = cyclePrices[0].p;
+            const currentPrice = cyclePrices[cyclePrices.length - 1].p;
+            const midIndex = Math.floor(cyclePrices.length / 2);
+            const midPrice = cyclePrices[midIndex]?.p || currentPrice;
+            
+            // Calculate momentum and volatility
+            const priceChange = currentPrice - startPrice;
+            const percentChange = (priceChange / startPrice) * 100;
+            
+            // Calculate ATR-like volatility
+            let totalRange = 0;
+            for (let i = 1; i < cyclePrices.length; i++) {
+                totalRange += Math.abs(cyclePrices[i].p - cyclePrices[i-1].p);
+            }
+            const avgRange = totalRange / (cyclePrices.length - 1);
+            const volatility = avgRange / startPrice * 100;
+            
+            // Trend consistency (are we moving in same direction?)
+            const firstHalf = midPrice - startPrice;
+            const secondHalf = currentPrice - midPrice;
+            const trendConsistent = (firstHalf > 0 && secondHalf > 0) || (firstHalf < 0 && secondHalf < 0);
+            
+            // Generate prediction
+            let prediction = 'NEUTRAL';
+            let confidence = 0.5;
+            let tier = 'NONE';
+            
+            // Strong signal thresholds (tuned to approximate real brain)
+            const strongThreshold = volatility * 1.5; // ATR multiplier
+            const moderateThreshold = volatility * 0.8;
+            
+            if (Math.abs(percentChange) > strongThreshold && trendConsistent) {
+                prediction = priceChange > 0 ? 'UP' : 'DOWN';
+                confidence = Math.min(0.95, 0.80 + Math.abs(percentChange) / 10);
+                tier = 'CONVICTION';
+            } else if (Math.abs(percentChange) > moderateThreshold) {
+                prediction = priceChange > 0 ? 'UP' : 'DOWN';
+                confidence = Math.min(0.85, 0.65 + Math.abs(percentChange) / 15);
+                tier = trendConsistent ? 'CONVICTION' : 'ADVISORY';
+            } else if (Math.abs(percentChange) > volatility * 0.3) {
+                prediction = priceChange > 0 ? 'UP' : 'DOWN';
+                confidence = 0.55 + Math.abs(percentChange) / 20;
+                tier = 'ADVISORY';
+            }
+            
+            return { prediction, confidence, tier, percentChange, volatility };
+        }
+        
+        // 4. Run simulation
+        let balance = startingBalance;
+        let peakBalance = startingBalance;
+        let maxDrawdown = 0;
+        let wins = 0, losses = 0, skipped = 0;
+        const trades = [];
+        const dailyResults = {};
+        
+        // Process each 15-minute cycle
+        for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
+            for (const asset of ASSETS) {
+                const priceHistory = priceDataByAsset[asset];
+                if (!priceHistory) continue;
+                
+                const slug = `${asset.toLowerCase()}-updown-15m-${epochSec}`;
+                const outcomeData = outcomeMap.get(slug);
+                if (!outcomeData) { skipped++; continue; }
+                
+                // Generate signal
+                const signal = generateSignal(priceHistory, epochSec, epochSec + 600); // Use first 10 min
+                if (!signal || signal.prediction === 'NEUTRAL') { skipped++; continue; }
+                
+                // Filter by tier
+                if (tierFilter === 'CONVICTION' && signal.tier !== 'CONVICTION') { skipped++; continue; }
+                if (tierFilter === 'ADVISORY' && signal.tier === 'NONE') { skipped++; continue; }
+                
+                // Determine entry price (use mid if available, else assume 0.50)
+                const entryPrice = outcomeData.entryPrices?.mid || outcomeData.entryPrices?.early || 0.50;
+                
+                // Calculate stake with profit lock-in
+                const profitMult = balance / startingBalance;
+                let lockMult = 1.0;
+                if (profitMult >= 10) lockMult = 0.25;
+                else if (profitMult >= 5) lockMult = 0.30;
+                else if (profitMult >= 2) lockMult = 0.40;
+                else if (profitMult >= 1.1) lockMult = 0.65;
+                
+                const stake = Math.max(1.10, Math.min(balance * stakeFrac * lockMult, balance * 0.5));
+                if (stake > balance) { skipped++; continue; }
+                
+                // Determine if won
+                const won = signal.prediction === outcomeData.outcome;
+                const exitPrice = won ? 1.0 : 0.0;
+                const shares = stake / entryPrice;
+                const pnl = (exitPrice - entryPrice) * shares * 0.98; // 2% fee
+                
+                balance += pnl;
+                if (balance > peakBalance) peakBalance = balance;
+                const dd = (peakBalance - balance) / peakBalance;
+                if (dd > maxDrawdown) maxDrawdown = dd;
+                
+                if (won) wins++;
+                else losses++;
+                
+                // Track daily
+                const day = Math.floor(epochSec / 86400);
+                if (!dailyResults[day]) dailyResults[day] = { trades: 0, wins: 0, pnl: 0 };
+                dailyResults[day].trades++;
+                if (won) dailyResults[day].wins++;
+                dailyResults[day].pnl += pnl;
+                
+                trades.push({
+                    slug,
+                    asset,
+                    signal: signal.prediction,
+                    tier: signal.tier,
+                    confidence: signal.confidence.toFixed(2),
+                    outcome: outcomeData.outcome,
+                    won,
+                    stake: stake.toFixed(2),
+                    pnl: pnl.toFixed(2),
+                    balance: balance.toFixed(2)
+                });
+            }
+        }
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100).toFixed(1) : 'N/A';
+        
+        res.json({
+            success: true,
+            summary: {
+                runtime: runtime + 's',
+                lookbackDays,
+                assets: ASSETS,
+                tierFilter,
+                startingBalance,
+                stakeFrac,
+                finalBalance: balance.toFixed(2),
+                profit: (balance - startingBalance).toFixed(2),
+                profitPct: ((balance - startingBalance) / startingBalance * 100).toFixed(1) + '%',
+                trades: wins + losses,
+                wins,
+                losses,
+                skipped,
+                winRate: winRate + '%',
+                maxDrawdown: (maxDrawdown * 100).toFixed(1) + '%'
+            },
+            dailyResults: Object.entries(dailyResults).slice(-7).map(([day, data]) => ({
+                date: new Date(parseInt(day) * 86400 * 1000).toISOString().split('T')[0],
+                trades: data.trades,
+                wins: data.wins,
+                winRate: data.trades > 0 ? (data.wins / data.trades * 100).toFixed(0) + '%' : 'N/A',
+                pnl: data.pnl.toFixed(2)
+            })),
+            recentTrades: trades.slice(-20),
+            methodology: {
+                priceSource: 'CryptoCompare minute-level historical data',
+                signalGeneration: 'Momentum + volatility-adjusted thresholds (approximating SupremeBrain)',
+                outcomeSource: 'Polymarket Gamma API cached outcomes',
+                notes: [
+                    'Signal generation is simplified vs full SupremeBrain ensemble',
+                    'Entry prices may differ from actual CLOB prices at signal time',
+                    'Results are indicative - actual bot performance may vary'
+                ]
+            }
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
 // ==================== 🏆 v59 TRUE-MAXIMUM OPTIMIZER ====================
 // Searches parameter space for optimal (minOdds, maxOdds, stake, exitPolicy) combination
 // Uses cached dataset for fast simulation; produces Pareto frontier report
