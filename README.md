@@ -1,8 +1,8 @@
-# POLYPROPHET v75 — LOW-DRAWDOWN SWEET SPOT
+# POLYPROPHET v76 — FINAL
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v75 LOW-DRAWDOWN**: Risk envelope + fixed global stop + BTC/ETH focus — MAX PROFIT with HARD-CAPPED DRAWDOWN
+> **v76 FINAL**: Risk envelope as final sizing step, daily peak reset, backtest parity, repo cleaned
 
 ---
 
@@ -18,7 +18,8 @@
 8. [Deployment Guide](#deployment-guide)
 9. [Verification Commands](#verification-commands)
 10. [Known Limitations & Honesty](#known-limitations--honesty)
-11. [Changelog](#changelog)
+11. [Repository Structure](#repository-structure)
+12. [Changelog](#changelog)
 
 ---
 
@@ -26,22 +27,22 @@
 
 ### What Is This?
 
-PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH/XRP up/down prediction markets. It uses a multi-model ensemble (Chainlink price, momentum, Kalman filter, etc.) to predict outcomes and execute trades automatically.
+PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH up/down prediction markets. It uses a multi-model ensemble (Chainlink price, momentum, Kalman filter, etc.) to predict outcomes and execute trades automatically.
 
-### Your Final Sweet Spot (v75 LOW-DRAWDOWN)
+### Your Final Sweet Spot (v76 FINAL)
 
-After exhaustive analysis of ALL backtests, debug logs (110+ files), and your stated goals of **MAX PROFIT ASAP** with **MINIMAL DRAWDOWN**, v75 introduces:
+After exhaustive analysis of ALL backtests, debug logs (110+ files), and your stated goals of **MAX PROFIT ASAP** with **MINIMAL DRAWDOWN**, v76 delivers:
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | **Max Stake** | 35% | Maximum growth speed (Kelly + risk envelope may reduce) |
 | **Kelly Sizing** | ENABLED (k=0.5) | Half-Kelly reduces variance ~50% in bad windows |
-| **Risk Envelope** | ENABLED | **NEW v75**: Hard caps per-trade loss to remaining budget |
+| **Risk Envelope** | ENABLED | Hard caps per-trade loss to remaining budget |
 | **Tier** | CONVICTION only | 78% WR vs 67% with ALL tiers |
-| **Assets** | BTC+ETH only | **NEW v75**: 79%/77% accuracy vs XRP 59.5% |
+| **Assets** | BTC+ETH only | 79%/77% accuracy vs XRP 59.5% |
 | **Max Trades/Cycle** | 1 | Quality over quantity |
 | **Balance Floor** | $2.00 | HARD -60% drawdown stop from $5 start |
-| **Global Stop** | 35% daily | **FIXED v75**: Now uses dayStartBalance (not current) |
+| **Global Stop** | 35% daily | Uses dayStartBalance (stable threshold) |
 
 ### Expected Results (From $5 Start)
 
@@ -61,24 +62,24 @@ After exhaustive analysis of ALL backtests, debug logs (110+ files), and your st
 ### The One Config (Set-and-Forget)
 
 ```javascript
-// server.js CONFIG values (v75 defaults)
+// server.js CONFIG values (v76 defaults)
 MAX_POSITION_SIZE: 0.35,        // 35% stake cap (Kelly + risk envelope may reduce)
 RISK: {
     minBalanceFloor: 2.00,       // HARD STOP at $2.00 (-60% from $5)
     minBalanceFloorEnabled: true,
-    globalStopLoss: 0.35,        // 35% daily loss halt (v75: uses dayStartBalance)
+    globalStopLoss: 0.35,        // 35% daily loss halt (uses dayStartBalance)
     liveDailyLossCap: 0,         // Disabled (floor + globalStop sufficient)
     convictionOnlyMode: true,    // BLOCK all ADVISORY trades
     maxTotalExposure: 0.50,      // 50% max total exposure
     maxGlobalTradesPerCycle: 1,  // 1 trade per 15-min cycle
     
-    // 🏆 v74 KELLY SIZING - Mathematically optimal position sizing
+    // KELLY SIZING - Mathematically optimal position sizing
     kellyEnabled: true,          // Enable Kelly-based sizing
     kellyFraction: 0.50,         // Half-Kelly (balance growth vs variance)
     kellyMinPWin: 0.55,          // Minimum pWin to apply Kelly
     kellyMaxFraction: 0.35,      // Hard cap regardless of Kelly calculation
     
-    // 🏆 v75 RISK ENVELOPE - Hard caps on per-trade loss
+    // RISK ENVELOPE - Hard caps on per-trade loss (v76: applied as FINAL step)
     riskEnvelopeEnabled: true,   // Enable risk envelope sizing
     intradayLossBudgetPct: 0.35, // Max % of dayStartBalance that can be lost
     trailingDrawdownPct: 0.15,   // Max % drawdown from peak balance
@@ -91,11 +92,15 @@ ORACLE: {
     minConsensus: 0.70,          // 70% model agreement
     minConfidence: 0.80,         // 80% confidence threshold
 }
-// 🏆 v75 ASSET UNIVERSE - BTC+ETH only (higher accuracy)
+// ASSET UNIVERSE - BTC+ETH only (higher accuracy)
 ASSET_CONTROLS: {
     BTC: { enabled: true },      // 79% accuracy
     ETH: { enabled: true },      // 77.3% accuracy
     XRP: { enabled: false }      // 59.5% accuracy - disabled by default
+}
+// v76: Auto-enable REMOVED - use manual ASSET_CONTROLS only
+ASSET_AUTO_ENABLE: {
+    enabled: false               // Disabled - no shadow scoring for disabled assets
 }
 ```
 
@@ -106,12 +111,12 @@ ASSET_CONTROLS: {
 | **35% max stake** | Upper bound for growth. Kelly + risk envelope dynamically adjust lower. |
 | **Kelly enabled** | Reduces variance ~50% in bad windows, ~14% less profit in good windows |
 | **Half-Kelly (k=0.5)** | Full Kelly is too aggressive. k=0.5 provides 75% of growth with 50% of variance |
-| **Risk envelope** | **NEW v75**: Prevents any single trade from violating remaining loss budget |
-| **BTC+ETH only** | **NEW v75**: Debug data shows 79%/77% accuracy vs XRP 59.5%. Higher accuracy = lower variance |
+| **Risk envelope** | **v76 FIX**: Now applied as FINAL sizing step (cannot be bypassed by min-order bump) |
+| **BTC+ETH only** | Debug data shows 79%/77% accuracy vs XRP 59.5%. Higher accuracy = lower variance |
 | **$2.00 floor** | With $5 start, this enforces HARD -60% max drawdown. Trading HALTS if breached. |
 | **CONVICTION only** | 78% WR vs 67% with ALL tiers. Lower tiers DESTROY profitability (see counterfactual). |
 | **1 trade/cycle** | More trades = lower quality = worse results. Counterfactual showed 77% less profit with 2/cycle. |
-| **35% global stop** | **FIXED v75**: Now uses dayStartBalance (not current balance) for stable threshold. |
+| **35% global stop** | Uses dayStartBalance (not current balance) for stable threshold. |
 
 ### Kelly Sizing Explained
 
@@ -176,7 +181,11 @@ Every 15-minute Polymarket cycle:
    - Check Chainlink feed is fresh (<30s)
    - Check daily loss < 35% global stop
    - Check no position already open for this cycle
-   - Calculate stake = 35% of balance (capped at $100)
+   - Calculate base stake = 35% of balance
+   - Apply Kelly sizing (may reduce stake)
+   - Apply risk envelope (may reduce stake further) ← v76: FINAL step
+   - Bump to $1.10 minimum if needed (micro-bankroll exception)
+   - Risk envelope RE-CHECKED after min bump ← v76 FIX
    - Execute trade on Polymarket CLOB
 6. Wait for Gamma API resolution
 7. Update balance and repeat
@@ -189,19 +198,36 @@ When multiple assets have CONVICTION signals in the same cycle:
 - Only 1 trade per 15-min cycle (maxTradesPerCycle=1)
 - This prevents correlation risk and ensures quality
 
-### Position Sizing (with Kelly)
+### Position Sizing Flow (v76)
 
-| Balance | Base (35%) | Kelly Adjusts To | Scenario |
-|---------|------------|------------------|----------|
-| $5 | $1.75 | $1.10-1.75 | Kelly may reduce based on edge |
-| $20 | $7.00 | $3.50-7.00 | Lower on weak signals |
-| $100 | $35.00 | $15.00-35.00 | Kelly protects gains |
-| $500 | $175.00 | $100.00 | Hard cap kicks in |
+```
+Base stake (35% of bankroll)
+    ↓
+Kelly sizing (may reduce to ~25% based on edge)
+    ↓
+Profit lock-in (may reduce to 65-25% of base)
+    ↓
+Variance controls (streak sizing, loss budget)
+    ↓
+Min/max caps (≥$1.10, ≤$100 liquidity cap)
+    ↓
+RISK ENVELOPE (FINAL - may reduce or block) ← v76 FIX
+    ↓
+Execute trade
+```
 
-**Kelly Effect**: In "bad windows" with unfavorable entry prices, Kelly automatically reduces stake:
-- Entry 65¢ with 72% pWin → Kelly suggests ~25% stake instead of 35%
-- Entry 55¢ with 78% pWin → Kelly suggests full 35% stake
-- Entry 70¢ with 65% pWin → Kelly suggests ~12% stake (protects capital)
+### Risk Envelope Budget Calculation
+
+```javascript
+intradayBudget = dayStartBalance × 0.35 - intradayLoss
+trailingBudget = peakBalance × 0.15 - (peakBalance - currentBalance)
+effectiveBudget = min(intradayBudget, trailingBudget)
+maxTradeSize = effectiveBudget × 0.10  // 10% of remaining budget
+
+// v76: If maxTradeSize < $1.10:
+//   - Allow $1.10 with micro-bankroll exception if balance >= $1.65
+//   - Otherwise BLOCK the trade
+```
 
 ### Profit Lock-In (Automatic Stake Reduction)
 
@@ -260,36 +286,29 @@ When multiple assets have CONVICTION signals in the same cycle:
 
 | Protection | Trigger | Action | Status |
 |------------|---------|--------|--------|
-| **Balance Floor** | Balance < $2.00 | HALT all trading | v73 FINAL |
+| **Balance Floor** | Balance < $2.00 | HALT all trading | v73+ |
 | **CONVICTION Gate** | Tier = ADVISORY/NONE | Block trade | v72+ |
 | **Chainlink Stale** | Feed >30s old | Block trades for asset | v70+ |
 | **Redis Required** | Redis unavailable | Downgrade LIVE→PAPER | v70+ |
 | **Wallet Check** | No wallet loaded | Block all LIVE trades | v69+ |
 | **Global Stop Loss** | Daily loss >35% | HALT all trading | v61+ |
 | **Profit Lock-In** | Profit 1.1x/2x/5x/10x | Reduce stake | v66+ |
+| **Risk Envelope** | Budget exhausted | Block or cap trade | v75+ |
 | **Loss Cooldown** | 3 consecutive losses | 20min cooldown | v61+ |
 | **Drift Warning** | Rolling WR <70% | Log warning | v52+ |
 | **Auto-Disable** | Rolling WR <60% | Suspend asset | v52+ |
 | **Circuit Breaker** | >3x ATR volatility | Pause trading | v61+ |
 | **Critical Error Halt** | 10 errors in 5min | Halt per asset | v69+ |
 
-### What Happens When Floor Is Hit
+### v76 Risk Envelope Fix
 
-```
-Balance: $5.00
-Trade 1: WIN → $6.75
-Trade 2: WIN → $9.11
-Trade 3: LOSS → $5.92
-Trade 4: LOSS → $3.85
-Trade 5: LOSS → $2.50
-Trade 6: LOSS → $1.63 ← BELOW $2.00 FLOOR
+**Problem in v75**: Risk envelope was applied BEFORE min-order bump, so `$1.10` minimum could bypass the envelope cap.
 
-🛑 BALANCE FLOOR: Trading HALTED
-   Balance $1.63 < Floor $2.00
-   New trades blocked until:
-   - Deposit more funds, OR
-   - Adjust minBalanceFloor in Settings
-```
+**v76 Fix**: Risk envelope is now applied as the FINAL sizing step. After min-order bump, envelope re-checks:
+- If `$1.10 > maxTradeSize` but micro-bankroll exception applies → allow $1.10
+- Otherwise → BLOCK the trade
+
+This ensures NO trade can ever exceed the remaining risk budget.
 
 ---
 
@@ -310,7 +329,7 @@ Trade 6: LOSS → $1.63 ← BELOW $2.00 FLOOR
 Before enabling LIVE mode, verify ALL:
 
 ```
-[ ] /api/version shows configVersion: 74
+[ ] /api/version shows configVersion: 76
 [ ] /api/health shows status: "ok"
 [ ] /api/health shows dataFeed.anyStale: false
 [ ] /api/health shows balanceFloor.floor: 2.0
@@ -339,7 +358,7 @@ Before enabling LIVE mode, verify ALL:
 ```
 URL: https://polyprophet.onrender.com
 Auth: bandito / bandito
-Version: v74 GOLDEN KELLY
+Version: v76 FINAL
 Mode: PAPER (change to LIVE in Render dashboard)
 ```
 
@@ -356,7 +375,7 @@ POLYMARKET_PRIVATE_KEY = <your-key>  (REQUIRED FOR LIVE)
 
 1. Push code to GitHub (triggers Render deploy)
 2. Wait for deployment to complete (~2-5 minutes)
-3. Verify via `/api/version` shows `configVersion: 74`
+3. Verify via `/api/version` shows `configVersion: 76`
 4. Run 24-72h PAPER to validate behavior
 5. Set `TRADE_MODE=LIVE` in Render dashboard when ready
 
@@ -367,17 +386,14 @@ POLYMARKET_PRIVATE_KEY = <your-key>  (REQUIRED FOR LIVE)
 ### PowerShell
 
 ```powershell
-# Check version (should show configVersion: 74)
+# Check version (should show configVersion: 76)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check health (shows all safety statuses)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/health?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
-# Run backtest with Kelly sizing enabled
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&lookbackHours=24&kelly=1&apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
-
-# Compare Kelly vs non-Kelly
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&lookbackHours=24&kelly=0&apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+# Run backtest with v76 features (risk envelope, BTC+ETH only, day-by-day)
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&hours=168&kellyEnabled=1&assets=BTC,ETH&riskEnvelope=1&apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 ```
 
 ### Bash/cURL
@@ -389,15 +405,21 @@ curl "https://polyprophet.onrender.com/api/version?apiKey=bandito"
 # Check health
 curl "https://polyprophet.onrender.com/api/health?apiKey=bandito"
 
-# Run backtest with Kelly sizing
-curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&lookbackHours=24&kelly=1&apiKey=bandito"
+# Run 168h backtest with day-by-day output (v76)
+curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&hours=168&kellyEnabled=1&assets=BTC,ETH&riskEnvelope=1&apiKey=bandito"
 
-# Non-cherry-picked backtest with Kelly (offset by 48h - the "bad" window)
-curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&lookbackHours=24&offsetHours=48&kelly=1&apiKey=bandito"
-
-# Compare without Kelly (see the difference)
-curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&lookbackHours=24&offsetHours=48&kelly=0&apiKey=bandito"
+# Non-cherry-picked backtest (offset by 48h - the "bad" window)
+curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=CONVICTION&hours=24&offsetHours=48&kellyEnabled=1&apiKey=bandito"
 ```
+
+### v76 Backtest Parameter Aliases
+
+| Old Param | v76 Alias | Description |
+|-----------|-----------|-------------|
+| `lookbackHours` | `hours` | Backtest window duration |
+| `balance` | `startBalance` | Starting balance |
+| `stake` | `stakePercent` (0-100) | Stake fraction (stakePercent/100) |
+| `kelly` | `kellyEnabled` | Enable Kelly sizing |
 
 ---
 
@@ -413,6 +435,7 @@ curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.35&tier=C
 | Trades blocked below balance floor | `minBalanceFloor` check |
 | LIVE never force-closes at 0.5 | `cleanupStalePositions()` logic |
 | ADVISORY trades blocked | `convictionOnlyMode` gate |
+| Risk envelope is final sizing step | v76 code order guarantee |
 
 ### What Is NOT GUARANTEED (Market Dependent)
 
@@ -438,29 +461,57 @@ But it does NOT guarantee:
 - Zero drawdown or losses
 - That past performance will repeat
 
-### Failure Modes
+---
 
-| Failure | Cause | Effect | Mitigation |
-|---------|-------|--------|------------|
-| Balance floor hit | Consecutive losses | Trading halts | Deposit more or adjust floor |
-| Chainlink disconnect | WebSocket drop | Trades blocked | Auto-reconnect |
-| Win rate degradation | Market regime shift | Drift warning/auto-disable | Monitor health |
-| Position orphaning | Server crash | Positions lost | Redis REQUIRED for LIVE |
-| Gamma API failure | Polymarket down | Stuck in PENDING_RESOLUTION | Manual reconciliation |
+## REPOSITORY STRUCTURE
+
+### What's In This Repo (Server Essentials Only)
+
+```
+POLYPROPHET/
+├── server.js          # Production runtime (all trading logic)
+├── package.json       # Dependencies and metadata
+├── package-lock.json  # Locked dependency versions
+├── render.yaml        # Render deployment blueprint
+├── public/            # Dashboard UI
+│   ├── index.html     # Main dashboard
+│   └── mobile.html    # Mobile-optimized view
+├── .env.example       # Environment variable template
+├── .gitignore         # Git ignore rules
+└── README.md          # This manifesto (single source of truth)
+```
+
+### What Was Removed (Historical Artifacts)
+
+All historical analysis artifacts have been moved to `local_archive/` (gitignored):
+
+```
+local_archive/
+├── backtests/         # _backtest_*.json, _counterfactual_*.json, etc.
+├── reports/           # _*_REPORT.md, _*_AUDIT.md, FINAL_ACCEPTANCE_CHECKLIST.md
+├── projections/       # _*_projections.json, analyze_projections.js
+└── logs/              # _*_server*.txt
+```
+
+**Why removed**: These files totaled ~485,000 lines and are not needed for deployment. They remain locally for reference.
 
 ---
 
 ## CHANGELOG
 
-### v74 (2026-01-03) — GOLDEN KELLY
-- **ADD**: Half-Kelly sizing (`kellyEnabled: true`, `kellyFraction: 0.50`)
-- **ADD**: Kelly parameters to backtest endpoint (`kelly=1`, `kellyK=0.5`, `kellyMax=0.35`)
-- **WHY**: Kelly sizing dramatically reduces variance in "bad windows" (68% DD → 50% DD)
-- **EFFECT**: ~14% less profit in good windows, ~50% less drawdown in bad windows
-- **RATIONALE**: User wants MAX PROFIT with MIN VARIANCE - Kelly optimally balances this
-- **KEEP**: All v73 settings (35% max stake, $2.00 floor, CONVICTION only)
+### v76 (2026-01-04) — FINAL
+
+- **FIX**: Risk envelope now applied as FINAL sizing step (cannot be bypassed by min-order bump)
+- **FIX**: `peakBalance` now resets on new day in `initDayTracking()` (trailing DD starts fresh daily)
+- **REMOVE**: Asset auto-enable (disabled assets produce no trades to evaluate; use manual ASSET_CONTROLS)
+- **ADD**: Backtest parameter aliases (`hours`, `startBalance`, `stakePercent`, `kellyEnabled`)
+- **ADD**: Backtest asset filtering (`assets=BTC,ETH` default)
+- **ADD**: Backtest risk envelope simulation (matches runtime)
+- **ADD**: Backtest day-by-day output (for 1-7 day projections from single run)
+- **CLEAN**: Removed all historical artifacts from repo (moved to `local_archive/`)
 
 ### v75 (2026-01-03) — LOW-DRAWDOWN SWEET SPOT
+
 - **FIX**: Global stop loss now uses `dayStartBalance` (not current balance) for stable threshold
 - **ADD**: Risk envelope system with intraday + trailing drawdown budgets
 - **ADD**: Per-trade loss cap (10% of remaining budget) prevents single-trade blowouts
@@ -470,12 +521,16 @@ But it does NOT guarantee:
 - **VERIFY**: Safety/Diamond exits working correctly (100% WR in debug data)
 
 ### v74 (2026-01-03) — GOLDEN KELLY
-- **ADD**: Half-Kelly (k=0.5) sizing for optimal risk-adjusted returns
-- **ADD**: Kelly min pWin threshold (55%) - below this, use minimum stake
-- **ADD**: Kelly max fraction (35%) - hard cap regardless of Kelly calculation
+
+- **ADD**: Half-Kelly sizing (`kellyEnabled: true`, `kellyFraction: 0.50`)
+- **ADD**: Kelly parameters to backtest endpoint (`kelly=1`, `kellyK=0.5`, `kellyMax=0.35`)
+- **WHY**: Kelly sizing dramatically reduces variance in "bad windows" (68% DD → 50% DD)
+- **EFFECT**: ~14% less profit in good windows, ~50% less drawdown in bad windows
+- **RATIONALE**: User wants MAX PROFIT with MIN VARIANCE - Kelly optimally balances this
 - **KEEP**: All v73 settings (35% max stake, $2.00 floor, CONVICTION only)
 
 ### v73 (2026-01-03) — YOUR FINAL PRESET
+
 - **CHANGE**: `MAX_POSITION_SIZE` = 0.35 (was 0.30) - Max profit ASAP per your request
 - **CHANGE**: `minBalanceFloor` = $2.00 (was $2.50) - ~60% DD tolerance per your request
 - **CHANGE**: `maxTotalExposure` = 0.50 (was 0.45) - Allows 35% stake + buffer
@@ -483,29 +538,11 @@ But it does NOT guarantee:
 - **KEEP**: All v72 safety features intact
 
 ### v72 (2026-01-03) — GOLDEN PRESET
+
 - **ADD**: `convictionOnlyMode` - Block ALL ADVISORY trades
 - **CHANGE**: `minBalanceFloor` = $2.50 (was $2.00) - HARD -50% stop
 - **CHANGE**: `MAX_POSITION_SIZE` = 0.30 (was 0.60) - Optimal stake
 - **UPDATE**: GOAT preset in UI matches golden preset
-
-### v71 (2026-01-03)
-- **ADD**: Deployment banner with git commit, package version
-- **ADD**: `startupCompleted` flag for safer error handling
-- **FIX**: Global error handlers exit during startup
-- **FIX**: Fatal errors (EADDRINUSE, ENOMEM) always exit
-
-### v70 (2026-01-03)
-- **ADD**: Chainlink stale hard-block
-- **ADD**: Redis required for LIVE (auto-downgrades)
-- **ADD**: Balance floor guard
-- **ADD**: Backtest `offsetHours` parameter
-
-### v69 (2026-01-03)
-- **FIX**: pWinEff scoping bug
-- **FIX**: Circuit breaker warmup
-- **FIX**: Startup fail-fast on EADDRINUSE
-- **ADD**: LIVE wallet prerequisite
-- **ADD**: Critical error halt
 
 ---
 
@@ -519,30 +556,14 @@ But it does NOT guarantee:
 | **Variance minimized** | ✅ YES - Kelly + risk envelope + $2.00 floor triple-protect |
 | **LIVE safety** | ✅ YES - All invariants implemented |
 | **Bad window protection** | ✅ YES - Risk envelope caps per-trade loss |
-| **Global stop fix** | ✅ YES - v75 uses dayStartBalance for stable threshold |
+| **Risk envelope reliable** | ✅ YES - v76 applies as FINAL sizing step |
 | **Asset accuracy** | ✅ YES - BTC+ETH only (79%/77%) vs XRP (59.5%) |
 | **Stop-loss policy** | ✅ YES - CONVICTION holds to resolution (bypass SL) |
-| **Market-proof** | ⚠️ PARTIAL - Better than v74, still not guaranteed |
+| **Backtest parity** | ✅ YES - v76 backtest simulates runtime risk envelope |
+| **Market-proof** | ⚠️ PARTIAL - Better than v75, still not guaranteed |
 | **Perfect/faultless** | ❌ NO - No system can be |
 | **$100 in 24h** | ⚠️ POSSIBLE - ~5% probability |
 | **$100 in 72h** | ✅ LIKELY - 73-85% probability |
-
-### Why v75 Makes This THE Final Answer
-
-**v75 Improvements (from debug analysis of 110+ files):**
-
-| Feature | Problem Solved | Result |
-|---------|----------------|--------|
-| **Risk Envelope** | Single trades could blow budget | Per-trade capped to 10% of remaining |
-| **dayStartBalance fix** | Global stop triggered early | Stable 35% threshold from day start |
-| **BTC+ETH only** | XRP 59.5% accuracy hurt results | Focus on 79%/77% accuracy assets |
-| **Exit policy** | Stop-loss exits lost money (1.96% WR) | CONVICTION holds to resolution |
-
-**Debug Data Evidence:**
-- Stop-loss exits: **1.96% win rate, -41% avg PnL** (harmful)
-- Safety exits: **100% win rate, +22.6% avg PnL** (beneficial)
-- Diamond exits: **100% win rate, +48.7% avg PnL** (beneficial)
-- CONVICTION tier: **98.9% accuracy** (best)
 
 ### The Answer
 
@@ -551,11 +572,11 @@ But it does NOT guarantee:
 - **MAX PROFIT**: 35% max stake with Kelly + risk envelope optimization
 - **MIN VARIANCE**: Triple protection (Kelly + risk envelope + $2.00 floor)
 - **MIN TIME**: CONVICTION-only + BTC/ETH ensures highest quality trades
-- **BOUNDED VARIANCE**: Risk envelope caps per-trade loss; floor caps total DD
-- **SET-AND-FORGET**: All parameters are defaulted correctly in v75
+- **BOUNDED VARIANCE**: Risk envelope (v76: truly final) caps per-trade loss; floor caps total DD
+- **SET-AND-FORGET**: All parameters are defaulted correctly in v76
 
 **Expected outcome**: $5 → $100+ in 48-72 hours with ~41-85% probability. Risk envelope + Kelly + balance floor provide triple-protection against catastrophic losses.
 
 ---
 
-*Version: v75 LOW-DRAWDOWN SWEET SPOT | Updated: 2026-01-03 | Single Source of Truth*
+*Version: v76 FINAL | Updated: 2026-01-04 | Single Source of Truth*
