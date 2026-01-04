@@ -803,6 +803,17 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         let kept = 0;
 
         function isBetterCandidate(a, b) {
+            // 🏆 v79: HYBRID tier mode should behave like runtime convictionOnlyMode + frequency floor.
+            // If a CONVICTION candidate exists for a slug, prefer it over ADVISORY/NONE snapshots.
+            if (tierFilter === 'HYBRID') {
+                const ta = String(a?.tier || '').toUpperCase();
+                const tb = String(b?.tier || '').toUpperCase();
+                if (ta !== tb) {
+                    if (ta === 'CONVICTION') return true;
+                    if (tb === 'CONVICTION') return false;
+                }
+            }
+
             // Prefer Polymarket-native collector snapshots for entry prices,
             // unless debug exports contain an explicit entryOdds capture.
             const quality = (c) => {
