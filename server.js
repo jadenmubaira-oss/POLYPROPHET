@@ -495,18 +495,21 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             ? maxAbsRaw
             : parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 default
         
-        // 🏆 v68: Adaptive mode - apply v68 profit lock-in schedule (matches runtime applyVarianceControls)
-        const adaptiveMode = req.query.adaptive === '1' || String(req.query.adaptive || '').toLowerCase() === 'true';
+        // 🏆 v78: Adaptive mode - apply v68 profit lock-in schedule (matches runtime applyVarianceControls)
+        // DEFAULT TO TRUE (matches runtime behavior) - use adaptive=0 to disable
+        const adaptiveDisabled = req.query.adaptive === '0' || String(req.query.adaptive || '').toLowerCase() === 'false';
+        const adaptiveMode = !adaptiveDisabled;
         
-        // 🏆 v74: Kelly sizing mode - apply mathematically optimal position sizing
-        // 🏆 v76: Alias kellyEnabled -> kelly
-        const kellyEnabled = req.query.kelly === '1' || String(req.query.kelly || '').toLowerCase() === 'true' 
-            || req.query.kellyEnabled === '1' || String(req.query.kellyEnabled || '').toLowerCase() === 'true';
+        // 🏆 v78: Kelly sizing mode - apply mathematically optimal position sizing
+        // DEFAULT TO TRUE (matches runtime CONFIG.RISK.kellyEnabled = true)
+        // Query param can override: kelly=0 to disable
+        const kellyDisabled = req.query.kelly === '0' || String(req.query.kelly || '').toLowerCase() === 'false';
+        const kellyEnabled = !kellyDisabled; // Default TRUE (parity with runtime)
         const kellyFractionParam = parseFloat(req.query.kellyK);
         const kellyFraction = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1 
-            ? kellyFractionParam : 0.50; // Default half-Kelly
+            ? kellyFractionParam : (CONFIG?.RISK?.kellyFraction || 0.50); // Match runtime default
         const kellyMaxFraction = Number.isFinite(parseFloat(req.query.kellyMax)) 
-            ? parseFloat(req.query.kellyMax) : 0.35; // Default cap
+            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.35); // Match runtime default
         
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
         // Default to BTC+ETH only (XRP disabled by default in runtime)
@@ -697,7 +700,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             seen.add(key);
                             
                             const tier = String(cycle.tier || 'NONE').toUpperCase();
-                            if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
+                            // 🏆 v78: HYBRID tier mode - CONVICTION always, ADVISORY with quality gates
+                            if (tierFilter === 'HYBRID') {
+                                if (tier === 'NONE') continue; // Block NONE tier
+                                // CONVICTION passes, ADVISORY passes (frequency floor simulation)
+                            } else if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
                             
                             const pred = String(cycle.prediction || 'NEUTRAL').toUpperCase();
                             if (pred !== 'UP' && pred !== 'DOWN') continue;
@@ -1102,31 +1109,28 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     let stake = Number(stakes[i]);
                     if (!Number.isFinite(stake) || stake <= 0) continue;
                     
-                    // 🏆 v77: Risk envelope simulation with DYNAMIC PROFILE (matches runtime)
+                    // 🏆 v78: Risk envelope simulation with DYNAMIC PROFILE (matches runtime applyRiskEnvelope)
                     if (riskEnvelopeEnabled) {
-                        // 🏆 v77: Get dynamic risk profile based on current balance
+                        // 🏆 v78: Get dynamic risk profile based on current balance
                         const STAGE1_THRESHOLD = 11;
                         const STAGE2_THRESHOLD = 20;
-                        let dynIntradayBudgetPct, dynTrailingDDPct, dynPerTradeCap, dynMinOrderOverride;
+                        let dynIntradayBudgetPct, dynTrailingDDPct, dynPerTradeCap;
                         
                         if (balance < STAGE1_THRESHOLD) {
                             // Stage 0: Bootstrap - aggressive
                             dynIntradayBudgetPct = 0.50;
                             dynTrailingDDPct = 0.40;
                             dynPerTradeCap = 0.75;
-                            dynMinOrderOverride = true;
                         } else if (balance < STAGE2_THRESHOLD) {
                             // Stage 1: Transition
                             dynIntradayBudgetPct = 0.35;
                             dynTrailingDDPct = 0.20;
                             dynPerTradeCap = 0.25;
-                            dynMinOrderOverride = false;
                         } else {
                             // Stage 2: Lock-in
                             dynIntradayBudgetPct = 0.25;
                             dynTrailingDDPct = 0.10;
                             dynPerTradeCap = 0.10;
-                            dynMinOrderOverride = false;
                         }
                         
                         // Calculate remaining budgets with dynamic profile
@@ -1136,27 +1140,31 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
                         const maxTradeSize = effectiveBudget * dynPerTradeCap;
                         
-                        // Check if we should block or cap
+                        // 🏆 v78 FIX: Match runtime applyRiskEnvelope logic
+                        // The TRUE constraint is effectiveBudget, not maxTradeSize
+                        // Only block when effectiveBudget < MIN_ORDER (truly exhausted)
                         const MIN_ORDER = 1.10;
-                        if (effectiveBudget <= 0) {
-                            // Budget exhausted - block trade
+                        
+                        // Case 1: Budget truly exhausted
+                        if (effectiveBudget < MIN_ORDER) {
                             envelopeBlocks++;
                             continue;
-                        } else if (stake > maxTradeSize) {
-                            // Cap to max allowed
-                            if (maxTradeSize < MIN_ORDER) {
-                                // Can't meet minimum - allow with micro-bankroll override if in bootstrap stage
-                                if (dynMinOrderOverride && balance >= MIN_ORDER * 1.5) {
-                                    stake = MIN_ORDER;
-                                } else {
-                                    envelopeBlocks++;
-                                    continue;
-                                }
-                            } else {
-                                stake = maxTradeSize;
+                        }
+                        
+                        // Case 2: Per-trade cap < MIN_ORDER but budget available
+                        // Allow MIN_ORDER (cap relaxation)
+                        if (maxTradeSize < MIN_ORDER) {
+                            if (stake > MIN_ORDER) {
+                                stake = MIN_ORDER;
+                                envelopeCaps++;
                             }
+                        }
+                        // Case 3: Normal cap - proposed exceeds maxTradeSize
+                        else if (stake > maxTradeSize) {
+                            stake = maxTradeSize;
                             envelopeCaps++;
                         }
+                        // Case 4: Fits within envelope - no change
                     }
 
                     const isWin = cycle.prediction === cycle.polymarketOutcome;
@@ -5133,7 +5141,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 77;  // v77: HYBRID - TTL for LIVE resolution, stale pending tracking, dynamic risk profile, equity-aware balance
+const CONFIG_VERSION = 78;  // v78: FINAL - backtest parity fixes, risk envelope min-order freeze fix, enhanced signal replay
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -6088,8 +6096,9 @@ class TradeExecutor {
         };
     }
     
-    // 🏆 v77: Apply risk envelope to proposed trade size
-    // Uses dynamic profile's minOrderRiskOverride based on bankroll stage
+    // 🏆 v78: Apply risk envelope to proposed trade size
+    // REDESIGNED: Avoids min-order freeze by using effectiveBudget as the true limit
+    // Only blocks when effectiveBudget < MIN_ORDER (truly exhausted)
     applyRiskEnvelope(proposedSize, bankroll) {
         const envelope = this.getRiskEnvelopeBudget();
         
@@ -6098,38 +6107,43 @@ class TradeExecutor {
         }
         
         const MIN_ORDER = 1.10; // Polymarket minimum
+        const effectiveBudget = envelope.effectiveBudget || 0;
+        const stageName = envelope.profile?.stageName || 'UNKNOWN';
         
-        // 🏆 v77: Use dynamic profile's minOrderRiskOverride (stage-aware)
-        const allowMinOrderOverride = envelope.profile?.minOrderRiskOverride ?? CONFIG.RISK.minOrderRiskOverride;
+        // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
+        // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
+        // If effectiveBudget >= MIN_ORDER, we should ALWAYS allow at least MIN_ORDER
         
-        // If proposed size exceeds envelope, cap it
-        if (proposedSize > envelope.maxTradeSize) {
-            // Special case: micro-bankroll where MIN_ORDER exceeds envelope
-            if (envelope.maxTradeSize < MIN_ORDER) {
-                if (allowMinOrderOverride && bankroll >= MIN_ORDER * 1.5) {
-                    // Allow minimum order but log the risk override (bootstrap mode)
-                    const stageName = envelope.profile?.stageName || 'UNKNOWN';
-                    log(`⚠️ RISK ENVELOPE OVERRIDE [${stageName}]: Budget $${envelope.maxTradeSize.toFixed(2)} < MIN_ORDER $${MIN_ORDER}. Allowing minimum.`);
-                    return { 
-                        size: MIN_ORDER, 
-                        capped: true, 
-                        riskOverride: true,
-                        envelope,
-                        reason: `MIN_ORDER override (budget $${envelope.maxTradeSize.toFixed(2)}, stage: ${stageName})`
-                    };
-                } else {
-                    // Block trade entirely - budget exhausted
-                    const stageName = envelope.profile?.stageName || 'UNKNOWN';
-                    return { 
-                        size: 0, 
-                        blocked: true, 
-                        envelope,
-                        reason: `Risk budget exhausted: $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason}, stage: ${stageName})`
-                    };
-                }
+        // Case 1: Budget truly exhausted - block trade
+        if (effectiveBudget < MIN_ORDER) {
+            return { 
+                size: 0, 
+                blocked: true, 
+                envelope,
+                reason: `Risk budget exhausted: $${effectiveBudget.toFixed(2)} < MIN_ORDER $${MIN_ORDER} (${envelope.reason}, stage: ${stageName})`
+            };
+        }
+        
+        // Case 2: Budget available but per-trade cap would be < MIN_ORDER
+        // Allow MIN_ORDER since effectiveBudget can absorb it
+        if (envelope.maxTradeSize < MIN_ORDER) {
+            // effectiveBudget >= MIN_ORDER (from Case 1), so we can trade MIN_ORDER
+            // This is a "cap relaxation" - allow MIN_ORDER despite per-trade cap
+            if (proposedSize > MIN_ORDER) {
+                log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${MIN_ORDER.toFixed(2)} (per-trade cap $${envelope.maxTradeSize.toFixed(2)} < MIN, budget $${effectiveBudget.toFixed(2)})`);
             }
-            
-            log(`🛡️ RISK ENVELOPE: $${proposedSize.toFixed(2)} → $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason})`);
+            return { 
+                size: MIN_ORDER, 
+                capped: proposedSize > MIN_ORDER,
+                capRelaxed: true,
+                envelope,
+                reason: `Per-trade cap relaxed to MIN_ORDER (budget $${effectiveBudget.toFixed(2)} available, stage: ${stageName})`
+            };
+        }
+        
+        // Case 3: Normal cap - proposed exceeds maxTradeSize
+        if (proposedSize > envelope.maxTradeSize) {
+            log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason})`);
             return { 
                 size: envelope.maxTradeSize, 
                 capped: true, 
@@ -6138,6 +6152,7 @@ class TradeExecutor {
             };
         }
         
+        // Case 4: Proposed size fits within envelope
         return { size: proposedSize, capped: false, envelope };
     }
     

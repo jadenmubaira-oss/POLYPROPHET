@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.2.0-hybrid-v77",
-    "description": "POLYPROPHET v77 HYBRID - Dynamic risk profile + equity-aware + frequency floor + bounded resolution",
+    "version": "4.3.0-final-v78",
+    "description": "POLYPROPHET v78 FINAL - Backtest parity + min-order freeze fix + HYBRID tier mode",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
