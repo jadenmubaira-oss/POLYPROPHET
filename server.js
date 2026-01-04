@@ -4101,6 +4101,113 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Risk controls endpoint (effective gates + dynamic profile)
+// Used by README verification commands and for "are we safe to trade right now?" checks.
+app.get('/api/risk-controls', (req, res) => {
+    try {
+        if (!tradeExecutor) {
+            return res.status(500).json({ error: 'TradeExecutor not initialized' });
+        }
+
+        // Keep circuit breaker state fresh
+        if (typeof tradeExecutor.updateCircuitBreaker === 'function') {
+            tradeExecutor.updateCircuitBreaker();
+        }
+
+        const executorMode = tradeExecutor.mode || CONFIG.TRADE_MODE;
+        const cashBalance = executorMode === 'PAPER'
+            ? tradeExecutor.paperBalance
+            : (tradeExecutor.cachedLiveBalance || 0);
+        const equityEstimate = typeof tradeExecutor.getEquityEstimate === 'function'
+            ? tradeExecutor.getEquityEstimate()
+            : cashBalance;
+        const bankrollForRisk = (executorMode === 'LIVE' && typeof tradeExecutor.getBankrollForRisk === 'function')
+            ? tradeExecutor.getBankrollForRisk()
+            : cashBalance;
+
+        const profile = typeof tradeExecutor.getDynamicRiskProfile === 'function'
+            ? tradeExecutor.getDynamicRiskProfile(bankrollForRisk)
+            : null;
+        const envelope = typeof tradeExecutor.getRiskEnvelopeBudget === 'function'
+            ? tradeExecutor.getRiskEnvelopeBudget()
+            : null;
+
+        const floorCfg = CONFIG?.RISK?.tradeFrequencyFloor || null;
+        const recentTrades = typeof tradeExecutor.getRecentTradesCount === 'function'
+            ? tradeExecutor.getRecentTradesCount(floorCfg?.lookbackMinutes || 120)
+            : { total: 0, conviction: 0, advisory: 0, lookbackMinutes: floorCfg?.lookbackMinutes || 120 };
+        const hoursLookedBack = (recentTrades.lookbackMinutes || 120) / 60;
+        const targetTotal = floorCfg && floorCfg.enabled
+            ? (floorCfg.targetTradesPerHour * hoursLookedBack)
+            : null;
+
+        const staleAssets = ASSETS.filter(a => feedStaleAssets[a]);
+        const belowFloor = !!CONFIG?.RISK?.minBalanceFloorEnabled && (cashBalance < (CONFIG?.RISK?.minBalanceFloor || 0));
+
+        const drift = {};
+        for (const asset of ASSETS) {
+            const brain = Brains[asset];
+            drift[asset] = {
+                driftWarning: !!brain?.driftWarning,
+                autoDisabled: !!brain?.autoDisabled,
+                tradingHalted: !!brain?.tradingHalted,
+                criticalErrors: brain?.criticalErrorCount || 0,
+                rollingConvictionSample: Array.isArray(brain?.rollingConviction) ? brain.rollingConviction.length : 0
+            };
+        }
+
+        const blocks = [];
+        if (anyFeedStale) blocks.push('CHAINLINK_FEED_STALE');
+        if (belowFloor) blocks.push('BALANCE_FLOOR');
+        if (tradeExecutor?.circuitBreaker?.state === 'HALTED') blocks.push('CIRCUIT_BREAKER_HALTED');
+
+        res.json({
+            code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+            mode: { config: CONFIG.TRADE_MODE, executor: executorMode },
+            balances: {
+                cashBalance,
+                equityEstimate,
+                bankrollForRisk
+            },
+            dataFeed: {
+                anyStale: anyFeedStale,
+                staleAssets,
+                tradingBlocked: anyFeedStale
+            },
+            balanceFloor: {
+                enabled: CONFIG.RISK.minBalanceFloorEnabled,
+                floor: CONFIG.RISK.minBalanceFloor,
+                currentBalance: cashBalance,
+                belowFloor,
+                tradingBlocked: belowFloor
+            },
+            circuitBreaker: tradeExecutor.circuitBreaker || null,
+            dynamicRiskProfile: profile,
+            riskEnvelope: envelope,
+            frequencyFloor: {
+                enabled: !!floorCfg?.enabled,
+                config: floorCfg,
+                recentTrades,
+                targetTotal,
+                belowTarget: targetTotal !== null ? (recentTrades.total < targetTotal) : null
+            },
+            assets: {
+                controls: CONFIG.ASSET_CONTROLS,
+                drift
+            },
+            pending: {
+                pendingSettlements: typeof tradeExecutor.getPendingSettlements === 'function' ? tradeExecutor.getPendingSettlements() : [],
+                stalePending: Object.entries(tradeExecutor.positions || {})
+                    .filter(([_, p]) => p && p.stalePending)
+                    .map(([id, p]) => ({ id, asset: p.asset, side: p.side, slug: p.pendingSlug || p.slug, staleSince: p.staleSince || null }))
+            },
+            blocks
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // 🎯 GOAT v3: CircuitBreaker status and control
 app.get('/api/circuit-breaker', (req, res) => {
     if (!tradeExecutor || !tradeExecutor.circuitBreaker) {
@@ -5317,9 +5424,10 @@ async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
             const status = String(t?.status || '').toUpperCase();
             const isLiveTrade =
                 !!t?.isLive ||
-                status.startsWith('LIVE') ||
                 String(t?.tradeMode || '').toUpperCase() === 'LIVE' ||
-                String(t?.mode || '').toUpperCase() === 'LIVE';
+                status.startsWith('LIVE') ||
+                !!t?.orderID ||
+                !!t?.tokenId;
             return mode === 'LIVE' ? isLiveTrade : !isLiveTrade;
         });
         result.total = memTrades.length;
@@ -5620,9 +5728,10 @@ const CONFIG = {
         // 🏆 v58 TRUE OPTIMAL: pWin-gated entries allow profitable <50¢ trades
         // Raw calibration shows <50¢ = 28% WR, BUT high-pWin <50¢ trades WIN
         // Key: The system gates by pWin (calibrated win prob), not just entry price
-        // Backtest proof: minOdds=0.40, maxOdds=0.92 → £5→£42 in 24h (8× growth, 75% WR)
-        minOdds: 0.40,           // 🏆 v58: Allow high-pWin entries at 40-50¢ (verified profitable)
-        maxOdds: 0.92,           // 🏆 v58: Extend to 92¢ for more opportunities (81% WR acceptable)
+        // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
+        // Wider window yields more opportunities, EV-gated by calibrated pWin.
+        minOdds: 0.35,
+        maxOdds: 0.95,
         minStability: 2,         // 2 ticks - fast lock
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
@@ -5690,9 +5799,10 @@ const CONFIG = {
     },
 
     // MODE 2B: ILLIQUIDITY GAP 💰 - Guaranteed profit when Yes+No < 100%
-    // 🏆 APEX v24: ENABLED - TRUE ZERO VARIANCE (Layer 1)
+    // v79 LOCKED: Disabled by default (LIVE fill/partial-fill edge cases).
+    // You can enable manually if you accept LIVE legging/fill risk and have monitoring.
     ILLIQUIDITY_GAP: {
-        enabled: true,           // 🏆 APEX v24: TRUE ARBITRAGE - ZERO VARIANCE
+        enabled: false,
         minGap: 0.03,            // 3% minimum gap (covers fees + profit)
         maxEntryTotal: 0.97      // Only enter if Yes+No <= 97%
     },
@@ -5741,7 +5851,7 @@ const CONFIG = {
 
     // 🚀 v61.2 MAX PROFIT - HIGH QUALITY AGGRESSIVE
     RISK: {
-        maxTotalExposure: 0.45,  // 🚀 v61.2: 45% max exposure
+        maxTotalExposure: 0.50,  // v79 LOCKED: 50% max exposure (allows 35% stake + buffer)
         globalStopLoss: 0.35,    // 🏆 v73: 35% day max loss
         globalStopLossOverride: false,
         liveDailyLossCap: 0,     // 🏆 v71 GOLDEN: Disabled - rely on globalStopLoss + minBalanceFloor
@@ -8107,7 +8217,10 @@ class TradeExecutor {
                             shares,
                             time: Date.now(),
                             status: 'LIVE_OPEN',
-                            orderID: response.orderID
+                            orderID: response.orderID,
+                            // CRITICAL: Distinguish execution mode from strategy mode (mode=ORACLE/etc)
+                            isLive: true,
+                            tradeMode: 'LIVE'
                         });
 
                         // PINNACLE: Prevent memory leak - keep max 1000 trades in history
@@ -8177,7 +8290,9 @@ class TradeExecutor {
                                         size: hedgeSize,
                                         time: Date.now(),
                                         status: 'LIVE_OPEN',
-                                        isHedge: true
+                                        isHedge: true,
+                                        isLive: true,
+                                        tradeMode: 'LIVE'
                                     });
                                 } else {
                                     log(`⚠️ LIVE HEDGE FAILED: ${JSON.stringify(hedgeResponse)}`, asset);
@@ -8420,8 +8535,8 @@ class TradeExecutor {
             this.positions[yesId] = { asset, mode: 'ILLIQUIDITY', side: 'UP', tokenType: 'YES', size: sizeYes, entry: yesPrice, time: Date.now(), target: null, stopLoss: null, shares, isLive: true, status: 'LIVE_OPEN', orderID: yesOrderID, tokenId: yesTokenId };
             this.positions[noId] = { asset, mode: 'ILLIQUIDITY', side: 'DOWN', tokenType: 'NO', size: sizeNo, entry: noPrice, time: Date.now(), target: null, stopLoss: null, shares, isLive: true, status: 'LIVE_OPEN', orderID: noOrderID, tokenId: noTokenId };
 
-            this.tradeHistory.push({ id: yesId, asset, mode: 'ILLIQUIDITY', side: 'UP', entry: yesPrice, size: sizeYes, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: yesOrderID });
-            this.tradeHistory.push({ id: noId, asset, mode: 'ILLIQUIDITY', side: 'DOWN', entry: noPrice, size: sizeNo, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: noOrderID });
+            this.tradeHistory.push({ id: yesId, asset, mode: 'ILLIQUIDITY', side: 'UP', entry: yesPrice, size: sizeYes, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: yesOrderID, isLive: true, tradeMode: 'LIVE' });
+            this.tradeHistory.push({ id: noId, asset, mode: 'ILLIQUIDITY', side: 'DOWN', entry: noPrice, size: sizeNo, shares, time: Date.now(), status: 'LIVE_OPEN', orderID: noOrderID, isLive: true, tradeMode: 'LIVE' });
             if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
 
             this.incrementCycleTradeCount(asset);
@@ -8664,6 +8779,9 @@ class TradeExecutor {
                 hedgeTrade.status = 'CLOSED';
                 hedgeTrade.closeTime = Date.now();
                 hedgeTrade.reason = (isBinaryResolution ? 'HEDGE RESOLVED (with main)' : 'HEDGE CLOSED (with main)');
+                // Preserve LIVE/PAPER separation for persistence + UI filtering
+                hedgeTrade.isLive = !!hedge.isLive;
+                hedgeTrade.tradeMode = hedge.isLive ? 'LIVE' : 'PAPER';
             }
 
             delete this.positions[pos.hedgeId];
@@ -8716,6 +8834,11 @@ class TradeExecutor {
             trade.status = 'CLOSED';
             trade.closeTime = Date.now();
             trade.reason = reason;
+            // Preserve LIVE/PAPER separation for persistence + UI filtering
+            trade.isLive = !!pos.isLive;
+            trade.tradeMode = pos.isLive ? 'LIVE' : 'PAPER';
+            if (pos.tokenId) trade.tokenId = pos.tokenId;
+            if (pos.orderID) trade.orderID = pos.orderID;
         }
 
         // 🔴 FIX #14: Track CONSECUTIVE losses - only trigger cooldown after maxConsecutiveLosses
@@ -13273,7 +13396,14 @@ async function saveState() {
             // Only sync trades that have been closed (have a closeTime)
             const closedTrades = tradeExecutor.tradeHistory.filter(t => t.status === 'CLOSED' && t.closeTime);
             for (const trade of closedTrades.slice(-50)) { // Sync last 50 closed trades each save
-                const tradeMode = trade.isLive || trade.mode === 'LIVE' ? 'LIVE' : 'PAPER';
+                const status = String(trade?.status || '').toUpperCase();
+                const tradeMode = (
+                    !!trade?.isLive ||
+                    String(trade?.tradeMode || '').toUpperCase() === 'LIVE' ||
+                    status.startsWith('LIVE') ||
+                    !!trade?.orderID ||
+                    !!trade?.tokenId
+                ) ? 'LIVE' : 'PAPER';
                 await persistTrade(trade, tradeMode);
             }
         } catch (e) {
@@ -14594,53 +14724,104 @@ app.get('/', (req, res) => {
             // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
                 GOAT: { 
-                    // 🏆 v73 FINAL PRESET: $5→$100+ ASAP with ≤60% max drawdown
-                    // 35% stake maximizes growth while respecting hard $2.00 balance floor
+                    // 🏆 v79 FINAL (LOCKED): This MUST match README "The One Config"
+                    // Goal: MAX PROFIT ASAP with bounded variance + PAPER/LIVE parity
                     MAX_POSITION_SIZE: 0.35,
-                    // ORACLE: Primary prediction engine with forensic-optimized thresholds
+                    // ORACLE: Primary prediction engine with parity vs backtest defaults
                     ORACLE: { 
                         enabled: true, 
-                        aggression: 50, 
-                        minConsensus: 0.70,      // 70% model agreement required
-                        minConfidence: 0.70,     // 70% confidence minimum
-                        minEdge: 5,              // 5% edge over market odds
-                        // 🏆 v58 TRUE OPTIMAL (£5→£42 in 24h verified):
-                        minOdds: 0.40,           // 🏆 v58: High-pWin 40-50¢ entries are profitable (pWin-gated)
-                        maxOdds: 0.92,           // 🏆 v58: Extend to 92¢ for more trade opportunities
-                        minStability: 3,         // 3 ticks of stable signal
-                        requireTrending: false,  // Trade in all conditions
+                        aggression: 50,
+                        minElapsedSeconds: 60,
+                        minConsensus: 0.70,      // 70% model agreement
+                        minConfidence: 0.80,     // v79 LOCKED: 80% confidence ref (controls pWin weighting)
+                        minEdge: 0,              // Not used for hard edge floor (engine enforces >=5% edge)
+                        // v79 LOCKED: Match backtest defaults for entry price window
+                        minOdds: 0.35,
+                        maxOdds: 0.95,
+                        minStability: 2,
+                        requireTrending: false,
+                        // Ensure GOAT resets ALL critical runtime behavior (deep-merge safe)
+                        adaptiveModeEnabled: true,
+                        regimes: {
+                            CALM: { sensitivity: "HIGH", smoothingWindow: 1, stopLoss: 0.25, diamondTarget: 0.95, safetyTarget: 0.20, sizeMultiplier: 1.0 },
+                            VOLATILE: { sensitivity: "MEDIUM", smoothingWindow: 3, stopLoss: 0.30, diamondTarget: 0.90, safetyTarget: 0.20, sizeMultiplier: 0.70 },
+                            CHAOS: { sensitivity: "LOW", smoothingWindow: 7, stopLoss: 0.25, diamondTarget: 0.80, safetyTarget: 0.10, sizeMultiplier: 0.25 }
+                        },
                         earlyTakeProfitEnabled: true,
-                        earlyTakeProfitThreshold: 0.20,  // Take profit at 20% gain
-                        hedgeEnabled: false,     // NO hedging (pollutes streak logic)
+                        earlyTakeProfitThreshold: 0.20,
+                        dynamicExitEnabled: true,
+                        confidenceSmoothingWindow: 3,
+                        confidenceKeepThreshold: 0.80,
+                        diamondTarget: 0.95,
+                        safetyTarget: 0.25,
+                        hedgeEnabled: false,
+                        hedgeRatio: 0.20,
                         stopLossEnabled: true,
-                        stopLoss: 0.30           // 30% stop loss (CONVICTION bypasses)
+                        stopLoss: 0.30,
+                        velocityMode: true
                     },
-                    // ILLIQUIDITY: True arbitrage when YES+NO < 100%
-                    ILLIQUIDITY_GAP: { enabled: true, minGap: 0.03, maxEntryTotal: 0.97 },
+                    // v79 LOCKED: Disable extra modes for simplicity + fewer edge cases
+                    ILLIQUIDITY_GAP: { enabled: false, minGap: 0.03, maxEntryTotal: 0.97 },
                     // DISABLED MODES (negative EV or low win rate)
                     DEATH_BOUNCE: { enabled: false },
                     SCALP: { enabled: false },
                     ARBITRAGE: { enabled: false },
                     MOMENTUM: { enabled: false },
                     UNCERTAINTY: { enabled: false },
-                    // RISK: 🏆 v73 FINAL - Bounded drawdown with minBalanceFloor protection
+                    // RISK: v79 LOCKED - must match README preset (Kelly + envelope + frequency floor)
                     RISK: { 
-                        maxTotalExposure: 0.50,     // 🏆 v73: 50% max exposure (allows 35% + buffer)
-                        globalStopLoss: 0.35,       // 🏆 v73: Halt if down 35% in a day
-                        cooldownAfterLoss: 1200,    // 20 min cooldown after 3 losses
-                        maxConsecutiveLosses: 3,    // Throttle after 3 losses
-                        maxGlobalTradesPerCycle: 1, // Max 1 trade per 15-min cycle (reduce correlation variance)
-                        supremeConfidenceMode: true, // 🏆 v73: CONVICTION-quality only
-                        convictionOnlyMode: true,   // 🏆 v73 FINAL: BLOCK all ADVISORY trades
-                        firstMoveAdvantage: false,
+                        maxTotalExposure: 0.50,
+                        globalStopLoss: 0.35,
+                        globalStopLossOverride: false,
+                        liveDailyLossCap: 0,
+                        cooldownAfterLoss: 1200,
+                        enableLossCooldown: true,
+                        noTradeDetection: true,
+                        enableCircuitBreaker: true,
+                        enableDivergenceBlocking: true,
+                        aggressiveSizingOnLosses: false,
+
+                        minBalanceFloor: 2.00,
+                        minBalanceFloorEnabled: true,
+
+                        maxConsecutiveLosses: 3,
+                        maxDailyLosses: 10,
+                        autoReduceSizeOnDrawdown: false,
+                        withdrawalNotification: 1000,
+                        maxGlobalTradesPerCycle: 1,
+                        stage1Threshold: 11,
+                        stage2Threshold: 20,
                         enablePositionPyramiding: false,
-                        enableLossCooldown: true
+                        firstMoveAdvantage: false,
+                        supremeConfidenceMode: true,
+                        convictionOnlyMode: true,
+
+                        tradeFrequencyFloor: {
+                            enabled: true,
+                            targetTradesPerHour: 1,
+                            lookbackMinutes: 120,
+                            advisoryPWinThreshold: 0.65,
+                            advisoryEvRoiThreshold: 0.08,
+                            maxAdvisoryPerHour: 2,
+                            sizeReduction: 0.50
+                        },
+
+                        kellyEnabled: true,
+                        kellyFraction: 0.50,
+                        kellyMinPWin: 0.55,
+                        kellyMaxFraction: 0.35,
+
+                        riskEnvelopeEnabled: true,
+                        intradayLossBudgetPct: 0.35,
+                        trailingDrawdownPct: 0.15,
+                        perTradeLossCap: 0.10,
+                        minOrderRiskOverride: true
                     },
-                    // ASSETS: BTC, ETH, XRP only (SOL removed - illiquidity + future confusion risk)
+                    // ASSETS: v79 LOCKED = BTC + ETH only (XRP disabled)
                     ASSET_CONTROLS: { 
                         BTC: { enabled: true, maxTradesPerCycle: 1 }, 
                         ETH: { enabled: true, maxTradesPerCycle: 1 }, 
-                        XRP: { enabled: true, maxTradesPerCycle: 1 } 
+                        XRP: { enabled: false, maxTradesPerCycle: 1 } 
                     }
                 }
             };
