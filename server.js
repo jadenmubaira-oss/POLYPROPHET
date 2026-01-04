@@ -9256,10 +9256,14 @@ class TradeExecutor {
                     // For a loss: we get back 0 (stake already deducted, exit at 0)
                     const creditAmount = trade.size + pnl;
                     
-                    if (this.mode === 'PAPER') {
+                    // 🏆 v80 FIX: Only credit PAPER balance for non-LIVE trades
+                    // LIVE trades have isLive:true and should NOT inflate paperBalance
+                    if (this.mode === 'PAPER' && !trade.isLive) {
                         this.paperBalance += creditAmount;
                         this.todayPnL += pnl;
                         log(`💰 CRASH RECONCILE: ${trade.asset} ${tradeSide} ${tradeWon ? 'WON' : 'LOST'} → +$${creditAmount.toFixed(2)} credited (PnL: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)})`, trade.asset);
+                    } else if (trade.isLive) {
+                        log(`ℹ️ CRASH RECONCILE: ${trade.asset} ${tradeSide} was LIVE trade - balance NOT credited (handle on-chain)`, trade.asset);
                     }
 
                     // Update trade record
@@ -9342,9 +9346,14 @@ class TradeExecutor {
 
                     const o0 = String(outcomes[0] || '').toLowerCase();
                     const o1 = String(outcomes[1] || '').toLowerCase();
+                    
+                    // 🏆 v80 FIX: Handle all outcome variants (up/down AND yes/no)
+                    // Markets can return ['Up','Down'], ['Down','Up'], ['Yes','No'], or ['No','Yes']
                     let resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
                     if (o0 === 'up' && o1 === 'down') resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
                     else if (o0 === 'down' && o1 === 'up') resolvedOutcome = idx0Win ? 'DOWN' : 'UP';
+                    else if (o0 === 'yes' && o1 === 'no') resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
+                    else if (o0 === 'no' && o1 === 'yes') resolvedOutcome = idx0Win ? 'DOWN' : 'UP';
 
                     const itemSide = String(item.side || '').toUpperCase();
                     const itemWon = itemSide === resolvedOutcome;
