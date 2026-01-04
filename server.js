@@ -756,7 +756,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 if (!allowedAssets.has(asset)) continue;
                 
                 const tier = String(signal.tier || 'NONE').toUpperCase();
-                if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
+                // 🏆 v78: HYBRID tier mode - allow CONVICTION + ADVISORY (blocks NONE)
+                if (tierFilter === 'HYBRID') {
+                    if (tier === 'NONE') continue;
+                } else if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
                 
                 const pred = String(signal.prediction || 'NEUTRAL').toUpperCase();
                 if (pred !== 'UP' && pred !== 'DOWN') continue;
