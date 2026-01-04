@@ -442,15 +442,21 @@ app.get('/api/backtest-proof', async (req, res) => {
 
 // ==================== 🎯 v53 POLYMARKET-NATIVE BACKTEST ====================
 // Uses Polymarket Gamma API for ground-truth outcomes + v53 entry prices for accurate profit calculation
+// 🏆 v76: Added parameter aliases, asset filtering, risk envelope simulation, and day-by-day tracking
 app.get('/api/backtest-polymarket', async (req, res) => {
     try {
         const startTime = Date.now();
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
-        const startingBalance = parseFloat(req.query.balance) || 5.0; // 🎯 v55 TURBO default: £5 start
+        // 🏆 v76: Parameter aliases for consistency
+        const startingBalance = parseFloat(req.query.balance || req.query.startBalance) || 5.0; // 🎯 v55 TURBO default: £5 start
         // 🏆 v58 TRUE OPTIMAL defaults (£5→£42 in 24h verified):
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.35; // 🏆 v60 FINAL: TRUE MAXIMUM 35¢ (wider range = more trades)
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // 🏆 v60 FINAL: TRUE MAXIMUM 95¢ (wider range)
-        const stakeFrac = parseFloat(req.query.stake) || 0.35; // 🚀 v61.2 TRUE MAX: 35% for ABSOLUTE MAX PROFIT
+        // 🏆 v76: Alias stakePercent (0-100) to stake (0-1 fraction)
+        const stakePercentRaw = parseFloat(req.query.stakePercent);
+        const stakeFrac = Number.isFinite(stakePercentRaw) && stakePercentRaw > 0 && stakePercentRaw <= 100
+            ? stakePercentRaw / 100
+            : (parseFloat(req.query.stake) || 0.35); // 🚀 v61.2 TRUE MAX: 35% for ABSOLUTE MAX PROFIT
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
@@ -465,7 +471,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const maxExposure = Number.isFinite(maxExposureRaw)
             ? Math.max(0.05, Math.min(1.0, maxExposureRaw))
             : Math.max(0.05, Math.min(1.0, (CONFIG?.RISK?.maxTotalExposure || 0.40)));
-        const lookbackHoursRaw = parseFloat(req.query.lookbackHours);
+        // 🏆 v76: Alias hours -> lookbackHours
+        const lookbackHoursRaw = parseFloat(req.query.lookbackHours || req.query.hours);
         const lookbackHours = Number.isFinite(lookbackHoursRaw) ? Math.max(0.25, Math.min(168, lookbackHoursRaw)) : 24;
         // 🏆 v70: Offset parameter to run backtests on non-cherry-picked windows
         // offsetHours=24 means run the same lookback window starting 24h earlier
@@ -492,13 +499,27 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const adaptiveMode = req.query.adaptive === '1' || String(req.query.adaptive || '').toLowerCase() === 'true';
         
         // 🏆 v74: Kelly sizing mode - apply mathematically optimal position sizing
-        const kellyEnabled = req.query.kelly === '1' || String(req.query.kelly || '').toLowerCase() === 'true';
+        // 🏆 v76: Alias kellyEnabled -> kelly
+        const kellyEnabled = req.query.kelly === '1' || String(req.query.kelly || '').toLowerCase() === 'true' 
+            || req.query.kellyEnabled === '1' || String(req.query.kellyEnabled || '').toLowerCase() === 'true';
         const kellyFractionParam = parseFloat(req.query.kellyK);
         const kellyFraction = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1 
             ? kellyFractionParam : 0.50; // Default half-Kelly
         const kellyMaxFraction = Number.isFinite(parseFloat(req.query.kellyMax)) 
             ? parseFloat(req.query.kellyMax) : 0.35; // Default cap
         
+        // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
+        // Default to BTC+ETH only (XRP disabled by default in runtime)
+        const assetsParam = String(req.query.assets || 'BTC,ETH').toUpperCase();
+        const allowedAssets = new Set(assetsParam.split(',').map(a => a.trim()).filter(a => ['BTC', 'ETH', 'XRP', 'SOL'].includes(a)));
+        if (allowedAssets.size === 0) { allowedAssets.add('BTC'); allowedAssets.add('ETH'); }
+        
+        // 🏆 v76: Risk envelope simulation (matches runtime applyRiskEnvelope)
+        const riskEnvelopeEnabled = req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false';
+        const intradayLossBudgetPct = parseFloat(req.query.intradayBudget) || 0.35;
+        const trailingDrawdownPct = parseFloat(req.query.trailingDD) || 0.15;
+        const perTradeLossCap = parseFloat(req.query.perTradeCap) || 0.10;
+
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
         const SLIPPAGE_PCT = 0.01;
@@ -665,7 +686,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     const assets = data.assets || {};
                     
                     for (const [asset, assetData] of Object.entries(assets)) {
-                        if (!['BTC', 'ETH', 'XRP'].includes(asset)) continue;
+                        // 🏆 v76: Use allowedAssets filter (default BTC+ETH)
+                        if (!allowedAssets.has(asset)) continue;
                         const cycleHistory = assetData.cycleHistory || [];
                         
                         for (const cycle of cycleHistory) {
@@ -723,7 +745,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         for (const snap of snapshots) {
             const observedAtMs = Number.isFinite(snap?.timestampMs) ? snap.timestampMs : Date.parse(snap?.timestamp);
             for (const [asset, signal] of Object.entries(snap.signals || {})) {
-                if (!['BTC', 'ETH', 'XRP'].includes(asset)) continue;
+                // 🏆 v76: Use allowedAssets filter (default BTC+ETH)
+                if (!allowedAssets.has(asset)) continue;
                 
                 const tier = String(signal.tier || 'NONE').toUpperCase();
                 if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
@@ -953,6 +976,18 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let wins = 0;
             let losses = 0;
             const trades = [];
+            
+            // 🏆 v76: Risk envelope tracking for simulation
+            let dayStartBalance = startingBalance;
+            let dayStartEpochSec = null;
+            let intradayLoss = 0;
+            let envelopeCaps = 0;
+            let envelopeBlocks = 0;
+            
+            // 🏆 v76: Day-by-day tracking for 1-7 day projections
+            const dayByDay = []; // { day, date, startBalance, endBalance, trades, wins, losses, pnl, maxDD }
+            let currentDayNum = 0;
+            let currentDayStats = null;
 
             // Resolve trades per-window (no intra-window compounding when maxTradesPerCycle > 1).
             const byResolvedWindow = new Map(); // cycleStartEpochSec -> cycles[]
@@ -966,6 +1001,38 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             const windowsForSim = windowsToProcess.filter(k => byResolvedWindow.has(k));
 
             for (const w of windowsForSim) {
+                // 🏆 v76: Day rollover detection for risk envelope
+                const windowDate = new Date(w * 1000).toDateString();
+                const dayStartDate = dayStartEpochSec ? new Date(dayStartEpochSec * 1000).toDateString() : null;
+                if (dayStartEpochSec === null || windowDate !== dayStartDate) {
+                    // Finalize previous day stats
+                    if (currentDayStats !== null) {
+                        currentDayStats.endBalance = balance;
+                        currentDayStats.pnl = balance - currentDayStats.startBalance;
+                        dayByDay.push(currentDayStats);
+                    }
+                    
+                    // New day - reset day tracking
+                    currentDayNum++;
+                    dayStartBalance = balance;
+                    dayStartEpochSec = w;
+                    peakBalance = balance; // Reset peak on new day
+                    intradayLoss = 0;
+                    
+                    // Initialize new day stats
+                    currentDayStats = {
+                        day: currentDayNum,
+                        date: windowDate,
+                        startBalance: balance,
+                        endBalance: balance,
+                        trades: 0,
+                        wins: 0,
+                        losses: 0,
+                        pnl: 0,
+                        maxDD: 0,
+                        peakBalance: balance
+                    };
+                }
                 const windowCycles = byResolvedWindow.get(w) || [];
                 if (windowCycles.length === 0) continue;
 
@@ -1032,8 +1099,40 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 let windowPnl = 0;
                 for (let i = 0; i < windowCycles.length; i++) {
                     const cycle = windowCycles[i];
-                    const stake = Number(stakes[i]);
+                    let stake = Number(stakes[i]);
                     if (!Number.isFinite(stake) || stake <= 0) continue;
+                    
+                    // 🏆 v76: Risk envelope simulation (matches runtime applyRiskEnvelope)
+                    if (riskEnvelopeEnabled) {
+                        // Calculate remaining budgets
+                        const intradayBudget = dayStartBalance * intradayLossBudgetPct - intradayLoss;
+                        const trailingDDFromPeak = peakBalance > 0 ? peakBalance - balance : 0;
+                        const trailingBudget = peakBalance * trailingDrawdownPct - trailingDDFromPeak;
+                        const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
+                        const maxTradeSize = effectiveBudget * perTradeLossCap;
+                        
+                        // Check if we should block or cap
+                        const MIN_ORDER = 1.10;
+                        if (effectiveBudget <= 0) {
+                            // Budget exhausted - block trade
+                            envelopeBlocks++;
+                            continue;
+                        } else if (stake > maxTradeSize) {
+                            // Cap to max allowed
+                            if (maxTradeSize < MIN_ORDER) {
+                                // Can't meet minimum - allow with micro-bankroll override if balance allows
+                                if (balance >= MIN_ORDER * 1.5) {
+                                    stake = MIN_ORDER;
+                                } else {
+                                    envelopeBlocks++;
+                                    continue;
+                                }
+                            } else {
+                                stake = maxTradeSize;
+                            }
+                            envelopeCaps++;
+                        }
+                    }
 
                     const isWin = cycle.prediction === cycle.polymarketOutcome;
 
@@ -1047,9 +1146,17 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         const fee = profit * PROFIT_FEE_PCT;
                         pnl = profit - fee;
                         wins++;
+                        // 🏆 v76: Track day stats
+                        if (currentDayStats) { currentDayStats.wins++; currentDayStats.trades++; }
                     } else {
                         pnl = -stake;
                         losses++;
+                        // 🏆 v76: Track intraday loss for risk envelope
+                        if (riskEnvelopeEnabled) {
+                            intradayLoss += stake;
+                        }
+                        // 🏆 v76: Track day stats
+                        if (currentDayStats) { currentDayStats.losses++; currentDayStats.trades++; }
                     }
 
                     windowPnl += pnl;
@@ -1078,6 +1185,16 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 peakBalance = Math.max(peakBalance, balance);
                 const dd = peakBalance > 0 ? ((peakBalance - balance) / peakBalance) : 0;
                 maxDrawdown = Math.max(maxDrawdown, dd);
+                
+                // 🏆 v76: Update day stats after each window
+                if (currentDayStats) {
+                    currentDayStats.endBalance = balance;
+                    currentDayStats.peakBalance = Math.max(currentDayStats.peakBalance, balance);
+                    const dayDD = currentDayStats.peakBalance > 0 
+                        ? (currentDayStats.peakBalance - balance) / currentDayStats.peakBalance 
+                        : 0;
+                    currentDayStats.maxDD = Math.max(currentDayStats.maxDD, dayDD);
+                }
 
                 // Annotate last trade in this window with the end balance for easier reading
                 if (trades.length > 0) {
@@ -1088,6 +1205,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 }
 
                 if (balance <= 0) break;
+            }
+            
+            // 🏆 v76: Finalize last day's stats
+            if (currentDayStats !== null) {
+                currentDayStats.endBalance = balance;
+                currentDayStats.pnl = balance - currentDayStats.startBalance;
+                dayByDay.push(currentDayStats);
             }
 
             const totalTrades = wins + losses;
@@ -1119,7 +1243,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 avgWinRoiNet,
                 expectedEV,
                 winRateNeededForEV,
-                trades
+                trades,
+                // 🏆 v76: Risk envelope stats
+                envelopeCaps,
+                envelopeBlocks,
+                // 🏆 v76: Day-by-day breakdown
+                dayByDay
             };
         }
 
@@ -1206,7 +1335,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 adaptiveMode,
                 kellyEnabled,
                 kellyFraction: kellyEnabled ? kellyFraction : null,
-                kellyMaxFraction: kellyEnabled ? kellyMaxFraction : null
+                kellyMaxFraction: kellyEnabled ? kellyMaxFraction : null,
+                // 🏆 v76: Risk envelope simulation
+                riskEnvelopeEnabled,
+                assetsAllowed: Array.from(allowedAssets),
+                envelopeCaps: primarySim.envelopeCaps,
+                envelopeBlocks: primarySim.envelopeBlocks
             },
             coverage: {
                 candidatesFound: allCycles.length,
@@ -1258,6 +1392,19 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             },
             scan: scanResults,
             kneeAnalysis, // 🏆 v69: Optimal stake selection based on profit/drawdown ratio
+            // 🏆 v76: Day-by-day breakdown (for 1-7 day projections from single run)
+            dayByDay: primarySim.dayByDay.map(d => ({
+                day: d.day,
+                date: d.date,
+                startBalance: parseFloat(d.startBalance.toFixed(2)),
+                endBalance: parseFloat(d.endBalance.toFixed(2)),
+                trades: d.trades,
+                wins: d.wins,
+                losses: d.losses,
+                winRate: d.trades > 0 ? ((d.wins / d.trades) * 100).toFixed(1) + '%' : 'N/A',
+                pnl: parseFloat(d.pnl.toFixed(2)),
+                maxDD: (d.maxDD * 100).toFixed(2) + '%'
+            })),
             trades: primarySim.trades.slice(-30), // Last 30 for display
             interpretation: {
                 winRateNeededForEV: primarySim.winRateNeededForEV !== null ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
@@ -4488,7 +4635,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 75;  // v75: LOW-DRAWDOWN SWEET SPOT - Fixed global stop baseline, risk envelope, asset filtering
+const CONFIG_VERSION = 76;  // v76: FINAL - Risk envelope as final sizing step, daily peak reset, asset auto-enable removed
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4731,14 +4878,11 @@ const CONFIG = {
         XRP: { enabled: false, maxTradesPerCycle: 1 }   // 🏆 v75: Disabled by default (low accuracy 59.5%)
     },
     
-    // 🏆 v75 ASSET AUTO-ENABLE: Guarded rules for enabling XRP/SOL based on proven performance
+    // 🏆 v76: ASSET AUTO-ENABLE REMOVED - Static config only
+    // Auto-enable was removed because disabled assets produce no trades to evaluate.
+    // To re-enable XRP/SOL, manually set ASSET_CONTROLS[asset].enabled = true in Settings.
     ASSET_AUTO_ENABLE: {
-        enabled: true,                      // Enable automatic asset qualification
-        minRollingSamples: 20,              // Minimum samples before auto-enable is considered
-        minRollingWinRate: 0.65,            // Must have >=65% rolling win rate to auto-enable
-        minRollingEV: 0.05,                 // Must have >=5% expected value per trade
-        checkIntervalTrades: 5,             // Re-check after every N trades
-        disableOnDrift: true                // Auto-disable if win rate drops below threshold
+        enabled: false                      // v76: Disabled - use manual ASSET_CONTROLS only
     }
 };
 
@@ -5048,13 +5192,17 @@ class TradeExecutor {
     initDayTracking() {
         const now = Date.now();
         const bankroll = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || this.paperBalance);
-        
+
         // Check if it's a new day
-        if (!this.circuitBreaker.dayStartTime || 
+        if (!this.circuitBreaker.dayStartTime ||
             new Date(this.circuitBreaker.dayStartTime).toDateString() !== new Date(now).toDateString()) {
             this.circuitBreaker.dayStartBalance = bankroll;
             this.circuitBreaker.dayStartTime = now;
             
+            // 🏆 v76 FIX: Reset peak balance on new day so trailing DD starts fresh
+            this.circuitBreaker.peakBalance = bankroll;
+            log(`🌅 New day: dayStartBalance=$${bankroll.toFixed(2)}, peakBalance reset`);
+
             // Auto-resume on new day if configured
             if (this.circuitBreaker.resumeOnNewDay && this.circuitBreaker.state !== 'NORMAL') {
                 log(`🌅 New day: CircuitBreaker reset to NORMAL (was ${this.circuitBreaker.state})`);
@@ -5062,7 +5210,7 @@ class TradeExecutor {
                 this.circuitBreaker.triggerTime = 0;
             }
         }
-        
+
         return this.circuitBreaker.dayStartBalance;
     }
     
@@ -5464,50 +5612,12 @@ class TradeExecutor {
     }
 
     // 🔒 Check if asset trading is enabled
-    // 🏆 v75: Enhanced with auto-enable logic for guarded XRP/SOL enablement
+    // 🏆 v76: Simplified - use ASSET_CONTROLS only (auto-enable removed)
     isAssetEnabled(asset) {
-        // First check manual override
-        const manualEnabled = CONFIG.ASSET_CONTROLS?.[asset]?.enabled;
-        if (manualEnabled === true) return true;
-        if (manualEnabled === false && !CONFIG.ASSET_AUTO_ENABLE?.enabled) return false;
-        
-        // 🏆 v75 AUTO-ENABLE: Check if asset has proven itself via rolling performance
-        if (CONFIG.ASSET_AUTO_ENABLE?.enabled && typeof Brains !== 'undefined' && Brains[asset]) {
-            const brain = Brains[asset];
-            const rolling = brain.rollingConviction || [];
-            
-            // Need minimum samples
-            if (rolling.length < (CONFIG.ASSET_AUTO_ENABLE.minRollingSamples || 20)) {
-                return manualEnabled !== false; // Fall back to manual setting if not enough data
-            }
-            
-            // Calculate rolling win rate
-            const wins = rolling.filter(r => r.outcome === 'WIN').length;
-            const winRate = wins / rolling.length;
-            
-            // Calculate rolling EV (approximate from win rate and typical payout)
-            // Assuming ~50¢ average entry (2x payout on win)
-            const avgPayout = 0.8; // 80% profit on ~55¢ entry
-            const avgLoss = 1.0;   // 100% loss on wrong bet
-            const ev = (winRate * avgPayout) - ((1 - winRate) * avgLoss);
-            
-            const meetsWinRate = winRate >= (CONFIG.ASSET_AUTO_ENABLE.minRollingWinRate || 0.65);
-            const meetsEV = ev >= (CONFIG.ASSET_AUTO_ENABLE.minRollingEV || 0.05);
-            
-            if (meetsWinRate && meetsEV) {
-                // Asset has proven itself - auto-enable
-                log(`🟢 ASSET AUTO-ENABLE: ${asset} qualified (WR: ${(winRate * 100).toFixed(1)}%, EV: ${(ev * 100).toFixed(1)}%)`);
-                return true;
-            }
-            
-            // Check if we should auto-disable a previously enabled asset
-            if (CONFIG.ASSET_AUTO_ENABLE.disableOnDrift && brain.autoEnabled && !meetsWinRate) {
-                log(`🔴 ASSET AUTO-DISABLE: ${asset} lost qualification (WR: ${(winRate * 100).toFixed(1)}% < ${(CONFIG.ASSET_AUTO_ENABLE.minRollingWinRate * 100).toFixed(0)}%)`);
-                brain.autoEnabled = false;
-            }
-        }
-        
-        return manualEnabled !== false;
+        // Check manual setting in ASSET_CONTROLS
+        const setting = CONFIG.ASSET_CONTROLS?.[asset]?.enabled;
+        // Default to enabled if not explicitly set to false
+        return setting !== false;
     }
 
     // 📊 Get max trades per cycle for an asset
@@ -6401,26 +6511,10 @@ class TradeExecutor {
                     log(`🔌 VARIANCE SIZING: $${size.toFixed(2)} → $${varianceResult.size.toFixed(2)} (${varianceResult.adjustments})`, asset);
                     size = varianceResult.size;
                 }
-                
-                // 🏆 v75 RISK ENVELOPE: Apply hard caps based on remaining intraday + trailing drawdown budget
-                const envelopeResult = this.applyRiskEnvelope(size, bankroll);
-                if (envelopeResult.blocked) {
-                    log(`🛡️ TRADE BLOCKED by risk envelope: ${envelopeResult.reason}`, asset);
-                    return { success: false, error: envelopeResult.reason };
-                }
-                if (envelopeResult.capped) {
-                    size = envelopeResult.size;
-                    if (envelopeResult.riskOverride) {
-                        log(`⚠️ RISK ENVELOPE OVERRIDE: Micro-bankroll MIN_ORDER allowed despite budget`, asset);
-                    }
-                }
 
+                // 🏆 v76 FIX: Apply min/max caps BEFORE risk envelope (so envelope is truly final)
                 // SMART MINIMUM: Ensure we meet $1.10 minimum
-                // If percentage-based size is too small, use minimum (if affordable)
                 // CAP: Never risk more than MAX_FRACTION of bankroll
-                // GOAT: In micro-bankroll scenarios ($5 start), maxPct can imply a maxSize below Polymarket minimum.
-                // Instead of deadlocking trading, temporarily allow MIN_ORDER as the effective cap (with a log).
-                // 🏆 v60 FINAL: Add absolute dollar cap for liquidity protection at scale
                 const MAX_ABSOLUTE_SIZE = parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 cap for liquidity
                 let maxSize = bankroll * MAX_FRACTION;
                 
@@ -6430,23 +6524,50 @@ class TradeExecutor {
                     maxSize = MAX_ABSOLUTE_SIZE;
                 }
                 
-                if (maxSize < MIN_ORDER && bankroll >= MIN_ORDER * 1.5) {
-                    log(`⚠️ MICRO BANKROLL: Max position ${(MAX_FRACTION * 100).toFixed(0)}% = $${maxSize.toFixed(2)} < $${MIN_ORDER}. Allowing minimum order to avoid trade drought.`, asset);
-                    maxSize = MIN_ORDER;
-                }
+                // Cap size at maximum
                 if (size > maxSize) {
                     size = maxSize;
                     log(`📊 Size capped: $${size.toFixed(2)} (max ${(MAX_FRACTION * 100).toFixed(0)}% / abs $${MAX_ABSOLUTE_SIZE})`, asset);
                 }
 
-                // SMART MINIMUM: Ensure we meet $1.10 minimum (after cap)
+                // Bump to minimum if needed (before envelope check)
+                let bumpedToMin = false;
                 if (size < MIN_ORDER) {
                     if (bankroll >= MIN_ORDER * 1.5) {
                         size = MIN_ORDER;
+                        bumpedToMin = true;
                         log(`📊 Size bumped to minimum $${MIN_ORDER} (bankroll: $${bankroll.toFixed(2)})`, asset);
                     } else {
                         log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
                         return { success: false, error: `Need at least $${(MIN_ORDER * 1.5).toFixed(2)} to trade` };
+                    }
+                }
+                
+                // 🏆 v76 RISK ENVELOPE: Apply as FINAL sizing step (after min/max)
+                // This ensures no subsequent code can increase size above envelope
+                const envelopeResult = this.applyRiskEnvelope(size, bankroll);
+                if (envelopeResult.blocked) {
+                    log(`🛡️ TRADE BLOCKED by risk envelope: ${envelopeResult.reason}`, asset);
+                    return { success: false, error: envelopeResult.reason };
+                }
+                if (envelopeResult.capped) {
+                    // Envelope wants to reduce size
+                    if (envelopeResult.size < MIN_ORDER) {
+                        // Envelope cap is below MIN_ORDER - check if we can override
+                        if (CONFIG.RISK.minOrderRiskOverride && bankroll >= MIN_ORDER * 1.5 && bumpedToMin) {
+                            // Allow MIN_ORDER with micro-bankroll exception
+                            const maxTradeSize = envelopeResult.envelope?.maxTradeSize;
+                            log(`⚠️ RISK ENVELOPE OVERRIDE: Budget $${maxTradeSize?.toFixed(2) || '?'} < MIN_ORDER. Allowing $${MIN_ORDER} (micro-bankroll exception)`, asset);
+                            size = MIN_ORDER;
+                        } else {
+                            // Block the trade - can't meet minimum within budget
+                            const envBudget = envelopeResult.envelope?.effectiveBudget;
+                            log(`🛡️ TRADE BLOCKED: Risk envelope too small for MIN_ORDER $${MIN_ORDER}`, asset);
+                            return { success: false, error: `Risk budget ($${envBudget?.toFixed(2) || '?'}) too small for minimum order` };
+                        }
+                    } else {
+                        size = envelopeResult.size;
+                        log(`🛡️ RISK ENVELOPE: Size capped to $${size.toFixed(2)} (${envelopeResult.reason})`, asset);
                     }
                 }
             }
