@@ -1,8 +1,8 @@
-# POLYPROPHET v76 — FINAL
+# POLYPROPHET v77 — HYBRID
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v76 FINAL**: Risk envelope as final sizing step, daily peak reset, backtest parity, repo cleaned
+> **v77 HYBRID**: Dynamic risk profile (staged parameters), equity-aware LIVE balance, bounded resolution, trade frequency floor
 
 ---
 
@@ -29,20 +29,22 @@
 
 PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH up/down prediction markets. It uses a multi-model ensemble (Chainlink price, momentum, Kalman filter, etc.) to predict outcomes and execute trades automatically.
 
-### Your Final Sweet Spot (v76 FINAL)
+### Your Final Sweet Spot (v77 HYBRID)
 
-After exhaustive analysis of ALL backtests, debug logs (110+ files), and your stated goals of **MAX PROFIT ASAP** with **MINIMAL DRAWDOWN**, v76 delivers:
+After exhaustive analysis of ALL backtests, debug logs (110+ files), and your stated goals of **MAX PROFIT ASAP** with **MINIMAL DRAWDOWN**, v77 delivers:
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | **Max Stake** | 35% | Maximum growth speed (Kelly + risk envelope may reduce) |
 | **Kelly Sizing** | ENABLED (k=0.5) | Half-Kelly reduces variance ~50% in bad windows |
-| **Risk Envelope** | ENABLED | Hard caps per-trade loss to remaining budget |
-| **Tier** | CONVICTION only | 78% WR vs 67% with ALL tiers |
+| **Dynamic Risk Profile** | ENABLED | 3 stages: Bootstrap ($5-11), Transition ($11-20), Lock-in ($20+) |
+| **Trade Frequency Floor** | ENABLED | Allows high-quality ADVISORY when below 1 trade/hour target |
+| **Tier** | CONVICTION primary | ADVISORY allowed via frequency floor when idle |
 | **Assets** | BTC+ETH only | 79%/77% accuracy vs XRP 59.5% |
 | **Max Trades/Cycle** | 1 | Quality over quantity |
 | **Balance Floor** | $2.00 | HARD -60% drawdown stop from $5 start |
 | **Global Stop** | 35% daily | Uses dayStartBalance (stable threshold) |
+| **Equity-Aware Risk** | ENABLED | LIVE mode uses mark-to-market equity (prevents false DD alerts) |
 
 ### Expected Results (From $5 Start)
 
@@ -62,14 +64,14 @@ After exhaustive analysis of ALL backtests, debug logs (110+ files), and your st
 ### The One Config (Set-and-Forget)
 
 ```javascript
-// server.js CONFIG values (v76 defaults)
+// server.js CONFIG values (v77 defaults)
 MAX_POSITION_SIZE: 0.35,        // 35% stake cap (Kelly + risk envelope may reduce)
 RISK: {
     minBalanceFloor: 2.00,       // HARD STOP at $2.00 (-60% from $5)
     minBalanceFloorEnabled: true,
     globalStopLoss: 0.35,        // 35% daily loss halt (uses dayStartBalance)
     liveDailyLossCap: 0,         // Disabled (floor + globalStop sufficient)
-    convictionOnlyMode: true,    // BLOCK all ADVISORY trades
+    convictionOnlyMode: true,    // BLOCK ADVISORY trades (unless frequency floor allows)
     maxTotalExposure: 0.50,      // 50% max total exposure
     maxGlobalTradesPerCycle: 1,  // 1 trade per 15-min cycle
     
@@ -79,11 +81,26 @@ RISK: {
     kellyMinPWin: 0.55,          // Minimum pWin to apply Kelly
     kellyMaxFraction: 0.35,      // Hard cap regardless of Kelly calculation
     
-    // RISK ENVELOPE - Hard caps on per-trade loss (v76: applied as FINAL step)
+    // DYNAMIC RISK PROFILE - v77: Staged parameters based on bankroll
+    // Stage 0 (Bootstrap): $5-$11 - Aggressive to compound quickly
+    // Stage 1 (Transition): $11-$20 - Moderate risk
+    // Stage 2 (Lock-in): $20+ - Conservative to protect gains
     riskEnvelopeEnabled: true,   // Enable risk envelope sizing
+    // Base values (overridden by dynamic profile at runtime):
     intradayLossBudgetPct: 0.35, // Max % of dayStartBalance that can be lost
     trailingDrawdownPct: 0.15,   // Max % drawdown from peak balance
-    perTradeLossCap: 0.10        // Max % of remaining budget per trade
+    perTradeLossCap: 0.10,       // Max % of remaining budget per trade
+    
+    // 🏆 v77 TRADE FREQUENCY FLOOR - Allow high-quality ADVISORY when idle
+    tradeFrequencyFloor: {
+        enabled: true,           // Enable frequency floor
+        targetTradesPerHour: 1,  // Target minimum trades per hour
+        lookbackMinutes: 120,    // Look at last 2 hours
+        advisoryPWinThreshold: 0.65,  // ADVISORY needs pWin >= 65% (higher than CONVICTION)
+        advisoryEvRoiThreshold: 0.08, // ADVISORY needs EV >= 8% (higher than CONVICTION)
+        maxAdvisoryPerHour: 2,   // Max ADVISORY trades per hour
+        sizeReduction: 0.50      // ADVISORY at 50% of CONVICTION size
+    }
 }
 ORACLE: {
     enabled: true,
@@ -98,25 +115,23 @@ ASSET_CONTROLS: {
     ETH: { enabled: true },      // 77.3% accuracy
     XRP: { enabled: false }      // 59.5% accuracy - disabled by default
 }
-// v76: Auto-enable REMOVED - use manual ASSET_CONTROLS only
-ASSET_AUTO_ENABLE: {
-    enabled: false               // Disabled - no shadow scoring for disabled assets
-}
 ```
 
 ### Why These Values?
 
 | Parameter | Why This Value |
 |-----------|---------------|
-| **35% max stake** | Upper bound for growth. Kelly + risk envelope dynamically adjust lower. |
+| **35% max stake** | Upper bound for growth. Kelly + dynamic risk envelope adjust lower. |
 | **Kelly enabled** | Reduces variance ~50% in bad windows, ~14% less profit in good windows |
 | **Half-Kelly (k=0.5)** | Full Kelly is too aggressive. k=0.5 provides 75% of growth with 50% of variance |
-| **Risk envelope** | **v76 FIX**: Now applied as FINAL sizing step (cannot be bypassed by min-order bump) |
+| **Dynamic risk profile** | **v77**: Bootstrap stage allows aggressive growth; Lock-in stage protects gains |
+| **Trade frequency floor** | **v77**: Allows high-quality ADVISORY when below 1 trade/hour (prevents being "too frigid") |
 | **BTC+ETH only** | Debug data shows 79%/77% accuracy vs XRP 59.5%. Higher accuracy = lower variance |
 | **$2.00 floor** | With $5 start, this enforces HARD -60% max drawdown. Trading HALTS if breached. |
-| **CONVICTION only** | 78% WR vs 67% with ALL tiers. Lower tiers DESTROY profitability (see counterfactual). |
+| **CONVICTION primary** | 78% WR vs 67% with ALL tiers. Frequency floor allows ADVISORY only when idle + quality gates pass |
 | **1 trade/cycle** | More trades = lower quality = worse results. Counterfactual showed 77% less profit with 2/cycle. |
 | **35% global stop** | Uses dayStartBalance (not current balance) for stable threshold. |
+| **Equity-aware risk** | **v77**: LIVE mode uses mark-to-market equity, preventing false drawdown alerts from open positions |
 
 ### Kelly Sizing Explained
 
@@ -177,18 +192,28 @@ Every 15-minute Polymarket cycle:
 3. Calculate consensus prediction (UP/DOWN/NEUTRAL)
 4. Determine tier (CONVICTION/ADVISORY/NONE)
 5. If tier = CONVICTION:
+   - Proceed to step 6
+5b. If tier = ADVISORY and frequency floor is enabled:
+   - Check if trades in last 2h < target (default: 2 trades)
+   - Check if ADVISORY cap not reached (max 2/hour)
+   - Check if pWin >= 65% AND EV >= 8% (stricter than CONVICTION)
+   - If ALL pass: proceed to step 6 at 50% size
+   - Otherwise: block trade
+6. Entry checks:
    - Check balance > $2.00 floor
    - Check Chainlink feed is fresh (<30s)
    - Check daily loss < 35% global stop
    - Check no position already open for this cycle
-   - Calculate base stake = 35% of balance
+7. Calculate position size:
+   - Base stake = 35% of balance
    - Apply Kelly sizing (may reduce stake)
-   - Apply risk envelope (may reduce stake further) ← v76: FINAL step
+   - Get dynamic risk profile (Bootstrap/Transition/Lock-in) ← v77
+   - Apply risk envelope with dynamic parameters ← v77
    - Bump to $1.10 minimum if needed (micro-bankroll exception)
-   - Risk envelope RE-CHECKED after min bump ← v76 FIX
-   - Execute trade on Polymarket CLOB
-6. Wait for Gamma API resolution
-7. Update balance and repeat
+   - Risk envelope RE-CHECKED after min bump
+8. Execute trade on Polymarket CLOB
+9. Wait for Gamma API resolution (bounded TTL in LIVE) ← v77
+10. Update balance and repeat
 ```
 
 ### Trade Selection (HIGHEST_CONF)
@@ -198,10 +223,12 @@ When multiple assets have CONVICTION signals in the same cycle:
 - Only 1 trade per 15-min cycle (maxTradesPerCycle=1)
 - This prevents correlation risk and ensures quality
 
-### Position Sizing Flow (v76)
+### Position Sizing Flow (v77)
 
 ```
 Base stake (35% of bankroll)
+    ↓
+Frequency floor reduction (50% for ADVISORY) ← v77 NEW
     ↓
 Kelly sizing (may reduce to ~25% based on edge)
     ↓
@@ -211,22 +238,57 @@ Variance controls (streak sizing, loss budget)
     ↓
 Min/max caps (≥$1.10, ≤$100 liquidity cap)
     ↓
-RISK ENVELOPE (FINAL - may reduce or block) ← v76 FIX
+DYNAMIC RISK ENVELOPE (FINAL - may reduce or block) ← v77
     ↓
 Execute trade
+```
+
+### Dynamic Risk Profile (v77)
+
+```javascript
+// Staged risk parameters based on current bankroll
+if (bankroll < $11) {
+    // Stage 0: BOOTSTRAP - Aggressive growth from $5
+    intradayLossBudgetPct = 0.50    // Allow 50% intraday loss
+    trailingDrawdownPct = 0.40      // Allow 40% trailing DD
+    perTradeLossCap = 0.75          // Allow up to 75% of budget per trade
+    minOrderRiskOverride = true     // Allow $1.10 even if exceeds envelope
+} else if (bankroll < $20) {
+    // Stage 1: TRANSITION - Moderate risk
+    intradayLossBudgetPct = 0.35    // 35% intraday loss
+    trailingDrawdownPct = 0.20      // 20% trailing DD
+    perTradeLossCap = 0.25          // 25% of budget per trade
+    minOrderRiskOverride = false    // No minimum order exception
+} else {
+    // Stage 2: LOCK-IN - Conservative to protect gains
+    intradayLossBudgetPct = 0.25    // 25% intraday loss
+    trailingDrawdownPct = 0.10      // 10% trailing DD (strict)
+    perTradeLossCap = 0.10          // 10% of budget per trade
+    minOrderRiskOverride = false    // No minimum order exception
+}
 ```
 
 ### Risk Envelope Budget Calculation
 
 ```javascript
-intradayBudget = dayStartBalance × 0.35 - intradayLoss
-trailingBudget = peakBalance × 0.15 - (peakBalance - currentBalance)
-effectiveBudget = min(intradayBudget, trailingBudget)
-maxTradeSize = effectiveBudget × 0.10  // 10% of remaining budget
+// v77: Uses equity-aware balance in LIVE mode
+bankroll = (mode === 'LIVE') ? getEquityEstimate().totalEquity : paperBalance;
+profile = getDynamicRiskProfile(bankroll);
 
-// v76: If maxTradeSize < $1.10:
-//   - Allow $1.10 with micro-bankroll exception if balance >= $1.65
-//   - Otherwise BLOCK the trade
+intradayBudget = dayStartBalance × profile.intradayLossBudgetPct - intradayLoss
+trailingDDFromPeak = peakBalance - bankroll
+trailingBudget = peakBalance × profile.trailingDrawdownPct - trailingDDFromPeak
+effectiveBudget = min(intradayBudget, trailingBudget)
+maxTradeSize = effectiveBudget × profile.perTradeLossCap
+
+// v77: Micro-bankroll exception only in Bootstrap stage
+if (maxTradeSize < $1.10) {
+    if (profile.minOrderRiskOverride && bankroll >= $1.65) {
+        allow $1.10  // Bootstrap allows exceeding envelope
+    } else {
+        BLOCK trade  // Other stages enforce strict envelope
+    }
+}
 ```
 
 ### Profit Lock-In (Automatic Stake Reduction)
@@ -287,7 +349,11 @@ maxTradeSize = effectiveBudget × 0.10  // 10% of remaining budget
 | Protection | Trigger | Action | Status |
 |------------|---------|--------|--------|
 | **Balance Floor** | Balance < $2.00 | HALT all trading | v73+ |
-| **CONVICTION Gate** | Tier = ADVISORY/NONE | Block trade | v72+ |
+| **CONVICTION Gate** | Tier = ADVISORY/NONE | Block trade (unless frequency floor) | v72+ (v77 hybrid) |
+| **Trade Frequency Floor** | Trades below target | Allow high-quality ADVISORY | v77+ |
+| **Dynamic Risk Profile** | Bankroll stage changes | Adjust risk parameters | v77+ |
+| **Equity-Aware Balance** | LIVE mode | Use MTM equity for risk calcs | v77+ |
+| **Bounded Resolution** | LIVE resolution >30min | Mark stale, continue trading | v77+ |
 | **Chainlink Stale** | Feed >30s old | Block trades for asset | v70+ |
 | **Redis Required** | Redis unavailable | Downgrade LIVE→PAPER | v70+ |
 | **Wallet Check** | No wallet loaded | Block all LIVE trades | v69+ |
@@ -300,15 +366,38 @@ maxTradeSize = effectiveBudget × 0.10  // 10% of remaining budget
 | **Circuit Breaker** | >3x ATR volatility | Pause trading | v61+ |
 | **Critical Error Halt** | 10 errors in 5min | Halt per asset | v69+ |
 
-### v76 Risk Envelope Fix
+### v77 Hybrid Improvements
 
-**Problem in v75**: Risk envelope was applied BEFORE min-order bump, so `$1.10` minimum could bypass the envelope cap.
+#### 1. Dynamic Risk Profile (Staged Parameters)
 
-**v76 Fix**: Risk envelope is now applied as the FINAL sizing step. After min-order bump, envelope re-checks:
-- If `$1.10 > maxTradeSize` but micro-bankroll exception applies → allow $1.10
-- Otherwise → BLOCK the trade
+**Problem**: Static risk parameters don't fit both $5 bootstrap AND $100+ protection.
 
-This ensures NO trade can ever exceed the remaining risk budget.
+**v77 Solution**: Three stages with dynamic parameters:
+- **Bootstrap ($5-$11)**: Aggressive - 50% intraday loss, 40% trailing DD, $1.10 override allowed
+- **Transition ($11-$20)**: Moderate - 35% intraday, 20% trailing DD
+- **Lock-in ($20+)**: Conservative - 25% intraday, 10% trailing DD (strict protection)
+
+#### 2. Trade Frequency Floor
+
+**Problem**: CONVICTION-only mode was "too frigid" - sometimes hours without trades.
+
+**v77 Solution**: When below target trades/hour, allow ADVISORY trades IF:
+- pWin ≥ 65% (stricter than CONVICTION's 55%)
+- EV ≥ 8% (stricter than CONVICTION's 5%)
+- Max 2 ADVISORY per hour
+- Size reduced to 50% of normal
+
+#### 3. Equity-Aware LIVE Balance
+
+**Problem**: LIVE mode cash balance drops immediately on trade entry, triggering false drawdown alerts.
+
+**v77 Solution**: `getEquityEstimate()` calculates total equity (cash + mark-to-market of open positions). Risk decisions use this equity value, not just cash.
+
+#### 4. Bounded LIVE Resolution
+
+**Problem**: Gamma API resolution polling could "wait forever" if API is slow/down.
+
+**v77 Solution**: 30-minute TTL with 60 attempts. After TTL, positions marked `stalePending=true` and surfaced in `/api/health`. Polling continues at slow rate (5min) but trading continues normally.
 
 ---
 
@@ -329,11 +418,12 @@ This ensures NO trade can ever exceed the remaining risk budget.
 Before enabling LIVE mode, verify ALL:
 
 ```
-[ ] /api/version shows configVersion: 76
+[ ] /api/version shows configVersion: 77
 [ ] /api/health shows status: "ok"
 [ ] /api/health shows dataFeed.anyStale: false
 [ ] /api/health shows balanceFloor.floor: 2.0
 [ ] /api/health shows balanceFloor.tradingBlocked: false
+[ ] /api/health shows stalePendingCount: 0 (no stuck resolutions)
 [ ] Redis is connected (check startup logs)
 [ ] Wallet is loaded (POLYMARKET_PRIVATE_KEY set)
 [ ] USDC balance sufficient for trading
@@ -497,7 +587,91 @@ local_archive/
 
 ---
 
+## LEDGER INVARIANTS CHECKLIST
+
+### Position Lifecycle (Audited v77)
+
+| Event | PAPER Mode | LIVE Mode |
+|-------|-----------|-----------|
+| **Entry** | `paperBalance -= size` | No balance change (USDC locked on Polymarket) |
+| **Close** | `paperBalance += size + pnl` | `cachedLiveBalance` refreshed from wallet |
+| **Shares** | `pos.shares = size / entryPrice` | Same calculation |
+| **PnL** | `(exitPrice - entry) * shares` | Same calculation |
+
+### Win/Loss Tracking
+
+| Counter | Updated When | Reset When |
+|---------|-------------|------------|
+| `todayPnL` | Every `closePosition()` | New calendar day (`resetDailyPnL()`) |
+| `consecutiveLosses` | Loss on main (non-hedge) position | Any win |
+| `rollingConviction[]` | CONVICTION trade closes | Never (rolling window of 50) |
+
+### Resolution Flow
+
+```
+Cycle ends → resolveAllPositions()
+    ↓
+For each position with slug:
+    schedulePolymarketResolution(slug)
+    ↓
+Position marked PENDING_RESOLUTION
+    ↓
+Poll Gamma API for outcome (UP/DOWN)
+    ↓ (LIVE: TTL + on-chain fallback)
+closePosition(id, 1.0 or 0.0, reason)
+    ↓
+If LIVE win → addToRedemptionQueue()
+```
+
+### Reconciliation Endpoints
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/reconcile-pending` | Force-resolve stuck PENDING_RESOLUTION positions |
+| `GET /api/redemption-queue` | List positions awaiting token redemption |
+| `POST /api/check-redemptions` | Trigger automatic redemption for LIVE wins |
+
+### Guarantees (Code-Enforced)
+
+1. **No double-counting**: Hedge positions closed together with main
+2. **No stuck funds (PAPER)**: PENDING_RESOLUTION excluded from exposure
+3. **No false drawdown (LIVE)**: `cachedLiveBalance` used for risk decisions
+4. **No orphan hedges**: Fallback resolution closes orphans at cycle end
+5. **Idempotent redemption**: `processedAt` flag prevents double-redeem
+
+### Verification Commands
+
+```bash
+# Check pending positions
+curl "https://polyprophet.onrender.com/api/reconcile-pending?apiKey=bandito"
+
+# Check redemption queue (LIVE)
+curl "https://polyprophet.onrender.com/api/redemption-queue?apiKey=bandito"
+
+# Check risk controls
+curl "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito"
+```
+
+---
+
 ## CHANGELOG
+
+### v77 (2026-01-03) — HYBRID
+
+- **ADD**: Dynamic Risk Profile with 3 stages (Bootstrap/Transition/Lock-in) based on bankroll
+  - Bootstrap ($5-$11): 50% intraday, 40% trailing DD, min-order override allowed
+  - Transition ($11-$20): 35% intraday, 20% trailing DD
+  - Lock-in ($20+): 25% intraday, 10% trailing DD (strict protection)
+- **ADD**: Trade Frequency Floor - allows high-quality ADVISORY when below 1 trade/hour target
+  - Requires pWin ≥ 65% AND EV ≥ 8% (stricter than CONVICTION)
+  - Max 2 ADVISORY per hour, at 50% size reduction
+- **ADD**: Equity-Aware LIVE Balance - `getEquityEstimate()` returns cash + MTM of open positions
+  - `getBankrollForRisk()` uses equity for risk calculations (prevents false DD alerts)
+- **ADD**: Bounded LIVE Resolution - 30-min TTL for Gamma API polling
+  - Positions marked `stalePending=true` after TTL, surfaced in `/api/health`
+  - Prevents infinite waiting; trading continues normally
+- **ADD**: `closedPositions[]` tracking for frequency floor calculation
+- **FIX**: Control flow for CONVICTION-ONLY + frequency floor interaction
 
 ### v76 (2026-01-04) — FINAL
 
@@ -553,14 +727,15 @@ local_archive/
 | Criteria | Assessment |
 |----------|------------|
 | **Max profit potential** | ✅ YES - $500+ from $5 in 4 days possible |
-| **Variance minimized** | ✅ YES - Kelly + risk envelope + $2.00 floor triple-protect |
-| **LIVE safety** | ✅ YES - All invariants implemented |
-| **Bad window protection** | ✅ YES - Risk envelope caps per-trade loss |
-| **Risk envelope reliable** | ✅ YES - v76 applies as FINAL sizing step |
+| **Variance minimized** | ✅ YES - Dynamic profile + Kelly + $2.00 floor quadruple-protect |
+| **LIVE safety** | ✅ YES - All invariants implemented + equity-aware + bounded resolution |
+| **Trade frequency** | ✅ YES - Frequency floor prevents being "too frigid" |
+| **Bad window protection** | ✅ YES - Staged risk envelope caps per-trade loss |
+| **Risk envelope reliable** | ✅ YES - Dynamic profile adapts to bankroll stage |
 | **Asset accuracy** | ✅ YES - BTC+ETH only (79%/77%) vs XRP (59.5%) |
 | **Stop-loss policy** | ✅ YES - CONVICTION holds to resolution (bypass SL) |
-| **Backtest parity** | ✅ YES - v76 backtest simulates runtime risk envelope |
-| **Market-proof** | ⚠️ PARTIAL - Better than v75, still not guaranteed |
+| **Backtest parity** | ✅ YES - v77 backtest simulates dynamic profile |
+| **Market-proof** | ⚠️ PARTIAL - Better than v76, still not guaranteed |
 | **Perfect/faultless** | ❌ NO - No system can be |
 | **$100 in 24h** | ⚠️ POSSIBLE - ~5% probability |
 | **$100 in 72h** | ✅ LIKELY - 73-85% probability |
@@ -569,14 +744,15 @@ local_archive/
 
 **YES, this is the optimal configuration for your stated goals:**
 
-- **MAX PROFIT**: 35% max stake with Kelly + risk envelope optimization
-- **MIN VARIANCE**: Triple protection (Kelly + risk envelope + $2.00 floor)
-- **MIN TIME**: CONVICTION-only + BTC/ETH ensures highest quality trades
-- **BOUNDED VARIANCE**: Risk envelope (v76: truly final) caps per-trade loss; floor caps total DD
-- **SET-AND-FORGET**: All parameters are defaulted correctly in v76
+- **MAX PROFIT**: 35% max stake with dynamic profile allowing aggressive bootstrap growth
+- **MIN VARIANCE**: Quadruple protection (Dynamic profile + Kelly + risk envelope + $2.00 floor)
+- **MIN TIME**: CONVICTION primary + frequency floor ensures activity without sacrificing quality
+- **BOUNDED VARIANCE**: Dynamic profile stages adapt to bankroll; Lock-in stage protects gains
+- **SET-AND-FORGET**: All parameters are defaulted correctly in v77
+- **LIVE ROBUST**: Equity-aware balance + bounded resolution prevent hangs and false alerts
 
-**Expected outcome**: $5 → $100+ in 48-72 hours with ~41-85% probability. Risk envelope + Kelly + balance floor provide triple-protection against catastrophic losses.
+**Expected outcome**: $5 → $100+ in 48-72 hours with ~41-85% probability. Dynamic risk profile starts aggressive for fast compounding, then automatically tightens to protect gains.
 
 ---
 
-*Version: v76 FINAL | Updated: 2026-01-04 | Single Source of Truth*
+*Version: v77 HYBRID | Updated: 2026-01-03 | Single Source of Truth*

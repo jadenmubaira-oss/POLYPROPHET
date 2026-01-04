@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.1.0-low-drawdown-v75",
-    "description": "POLYPROPHET v75 LOW-DRAWDOWN - Risk envelope + fixed global stop + BTC/ETH focus",
+    "version": "4.2.0-hybrid-v77",
+    "description": "POLYPROPHET v77 HYBRID - Dynamic risk profile + equity-aware + frequency floor + bounded resolution",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

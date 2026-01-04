@@ -1102,14 +1102,39 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     let stake = Number(stakes[i]);
                     if (!Number.isFinite(stake) || stake <= 0) continue;
                     
-                    // 🏆 v76: Risk envelope simulation (matches runtime applyRiskEnvelope)
+                    // 🏆 v77: Risk envelope simulation with DYNAMIC PROFILE (matches runtime)
                     if (riskEnvelopeEnabled) {
-                        // Calculate remaining budgets
-                        const intradayBudget = dayStartBalance * intradayLossBudgetPct - intradayLoss;
+                        // 🏆 v77: Get dynamic risk profile based on current balance
+                        const STAGE1_THRESHOLD = 11;
+                        const STAGE2_THRESHOLD = 20;
+                        let dynIntradayBudgetPct, dynTrailingDDPct, dynPerTradeCap, dynMinOrderOverride;
+                        
+                        if (balance < STAGE1_THRESHOLD) {
+                            // Stage 0: Bootstrap - aggressive
+                            dynIntradayBudgetPct = 0.50;
+                            dynTrailingDDPct = 0.40;
+                            dynPerTradeCap = 0.75;
+                            dynMinOrderOverride = true;
+                        } else if (balance < STAGE2_THRESHOLD) {
+                            // Stage 1: Transition
+                            dynIntradayBudgetPct = 0.35;
+                            dynTrailingDDPct = 0.20;
+                            dynPerTradeCap = 0.25;
+                            dynMinOrderOverride = false;
+                        } else {
+                            // Stage 2: Lock-in
+                            dynIntradayBudgetPct = 0.25;
+                            dynTrailingDDPct = 0.10;
+                            dynPerTradeCap = 0.10;
+                            dynMinOrderOverride = false;
+                        }
+                        
+                        // Calculate remaining budgets with dynamic profile
+                        const intradayBudget = dayStartBalance * dynIntradayBudgetPct - intradayLoss;
                         const trailingDDFromPeak = peakBalance > 0 ? peakBalance - balance : 0;
-                        const trailingBudget = peakBalance * trailingDrawdownPct - trailingDDFromPeak;
+                        const trailingBudget = peakBalance * dynTrailingDDPct - trailingDDFromPeak;
                         const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
-                        const maxTradeSize = effectiveBudget * perTradeLossCap;
+                        const maxTradeSize = effectiveBudget * dynPerTradeCap;
                         
                         // Check if we should block or cap
                         const MIN_ORDER = 1.10;
@@ -1120,8 +1145,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         } else if (stake > maxTradeSize) {
                             // Cap to max allowed
                             if (maxTradeSize < MIN_ORDER) {
-                                // Can't meet minimum - allow with micro-bankroll override if balance allows
-                                if (balance >= MIN_ORDER * 1.5) {
+                                // Can't meet minimum - allow with micro-bankroll override if in bootstrap stage
+                                if (dynMinOrderOverride && balance >= MIN_ORDER * 1.5) {
                                     stake = MIN_ORDER;
                                 } else {
                                     envelopeBlocks++;
@@ -3132,9 +3157,22 @@ app.get('/api/health', (req, res) => {
     // 🏆 v60: Pending settlements count (not blocking exposure)
     const pendingSettlements = tradeExecutor?.getPendingSettlements?.() || [];
     
+    // 🏆 v77: Identify stale pending positions (exceeded TTL but not resolved)
+    const stalePendingPositions = Object.entries(tradeExecutor?.positions || {})
+        .filter(([id, pos]) => pos && pos.stalePending)
+        .map(([id, pos]) => ({
+            id,
+            asset: pos.asset,
+            side: pos.side,
+            slug: pos.pendingSlug || pos.slug,
+            staleSince: pos.staleSince,
+            staleDurationMin: Math.round((Date.now() - (pos.staleSince || pos.pendingSince || pos.time)) / 60000)
+        }));
+    
     // 🏆 v70: Determine overall status including feed staleness
     const staleAssetsList = ASSETS.filter(a => feedStaleAssets[a]);
-    const isDataDegraded = anyFeedStale || anyTradingHalted;
+    const hasStalePending = stalePendingPositions.length > 0;
+    const isDataDegraded = anyFeedStale || anyTradingHalted || hasStalePending;
     
     res.json({
         status: isDataDegraded ? 'degraded' : 'ok',
@@ -3171,6 +3209,12 @@ app.get('/api/health', (req, res) => {
         pendingSettlements: {
             count: pendingSettlements.length,
             items: pendingSettlements.slice(0, 5) // Show up to 5 in health
+        },
+        // 🏆 v77: Stale pending positions (exceeded TTL, need manual reconciliation)
+        stalePending: {
+            count: stalePendingPositions.length,
+            items: stalePendingPositions.slice(0, 5),
+            action: stalePendingPositions.length > 0 ? 'Use /api/reconcile-pending or wait for Gamma' : null
         },
         // 🎯 v52: Drift detection per asset
         rollingAccuracy
@@ -4635,7 +4679,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 76;  // v76: FINAL - Risk envelope as final sizing step, daily peak reset, asset auto-enable removed
+const CONFIG_VERSION = 77;  // v77: HYBRID - TTL for LIVE resolution, stale pending tracking, dynamic risk profile, equity-aware balance
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -4845,6 +4889,18 @@ const CONFIG = {
         supremeConfidenceMode: true,      // 🚀 v61.2: 75%+ confidence ONLY
         convictionOnlyMode: true,         // 🏆 v73 FINAL: ONLY execute CONVICTION tier trades (block ADVISORY)
         
+        // 🏆 v77 TRADE FREQUENCY FLOOR: Allow ADVISORY when we're below target trades/hour
+        // This prevents the bot from being too frigid while still prioritizing quality
+        tradeFrequencyFloor: {
+            enabled: true,                    // Enable frequency floor feature
+            targetTradesPerHour: 1,           // Target minimum trades per hour
+            lookbackMinutes: 120,             // Look at last 2 hours of trades
+            advisoryPWinThreshold: 0.65,      // Only allow ADVISORY if pWin >= this (higher than CONVICTION's 0.55)
+            advisoryEvRoiThreshold: 0.08,     // Only allow ADVISORY if EV >= this (higher than CONVICTION's 0.05)
+            maxAdvisoryPerHour: 2,            // Max ADVISORY trades allowed per hour even if floor is active
+            sizeReduction: 0.50               // Size ADVISORY trades at 50% of CONVICTION size
+        },
+        
         // 🏆 v74 KELLY SIZING: Mathematically optimal position sizing based on edge
         // Kelly formula: f* = (b*p - (1-p)) / b where b = payout odds, p = win probability
         // Half-Kelly (k=0.5) provides ~75% of full Kelly growth with ~50% of variance
@@ -4967,6 +5023,7 @@ class TradeExecutor {
         this.paperBalance = CONFIG.PAPER_BALANCE;
         this.startingBalance = CONFIG.PAPER_BALANCE;
         this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
+        this.closedPositions = [];     // 🏆 v77: Track closed positions for frequency floor calculation
         this.wallet = null;
         this.tradeHistory = [];
         // ✅ Ground-truth resolution: pending Polymarket slug resolutions (PAPER mode)
@@ -5173,6 +5230,140 @@ class TradeExecutor {
             .reduce((sum, p) => sum + p.size, 0);
     }
     
+    // 🏆 v77: Get equity estimate (cash + mark-to-market value of open positions)
+    // This provides a more accurate picture of total value for risk calculations in LIVE mode
+    // when cash is locked in positions but the tokens have value
+    getEquityEstimate() {
+        const cash = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
+        
+        // Calculate mark-to-market value of open positions
+        let positionValue = 0;
+        for (const pos of Object.values(this.positions)) {
+            if (!pos || !pos.shares) continue;
+            
+            // Get current market price for this position
+            const market = typeof currentMarkets !== 'undefined' ? currentMarkets[pos.asset] : null;
+            if (!market) {
+                // No market data - use entry price as conservative estimate
+                positionValue += pos.size;
+                continue;
+            }
+            
+            // Mark-to-market: shares * currentPrice
+            const currentPrice = pos.side === 'UP' ? (market.yesPrice || 0.5) : (market.noPrice || 0.5);
+            const mtmValue = pos.shares * currentPrice;
+            positionValue += mtmValue;
+        }
+        
+        return {
+            cash,
+            positionValue,
+            totalEquity: cash + positionValue,
+            positionCount: Object.keys(this.positions).length
+        };
+    }
+    
+    // 🏆 v77: Get bankroll for risk calculations
+    // Uses equity estimate for LIVE (accounts for locked funds), paperBalance for PAPER
+    getBankrollForRisk() {
+        if (this.mode === 'PAPER') {
+            return this.paperBalance;
+        }
+        
+        // LIVE: Use equity estimate to prevent false "low balance" from locked funds
+        const equity = this.getEquityEstimate();
+        
+        // Use totalEquity but floor at cachedLiveBalance to be conservative
+        // (don't assume positions are worth more than they were)
+        return Math.max(equity.totalEquity, this.cachedLiveBalance || 0);
+    }
+    
+    // 🏆 v77 TRADE FREQUENCY FLOOR: Track recent trades for frequency calculation
+    getRecentTradesCount(lookbackMinutes = 120) {
+        if (!this.closedPositions) return { total: 0, conviction: 0, advisory: 0 };
+        
+        const cutoffTime = Date.now() - (lookbackMinutes * 60 * 1000);
+        
+        let total = 0, conviction = 0, advisory = 0;
+        for (const pos of this.closedPositions) {
+            if (pos.closeTime && pos.closeTime >= cutoffTime) {
+                total++;
+                if (pos.tier === 'CONVICTION') conviction++;
+                else if (pos.tier === 'ADVISORY') advisory++;
+            }
+        }
+        
+        return { total, conviction, advisory, lookbackMinutes };
+    }
+    
+    // 🏆 v77 TRADE FREQUENCY FLOOR: Check if ADVISORY should be allowed
+    // Returns { allowed, reason, sizeMultiplier }
+    shouldAllowAdvisoryTrade(advisoryPWin, advisoryEvRoi) {
+        const floorConfig = CONFIG.RISK.tradeFrequencyFloor;
+        
+        // Feature disabled - use normal convictionOnlyMode behavior
+        if (!floorConfig || !floorConfig.enabled) {
+            return { 
+                allowed: false, 
+                reason: 'Trade frequency floor disabled',
+                sizeMultiplier: 1.0
+            };
+        }
+        
+        const recentTrades = this.getRecentTradesCount(floorConfig.lookbackMinutes || 120);
+        const hoursLookedBack = (floorConfig.lookbackMinutes || 120) / 60;
+        const targetTotal = floorConfig.targetTradesPerHour * hoursLookedBack;
+        
+        // Are we below target frequency?
+        if (recentTrades.total >= targetTotal) {
+            return { 
+                allowed: false, 
+                reason: `Above target (${recentTrades.total}/${targetTotal} trades in ${hoursLookedBack}h)`,
+                sizeMultiplier: 1.0
+            };
+        }
+        
+        // Check ADVISORY cap
+        const maxAdvisory = (floorConfig.maxAdvisoryPerHour || 2) * hoursLookedBack;
+        if (recentTrades.advisory >= maxAdvisory) {
+            return { 
+                allowed: false, 
+                reason: `ADVISORY cap reached (${recentTrades.advisory}/${maxAdvisory} in ${hoursLookedBack}h)`,
+                sizeMultiplier: 1.0
+            };
+        }
+        
+        // Check quality gates for ADVISORY (stricter than CONVICTION)
+        const minPWin = floorConfig.advisoryPWinThreshold || 0.65;
+        const minEvRoi = floorConfig.advisoryEvRoiThreshold || 0.08;
+        
+        if (advisoryPWin < minPWin) {
+            return { 
+                allowed: false, 
+                reason: `ADVISORY pWin ${(advisoryPWin * 100).toFixed(1)}% < threshold ${(minPWin * 100).toFixed(0)}%`,
+                sizeMultiplier: 1.0
+            };
+        }
+        
+        if (advisoryEvRoi < minEvRoi) {
+            return { 
+                allowed: false, 
+                reason: `ADVISORY EV ${(advisoryEvRoi * 100).toFixed(1)}% < threshold ${(minEvRoi * 100).toFixed(0)}%`,
+                sizeMultiplier: 1.0
+            };
+        }
+        
+        // All checks passed - allow ADVISORY with size reduction
+        const sizeMultiplier = floorConfig.sizeReduction || 0.50;
+        log(`📊 FREQUENCY FLOOR: Allowing ADVISORY (${recentTrades.total}/${targetTotal} trades, pWin=${(advisoryPWin * 100).toFixed(1)}%, EV=${(advisoryEvRoi * 100).toFixed(1)}%) @ ${(sizeMultiplier * 100).toFixed(0)}% size`);
+        
+        return { 
+            allowed: true, 
+            reason: `Frequency floor active (${recentTrades.total}/${targetTotal} trades in ${hoursLookedBack}h)`,
+            sizeMultiplier
+        };
+    }
+    
     // 🏆 v60: Get pending settlements (for UI/reconciliation)
     getPendingSettlements() {
         return Object.entries(this.positions)
@@ -5327,13 +5518,65 @@ class TradeExecutor {
         return dayStart * this.streakSizing.maxLossBudgetPct;
     }
     
-    // 🏆 v75 RISK ENVELOPE: Get remaining risk budget based on intraday + trailing drawdown
+    // 🏆 v77 DYNAMIC RISK PROFILE: Get risk parameters based on bankroll stage
+    // This allows aggressive compounding at small bankrolls, then tightens as balance grows
+    getDynamicRiskProfile(bankroll) {
+        // Stage thresholds (can be overridden in CONFIG)
+        const STAGE1_THRESHOLD = CONFIG.RISK.stage1Threshold || 11;  // Start enforcing near-10% behavior
+        const STAGE2_THRESHOLD = CONFIG.RISK.stage2Threshold || 20;  // Full lock-in mode
+        
+        // Stage 0: Bootstrap mode (bankroll < $11)
+        // Allow aggressive compounding - the $2.00 floor is the safety net
+        if (bankroll < STAGE1_THRESHOLD) {
+            return {
+                stage: 0,
+                stageName: 'BOOTSTRAP',
+                intradayLossBudgetPct: 0.50,      // Allow 50% intraday loss (floor protects)
+                trailingDrawdownPct: 0.40,        // Allow 40% trailing DD
+                perTradeLossCap: 0.75,            // Allow 75% of remaining budget per trade
+                minOrderRiskOverride: true,       // Always allow MIN_ORDER in bootstrap
+                reason: `Stage 0: Bootstrap ($${bankroll.toFixed(2)} < $${STAGE1_THRESHOLD})`
+            };
+        }
+        
+        // Stage 1: Transition mode ($11 <= bankroll < $20)
+        // Begin enforcing near-10% behavior
+        if (bankroll < STAGE2_THRESHOLD) {
+            return {
+                stage: 1,
+                stageName: 'TRANSITION',
+                intradayLossBudgetPct: 0.35,      // Standard 35% intraday
+                trailingDrawdownPct: 0.20,        // Tighter 20% trailing DD
+                perTradeLossCap: 0.25,            // 25% of remaining budget per trade
+                minOrderRiskOverride: false,      // Disable override - must fit in budget
+                reason: `Stage 1: Transition ($${bankroll.toFixed(2)} in $${STAGE1_THRESHOLD}-$${STAGE2_THRESHOLD})`
+            };
+        }
+        
+        // Stage 2: Lock-in mode (bankroll >= $20)
+        // Maximum protection - you've made it, don't blow it
+        return {
+            stage: 2,
+            stageName: 'LOCK_IN',
+            intradayLossBudgetPct: 0.25,          // Tight 25% intraday
+            trailingDrawdownPct: 0.10,            // Tight 10% trailing DD
+            perTradeLossCap: 0.10,                // 10% of remaining budget per trade
+            minOrderRiskOverride: false,          // Never override - must fit in budget
+            reason: `Stage 2: Lock-in ($${bankroll.toFixed(2)} >= $${STAGE2_THRESHOLD})`
+        };
+    }
+    
+    // 🏆 v77 RISK ENVELOPE: Get remaining risk budget based on intraday + trailing drawdown
+    // Now uses dynamic profile based on bankroll stage
     getRiskEnvelopeBudget() {
         if (!CONFIG.RISK.riskEnvelopeEnabled) {
             return { maxTradeSize: Infinity, reason: 'Risk envelope disabled' };
         }
         
-        const currentBalance = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || this.paperBalance);
+        // 🏆 v77: Use equity-aware balance for LIVE mode
+        const currentBalance = this.mode === 'LIVE' 
+            ? this.getBankrollForRisk() 
+            : this.paperBalance;
         const dayStart = this.circuitBreaker.dayStartBalance || currentBalance;
         
         // Update peak balance tracking
@@ -5342,16 +5585,19 @@ class TradeExecutor {
         }
         const peakBalance = this.circuitBreaker.peakBalance;
         
+        // 🏆 v77: Get dynamic risk profile based on current bankroll stage
+        const profile = this.getDynamicRiskProfile(currentBalance);
+        
         // Calculate remaining intraday loss budget
         // How much more can we lose today before hitting the daily stop?
-        const intradayBudgetPct = CONFIG.RISK.intradayLossBudgetPct || 0.35;
+        const intradayBudgetPct = profile.intradayLossBudgetPct;
         const maxIntradayLoss = dayStart * intradayBudgetPct;
         const usedIntradayLoss = Math.max(0, dayStart - currentBalance);
         const remainingIntradayBudget = Math.max(0, maxIntradayLoss - usedIntradayLoss);
         
         // Calculate trailing drawdown budget
         // How much can we lose from peak before hitting trailing DD limit?
-        const trailingDDPct = CONFIG.RISK.trailingDrawdownPct || 0.15;
+        const trailingDDPct = profile.trailingDrawdownPct;
         const maxTrailingDD = peakBalance * trailingDDPct;
         const usedTrailingDD = Math.max(0, peakBalance - currentBalance);
         const remainingTrailingBudget = Math.max(0, maxTrailingDD - usedTrailingDD);
@@ -5360,7 +5606,7 @@ class TradeExecutor {
         const effectiveBudget = Math.min(remainingIntradayBudget, remainingTrailingBudget);
         
         // Per-trade cap: no single trade should risk more than X% of remaining budget
-        const perTradeCap = CONFIG.RISK.perTradeLossCap || 0.10;
+        const perTradeCap = profile.perTradeLossCap;
         const maxTradeSize = effectiveBudget * perTradeCap;
         
         const reason = remainingTrailingBudget < remainingIntradayBudget
@@ -5375,11 +5621,21 @@ class TradeExecutor {
             dayStart,
             peakBalance,
             currentBalance,
-            reason
+            reason,
+            // 🏆 v77: Include profile info for debugging/logging
+            profile: {
+                stage: profile.stage,
+                stageName: profile.stageName,
+                intradayBudgetPct,
+                trailingDDPct,
+                perTradeCap,
+                minOrderRiskOverride: profile.minOrderRiskOverride
+            }
         };
     }
     
-    // 🏆 v75: Apply risk envelope to proposed trade size
+    // 🏆 v77: Apply risk envelope to proposed trade size
+    // Uses dynamic profile's minOrderRiskOverride based on bankroll stage
     applyRiskEnvelope(proposedSize, bankroll) {
         const envelope = this.getRiskEnvelopeBudget();
         
@@ -5389,27 +5645,32 @@ class TradeExecutor {
         
         const MIN_ORDER = 1.10; // Polymarket minimum
         
+        // 🏆 v77: Use dynamic profile's minOrderRiskOverride (stage-aware)
+        const allowMinOrderOverride = envelope.profile?.minOrderRiskOverride ?? CONFIG.RISK.minOrderRiskOverride;
+        
         // If proposed size exceeds envelope, cap it
         if (proposedSize > envelope.maxTradeSize) {
             // Special case: micro-bankroll where MIN_ORDER exceeds envelope
             if (envelope.maxTradeSize < MIN_ORDER) {
-                if (CONFIG.RISK.minOrderRiskOverride && bankroll >= MIN_ORDER * 1.5) {
-                    // Allow minimum order but log the risk override
-                    log(`⚠️ RISK ENVELOPE OVERRIDE: Budget $${envelope.maxTradeSize.toFixed(2)} < MIN_ORDER $${MIN_ORDER}. Allowing minimum (${envelope.reason})`);
+                if (allowMinOrderOverride && bankroll >= MIN_ORDER * 1.5) {
+                    // Allow minimum order but log the risk override (bootstrap mode)
+                    const stageName = envelope.profile?.stageName || 'UNKNOWN';
+                    log(`⚠️ RISK ENVELOPE OVERRIDE [${stageName}]: Budget $${envelope.maxTradeSize.toFixed(2)} < MIN_ORDER $${MIN_ORDER}. Allowing minimum.`);
                     return { 
                         size: MIN_ORDER, 
                         capped: true, 
                         riskOverride: true,
                         envelope,
-                        reason: `MIN_ORDER override (budget $${envelope.maxTradeSize.toFixed(2)})`
+                        reason: `MIN_ORDER override (budget $${envelope.maxTradeSize.toFixed(2)}, stage: ${stageName})`
                     };
                 } else {
                     // Block trade entirely - budget exhausted
+                    const stageName = envelope.profile?.stageName || 'UNKNOWN';
                     return { 
                         size: 0, 
                         blocked: true, 
                         envelope,
-                        reason: `Risk budget exhausted: $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason})`
+                        reason: `Risk budget exhausted: $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason}, stage: ${stageName})`
                     };
                 }
             }
@@ -6114,6 +6375,28 @@ class TradeExecutor {
             return { success: false, error: `CHAINLINK_STALE: ${asset} feed unavailable - trading blocked until WS reconnects` };
         }
 
+        // 🏆 v77: CONVICTION-ONLY MODE with FREQUENCY FLOOR exception for ADVISORY
+        // Block ADVISORY trades UNLESS frequency floor allows them with high-quality gates
+        const tradeTierCheck = options.tier || 'ADVISORY';
+        if (CONFIG.RISK.convictionOnlyMode && tradeTierCheck === 'ADVISORY') {
+            const pWinForFloor = options.pWin || confidence; // Use pWin if available, else raw confidence
+            
+            // Calculate EV for frequency floor gate
+            const evForFloor = pWinForFloor * (1 - entryPrice) * 0.98 - (1 - pWinForFloor) * entryPrice;
+            const evRoiForFloor = evForFloor / entryPrice;
+            
+            const floorResult = this.shouldAllowAdvisoryTrade(pWinForFloor, evRoiForFloor);
+            
+            if (!floorResult.allowed) {
+                log(`💎 CONVICTION-ONLY BLOCK: ADVISORY tier blocked (${floorResult.reason}) - waiting for CONVICTION`, asset);
+                return { success: false, error: `CONVICTION-ONLY mode: ADVISORY blocked (${floorResult.reason})` };
+            }
+            
+            // ADVISORY passed frequency floor - store size multiplier for sizing logic
+            options.frequencyFloorMultiplier = floorResult.sizeMultiplier;
+            log(`📊 FREQUENCY FLOOR PASS: ADVISORY allowed @ ${(floorResult.sizeMultiplier * 100).toFixed(0)}% size (${floorResult.reason})`, asset);
+        }
+
         // 🏆 v70: BALANCE FLOOR GUARD - Stop new trades if balance dropped below floor
         if (CONFIG.RISK.minBalanceFloorEnabled) {
             const currentBal = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
@@ -6435,6 +6718,13 @@ class TradeExecutor {
 
                 // Calculate size based on actual bankroll
                 size = bankroll * basePct;
+                
+                // 🏆 v77: Apply frequency floor size reduction for ADVISORY trades
+                if (options.frequencyFloorMultiplier && options.frequencyFloorMultiplier < 1.0) {
+                    const originalSize = size;
+                    size = size * options.frequencyFloorMultiplier;
+                    log(`📊 FREQUENCY FLOOR SIZE: $${originalSize.toFixed(2)} × ${(options.frequencyFloorMultiplier * 100).toFixed(0)}% = $${size.toFixed(2)}`, asset);
+                }
 
                 // 🏆 v74 KELLY SIZING: Apply mathematically optimal position sizing
                 // Only for ORACLE mode with valid pWin and entryPrice
@@ -7611,6 +7901,28 @@ class TradeExecutor {
             this.addToRedemptionQueue(pos);
         }
 
+        // 🏆 v77: Track closed position for frequency floor calculation
+        if (this.closedPositions) {
+            this.closedPositions.push({
+                id: positionId,
+                asset: pos.asset,
+                side: pos.side,
+                mode: pos.mode,
+                tier: pos.tier || 'UNKNOWN',
+                entry: pos.entry,
+                exit: exitPrice,
+                pnl,
+                pnlPercent,
+                closeTime: Date.now(),
+                reason
+            });
+            
+            // Keep only last 200 closed positions (about 8+ hours of history at 1/hour)
+            if (this.closedPositions.length > 200) {
+                this.closedPositions = this.closedPositions.slice(-200);
+            }
+        }
+        
         delete this.positions[positionId];
         return pnl;
     }
@@ -8166,15 +8478,16 @@ class TradeExecutor {
         }
 
         const isLiveMode = this.mode === 'LIVE';
-        // 🏆 v68 FIX: Rate-safe resolution polling
+        // 🏆 v77 FIX: Rate-safe resolution polling with TTL
         // PAPER: Fast polling (2s→5s) with 5-minute fallback to Chainlink
-        // LIVE: Slower polling (10s→30s) with NO fallback (wait for Gamma forever)
-        const MAX_ATTEMPTS = isLiveMode ? Infinity : 60;
+        // LIVE: Slower polling (10s→30s) with 30-minute TTL then stale flag (NO auto-close)
+        const MAX_ATTEMPTS = isLiveMode ? 60 : 60;          // 🏆 v77: LIVE now has bounded attempts (30 min)
         const INITIAL_DELAY_MS = isLiveMode ? 5000 : 2000;  // 🏆 v68: LIVE waits 5s first
         const FAST_RETRY_MS = isLiveMode ? 10000 : 2000;    // 🏆 v68: LIVE uses 10s fast poll
         const SLOW_RETRY_MS = isLiveMode ? 30000 : 5000;    // 🏆 v68: LIVE uses 30s slow poll
         const FAST_ATTEMPTS = isLiveMode ? 6 : 12;          // 🏆 v68: LIVE does 6 fast attempts (60s)
         const RETRY_DELAY_MS = isLiveMode ? 30000 : SLOW_RETRY_MS;
+        const LIVE_TTL_MS = 30 * 60 * 1000;                 // 🏆 v77: 30-minute TTL for LIVE
 
         const tick = async () => {
             const state = this.pendingPolymarketResolutions.get(slug);
@@ -8210,12 +8523,32 @@ class TradeExecutor {
             }
 
             if (state.attempts >= MAX_ATTEMPTS) {
+                const waitTimeMin = Math.round((Date.now() - startedAt) / 60000);
+                
+                // 🏆 v77: LIVE mode does NOT auto-close - mark as stale and keep polling slower
+                if (isLiveMode) {
+                    log(`⚠️ LIVE RESOLUTION TTL: ${asset} slug=${slug} after ${waitTimeMin}min - marked as stale`, asset);
+                    
+                    // Mark positions as stalePending for visibility in /api/health
+                    for (const id of openMainIds) {
+                        const pos = this.positions[id];
+                        if (pos) {
+                            pos.stalePending = true;
+                            pos.staleSince = Date.now();
+                        }
+                    }
+                    
+                    // Continue polling at slower rate (every 5 min) - do NOT delete
+                    state.attempts = MAX_ATTEMPTS - 10; // Reset to keep polling
+                    setTimeout(tick, 5 * 60 * 1000); // Poll every 5 min after TTL
+                    return;
+                }
+                
                 // 🏆 v64 FIX: PAPER mode now uses fallback after extended wait
                 // Trade-off: 95%+ accuracy (Chainlink usually matches) vs trades staying pending forever
                 // User reported trades not resolving - this fixes that
                 this.pendingPolymarketResolutions.delete(slug);
                 
-                const waitTimeMin = Math.round((Date.now() - startedAt) / 60000);
                 log(`⚠️ RESOLUTION FALLBACK: ${asset} slug=${slug} after ${state.attempts} attempts (~${waitTimeMin}min)`, asset);
                 log(`📊 Using Chainlink fallback (${fallbackOutcome}) - 95%+ match rate with Polymarket`, asset);
                 
@@ -10484,24 +10817,44 @@ class SupremeBrain {
             // 🕐 minElapsedSeconds: Wait for confidence to build before trading
             const minElapsed = CONFIG.ORACLE.minElapsedSeconds || 60;
             
-            // 🏆 v72 GOLDEN: CONVICTION-ONLY MODE - Block ALL non-CONVICTION trades when enabled
-            if (CONFIG.RISK.convictionOnlyMode && tier !== 'CONVICTION') {
-                if (tier === 'ADVISORY') {
-                    log(`💎 CONVICTION-ONLY: ADVISORY tier blocked (convictionOnlyMode=true) - waiting for CONVICTION`, this.asset);
-                }
-                // Do not trade - fall through to end
-            }
-            // 🎯 COMPREHENSIVE ANALYSIS FIX: ONLY trade CONVICTION/ADVISORY tiers (NONE tier blocked - 43.9% win rate)
-            // CONVICTION = 98.9% win rate, ADVISORY = 98.0% win rate
+            // 🏆 v77 HYBRID: CONVICTION-ONLY MODE with FREQUENCY FLOOR override for ADVISORY
+            // When convictionOnlyMode=true but we're below target trades/hour, allow high-quality ADVISORY
+            // Determine if trade should be blocked or can proceed
+            let shouldBlockTrade = false;
+            let frequencyFloorPending = false;  // True if ADVISORY should be evaluated against frequency floor
+            
             // 🚫 CRITICAL: XRP NONE tier has 0.5% accuracy - BLOCK COMPLETELY
-            else if (tier === 'NONE' && this.asset === 'XRP') {
+            if (tier === 'NONE' && this.asset === 'XRP') {
                 log(`🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED`, this.asset);
-                // Do not trade - fall through to end
+                shouldBlockTrade = true;
             }
             // 🎯 v52: Auto-disabled asset due to drift detection (rolling WR < 60%)
             else if (this.autoDisabled && tier === 'CONVICTION') {
                 log(`🛑 AUTO-DISABLED: ${this.asset} CONVICTION trades suspended - rolling WR dropped below threshold`, this.asset);
                 gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'AUTO_DISABLED', failedGates: ['rolling_accuracy'], inputs: { signal: finalSignal, tier, autoDisabled: this.autoDisabled, driftWarning: this.driftWarning } });
+                shouldBlockTrade = true;
+            }
+            // CONVICTION-ONLY MODE check
+            else if (CONFIG.RISK.convictionOnlyMode && tier !== 'CONVICTION') {
+                if (tier === 'ADVISORY') {
+                    // Check if frequency floor is enabled - if so, let it pass to executeTrade for evaluation
+                    const floorConfig = CONFIG.RISK.tradeFrequencyFloor;
+                    if (floorConfig && floorConfig.enabled) {
+                        // ADVISORY will be evaluated against frequency floor in executeTrade
+                        frequencyFloorPending = true;
+                        log(`📊 CONVICTION-ONLY: ADVISORY tier will be checked by frequency floor...`, this.asset);
+                    } else {
+                        log(`💎 CONVICTION-ONLY: ADVISORY tier blocked (convictionOnlyMode=true, no frequency floor) - waiting for CONVICTION`, this.asset);
+                        shouldBlockTrade = true;
+                    }
+                } else {
+                    // Non-CONVICTION, non-ADVISORY tier - always block
+                    shouldBlockTrade = true;
+                }
+            }
+            
+            // If trade should be blocked, skip the trading logic
+            if (shouldBlockTrade) {
                 // Do not trade - fall through to end
             } else {
             const meetsAdvisoryThreshold = tier === 'CONVICTION' || (tier === 'ADVISORY' && finalConfidence >= 0.80);

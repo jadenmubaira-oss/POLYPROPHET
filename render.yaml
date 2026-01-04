@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
-    # 🏆 v75 LOW-DRAWDOWN - Risk envelope + fixed global stop + BTC/ETH focus
+    # 🏆 v77 HYBRID - Dynamic risk profile + equity-aware + frequency floor + bounded resolution
     buildCommand: npm ci
     startCommand: node server.js
     healthCheckPath: /api/health
