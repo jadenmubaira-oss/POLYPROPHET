@@ -13446,8 +13446,22 @@ async function loadState() {
 
                 // 🔴 CONFIG_VERSION CHECK: If version changed, CLEAR old settings and use new code!
                 const savedVersion = settings._CONFIG_VERSION || 0;
-                if (savedVersion !== CONFIG_VERSION) {
-                    log(`⚠️ CONFIG_VERSION mismatch: Redis v${savedVersion} != Code v${CONFIG_VERSION}`);
+                // Also bind settings to exact deployed code (prevents "same CONFIG_VERSION but different code" conflicts)
+                const currentSha = (typeof CODE_FINGERPRINT !== 'undefined' && CODE_FINGERPRINT)
+                    ? (CODE_FINGERPRINT.serverSha256 || null)
+                    : null;
+                const savedSha = settings._SERVER_SHA256 || null;
+                const shaMismatch = !!(currentSha && savedSha && savedSha !== currentSha);
+                const shaMissing = !!(currentSha && !savedSha);
+
+                if (savedVersion !== CONFIG_VERSION || shaMismatch || shaMissing) {
+                    if (savedVersion !== CONFIG_VERSION) {
+                        log(`⚠️ CONFIG_VERSION mismatch: Redis v${savedVersion} != Code v${CONFIG_VERSION}`);
+                    } else if (shaMissing) {
+                        log(`⚠️ SETTINGS FINGERPRINT missing: Redis has no _SERVER_SHA256; clearing to prevent stale overrides`);
+                    } else if (shaMismatch) {
+                        log(`⚠️ SETTINGS FINGERPRINT mismatch: Redis sha != Code sha; clearing to prevent stale overrides`);
+                    }
                     log(`🔄 CLEARING stale Redis settings - using fresh hardcoded values!`);
                     await redis.del('deity:settings');
                     // Don't apply any settings - use hardcoded CONFIG as-is
@@ -16459,6 +16473,13 @@ app.post('/api/settings', async (req, res) => {
             const persistedSettings = {
                 // 🔴 CONFIG_VERSION: Used to invalidate stale settings when code changes
                 _CONFIG_VERSION: CONFIG_VERSION,
+                // Bind persisted settings to exact deployed code to prevent conflicts when CONFIG_VERSION stays the same
+                _SERVER_SHA256: (typeof CODE_FINGERPRINT !== 'undefined' && CODE_FINGERPRINT)
+                    ? (CODE_FINGERPRINT.serverSha256 || null)
+                    : null,
+                _GIT_COMMIT: (typeof CODE_FINGERPRINT !== 'undefined' && CODE_FINGERPRINT)
+                    ? (CODE_FINGERPRINT.gitCommit || null)
+                    : null,
                 // UI / Ops metadata
                 ACTIVE_PRESET: CONFIG.ACTIVE_PRESET,
                 // API Credentials
