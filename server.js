@@ -2222,6 +2222,424 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
     }
 });
 
+// ==================== 🏆 v79 LONG-HORIZON DATASET BUILDER ====================
+// Fetches months/years of Polymarket outcomes with file-based persistence
+// Supports pagination, rate limiting, and provenance tracking
+app.get('/api/dataset/build-longterm', async (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const crypto = require('crypto');
+        
+        const startTime = Date.now();
+        const lookbackDays = Math.min(parseInt(req.query.days) || 30, 365); // Up to 1 year
+        const assetParam = req.query.asset;
+        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH'];
+        const batchSize = Math.min(parseInt(req.query.batch) || 100, 500);
+        const offsetBatch = parseInt(req.query.offset) || 0; // For pagination
+        const saveToFile = req.query.save === '1';
+        const forceRefresh = req.query.refresh === '1';
+        
+        const nowSec = Math.floor(Date.now() / 1000);
+        const startSec = nowSec - (lookbackDays * 86400);
+        
+        // Generate all possible slug epochs (15-min intervals)
+        const allSlugs = [];
+        for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
+            for (const a of ASSETS) {
+                allSlugs.push({ slug: `${a.toLowerCase()}-updown-15m-${epochSec}`, asset: a, epochSec });
+            }
+        }
+        
+        // Pagination
+        const startIdx = offsetBatch * batchSize;
+        const endIdx = Math.min(startIdx + batchSize, allSlugs.length);
+        const batchSlugs = allSlugs.slice(startIdx, endIdx);
+        
+        let cached = 0, fetched = 0, errors = 0, resolved = 0, unresolved = 0;
+        const entries = [];
+        const CACHE_KEY = 'deity:longterm-dataset:';
+        
+        for (const { slug, asset, epochSec } of batchSlugs) {
+            // Check Redis cache first
+            if (!forceRefresh && redisAvailable) {
+                try {
+                    const existing = await redis.get(CACHE_KEY + slug);
+                    if (existing) {
+                        cached++;
+                        entries.push(JSON.parse(existing));
+                        continue;
+                    }
+                } catch {}
+            }
+            
+            // Rate limit (be gentle to Gamma API)
+            await new Promise(r => setTimeout(r, 150));
+            
+            try {
+                // Fetch outcome from Gamma API
+                const gammaUrl = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
+                const gammaResp = await fetch(gammaUrl, {
+                    headers: { 'User-Agent': 'polyprophet-longterm-builder/1.0' },
+                    signal: AbortSignal.timeout(15000)
+                });
+                
+                if (!gammaResp.ok) { errors++; continue; }
+                
+                const gammaData = await gammaResp.json();
+                const market = Array.isArray(gammaData) ? gammaData[0] : gammaData;
+                if (!market) { unresolved++; continue; }
+                
+                const prices = JSON.parse(market.outcomePrices || '[]');
+                const outcomes = JSON.parse(market.outcomes || '[]');
+                const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
+                
+                if (!Array.isArray(prices) || prices.length < 2) { unresolved++; continue; }
+                
+                const p0 = Number(prices[0]);
+                const p1 = Number(prices[1]);
+                const idx0Win = p0 >= 0.99 && p1 <= 0.01;
+                const idx1Win = p0 <= 0.01 && p1 >= 0.99;
+                
+                if (!idx0Win && !idx1Win) { unresolved++; continue; }
+                
+                // Determine outcome
+                const o0 = String(outcomes[0] || '').toLowerCase();
+                const o1 = String(outcomes[1] || '').toLowerCase();
+                let outcome = idx0Win ? 'UP' : 'DOWN';
+                if (o0 === 'up' && o1 === 'down') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
+                else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
+                else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
+                
+                resolved++;
+                
+                const entry = {
+                    slug,
+                    asset,
+                    cycleStartEpochSec: epochSec,
+                    cycleEndEpochSec: epochSec + 900,
+                    resolvedOutcome: outcome,
+                    volume: Number(market.volume || 0),
+                    cachedAt: Date.now()
+                };
+                
+                // Cache the entry (90 days TTL for long-term data)
+                if (redisAvailable) {
+                    try {
+                        await redis.setex(CACHE_KEY + slug, 86400 * 90, JSON.stringify(entry));
+                    } catch {}
+                }
+                
+                entries.push(entry);
+                fetched++;
+                
+            } catch (e) {
+                errors++;
+            }
+        }
+        
+        // Save to file if requested
+        let filePath = null;
+        if (saveToFile && entries.length > 0) {
+            const dataDir = path.join(__dirname, 'local_archive', 'datasets');
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const hash = crypto.createHash('sha256').update(JSON.stringify(entries.map(e => e.slug))).digest('hex').substring(0, 8);
+            filePath = path.join(dataDir, `polymarket_${ASSETS.join('-')}_${lookbackDays}d_batch${offsetBatch}_${dateStr}_${hash}.json`);
+            
+            const fileContent = {
+                provenance: {
+                    generatedAt: new Date().toISOString(),
+                    assets: ASSETS,
+                    lookbackDays,
+                    batchNumber: offsetBatch,
+                    batchSize,
+                    totalSlugsInRange: allSlugs.length,
+                    dataHash: hash
+                },
+                entries
+            };
+            
+            fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
+        }
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        const hasMore = endIdx < allSlugs.length;
+        
+        res.json({
+            success: true,
+            summary: {
+                runtime: runtime + 's',
+                lookbackDays,
+                assets: ASSETS,
+                totalSlugsInRange: allSlugs.length,
+                batchNumber: offsetBatch,
+                batchSize,
+                processedThisBatch: batchSlugs.length,
+                cached,
+                fetched,
+                resolved,
+                unresolved,
+                errors,
+                entriesBuilt: entries.length,
+                hasMore,
+                nextOffset: hasMore ? offsetBatch + 1 : null
+            },
+            pagination: {
+                currentBatch: offsetBatch,
+                totalBatches: Math.ceil(allSlugs.length / batchSize),
+                startIdx,
+                endIdx,
+                hasMore
+            },
+            filePath: filePath,
+            sampleEntries: entries.slice(-3),
+            note: 'Use offset parameter for pagination. Set save=1 to persist to local_archive/datasets/'
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== 🏆 v79 DATASET STATISTICS ====================
+// Returns statistics about cached dataset coverage
+app.get('/api/dataset/stats', async (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        const dataDir = path.join(__dirname, 'local_archive', 'datasets');
+        const files = fs.existsSync(dataDir) 
+            ? fs.readdirSync(dataDir).filter(f => f.endsWith('.json'))
+            : [];
+        
+        let totalEntries = 0;
+        let oldestEntry = null;
+        let newestEntry = null;
+        const assetCounts = {};
+        
+        for (const file of files.slice(-20)) { // Last 20 files
+            try {
+                const content = JSON.parse(fs.readFileSync(path.join(dataDir, file), 'utf8'));
+                const entries = content.entries || [];
+                totalEntries += entries.length;
+                
+                for (const e of entries) {
+                    assetCounts[e.asset] = (assetCounts[e.asset] || 0) + 1;
+                    if (!oldestEntry || e.cycleStartEpochSec < oldestEntry) oldestEntry = e.cycleStartEpochSec;
+                    if (!newestEntry || e.cycleStartEpochSec > newestEntry) newestEntry = e.cycleStartEpochSec;
+                }
+            } catch {}
+        }
+        
+        // Redis cache stats
+        let redisCacheCount = 0;
+        if (redisAvailable) {
+            try {
+                const keys = await redis.keys('deity:longterm-dataset:*');
+                redisCacheCount = keys.length;
+            } catch {}
+        }
+        
+        res.json({
+            files: files.length,
+            totalEntries,
+            redisCacheCount,
+            assetCounts,
+            timeRange: oldestEntry && newestEntry ? {
+                oldest: new Date(oldestEntry * 1000).toISOString(),
+                newest: new Date(newestEntry * 1000).toISOString(),
+                days: Math.round((newestEntry - oldestEntry) / 86400)
+            } : null
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// ==================== 🏆 v79 CHAINLINK-NATIVE HISTORICAL PRICES ====================
+// Builds historical price series for BTC/ETH/XRP with minute-level granularity
+// Uses CryptoCompare API (Chainlink tracks same underlying prices)
+// For true Chainlink on-chain data, would need to query AnswerUpdated logs via RPC
+app.get('/api/prices/build-historical', async (req, res) => {
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const crypto = require('crypto');
+        
+        const startTime = Date.now();
+        const lookbackDays = Math.min(parseInt(req.query.days) || 7, 365);
+        const assetParam = req.query.asset;
+        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH', 'XRP'];
+        const resampleMinutes = Math.max(1, Math.min(15, parseInt(req.query.resample) || 1)); // 1-15 min
+        const saveToFile = req.query.save === '1';
+        
+        const nowSec = Math.floor(Date.now() / 1000);
+        const startSec = nowSec - (lookbackDays * 86400);
+        
+        const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP' };
+        const priceDataByAsset = {};
+        const fetchStats = { fetched: 0, errors: 0 };
+        
+        for (const asset of ASSETS) {
+            const symbol = CRYPTO_SYMBOLS[asset];
+            if (!symbol) continue;
+            
+            try {
+                // CryptoCompare histominute API - max 2000 data points per request
+                // For longer periods, we need multiple requests
+                const allData = [];
+                let toTs = nowSec;
+                const limit = 2000;
+                const requestsNeeded = Math.ceil((lookbackDays * 24 * 60) / limit);
+                
+                for (let i = 0; i < Math.min(requestsNeeded, 10); i++) { // Max 10 requests per asset
+                    const url = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=${symbol}&tsym=USD&limit=${limit}&toTs=${toTs}`;
+                    
+                    const resp = await fetch(url, {
+                        headers: { 'User-Agent': 'polyprophet-price-builder/1.0' },
+                        signal: AbortSignal.timeout(30000)
+                    });
+                    
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        if (data.Response === 'Success' && Array.isArray(data.Data?.Data)) {
+                            const points = data.Data.Data.map(d => ({
+                                t: d.time,
+                                o: d.open,
+                                h: d.high,
+                                l: d.low,
+                                c: d.close,
+                                v: d.volumeto
+                            })).filter(p => p.t >= startSec);
+                            
+                            allData.push(...points);
+                            fetchStats.fetched += points.length;
+                            
+                            // Move toTs back for next request
+                            if (points.length > 0) {
+                                toTs = points[0].t - 60;
+                            }
+                            
+                            // Stop if we've gone past our start time
+                            if (toTs < startSec) break;
+                        }
+                    } else {
+                        fetchStats.errors++;
+                    }
+                    
+                    // Rate limit between requests
+                    await new Promise(r => setTimeout(r, 200));
+                }
+                
+                // Sort by time and dedupe
+                allData.sort((a, b) => a.t - b.t);
+                const seen = new Set();
+                const deduped = allData.filter(p => {
+                    if (seen.has(p.t)) return false;
+                    seen.add(p.t);
+                    return true;
+                });
+                
+                // Resample if requested
+                if (resampleMinutes > 1) {
+                    const resampled = [];
+                    for (let t = startSec; t < nowSec; t += resampleMinutes * 60) {
+                        const windowEnd = t + resampleMinutes * 60;
+                        const windowPoints = deduped.filter(p => p.t >= t && p.t < windowEnd);
+                        if (windowPoints.length > 0) {
+                            resampled.push({
+                                t: t,
+                                o: windowPoints[0].o,
+                                h: Math.max(...windowPoints.map(p => p.h)),
+                                l: Math.min(...windowPoints.map(p => p.l)),
+                                c: windowPoints[windowPoints.length - 1].c,
+                                v: windowPoints.reduce((s, p) => s + p.v, 0)
+                            });
+                        }
+                    }
+                    priceDataByAsset[asset] = resampled;
+                } else {
+                    priceDataByAsset[asset] = deduped;
+                }
+                
+            } catch (e) {
+                fetchStats.errors++;
+            }
+        }
+        
+        // Save to file if requested
+        let filePath = null;
+        if (saveToFile) {
+            const dataDir = path.join(__dirname, 'local_archive', 'prices');
+            if (!fs.existsSync(dataDir)) {
+                fs.mkdirSync(dataDir, { recursive: true });
+            }
+            
+            const dateStr = new Date().toISOString().split('T')[0];
+            const hash = crypto.createHash('sha256')
+                .update(JSON.stringify(Object.values(priceDataByAsset).flat().map(p => p.t)))
+                .digest('hex').substring(0, 8);
+            filePath = path.join(dataDir, `prices_${ASSETS.join('-')}_${lookbackDays}d_${resampleMinutes}m_${dateStr}_${hash}.json`);
+            
+            const fileContent = {
+                provenance: {
+                    generatedAt: new Date().toISOString(),
+                    source: 'CryptoCompare histominute API',
+                    note: 'Prices closely track Chainlink oracle feeds',
+                    assets: ASSETS,
+                    lookbackDays,
+                    resampleMinutes,
+                    dataHash: hash
+                },
+                data: priceDataByAsset
+            };
+            
+            fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
+        }
+        
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        // Summary stats
+        const assetStats = {};
+        for (const [asset, data] of Object.entries(priceDataByAsset)) {
+            if (data.length > 0) {
+                assetStats[asset] = {
+                    points: data.length,
+                    startTime: new Date(data[0].t * 1000).toISOString(),
+                    endTime: new Date(data[data.length - 1].t * 1000).toISOString(),
+                    startPrice: data[0].c,
+                    endPrice: data[data.length - 1].c,
+                    high: Math.max(...data.map(p => p.h)),
+                    low: Math.min(...data.map(p => p.l))
+                };
+            }
+        }
+        
+        res.json({
+            success: true,
+            summary: {
+                runtime: runtime + 's',
+                lookbackDays,
+                resampleMinutes,
+                assets: ASSETS,
+                ...fetchStats
+            },
+            assetStats,
+            filePath,
+            sampleData: Object.fromEntries(
+                Object.entries(priceDataByAsset).map(([a, d]) => [a, d.slice(-5)])
+            )
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
 // ==================== 🏆 v77 CHAINLINK SIGNAL REPLAY BACKTESTER ====================
 // Fetches historical crypto prices, simulates brain signals, compares to Polymarket outcomes
 // Uses CryptoCompare API for historical price data (Chainlink doesn't provide easy historical access)
@@ -5141,7 +5559,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 78;  // v78: FINAL - backtest parity fixes, risk envelope min-order freeze fix, enhanced signal replay
+const CONFIG_VERSION = 79;  // v79: FINAL - long-horizon dataset builder, historical prices API, enhanced backtesting
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {

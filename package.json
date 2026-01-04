@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.3.0-final-v78",
-    "description": "POLYPROPHET v78 FINAL - Backtest parity + min-order freeze fix + HYBRID tier mode",
+    "version": "4.4.0-final-v79",
+    "description": "POLYPROPHET v79 FINAL - Long-horizon datasets + historical prices + enhanced backtesting",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
