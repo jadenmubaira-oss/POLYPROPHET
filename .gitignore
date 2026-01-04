@@ -66,6 +66,7 @@ p2/
 
 # Local archive folder
 local-archive/
+local_archive/
 
 # ============================================
 # LARGE FILES
