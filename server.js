@@ -5951,6 +5951,36 @@ app.get('/api/perfection-check', async (req, res) => {
     addCheck('Seedable RNG for reproducibility', rngAvailable && rngWorks,
         rngAvailable && rngWorks ? 'createSeededRng(seed) produces deterministic sequences' : 'Seedable RNG missing or non-deterministic');
     
+    // Check 15: Tools UI exists and contains required markers
+    let toolsUiExists = false;
+    let toolsUiHasMarker = false;
+    let toolsUiDetails = '';
+    try {
+        const toolsPath = path.join(__dirname, 'public', 'tools.html');
+        if (fs.existsSync(toolsPath)) {
+            toolsUiExists = true;
+            const toolsContent = fs.readFileSync(toolsPath, 'utf8');
+            // Check for required marker and key features
+            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v83');
+            const hasVaultPanel = toolsContent.includes('vault-projection') && toolsContent.includes('vault-optimize');
+            const hasAuditPanel = toolsContent.includes('perfection-check');
+            const hasApiExplorer = toolsContent.includes('API Explorer');
+            const hasApplyWinner = toolsContent.includes('applyWinner');
+            
+            if (toolsUiHasMarker && hasVaultPanel && hasAuditPanel && hasApiExplorer && hasApplyWinner) {
+                toolsUiDetails = 'Tools UI v83 with Vault panel, Audit runner, API Explorer, and Apply Winner';
+            } else {
+                toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'v83 marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
+            }
+        } else {
+            toolsUiDetails = 'public/tools.html not found';
+        }
+    } catch (e) {
+        toolsUiDetails = 'Could not read tools.html: ' + e.message;
+    }
+    addCheck('Tools UI exists with required features', toolsUiExists && toolsUiHasMarker,
+        toolsUiDetails, 'warn');
+    
     // ==================== SUMMARY ====================
     const allPassed = failCount === 0;
     const criticalFailed = checks.filter(c => !c.passed && c.severity === 'error').length;
@@ -15319,6 +15349,7 @@ app.get('/', (req, res) => {
         <div class="nav-brand">🔮 POLYPROPHET <span id="codeFingerprint" style="font-size:0.6em;color:#888;margin-left:8px;"></span></div>
         <div class="nav-links">
             <span id="activePresetBadge" style="background:#333;color:#ffd700;padding:4px 10px;border-radius:12px;font-size:0.8em;margin-right:8px;">🏷️ Loading...</span>
+            <a href="/tools.html" class="nav-btn" style="text-decoration:none;">🛠️ Tools</a>
             <button class="nav-btn" onclick="openModal('apiExplorerModal')">🔌 API</button>
             <button class="nav-btn" onclick="openModal('walletModal')">💰 Wallet</button>
             <button class="nav-btn" onclick="openModal('settingsModal')">⚙️ Settings</button>
@@ -18425,6 +18456,7 @@ app.get('/settings', (req, res) => {
 <body>
     <div class="container">
         <a href="/" class="back-link">← Back to Dashboard</a>
+        <a href="/tools.html" class="back-link" style="margin-left:20px;">🛠️ Tools</a>
         <h1>⚙️ Settings</h1>
         
         <div class="card">

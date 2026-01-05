@@ -20,10 +20,11 @@
 10. [Deployment Guide](#deployment-guide)
 11. [Verification Commands](#verification-commands)
 12. [AI Runbook (One-Command Verification)](#ai-runbook-one-command-verification)
-13. [Ultimate Fallback Checklist](#ultimate-fallback-checklist)
-14. [Known Limitations & Honesty](#known-limitations--honesty)
-15. [Repository Structure](#repository-structure)
-16. [Changelog](#changelog)
+13. [Tools UI (Web Dashboard)](#tools-ui-web-dashboard)
+14. [Ultimate Fallback Checklist](#ultimate-fallback-checklist)
+15. [Known Limitations & Honesty](#known-limitations--honesty)
+16. [Repository Structure](#repository-structure)
+17. [Changelog](#changelog)
 
 ---
 
@@ -718,6 +719,101 @@ curl "http://localhost:3000/api/backtest-polymarket?hours=24&stake=0.32&apiKey=b
 
 ---
 
+## TOOLS UI (WEB DASHBOARD)
+
+### Accessing the Tools Page
+
+The Tools UI is available at `/tools.html` and provides a visual interface for all vault optimization and verification endpoints.
+
+```
+URL: http://localhost:3000/tools.html
+     https://polyprophet.onrender.com/tools.html
+```
+
+### Links to Tools from Other Pages
+
+Tools links are wired into all UI locations:
+- **Main Dashboard** (`/`): "🛠️ Tools" button in navigation bar
+- **Settings Page** (`/settings`): "🛠️ Tools" link next to Dashboard link
+- **Simple UI** (`/index.html`): "🛠️ Tools" link in header
+- **Mobile UI** (`/mobile.html`): "🛠️ Tools" button in header actions
+
+### Tools UI Features
+
+#### 1. Vault Optimizer Tab
+
+| Feature | Description |
+|---------|-------------|
+| **Vault Projection** | Run Monte Carlo simulation for a specific vault trigger value |
+| **Vault Optimizer** | Sweep range ($6.10-$15.00) to find optimal trigger |
+| **Winner Card** | Shows optimal value with P($100@7d), P($1000@30d), ruin risk |
+| **One-Click Apply** | Apply winner to CONFIG with confirmation prompt |
+
+**Usage**:
+1. Set your sweep parameters (range, step, simulations)
+2. Click "🔍 Find Optimal Trigger"
+3. Review the Winner Card results
+4. Click "👑 APPLY WINNER TO CONFIG" to update your configuration
+
+#### 2. Goal Audit Tab
+
+| Feature | Description |
+|---------|-------------|
+| **Perfection Check** | Runs all vault system verification checks |
+| **Pass/Fail Summary** | Shows count of passed/failed checks |
+| **Check Details** | Lists each check with status and details |
+| **Full JSON Output** | Complete response for debugging |
+
+**Usage**:
+1. Click "✅ Run Perfection Check"
+2. Review the pass/fail summary
+3. Investigate any failed checks in the detail list
+4. Fix issues and re-run until all pass
+
+#### 3. API Explorer Tab
+
+| Feature | Description |
+|---------|-------------|
+| **Endpoint Selector** | Dropdown of all available endpoints |
+| **Method Selection** | GET/POST support |
+| **Query Parameters** | JSON input for query params |
+| **Request Body** | JSON input for POST requests |
+| **Safety Gating** | Dangerous endpoints require confirmation checkbox |
+| **Quick Reference** | One-click cards for common endpoints |
+
+**Safe Endpoints** (no confirmation required):
+- `/api/vault-projection`
+- `/api/vault-optimize`
+- `/api/perfection-check`
+- `/api/version`
+- `/api/settings` (GET)
+- `/api/risk-controls`
+- `/api/health`
+
+**Dangerous Endpoints** (require checkbox confirmation):
+- `/api/settings` (POST) - Modifies configuration
+- `/api/manual-buy` - Executes trades
+- `/api/manual-sell` - Executes trades
+
+### Tools UI Verification
+
+The `/api/perfection-check` endpoint verifies the Tools UI exists:
+
+```bash
+# Check includes "Tools UI exists with required features"
+curl "http://localhost:3000/api/perfection-check?apiKey=bandito"
+```
+
+The check verifies:
+- `public/tools.html` file exists
+- Contains `POLYPROPHET_TOOLS_UI_MARKER_v83` marker
+- Has Vault panel (`vault-projection`, `vault-optimize`)
+- Has Audit panel (`perfection-check`)
+- Has API Explorer
+- Has "Apply Winner" feature
+
+---
+
 ## ULTIMATE FALLBACK CHECKLIST
 
 ### Pre-Deploy GO/NO-GO
@@ -732,6 +828,8 @@ curl "http://localhost:3000/api/backtest-polymarket?hours=24&stake=0.32&apiKey=b
 | 6 | Override resolution | `/api/perfection-check` | "Threshold override resolution" passes |
 | 7 | Balance floor active | `/api/risk-controls` | `balanceFloor.enabled: true, floor: 2` |
 | 8 | Reproducible Monte Carlo | `/api/vault-projection?seed=12345` | Same seed = same results |
+| 9 | Tools UI exists | `/api/perfection-check` | "Tools UI exists with required features" passes |
+| 10 | Tools UI accessible | Visit `/tools.html` | Page loads with Vault/Audit/Explorer tabs |
 
 ### Post-Deploy Monitoring
 
@@ -825,8 +923,14 @@ POLYPROPHET/
 ├── package-lock.json  # Locked dependency versions
 ├── render.yaml        # Render deployment blueprint
 ├── public/            # Dashboard UI
-│   ├── index.html     # Main dashboard
-│   └── mobile.html    # Mobile-optimized view
+│   ├── index.html     # Main dashboard (simple view)
+│   ├── mobile.html    # Mobile-optimized view
+│   └── tools.html     # 🛠️ Tools UI (vault optimizer, goal audit, API explorer)
+├── docs/              # Documentation
+│   └── forensics/     # Decision record / forensic artifacts
+│       ├── _DEBUG_CORPUS_ANALYSIS.md
+│       ├── _FINAL_PRESET_v79.md
+│       └── _INVARIANTS_AUDIT_v78.md
 ├── .env.example       # Environment variable template
 ├── .gitignore         # Git ignore rules
 └── README.md          # This manifesto (single source of truth)
@@ -928,9 +1032,9 @@ This repository's configuration was derived from exhaustive analysis documented 
 
 | Artifact | Purpose | Key Findings |
 |----------|---------|--------------|
-| `_DEBUG_CORPUS_ANALYSIS.md` | Analysis of 110+ debug files, 1,973 cycles | 77% validated win rate, BTC/ETH superiority over XRP |
-| `_FINAL_PRESET_v79.md` | Preset evolution and parameter locking | Locked CONVICTION tier, 32% stake cap, BTC+ETH only |
-| `_INVARIANTS_AUDIT_v78.md` | Non-negotiable system invariants | No double-counting PnL, no stuck positions, balance floor |
+| `docs/forensics/_DEBUG_CORPUS_ANALYSIS.md` | Analysis of 110+ debug files, 1,973 cycles | 77% validated win rate, BTC/ETH superiority over XRP |
+| `docs/forensics/_FINAL_PRESET_v79.md` | Preset evolution and parameter locking | Locked CONVICTION tier, 32% stake cap, BTC+ETH only |
+| `docs/forensics/_INVARIANTS_AUDIT_v78.md` | Non-negotiable system invariants | No double-counting PnL, no stuck positions, balance floor |
 
 ### Key Decisions Documented
 
@@ -956,7 +1060,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ## CHANGELOG
 
-### v83 (2026-01-05) — VAULT TRIGGER OPTIMIZATION SYSTEM
+### v83 (2026-01-05) — VAULT TRIGGER OPTIMIZATION SYSTEM + TOOLS UI
 
 **Complete vault trigger optimization framework for maximizing P($100 by day 7):**
 
@@ -975,6 +1079,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
    - CONFIG.RISK.vaultTriggerBalance is defined
    - Runtime uses threshold contract
    - Backtest-runtime parity
+   - **NEW**: Tools UI exists with required markers
 
 5. **🔗 Backtest Parity**: `/api/backtest-polymarket` now:
    - Accepts `vaultTriggerBalance` and `stage2Threshold` query params
@@ -983,10 +1088,17 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 6. **📖 README Manifesto**: Added North Star objectives, VaultTriggerBalance explanation, AI Runbook, Ultimate Fallback Checklist with regression definitions.
 
+7. **🛠️ Tools UI (`public/tools.html`)**: Web-based dashboard for vault optimization and verification:
+   - **Vault Optimizer Tab**: Run projections, sweep trigger range, apply winner with one click
+   - **Goal Audit Tab**: Visual perfection check with pass/fail summary
+   - **API Explorer Tab**: Generic endpoint testing with safety gating for dangerous endpoints
+   - Links wired into all UI locations (dashboard, settings, index.html, mobile.html)
+
 **Evidence**:
 - `getVaultThresholds()` function at server.js ~line 6082
-- `/api/perfection-check` verifies all wiring is correct
+- `/api/perfection-check` verifies all wiring is correct (including Tools UI)
 - `getDynamicRiskProfile()` returns `thresholds` object for audit
+- `public/tools.html` contains `POLYPROPHET_TOOLS_UI_MARKER_v83` marker
 
 ---
 
@@ -1055,7 +1167,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
   - 168h@0h: $5 → $15.83 (+217%), 81.08% WR, 30% max DD
   - 24h@24h: $5 → $13.89 (+178%), 88.24% WR, 8.15% max DD
   - 24h@48h: $5 → $7.90 (+58%), 100% WR, 0% max DD
-- **VERIFY**: All invariants pass (see `_INVARIANTS_AUDIT_v78.md`)
+- **VERIFY**: All invariants pass (see `docs/forensics/_INVARIANTS_AUDIT_v78.md`)
 - **LOCK**: Final preset hardened and locked - no further changes needed
 
 ### v78 (2026-01-03) — FINAL
@@ -1176,4 +1288,4 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ---
 
-*Version: v82 | Updated: 2026-01-04 | Single Source of Truth*
+*Version: v83 | Updated: 2026-01-05 | Single Source of Truth*

@@ -425,6 +425,7 @@
 
         <div class="header-actions">
             <button class="action-btn" onclick="openServerSettings()">⚙️ Settings</button>
+            <button class="action-btn" onclick="openTools()">🛠️ Tools</button>
             <button class="action-btn" onclick="downloadDebugExport()">⬇️ Debug Export</button>
             <button class="action-btn" onclick="openGuide()">📚 Guide</button>
         </div>
@@ -578,6 +579,10 @@
 
         function openGuide() {
             window.open(`${SERVER_URL}/guide`, '_blank', 'noopener,noreferrer');
+        }
+
+        function openTools() {
+            window.open(`${SERVER_URL}/tools.html`, '_blank', 'noopener,noreferrer');
         }
 
         async function downloadDebugExport() {
