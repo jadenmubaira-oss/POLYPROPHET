@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.6.0-v82",
-    "description": "POLYPROPHET v82 - Extended collector retention (31d), backtest-dataset runtime parity, LIVE reporting consistency",
+    "version": "4.7.0-v83",
+    "description": "POLYPROPHET v83 - VaultTriggerBalance optimization system, seeded projections/optimizer, hardened perfection-check, README AI handoff runbook",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
