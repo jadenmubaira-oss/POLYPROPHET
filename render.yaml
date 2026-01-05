@@ -19,10 +19,9 @@ services:
       # 🏆 v70: Proven optimal starting balance (£5)
       - key: PAPER_BALANCE
         value: "5.00"
-      # 🏆 v74 GOLDEN KELLY: 35% max stake with Half-Kelly sizing
-      # Kelly dynamically reduces stake on weak edges for optimal risk-adjusted returns
+      # 🏆 v80 SWEET SPOT: 32% max stake cap (max profit with lower ruin risk)
       - key: MAX_POSITION_SIZE
-        value: "0.35"
+        value: "0.32"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"

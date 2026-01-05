@@ -522,7 +522,8 @@
         let lastTradeCount = 0;
         
         function connectWebSocket() {
-            if (ws && ws.readyState === WebSocket.OPEN) return;
+            // Socket.IO client uses `connected` (not WebSocket.readyState)
+            if (ws && ws.connected) return;
             
             try {
                 // Use Socket.IO client
@@ -546,6 +547,7 @@
                 socket.on('disconnect', () => {
                     console.log('Disconnected');
                     appState.connected = false;
+                    reconnectAttempts++;
                     updateUI();
                 });
                 
@@ -921,42 +923,6 @@
         }, 1000);
     </script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script>
-        let currentFilter = 'all';
-        
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(tabName + '-tab').classList.add('active');
-        }
-        
-        function filterTrades(filter) {
-            currentFilter = filter;
-            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-            event.target.classList.add('active');
-            renderTrades();
-        }
-        
-        function openSettings() {
-            const url = prompt('Enter your Render server URL:', localStorage.getItem('polyprophet_server_url') || 'https://your-server.onrender.com');
-            if (url) {
-                localStorage.setItem('polyprophet_server_url', url);
-                location.reload();
-            }
-        }
-        
-        // Update last update time
-        setInterval(() => {
-            if (appState.lastUpdate) {
-                const elapsed = Math.floor((Date.now() - appState.lastUpdate.getTime()) / 1000);
-                const minutes = Math.floor(elapsed / 60);
-                const seconds = elapsed % 60;
-                document.getElementById('last-update').textContent = `${minutes}:${seconds.toString().padStart(2, '0')} ago`;
-            }
-        }, 1000);
-    </script>
 </body>
 </html>
 

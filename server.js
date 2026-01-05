@@ -5850,7 +5850,7 @@ const CONFIG = {
 
     // Core Trading Settings
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
-    PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '10'),   // 🔴 FIXED: Default £10 (was 1000)
+    PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '5'),   // 🏆 v80+: Default $5 (matches README + render.yaml)
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
     // 🏆 v64 GOLDEN OPTIMAL - 80% profit probability + 58% 100x chance
     // 🏆 v66 FINAL: Monte Carlo proven: 60% until 1.2x → 40% until 1.5x → 25% thereafter
@@ -6079,6 +6079,41 @@ const CONFIG = {
         enabled: false                      // v76: Disabled - use manual ASSET_CONTROLS only
     }
 };
+
+// ==================== CONFIG SAFETY: UNCONFIGURED .env GUARD ====================
+// Many users copy `.env.example` and forget to change key values.
+// If the environment still looks "factory default", force safe/goal-aligned defaults.
+// Disable this behavior with LEGACY_DEFAULTS_OK=true.
+(() => {
+    try {
+        const legacyOk = ['1', 'true', 'yes', 'on'].includes(String(process.env.LEGACY_DEFAULTS_OK || '').trim().toLowerCase());
+        if (legacyOk) return;
+
+        const authUser = String(process.env.AUTH_USERNAME || 'admin').trim();
+        const authPass = String(process.env.AUTH_PASSWORD || 'changeme').trim();
+        const envPaper = String(process.env.PAPER_BALANCE || '').trim();
+        const envStake = String(process.env.MAX_POSITION_SIZE || '').trim();
+
+        // Heuristic: exact example defaults + unchanged dashboard creds.
+        const looksUnconfigured =
+            (authUser === 'admin' && authPass === 'changeme') &&
+            (envPaper === '1000') &&
+            (envStake === '0.35' || envStake === '0.350' || envStake === '35%');
+
+        if (!looksUnconfigured) return;
+
+        // Force the repo's stated v80+ goals
+        CONFIG.PAPER_BALANCE = 5.0;
+        CONFIG.MAX_POSITION_SIZE = 0.32;
+        if (CONFIG.RISK) CONFIG.RISK.kellyMaxFraction = 0.32;
+
+        console.log('⚠️ Detected unconfigured .env defaults (PAPER_BALANCE=1000, MAX_POSITION_SIZE=0.35, AUTH_PASSWORD=changeme).');
+        console.log('✅ Applied safe/goals-aligned defaults: PAPER_BALANCE=5, MAX_POSITION_SIZE=0.32.');
+        console.log('   To keep legacy values, set LEGACY_DEFAULTS_OK=true.');
+    } catch {
+        // never block startup from a config guard
+    }
+})();
 
 // ==================== TELEGRAM NOTIFICATION HELPER ====================
 async function sendTelegramNotification(message, silent = false) {
@@ -13431,7 +13466,10 @@ SupremeBrain.prototype.getCalibratedWinProb = function (conf, opts = {}) {
 SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts = {}) {
     const alpha = opts.alpha ?? 1; // Laplace smoothing
     const minSamples = opts.minSamples ?? 5; // require some data before trusting
-    const fallbackPWin = opts.fallback ?? 0.5; // neutral if no data
+    // IMPORTANT: `null` is a valid explicit fallback for callers that want "no value"
+    // so they can fall back to another pWin source (e.g., bucket-based calibration).
+    // Using `??` would coerce `null` → default, which breaks that flow.
+    const fallbackPWin = Object.prototype.hasOwnProperty.call(opts, 'fallback') ? opts.fallback : 0.5; // neutral if unspecified
     
     if (!this.tierCalibration || !this.tierCalibration[tier]) {
         return fallbackPWin;
@@ -13519,6 +13557,8 @@ let lastLiveDataTime = Date.now();
 let activeWebSocket = null;
 let wsHeartbeatInterval = null;
 let wsTimeoutInterval = null;
+let wsParseErrorCount = 0;
+let wsParseErrorLastLogMs = 0;
 
 function connectWebSocket() {
     log('🔌 Attempting WebSocket connection to Polymarket...');
@@ -13572,6 +13612,8 @@ function connectWebSocket() {
         try {
             const str = data.toString();
             if (str === 'PONG') return;
+            // Avoid noisy parsing attempts on non-JSON frames
+            if (!str || (str[0] !== '{' && str[0] !== '[')) return;
 
             const msg = JSON.parse(str);
 
@@ -13626,7 +13668,15 @@ function connectWebSocket() {
                 }
             }
         } catch (e) {
-            log(`⚠️ WS Parse Error: ${e.message}`);
+            // Providers can occasionally emit truncated frames; don't spam logs.
+            const emsg = String(e && e.message ? e.message : e);
+            if (emsg.toLowerCase().includes('unexpected end of json')) return;
+            wsParseErrorCount++;
+            const now = Date.now();
+            if (now - wsParseErrorLastLogMs > 10000) {
+                wsParseErrorLastLogMs = now;
+                log(`⚠️ WS Parse Error: ${emsg} (count=${wsParseErrorCount})`);
+            }
         }
     });
 
@@ -13905,6 +13955,105 @@ async function saveState() {
     }
 }
 
+// ==================== COLD-START PRIORS (BOOTSTRAP LEARNING) ====================
+// If Redis/state is unavailable, the bot otherwise cold-starts with 0 samples → pWin≈0.5 → EV<=0 → no trades.
+// To match the repository's stated goal (trade immediately with the validated preset), we seed priors on true fresh starts.
+function isLearningEmpty() {
+    try {
+        return ASSETS.every(a => {
+            const b = Brains?.[a];
+            if (!b) return true;
+            const s = b.stats || {};
+            const total = Number(s.total) || 0;
+            const ctot = Number(s.convictionTotal) || 0;
+            const cal = b.calibrationBuckets || {};
+            const calTotal = Object.values(cal).reduce((sum, x) => sum + (Number(x?.total) || 0), 0);
+            return total <= 0 && ctot <= 0 && calTotal <= 0;
+        });
+    } catch {
+        return true;
+    }
+}
+
+async function seedPriorsFromLocalDebugCorpus() {
+    try {
+        const debugDir = path.join(__dirname, 'debug');
+        if (!fs.existsSync(debugDir)) return { seeded: false, source: 'none' };
+
+        const files = fs.readdirSync(debugDir)
+            .filter(f => f.startsWith('polyprophet_debug_') && f.endsWith('.json'))
+            .sort();
+        if (files.length === 0) return { seeded: false, source: 'none' };
+
+        // Use the latest debug export as the most stable/complete snapshot.
+        const latest = files[files.length - 1];
+        const raw = fs.readFileSync(path.join(debugDir, latest), 'utf8');
+        const data = JSON.parse(raw);
+        const assets = data?.assets || {};
+
+        let seededAny = false;
+        for (const a of ASSETS) {
+            const cycles = assets?.[a]?.cycleHistory;
+            if (!Array.isArray(cycles) || cycles.length === 0) continue;
+            // Pick the last cycle that contains stats (most do).
+            const lastWithStats = [...cycles].reverse().find(c => c && c.stats && typeof c.stats === 'object');
+            if (!lastWithStats?.stats) continue;
+
+            // Seed long-run stats used as priors by calibrated pWin computation.
+            Brains[a].stats = {
+                wins: Number(lastWithStats.stats.wins) || 0,
+                total: Number(lastWithStats.stats.total) || 0,
+                convictionWins: Number(lastWithStats.stats.convictionWins) || 0,
+                convictionTotal: Number(lastWithStats.stats.convictionTotal) || 0
+            };
+            seededAny = true;
+        }
+
+        return { seeded: seededAny, source: seededAny ? `debug/${latest}` : 'none' };
+    } catch (e) {
+        return { seeded: false, source: 'error', error: e.message };
+    }
+}
+
+function seedHardcodedPriors() {
+    // Conservative priors derived from the repo's own documented validation summaries.
+    // These are used ONLY when no state and no debug corpus are available.
+    const priors = {
+        BTC: { overall: 0.79, conviction: 0.989 },
+        ETH: { overall: 0.773, conviction: 0.98 },
+        XRP: { overall: 0.595, conviction: 0.99 }
+    };
+
+    let seededAny = false;
+    for (const a of ASSETS) {
+        const p = priors[a];
+        if (!p) continue;
+        // Use pseudo-counts so Laplace smoothing doesn't dominate.
+        const N = 1000;
+        Brains[a].stats = {
+            wins: Math.round(p.overall * N),
+            total: N,
+            convictionWins: Math.round(p.conviction * N),
+            convictionTotal: N
+        };
+        seededAny = true;
+    }
+    return seededAny;
+}
+
+async function seedColdStartPriorsIfNeeded() {
+    const enabledEnv = String(process.env.SEED_PRIORS ?? '').trim().toLowerCase();
+    const enabled = !(enabledEnv === '0' || enabledEnv === 'false' || enabledEnv === 'off');
+    if (!enabled) return { seeded: false, source: 'disabled' };
+    if (!isLearningEmpty()) return { seeded: false, source: 'already_has_state' };
+
+    const fromDebug = await seedPriorsFromLocalDebugCorpus();
+    if (fromDebug.seeded) return fromDebug;
+
+    const hardcoded = seedHardcodedPriors();
+    return { seeded: hardcoded, source: hardcoded ? 'hardcoded' : 'none' };
+}
+
 async function loadState() {
     // Try Redis first
     if (redisAvailable && redis) {
@@ -14146,6 +14295,14 @@ async function loadState() {
         } catch (e) {
             log(`⚠️ Redis state load error: ${e.message}`);
         }
+    }
+
+    // Fresh start: seed priors so EV gating doesn't freeze the bot at pWin≈0.5.
+    const seeded = await seedColdStartPriorsIfNeeded();
+    if (seeded?.seeded) {
+        log(`🌱 Seeded cold-start priors (${seeded.source})`);
+    } else {
+        if (seeded?.source === 'disabled') log('ℹ️ Cold-start priors disabled via SEED_PRIORS=0');
     }
 
     log('ℹ️ Starting with fresh state');
@@ -17057,7 +17214,10 @@ app.get('/api/settings', (req, res) => {
 // Reset paper balance endpoint
 app.post('/api/reset-balance', async (req, res) => {
     const { balance } = req.body;
-    const newBalance = parseFloat(balance) || 1000;
+    const parsed = parseFloat(balance);
+    const newBalance = Number.isFinite(parsed)
+        ? parsed
+        : (Number.isFinite(CONFIG?.PAPER_BALANCE) ? CONFIG.PAPER_BALANCE : 5.0);
 
     // Reset trade executor
     tradeExecutor.paperBalance = newBalance;
@@ -17066,6 +17226,19 @@ app.post('/api/reset-balance', async (req, res) => {
     tradeExecutor.tradeHistory = [];
     tradeExecutor.todayPnL = 0;
     tradeExecutor.lastLossTime = 0;
+    tradeExecutor.consecutiveLosses = 0;
+    tradeExecutor.cycleTradeCount = {};
+    tradeExecutor.currentCycleStart = 0;
+    
+    // 🔴 CRITICAL: Reset day tracking + peak balance so CircuitBreaker/RiskEnvelope
+    // do not immediately HALT after a manual balance reset (e.g. reset to $5).
+    if (tradeExecutor.circuitBreaker) {
+        tradeExecutor.circuitBreaker.dayStartBalance = newBalance;
+        tradeExecutor.circuitBreaker.dayStartTime = Date.now();
+        tradeExecutor.circuitBreaker.peakBalance = newBalance;
+        tradeExecutor.circuitBreaker.state = 'NORMAL';
+        tradeExecutor.circuitBreaker.triggerTime = 0;
+    }
 
     // Update config
     CONFIG.PAPER_BALANCE = newBalance;
@@ -17297,11 +17470,11 @@ app.get('/settings', (req, res) => {
             <div class="grid">
                 <div class="form-group">
                     <label>Paper Balance ($)</label>
-                    <input type="number" id="PAPER_BALANCE" value="1000">
+                    <input type="number" id="PAPER_BALANCE" value="5" step="0.01" min="0">
                 </div>
                 <div class="form-group">
                     <label>Max Position Size (%)</label>
-                    <input type="number" id="MAX_POSITION_SIZE" value="10" step="1" min="1" max="25">
+                    <input type="number" id="MAX_POSITION_SIZE" value="32" step="1" min="1" max="50">
                 </div>
             </div>
         </div>
@@ -17378,7 +17551,7 @@ app.get('/settings', (req, res) => {
                 currentSettings = await res.json();
                 
                 // Populate form
-                document.getElementById('PAPER_BALANCE').value = currentSettings.PAPER_BALANCE || 1000;
+                document.getElementById('PAPER_BALANCE').value = currentSettings.PAPER_BALANCE || 5;
                 document.getElementById('MAX_POSITION_SIZE').value = (currentSettings.MAX_POSITION_SIZE || 0.10) * 100;
                 document.getElementById('CONVICTION_THRESHOLD').value = currentSettings.CONVICTION_THRESHOLD || 0.70;
                 document.getElementById('ADVISORY_THRESHOLD').value = currentSettings.ADVISORY_THRESHOLD || 0.55;

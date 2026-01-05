@@ -7,7 +7,10 @@ const axios = require('axios');
 const privateKey = process.argv[2];
 
 // PROXY CONFIG for UK Users
-const PROXY_URL = 'http://qmgniaeu:rlpgxbof0cfq@209.166.22.44:5705';
+// Set via environment variable if needed:
+//   $env:PROXY_URL="http://user:pass@host:port"   (PowerShell)
+//   export PROXY_URL="http://user:pass@host:port" (bash)
+const PROXY_URL = process.env.PROXY_URL || '';
 
 if (!privateKey || !privateKey.startsWith('0x')) {
     console.error('❌ ERROR: Please provide your private key as an argument.');
@@ -16,7 +19,7 @@ if (!privateKey || !privateKey.startsWith('0x')) {
 }
 
 // Monkey-patch axios for the ClobClient to use Proxy
-if (PROXY_URL) {
+if (PROXY_URL && PROXY_URL.trim().length > 0) {
     try {
         const proxyAgent = new HttpsProxyAgent(PROXY_URL);
         const originalCreate = axios.create.bind(axios);
