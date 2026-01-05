@@ -6934,8 +6934,15 @@ class TradeExecutor {
         // 🏆 v62 GLOBAL REGIME CHECK: If ANY asset is auto-disabled, reduce all stakes
         let globalRegimeMultiplier = 1.0;
         if (typeof Brains !== 'undefined' && typeof ASSETS !== 'undefined') {
-            const disabledCount = ASSETS.filter(a => Brains[a]?.autoDisabled).length;
-            const warningCount = ASSETS.filter(a => Brains[a]?.driftWarning).length;
+            // IMPORTANT: Only consider assets that are currently ENABLED in ASSET_CONTROLS.
+            // Otherwise a previously auto-disabled asset (e.g. ETH) can permanently shrink sizing
+            // for all other assets even after the user disables it in Settings.
+            const enabledAssets = Array.isArray(ASSETS)
+                ? ASSETS.filter(a => CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false)
+                : [];
+
+            const disabledCount = enabledAssets.filter(a => Brains[a]?.autoDisabled).length;
+            const warningCount = enabledAssets.filter(a => Brains[a]?.driftWarning).length;
             
             if (disabledCount > 0) {
                 // At least one asset is disabled - reduce all stakes significantly
@@ -14514,6 +14521,7 @@ app.get('/', (req, res) => {
                 <div class="form-group"><label>Max Position (%)</label><input type="number" id="maxPosition" placeholder="Loading..." min="1" max="50"></div>
             </div>
             <button class="btn" onclick="resetPaperBalance()" style="width:100%;margin-bottom:15px;background:#ff6600;">🔄 Reset Paper Balance to Starting Value</button>
+            <button class="btn" onclick="resetDriftState()" style="width:100%;margin-bottom:15px;background:#4b5563;">🧹 Reset Drift/Auto-Disable (Rolling Accuracy)</button>
             
             <!-- MODE CONFIGURATIONS -->
             <h4 style="margin:15px 0 10px;color:#00ff88;font-size:0.95em;cursor:pointer;" onclick="toggleModeConfig()">🎯 Mode Configuration ▼</h4>
@@ -15748,6 +15756,29 @@ app.get('/', (req, res) => {
                 document.getElementById('settingsStatus').className = 'status-msg success';
                 fetchData();
             } catch (e) { document.getElementById('settingsStatus').textContent = '❌ Reset failed'; document.getElementById('settingsStatus').className = 'status-msg error'; }
+        }
+
+        async function resetDriftState() {
+            if (!confirm('Reset drift warnings + auto-disable flags?\\n\\nThis clears rolling accuracy history and re-enables CONVICTION trading for the selected asset(s).')) return;
+            const asset = prompt('Which asset to reset? (BTC / ETH / XRP / ALL)', 'ALL');
+            if (asset === null) return;
+            try {
+                const res = await fetch('/api/reset-drift', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ asset })
+                });
+                const result = await res.json().catch(() => ({}));
+                if (!res.ok || !result.ok) {
+                    throw new Error(result.error || 'Reset drift failed');
+                }
+                document.getElementById('settingsStatus').textContent = '✅ Drift/auto-disable reset: ' + (result.reset || []).join(', ');
+                document.getElementById('settingsStatus').className = 'status-msg success';
+                fetchData();
+            } catch (e) {
+                document.getElementById('settingsStatus').textContent = '❌ Drift reset failed: ' + (e.message || e);
+                document.getElementById('settingsStatus').className = 'status-msg error';
+            }
         }
         
         // MANUAL TRADING FUNCTIONS
@@ -17246,6 +17277,38 @@ app.post('/api/reset-balance', async (req, res) => {
     log(`🔄 Paper balance reset to $${newBalance}`);
 
     res.json({ success: true, balance: newBalance });
+});
+
+// Reset rolling drift/auto-disable state (EXECUTED-trade rolling accuracy)
+// Useful when an asset was auto-disabled and you want to resume trading or clear stale drift warnings.
+app.post('/api/reset-drift', async (req, res) => {
+    try {
+        const raw = (req.body && req.body.asset) || (req.query && req.query.asset) || 'ALL';
+        const requested = String(raw || '').trim().toUpperCase();
+        const targets = (!requested || requested === 'ALL')
+            ? (Array.isArray(ASSETS) ? ASSETS.slice() : [])
+            : [requested];
+
+        const valid = targets.filter(a => Array.isArray(ASSETS) && ASSETS.includes(a));
+        if (valid.length === 0) {
+            return res.status(400).json({ ok: false, error: `Unknown asset '${requested}'. Use BTC/ETH/XRP or ALL.` });
+        }
+
+        valid.forEach(a => {
+            if (!Brains || !Brains[a]) return;
+            Brains[a].rollingConviction = [];
+            Brains[a].driftWarning = false;
+            Brains[a].autoDisabled = false;
+        });
+
+        // Persist immediately (best-effort); interval saveState will also pick it up.
+        try { await saveState(); } catch { }
+
+        log(`🧹 Drift reset: ${valid.join(', ')}`);
+        return res.json({ ok: true, reset: valid });
+    } catch (e) {
+        return res.status(500).json({ ok: false, error: String(e && e.message ? e.message : e) });
+    }
 });
 
 // Update settings
