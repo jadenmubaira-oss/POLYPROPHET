@@ -449,14 +449,23 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
         // 🏆 v76: Parameter aliases for consistency
         const startingBalance = parseFloat(req.query.balance || req.query.startBalance) || 5.0; // 🎯 v55 TURBO default: £5 start
+        // 🏆 v89: Auto-bankroll profile (parity with LIVE/PAPER runtime). Default ON.
+        const autoProfileDisabled = (req.query.autoProfile === '0' || String(req.query.autoProfile || '').toLowerCase() === 'false');
+        const autoProfileEnabled = !autoProfileDisabled && (CONFIG?.RISK?.autoBankrollProfileEnabled !== false);
+        const policyAtStart = autoProfileEnabled ? getBankrollAdaptivePolicy(startingBalance) : null;
         // 🏆 v58 TRUE OPTIMAL defaults (£5→£42 in 24h verified):
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.35; // 🏆 v60 FINAL: TRUE MAXIMUM 35¢ (wider range = more trades)
         const maxOddsEntry = parseFloat(req.query.maxOdds) || 0.95; // 🏆 v60 FINAL: TRUE MAXIMUM 95¢ (wider range)
         // 🏆 v76: Alias stakePercent (0-100) to stake (0-1 fraction)
         const stakePercentRaw = parseFloat(req.query.stakePercent);
+        const stakeRaw = parseFloat(req.query.stake);
         const stakeFrac = Number.isFinite(stakePercentRaw) && stakePercentRaw > 0 && stakePercentRaw <= 100
             ? stakePercentRaw / 100
-            : (parseFloat(req.query.stake) || 0.35); // 🚀 v61.2 TRUE MAX: 35% for ABSOLUTE MAX PROFIT
+            : (Number.isFinite(stakeRaw)
+                ? stakeRaw
+                : (autoProfileEnabled && policyAtStart
+                    ? policyAtStart.maxPositionFraction
+                    : (Number.isFinite(CONFIG?.MAX_POSITION_SIZE) ? CONFIG.MAX_POSITION_SIZE : 0.35))); // Fallback: legacy 35%
         const limit = parseInt(req.query.limit) || 200; // Max *cycle windows* to process (rate limit protection)
         const debugFilesParam = parseInt(req.query.debugFiles) || 200; // How many debug exports to scan (from the end)
         const maxTradesPerCycleRaw = parseInt(req.query.maxTradesPerCycle);
@@ -509,8 +518,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const kellyFractionParam = parseFloat(req.query.kellyK);
         const kellyFraction = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1 
             ? kellyFractionParam : (CONFIG?.RISK?.kellyFraction || 0.50); // Match runtime default
-        const kellyMaxFraction = Number.isFinite(parseFloat(req.query.kellyMax)) 
-            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.32); // 🏆 v88: EMPIRICAL OPTIMUM for $40+
+        const kellyMaxProvided = Number.isFinite(parseFloat(req.query.kellyMax));
+        const kellyMaxFraction = kellyMaxProvided
+            ? parseFloat(req.query.kellyMax)
+            : (autoProfileEnabled && policyAtStart
+                ? policyAtStart.kellyMaxFraction
+                : (CONFIG?.RISK?.kellyMaxFraction || 0.32)); // Default to runtime config when not auto-profile
         
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
         // Default to BTC+ETH only (XRP disabled by default in runtime)
@@ -519,11 +532,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         if (allowedAssets.size === 0) { allowedAssets.add('BTC'); allowedAssets.add('ETH'); }
         
         // 🏆 v76: Risk envelope simulation (matches runtime applyRiskEnvelope)
+        const riskEnvelopeProvided = (req.query.riskEnvelope !== undefined);
         // 🏆 v89 FIX: If query param is omitted, default to runtime CONFIG (parity).
+        // 🏆 v89 AUTO-PROFILE: If enabled and param omitted, default to policy for starting bankroll.
         const riskEnvelopeEnabled = (() => {
-            if (req.query.riskEnvelope !== undefined) {
+            if (riskEnvelopeProvided) {
                 return req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false';
             }
+            if (autoProfileEnabled && policyAtStart) return !!policyAtStart.riskEnvelopeEnabled;
             if (CONFIG?.RISK?.riskEnvelopeEnabled !== undefined) return !!CONFIG.RISK.riskEnvelopeEnabled;
             // Safe default if CONFIG missing the flag.
             return true;
@@ -1166,6 +1182,15 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 const windowBalanceStart = balance;
                 if (!Number.isFinite(windowBalanceStart) || windowBalanceStart <= 0) break;
 
+                // 🏆 v89 AUTO-PROFILE (backtest parity): If params are omitted, adapt by CURRENT bankroll.
+                const policyThisWindow = autoProfileEnabled ? getBankrollAdaptivePolicy(windowBalanceStart) : null;
+                const effectiveKellyMaxFraction = (!kellyMaxProvided && policyThisWindow)
+                    ? policyThisWindow.kellyMaxFraction
+                    : kellyMaxFraction;
+                const effectiveRiskEnvelopeEnabled = (!riskEnvelopeProvided && policyThisWindow)
+                    ? !!policyThisWindow.riskEnvelopeEnabled
+                    : riskEnvelopeEnabled;
+
                 const n = windowCycles.length;
                 const maxBudget = windowBalanceStart * maxExposure;
 
@@ -1197,7 +1222,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             
                             if (kellyF !== null) {
                                 // Apply fractional Kelly with max cap
-                                let kellyStake = windowBalanceStart * Math.min(kellyF * kellyFraction, kellyMaxFraction);
+                                let kellyStake = windowBalanceStart * Math.min(kellyF * kellyFraction, effectiveKellyMaxFraction);
                                 // Also apply profit lock-in if adaptive
                                 if (adaptiveMode) {
                                     const profitMult = balance / startingBalance;
@@ -1296,7 +1321,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     
                     // 🏆 v78/v83: Risk envelope simulation with DYNAMIC PROFILE (matches runtime applyRiskEnvelope)
                     // 🏆 v83: Uses threshold contract for parity with runtime + vault optimizer
-                    if (riskEnvelopeEnabled) {
+                    if (effectiveRiskEnvelopeEnabled) {
                         // 🏆 v83: Get thresholds from contract (uses backtestThresholdOverrides)
                         const backtestThresholds = getVaultThresholds(backtestThresholdOverrides);
                         const STAGE1_THRESHOLD = backtestThresholds.vaultTriggerBalance;
@@ -1412,10 +1437,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         // 🏆 v88: Track consecutive losses (runtime parity)
                         consecutiveLosses++;
                         lastLossEpochSec = cycle.cycleStartEpochSec || w;
-                        // 🏆 v76: Track intraday loss for risk envelope
-                        if (riskEnvelopeEnabled) {
-                            intradayLoss += stake;
-                        }
+                        // 🏆 v76: Track intraday loss (used by risk envelope when enabled now or later)
+                        intradayLoss += stake;
                         // 🏆 v76: Track day stats
                         if (currentDayStats) { currentDayStats.losses++; currentDayStats.trades++; }
                     }
@@ -7304,6 +7327,19 @@ const CONFIG = {
         kellyFraction: 0.50,              // k=0.5 (half-Kelly) - balance growth vs variance
         kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
         kellyMaxFraction: 0.32,           // 🏆 v88: EMPIRICAL OPTIMUM for $40+ start
+
+        // 🏆 v89 AUTO-BANKROLL PROFILE (LIVE + PAPER):
+        // Automatically chooses the best/fastest profile based on CURRENT bankroll.
+        // This means deposits/withdrawals and growth automatically shift you between "micro-safe" and "growth" behavior.
+        // Override per-call in backtests with ?autoProfile=0 or with explicit kellyMax / riskEnvelope query params.
+        autoBankrollProfileEnabled: true,
+        autoBankrollCutover: 20,                 // <$20 => micro-safe, >=$20 => growth
+        autoBankrollKellyLow: 0.17,
+        autoBankrollKellyHigh: 0.32,
+        autoBankrollMaxPosLow: 0.17,
+        autoBankrollMaxPosHigh: 0.32,
+        autoBankrollRiskEnvelopeLow: true,
+        autoBankrollRiskEnvelopeHigh: false,
         
         // 🏆 v88 RISK ENVELOPE: DISABLED for $40+ (too restrictive, blocks all trades)
         // For small balances ($5), this provides protection. For $40+, disable it.
@@ -7433,6 +7469,92 @@ function getVaultThresholds(overrides = {}) {
             transition: { min: vaultTriggerBalance, max: stage2Threshold, name: 'TRANSITION' },
             lockin: { min: stage2Threshold, max: Infinity, name: 'LOCK_IN' }
         }
+    };
+}
+
+// ==================== 🏆 v89 AUTO-BANKROLL RISK POLICY ====================
+// Single source of truth for "best settings by balance" (LIVE + PAPER parity).
+// This is intentionally SIMPLE + AUDITABLE: a 2-regime schedule with a single cutover.
+// - Below cutover: micro-safe (lower Kelly cap, envelope ON)
+// - Above cutover: growth (higher Kelly cap, envelope OFF)
+// Used by: runtime sizing, risk envelope gating, and /api/backtest-polymarket defaults (when params omitted).
+function getBankrollAdaptivePolicy(bankroll) {
+    const enabled = CONFIG?.RISK?.autoBankrollProfileEnabled !== false;
+
+    const b = Number(bankroll);
+    const cutover = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollCutover))
+        ? Number(CONFIG.RISK.autoBankrollCutover)
+        : 20;
+
+    const lowKelly = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollKellyLow))
+        ? Number(CONFIG.RISK.autoBankrollKellyLow)
+        : 0.17;
+    const highKelly = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollKellyHigh))
+        ? Number(CONFIG.RISK.autoBankrollKellyHigh)
+        : 0.32;
+
+    const lowMaxPos = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollMaxPosLow))
+        ? Number(CONFIG.RISK.autoBankrollMaxPosLow)
+        : lowKelly;
+    const highMaxPos = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollMaxPosHigh))
+        ? Number(CONFIG.RISK.autoBankrollMaxPosHigh)
+        : highKelly;
+
+    const envLow = (CONFIG?.RISK?.autoBankrollRiskEnvelopeLow !== undefined)
+        ? !!CONFIG.RISK.autoBankrollRiskEnvelopeLow
+        : true;
+    const envHigh = (CONFIG?.RISK?.autoBankrollRiskEnvelopeHigh !== undefined)
+        ? !!CONFIG.RISK.autoBankrollRiskEnvelopeHigh
+        : false;
+
+    const clampFrac = (x, fallback) => {
+        const n = Number(x);
+        if (!Number.isFinite(n)) return fallback;
+        return Math.max(0.01, Math.min(0.50, n));
+    };
+
+    const fallback = {
+        maxPositionFraction: clampFrac(CONFIG?.MAX_POSITION_SIZE, 0.20),
+        kellyMaxFraction: clampFrac(CONFIG?.RISK?.kellyMaxFraction, 0.17),
+        riskEnvelopeEnabled: CONFIG?.RISK?.riskEnvelopeEnabled !== undefined ? !!CONFIG.RISK.riskEnvelopeEnabled : true
+    };
+
+    if (!enabled) {
+        return { enabled: false, cutover, ...fallback, profile: 'DISABLED' };
+    }
+
+    if (!Number.isFinite(b)) {
+        return {
+            enabled: true,
+            cutover,
+            maxPositionFraction: clampFrac(highMaxPos, fallback.maxPositionFraction),
+            kellyMaxFraction: clampFrac(highKelly, fallback.kellyMaxFraction),
+            riskEnvelopeEnabled: envHigh,
+            profile: 'GROWTH',
+            reason: 'non_finite_bankroll'
+        };
+    }
+
+    if (b < cutover) {
+        return {
+            enabled: true,
+            cutover,
+            maxPositionFraction: clampFrac(lowMaxPos, fallback.maxPositionFraction),
+            kellyMaxFraction: clampFrac(lowKelly, fallback.kellyMaxFraction),
+            riskEnvelopeEnabled: envLow,
+            profile: 'MICRO_SAFE',
+            reason: `bankroll<$${cutover}`
+        };
+    }
+
+    return {
+        enabled: true,
+        cutover,
+        maxPositionFraction: clampFrac(highMaxPos, fallback.maxPositionFraction),
+        kellyMaxFraction: clampFrac(highKelly, fallback.kellyMaxFraction),
+        riskEnvelopeEnabled: envHigh,
+        profile: 'GROWTH',
+        reason: `bankroll>=$${cutover}`
     };
 }
 
@@ -8142,14 +8264,20 @@ class TradeExecutor {
     // 🏆 v77 RISK ENVELOPE: Get remaining risk budget based on intraday + trailing drawdown
     // Now uses dynamic profile based on bankroll stage
     getRiskEnvelopeBudget() {
-        if (!CONFIG.RISK.riskEnvelopeEnabled) {
-            return { maxTradeSize: Infinity, reason: 'Risk envelope disabled' };
-        }
-        
         // 🏆 v77: Use equity-aware balance for LIVE mode
         const currentBalance = this.mode === 'LIVE' 
             ? this.getBankrollForRisk() 
             : this.paperBalance;
+
+        // 🏆 v89 AUTO-BANKROLL: Envelope enable/disable can be dynamic by bankroll.
+        const bankrollPolicy = getBankrollAdaptivePolicy(currentBalance);
+        const envelopeEnabled = (bankrollPolicy?.enabled !== false && bankrollPolicy?.riskEnvelopeEnabled !== undefined)
+            ? !!bankrollPolicy.riskEnvelopeEnabled
+            : !!CONFIG.RISK.riskEnvelopeEnabled;
+
+        if (!envelopeEnabled) {
+            return { maxTradeSize: Infinity, reason: 'Risk envelope disabled', bankrollPolicy };
+        }
         const dayStart = this.circuitBreaker.dayStartBalance || currentBalance;
         
         // Update peak balance tracking
@@ -9310,9 +9438,17 @@ class TradeExecutor {
                 // For small bankrolls: use minimum viable size
                 // For large bankrolls: use percentage-based sizing
                 const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
+                // 🏆 v89 AUTO-BANKROLL: Adapt max position + Kelly cap by CURRENT bankroll.
+                const bankrollPolicy = getBankrollAdaptivePolicy(bankroll);
+                const effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
+                    ? bankrollPolicy.maxPositionFraction
+                    : (CONFIG.MAX_POSITION_SIZE || 0.20);
+                const effectiveKellyMaxFrac = Number.isFinite(bankrollPolicy?.kellyMaxFraction)
+                    ? bankrollPolicy.kellyMaxFraction
+                    : (CONFIG?.RISK?.kellyMaxFraction || 0.17);
                 // Cap position size by configured max fraction of bankroll (safety)
                 // NOTE: even with high accuracy, binary outcomes can produce large drawdowns.
-                const MAX_FRACTION = Math.max(0.01, Math.min(CONFIG.MAX_POSITION_SIZE || 0.20, 0.50)); // hard-cap at 50%
+                const MAX_FRACTION = Math.max(0.01, Math.min(effectiveMaxPosFrac, 0.50)); // hard-cap at 50%
 
                 // Calculate base percentage
                 let basePct;
@@ -9385,7 +9521,7 @@ class TradeExecutor {
                             if (fullKelly > 0) {
                                 // Apply fractional Kelly (e.g., half-Kelly with k=0.5)
                                 const kellyFraction = CONFIG.RISK.kellyFraction || 0.5;
-                                let kellySize = bankroll * Math.min(fullKelly * kellyFraction, CONFIG.RISK.kellyMaxFraction);
+                                let kellySize = bankroll * Math.min(fullKelly * kellyFraction, effectiveKellyMaxFrac);
                                 
                                 // Kelly should REDUCE size in unfavorable conditions, not increase it
                                 // If Kelly suggests smaller size than base, use Kelly
@@ -10049,7 +10185,11 @@ class TradeExecutor {
             }
 
             // Sizing: use MAX_POSITION_SIZE as the cap for total pair cost, but auto-bump to meet minimums.
-            const maxFraction = Math.max(0.01, Math.min(CONFIG.MAX_POSITION_SIZE || 0.20, 0.50)); // UI caps at 50%
+            const bankrollPolicy = getBankrollAdaptivePolicy(bankroll);
+            const effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
+                ? bankrollPolicy.maxPositionFraction
+                : (CONFIG.MAX_POSITION_SIZE || 0.20);
+            const maxFraction = Math.max(0.01, Math.min(effectiveMaxPosFrac, 0.50)); // UI caps at 50%
             let totalBudget = bankroll * maxFraction;
             if (totalBudget < minTotalForMinOrders) totalBudget = minTotalForMinOrders;
             totalBudget = Math.min(totalBudget, bankroll);
