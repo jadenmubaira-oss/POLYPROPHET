@@ -2744,18 +2744,29 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         
         // Backtest parameters (passed through)
         const tier = req.query.tier || 'CONVICTION';
-        const stake = parseFloat(req.query.stake) || 0.35; // match /api/backtest-polymarket default if not specified
-        const kellyMax = parseFloat(req.query.kellyMax) || (CONFIG?.RISK?.kellyMaxFraction || 0.32); // 🏆 v88: EMPIRICAL OPTIMUM for $40+
         const assets = req.query.assets || 'BTC,ETH';
-        // 🏆 v89 FIX: Don't hardcode riskEnvelope=1. Respect query param; else default to runtime config.
-        const riskEnvelopeEnabled = (() => {
-            if (req.query.riskEnvelope !== undefined) {
-                return req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false';
-            }
-            if (CONFIG?.RISK?.riskEnvelopeEnabled !== undefined) return !!CONFIG.RISK.riskEnvelopeEnabled;
-            return true;
-        })();
-        const riskEnvelopeParam = riskEnvelopeEnabled ? '1' : '0';
+
+        // 🏆 v90: AUTO-PROFILE COMPAT
+        // The optimizer is meant to optimize ONLY vaultTriggerBalance. For other knobs:
+        // - If query params are provided, pass them through.
+        // - If omitted, let /api/backtest-polymarket decide defaults (including autoProfile).
+        const stakeRaw = parseFloat(req.query.stake);
+        const stakeProvided = Number.isFinite(stakeRaw);
+        const stake = stakeProvided ? stakeRaw : null;
+
+        const kellyMaxRaw = parseFloat(req.query.kellyMax);
+        const kellyMaxProvided = Number.isFinite(kellyMaxRaw);
+        const kellyMax = kellyMaxProvided ? kellyMaxRaw : null;
+
+        const autoProfileProvided = req.query.autoProfile !== undefined;
+        const autoProfileParam = autoProfileProvided
+            ? ((req.query.autoProfile === '0' || String(req.query.autoProfile || '').toLowerCase() === 'false') ? '0' : '1')
+            : null;
+
+        const riskEnvelopeProvided = req.query.riskEnvelope !== undefined;
+        const riskEnvelopeParam = riskEnvelopeProvided
+            ? ((req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false') ? '1' : '0')
+            : null;
         const apiKey = (typeof req.query.apiKey === 'string' && req.query.apiKey.trim().length > 0) ? req.query.apiKey.trim() : null;
         const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
 
@@ -2800,13 +2811,14 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                         offsetHours: offset.toString(),
                         balance: startingBalance.toString(),
                         tier,
-                        stake: stake.toString(),
-                        kellyMax: kellyMax.toString(),
                         assets,
                         vaultTriggerBalance: vaultTriggerBalance.toString(),
-                        riskEnvelope: riskEnvelopeParam,
                         limit: backtestLimit.toString()
                     });
+                    if (stakeProvided) backtestParams.set('stake', stake.toString());
+                    if (kellyMaxProvided) backtestParams.set('kellyMax', kellyMax.toString());
+                    if (riskEnvelopeProvided) backtestParams.set('riskEnvelope', riskEnvelopeParam);
+                    if (autoProfileProvided) backtestParams.set('autoProfile', autoProfileParam);
                     if (apiKey) backtestParams.set('apiKey', apiKey);
                     
                     // Make internal request to backtest endpoint
@@ -6432,7 +6444,10 @@ app.get('/api/perfection-check', async (req, res) => {
             toolsUiExists = true;
             const toolsContent = fs.readFileSync(toolsPath, 'utf8');
             // Check for required marker and key features
-            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v86') || toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v88');
+            toolsUiHasMarker =
+                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v86') ||
+                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v88') ||
+                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v90');
             const hasVaultPanel = toolsContent.includes('vault-projection') && toolsContent.includes('vault-optimize');
             const hasPolymarketPanel = toolsContent.includes('vault-optimize-polymarket') && toolsContent.includes('runPolymarketOptimizer');
             const hasAuditPanel = toolsContent.includes('perfection-check');
@@ -6440,9 +6455,9 @@ app.get('/api/perfection-check', async (req, res) => {
             const hasApplyWinner = toolsContent.includes('applyWinner') && toolsContent.includes('applyPolymarketWinner');
             
             if (toolsUiHasMarker && hasVaultPanel && hasPolymarketPanel && hasAuditPanel && hasApiExplorer && hasApplyWinner) {
-                toolsUiDetails = 'Tools UI v86 with Monte Carlo panel, Polymarket optimizer, Audit runner, API Explorer, and Apply Winner';
+                toolsUiDetails = 'Tools UI OK (Monte Carlo, Polymarket optimizer, Audit, API Explorer, Apply Winner)';
             } else {
-                toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'v86 marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasPolymarketPanel ? 'polymarket panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
+                toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasPolymarketPanel ? 'polymarket panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
             }
         } else {
             toolsUiDetails = 'public/tools.html not found';
@@ -12589,6 +12604,21 @@ class OpportunityDetector {
 
 const tradeExecutor = new TradeExecutor();
 const opportunityDetector = new OpportunityDetector();
+
+// 🏆 v90: Balance freshness loop (LIVE + PAPER visibility)
+// Ensures deposits/withdrawals are picked up even when no trades are firing.
+// refreshLiveBalance() is internally cached (30s), so calling frequently is safe.
+setInterval(() => {
+    try {
+        if (!tradeExecutor) return;
+        if (typeof tradeExecutor.refreshLiveBalance === 'function') {
+            tradeExecutor.refreshLiveBalance().catch(() => { });
+        }
+        if (typeof tradeExecutor.refreshMATICBalance === 'function') {
+            tradeExecutor.refreshMATICBalance().catch(() => { });
+        }
+    } catch { }
+}, 10 * 1000);
 
 // 🎯 GOAT v44.1: GateTrace - records why trades were blocked for each cycle/asset
 const gateTrace = {

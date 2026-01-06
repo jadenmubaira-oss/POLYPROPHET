@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🛠️ Tools - POLYPROPHET</title>
-    <!-- POLYPROPHET_TOOLS_UI_MARKER_v88 -->
+    <!-- POLYPROPHET_TOOLS_UI_MARKER_v90 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -268,7 +268,7 @@
                     </div>
                     <div class="form-group">
                         <label>Starting Balance ($)</label>
-                        <input type="number" id="proj-start" value="5" min="1" max="20" step="0.1">
+                        <input type="number" id="proj-start" value="40" min="1" max="100000" step="0.1">
                     </div>
                     <div class="form-group">
                         <label>Simulations</label>
@@ -312,7 +312,7 @@
                     </div>
                     <div class="form-group">
                         <label>Starting Balance ($)</label>
-                        <input type="number" id="opt-start" value="5" min="1" max="20" step="0.1">
+                        <input type="number" id="opt-start" value="40" min="1" max="100000" step="0.1">
                     </div>
                     <div class="form-group">
                         <label>Seed (optional)</label>
@@ -394,7 +394,7 @@
                     </div>
                     <div class="form-group">
                         <label>Starting Balance ($)</label>
-                        <input type="number" id="pm-start" value="5" min="1" max="20" step="0.1">
+                        <input type="number" id="pm-start" value="40" min="1" max="100000" step="0.1">
                     </div>
                     <div class="form-group">
                         <label>Tier</label>
@@ -406,7 +406,14 @@
                     </div>
                     <div class="form-group">
                         <label>Kelly Max</label>
-                        <input type="number" id="pm-kelly" value="0.17" min="0.1" max="0.5" step="0.01">
+                        <input type="number" id="pm-kelly" value="0.32" min="0.1" max="0.5" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Auto Profile (recommended)</label>
+                        <select id="pm-autoProfile" onchange="syncPmAutoProfile()">
+                            <option value="1" selected>ON (auto kelly + risk by balance)</option>
+                            <option value="0">OFF (manual overrides)</option>
+                        </select>
                     </div>
                 </div>
                 
@@ -784,6 +791,15 @@
         }
         
         // ==================== 🏆 v84 POLYMARKET OPTIMIZER ====================
+        function syncPmAutoProfile() {
+            try {
+                const autoEl = document.getElementById('pm-autoProfile');
+                const kellyEl = document.getElementById('pm-kelly');
+                const autoOn = (autoEl ? String(autoEl.value) : '1') !== '0';
+                if (kellyEl) kellyEl.disabled = autoOn;
+            } catch { }
+        }
+
         async function runPolymarketOptimizer() {
             const btn = document.getElementById('pm-opt-btn');
             const status = document.getElementById('pm-optimizer-status');
@@ -807,8 +823,14 @@
                 const start = document.getElementById('pm-start').value;
                 const tier = document.getElementById('pm-tier').value;
                 const kelly = document.getElementById('pm-kelly').value;
+                const autoProfile = document.getElementById('pm-autoProfile')?.value || '1';
                 
-                let url = `/api/vault-optimize-polymarket?min=${min}&max=${max}&step=${step}&hours=${hours}&offsets=${encodeURIComponent(offsets)}&balance=${start}&tier=${tier}&kellyMax=${kelly}`;
+                let url = `/api/vault-optimize-polymarket?min=${min}&max=${max}&step=${step}&hours=${hours}&offsets=${encodeURIComponent(offsets)}&balance=${start}&tier=${tier}`;
+                if (String(autoProfile) === '0') {
+                    url += `&autoProfile=0&kellyMax=${kelly}`;
+                } else {
+                    url += `&autoProfile=1`;
+                }
                 url += getApiKeyParam();
                 
                 const hoursNum = parseInt(hours, 10);
@@ -1097,6 +1119,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             console.log('🛠️ POLYPROPHET Tools UI loaded');
             onEndpointChange();
+            syncPmAutoProfile();
         });
     </script>
 </body>
