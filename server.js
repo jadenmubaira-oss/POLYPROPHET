@@ -1564,7 +1564,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 // 🏆 v88: Halt statistics (runtime parity)
                 haltedTrades,
                 cooldownBlocks,
-                globalStopBlocks
+                globalStopBlocks,
+                // 🏆 v92: Peak-DD brake stats
+                peakBrakeCaps
             };
         }
 
@@ -1658,7 +1660,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 vaultThresholds: getVaultThresholds(backtestThresholdOverrides),
                 assetsAllowed: Array.from(allowedAssets),
                 envelopeCaps: primarySim.envelopeCaps,
-                envelopeBlocks: primarySim.envelopeBlocks
+                envelopeBlocks: primarySim.envelopeBlocks,
+                // 🏆 v92: Peak-DD brake stats
+                peakBrakeCaps: primarySim.peakBrakeCaps
             },
             // 🏆 v84: Objective metrics for optimizer aggregation
             objectiveMetrics: {
