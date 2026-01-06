@@ -1,15 +1,15 @@
-# POLYPROPHET v88 — EMPIRICALLY OPTIMAL TRADING SYSTEM
+# POLYPROPHET v91 — EMPIRICALLY OPTIMAL (AUTO-BANKROLL) TRADING SYSTEM
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v88 CRITICAL**: Runtime parity (loss cooldown + global stop in backtests) + relative vault thresholds + $40 START OPTIMIZED
+> **v91 CRITICAL**: AUTO-BANKROLL PROFILE (LIVE+PAPER+BACKTEST parity) + runtime-parity backtests + Tools UI v90
 
 ---
 
 ## TABLE OF CONTENTS
 
 1. [North Star / Aspirations](#north-star--aspirations)
-2. [Empirical Evidence (v88)](#empirical-evidence-v88)
+2. [Empirical Evidence (v91)](#empirical-evidence-v91)
 3. [Executive Summary](#executive-summary)
 4. [VaultTriggerBalance Explained](#vaulttriggerbalance-explained)
 5. [Your Final Preset Configuration](#your-final-preset-configuration)
@@ -31,7 +31,7 @@
 
 ## NORTH STAR / ASPIRATIONS
 
-### Your Goal Hierarchy (v88 FINAL)
+### Your Goal Hierarchy (v91 FINAL)
 
 | Priority | Objective | Metric |
 |----------|-----------|--------|
@@ -40,68 +40,62 @@
 | **SECONDARY** | Minimize below-start dips | belowStartPct <= 10% |
 | **TIE-BREAKER** | Maximize worst-case | p05 return |
 
-**Critical**: For $40+ starting balance, kellyMaxFraction=0.32 with riskEnvelope DISABLED achieves 0% ruin across all tested windows while maximizing profits.
+**Critical (v91)**: The bot now runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match):  
+- **Bankroll < $20**: `kellyMax=0.17`, `MAX_POSITION_SIZE=0.17`, `riskEnvelope=ON` (**MICRO_SAFE**)  
+- **Bankroll ≥ $20**: `kellyMax=0.32`, `MAX_POSITION_SIZE=0.32`, `riskEnvelope=OFF` (**GROWTH**)  
 
-### What This Means in Practice ($40 Start)
+This means **deposits/withdrawals** and **drawdowns** automatically shift the risk profile without you changing settings.
 
-- **0% ruin guaranteed** in all 4 non-cherry-picked 7-day windows
-- Worst-case 7d: +136% ($40 → $94.37, minBal=$22.46)
-- Average 7d: **+318%** ($40 → $167.33)
-- Best-case 7d: +436% ($40 → $214.63)
-- MinOfMins: $22.46 (44% max drawdown from start)
+### What This Means in Practice (your $40 start)
+
+- **Fast compounding**: at $40 you start in **GROWTH** automatically.
+- **Automatic de‑risking**: if equity drops below $20, you automatically switch to **MICRO_SAFE**.
+- **Reality backtests are coverage‑gated**: we only count a horizon when `summary.timeSpan.hours ≥ 0.9 × requestedHours`. (Right now, 168h often has <168h coverage, so treat “7‑day” claims as invalid unless coverage proves it.)
 
 ---
 
-## EMPIRICAL EVIDENCE (v88)
+## EMPIRICAL EVIDENCE (v91)
 
-### The Winning Configuration ($40 Start)
+### Key invariants (what is now true by construction)
 
-| Parameter | Value | Why |
-|-----------|-------|-----|
-| **kellyMaxFraction** | **0.32** | Maximum profit with 0% ruin at $40+ balance |
-| **riskEnvelopeEnabled** | **false** | Envelope too restrictive at $40+ (blocks all trades) |
-| **startingBalance** | **$40** | Above LOCK_IN threshold for conservative stage |
-| **kellyEnabled** | true | Kelly sizing beats fixed stake |
-| **kellyFraction** | 0.50 | Half-Kelly for variance reduction |
+- **Runtime parity backtests**: `/api/backtest-polymarket` simulates **loss cooldown** + **global stop-loss** (enabled by default via `simulateHalts`).
+- **Polymarket‑realistic execution**: backtests enforce **MIN_ORDER ($1.10)** and never allow a trade that could breach the **$2 floor on a loss**.
+- **Defaults match runtime**: when you omit params, backtests now use the same **AUTO‑BANKROLL PROFILE** as LIVE/PAPER (disable with `autoProfile=0`).
 
-### 7-Day Performance ($40 Start, 4 Non-Cherry-Picked Windows)
+### Reality backtest battery (coverage‑gated)
 
-| Offset | Final Balance | Return | Min Balance | Ruined? |
-|--------|---------------|--------|-------------|---------|
-| 0h | $151.15 | +278% | $22.46 | NO |
-| 24h | $214.63 | +436% | $22.46 | NO |
-| 48h | $209.17 | +423% | $22.46 | NO |
-| 72h | $94.37 | +136% | $22.46 | NO |
-| **Average** | **$167.33** | **+318%** | - | **0%** |
+We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. Right now, **168h often has <168h coverage**, so the score typically uses **24h + 72h**.
 
-### Why kellyMaxFraction=0.32 for $40?
+### The Winning Setup (your $40 start)
 
-The sweep analysis showed:
-- **kellyMax=0.15**: SAFE, AvgFinal=$110.54, MinOfMins=$30.60 (+176%)
-- **kellyMax=0.17**: SAFE, AvgFinal=$123.78, MinOfMins=$29.29 (+209%)
-- **kellyMax=0.20**: SAFE, AvgFinal=$129.74, MinOfMins=$27.33 (+224%)
-- **kellyMax=0.25**: SAFE, AvgFinal=$130.86, MinOfMins=$25.03 (+227%)
-- **kellyMax=0.32**: **SAFE, AvgFinal=$167.33, MinOfMins=$22.46 (+318%)**
+With `autoProfile=1` (default):
+- **Bankroll ≥ $20 ⇒ GROWTH**: `kellyMax=0.32`, `MAX_POSITION_SIZE=0.32`, `riskEnvelope=OFF`
 
-All values tested achieve 0% ruin, so kellyMax=0.32 is optimal for maximum profit.
+#### Example 72h outcomes (deployed build `29aa77a`)
 
-### Comparison Table ($40 Start, kellyMax Sweep)
+- 72h, offset=0: **final $98.55** (no ruin)
+- 72h, offset=24: **final $116.72** (no ruin)
 
-| kellyMax | Ruin Rate | AvgFinal | MinOfMins | Profit |
-|----------|-----------|----------|-----------|--------|
-| 0.15 | 0% | $110.54 | $30.60 | +176% |
-| 0.17 | 0% | $123.78 | $29.29 | +209% |
-| 0.20 | 0% | $129.74 | $27.33 | +224% |
-| 0.25 | 0% | $130.86 | $25.03 | +227% |
-| **0.32** | **0%** | **$167.33** | **$22.46** | **+318%** |
+#### Speed Score distribution ($40, GROWTH profile, env=OFF)
 
-### Balance-Dependent Recommendations
+Coverage‑gated 24h+72h speed score across offsets **0/12/24/48/60/72**:
+- **p50**: **209.53%**
+- **p05**: **72.12%**
+- **min (worst)**: **50.30%**
+- **n**: 6 windows (coverage‑qualified)
 
-| Starting Balance | kellyMax | riskEnvelope | Reason |
-|------------------|----------|--------------|--------|
-| $5 | 0.17 | ENABLED | Small balance needs protection |
-| $15 | 0.17 | DISABLED | Envelope blocks at $15 |
-| **$40+** | **0.32** | **DISABLED** | More capital = can handle variance |
+#### Risk envelope ON vs OFF (sanity)
+
+At $40, `riskEnvelope=ON` now **does trade** (v89 fixed min‑order freeze), but **speed collapses** vs env=OFF. If your goal is “max profit ASAP”, env=OFF is required in GROWTH.
+
+### Balance‑dependent recommendation (the “perfect” setup)
+
+Use **autoProfile ON** (default). Manual override options:
+
+| Bankroll | kellyMax | riskEnvelope | Notes |
+|---------:|---------:|:------------:|------|
+| < $20 | 0.17 | ON | micro‑safe survival mode |
+| ≥ $20 | 0.32 | OFF | growth mode (your $40 start) |
 
 ---
 
@@ -111,46 +105,38 @@ All values tested achieve 0% ruin, so kellyMax=0.32 is optimal for maximum profi
 
 PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH up/down prediction markets. It uses a multi-model ensemble (Chainlink price, momentum, Kalman filter, etc.) to predict outcomes and execute trades automatically.
 
-### Your Final Sweet Spot (v88 - OPTIMIZED FOR $40 START)
+### Your Final Sweet Spot (v91 — AUTO‑BANKROLL, works across deposits/withdrawals)
 
-After comprehensive empirical testing across 4 non-cherry-picked 7-day windows, v88 delivers the **MAXIMUM profit configuration that NEVER ruins with $40 start**:
+The system now **automatically selects the best/fastest safe profile based on CURRENT bankroll** (LIVE + PAPER + backtests parity):
 
-| Parameter | Value | Rationale |
-|-----------|-------|-----------|
-| **Starting Balance** | **$40** | Above LOCK_IN threshold = stable stage |
-| **Max Stake** | **32%** | 🏆 v88 EMPIRICAL OPTIMUM for $40+ (0% ruin, +318% avg) |
-| **Kelly Sizing** | ENABLED (k=0.5, max=0.32) | Half-Kelly with empirically proven cap |
-| **Risk Envelope** | **DISABLED** | Too restrictive at $40+ (blocks all trades) |
-| **Dynamic Risk Profile** | ENABLED | 3 stages: Bootstrap, Transition, Lock-in |
-| **Trade Frequency Floor** | ENABLED | Allows high-quality ADVISORY when below 1 trade/hour target |
-| **Tier** | CONVICTION primary | ADVISORY allowed via frequency floor when idle |
-| **Assets** | BTC+ETH only | 79%/77% accuracy vs XRP 59.5% |
-| **Max Trades/Cycle** | 1 | Quality over quantity |
-| **Balance Floor** | $2.00 | HARD stop (though $40 start rarely approaches this) |
-| **Global Stop** | 35% daily | Uses dayStartBalance (stable threshold) |
-| **Equity-Aware Risk** | ENABLED | LIVE mode uses mark-to-market equity |
-| **Crash Recovery** | ✅ FIXED | Crashed trades auto-reconciled with Gamma outcomes |
-| **Graceful Shutdown** | ✅ FIXED | State saved properly before exit |
+| Bankroll | Profile | kellyMax | riskEnvelope | MAX_POSITION_SIZE |
+|---------:|---------|---------:|:------------:|------------------:|
+| < $20 | MICRO_SAFE | 0.17 | ON | 0.17 |
+| ≥ $20 | GROWTH | 0.32 | OFF | 0.32 |
 
-### v88 New Features
+With your **$40 start**, you begin in **GROWTH** automatically. If you withdraw or draw down below $20, you automatically move to **MICRO_SAFE**.
+
+| Parameter | Value |
+|-----------|-------|
+| **Auto profile** | ON (default) |
+| **Assets** | BTC+ETH |
+| **Tier** | CONVICTION primary (ADVISORY allowed only via frequency floor rules) |
+| **Balance floor** | $2.00 (hard stop for new trades) |
+| **Global stop** | 35% daily (dayStartBalance based) |
+| **Cooldown** | 3 consecutive losses ⇒ 20 min pause |
+
+### v91 New Features (what changed since v88)
 
 | Feature | Description |
 |---------|-------------|
-| **Runtime Parity** | Backtests now simulate loss cooldown + global stop-loss |
-| **Relative Thresholds** | Vault thresholds can be set as multipliers of starting balance |
-| **Halt Statistics** | Backtest response shows haltedTrades, cooldownBlocks, globalStopBlocks |
+| **AUTO‑BANKROLL PROFILE** | Automatically adapts Kelly cap + envelope by bankroll (deposit/withdraw aware) |
+| **Optimizer parity** | `/api/vault-optimize-polymarket` no longer forces `riskEnvelope=1` and can run with `autoProfile=1` |
+| **Tools UI v90** | Starting balances > $20 supported; Auto Profile toggle added for Polymarket optimizer |
+| **Balance freshness loop** | LIVE wallet balance refresh runs periodically (detect deposits/withdrawals even without trades) |
 
-### v88 vs v86 Comparison ($40 Start)
+> **Important**: Any “7‑day/168h” result is only valid if the response proves coverage (`summary.timeSpan.hours ≥ 151.2`). If not, treat it as a shorter‑window result.
 
-| Metric | v86 (kellyMax=0.17, envelope=ON) | v88 (kellyMax=0.32, envelope=OFF) |
-|--------|----------------------------------|-----------------------------------|
-| **Trades Executed** | 0 (all blocked) | 91+ |
-| **7d Avg Return** | N/A | **+318%** |
-| **7d Worst** | N/A | +136% |
-| **MinOfMins** | N/A | $22.46 |
-| **Ruin Rate** | 0% | **0%** |
-
-### Rolling Non-Cherry-Picked Backtest Results (v79)
+### Rolling Non-Cherry-Picked Backtest Results (v79) — HISTORICAL (do not treat as current truth)
 
 | Window | Offset | Final | Profit | Win Rate | Max DD | Trades |
 |--------|--------|-------|--------|----------|--------|--------|

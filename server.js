@@ -7119,7 +7119,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 88;  // v88: Runtime parity (loss cooldown + global stop in backtests) + relative vault thresholds for $15 start
+const CONFIG_VERSION = 91;  // v91: AUTO-BANKROLL PROFILE + backtest parity + Tools UI v90 + balance refresh loop
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
