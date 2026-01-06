@@ -539,6 +539,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const SLIPPAGE_PCT = 0.01;
         const MIN_ORDER = 1.10; // Polymarket minimum (stake) + buffer
 
+        // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss simulation
+        // These were previously "runtime-only" protections; now backtests match runtime halts.
+        // Defined at endpoint scope so they can be referenced in response JSON
+        const simulateHalts = req.query.simulateHalts !== '0' && req.query.simulateHalts !== 'false'; // Default: ON
+        const maxConsecutiveLosses = parseInt(req.query.maxConsecLosses) || (CONFIG?.RISK?.maxConsecutiveLosses ?? 3);
+        const cooldownSeconds = parseInt(req.query.cooldownSecs) || (CONFIG?.RISK?.cooldownAfterLoss ?? 1200);
+        const globalStopLoss = parseFloat(req.query.globalStopLoss) || (CONFIG?.RISK?.globalStopLoss ?? 0.35);
+
         const crypto = require('crypto');
 
         const clamp01 = (x) => {
@@ -1088,14 +1096,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let minBalance = startingBalance;
             const RUIN_FLOOR = 2.00; // Balance below this = ruin
 
-            // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss simulation
-            // These were previously "runtime-only" protections; now backtests match runtime halts.
-            const simulateHalts = req.query.simulateHalts !== '0' && req.query.simulateHalts !== 'false'; // Default: ON
+            // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss state variables
+            // (Configuration params are defined at endpoint scope above)
             let consecutiveLosses = 0;
             let lastLossEpochSec = 0;
-            const maxConsecutiveLosses = parseInt(req.query.maxConsecLosses) || (CONFIG?.RISK?.maxConsecutiveLosses ?? 3);
-            const cooldownSeconds = parseInt(req.query.cooldownSecs) || (CONFIG?.RISK?.cooldownAfterLoss ?? 1200);
-            const globalStopLoss = parseFloat(req.query.globalStopLoss) || (CONFIG?.RISK?.globalStopLoss ?? 0.35);
             let globalStopTriggeredToday = false;
             let haltedTrades = 0;
             let cooldownBlocks = 0;
