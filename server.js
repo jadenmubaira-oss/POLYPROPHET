@@ -519,7 +519,15 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         if (allowedAssets.size === 0) { allowedAssets.add('BTC'); allowedAssets.add('ETH'); }
         
         // 🏆 v76: Risk envelope simulation (matches runtime applyRiskEnvelope)
-        const riskEnvelopeEnabled = req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false';
+        // 🏆 v89 FIX: If query param is omitted, default to runtime CONFIG (parity).
+        const riskEnvelopeEnabled = (() => {
+            if (req.query.riskEnvelope !== undefined) {
+                return req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false';
+            }
+            if (CONFIG?.RISK?.riskEnvelopeEnabled !== undefined) return !!CONFIG.RISK.riskEnvelopeEnabled;
+            // Safe default if CONFIG missing the flag.
+            return true;
+        })();
         const intradayLossBudgetPct = parseFloat(req.query.intradayBudget) || 0.35;
         const trailingDrawdownPct = parseFloat(req.query.trailingDD) || 0.15;
         const perTradeLossCap = parseFloat(req.query.perTradeCap) || 0.10;
@@ -1317,7 +1325,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         const trailingDDFromPeak = peakBalance > 0 ? peakBalance - balance : 0;
                         const trailingBudget = peakBalance * dynTrailingDDPct - trailingDDFromPeak;
                         const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
-                        const maxTradeSize = effectiveBudget * dynPerTradeCap;
+                        // 🏆 v89 FIX: If budget can support MIN_ORDER, ensure maxTradeSize is at least MIN_ORDER
+                        // to prevent a min-order freeze in Stage1/2.
+                        let maxTradeSize = effectiveBudget * dynPerTradeCap;
+                        if (effectiveBudget >= MIN_ORDER) {
+                            maxTradeSize = Math.max(MIN_ORDER, maxTradeSize);
+                        }
                         
                         // 🏆 v78/v86 FIX: Match runtime applyRiskEnvelope logic (including min-order override rules)
                         // The TRUE constraint is effectiveBudget, not maxTradeSize.
@@ -2706,6 +2719,15 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         const stake = parseFloat(req.query.stake) || 0.35; // match /api/backtest-polymarket default if not specified
         const kellyMax = parseFloat(req.query.kellyMax) || (CONFIG?.RISK?.kellyMaxFraction || 0.32); // 🏆 v88: EMPIRICAL OPTIMUM for $40+
         const assets = req.query.assets || 'BTC,ETH';
+        // 🏆 v89 FIX: Don't hardcode riskEnvelope=1. Respect query param; else default to runtime config.
+        const riskEnvelopeEnabled = (() => {
+            if (req.query.riskEnvelope !== undefined) {
+                return req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false';
+            }
+            if (CONFIG?.RISK?.riskEnvelopeEnabled !== undefined) return !!CONFIG.RISK.riskEnvelopeEnabled;
+            return true;
+        })();
+        const riskEnvelopeParam = riskEnvelopeEnabled ? '1' : '0';
         const apiKey = (typeof req.query.apiKey === 'string' && req.query.apiKey.trim().length > 0) ? req.query.apiKey.trim() : null;
         const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
 
@@ -2754,7 +2776,7 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                         kellyMax: kellyMax.toString(),
                         assets,
                         vaultTriggerBalance: vaultTriggerBalance.toString(),
-                        riskEnvelope: '1',
+                        riskEnvelope: riskEnvelopeParam,
                         limit: backtestLimit.toString()
                     });
                     if (apiKey) backtestParams.set('apiKey', apiKey);
@@ -6225,9 +6247,13 @@ app.get('/api/perfection-check', async (req, res) => {
     if (tradeExecutor && typeof tradeExecutor.getDynamicRiskProfile === 'function') {
         try {
             const profile = tradeExecutor.getDynamicRiskProfile(10); // Test with $10 balance
-            profileUsesContract = profile.thresholds && 
+            // 🏆 v89 FIX: Ensure `passed` is a boolean (not an object)
+            profileUsesContract = !!profile?.thresholds &&
                                  Number.isFinite(profile.thresholds.vaultTriggerBalance) &&
-                                 profile.thresholds.sources;
+                                 Number.isFinite(profile.thresholds.stage2Threshold) &&
+                                 !!profile.thresholds.sources &&
+                                 typeof profile.thresholds.sources.vaultTriggerBalance === 'string' &&
+                                 typeof profile.thresholds.sources.stage2Threshold === 'string';
             profileThresholds = profile.thresholds;
         } catch (e) {
             profileUsesContract = false;
@@ -8153,8 +8179,13 @@ class TradeExecutor {
         const effectiveBudget = Math.min(remainingIntradayBudget, remainingTrailingBudget);
         
         // Per-trade cap: no single trade should risk more than X% of remaining budget
+        // 🏆 v89 FIX: Avoid min-order freeze when effectiveBudget >= MIN_ORDER.
         const perTradeCap = profile.perTradeLossCap;
-        const maxTradeSize = effectiveBudget * perTradeCap;
+        const MIN_ORDER = 1.10; // Polymarket minimum
+        let maxTradeSize = effectiveBudget * perTradeCap;
+        if (effectiveBudget >= MIN_ORDER) {
+            maxTradeSize = Math.max(MIN_ORDER, maxTradeSize);
+        }
         
         const reason = remainingTrailingBudget < remainingIntradayBudget
             ? `Trailing DD (${(trailingDDPct * 100).toFixed(0)}% from peak $${peakBalance.toFixed(2)})`
