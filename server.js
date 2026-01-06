@@ -95,6 +95,14 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // CRITICAL: Parse JSON bodies BEFORE any routes
 
+// #region agent log
+// Debug-mode request trace (no secrets)
+app.use((req, res, next) => {
+    fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'A',location:'server.js:request-mw',message:'incoming request',data:{method:req.method,path:req.path,originalUrl:req.originalUrl,hasApiKeyQuery:(req&&req.query&&typeof req.query.apiKey!=='undefined'),hasAuthHeader:!!(req&&req.headers&&req.headers.authorization)},timestamp:Date.now()})}).catch(()=>{});
+    next();
+});
+// #endregion
+
 // ==================== PASSWORD PROTECTION ====================
 // 🎯 GOAT v44.1: Support both Basic Auth AND Bearer token for API access
 const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
@@ -1078,6 +1086,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             const dayByDay = []; // { day, date, startBalance, endBalance, trades, wins, losses, pnl, maxDD }
             let currentDayNum = 0;
             let currentDayStats = null;
+            
+            // 🏆 v84: Objective metrics tracking for optimizer aggregation
+            let hit100 = null; // { day, tradeIndex, balance } when first hit $100
+            let hit1000 = null; // { day, tradeIndex, balance } when first hit $1000
+            let tradeIndex = 0;
+            let minBalance = startingBalance;
+            const RUIN_FLOOR = 2.00; // Balance below this = ruin
 
             // Resolve trades per-window (no intra-window compounding when maxTradesPerCycle > 1).
             const byResolvedWindow = new Map(); // cycleStartEpochSec -> cycles[]
@@ -1236,10 +1251,23 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         // Only block when effectiveBudget < MIN_ORDER (truly exhausted)
                         const MIN_ORDER = 1.10;
                         
+                        // 🏆 v84: Bootstrap min-order override (parity with runtime TradeExecutor.applyRiskEnvelope)
+                        // In Bootstrap stage (balance < stage1 threshold), minOrderRiskOverride=true
+                        // This allows MIN_ORDER even when budget is exhausted, as long as balance can cover it
+                        const isBootstrapStage = balance < STAGE1_THRESHOLD;
+                        
                         // Case 1: Budget truly exhausted
                         if (effectiveBudget < MIN_ORDER) {
-                            envelopeBlocks++;
-                            continue;
+                            // 🏆 v84: Check Bootstrap min-order override before blocking
+                            if (isBootstrapStage && balance >= MIN_ORDER) {
+                                // Allow MIN_ORDER via override (matches runtime behavior)
+                                stake = MIN_ORDER;
+                                envelopeCaps++;
+                                // Don't block - continue to trade execution
+                            } else {
+                                envelopeBlocks++;
+                                continue;
+                            }
                         }
                         
                         // Case 2: Per-trade cap < MIN_ORDER but budget available
@@ -1310,6 +1338,16 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 const dd = peakBalance > 0 ? ((peakBalance - balance) / peakBalance) : 0;
                 maxDrawdown = Math.max(maxDrawdown, dd);
                 
+                // 🏆 v84: Track objective milestones
+                tradeIndex += windowCycles.length;
+                minBalance = Math.min(minBalance, balance);
+                if (hit100 === null && balance >= 100) {
+                    hit100 = { day: currentDayNum, tradeIndex, balance: parseFloat(balance.toFixed(2)) };
+                }
+                if (hit1000 === null && balance >= 1000) {
+                    hit1000 = { day: currentDayNum, tradeIndex, balance: parseFloat(balance.toFixed(2)) };
+                }
+                
                 // 🏆 v76: Update day stats after each window
                 if (currentDayStats) {
                     currentDayStats.endBalance = balance;
@@ -1372,7 +1410,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 envelopeCaps,
                 envelopeBlocks,
                 // 🏆 v76: Day-by-day breakdown
-                dayByDay
+                dayByDay,
+                // 🏆 v84: Objective metrics for optimizer
+                hit100,
+                hit1000,
+                minBalance,
+                ruined: minBalance < RUIN_FLOOR
             };
         }
 
@@ -1467,6 +1510,19 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 assetsAllowed: Array.from(allowedAssets),
                 envelopeCaps: primarySim.envelopeCaps,
                 envelopeBlocks: primarySim.envelopeBlocks
+            },
+            // 🏆 v84: Objective metrics for optimizer aggregation
+            objectiveMetrics: {
+                hit100: primarySim.hit100,  // { day, tradeIndex, balance } or null
+                hit1000: primarySim.hit1000, // { day, tradeIndex, balance } or null
+                minBalance: parseFloat(primarySim.minBalance.toFixed(2)),
+                ruined: primarySim.ruined,   // true if balance ever fell below $2 floor
+                // Convenience booleans for optimizer scoring
+                reachedGoal100: primarySim.hit100 !== null,
+                reachedGoal1000: primarySim.hit1000 !== null,
+                // Day-based goal checks (for 7-day and 30-day windows)
+                hit100By7d: primarySim.hit100 !== null && primarySim.hit100.day <= 7,
+                hit1000By30d: primarySim.hit1000 !== null && primarySim.hit1000.day <= 30
             },
             coverage: {
                 candidatesFound: allCycles.length,
@@ -2257,6 +2313,10 @@ app.get('/api/vault-optimize', async (req, res) => {
         
         // Near-tie epsilon for objective ordering
         const epsilon = parseFloat(req.query.epsilon) || 0.5; // 0.5 percentage points
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'E',location:'server.js:/api/vault-optimize',message:'vault-optimize request received',data:{method:req.method,path:req.path,hasApiKeyQuery:(req&&req.query&&typeof req.query.apiKey!=='undefined'),hasAuthHeader:!!(req&&req.headers&&req.headers.authorization),queryKeys:(req&&req.query?Object.keys(req.query).slice(0,20):[]),parsed:{minTrigger,maxTrigger,step,simulations,startingBalance,adaptiveMode,BALANCE_FLOOR,TRADES_PER_DAY,stage2Threshold,epsilon}},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         
         // 🏆 v83: Seedable RNG for reproducibility (same seed = same rankings)
         const seedParam = parseInt(req.query.seed);
@@ -2502,6 +2562,209 @@ app.get('/api/vault-optimize', async (req, res) => {
                 drawdownLabel: r.drawdownLabel
             })),
             // Current CONFIG for reference
+            currentConfig: {
+                vaultTriggerBalance: getVaultThresholds().vaultTriggerBalance,
+                sources: getVaultThresholds().sources
+            }
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// ==================== 🏆 v84 POLYMARKET-BACKED VAULT OPTIMIZER ====================
+// Uses actual Polymarket backtest data (ground truth) to optimize vaultTriggerBalance
+// Sweeps thresholds and ranks by empirical P($100 by day 7), P($1000 by day 30)
+// This is the AUTHORITATIVE optimizer - uses real outcomes, not Monte Carlo
+app.get('/api/vault-optimize-polymarket', async (req, res) => {
+    try {
+        const startTime = Date.now();
+        
+        // Sweep parameters
+        const minTrigger = parseFloat(req.query.min) || 6.10;
+        const maxTrigger = parseFloat(req.query.max) || 15.00;
+        const step = parseFloat(req.query.step) || 1.0; // Coarser step for real backtests (slower)
+        const epsilon = parseFloat(req.query.epsilon) || 0.5; // Tie-breaker threshold
+        
+        // Window parameters - run multiple non-cherry-picked windows
+        const windowHours = parseInt(req.query.hours) || 168; // 7 days
+        const windowOffsets = (req.query.offsets || '0,24,48,72').split(',').map(x => parseInt(x.trim())).filter(x => Number.isFinite(x));
+        const startingBalance = parseFloat(req.query.balance) || 5.0;
+        
+        // Backtest parameters (passed through)
+        const tier = req.query.tier || 'CONVICTION';
+        const stake = parseFloat(req.query.stake) || 0.32;
+        const kellyMax = parseFloat(req.query.kellyMax) || 0.32;
+        const assets = req.query.assets || 'BTC,ETH';
+        
+        // Generate trigger candidates
+        const triggers = [];
+        for (let t = minTrigger; t <= maxTrigger + 0.001; t += step) {
+            triggers.push(Math.round(t * 100) / 100);
+        }
+        
+        const results = [];
+        
+        // For each trigger value, run backtests across all offset windows
+        for (const vaultTriggerBalance of triggers) {
+            let windowResults = [];
+            
+            for (const offset of windowOffsets) {
+                try {
+                    // Build backtest URL (internal call simulation)
+                    const backtestParams = new URLSearchParams({
+                        hours: windowHours.toString(),
+                        offsetHours: offset.toString(),
+                        balance: startingBalance.toString(),
+                        tier,
+                        stake: stake.toString(),
+                        kellyMax: kellyMax.toString(),
+                        assets,
+                        vaultTriggerBalance: vaultTriggerBalance.toString(),
+                        riskEnvelope: '1'
+                    });
+                    
+                    // Make internal request to backtest endpoint
+                    const backtestUrl = `http://localhost:${process.env.PORT || 3000}/api/backtest-polymarket?${backtestParams.toString()}`;
+                    const backtestResp = await fetch(backtestUrl, {
+                        headers: { 'Authorization': req.headers.authorization || '' },
+                        signal: AbortSignal.timeout(60000)
+                    });
+                    
+                    if (!backtestResp.ok) continue;
+                    const backtestData = await backtestResp.json();
+                    
+                    // Extract objective metrics
+                    const metrics = backtestData.objectiveMetrics || {};
+                    const summary = backtestData.summary || {};
+                    
+                    windowResults.push({
+                        offset,
+                        hit100By7d: metrics.hit100By7d || false,
+                        hit1000By30d: metrics.hit1000By30d || false,
+                        finalBalance: summary.finalBalance || startingBalance,
+                        maxDrawdown: summary.maxDrawdown || 0,
+                        winRate: summary.winRate || 0,
+                        trades: summary.trades || 0,
+                        ruinedBelowFloor: (summary.finalBalance || startingBalance) < 2.0
+                    });
+                } catch (e) {
+                    // Skip failed windows
+                }
+            }
+            
+            if (windowResults.length === 0) continue;
+            
+            // Aggregate across windows
+            const windowCount = windowResults.length;
+            const hit100Count = windowResults.filter(w => w.hit100By7d).length;
+            const hit1000Count = windowResults.filter(w => w.hit1000By30d).length;
+            const ruinCount = windowResults.filter(w => w.ruinedBelowFloor).length;
+            const avgMaxDD = windowResults.reduce((sum, w) => sum + (w.maxDrawdown || 0), 0) / windowCount;
+            const avgFinalBalance = windowResults.reduce((sum, w) => sum + w.finalBalance, 0) / windowCount;
+            const avgWinRate = windowResults.reduce((sum, w) => sum + w.winRate, 0) / windowCount;
+            
+            results.push({
+                vaultTriggerBalance,
+                windowCount,
+                p100_day7: (hit100Count / windowCount) * 100,
+                p1000_day30: (hit1000Count / windowCount) * 100,
+                ruinPct: (ruinCount / windowCount) * 100,
+                avgMaxDD: avgMaxDD * 100,
+                avgFinalBalance,
+                avgWinRate,
+                windowResults
+            });
+        }
+        
+        if (results.length === 0) {
+            return res.json({
+                error: 'No valid backtest results. Check that you have collector data/debug exports.',
+                suggestion: 'Run the bot in PAPER mode for at least 24h to accumulate backtest data.'
+            });
+        }
+        
+        // Rank by objective ordering:
+        // 1. Primary: maximize P($100 by day 7)
+        // 2. Secondary (within epsilon): maximize P($1000 by day 30)
+        // 3. Tie-breaker: lower ruin probability
+        // 4. Tie-breaker: lower drawdown
+        const ranked = results.slice().sort((a, b) => {
+            // Primary: P100@7d (higher is better)
+            if (Math.abs(a.p100_day7 - b.p100_day7) > epsilon) {
+                return b.p100_day7 - a.p100_day7;
+            }
+            // Secondary: P1000@30d (higher is better)
+            if (Math.abs(a.p1000_day30 - b.p1000_day30) > epsilon) {
+                return b.p1000_day30 - a.p1000_day30;
+            }
+            // Tie-breaker 1: Ruin probability (lower is better)
+            if (Math.abs(a.ruinPct - b.ruinPct) > 0.1) {
+                return a.ruinPct - b.ruinPct;
+            }
+            // Tie-breaker 2: Drawdown (lower is better)
+            return a.avgMaxDD - b.avgMaxDD;
+        });
+        
+        const winner = ranked[0];
+        const nearTies = ranked.filter(r => Math.abs(r.p100_day7 - winner.p100_day7) <= epsilon);
+        const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
+        
+        res.json({
+            summary: {
+                method: 'Polymarket-Native Vault Optimizer (v84)',
+                runtime: runtime + 's',
+                sweepRange: { min: minTrigger, max: maxTrigger, step, candidates: triggers.length },
+                windowsPerCandidate: windowOffsets.length,
+                windowHours,
+                windowOffsets,
+                totalBacktests: triggers.length * windowOffsets.length,
+                objectiveOrdering: [
+                    '1. Maximize P($100 by day 7) [PRIMARY]',
+                    '2. Maximize P($1000 by day 30) [SECONDARY, within epsilon]',
+                    '3. Minimize ruin probability [TIE-BREAKER]',
+                    '4. Minimize drawdown [TIE-BREAKER]'
+                ],
+                epsilon: epsilon + ' percentage points',
+                dataSource: 'Polymarket Gamma API (ground truth outcomes)'
+            },
+            parameters: {
+                startingBalance,
+                tier,
+                stake,
+                kellyMax,
+                assets
+            },
+            // 🏆 v84: The recommended vaultTriggerBalance (from real backtest data)
+            winner: {
+                vaultTriggerBalance: winner.vaultTriggerBalance,
+                p100_day7: winner.p100_day7.toFixed(2) + '%',
+                p1000_day30: winner.p1000_day30.toFixed(2) + '%',
+                ruinPct: winner.ruinPct.toFixed(2) + '%',
+                avgMaxDD: winner.avgMaxDD.toFixed(2) + '%',
+                avgFinalBalance: '$' + winner.avgFinalBalance.toFixed(2),
+                avgWinRate: (winner.avgWinRate * 100).toFixed(1) + '%',
+                windowCount: winner.windowCount,
+                explanation: `vaultTriggerBalance=$${winner.vaultTriggerBalance.toFixed(2)} achieved ${winner.p100_day7.toFixed(1)}% P($100 by day 7) ` +
+                            `across ${winner.windowCount} non-cherry-picked windows, ` +
+                            `with ${winner.ruinPct.toFixed(1)}% ruin risk and ${winner.avgMaxDD.toFixed(1)}% avg max drawdown.`
+            },
+            nearTies: nearTies.slice(0, 5).map(r => ({
+                vaultTriggerBalance: r.vaultTriggerBalance,
+                p100_day7: r.p100_day7.toFixed(2) + '%',
+                p1000_day30: r.p1000_day30.toFixed(2) + '%',
+                ruinPct: r.ruinPct.toFixed(2) + '%',
+                avgMaxDD: r.avgMaxDD.toFixed(2) + '%'
+            })),
+            rankedResults: ranked.map((r, i) => ({
+                rank: i + 1,
+                vaultTriggerBalance: r.vaultTriggerBalance,
+                p100_day7: r.p100_day7.toFixed(2) + '%',
+                p1000_day30: r.p1000_day30.toFixed(2) + '%',
+                ruinPct: r.ruinPct.toFixed(2) + '%',
+                avgMaxDD: r.avgMaxDD.toFixed(2) + '%',
+                avgFinalBalance: '$' + r.avgFinalBalance.toFixed(2)
+            })),
             currentConfig: {
                 vaultTriggerBalance: getVaultThresholds().vaultTriggerBalance,
                 sources: getVaultThresholds().sources
@@ -5887,13 +6150,13 @@ app.get('/api/perfection-check', async (req, res) => {
     const registeredRoutes = app._router?.stack
         ?.filter(r => r.route)
         ?.map(r => ({ path: r.route.path, methods: Object.keys(r.route.methods) })) || [];
-    const vaultRoutes = ['/api/vault-projection', '/api/vault-optimize', '/api/risk-controls'];
+    const vaultRoutes = ['/api/vault-projection', '/api/vault-optimize', '/api/vault-optimize-polymarket', '/api/risk-controls'];
     const missingRoutes = vaultRoutes.filter(route => 
         !registeredRoutes.some(r => r.path === route && r.methods.includes('get'))
     );
     addCheck('Vault endpoints registered', missingRoutes.length === 0,
         missingRoutes.length === 0 
-            ? 'All vault endpoints (projection, optimize, risk-controls) are registered' 
+            ? 'All vault endpoints (projection, optimize, optimize-polymarket, risk-controls) are registered' 
             : `Missing: ${missingRoutes.join(', ')}`);
     
     // Check 12: Static forensic - no hardcoded threshold patterns in backtest simulation
@@ -5961,16 +6224,17 @@ app.get('/api/perfection-check', async (req, res) => {
             toolsUiExists = true;
             const toolsContent = fs.readFileSync(toolsPath, 'utf8');
             // Check for required marker and key features
-            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v83');
+            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v84');
             const hasVaultPanel = toolsContent.includes('vault-projection') && toolsContent.includes('vault-optimize');
+            const hasPolymarketPanel = toolsContent.includes('vault-optimize-polymarket') && toolsContent.includes('runPolymarketOptimizer');
             const hasAuditPanel = toolsContent.includes('perfection-check');
             const hasApiExplorer = toolsContent.includes('API Explorer');
-            const hasApplyWinner = toolsContent.includes('applyWinner');
+            const hasApplyWinner = toolsContent.includes('applyWinner') && toolsContent.includes('applyPolymarketWinner');
             
-            if (toolsUiHasMarker && hasVaultPanel && hasAuditPanel && hasApiExplorer && hasApplyWinner) {
-                toolsUiDetails = 'Tools UI v83 with Vault panel, Audit runner, API Explorer, and Apply Winner';
+            if (toolsUiHasMarker && hasVaultPanel && hasPolymarketPanel && hasAuditPanel && hasApiExplorer && hasApplyWinner) {
+                toolsUiDetails = 'Tools UI v84 with Monte Carlo panel, Polymarket optimizer, Audit runner, API Explorer, and Apply Winner';
             } else {
-                toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'v83 marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
+                toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'v84 marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasPolymarketPanel ? 'polymarket panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
             }
         } else {
             toolsUiDetails = 'public/tools.html not found';
@@ -6008,8 +6272,9 @@ app.get('/api/perfection-check', async (req, res) => {
             ],
             ifFailed: 'Run /api/verify for general system health, then check server.js for missing vault wiring',
             relatedEndpoints: [
-                'GET /api/vault-projection?vaultTriggerBalance=X - Test specific threshold',
-                'GET /api/vault-optimize - Find optimal threshold',
+                'GET /api/vault-projection?vaultTriggerBalance=X - Test specific threshold (Monte Carlo)',
+                'GET /api/vault-optimize - Find optimal threshold (Monte Carlo)',
+                'GET /api/vault-optimize-polymarket - 🏆 v84: Ground truth optimizer (real Polymarket outcomes)',
                 'GET /api/risk-controls - See current runtime state',
                 'GET /api/backtest-polymarket?vaultTriggerBalance=X - Validate with historical data'
             ]
@@ -6631,7 +6896,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 83;  // v83: VaultTriggerBalance optimization system - threshold contract, vault-aware projections, optimizer endpoint, perfection check
+const CONFIG_VERSION = 84;  // v84: Polymarket-native vault optimizer (ground truth), /api/vault-optimize-polymarket, objective metrics in backtests
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -18235,6 +18500,10 @@ app.post('/api/reset-drift', async (req, res) => {
 app.post('/api/settings', async (req, res) => {
     const updates = req.body;
     let reloadRequired = false;
+
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'D',location:'server.js:/api/settings',message:'settings update request received',data:{method:req.method,path:req.path,hasApiKeyQuery:(req&&req.query&&typeof req.query.apiKey!=='undefined'),hasAuthHeader:!!(req&&req.headers&&req.headers.authorization),updateKeys:(updates&&typeof updates==='object'?Object.keys(updates).slice(0,30):[]),riskKeys:(updates&&updates.RISK&&typeof updates.RISK==='object'?Object.keys(updates.RISK).slice(0,30):[]),hasVaultTrigger:(!!(updates&&updates.RISK)&&updates.RISK.vaultTriggerBalance!==undefined),vaultTriggerType:(updates&&updates.RISK?typeof updates.RISK.vaultTriggerBalance:null),hasStage1:(!!(updates&&updates.RISK)&&updates.RISK.stage1Threshold!==undefined),stage1Type:(updates&&updates.RISK?typeof updates.RISK.stage1Threshold:null)},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
 
     // 🎯 v52 CRITICAL FIX: Deep-merge helper to prevent config drift
     // When applying presets, object properties (ORACLE, RISK, etc.) must be MERGED,

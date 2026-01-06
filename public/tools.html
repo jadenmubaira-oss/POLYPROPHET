@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🛠️ Tools - POLYPROPHET</title>
-    <!-- POLYPROPHET_TOOLS_UI_MARKER_v83 -->
+    <!-- POLYPROPHET_TOOLS_UI_MARKER_v84 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -240,9 +240,10 @@
     <div class="main-container">
         <!-- TABS -->
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('vault')">🏦 Vault Optimizer</button>
-            <button class="tab" onclick="switchTab('audit')">✅ Goal Audit</button>
-            <button class="tab" onclick="switchTab('explorer')">🔌 API Explorer</button>
+            <button class="tab active" onclick="switchTab('vault', event)">🏦 Monte Carlo</button>
+            <button class="tab" onclick="switchTab('polymarket', event)">📈 Polymarket Backtest</button>
+            <button class="tab" onclick="switchTab('audit', event)">✅ Goal Audit</button>
+            <button class="tab" onclick="switchTab('explorer', event)">🔌 API Explorer</button>
         </div>
         
         <!-- VAULT OPTIMIZER TAB -->
@@ -352,6 +353,96 @@
             </div>
         </div>
         
+        <!-- POLYMARKET BACKTEST OPTIMIZER TAB (v84) -->
+        <div id="polymarket-tab" class="tab-content">
+            <h2 class="section-title">📈 Polymarket Backtest Optimizer</h2>
+            <p style="color:#888;margin-bottom:20px;">
+                <strong style="color:#ffd700;">🏆 Ground Truth Optimizer</strong> — Uses real Polymarket outcomes (via Gamma API) to find the optimal vaultTriggerBalance.
+                This is the AUTHORITATIVE source for P($100 by day 7) and P($1000 by day 30) evidence.
+            </p>
+            
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">🔬 Polymarket-Native Optimizer</span>
+                    <span id="pm-optimizer-status" class="status-badge" style="display:none;"></span>
+                </div>
+                <p style="color:#666;font-size:0.85em;margin-bottom:15px;">
+                    Sweep vault trigger values using actual Polymarket backtest data across multiple non-cherry-picked windows.
+                    Results are ranked by your objective ordering: maximize P($100@7d), then P($1000@30d), with ruin and drawdown as tie-breakers.
+                </p>
+                
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Range Start ($)</label>
+                        <input type="number" id="pm-min" value="6.1" min="5" max="15" step="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label>Range End ($)</label>
+                        <input type="number" id="pm-max" value="15" min="6" max="20" step="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label>Step Size ($)</label>
+                        <input type="number" id="pm-step" value="1" min="0.5" max="2" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Window Hours</label>
+                        <input type="number" id="pm-hours" value="168" min="24" max="720" step="24">
+                    </div>
+                    <div class="form-group">
+                        <label>Window Offsets (comma-sep)</label>
+                        <input type="text" id="pm-offsets" value="0,24,48,72" placeholder="e.g. 0,24,48,72">
+                    </div>
+                    <div class="form-group">
+                        <label>Starting Balance ($)</label>
+                        <input type="number" id="pm-start" value="5" min="1" max="20" step="0.1">
+                    </div>
+                    <div class="form-group">
+                        <label>Tier</label>
+                        <select id="pm-tier">
+                            <option value="CONVICTION" selected>CONVICTION</option>
+                            <option value="STRONG">STRONG</option>
+                            <option value="MODERATE">MODERATE</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Kelly Max</label>
+                        <input type="number" id="pm-kelly" value="0.32" min="0.1" max="0.5" step="0.01">
+                    </div>
+                </div>
+                
+                <button class="btn btn-success" onclick="runPolymarketOptimizer()" id="pm-opt-btn">📈 Run Polymarket Optimizer</button>
+                
+                <!-- PM Winner Card -->
+                <div id="pm-winner-card" class="winner-card" style="display:none;">
+                    <div class="winner-title">🏆 OPTIMAL VAULT TRIGGER (POLYMARKET GROUND TRUTH)</div>
+                    <div class="winner-stats">
+                        <div class="winner-stat">
+                            <div class="winner-stat-value" id="pm-winner-trigger">--</div>
+                            <div class="winner-stat-label">Trigger ($)</div>
+                        </div>
+                        <div class="winner-stat">
+                            <div class="winner-stat-value" id="pm-winner-p100">--</div>
+                            <div class="winner-stat-label">P($100@7d)</div>
+                        </div>
+                        <div class="winner-stat">
+                            <div class="winner-stat-value" id="pm-winner-p1000">--</div>
+                            <div class="winner-stat-label">P($1000@30d)</div>
+                        </div>
+                        <div class="winner-stat">
+                            <div class="winner-stat-value" id="pm-winner-ruin">--</div>
+                            <div class="winner-stat-label">Ruin Risk</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-warning" onclick="applyPolymarketWinner()" id="pm-apply-btn">
+                        👑 APPLY WINNER TO CONFIG (requires confirmation)
+                    </button>
+                    <div id="pm-apply-result" style="margin-top:10px;font-size:0.9em;"></div>
+                </div>
+                
+                <div id="pm-opt-result" class="result-box" style="display:none;"></div>
+            </div>
+        </div>
+        
         <!-- GOAL AUDIT TAB -->
         <div id="audit-tab" class="tab-content">
             <h2 class="section-title">✅ Goal Audit / Perfection Check</h2>
@@ -422,7 +513,8 @@
                         <select id="api-endpoint" onchange="onEndpointChange()">
                             <optgroup label="🏦 Vault (Safe)">
                                 <option value="/api/vault-projection">vault-projection</option>
-                                <option value="/api/vault-optimize">vault-optimize</option>
+                                <option value="/api/vault-optimize">vault-optimize (Monte Carlo)</option>
+                                <option value="/api/vault-optimize-polymarket">vault-optimize-polymarket (Ground Truth)</option>
                                 <option value="/api/perfection-check">perfection-check</option>
                             </optgroup>
                             <optgroup label="📊 Information (Safe)">
@@ -487,7 +579,12 @@
                 <div class="api-card" onclick="quickCall('/api/vault-optimize?min=6.1&max=15&step=0.5&sims=200')">
                     <span class="api-card-method get">GET</span>
                     <span class="api-card-title">/api/vault-optimize</span>
-                    <div class="api-card-desc">Find optimal vault trigger in range</div>
+                    <div class="api-card-desc">Monte Carlo optimizer for vault trigger</div>
+                </div>
+                <div class="api-card" onclick="quickCall('/api/vault-optimize-polymarket?min=6.1&max=15&step=1&hours=168&offsets=0,24,48,72')">
+                    <span class="api-card-method get">GET</span>
+                    <span class="api-card-title">/api/vault-optimize-polymarket</span>
+                    <div class="api-card-desc">🏆 Ground truth optimizer using real Polymarket data</div>
                 </div>
                 <div class="api-card" onclick="quickCall('/api/health')">
                     <span class="api-card-method get">GET</span>
@@ -499,17 +596,24 @@
     </div>
     
     <script>
-        // Tab switching
-        function switchTab(tabName) {
+        // Tab switching - v84: Fixed to use closest() for reliable tab button targeting
+        function switchTab(tabName, evt) {
+            // Use the event passed as argument, or fallback to global event
+            const e = evt || window.event;
+            
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             
-            event.target.classList.add('active');
+            // v84: Use closest() to find the tab button even if click was on child element
+            const tabBtn = e && e.target ? e.target.closest('.tab') : null;
+            if (tabBtn) tabBtn.classList.add('active');
+            
             document.getElementById(tabName + '-tab').classList.add('active');
         }
         
         // Current winner data for apply
         let currentWinner = null;
+        let currentPolymarketWinner = null;  // 🏆 v84: Separate winner for Polymarket optimizer
         
         // 🏆 v83: Get apiKey from URL if present (for query-param auth support)
         function getApiKeyParam() {
@@ -591,6 +695,10 @@
                 
                 const res = await fetch(url);
                 const data = await res.json();
+
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'C',location:'public/tools.html:runOptimizer',message:'vault-optimize response received',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),httpOk:(res&&typeof res.ok==='boolean'?res.ok:null),status:(res&&typeof res.status==='number'?res.status:null),hasWinner:!!(data&&data.winner),winnerVaultTriggerType:(data&&data.winner?typeof data.winner.vaultTriggerBalance:null),winnerKeys:(data&&data.winner?Object.keys(data.winner).slice(0,12):[])},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 
                 if (data.winner) {
                     currentWinner = data.winner;
@@ -624,6 +732,9 @@
         
         // ==================== APPLY WINNER ====================
         async function applyWinner() {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'D',location:'public/tools.html:applyWinner',message:'applyWinner invoked',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),hasCurrentWinner:!!currentWinner,vaultTriggerType:(currentWinner?typeof currentWinner.vaultTriggerBalance:null)},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
             if (!currentWinner) {
                 alert('No winner to apply. Run the optimizer first.');
                 return;
@@ -653,6 +764,10 @@
                 let settingsUrl = '/api/settings';
                 const apiKeyParam = getApiKeyParam();
                 if (apiKeyParam) settingsUrl += '?' + apiKeyParam.substring(1); // Remove leading &
+
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'D',location:'public/tools.html:applyWinner',message:'applyWinner about to POST /api/settings',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),settingsUrlHasQuestion:(typeof settingsUrl==='string'?settingsUrl.includes('?'):null),settingsUrlHasApiKey:(typeof settingsUrl==='string'?settingsUrl.includes('apiKey='):null),payloadVaultTriggerType:(currentWinner?typeof currentWinner.vaultTriggerBalance:null)},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 
                 const res = await fetch(settingsUrl, {
                     method: 'POST',
@@ -668,6 +783,137 @@
                 
                 if (data.success) {
                     resultDiv.innerHTML = `<span style="color:#00ff88;">✅ SUCCESS! vaultTriggerBalance updated to $${currentWinner.vaultTriggerBalance.toFixed(2)}</span>`;
+                } else {
+                    resultDiv.innerHTML = `<span style="color:#ff4466;">❌ FAILED: ${data.error || 'Unknown error'}</span>`;
+                }
+            } catch (e) {
+                resultDiv.innerHTML = `<span style="color:#ff4466;">❌ ERROR: ${e.message}</span>`;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '👑 APPLY WINNER TO CONFIG (requires confirmation)';
+        }
+        
+        // ==================== 🏆 v84 POLYMARKET OPTIMIZER ====================
+        async function runPolymarketOptimizer() {
+            const btn = document.getElementById('pm-opt-btn');
+            const status = document.getElementById('pm-optimizer-status');
+            const result = document.getElementById('pm-opt-result');
+            const winnerCard = document.getElementById('pm-winner-card');
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Running backtests... (may take 30-60s)';
+            status.textContent = 'RUNNING';
+            status.className = 'status-badge running';
+            status.style.display = 'inline-block';
+            result.style.display = 'none';
+            winnerCard.style.display = 'none';
+            
+            try {
+                const min = document.getElementById('pm-min').value;
+                const max = document.getElementById('pm-max').value;
+                const step = document.getElementById('pm-step').value;
+                const hours = document.getElementById('pm-hours').value;
+                const offsets = document.getElementById('pm-offsets').value;
+                const start = document.getElementById('pm-start').value;
+                const tier = document.getElementById('pm-tier').value;
+                const kelly = document.getElementById('pm-kelly').value;
+                
+                let url = `/api/vault-optimize-polymarket?min=${min}&max=${max}&step=${step}&hours=${hours}&offsets=${encodeURIComponent(offsets)}&balance=${start}&tier=${tier}&kellyMax=${kelly}`;
+                url += getApiKeyParam();
+                
+                const res = await fetch(url, { signal: AbortSignal.timeout(120000) }); // 2 min timeout
+                const data = await res.json();
+                
+                if (data.error) {
+                    status.textContent = 'ERROR';
+                    status.className = 'status-badge fail';
+                    result.className = 'result-box error';
+                    result.style.display = 'block';
+                    result.textContent = `Error: ${data.error}\n\n${data.suggestion || ''}\n\nFull response:\n${JSON.stringify(data, null, 2)}`;
+                } else if (data.winner) {
+                    currentPolymarketWinner = data.winner;
+                    
+                    // 🏆 v84: Display winner stats
+                    document.getElementById('pm-winner-trigger').textContent = '$' + data.winner.vaultTriggerBalance.toFixed(2);
+                    document.getElementById('pm-winner-p100').textContent = data.winner.p100_day7;
+                    document.getElementById('pm-winner-p1000').textContent = data.winner.p1000_day30;
+                    document.getElementById('pm-winner-ruin').textContent = data.winner.ruinPct;
+                    
+                    winnerCard.style.display = 'block';
+                    
+                    status.textContent = 'COMPLETE';
+                    status.className = 'status-badge pass';
+                    result.className = 'result-box success';
+                    result.style.display = 'block';
+                    result.textContent = JSON.stringify(data, null, 2);
+                } else {
+                    status.textContent = 'NO RESULTS';
+                    status.className = 'status-badge fail';
+                    result.className = 'result-box error';
+                    result.style.display = 'block';
+                    result.textContent = JSON.stringify(data, null, 2);
+                }
+                
+            } catch (e) {
+                status.textContent = 'ERROR';
+                status.className = 'status-badge fail';
+                result.className = 'result-box error';
+                result.style.display = 'block';
+                result.textContent = 'Error: ' + e.message + (e.name === 'TimeoutError' ? '\n\nTip: The Polymarket optimizer can take 1-2 minutes. Try reducing the range or increasing the step size.' : '');
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '📈 Run Polymarket Optimizer';
+        }
+        
+        // ==================== 🏆 v84 APPLY POLYMARKET WINNER ====================
+        async function applyPolymarketWinner() {
+            if (!currentPolymarketWinner) {
+                alert('No winner to apply. Run the Polymarket optimizer first.');
+                return;
+            }
+            
+            const confirmed = confirm(
+                `⚠️ APPLY POLYMARKET WINNER TO CONFIG ⚠️\n\n` +
+                `This is the GROUND TRUTH optimal value from real Polymarket backtests.\n\n` +
+                `This will update your configuration to:\n` +
+                `  vaultTriggerBalance = $${currentPolymarketWinner.vaultTriggerBalance.toFixed(2)}\n\n` +
+                `Observed performance across windows:\n` +
+                `  P($100 by day 7): ${currentPolymarketWinner.p100_day7}\n` +
+                `  P($1000 by day 30): ${currentPolymarketWinner.p1000_day30}\n` +
+                `  Ruin probability: ${currentPolymarketWinner.ruinPct}\n` +
+                `  Avg Max Drawdown: ${currentPolymarketWinner.avgMaxDD}\n\n` +
+                `Click OK to apply, or Cancel to abort.`
+            );
+            
+            if (!confirmed) return;
+            
+            const btn = document.getElementById('pm-apply-btn');
+            const resultDiv = document.getElementById('pm-apply-result');
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Applying...';
+            
+            try {
+                let settingsUrl = '/api/settings';
+                const apiKeyParam = getApiKeyParam();
+                if (apiKeyParam) settingsUrl += '?' + apiKeyParam.substring(1);
+                
+                const res = await fetch(settingsUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        RISK: {
+                            vaultTriggerBalance: currentPolymarketWinner.vaultTriggerBalance
+                        }
+                    })
+                });
+                
+                const data = await res.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `<span style="color:#00ff88;">✅ SUCCESS! vaultTriggerBalance updated to $${currentPolymarketWinner.vaultTriggerBalance.toFixed(2)} (POLYMARKET GROUND TRUTH)</span>`;
                 } else {
                     resultDiv.innerHTML = `<span style="color:#ff4466;">❌ FAILED: ${data.error || 'Unknown error'}</span>`;
                 }
@@ -807,7 +1053,13 @@
                 }
                 
                 // 🏆 v83: Append apiKey from URL if present
-                endpoint += getApiKeyParam();
+                const hadQueryBeforeApiKey = endpoint.includes('?');
+                const apiKeyParam = getApiKeyParam();
+                endpoint += apiKeyParam;
+
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'A',location:'public/tools.html:makeApiRequest',message:'API Explorer request constructed',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),method,paramsProvided:!!(paramsText&&paramsText.trim()),hadQueryBeforeApiKey,hasApiKeyParam:!!apiKeyParam,badApiKeyJoin:(!!apiKeyParam&&!hadQueryBeforeApiKey),endpointBase:(typeof endpoint==='string'?endpoint.split('?')[0]:null)},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
                 
                 const options = { method };
                 
@@ -846,8 +1098,12 @@
             onMethodChange();
             document.getElementById('safety-warning').classList.remove('visible');
             
-            // Switch to explorer tab and make request
-            switchTab('explorer');
+            // Switch to explorer tab and make request (manual switch since no click event)
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector('.tab[onclick*="explorer"]').classList.add('active');
+            document.getElementById('explorer-tab').classList.add('active');
+            
             makeApiRequest();
         }
         

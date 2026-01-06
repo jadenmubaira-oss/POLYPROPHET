@@ -1,8 +1,8 @@
-# POLYPROPHET v83 — VAULT TRIGGER OPTIMIZATION SYSTEM
+# POLYPROPHET v84 — VAULT TRIGGER OPTIMIZATION SYSTEM
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v83 CRITICAL**: VaultTriggerBalance optimization system, `/api/vault-optimize`, `/api/perfection-check`, AI-handoff runbook
+> **v84 CRITICAL**: Polymarket-native vault optimizer (ground truth), `/api/vault-optimize-polymarket`, AI-handoff runbook
 
 ---
 
@@ -56,16 +56,16 @@
 
 PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH up/down prediction markets. It uses a multi-model ensemble (Chainlink price, momentum, Kalman filter, etc.) to predict outcomes and execute trades automatically.
 
-### Your Final Sweet Spot (v83 - OPTIMIZED)
+### Your Final Sweet Spot (v84 - OPTIMIZED)
 
-After exhaustive analysis of ALL backtests, debug logs (110+ files, 1,973 cycles), rolling non-cherry-picked validation, AND critical bug fixes, v83 delivers:
+After exhaustive analysis of ALL backtests, debug logs (110+ files, 1,973 cycles), rolling non-cherry-picked validation, AND critical bug fixes, v84 delivers:
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | **Max Stake** | 32% | 🏆 v80 Sweet spot - max profit with min ruin risk |
 | **Kelly Sizing** | ENABLED (k=0.5, max=0.32) | Half-Kelly reduces variance ~50% in bad windows |
 | **Dynamic Risk Profile** | ENABLED | 3 stages: Bootstrap ($5-$11), Transition ($11-$20), Lock-in ($20+) |
-| **VaultTriggerBalance** | $11 | 🏆 v83 Stage0→Stage1 threshold (use `/api/vault-optimize` to tune) |
+| **VaultTriggerBalance** | $11 | 🏆 v84 Stage0→Stage1 threshold (use `/api/vault-optimize-polymarket` to tune) |
 | **Trade Frequency Floor** | ENABLED | Allows high-quality ADVISORY when below 1 trade/hour target |
 | **Tier** | CONVICTION primary | ADVISORY allowed via frequency floor when idle |
 | **Assets** | BTC+ETH only | 79%/77% accuracy vs XRP 59.5% |
@@ -139,18 +139,27 @@ $5 start
 
 ### How to Optimize
 
-Use `/api/vault-optimize` to sweep the range and find the optimal value for YOUR goals:
+**🏆 v84: Use `/api/vault-optimize-polymarket` (GROUND TRUTH) for authoritative optimization:**
 
 ```bash
-# Quick sweep with default parameters
-curl "http://localhost:3000/api/vault-optimize?apiKey=bandito"
+# 🏆 RECOMMENDED: Polymarket-native optimizer (uses real outcomes, not Monte Carlo)
+curl "http://localhost:3000/api/vault-optimize-polymarket?apiKey=bandito"
 
 # Fine-grained sweep with custom range
-curl "http://localhost:3000/api/vault-optimize?min=6.10&max=15&step=0.25&sims=10000&apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=0.5&hours=168&offsets=0,24,48,72&apiKey=bandito"
+```
 
-# Test a specific value
+**Alternative: Monte Carlo optimizer (theoretical, faster):**
+
+```bash
+# Monte Carlo sweep (theoretical projections)
+curl "http://localhost:3000/api/vault-optimize?sims=5000&apiKey=bandito"
+
+# Test a specific value with Monte Carlo
 curl "http://localhost:3000/api/vault-projection?vaultTriggerBalance=11&sims=20000&apiKey=bandito"
 ```
+
+**⚠️ Important**: Monte Carlo projections may differ significantly from real Polymarket results. Always treat `/api/vault-optimize-polymarket` as the authoritative source for P($100 by day 7) evidence.
 
 ### Code Locations
 
@@ -162,7 +171,8 @@ curl "http://localhost:3000/api/vault-projection?vaultTriggerBalance=11&sims=200
 | `/api/risk-controls` | Express route | Reports current thresholds |
 | `/api/backtest-polymarket` | Express route | Uses thresholds in simulation |
 | `/api/vault-projection` | Express route | Monte Carlo with vault awareness |
-| `/api/vault-optimize` | Express route | Sweeps to find optimal |
+| `/api/vault-optimize` | Express route | Monte Carlo sweep optimizer |
+| `/api/vault-optimize-polymarket` | Express route | 🏆 v84: Ground truth optimizer (uses real outcomes) |
 | `/api/perfection-check` | Express route | Verifies vault system wiring |
 
 ---
@@ -531,7 +541,7 @@ if (maxTradeSize < $1.10) {
 Before enabling LIVE mode, verify ALL:
 
 ```
-[ ] /api/version shows configVersion: 83
+[ ] /api/version shows configVersion: 84
 [ ] /api/perfection-check shows allPassed: true
 [ ] /api/health shows status: "ok"
 [ ] /api/health shows dataFeed.anyStale: false
@@ -563,7 +573,7 @@ Before enabling LIVE mode, verify ALL:
 ```
 URL: https://polyprophet.onrender.com
 Auth: bandito / bandito
-Version: v83 (vault trigger optimization + perfection check)
+Version: v84 (Polymarket-native vault optimizer + perfection check)
 Mode: PAPER (change to LIVE in Render dashboard)
 ```
 
@@ -580,7 +590,7 @@ POLYMARKET_PRIVATE_KEY = <your-key>  (REQUIRED FOR LIVE)
 
 1. Push code to GitHub (triggers Render deploy)
 2. Wait for deployment to complete (~2-5 minutes)
-3. Verify via `/api/version` shows `configVersion: 83`
+3. Verify via `/api/version` shows `configVersion: 84`
 4. Verify via `/api/perfection-check` shows `allPassed: true`
 5. Run 24-72h PAPER to validate behavior
 6. Set `TRADE_MODE=LIVE` in Render dashboard when ready
@@ -592,7 +602,7 @@ POLYMARKET_PRIVATE_KEY = <your-key>  (REQUIRED FOR LIVE)
 ### PowerShell
 
 ```powershell
-# Check version (should show configVersion: 83)
+# Check version (should show configVersion: 84)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check vault system perfection (should show allPassed: true)
@@ -659,14 +669,20 @@ curl "http://localhost:3000/api/risk-controls?apiKey=bandito"
 curl "http://localhost:3000/api/vault-projection?seed=12345&sims=1000&apiKey=bandito"
 curl "http://localhost:3000/api/vault-projection?seed=12345&sims=1000&apiKey=bandito"
 
-# 5. VAULT OPTIMIZER (find optimal vaultTriggerBalance)
+# 5. 🏆 v84: POLYMARKET VAULT OPTIMIZER (GROUND TRUTH - uses real outcomes)
+# Expected: winner.vaultTriggerBalance in range 6.10-15.00, p100_day7 percentage
+curl "http://localhost:3000/api/vault-optimize-polymarket?apiKey=bandito"
+
+# 6. MONTE CARLO OPTIMIZER (theoretical - for comparison only)
 # Expected: winner.vaultTriggerBalance in range 6.10-15.00, seed in output
 curl "http://localhost:3000/api/vault-optimize?sims=5000&apiKey=bandito"
 
-# 6. BACKTEST PARITY (confirm backtest uses threshold contract)
+# 7. BACKTEST PARITY (confirm backtest uses threshold contract)
 # Expected: summary.vaultThresholds.sources.vaultTriggerBalance = CONFIG.*
 curl "http://localhost:3000/api/backtest-polymarket?hours=24&stake=0.32&apiKey=bandito"
 ```
+
+**⚠️ Important**: Step 5 (Polymarket optimizer) is the AUTHORITATIVE source for optimal vaultTriggerBalance. Step 6 (Monte Carlo) may show different results - Monte Carlo is theoretical projections while Polymarket uses actual resolved market outcomes.
 
 ### What Success Looks Like
 
@@ -740,12 +756,12 @@ Tools links are wired into all UI locations:
 
 ### Tools UI Features
 
-#### 1. Vault Optimizer Tab
+#### 1. Monte Carlo Optimizer Tab
 
 | Feature | Description |
 |---------|-------------|
 | **Vault Projection** | Run Monte Carlo simulation for a specific vault trigger value |
-| **Vault Optimizer** | Sweep range ($6.10-$15.00) to find optimal trigger |
+| **Vault Optimizer** | Sweep range ($6.10-$15.00) using theoretical Monte Carlo |
 | **Winner Card** | Shows optimal value with P($100@7d), P($1000@30d), ruin risk |
 | **One-Click Apply** | Apply winner to CONFIG with confirmation prompt |
 
@@ -755,7 +771,25 @@ Tools links are wired into all UI locations:
 3. Review the Winner Card results
 4. Click "👑 APPLY WINNER TO CONFIG" to update your configuration
 
-#### 2. Goal Audit Tab
+#### 2. 🏆 Polymarket Backtest Optimizer Tab (v84 - GROUND TRUTH)
+
+| Feature | Description |
+|---------|-------------|
+| **Polymarket-Native Optimizer** | Sweep vault triggers using REAL Polymarket outcomes |
+| **Multiple Windows** | Tests across non-cherry-picked offset windows |
+| **Ground Truth Results** | Empirical P($100@7d), P($1000@30d) from actual data |
+| **Winner Card** | Shows optimal value with observed performance |
+| **One-Click Apply** | Apply winner to CONFIG with confirmation prompt |
+
+**Usage**:
+1. Set sweep parameters (range, step, window hours, offsets)
+2. Click "📈 Run Polymarket Optimizer" (may take 30-60s)
+3. Review the Winner Card showing empirical results
+4. Click "👑 APPLY WINNER TO CONFIG" to update configuration
+
+**⚠️ This is the AUTHORITATIVE optimizer** - uses actual resolved Polymarket outcomes, not theoretical Monte Carlo projections.
+
+#### 3. Goal Audit Tab
 
 | Feature | Description |
 |---------|-------------|
@@ -770,7 +804,7 @@ Tools links are wired into all UI locations:
 3. Investigate any failed checks in the detail list
 4. Fix issues and re-run until all pass
 
-#### 3. API Explorer Tab
+#### 4. API Explorer Tab
 
 | Feature | Description |
 |---------|-------------|
@@ -784,6 +818,7 @@ Tools links are wired into all UI locations:
 **Safe Endpoints** (no confirmation required):
 - `/api/vault-projection`
 - `/api/vault-optimize`
+- `/api/vault-optimize-polymarket` (🏆 v84: ground truth optimizer)
 - `/api/perfection-check`
 - `/api/version`
 - `/api/settings` (GET)
@@ -806,11 +841,12 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito"
 
 The check verifies:
 - `public/tools.html` file exists
-- Contains `POLYPROPHET_TOOLS_UI_MARKER_v83` marker
-- Has Vault panel (`vault-projection`, `vault-optimize`)
+- Contains `POLYPROPHET_TOOLS_UI_MARKER_v84` marker
+- Has Monte Carlo Optimizer panel (`vault-projection`, `vault-optimize`)
+- Has Polymarket Backtest Optimizer panel (`vault-optimize-polymarket`)
 - Has Audit panel (`perfection-check`)
 - Has API Explorer
-- Has "Apply Winner" feature
+- Has "Apply Winner" feature for both optimizers
 
 ---
 
@@ -820,7 +856,7 @@ The check verifies:
 
 | # | Check | Command | Pass Criteria |
 |---|-------|---------|---------------|
-| 1 | CONFIG_VERSION >= 83 | `/api/version` | `configVersion: 83` |
+| 1 | CONFIG_VERSION >= 84 | `/api/version` | `configVersion: 84` |
 | 2 | Perfection check | `/api/perfection-check` | `allPassed: true`, `criticalFailed: 0` |
 | 3 | System verify | `/api/verify` | `failed: 0` |
 | 4 | Vault thresholds exposed | `/api/risk-controls` | `vaultThresholds.sources` shows value origins |
@@ -1060,6 +1096,40 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ## CHANGELOG
 
+### v84 (2026-01-05) — POLYMARKET-NATIVE VAULT OPTIMIZER (GROUND TRUTH)
+
+**🏆 Authoritative optimization using real Polymarket outcomes:**
+
+1. **📈 `/api/vault-optimize-polymarket`**: Ground truth optimizer that:
+   - Sweeps `vaultTriggerBalance` from $6.10-$15.00 using real Polymarket backtests
+   - Tests across multiple non-cherry-picked time windows (configurable offsets)
+   - Aggregates `hit100By7d` and `hit1000By30d` from actual resolved outcomes
+   - Ranks by objective ordering: P($100@7d) → P($1000@30d) → ruin → drawdown
+   - Returns `winner` with empirical metrics, `nearTies`, and `rankedResults`
+
+2. **🛠️ Tools UI Polymarket Tab**: New "📈 Polymarket Backtest" tab in `/tools.html`:
+   - Configure sweep range, window hours, and offset windows
+   - Visualizes empirical P($100@7d), P($1000@30d) results
+   - One-click "Apply Winner" to update configuration
+   - Marked as "Ground Truth Optimizer" to distinguish from Monte Carlo
+
+3. **📊 Objective Metrics in Backtests**: `/api/backtest-polymarket` now returns:
+   - `objectiveMetrics.hit100By7d`: true if $100 reached by day 7
+   - `objectiveMetrics.hit1000By30d`: true if $1000 reached by day 30
+   - Used by aggregator endpoint for statistical evidence
+
+4. **📖 README Clarity**: Updated to emphasize:
+   - Polymarket optimizer is AUTHORITATIVE (real outcomes)
+   - Monte Carlo optimizer is THEORETICAL (may differ from reality)
+   - AI runbook now prioritizes Polymarket optimizer
+
+**Evidence**:
+- `/api/vault-optimize-polymarket` endpoint at server.js ~line 2576
+- `objectiveMetrics` returned from `/api/backtest-polymarket` at ~line 1515
+- Tools UI contains `POLYPROPHET_TOOLS_UI_MARKER_v84` marker
+
+---
+
 ### v83 (2026-01-05) — VAULT TRIGGER OPTIMIZATION SYSTEM + TOOLS UI
 
 **Complete vault trigger optimization framework for maximizing P($100 by day 7):**
@@ -1288,4 +1358,4 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ---
 
-*Version: v83 | Updated: 2026-01-05 | Single Source of Truth*
+*Version: v84 | Updated: 2026-01-05 | Single Source of Truth*
