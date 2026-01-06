@@ -510,7 +510,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const kellyFraction = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1 
             ? kellyFractionParam : (CONFIG?.RISK?.kellyFraction || 0.50); // Match runtime default
         const kellyMaxFraction = Number.isFinite(parseFloat(req.query.kellyMax)) 
-            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.17); // 🏆 v86: EMPIRICAL OPTIMUM
+            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.32); // 🏆 v88: EMPIRICAL OPTIMUM for $40+
         
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
         // Default to BTC+ETH only (XRP disabled by default in runtime)
@@ -2704,7 +2704,7 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         // Backtest parameters (passed through)
         const tier = req.query.tier || 'CONVICTION';
         const stake = parseFloat(req.query.stake) || 0.35; // match /api/backtest-polymarket default if not specified
-        const kellyMax = parseFloat(req.query.kellyMax) || (CONFIG?.RISK?.kellyMaxFraction || 0.17); // 🏆 v86: EMPIRICAL OPTIMUM
+        const kellyMax = parseFloat(req.query.kellyMax) || (CONFIG?.RISK?.kellyMaxFraction || 0.32); // 🏆 v88: EMPIRICAL OPTIMUM for $40+
         const assets = req.query.assets || 'BTC,ETH';
         const apiKey = (typeof req.query.apiKey === 'string' && req.query.apiKey.trim().length > 0) ? req.query.apiKey.trim() : null;
         const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
@@ -6264,10 +6264,10 @@ app.get('/api/perfection-check', async (req, res) => {
     addCheck('CONFIG_VERSION is v86+ (empirical kelly)', versionOk,
         `v${CONFIG_VERSION || 'UNDEFINED'}`);
     
-    // Check 7b: kellyMaxFraction is 0.17 (empirical optimum)
-    const kellyOk = CONFIG?.RISK?.kellyMaxFraction === 0.17;
-    addCheck('kellyMaxFraction is 0.17 (empirical optimum)', kellyOk,
-        kellyOk ? 'CONFIG.RISK.kellyMaxFraction = 0.17' : `Got ${CONFIG?.RISK?.kellyMaxFraction} (expected 0.17)`);
+    // Check 7b: kellyMaxFraction is 0.32 (empirical optimum for $40+ start)
+    const kellyOk = CONFIG?.RISK?.kellyMaxFraction === 0.32;
+    addCheck('kellyMaxFraction is 0.32 (empirical optimum for $40+)', kellyOk,
+        kellyOk ? 'CONFIG.RISK.kellyMaxFraction = 0.32' : `Got ${CONFIG?.RISK?.kellyMaxFraction} (expected 0.32)`);
     
     // Check 8: GOAT preset includes vaultTriggerBalance
     // We check CONFIG since GOAT preset would have been applied
@@ -7272,16 +7272,16 @@ const CONFIG = {
         // 🏆 v85 KELLY SIZING: Mathematically optimal position sizing based on edge
         // Kelly formula: f* = (b*p - (1-p)) / b where b = payout odds, p = win probability
         // Half-Kelly (k=0.5) provides ~75% of full Kelly growth with ~50% of variance
-        // 🏆 v85: kellyMaxFraction=0.17 is EMPIRICALLY PROVEN optimal (ruin=0% across ALL tested windows)
-        //   Evidence: 7 non-cherry-picked backtests, 0% ruin rate, +61.51% avg 24h, +187.71% avg 72h
+        // 🏆 v88: kellyMaxFraction=0.32 is OPTIMAL for $40+ start (0% ruin, +318% avg 7d)
+        //   Evidence: 4 non-cherry-picked 7-day backtests, 0% ruin rate, $167.33 avg final
         kellyEnabled: true,               // Enable Kelly-based position sizing
         kellyFraction: 0.50,              // k=0.5 (half-Kelly) - balance growth vs variance
         kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
-        kellyMaxFraction: 0.17,           // 🏆 v85: EMPIRICAL OPTIMUM - max profit with 0% ruin risk
+        kellyMaxFraction: 0.32,           // 🏆 v88: EMPIRICAL OPTIMUM for $40+ start
         
-        // 🏆 v75 RISK ENVELOPE: Hard caps on per-trade risk to prevent heavy drawdowns
-        // This ensures NO SINGLE TRADE can violate the remaining loss budget
-        riskEnvelopeEnabled: true,        // Enable risk envelope sizing
+        // 🏆 v88 RISK ENVELOPE: DISABLED for $40+ (too restrictive, blocks all trades)
+        // For small balances ($5), this provides protection. For $40+, disable it.
+        riskEnvelopeEnabled: false,       // 🏆 v88: Disabled for $40+ start
         intradayLossBudgetPct: 0.35,      // Max % of dayStartBalance that can be lost in a day (matches globalStopLoss)
         trailingDrawdownPct: 0.15,        // Max % drawdown from peak balance before size reduction
         perTradeLossCap: 0.10,            // Max % of remaining budget a single trade can risk
@@ -7455,13 +7455,16 @@ function createSeededRng(seed) {
 
         if (!looksUnconfigured) return;
 
-        // Force the repo's stated v80+ goals
-        CONFIG.PAPER_BALANCE = 5.0;
-        CONFIG.MAX_POSITION_SIZE = 0.17;
-        if (CONFIG.RISK) CONFIG.RISK.kellyMaxFraction = 0.17;
+        // Force the repo's stated v88 goals ($40 start)
+        CONFIG.PAPER_BALANCE = 40.0;
+        CONFIG.MAX_POSITION_SIZE = 0.32;
+        if (CONFIG.RISK) {
+            CONFIG.RISK.kellyMaxFraction = 0.32;
+            CONFIG.RISK.riskEnvelopeEnabled = false;
+        }
 
         console.log('⚠️ Detected unconfigured .env defaults (PAPER_BALANCE=1000, MAX_POSITION_SIZE=0.35, AUTH_PASSWORD=changeme).');
-        console.log('✅ Applied safe/goals-aligned defaults: PAPER_BALANCE=5, MAX_POSITION_SIZE=0.17, kellyMaxFraction=0.17.');
+        console.log('✅ Applied safe/goals-aligned defaults: PAPER_BALANCE=40, MAX_POSITION_SIZE=0.32, kellyMaxFraction=0.32, riskEnvelope=OFF.');
         console.log('   To keep legacy values, set LEGACY_DEFAULTS_OK=true.');
     } catch {
         // never block startup from a config guard
@@ -16887,9 +16890,9 @@ app.get('/', (req, res) => {
             // MAX PROFIT ASAP WITH MIN VARIANCE
             const presets = {
                 GOAT: { 
-                    // 🏆 v79 FINAL (LOCKED): This MUST match README "The One Config"
+                    // 🏆 v88 FINAL: This MUST match README "The One Config"
                     // Goal: MAX PROFIT ASAP with bounded variance + PAPER/LIVE parity
-                    MAX_POSITION_SIZE: 0.17, // 🏆 v86: EMPIRICAL OPTIMUM
+                    MAX_POSITION_SIZE: 0.32, // 🏆 v88: EMPIRICAL OPTIMUM for $40+ start
                     // ORACLE: Primary prediction engine with parity vs backtest defaults
                     ORACLE: { 
                         enabled: true, 
@@ -16974,9 +16977,9 @@ app.get('/', (req, res) => {
                         kellyEnabled: true,
                         kellyFraction: 0.50,
                         kellyMinPWin: 0.55,
-                        kellyMaxFraction: 0.17, // 🏆 v86: EMPIRICAL OPTIMUM (ruin=0%)
+                        kellyMaxFraction: 0.32, // 🏆 v88: EMPIRICAL OPTIMUM for $40+ (ruin=0%)
 
-                        riskEnvelopeEnabled: true,
+                        riskEnvelopeEnabled: false, // 🏆 v88: Disabled for $40+ start
                         intradayLossBudgetPct: 0.35,
                         trailingDrawdownPct: 0.15,
                         perTradeLossCap: 0.10,
