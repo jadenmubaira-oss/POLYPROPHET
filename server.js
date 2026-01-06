@@ -1088,6 +1088,19 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let minBalance = startingBalance;
             const RUIN_FLOOR = 2.00; // Balance below this = ruin
 
+            // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss simulation
+            // These were previously "runtime-only" protections; now backtests match runtime halts.
+            const simulateHalts = req.query.simulateHalts !== '0' && req.query.simulateHalts !== 'false'; // Default: ON
+            let consecutiveLosses = 0;
+            let lastLossEpochSec = 0;
+            const maxConsecutiveLosses = parseInt(req.query.maxConsecLosses) || (CONFIG?.RISK?.maxConsecutiveLosses ?? 3);
+            const cooldownSeconds = parseInt(req.query.cooldownSecs) || (CONFIG?.RISK?.cooldownAfterLoss ?? 1200);
+            const globalStopLoss = parseFloat(req.query.globalStopLoss) || (CONFIG?.RISK?.globalStopLoss ?? 0.35);
+            let globalStopTriggeredToday = false;
+            let haltedTrades = 0;
+            let cooldownBlocks = 0;
+            let globalStopBlocks = 0;
+
             // Resolve trades per-window (no intra-window compounding when maxTradesPerCycle > 1).
             const byResolvedWindow = new Map(); // cycleStartEpochSec -> cycles[]
             for (const c of resolvedCycles) {
@@ -1117,6 +1130,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     dayStartEpochSec = w;
                     peakBalance = balance; // Reset peak on new day
                     intradayLoss = 0;
+                    
+                    // 🏆 v88: Reset global stop on new day (runtime parity)
+                    globalStopTriggeredToday = false;
                     
                     // Initialize new day stats
                     currentDayStats = {
@@ -1200,6 +1216,35 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     const cycle = windowCycles[i];
                     let stake = Number(stakes[i]);
                     if (!Number.isFinite(stake) || stake <= 0) continue;
+
+                    // 🏆 v88: Runtime parity - Check halts BEFORE processing each trade
+                    if (simulateHalts) {
+                        // Check 1: Global stop loss (halt for entire day if exceeded)
+                        const todayPnL = balance - dayStartBalance;
+                        const maxDayLoss = dayStartBalance * globalStopLoss;
+                        if (todayPnL < -maxDayLoss && !globalStopTriggeredToday) {
+                            globalStopTriggeredToday = true;
+                        }
+                        if (globalStopTriggeredToday) {
+                            globalStopBlocks++;
+                            haltedTrades++;
+                            continue;
+                        }
+                        
+                        // Check 2: Loss cooldown (pause after maxConsecutiveLosses)
+                        const cycleEpoch = cycle.cycleStartEpochSec || w;
+                        if (consecutiveLosses >= maxConsecutiveLosses) {
+                            // In cooldown - check if enough time has passed
+                            const timeSinceLoss = cycleEpoch - lastLossEpochSec;
+                            if (timeSinceLoss < cooldownSeconds) {
+                                cooldownBlocks++;
+                                haltedTrades++;
+                                continue;
+                            }
+                            // Cooldown expired - reset loss streak
+                            consecutiveLosses = 0;
+                        }
+                    }
 
                     // 🏆 v79: Frequency floor sizing (HYBRID backtest)
                     // Advisory trades allowed via frequency-floor should be smaller (matches runtime sizeReduction).
@@ -1340,11 +1385,16 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         const fee = profit * PROFIT_FEE_PCT;
                         pnl = profit - fee;
                         wins++;
+                        // 🏆 v88: Reset consecutive losses on win (runtime parity)
+                        consecutiveLosses = 0;
                         // 🏆 v76: Track day stats
                         if (currentDayStats) { currentDayStats.wins++; currentDayStats.trades++; }
                     } else {
                         pnl = -stake;
                         losses++;
+                        // 🏆 v88: Track consecutive losses (runtime parity)
+                        consecutiveLosses++;
+                        lastLossEpochSec = cycle.cycleStartEpochSec || w;
                         // 🏆 v76: Track intraday loss for risk envelope
                         if (riskEnvelopeEnabled) {
                             intradayLoss += stake;
@@ -1457,7 +1507,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 hit100,
                 hit1000,
                 minBalance,
-                ruined: minBalance < RUIN_FLOOR
+                ruined: minBalance < RUIN_FLOOR,
+                // 🏆 v88: Halt statistics (runtime parity)
+                haltedTrades,
+                cooldownBlocks,
+                globalStopBlocks
             };
         }
 
@@ -1583,6 +1637,16 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 fromCollector: snapshotCycles.length,
                 entrySources
             },
+            // 🏆 v88: Halt statistics (runtime parity - proves backtests now simulate cooldown/global stop)
+            haltStats: {
+                simulateHaltsEnabled: simulateHalts,
+                haltedTrades: primarySim.haltedTrades,
+                cooldownBlocks: primarySim.cooldownBlocks,
+                globalStopBlocks: primarySim.globalStopBlocks,
+                maxConsecutiveLosses,
+                cooldownSeconds,
+                globalStopLossPct: (globalStopLoss * 100).toFixed(1) + '%'
+            },
             filters: {
                 tierFilter,
                 minOddsEntry,
@@ -1607,7 +1671,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 adaptiveMode,  // 🏆 v68: Profit lock-in simulation enabled
                 // 🏆 v83: Vault threshold overrides (if provided via query params)
                 vaultTriggerBalanceOverride: backtestThresholdOverrides.vaultTriggerBalance || null,
-                stage2ThresholdOverride: backtestThresholdOverrides.stage2Threshold || null
+                stage2ThresholdOverride: backtestThresholdOverrides.stage2Threshold || null,
+                // 🏆 v88: Runtime parity filters
+                simulateHalts
             },
             proof: {
                 slugHash,
@@ -6303,7 +6369,7 @@ app.get('/api/perfection-check', async (req, res) => {
             toolsUiExists = true;
             const toolsContent = fs.readFileSync(toolsPath, 'utf8');
             // Check for required marker and key features
-            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v86');
+            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v86') || toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v88');
             const hasVaultPanel = toolsContent.includes('vault-projection') && toolsContent.includes('vault-optimize');
             const hasPolymarketPanel = toolsContent.includes('vault-optimize-polymarket') && toolsContent.includes('runPolymarketOptimizer');
             const hasAuditPanel = toolsContent.includes('perfection-check');
@@ -6975,7 +7041,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 86;  // v86: FORCE kellyMaxFraction=0.17 everywhere (preset, defaults, fallbacks) + Redis reset
+const CONFIG_VERSION = 88;  // v88: Runtime parity (loss cooldown + global stop in backtests) + relative vault thresholds for $15 start
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -7250,41 +7316,72 @@ const CONFIG = {
     }
 };
 
-// ==================== 🏆 v83 VAULT THRESHOLD CONTRACT ====================
+// ==================== 🏆 v88 VAULT THRESHOLD CONTRACT ====================
 // Single source of truth for dynamic risk profile stage thresholds.
 // Used by: runtime (getDynamicRiskProfile), /api/risk-controls, /api/backtest-polymarket,
 //          /api/vault-projection, /api/vault-optimize, /api/perfection-check
 // 
-// Resolves thresholds with priority: query overrides > CONFIG.RISK.vaultTriggerBalance > CONFIG.RISK.stage1Threshold > hardcoded default
+// 🏆 v88: Now supports RELATIVE thresholds for multi-balance optimality.
+// - When relativeMode=true and startingBalance provided, thresholds are computed as
+//   multiples of startingBalance (e.g., stage1Mult=1.47 means $15 * 1.47 = $22.05)
+// - Default relative multipliers: 1.47x (stage1), 2.67x (stage2) — optimized for $15 start
+// 
+// Resolves thresholds with priority: query overrides > relative mode > CONFIG.RISK > hardcoded default
 // Returns forensic "source" field so every output proves where its values came from.
 function getVaultThresholds(overrides = {}) {
+    // 🏆 v88: Relative mode support
+    const relativeMode = overrides.relativeMode === true || CONFIG?.RISK?.relativeThresholds === true;
+    const startingBalance = Number.isFinite(parseFloat(overrides.startingBalance)) 
+        ? parseFloat(overrides.startingBalance) 
+        : (Number.isFinite(CONFIG?.PAPER_BALANCE) ? CONFIG.PAPER_BALANCE : 5);
+    
+    // Default relative multipliers (optimized for $15 start → $22/$40)
+    const DEFAULT_STAGE1_MULT = 1.47;  // e.g., $15 * 1.47 = $22.05
+    const DEFAULT_STAGE2_MULT = 2.67;  // e.g., $15 * 2.67 = $40.05
+    
     // Stage1 threshold (Bootstrap → Transition) = "vault trigger balance"
-    let vaultTriggerBalance = 11; // hardcoded fallback
+    let vaultTriggerBalance = 11; // hardcoded fallback (absolute)
     let stage1Source = 'hardcoded_default';
     
-    // Priority 1: Query/explicit override
+    // Priority 1: Query/explicit override (absolute value)
     if (overrides.vaultTriggerBalance !== undefined && Number.isFinite(parseFloat(overrides.vaultTriggerBalance))) {
         vaultTriggerBalance = parseFloat(overrides.vaultTriggerBalance);
         stage1Source = 'query_override';
     }
-    // Priority 2: CONFIG.RISK.vaultTriggerBalance (new canonical name)
+    // Priority 2: Relative mode with multiplier
+    else if (relativeMode) {
+        const mult = Number.isFinite(parseFloat(overrides.stage1Mult)) 
+            ? parseFloat(overrides.stage1Mult) 
+            : (Number.isFinite(CONFIG?.RISK?.stage1Mult) ? CONFIG.RISK.stage1Mult : DEFAULT_STAGE1_MULT);
+        vaultTriggerBalance = startingBalance * mult;
+        stage1Source = `relative_mode(${mult}x of $${startingBalance})`;
+    }
+    // Priority 3: CONFIG.RISK.vaultTriggerBalance (new canonical name)
     else if (CONFIG?.RISK?.vaultTriggerBalance !== undefined && Number.isFinite(CONFIG.RISK.vaultTriggerBalance)) {
         vaultTriggerBalance = CONFIG.RISK.vaultTriggerBalance;
         stage1Source = 'CONFIG.RISK.vaultTriggerBalance';
     }
-    // Priority 3: CONFIG.RISK.stage1Threshold (legacy name, backward compat)
+    // Priority 4: CONFIG.RISK.stage1Threshold (legacy name, backward compat)
     else if (CONFIG?.RISK?.stage1Threshold !== undefined && Number.isFinite(CONFIG.RISK.stage1Threshold)) {
         vaultTriggerBalance = CONFIG.RISK.stage1Threshold;
         stage1Source = 'CONFIG.RISK.stage1Threshold';
     }
     
     // Stage2 threshold (Transition → Lock-in)
-    let stage2Threshold = 20; // hardcoded fallback
+    let stage2Threshold = 20; // hardcoded fallback (absolute)
     let stage2Source = 'hardcoded_default';
     
     if (overrides.stage2Threshold !== undefined && Number.isFinite(parseFloat(overrides.stage2Threshold))) {
         stage2Threshold = parseFloat(overrides.stage2Threshold);
         stage2Source = 'query_override';
+    }
+    // Priority 2: Relative mode with multiplier
+    else if (relativeMode) {
+        const mult = Number.isFinite(parseFloat(overrides.stage2Mult)) 
+            ? parseFloat(overrides.stage2Mult) 
+            : (Number.isFinite(CONFIG?.RISK?.stage2Mult) ? CONFIG.RISK.stage2Mult : DEFAULT_STAGE2_MULT);
+        stage2Threshold = startingBalance * mult;
+        stage2Source = `relative_mode(${mult}x of $${startingBalance})`;
     }
     else if (CONFIG?.RISK?.stage2Threshold !== undefined && Number.isFinite(CONFIG.RISK.stage2Threshold)) {
         stage2Threshold = CONFIG.RISK.stage2Threshold;
@@ -7294,6 +7391,8 @@ function getVaultThresholds(overrides = {}) {
     return {
         vaultTriggerBalance,
         stage2Threshold,
+        relativeMode,
+        startingBalance,
         sources: {
             vaultTriggerBalance: stage1Source,
             stage2Threshold: stage2Source
