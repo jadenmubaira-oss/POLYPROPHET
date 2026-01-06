@@ -145,8 +145,12 @@ $5 start
 # 🏆 RECOMMENDED: Polymarket-native optimizer (uses real outcomes, not Monte Carlo)
 curl "http://localhost:3000/api/vault-optimize-polymarket?apiKey=bandito"
 
-# Fine-grained sweep with custom range
+# Fast 7-day sweep (PRIMARY objective: P($100 by day 7))
 curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=0.5&hours=168&offsets=0,24,48,72&apiKey=bandito"
+
+# Full 30-day evaluation (SECONDARY objective: P($1000 by day 30)) — slower
+# Tip: use a coarser step and fewer offsets first, then refine near the winner
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=1&hours=720&offsets=0,24,48&apiKey=bandito"
 ```
 
 **Alternative: Monte Carlo optimizer (theoretical, faster):**
@@ -159,7 +163,10 @@ curl "http://localhost:3000/api/vault-optimize?sims=5000&apiKey=bandito"
 curl "http://localhost:3000/api/vault-projection?vaultTriggerBalance=11&sims=20000&apiKey=bandito"
 ```
 
-**⚠️ Important**: Monte Carlo projections may differ significantly from real Polymarket results. Always treat `/api/vault-optimize-polymarket` as the authoritative source for P($100 by day 7) evidence.
+**⚠️ Important**:
+- Monte Carlo projections may differ significantly from real Polymarket results.
+- `/api/vault-optimize-polymarket` is authoritative for P($100 by day 7).
+- To compute **P($1000 by day 30)** from real outcomes, run it with `hours=720` (otherwise `p1000_day30` will be `N/A`).
 
 ### Code Locations
 
@@ -182,7 +189,7 @@ curl "http://localhost:3000/api/vault-projection?vaultTriggerBalance=11&sims=200
 ### The One Config (Set-and-Forget)
 
 ```javascript
-// server.js CONFIG values (v83 OPTIMIZED defaults)
+// server.js CONFIG values (v84 defaults)
 MAX_POSITION_SIZE: 0.32,        // 🏆 v80: 32% sweet spot stake cap
 RISK: {
     minBalanceFloor: 2.00,       // HARD STOP at $2.00 (-60% from $5)
@@ -199,8 +206,8 @@ RISK: {
     kellyMinPWin: 0.55,          // Minimum pWin to apply Kelly
     kellyMaxFraction: 0.32,      // 🏆 v80: 32% sweet spot cap
     
-    // 🏆 v83 VAULT TRIGGER - Stage boundaries for dynamic risk profile
-    vaultTriggerBalance: 11,     // Stage0→Stage1 threshold (use /api/vault-optimize to tune)
+    // 🏆 v84 VAULT TRIGGER - Stage boundaries for dynamic risk profile
+    vaultTriggerBalance: 11,     // Stage0→Stage1 threshold (use /api/vault-optimize-polymarket to tune)
     stage1Threshold: 11,         // Legacy alias for vaultTriggerBalance
     stage2Threshold: 20,         // Stage1→Stage2 threshold
     
@@ -777,13 +784,13 @@ Tools links are wired into all UI locations:
 |---------|-------------|
 | **Polymarket-Native Optimizer** | Sweep vault triggers using REAL Polymarket outcomes |
 | **Multiple Windows** | Tests across non-cherry-picked offset windows |
-| **Ground Truth Results** | Empirical P($100@7d), P($1000@30d) from actual data |
+| **Ground Truth Results** | Empirical P($100@7d). For P($1000@30d), run with `hours=720` (otherwise shows `N/A`). |
 | **Winner Card** | Shows optimal value with observed performance |
 | **One-Click Apply** | Apply winner to CONFIG with confirmation prompt |
 
 **Usage**:
 1. Set sweep parameters (range, step, window hours, offsets)
-2. Click "📈 Run Polymarket Optimizer" (may take 30-60s)
+2. Click "📈 Run Polymarket Optimizer" (can take minutes if `hours=720`)
 3. Review the Winner Card showing empirical results
 4. Click "👑 APPLY WINNER TO CONFIG" to update configuration
 
@@ -1074,7 +1081,7 @@ This repository's configuration was derived from exhaustive analysis documented 
 
 ### Key Decisions Documented
 
-1. **vaultTriggerBalance = $11 (default)**: Balances P($100@7d) vs variance based on Monte Carlo sweep
+1. **vaultTriggerBalance = $11 (default)**: Safe baseline; should be re-verified with `/api/vault-optimize-polymarket` (ground truth)
 2. **32% kellyMaxFraction**: Sweet spot from corpus analysis - max profit with min ruin risk
 3. **BTC+ETH only**: 79%/77% accuracy vs XRP 59.5% - disabled by default
 4. **$2.00 balance floor**: Hard stop at -60% from $5 start
@@ -1082,8 +1089,11 @@ This repository's configuration was derived from exhaustive analysis documented 
 ### How to Verify Decisions
 
 ```bash
-# Run vault optimizer to verify $11 is optimal (or find better)
-curl "http://localhost:3000/api/vault-optimize?sims=10000&apiKey=bandito"
+# 🏆 Ground truth vault optimizer (recommended)
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=0.5&hours=168&offsets=0,24,48,72&apiKey=bandito"
+
+# Full 30-day secondary objective validation (slower)
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=1&hours=720&offsets=0,24,48&apiKey=bandito"
 
 # Check current thresholds
 curl "http://localhost:3000/api/risk-controls?apiKey=bandito" | jq '.vaultThresholds'

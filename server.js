@@ -95,14 +95,6 @@ const app = express();
 app.use(cors());
 app.use(express.json()); // CRITICAL: Parse JSON bodies BEFORE any routes
 
-// #region agent log
-// Debug-mode request trace (no secrets)
-app.use((req, res, next) => {
-    fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'A',location:'server.js:request-mw',message:'incoming request',data:{method:req.method,path:req.path,originalUrl:req.originalUrl,hasApiKeyQuery:(req&&req.query&&typeof req.query.apiKey!=='undefined'),hasAuthHeader:!!(req&&req.headers&&req.headers.authorization)},timestamp:Date.now()})}).catch(()=>{});
-    next();
-});
-// #endregion
-
 // ==================== PASSWORD PROTECTION ====================
 // 🎯 GOAT v44.1: Support both Basic Auth AND Bearer token for API access
 const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
@@ -480,8 +472,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             ? Math.max(0.05, Math.min(1.0, maxExposureRaw))
             : Math.max(0.05, Math.min(1.0, (CONFIG?.RISK?.maxTotalExposure || 0.40)));
         // 🏆 v76: Alias hours -> lookbackHours
+        // 🏆 v84: Allow up to 30 days (720h) so hit-$1000-by-30d is actually measurable
         const lookbackHoursRaw = parseFloat(req.query.lookbackHours || req.query.hours);
-        const lookbackHours = Number.isFinite(lookbackHoursRaw) ? Math.max(0.25, Math.min(168, lookbackHoursRaw)) : 24;
+        const lookbackHours = Number.isFinite(lookbackHoursRaw) ? Math.max(0.25, Math.min(720, lookbackHoursRaw)) : 24;
         // 🏆 v70: Offset parameter to run backtests on non-cherry-picked windows
         // offsetHours=24 means run the same lookback window starting 24h earlier
         const offsetHoursRaw = parseFloat(req.query.offsetHours);
@@ -2587,23 +2580,47 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         const epsilon = parseFloat(req.query.epsilon) || 0.5; // Tie-breaker threshold
         
         // Window parameters - run multiple non-cherry-picked windows
-        const windowHours = parseInt(req.query.hours) || 168; // 7 days
+        const windowHours = parseInt(req.query.hours) || 168; // 7 days (set 720 to measure 30-day goals)
         const windowOffsets = (req.query.offsets || '0,24,48,72').split(',').map(x => parseInt(x.trim())).filter(x => Number.isFinite(x));
         const startingBalance = parseFloat(req.query.balance) || 5.0;
+        const supports30d = windowHours >= 720;
         
         // Backtest parameters (passed through)
         const tier = req.query.tier || 'CONVICTION';
-        const stake = parseFloat(req.query.stake) || 0.32;
-        const kellyMax = parseFloat(req.query.kellyMax) || 0.32;
+        const stake = parseFloat(req.query.stake) || 0.35; // match /api/backtest-polymarket default if not specified
+        const kellyMax = parseFloat(req.query.kellyMax) || (CONFIG?.RISK?.kellyMaxFraction || 0.32);
         const assets = req.query.assets || 'BTC,ETH';
+        const apiKey = (typeof req.query.apiKey === 'string' && req.query.apiKey.trim().length > 0) ? req.query.apiKey.trim() : null;
+        const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
+
+        // Ensure a full-ish window is processed; /api/backtest-polymarket defaults to 200 windows (~2 days)
+        const limitRaw = parseInt(req.query.limit);
+        const defaultLimit = Math.min(20000, Math.ceil(windowHours * 4) + 50); // 15m cycles => ~4 windows/hour
+        const backtestLimit = Number.isFinite(limitRaw) ? Math.max(50, Math.min(20000, limitRaw)) : defaultLimit;
         
         // Generate trigger candidates
         const triggers = [];
-        for (let t = minTrigger; t <= maxTrigger + 0.001; t += step) {
-            triggers.push(Math.round(t * 100) / 100);
+        const minT = Number(minTrigger.toFixed(2));
+        const maxT = Number(maxTrigger.toFixed(2));
+        const stepT = Math.max(0.01, Number(step.toFixed(2)));
+        const steps = Math.max(0, Math.floor((maxT - minT) / stepT));
+        for (let i = 0; i <= steps; i++) {
+            triggers.push(Number((minT + i * stepT).toFixed(2)));
         }
+        // Ensure inclusive max (so ranges like 6.10→15.00 step=1 don't silently drop 15.00)
+        if (triggers.length === 0 || triggers[triggers.length - 1] !== maxT) triggers.push(maxT);
         
         const results = [];
+
+        const parsePct = (v) => {
+            if (typeof v === 'string') {
+                const n = parseFloat(v.replace('%', '').trim());
+                return Number.isFinite(n) ? n : 0;
+            }
+            const n = Number(v);
+            return Number.isFinite(n) ? n : 0;
+        };
+        const fmtPct = (n) => Number.isFinite(n) ? (n.toFixed(2) + '%') : 'N/A';
         
         // For each trigger value, run backtests across all offset windows
         for (const vaultTriggerBalance of triggers) {
@@ -2621,15 +2638,16 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                         kellyMax: kellyMax.toString(),
                         assets,
                         vaultTriggerBalance: vaultTriggerBalance.toString(),
-                        riskEnvelope: '1'
+                        riskEnvelope: '1',
+                        limit: backtestLimit.toString()
                     });
+                    if (apiKey) backtestParams.set('apiKey', apiKey);
                     
                     // Make internal request to backtest endpoint
-                    const backtestUrl = `http://localhost:${process.env.PORT || 3000}/api/backtest-polymarket?${backtestParams.toString()}`;
-                    const backtestResp = await fetch(backtestUrl, {
-                        headers: { 'Authorization': req.headers.authorization || '' },
-                        signal: AbortSignal.timeout(60000)
-                    });
+                    const backtestUrl = `${baseUrl}/api/backtest-polymarket?${backtestParams.toString()}`;
+                    const headers = {};
+                    if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
+                    const backtestResp = await fetch(backtestUrl, { headers, signal: AbortSignal.timeout(120000) });
                     
                     if (!backtestResp.ok) continue;
                     const backtestData = await backtestResp.json();
@@ -2637,16 +2655,20 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                     // Extract objective metrics
                     const metrics = backtestData.objectiveMetrics || {};
                     const summary = backtestData.summary || {};
-                    
+                    const hit100By7d = metrics.hit100By7d === true;
+                    const hit1000By30d = supports30d ? (metrics.hit1000By30d === true) : null;
+                    const ruined = metrics.ruined === true; // ever below floor, not just final balance
+
                     windowResults.push({
                         offset,
-                        hit100By7d: metrics.hit100By7d || false,
-                        hit1000By30d: metrics.hit1000By30d || false,
-                        finalBalance: summary.finalBalance || startingBalance,
-                        maxDrawdown: summary.maxDrawdown || 0,
-                        winRate: summary.winRate || 0,
-                        trades: summary.trades || 0,
-                        ruinedBelowFloor: (summary.finalBalance || startingBalance) < 2.0
+                        hit100By7d,
+                        hit1000By30d,
+                        finalBalance: Number.isFinite(Number(summary.finalBalance)) ? Number(summary.finalBalance) : startingBalance,
+                        maxDrawdownPct: parsePct(summary.maxDrawdown),
+                        winRatePct: parsePct(summary.winRate),
+                        totalTrades: Number.isFinite(Number(summary.totalTrades)) ? Number(summary.totalTrades) : (Number.isFinite(Number(summary.trades)) ? Number(summary.trades) : 0),
+                        ruined,
+                        minBalance: Number.isFinite(Number(metrics.minBalance)) ? Number(metrics.minBalance) : null
                     });
                 } catch (e) {
                     // Skip failed windows
@@ -2658,21 +2680,21 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
             // Aggregate across windows
             const windowCount = windowResults.length;
             const hit100Count = windowResults.filter(w => w.hit100By7d).length;
-            const hit1000Count = windowResults.filter(w => w.hit1000By30d).length;
-            const ruinCount = windowResults.filter(w => w.ruinedBelowFloor).length;
-            const avgMaxDD = windowResults.reduce((sum, w) => sum + (w.maxDrawdown || 0), 0) / windowCount;
+            const hit1000Count = supports30d ? windowResults.filter(w => w.hit1000By30d === true).length : 0;
+            const ruinCount = windowResults.filter(w => w.ruined).length;
+            const avgMaxDD_pct = windowResults.reduce((sum, w) => sum + (w.maxDrawdownPct || 0), 0) / windowCount;
             const avgFinalBalance = windowResults.reduce((sum, w) => sum + w.finalBalance, 0) / windowCount;
-            const avgWinRate = windowResults.reduce((sum, w) => sum + w.winRate, 0) / windowCount;
+            const avgWinRate_pct = windowResults.reduce((sum, w) => sum + (w.winRatePct || 0), 0) / windowCount;
             
             results.push({
                 vaultTriggerBalance,
                 windowCount,
                 p100_day7: (hit100Count / windowCount) * 100,
-                p1000_day30: (hit1000Count / windowCount) * 100,
+                p1000_day30: supports30d ? ((hit1000Count / windowCount) * 100) : null,
                 ruinPct: (ruinCount / windowCount) * 100,
-                avgMaxDD: avgMaxDD * 100,
+                avgMaxDD_pct,
                 avgFinalBalance,
-                avgWinRate,
+                avgWinRate_pct,
                 windowResults
             });
         }
@@ -2694,16 +2716,18 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
             if (Math.abs(a.p100_day7 - b.p100_day7) > epsilon) {
                 return b.p100_day7 - a.p100_day7;
             }
-            // Secondary: P1000@30d (higher is better)
-            if (Math.abs(a.p1000_day30 - b.p1000_day30) > epsilon) {
-                return b.p1000_day30 - a.p1000_day30;
+            // Secondary: P1000@30d (higher is better) — only meaningful when hours >= 720
+            if (supports30d && Number.isFinite(a.p1000_day30) && Number.isFinite(b.p1000_day30)) {
+                if (Math.abs(a.p1000_day30 - b.p1000_day30) > epsilon) {
+                    return b.p1000_day30 - a.p1000_day30;
+                }
             }
             // Tie-breaker 1: Ruin probability (lower is better)
             if (Math.abs(a.ruinPct - b.ruinPct) > 0.1) {
                 return a.ruinPct - b.ruinPct;
             }
             // Tie-breaker 2: Drawdown (lower is better)
-            return a.avgMaxDD - b.avgMaxDD;
+            return a.avgMaxDD_pct - b.avgMaxDD_pct;
         });
         
         const winner = ranked[0];
@@ -2721,7 +2745,9 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                 totalBacktests: triggers.length * windowOffsets.length,
                 objectiveOrdering: [
                     '1. Maximize P($100 by day 7) [PRIMARY]',
-                    '2. Maximize P($1000 by day 30) [SECONDARY, within epsilon]',
+                    supports30d
+                        ? '2. Maximize P($1000 by day 30) [SECONDARY, within epsilon]'
+                        : '2. Maximize P($1000 by day 30) [SECONDARY] — NOT EVALUATED unless hours>=720',
                     '3. Minimize ruin probability [TIE-BREAKER]',
                     '4. Minimize drawdown [TIE-BREAKER]'
                 ],
@@ -2733,36 +2759,38 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                 tier,
                 stake,
                 kellyMax,
-                assets
+                assets,
+                limit: backtestLimit
             },
             // 🏆 v84: The recommended vaultTriggerBalance (from real backtest data)
             winner: {
                 vaultTriggerBalance: winner.vaultTriggerBalance,
-                p100_day7: winner.p100_day7.toFixed(2) + '%',
-                p1000_day30: winner.p1000_day30.toFixed(2) + '%',
-                ruinPct: winner.ruinPct.toFixed(2) + '%',
-                avgMaxDD: winner.avgMaxDD.toFixed(2) + '%',
+                p100_day7: fmtPct(winner.p100_day7),
+                p1000_day30: fmtPct(winner.p1000_day30),
+                ruinPct: fmtPct(winner.ruinPct),
+                avgMaxDD: fmtPct(winner.avgMaxDD_pct),
                 avgFinalBalance: '$' + winner.avgFinalBalance.toFixed(2),
-                avgWinRate: (winner.avgWinRate * 100).toFixed(1) + '%',
+                avgWinRate: winner.avgWinRate_pct.toFixed(1) + '%',
                 windowCount: winner.windowCount,
                 explanation: `vaultTriggerBalance=$${winner.vaultTriggerBalance.toFixed(2)} achieved ${winner.p100_day7.toFixed(1)}% P($100 by day 7) ` +
                             `across ${winner.windowCount} non-cherry-picked windows, ` +
-                            `with ${winner.ruinPct.toFixed(1)}% ruin risk and ${winner.avgMaxDD.toFixed(1)}% avg max drawdown.`
+                            `with ${winner.ruinPct.toFixed(1)}% ruin risk and ${winner.avgMaxDD_pct.toFixed(1)}% avg max drawdown.` +
+                            (supports30d ? '' : ' (NOTE: 30-day goal NOT evaluated; run with hours=720)')
             },
             nearTies: nearTies.slice(0, 5).map(r => ({
                 vaultTriggerBalance: r.vaultTriggerBalance,
-                p100_day7: r.p100_day7.toFixed(2) + '%',
-                p1000_day30: r.p1000_day30.toFixed(2) + '%',
-                ruinPct: r.ruinPct.toFixed(2) + '%',
-                avgMaxDD: r.avgMaxDD.toFixed(2) + '%'
+                p100_day7: fmtPct(r.p100_day7),
+                p1000_day30: fmtPct(r.p1000_day30),
+                ruinPct: fmtPct(r.ruinPct),
+                avgMaxDD: fmtPct(r.avgMaxDD_pct)
             })),
             rankedResults: ranked.map((r, i) => ({
                 rank: i + 1,
                 vaultTriggerBalance: r.vaultTriggerBalance,
-                p100_day7: r.p100_day7.toFixed(2) + '%',
-                p1000_day30: r.p1000_day30.toFixed(2) + '%',
-                ruinPct: r.ruinPct.toFixed(2) + '%',
-                avgMaxDD: r.avgMaxDD.toFixed(2) + '%',
+                p100_day7: fmtPct(r.p100_day7),
+                p1000_day30: fmtPct(r.p1000_day30),
+                ruinPct: fmtPct(r.ruinPct),
+                avgMaxDD: fmtPct(r.avgMaxDD_pct),
                 avgFinalBalance: '$' + r.avgFinalBalance.toFixed(2)
             })),
             currentConfig: {

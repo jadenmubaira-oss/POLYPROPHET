@@ -358,7 +358,7 @@
             <h2 class="section-title">📈 Polymarket Backtest Optimizer</h2>
             <p style="color:#888;margin-bottom:20px;">
                 <strong style="color:#ffd700;">🏆 Ground Truth Optimizer</strong> — Uses real Polymarket outcomes (via Gamma API) to find the optimal vaultTriggerBalance.
-                This is the AUTHORITATIVE source for P($100 by day 7) and P($1000 by day 30) evidence.
+                This is the AUTHORITATIVE source for P($100 by day 7). To evaluate P($1000 by day 30), set <strong>Window Hours = 720</strong> (otherwise the 30-day metric will show <code>N/A</code>).
             </p>
             
             <div class="panel">
@@ -385,7 +385,7 @@
                         <input type="number" id="pm-step" value="1" min="0.5" max="2" step="0.5">
                     </div>
                     <div class="form-group">
-                        <label>Window Hours</label>
+                        <label>Window Hours (168=7d, 720=30d)</label>
                         <input type="number" id="pm-hours" value="168" min="24" max="720" step="24">
                     </div>
                     <div class="form-group">
@@ -695,10 +695,6 @@
                 
                 const res = await fetch(url);
                 const data = await res.json();
-
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'C',location:'public/tools.html:runOptimizer',message:'vault-optimize response received',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),httpOk:(res&&typeof res.ok==='boolean'?res.ok:null),status:(res&&typeof res.status==='number'?res.status:null),hasWinner:!!(data&&data.winner),winnerVaultTriggerType:(data&&data.winner?typeof data.winner.vaultTriggerBalance:null),winnerKeys:(data&&data.winner?Object.keys(data.winner).slice(0,12):[])},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 
                 if (data.winner) {
                     currentWinner = data.winner;
@@ -732,9 +728,6 @@
         
         // ==================== APPLY WINNER ====================
         async function applyWinner() {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'D',location:'public/tools.html:applyWinner',message:'applyWinner invoked',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),hasCurrentWinner:!!currentWinner,vaultTriggerType:(currentWinner?typeof currentWinner.vaultTriggerBalance:null)},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
             if (!currentWinner) {
                 alert('No winner to apply. Run the optimizer first.');
                 return;
@@ -764,10 +757,6 @@
                 let settingsUrl = '/api/settings';
                 const apiKeyParam = getApiKeyParam();
                 if (apiKeyParam) settingsUrl += '?' + apiKeyParam.substring(1); // Remove leading &
-
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'D',location:'public/tools.html:applyWinner',message:'applyWinner about to POST /api/settings',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),settingsUrlHasQuestion:(typeof settingsUrl==='string'?settingsUrl.includes('?'):null),settingsUrlHasApiKey:(typeof settingsUrl==='string'?settingsUrl.includes('apiKey='):null),payloadVaultTriggerType:(currentWinner?typeof currentWinner.vaultTriggerBalance:null)},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 
                 const res = await fetch(settingsUrl, {
                     method: 'POST',
@@ -802,7 +791,7 @@
             const winnerCard = document.getElementById('pm-winner-card');
             
             btn.disabled = true;
-            btn.textContent = '⏳ Running backtests... (may take 30-60s)';
+            btn.textContent = '⏳ Running backtests... (can take minutes at 720h)';
             status.textContent = 'RUNNING';
             status.className = 'status-badge running';
             status.style.display = 'inline-block';
@@ -822,7 +811,9 @@
                 let url = `/api/vault-optimize-polymarket?min=${min}&max=${max}&step=${step}&hours=${hours}&offsets=${encodeURIComponent(offsets)}&balance=${start}&tier=${tier}&kellyMax=${kelly}`;
                 url += getApiKeyParam();
                 
-                const res = await fetch(url, { signal: AbortSignal.timeout(120000) }); // 2 min timeout
+                const hoursNum = parseInt(hours, 10);
+                const timeoutMs = Number.isFinite(hoursNum) && hoursNum >= 720 ? 600000 : 180000; // 10m for 30d, else 3m
+                const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
                 const data = await res.json();
                 
                 if (data.error) {
@@ -1053,13 +1044,8 @@
                 }
                 
                 // 🏆 v83: Append apiKey from URL if present
-                const hadQueryBeforeApiKey = endpoint.includes('?');
                 const apiKeyParam = getApiKeyParam();
                 endpoint += apiKeyParam;
-
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'A',location:'public/tools.html:makeApiRequest',message:'API Explorer request constructed',data:{hasApiKeyParam:(new URLSearchParams(window.location.search)).has('apiKey'),method,paramsProvided:!!(paramsText&&paramsText.trim()),hadQueryBeforeApiKey,hasApiKeyParam:!!apiKeyParam,badApiKeyJoin:(!!apiKeyParam&&!hadQueryBeforeApiKey),endpointBase:(typeof endpoint==='string'?endpoint.split('?')[0]:null)},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 
                 const options = { method };
                 
