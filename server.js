@@ -1713,7 +1713,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 vaultTriggerBalanceOverride: backtestThresholdOverrides.vaultTriggerBalance || null,
                 stage2ThresholdOverride: backtestThresholdOverrides.stage2Threshold || null,
                 // 🏆 v88: Runtime parity filters
-                simulateHalts
+                simulateHalts,
+                // 🏆 v90: Auto-profile (bankroll-adaptive defaults) for parity with LIVE sizing
+                autoProfileEnabled,
+                autoProfilePolicyAtStart: policyAtStart,
+                kellyMaxProvided,
+                riskEnvelopeProvided
             },
             proof: {
                 slugHash,
@@ -5289,6 +5294,10 @@ app.get('/api/risk-controls', (req, res) => {
             ? tradeExecutor.getBankrollForRisk()
             : cashBalance;
 
+        const bankrollAdaptivePolicy = (typeof getBankrollAdaptivePolicy === 'function')
+            ? getBankrollAdaptivePolicy(bankrollForRisk)
+            : null;
+
         const profile = typeof tradeExecutor.getDynamicRiskProfile === 'function'
             ? tradeExecutor.getDynamicRiskProfile(bankrollForRisk)
             : null;
@@ -5331,7 +5340,8 @@ app.get('/api/risk-controls', (req, res) => {
             balances: {
                 cashBalance,
                 equityEstimate,
-                bankrollForRisk
+                bankrollForRisk,
+                bankrollAdaptivePolicy
             },
             dataFeed: {
                 anyStale: anyFeedStale,
