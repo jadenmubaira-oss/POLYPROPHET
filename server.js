@@ -510,7 +510,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const kellyFraction = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1 
             ? kellyFractionParam : (CONFIG?.RISK?.kellyFraction || 0.50); // Match runtime default
         const kellyMaxFraction = Number.isFinite(parseFloat(req.query.kellyMax)) 
-            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.32); // 🏆 v80: Match sweet spot
+            ? parseFloat(req.query.kellyMax) : (CONFIG?.RISK?.kellyMaxFraction || 0.17); // 🏆 v86: EMPIRICAL OPTIMUM
         
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
         // Default to BTC+ETH only (XRP disabled by default in runtime)
@@ -2307,9 +2307,6 @@ app.get('/api/vault-optimize', async (req, res) => {
         // Near-tie epsilon for objective ordering
         const epsilon = parseFloat(req.query.epsilon) || 0.5; // 0.5 percentage points
 
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'E',location:'server.js:/api/vault-optimize',message:'vault-optimize request received',data:{method:req.method,path:req.path,hasApiKeyQuery:(req&&req.query&&typeof req.query.apiKey!=='undefined'),hasAuthHeader:!!(req&&req.headers&&req.headers.authorization),queryKeys:(req&&req.query?Object.keys(req.query).slice(0,20):[]),parsed:{minTrigger,maxTrigger,step,simulations,startingBalance,adaptiveMode,BALANCE_FLOOR,TRADES_PER_DAY,stage2Threshold,epsilon}},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         
         // 🏆 v83: Seedable RNG for reproducibility (same seed = same rankings)
         const seedParam = parseInt(req.query.seed);
@@ -2588,7 +2585,7 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         // Backtest parameters (passed through)
         const tier = req.query.tier || 'CONVICTION';
         const stake = parseFloat(req.query.stake) || 0.35; // match /api/backtest-polymarket default if not specified
-        const kellyMax = parseFloat(req.query.kellyMax) || (CONFIG?.RISK?.kellyMaxFraction || 0.32);
+        const kellyMax = parseFloat(req.query.kellyMax) || (CONFIG?.RISK?.kellyMaxFraction || 0.17); // 🏆 v86: EMPIRICAL OPTIMUM
         const assets = req.query.assets || 'BTC,ETH';
         const apiKey = (typeof req.query.apiKey === 'string' && req.query.apiKey.trim().length > 0) ? req.query.apiKey.trim() : null;
         const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
@@ -6143,10 +6140,15 @@ app.get('/api/perfection-check', async (req, res) => {
         thresholds ? `$${thresholds.vaultTriggerBalance} (recommended: $6.10-$15.00)` : 'N/A',
         'warn');
     
-    // Check 7: CONFIG_VERSION is v83+
-    const versionOk = typeof CONFIG_VERSION !== 'undefined' && CONFIG_VERSION >= 83;
-    addCheck('CONFIG_VERSION is v83+ (vault system)', versionOk,
+    // Check 7: CONFIG_VERSION is v86+
+    const versionOk = typeof CONFIG_VERSION !== 'undefined' && CONFIG_VERSION >= 86;
+    addCheck('CONFIG_VERSION is v86+ (empirical kelly)', versionOk,
         `v${CONFIG_VERSION || 'UNDEFINED'}`);
+    
+    // Check 7b: kellyMaxFraction is 0.17 (empirical optimum)
+    const kellyOk = CONFIG?.RISK?.kellyMaxFraction === 0.17;
+    addCheck('kellyMaxFraction is 0.17 (empirical optimum)', kellyOk,
+        kellyOk ? 'CONFIG.RISK.kellyMaxFraction = 0.17' : `Got ${CONFIG?.RISK?.kellyMaxFraction} (expected 0.17)`);
     
     // Check 8: GOAT preset includes vaultTriggerBalance
     // We check CONFIG since GOAT preset would have been applied
@@ -6260,7 +6262,7 @@ app.get('/api/perfection-check', async (req, res) => {
             const hasApplyWinner = toolsContent.includes('applyWinner') && toolsContent.includes('applyPolymarketWinner');
             
             if (toolsUiHasMarker && hasVaultPanel && hasPolymarketPanel && hasAuditPanel && hasApiExplorer && hasApplyWinner) {
-                toolsUiDetails = 'Tools UI v84 with Monte Carlo panel, Polymarket optimizer, Audit runner, API Explorer, and Apply Winner';
+                toolsUiDetails = 'Tools UI v86 with Monte Carlo panel, Polymarket optimizer, Audit runner, API Explorer, and Apply Winner';
             } else {
                 toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'v84 marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasPolymarketPanel ? 'polymarket panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
             }
@@ -6924,7 +6926,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 85;  // v85: EMPIRICAL OPTIMAL kellyMaxFraction=0.17 (ruin=0% across ALL windows, +61.51% avg 24h, +187.71% avg 72h)
+const CONFIG_VERSION = 86;  // v86: FORCE kellyMaxFraction=0.17 everywhere (preset, defaults, fallbacks) + Redis reset
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -7303,11 +7305,11 @@ function createSeededRng(seed) {
 
         // Force the repo's stated v80+ goals
         CONFIG.PAPER_BALANCE = 5.0;
-        CONFIG.MAX_POSITION_SIZE = 0.32;
-        if (CONFIG.RISK) CONFIG.RISK.kellyMaxFraction = 0.32;
+        CONFIG.MAX_POSITION_SIZE = 0.17;
+        if (CONFIG.RISK) CONFIG.RISK.kellyMaxFraction = 0.17;
 
         console.log('⚠️ Detected unconfigured .env defaults (PAPER_BALANCE=1000, MAX_POSITION_SIZE=0.35, AUTH_PASSWORD=changeme).');
-        console.log('✅ Applied safe/goals-aligned defaults: PAPER_BALANCE=5, MAX_POSITION_SIZE=0.32.');
+        console.log('✅ Applied safe/goals-aligned defaults: PAPER_BALANCE=5, MAX_POSITION_SIZE=0.17, kellyMaxFraction=0.17.');
         console.log('   To keep legacy values, set LEGACY_DEFAULTS_OK=true.');
     } catch {
         // never block startup from a config guard
@@ -16277,7 +16279,7 @@ app.get('/', (req, res) => {
                 <button onclick="apiCall('/api/crash-recovery-stats')" class="btn" style="background:linear-gradient(90deg,#ff6633,#cc4400);" title="Check crashed trades and missing funds">🔄 Crash Recovery</button>
                 <button onclick="apiCall('/api/risk-controls')" class="btn" style="background:linear-gradient(90deg,#ff0066,#cc0044);" title="Current risk gates and dynamic profile">⚠️ Risk Controls</button>
                 <button onclick="apiCall('/api/backtest-proof?tier=CONVICTION&prices=ALL')" class="btn" style="background:linear-gradient(90deg,#ec4899,#be185d);" title="Debug-based backtest">📈 Backtest</button>
-                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.35&maxOdds=0.95&stake=0.32&kellyMax=0.32&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (v80 sweet spot 32% stake)">🏆 Poly Backtest</button>
+                <button onclick="apiCall('/api/backtest-polymarket?tier=CONVICTION&minOdds=0.35&maxOdds=0.95&stake=0.17&kellyMax=0.17&scan=1')" class="btn" style="background:linear-gradient(90deg,#10b981,#059669);" title="Polymarket API verified backtest (v86 empirical optimum 17% stake)">🏆 Poly Backtest</button>
                 <button onclick="apiCall('/api/verify-trades-polymarket?mode=PAPER&limit=100')" class="btn" style="background:linear-gradient(90deg,#22c55e,#16a34a);" title="Verify executed trades vs Polymarket outcomes (detect mismatches)">✅ Verify Trades</button>
             </div>
             
@@ -16727,7 +16729,7 @@ app.get('/', (req, res) => {
                 GOAT: { 
                     // 🏆 v79 FINAL (LOCKED): This MUST match README "The One Config"
                     // Goal: MAX PROFIT ASAP with bounded variance + PAPER/LIVE parity
-                    MAX_POSITION_SIZE: 0.32,
+                    MAX_POSITION_SIZE: 0.17, // 🏆 v86: EMPIRICAL OPTIMUM
                     // ORACLE: Primary prediction engine with parity vs backtest defaults
                     ORACLE: { 
                         enabled: true, 
@@ -16812,7 +16814,7 @@ app.get('/', (req, res) => {
                         kellyEnabled: true,
                         kellyFraction: 0.50,
                         kellyMinPWin: 0.55,
-                        kellyMaxFraction: 0.32,
+                        kellyMaxFraction: 0.17, // 🏆 v86: EMPIRICAL OPTIMUM (ruin=0%)
 
                         riskEnvelopeEnabled: true,
                         intradayLossBudgetPct: 0.35,
@@ -18530,9 +18532,6 @@ app.post('/api/settings', async (req, res) => {
     const updates = req.body;
     let reloadRequired = false;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/98145581-a56f-4b36-8f55-c3a6523bc9ca',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'run1',hypothesisId:'D',location:'server.js:/api/settings',message:'settings update request received',data:{method:req.method,path:req.path,hasApiKeyQuery:(req&&req.query&&typeof req.query.apiKey!=='undefined'),hasAuthHeader:!!(req&&req.headers&&req.headers.authorization),updateKeys:(updates&&typeof updates==='object'?Object.keys(updates).slice(0,30):[]),riskKeys:(updates&&updates.RISK&&typeof updates.RISK==='object'?Object.keys(updates.RISK).slice(0,30):[]),hasVaultTrigger:(!!(updates&&updates.RISK)&&updates.RISK.vaultTriggerBalance!==undefined),vaultTriggerType:(updates&&updates.RISK?typeof updates.RISK.vaultTriggerBalance:null),hasStage1:(!!(updates&&updates.RISK)&&updates.RISK.stage1Threshold!==undefined),stage1Type:(updates&&updates.RISK?typeof updates.RISK.stage1Threshold:null)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     // 🎯 v52 CRITICAL FIX: Deep-merge helper to prevent config drift
     // When applying presets, object properties (ORACLE, RISK, etc.) must be MERGED,

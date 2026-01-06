@@ -1,8 +1,8 @@
-# POLYPROPHET v85 — EMPIRICALLY OPTIMAL TRADING SYSTEM
+# POLYPROPHET v86 — EMPIRICALLY OPTIMAL TRADING SYSTEM
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v85 CRITICAL**: kellyMaxFraction=0.17 is EMPIRICALLY PROVEN optimal (0% ruin across ALL tested windows)
+> **v86 CRITICAL**: kellyMaxFraction=0.17 EVERYWHERE (code, presets, defaults, fallbacks) — Redis reset forced
 
 ---
 
@@ -52,7 +52,7 @@
 
 ---
 
-## EMPIRICAL EVIDENCE (v85)
+## EMPIRICAL EVIDENCE (v86)
 
 ### The Winning Configuration
 
@@ -120,7 +120,7 @@ The boundary analysis showed:
 
 PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH up/down prediction markets. It uses a multi-model ensemble (Chainlink price, momentum, Kalman filter, etc.) to predict outcomes and execute trades automatically.
 
-### Your Final Sweet Spot (v85 - EMPIRICALLY OPTIMAL)
+### Your Final Sweet Spot (v86 - EMPIRICALLY OPTIMAL)
 
 After comprehensive empirical testing across 7 non-cherry-picked windows (24h×5 + 72h×2), v85 delivers the **MAXIMUM profit configuration that NEVER ruins**:
 
@@ -129,7 +129,7 @@ After comprehensive empirical testing across 7 non-cherry-picked windows (24h×5
 | **Max Stake** | **17%** | 🏆 v85 EMPIRICAL OPTIMUM - max kellyMax with 0% ruin |
 | **Kelly Sizing** | ENABLED (k=0.5, max=0.17) | Half-Kelly with empirically proven cap |
 | **Dynamic Risk Profile** | ENABLED | 3 stages: Bootstrap ($5-$11), Transition ($11-$20), Lock-in ($20+) |
-| **VaultTriggerBalance** | $11 | 🏆 v85 Stage0→Stage1 threshold |
+| **VaultTriggerBalance** | $11 | 🏆 v86 Stage0→Stage1 threshold |
 | **Trade Frequency Floor** | ENABLED | Allows high-quality ADVISORY when below 1 trade/hour target |
 | **Tier** | CONVICTION primary | ADVISORY allowed via frequency floor when idle |
 | **Assets** | BTC+ETH only | 79%/77% accuracy vs XRP 59.5% |
@@ -140,7 +140,7 @@ After comprehensive empirical testing across 7 non-cherry-picked windows (24h×5
 | **Crash Recovery** | ✅ FIXED | Crashed trades auto-reconciled with Gamma outcomes |
 | **Graceful Shutdown** | ✅ FIXED | State saved properly before exit |
 
-### v85 vs v84 Comparison
+### v86 vs v84 Comparison
 
 | Metric | v84 (kellyMax=0.32) | v85 (kellyMax=0.17) |
 |--------|---------------------|---------------------|
