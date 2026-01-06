@@ -1129,6 +1129,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let cooldownBlocks = 0;
             let globalStopBlocks = 0;
 
+            // 🏆 v92: Peak-DD brake - lifetime peak NOT reset daily (matches runtime)
+            let lifetimePeakBalance = startingBalance;
+            let peakBrakeCaps = 0;
+
             // Resolve trades per-window (no intra-window compounding when maxTradesPerCycle > 1).
             const byResolvedWindow = new Map(); // cycleStartEpochSec -> cycles[]
             for (const c of resolvedCycles) {
@@ -1184,12 +1188,19 @@ app.get('/api/backtest-polymarket', async (req, res) => {
 
                 // 🏆 v89 AUTO-PROFILE (backtest parity): If params are omitted, adapt by CURRENT bankroll.
                 const policyThisWindow = autoProfileEnabled ? getBankrollAdaptivePolicy(windowBalanceStart) : null;
-                const effectiveKellyMaxFraction = (!kellyMaxProvided && policyThisWindow)
+                let effectiveKellyMaxFraction = (!kellyMaxProvided && policyThisWindow)
                     ? policyThisWindow.kellyMaxFraction
                     : kellyMaxFraction;
                 const effectiveRiskEnvelopeEnabled = (!riskEnvelopeProvided && policyThisWindow)
                     ? !!policyThisWindow.riskEnvelopeEnabled
                     : riskEnvelopeEnabled;
+
+                // 🏆 v92: Peak-DD brake (backtest parity) - cap size if down >= 20% from lifetime peak
+                const peakBrake = getPeakDrawdownBrakePolicy(windowBalanceStart, lifetimePeakBalance, policyThisWindow);
+                if (peakBrake.active && effectiveKellyMaxFraction > peakBrake.capFraction) {
+                    effectiveKellyMaxFraction = peakBrake.capFraction;
+                    peakBrakeCaps++;
+                }
 
                 const n = windowCycles.length;
                 const maxBudget = windowBalanceStart * maxExposure;
@@ -1467,6 +1478,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
 
                 balance = windowBalanceStart + windowPnl;
                 peakBalance = Math.max(peakBalance, balance);
+                // 🏆 v92: Update lifetime peak (never reset, for peak-dd brake)
+                lifetimePeakBalance = Math.max(lifetimePeakBalance, balance);
                 const dd = peakBalance > 0 ? ((peakBalance - balance) / peakBalance) : 0;
                 maxDrawdown = Math.max(maxDrawdown, dd);
                 
@@ -5310,6 +5323,11 @@ app.get('/api/risk-controls', (req, res) => {
             ? getBankrollAdaptivePolicy(bankrollForRisk)
             : null;
 
+        // 🏆 v92: Peak-DD brake status
+        const peakDrawdownBrake = (typeof getPeakDrawdownBrakePolicy === 'function')
+            ? getPeakDrawdownBrakePolicy(bankrollForRisk, tradeExecutor?.circuitBreaker?.lifetimePeakBalance, bankrollAdaptivePolicy)
+            : null;
+
         const profile = typeof tradeExecutor.getDynamicRiskProfile === 'function'
             ? tradeExecutor.getDynamicRiskProfile(bankrollForRisk)
             : null;
@@ -5368,6 +5386,8 @@ app.get('/api/risk-controls', (req, res) => {
                 tradingBlocked: belowFloor
             },
             circuitBreaker: tradeExecutor.circuitBreaker || null,
+            // 🏆 v92: Peak-DD brake status (20% from lifetime peak => size cap)
+            peakDrawdownBrake,
             // 🏆 v83: Explicit vault thresholds for forensic auditing
             vaultThresholds: getVaultThresholds(),
             dynamicRiskProfile: profile,
@@ -7119,7 +7139,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 91;  // v91: AUTO-BANKROLL PROFILE + backtest parity + Tools UI v90 + balance refresh loop
+const CONFIG_VERSION = 92;  // v92: PEAK-DD SIZE BRAKE (20% from all-time peak => cap size hard)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -7365,6 +7385,14 @@ const CONFIG = {
         autoBankrollMaxPosHigh: 0.32,
         autoBankrollRiskEnvelopeLow: true,
         autoBankrollRiskEnvelopeHigh: false,
+
+        // 🏆 v92 PEAK DRAWNDOWN "SIZE BRAKE" (high-balance safety):
+        // If equity is down >= X% from ALL-TIME peak, keep trading BUT cap size hard.
+        // This is NOT a halt: it reduces variance/tail risk while still allowing recovery.
+        peakDrawdownBrakeEnabled: true,
+        peakDrawdownBrakePct: 0.20,               // 20% drawdown from all-time peak triggers brake
+        peakDrawdownBrakeMinBankroll: 20,         // only apply at/above this bankroll (defaults to GROWTH cutover)
+        peakDrawdownBrakeMaxPosFraction: 0.12,    // cap MAX_POSITION_SIZE + kellyMaxFraction while in brake (10-15% recommended)
         
         // 🏆 v88 RISK ENVELOPE: DISABLED for $40+ (too restrictive, blocks all trades)
         // For small balances ($5), this provides protection. For $40+, disable it.
@@ -7580,6 +7608,65 @@ function getBankrollAdaptivePolicy(bankroll) {
         riskEnvelopeEnabled: envHigh,
         profile: 'GROWTH',
         reason: `bankroll>=$${cutover}`
+    };
+}
+
+// ==================== 🏆 v92 PEAK-DD SIZE BRAKE POLICY ====================
+// A simple, auditable rule:
+// - Track ALL-TIME peak equity (not reset daily)
+// - If drawdown from that peak >= configured threshold, cap max position fraction + kellyMaxFraction hard.
+function getPeakDrawdownBrakePolicy(currentBalance, lifetimePeakBalance, bankrollPolicy = null) {
+    const cfg = CONFIG?.RISK || {};
+    const enabled = cfg.peakDrawdownBrakeEnabled !== false;
+
+    const ddCapPct = Number.isFinite(Number(cfg.peakDrawdownBrakePct))
+        ? Number(cfg.peakDrawdownBrakePct)
+        : 0.20;
+
+    const defaultMinBankroll = Number.isFinite(Number(cfg.autoBankrollCutover))
+        ? Number(cfg.autoBankrollCutover)
+        : 20;
+    const minBankroll = Number.isFinite(Number(cfg.peakDrawdownBrakeMinBankroll))
+        ? Number(cfg.peakDrawdownBrakeMinBankroll)
+        : defaultMinBankroll;
+
+    const capFracRaw = Number.isFinite(Number(cfg.peakDrawdownBrakeMaxPosFraction))
+        ? Number(cfg.peakDrawdownBrakeMaxPosFraction)
+        : 0.12;
+
+    const clampFrac = (x, fallback) => {
+        const n = Number(x);
+        if (!Number.isFinite(n)) return fallback;
+        return Math.max(0.01, Math.min(0.50, n));
+    };
+    const capFraction = clampFrac(capFracRaw, 0.12);
+
+    const cur = Number(currentBalance);
+    let peak = Number(lifetimePeakBalance);
+    if (!Number.isFinite(peak) || peak <= 0) peak = Number.isFinite(cur) ? cur : 0;
+
+    const ddPct = (Number.isFinite(cur) && peak > 0)
+        ? Math.max(0, (peak - cur) / peak)
+        : 0;
+
+    const inScope = Number.isFinite(cur) && cur >= minBankroll;
+    const active = !!enabled && inScope && ddPct >= ddCapPct;
+
+    return {
+        enabled: !!enabled,
+        active,
+        ddCapPct,
+        ddPct,
+        minBankroll,
+        capFraction,
+        currentBalance: cur,
+        peakBalance: peak,
+        profile: bankrollPolicy?.profile || null,
+        reason: active
+            ? `ddFromPeak ${(ddPct * 100).toFixed(1)}% >= ${(ddCapPct * 100).toFixed(0)}% (cap ${(capFraction * 100).toFixed(0)}%)`
+            : (inScope
+                ? `ddFromPeak ${(ddPct * 100).toFixed(1)}% < ${(ddCapPct * 100).toFixed(0)}%`
+                : `bankroll<$${minBankroll}`)
     };
 }
 
@@ -7835,7 +7922,10 @@ class TradeExecutor {
             dayStartTime: null,              // When the trading day started
             
             // 🏆 v75: Peak balance tracking for trailing drawdown
-            peakBalance: null                // Highest balance reached (for trailing DD calculation)
+            peakBalance: null,               // Highest balance reached TODAY (for trailing DD calculation)
+
+            // 🏆 v92: All-time peak equity (NOT reset daily) for "peak drawdown size brake"
+            lifetimePeakBalance: null
         };
         
         // 🚀 v61.1 MAX PROFIT: Less aggressive loss reduction for more opportunity
@@ -9465,12 +9555,28 @@ class TradeExecutor {
                 const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
                 // 🏆 v89 AUTO-BANKROLL: Adapt max position + Kelly cap by CURRENT bankroll.
                 const bankrollPolicy = getBankrollAdaptivePolicy(bankroll);
-                const effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
+                let effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
                     ? bankrollPolicy.maxPositionFraction
                     : (CONFIG.MAX_POSITION_SIZE || 0.20);
-                const effectiveKellyMaxFrac = Number.isFinite(bankrollPolicy?.kellyMaxFraction)
+                let effectiveKellyMaxFrac = Number.isFinite(bankrollPolicy?.kellyMaxFraction)
                     ? bankrollPolicy.kellyMaxFraction
                     : (CONFIG?.RISK?.kellyMaxFraction || 0.17);
+                
+                // 🏆 v92 PEAK-DD BRAKE: If down >= 20% from ALL-TIME peak, cap size hard
+                const lifetimePeak = this.circuitBreaker?.lifetimePeakBalance || bankroll;
+                const peakBrake = getPeakDrawdownBrakePolicy(bankroll, lifetimePeak, bankrollPolicy);
+                if (peakBrake.active) {
+                    const brakeCap = peakBrake.capFraction;
+                    if (effectiveMaxPosFrac > brakeCap) {
+                        log(`🛑 PEAK-DD BRAKE: Capping maxPos ${(effectiveMaxPosFrac * 100).toFixed(0)}% → ${(brakeCap * 100).toFixed(0)}% (${peakBrake.reason})`, asset);
+                        effectiveMaxPosFrac = brakeCap;
+                    }
+                    if (effectiveKellyMaxFrac > brakeCap) {
+                        log(`🛑 PEAK-DD BRAKE: Capping kelly ${(effectiveKellyMaxFrac * 100).toFixed(0)}% → ${(brakeCap * 100).toFixed(0)}%`, asset);
+                        effectiveKellyMaxFrac = brakeCap;
+                    }
+                }
+                
                 // Cap position size by configured max fraction of bankroll (safety)
                 // NOTE: even with high accuracy, binary outcomes can produce large drawdowns.
                 const MAX_FRACTION = Math.max(0.01, Math.min(effectiveMaxPosFrac, 0.50)); // hard-cap at 50%
@@ -10211,9 +10317,21 @@ class TradeExecutor {
 
             // Sizing: use MAX_POSITION_SIZE as the cap for total pair cost, but auto-bump to meet minimums.
             const bankrollPolicy = getBankrollAdaptivePolicy(bankroll);
-            const effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
+            let effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
                 ? bankrollPolicy.maxPositionFraction
                 : (CONFIG.MAX_POSITION_SIZE || 0.20);
+            
+            // 🏆 v92 PEAK-DD BRAKE: If down >= 20% from ALL-TIME peak, cap size hard
+            const lifetimePeak = this.circuitBreaker?.lifetimePeakBalance || bankroll;
+            const peakBrake = getPeakDrawdownBrakePolicy(bankroll, lifetimePeak, bankrollPolicy);
+            if (peakBrake.active) {
+                const brakeCap = peakBrake.capFraction;
+                if (effectiveMaxPosFrac > brakeCap) {
+                    log(`🛑 PEAK-DD BRAKE (ILLIQ): Capping maxPos ${(effectiveMaxPosFrac * 100).toFixed(0)}% → ${(brakeCap * 100).toFixed(0)}% (${peakBrake.reason})`, asset);
+                    effectiveMaxPosFrac = brakeCap;
+                }
+            }
+            
             const maxFraction = Math.max(0.01, Math.min(effectiveMaxPosFrac, 0.50)); // UI caps at 50%
             let totalBudget = bankroll * maxFraction;
             if (totalBudget < minTotalForMinOrders) totalBudget = minTotalForMinOrders;
@@ -12608,6 +12726,7 @@ const opportunityDetector = new OpportunityDetector();
 // 🏆 v90: Balance freshness loop (LIVE + PAPER visibility)
 // Ensures deposits/withdrawals are picked up even when no trades are firing.
 // refreshLiveBalance() is internally cached (30s), so calling frequently is safe.
+// 🏆 v92: Also tracks lifetimePeakBalance and auto-resets on detected deposits.
 setInterval(() => {
     try {
         if (!tradeExecutor) return;
@@ -12616,6 +12735,39 @@ setInterval(() => {
         }
         if (typeof tradeExecutor.refreshMATICBalance === 'function') {
             tradeExecutor.refreshMATICBalance().catch(() => { });
+        }
+        
+        // 🏆 v92: Update lifetime peak balance (NEVER reset daily, only on deposits)
+        const currentEquity = (tradeExecutor.mode === 'LIVE' && typeof tradeExecutor.getBankrollForRisk === 'function')
+            ? tradeExecutor.getBankrollForRisk()
+            : tradeExecutor.paperBalance;
+        
+        if (Number.isFinite(currentEquity) && currentEquity > 0) {
+            const cb = tradeExecutor.circuitBreaker;
+            if (!cb) return;
+            
+            const prevLifetimePeak = cb.lifetimePeakBalance || 0;
+            
+            // Initialize if not set
+            if (!Number.isFinite(prevLifetimePeak) || prevLifetimePeak <= 0) {
+                cb.lifetimePeakBalance = currentEquity;
+                log(`🏔️ LIFETIME PEAK: Initialized to $${currentEquity.toFixed(2)}`);
+            }
+            // Update peak if balance grew
+            else if (currentEquity > prevLifetimePeak) {
+                // Detect deposit: sudden jump > 20% is likely a deposit, not trading gains
+                // In that case, reset peak to current (so withdrawal later doesn't falsely trigger brake)
+                const jumpPct = (currentEquity - prevLifetimePeak) / prevLifetimePeak;
+                if (jumpPct > 0.20) {
+                    // Likely a deposit - reset peak to current
+                    cb.lifetimePeakBalance = currentEquity;
+                    log(`💰 DEPOSIT DETECTED: Balance jumped ${(jumpPct * 100).toFixed(1)}% → resetting lifetime peak to $${currentEquity.toFixed(2)}`);
+                } else {
+                    // Normal growth - just update peak
+                    cb.lifetimePeakBalance = currentEquity;
+                }
+            }
+            // Note: We do NOT reset peak when balance drops (that's the whole point of the brake)
         }
     } catch { }
 }, 10 * 1000);
@@ -18857,6 +19009,8 @@ app.post('/api/reset-balance', async (req, res) => {
         tradeExecutor.circuitBreaker.dayStartBalance = newBalance;
         tradeExecutor.circuitBreaker.dayStartTime = Date.now();
         tradeExecutor.circuitBreaker.peakBalance = newBalance;
+        // 🏆 v92: Also reset lifetime peak so brake doesn't trigger from old high
+        tradeExecutor.circuitBreaker.lifetimePeakBalance = newBalance;
         tradeExecutor.circuitBreaker.state = 'NORMAL';
         tradeExecutor.circuitBreaker.triggerTime = 0;
     }
