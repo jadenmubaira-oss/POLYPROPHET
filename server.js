@@ -537,6 +537,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // Fee model
         const PROFIT_FEE_PCT = 0.02;
         const SLIPPAGE_PCT = 0.01;
+        const MIN_ORDER = 1.10; // Polymarket minimum (stake) + buffer
 
         const crypto = require('crypto');
 
@@ -1205,6 +1206,36 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     if (cycle && Number.isFinite(cycle.frequencyFloorMultiplier) && cycle.frequencyFloorMultiplier > 0 && cycle.frequencyFloorMultiplier < 1) {
                         stake = stake * cycle.frequencyFloorMultiplier;
                     }
+
+                    // ==================== MIN ORDER + FLOOR GUARDS (RUNTIME-REALISTIC) ====================
+                    // Polymarket enforces a minimum stake. If our sizing is below MIN_ORDER, we must either:
+                    // - bump to MIN_ORDER (if it is SAFE vs the balance floor), or
+                    // - skip the trade (more realistic than "phantom" sub-min orders).
+                    const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
+                    const floor = floorEnabled ? Number(CONFIG.RISK.minBalanceFloor) : 0;
+                    const minBankrollForMinOrder = floorEnabled ? (floor + MIN_ORDER) : MIN_ORDER;
+                    if (stake < MIN_ORDER) {
+                        if (windowBalanceStart >= minBankrollForMinOrder) {
+                            stake = MIN_ORDER;
+                            envelopeCaps++; // count as a cap/bump event (size increased to meet min)
+                        } else {
+                            envelopeBlocks++;
+                            continue;
+                        }
+                    }
+                    // Hard guarantee: never place a trade that can cross the floor on a loss.
+                    // Max loss on a binary position = stake.
+                    if (floorEnabled) {
+                        const maxSafeStake = Math.max(0, windowBalanceStart - floor);
+                        if (stake > maxSafeStake) {
+                            stake = maxSafeStake;
+                            envelopeCaps++;
+                            if (stake < MIN_ORDER) {
+                                envelopeBlocks++;
+                                continue;
+                            }
+                        }
+                    }
                     
                     // 🏆 v78/v83: Risk envelope simulation with DYNAMIC PROFILE (matches runtime applyRiskEnvelope)
                     // 🏆 v83: Uses threshold contract for parity with runtime + vault optimizer
@@ -1239,20 +1270,20 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
                         const maxTradeSize = effectiveBudget * dynPerTradeCap;
                         
-                        // 🏆 v78 FIX: Match runtime applyRiskEnvelope logic
-                        // The TRUE constraint is effectiveBudget, not maxTradeSize
-                        // Only block when effectiveBudget < MIN_ORDER (truly exhausted)
-                        const MIN_ORDER = 1.10;
+                        // 🏆 v78/v86 FIX: Match runtime applyRiskEnvelope logic (including min-order override rules)
+                        // The TRUE constraint is effectiveBudget, not maxTradeSize.
+                        // Only allow MIN_ORDER overrides when they do NOT violate the balance floor.
                         
                         // 🏆 v84: Bootstrap min-order override (parity with runtime TradeExecutor.applyRiskEnvelope)
                         // In Bootstrap stage (balance < stage1 threshold), minOrderRiskOverride=true
                         // This allows MIN_ORDER even when budget is exhausted, as long as balance can cover it
                         const isBootstrapStage = balance < STAGE1_THRESHOLD;
+                        const minOrderOverride = isBootstrapStage; // runtime dynamic profile: true only in BOOTSTRAP
                         
                         // Case 1: Budget truly exhausted
                         if (effectiveBudget < MIN_ORDER) {
                             // 🏆 v84: Check Bootstrap min-order override before blocking
-                            if (isBootstrapStage && balance >= MIN_ORDER) {
+                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= floor)) {
                                 // Allow MIN_ORDER via override (matches runtime behavior)
                                 stake = MIN_ORDER;
                                 envelopeCaps++;
@@ -1264,11 +1295,16 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         }
                         
                         // Case 2: Per-trade cap < MIN_ORDER but budget available
-                        // Allow MIN_ORDER (cap relaxation)
+                        // Allow MIN_ORDER only if override is enabled; otherwise block (can't satisfy per-trade risk cap).
                         if (maxTradeSize < MIN_ORDER) {
-                            if (stake > MIN_ORDER) {
-                                stake = MIN_ORDER;
-                                envelopeCaps++;
+                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= floor)) {
+                                if (stake > MIN_ORDER) {
+                                    stake = MIN_ORDER;
+                                    envelopeCaps++;
+                                }
+                            } else {
+                                envelopeBlocks++;
+                                continue;
                             }
                         }
                         // Case 3: Normal cap - proposed exceeds maxTradeSize
@@ -1277,6 +1313,19 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             envelopeCaps++;
                         }
                         // Case 4: Fits within envelope - no change
+
+                        // Final floor guard after envelope caps/overrides
+                        if (floorEnabled) {
+                            const maxSafeStake2 = Math.max(0, windowBalanceStart - floor);
+                            if (stake > maxSafeStake2) {
+                                stake = maxSafeStake2;
+                                envelopeCaps++;
+                            }
+                            if (stake < MIN_ORDER) {
+                                envelopeBlocks++;
+                                continue;
+                            }
+                        }
                     }
 
                     const isWin = cycle.prediction === cycle.polymarketOutcome;
@@ -6254,7 +6303,7 @@ app.get('/api/perfection-check', async (req, res) => {
             toolsUiExists = true;
             const toolsContent = fs.readFileSync(toolsPath, 'utf8');
             // Check for required marker and key features
-            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v84');
+            toolsUiHasMarker = toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v86');
             const hasVaultPanel = toolsContent.includes('vault-projection') && toolsContent.includes('vault-optimize');
             const hasPolymarketPanel = toolsContent.includes('vault-optimize-polymarket') && toolsContent.includes('runPolymarketOptimizer');
             const hasAuditPanel = toolsContent.includes('perfection-check');
@@ -6264,7 +6313,7 @@ app.get('/api/perfection-check', async (req, res) => {
             if (toolsUiHasMarker && hasVaultPanel && hasPolymarketPanel && hasAuditPanel && hasApiExplorer && hasApplyWinner) {
                 toolsUiDetails = 'Tools UI v86 with Monte Carlo panel, Polymarket optimizer, Audit runner, API Explorer, and Apply Winner';
             } else {
-                toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'v84 marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasPolymarketPanel ? 'polymarket panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
+                toolsUiDetails = `Missing features: ${!toolsUiHasMarker ? 'v86 marker ' : ''}${!hasVaultPanel ? 'vault panel ' : ''}${!hasPolymarketPanel ? 'polymarket panel ' : ''}${!hasAuditPanel ? 'audit panel ' : ''}${!hasApiExplorer ? 'API explorer ' : ''}${!hasApplyWinner ? 'apply winner ' : ''}`.trim();
             }
         } else {
             toolsUiDetails = 'public/tools.html not found';
@@ -8040,6 +8089,11 @@ class TradeExecutor {
         const effectiveBudget = envelope.effectiveBudget || 0;
         const stageName = envelope.profile?.stageName || 'UNKNOWN';
         const minOrderRiskOverride = envelope.profile?.minOrderRiskOverride || false;
+        const actualBalance = this.mode === 'LIVE' ? this.getBankrollForRisk() : this.paperBalance;
+        const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
+        const floor = floorEnabled ? Number(CONFIG.RISK.minBalanceFloor) : null;
+        const canLose = (loss) => !floorEnabled || (actualBalance - Number(loss) >= Number(floor));
+        const maxSafeStake = floorEnabled ? Math.max(0, actualBalance - Number(floor)) : Infinity;
         
         // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
         // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
@@ -8049,10 +8103,9 @@ class TradeExecutor {
         // 🏆 v80 FIX: Respect minOrderRiskOverride from dynamic profile
         // In Bootstrap mode (Stage 0), minOrderRiskOverride=true allows MIN_ORDER even when budget is tight
         if (effectiveBudget < MIN_ORDER) {
-            // Check if we have enough ACTUAL balance for MIN_ORDER (ignore budget exhaustion)
-            const actualBalance = this.mode === 'LIVE' ? this.getBankrollForRisk() : this.paperBalance;
-            
-            if (minOrderRiskOverride && actualBalance >= MIN_ORDER) {
+            // Check if we have enough ACTUAL balance for MIN_ORDER (ignore budget exhaustion),
+            // BUT never allow a trade that can cross the balance floor on a loss.
+            if (minOrderRiskOverride && actualBalance >= MIN_ORDER && canLose(MIN_ORDER)) {
                 log(`🛡️ RISK ENVELOPE [${stageName}]: Budget exhausted ($${effectiveBudget.toFixed(2)}) but MIN_ORDER override active - allowing $${MIN_ORDER.toFixed(2)}`);
                 return { 
                     size: MIN_ORDER, 
@@ -8072,35 +8125,52 @@ class TradeExecutor {
         }
         
         // Case 2: Budget available but per-trade cap would be < MIN_ORDER
-        // Allow MIN_ORDER since effectiveBudget can absorb it
+        // Allow MIN_ORDER ONLY when minOrderRiskOverride is enabled AND it does not violate the balance floor.
         if (envelope.maxTradeSize < MIN_ORDER) {
-            // effectiveBudget >= MIN_ORDER (from Case 1), so we can trade MIN_ORDER
-            // This is a "cap relaxation" - allow MIN_ORDER despite per-trade cap
-            if (proposedSize > MIN_ORDER) {
-                log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${MIN_ORDER.toFixed(2)} (per-trade cap $${envelope.maxTradeSize.toFixed(2)} < MIN, budget $${effectiveBudget.toFixed(2)})`);
+            if (minOrderRiskOverride && actualBalance >= MIN_ORDER && canLose(MIN_ORDER)) {
+                if (proposedSize > MIN_ORDER) {
+                    log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${MIN_ORDER.toFixed(2)} (per-trade cap $${envelope.maxTradeSize.toFixed(2)} < MIN, budget $${effectiveBudget.toFixed(2)})`);
+                }
+                return { 
+                    size: MIN_ORDER, 
+                    capped: proposedSize > MIN_ORDER,
+                    capRelaxed: true,
+                    envelope,
+                    reason: `Per-trade cap relaxed to MIN_ORDER (override enabled, stage: ${stageName})`
+                };
             }
             return { 
-                size: MIN_ORDER, 
-                capped: proposedSize > MIN_ORDER,
-                capRelaxed: true,
+                size: 0, 
+                blocked: true, 
                 envelope,
-                reason: `Per-trade cap relaxed to MIN_ORDER (budget $${effectiveBudget.toFixed(2)} available, stage: ${stageName})`
+                reason: `Per-trade cap too small for MIN_ORDER ($${envelope.maxTradeSize.toFixed(2)} < $${MIN_ORDER}) and override disabled (stage: ${stageName})`
             };
         }
         
-        // Case 3: Normal cap - proposed exceeds maxTradeSize
+        // Case 3/4: Cap to envelope, then enforce floor safety.
+        let size = proposedSize;
+        let capped = false;
+        let reason = null;
         if (proposedSize > envelope.maxTradeSize) {
-            log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${envelope.maxTradeSize.toFixed(2)} (${envelope.reason})`);
-            return { 
-                size: envelope.maxTradeSize, 
-                capped: true, 
+            size = envelope.maxTradeSize;
+            capped = true;
+            reason = envelope.reason;
+            log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${size.toFixed(2)} (${envelope.reason})`);
+        }
+        if (floorEnabled && size > maxSafeStake) {
+            size = maxSafeStake;
+            capped = true;
+            reason = reason || `Balance floor guard ($${actualBalance.toFixed(2)} - floor $${Number(floor).toFixed(2)})`;
+        }
+        if (size < MIN_ORDER) {
+            return {
+                size: 0,
+                blocked: true,
                 envelope,
-                reason: envelope.reason
+                reason: `Size $${size.toFixed(2)} < MIN_ORDER $${MIN_ORDER} after floor/envelope caps (stage: ${stageName})`
             };
         }
-        
-        // Case 4: Proposed size fits within envelope
-        return { size: proposedSize, capped: false, envelope };
+        return { size, capped, envelope, reason: reason || 'Within envelope' };
     }
     
     // 🏆 v62 ADAPTIVE GOAT: Apply all variance controls with PROFIT PROTECTION
@@ -9243,16 +9313,19 @@ class TradeExecutor {
                     log(`📊 Size capped: $${size.toFixed(2)} (max ${(MAX_FRACTION * 100).toFixed(0)}% / abs $${MAX_ABSOLUTE_SIZE})`, asset);
                 }
 
-                // Bump to minimum if needed (before envelope check)
+                // Bump to minimum if needed (before envelope check), but NEVER if it can violate the balance floor on a loss.
                 let bumpedToMin = false;
                 if (size < MIN_ORDER) {
-                    if (bankroll >= MIN_ORDER * 1.5) {
+                    const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
+                    const floor = floorEnabled ? Number(CONFIG.RISK.minBalanceFloor) : 0;
+                    const minBankrollForMinOrder = floorEnabled ? (floor + MIN_ORDER) : (MIN_ORDER * 1.5);
+                    if (bankroll >= minBankrollForMinOrder) {
                         size = MIN_ORDER;
                         bumpedToMin = true;
                         log(`📊 Size bumped to minimum $${MIN_ORDER} (bankroll: $${bankroll.toFixed(2)})`, asset);
                     } else {
                         log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
-                        return { success: false, error: `Need at least $${(MIN_ORDER * 1.5).toFixed(2)} to trade` };
+                        return { success: false, error: `Need at least $${minBankrollForMinOrder.toFixed(2)} to trade safely above floor` };
                     }
                 }
                 
@@ -9264,24 +9337,8 @@ class TradeExecutor {
                     return { success: false, error: envelopeResult.reason };
                 }
                 if (envelopeResult.capped) {
-                    // Envelope wants to reduce size
-                    if (envelopeResult.size < MIN_ORDER) {
-                        // Envelope cap is below MIN_ORDER - check if we can override
-                        if (CONFIG.RISK.minOrderRiskOverride && bankroll >= MIN_ORDER * 1.5 && bumpedToMin) {
-                            // Allow MIN_ORDER with micro-bankroll exception
-                            const maxTradeSize = envelopeResult.envelope?.maxTradeSize;
-                            log(`⚠️ RISK ENVELOPE OVERRIDE: Budget $${maxTradeSize?.toFixed(2) || '?'} < MIN_ORDER. Allowing $${MIN_ORDER} (micro-bankroll exception)`, asset);
-                            size = MIN_ORDER;
-                        } else {
-                            // Block the trade - can't meet minimum within budget
-                            const envBudget = envelopeResult.envelope?.effectiveBudget;
-                            log(`🛡️ TRADE BLOCKED: Risk envelope too small for MIN_ORDER $${MIN_ORDER}`, asset);
-                            return { success: false, error: `Risk budget ($${envBudget?.toFixed(2) || '?'}) too small for minimum order` };
-                        }
-                    } else {
-                        size = envelopeResult.size;
-                        log(`🛡️ RISK ENVELOPE: Size capped to $${size.toFixed(2)} (${envelopeResult.reason})`, asset);
-                    }
+                    size = envelopeResult.size;
+                    log(`🛡️ RISK ENVELOPE: Size capped to $${size.toFixed(2)} (${envelopeResult.reason || 'cap'})`, asset);
                 }
             }
 
