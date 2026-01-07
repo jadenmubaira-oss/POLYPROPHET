@@ -1746,7 +1746,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             },
             // 🏆 v93: Omit large arrays in compact mode
             scan: compactMode ? (scanResults ? `[${scanResults.length} scan results omitted]` : null) : scanResults,
-            kneeAnalysis: compactMode ? (kneeAnalysis ? { optimalKnee: kneeAnalysis.optimalKnee, conservative: kneeAnalysis.conservative } : null) : kneeAnalysis
+            kneeAnalysis: compactMode ? (kneeAnalysis ? { optimalKnee: kneeAnalysis.optimalKnee, conservative: kneeAnalysis.conservative } : null) : kneeAnalysis,
             // 🏆 v76: Day-by-day breakdown (for 1-7 day projections from single run)
             // 🏆 v93: Omit in compact mode to prevent OOM
             dayByDay: compactMode ? `[${primarySim.dayByDay.length} days omitted - use compact=0 for full data]` : primarySim.dayByDay.map(d => ({
@@ -1761,7 +1761,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 pnl: parseFloat(d.pnl.toFixed(2)),
                 maxDD: (d.maxDD * 100).toFixed(2) + '%'
             })),
-            trades: compactMode ? `[${primarySim.trades.length} trades omitted - use compact=0 for full data]` : primarySim.trades.slice(-30)
+            trades: compactMode ? `[${primarySim.trades.length} trades omitted - use compact=0 for full data]` : primarySim.trades.slice(-30),
             interpretation: {
                 winRateNeededForEV: primarySim.winRateNeededForEV !== null ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
                 currentWinRate: primarySim.winRate.toFixed(1) + '%',
