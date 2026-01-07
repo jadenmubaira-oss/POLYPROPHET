@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified commit (repo)**: `15f66ab` (v96 final hardening + proof artifacts)
+- **Last verified commit (repo)**: `5151419` (v96 final hardening + proof artifacts)
 - **Offline proofs**:
   - `npm test` (sanity)
   - `npm run forensics:debug` → writes `docs/forensics/DEBUG_CORPUS_REPORT_v96.json`
