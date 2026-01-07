@@ -6601,11 +6601,8 @@ app.get('/api/perfection-check', async (req, res) => {
             toolsUiExists = true;
             const toolsContent = fs.readFileSync(toolsPath, 'utf8');
             // Check for required marker and key features
-            toolsUiHasMarker =
-                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v86') ||
-                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v88') ||
-                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v90') ||
-                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v93');
+            // 🏆 v96: Accept any marker version (prevents false failures when marker increments)
+            toolsUiHasMarker = /POLYPROPHET_TOOLS_UI_MARKER_v\d+/.test(toolsContent);
             const hasVaultPanel = toolsContent.includes('vault-projection') && toolsContent.includes('vault-optimize');
             const hasPolymarketPanel = toolsContent.includes('vault-optimize-polymarket') && toolsContent.includes('runPolymarketOptimizer');
             const hasAuditPanel = toolsContent.includes('perfection-check');
