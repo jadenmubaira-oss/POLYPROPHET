@@ -548,6 +548,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const trailingDrawdownPct = parseFloat(req.query.trailingDD) || 0.15;
         const perTradeLossCap = parseFloat(req.query.perTradeCap) || 0.10;
         
+        // 🏆 v93: Compact mode - omit large arrays to prevent OOM in UI/IDE
+        const compactMode = req.query.compact === '1' || String(req.query.compact || '').toLowerCase() === 'true';
+        
         // 🏆 v83: Vault thresholds (use threshold contract for parity with runtime)
         // Query overrides: vaultTriggerBalance, stage2Threshold
         const vaultTriggerBalanceParam = parseFloat(req.query.vaultTriggerBalance);
@@ -1564,9 +1567,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 // 🏆 v88: Halt statistics (runtime parity)
                 haltedTrades,
                 cooldownBlocks,
-                globalStopBlocks,
-                // 🏆 v92: Peak-DD brake stats
-                peakBrakeCaps
+                globalStopBlocks
             };
         }
 
@@ -1660,9 +1661,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 vaultThresholds: getVaultThresholds(backtestThresholdOverrides),
                 assetsAllowed: Array.from(allowedAssets),
                 envelopeCaps: primarySim.envelopeCaps,
-                envelopeBlocks: primarySim.envelopeBlocks,
-                // 🏆 v92: Peak-DD brake stats
-                peakBrakeCaps: primarySim.peakBrakeCaps
+                envelopeBlocks: primarySim.envelopeBlocks
             },
             // 🏆 v84: Objective metrics for optimizer aggregation
             objectiveMetrics: {
@@ -1745,10 +1744,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     ? selectedSlugsSorted
                     : selectedSlugsSorted.slice(0, 3).concat(selectedSlugsSorted.slice(-3))
             },
-            scan: scanResults,
-            kneeAnalysis, // 🏆 v69: Optimal stake selection based on profit/drawdown ratio
+            // 🏆 v93: Omit large arrays in compact mode
+            scan: compactMode ? (scanResults ? `[${scanResults.length} scan results omitted]` : null) : scanResults,
+            kneeAnalysis: compactMode ? (kneeAnalysis ? { optimalKnee: kneeAnalysis.optimalKnee, conservative: kneeAnalysis.conservative } : null) : kneeAnalysis
             // 🏆 v76: Day-by-day breakdown (for 1-7 day projections from single run)
-            dayByDay: primarySim.dayByDay.map(d => ({
+            // 🏆 v93: Omit in compact mode to prevent OOM
+            dayByDay: compactMode ? `[${primarySim.dayByDay.length} days omitted - use compact=0 for full data]` : primarySim.dayByDay.map(d => ({
                 day: d.day,
                 date: d.date,
                 startBalance: parseFloat(d.startBalance.toFixed(2)),
@@ -1760,7 +1761,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 pnl: parseFloat(d.pnl.toFixed(2)),
                 maxDD: (d.maxDD * 100).toFixed(2) + '%'
             })),
-            trades: primarySim.trades.slice(-30), // Last 30 for display
+            trades: compactMode ? `[${primarySim.trades.length} trades omitted - use compact=0 for full data]` : primarySim.trades.slice(-30)
             interpretation: {
                 winRateNeededForEV: primarySim.winRateNeededForEV !== null ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
                 currentWinRate: primarySim.winRate.toFixed(1) + '%',
@@ -5392,6 +5393,23 @@ app.get('/api/risk-controls', (req, res) => {
             circuitBreaker: tradeExecutor.circuitBreaker || null,
             // 🏆 v92: Peak-DD brake status (20% from lifetime peak => size cap)
             peakDrawdownBrake,
+            // 🏆 v93: Auto-transfer detection (deposits/withdrawals reset lifetime peak)
+            autoTransferDetection: {
+                enabled: CONFIG?.RISK?.autoTransferDetectionEnabled !== false,
+                lastTransfer: (typeof _transferDetectionState !== 'undefined') ? _transferDetectionState.lastTransfer : null,
+                prevEquity: (typeof _transferDetectionState !== 'undefined') ? _transferDetectionState.prevEquity : null,
+                lastTradeEpoch: (typeof _transferDetectionState !== 'undefined') ? _transferDetectionState.lastTradeEpoch : null
+            },
+            // 🏆 v93: Guarded auto-optimizer status
+            autoOptimizer: {
+                enabled: CONFIG?.RISK?.autoOptimizerEnabled === true,
+                intervalHours: CONFIG?.RISK?.autoOptimizerIntervalHours || 24,
+                lastRunEpoch: (typeof _autoOptimizerState !== 'undefined') ? _autoOptimizerState.lastRunEpoch : null,
+                lastResult: (typeof _autoOptimizerState !== 'undefined') ? _autoOptimizerState.lastResult : null,
+                isRunning: (typeof _autoOptimizerState !== 'undefined') ? _autoOptimizerState.isRunning : false
+            },
+            // 🏆 v93: Auto safety self-check status
+            autoSelfCheck: (typeof _selfCheckState !== 'undefined') ? _selfCheckState : null,
             // 🏆 v83: Explicit vault thresholds for forensic auditing
             vaultThresholds: getVaultThresholds(),
             dynamicRiskProfile: profile,
@@ -7143,7 +7161,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 92;  // v92: PEAK-DD SIZE BRAKE (20% from all-time peak => cap size hard)
+const CONFIG_VERSION = 93;  // v93: AUTO-TRANSFER DETECTION (deposits/withdrawals reset lifetime peak) + guarded auto-optimizer
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -7397,7 +7415,21 @@ const CONFIG = {
         peakDrawdownBrakePct: 0.20,               // 20% drawdown from all-time peak triggers brake
         peakDrawdownBrakeMinBankroll: 20,         // only apply at/above this bankroll (defaults to GROWTH cutover)
         peakDrawdownBrakeMaxPosFraction: 0.12,    // cap MAX_POSITION_SIZE + kellyMaxFraction while in brake (10-15% recommended)
-        
+
+        // 🏆 v93 AUTO-TRANSFER DETECTION: Reset lifetime peak on deposits AND withdrawals (so brake doesn't stick after profit-taking)
+        autoTransferDetectionEnabled: true,
+        autoTransferMinDeltaPct: 0.15,            // Min % change to classify as transfer (vs trading noise)
+        autoTransferMinDeltaAbs: 5.00,            // Min absolute $ change to classify as transfer
+        autoTransferQuiescentSec: 120,            // Seconds of no trade activity before a balance change counts as transfer
+
+        // 🏆 v93 GUARDED AUTO-OPTIMIZER: Periodically search for better settings and auto-apply if safe
+        autoOptimizerEnabled: true,
+        autoOptimizerIntervalHours: 24,           // Run optimizer every N hours (min 1)
+        autoOptimizerMinImprovementPct: 10,       // Only apply if speed score improves by at least this %
+        autoOptimizerRequireZeroRuin: true,       // Hard filter: candidate must have 0% ruin across all tested windows
+        autoOptimizerMaxDrawdownPct: 40,          // Hard filter: candidate's avg max drawdown must be <= this
+        autoOptimizerTunableParams: ['vaultTriggerBalance'],  // Only these params can be auto-tuned
+
         // 🏆 v88 RISK ENVELOPE: DISABLED for $40+ (too restrictive, blocks all trades)
         // For small balances ($5), this provides protection. For $40+, disable it.
         riskEnvelopeEnabled: false,       // 🏆 v88: Disabled for $40+ start
@@ -12727,10 +12759,17 @@ class OpportunityDetector {
 const tradeExecutor = new TradeExecutor();
 const opportunityDetector = new OpportunityDetector();
 
+// 🏆 v93 AUTO-TRANSFER DETECTION STATE
+let _transferDetectionState = {
+    prevEquity: null,
+    lastTradeEpoch: 0,
+    lastTransfer: null  // { type: 'DEPOSIT'|'WITHDRAWAL', amount, timestamp, oldPeak, newPeak }
+};
+
 // 🏆 v90: Balance freshness loop (LIVE + PAPER visibility)
 // Ensures deposits/withdrawals are picked up even when no trades are firing.
 // refreshLiveBalance() is internally cached (30s), so calling frequently is safe.
-// 🏆 v92: Also tracks lifetimePeakBalance and auto-resets on detected deposits.
+// 🏆 v93: Robust transfer detection - resets lifetime peak on BOTH deposits AND withdrawals.
 setInterval(() => {
     try {
         if (!tradeExecutor) return;
@@ -12741,40 +12780,364 @@ setInterval(() => {
             tradeExecutor.refreshMATICBalance().catch(() => { });
         }
         
-        // 🏆 v92: Update lifetime peak balance (NEVER reset daily, only on deposits)
         const currentEquity = (tradeExecutor.mode === 'LIVE' && typeof tradeExecutor.getBankrollForRisk === 'function')
             ? tradeExecutor.getBankrollForRisk()
             : tradeExecutor.paperBalance;
         
-        if (Number.isFinite(currentEquity) && currentEquity > 0) {
-            const cb = tradeExecutor.circuitBreaker;
-            if (!cb) return;
-            
-            const prevLifetimePeak = cb.lifetimePeakBalance || 0;
-            
-            // Initialize if not set
-            if (!Number.isFinite(prevLifetimePeak) || prevLifetimePeak <= 0) {
-                cb.lifetimePeakBalance = currentEquity;
-                log(`🏔️ LIFETIME PEAK: Initialized to $${currentEquity.toFixed(2)}`);
-            }
-            // Update peak if balance grew
-            else if (currentEquity > prevLifetimePeak) {
-                // Detect deposit: sudden jump > 20% is likely a deposit, not trading gains
-                // In that case, reset peak to current (so withdrawal later doesn't falsely trigger brake)
-                const jumpPct = (currentEquity - prevLifetimePeak) / prevLifetimePeak;
-                if (jumpPct > 0.20) {
-                    // Likely a deposit - reset peak to current
-                    cb.lifetimePeakBalance = currentEquity;
-                    log(`💰 DEPOSIT DETECTED: Balance jumped ${(jumpPct * 100).toFixed(1)}% → resetting lifetime peak to $${currentEquity.toFixed(2)}`);
-                } else {
-                    // Normal growth - just update peak
-                    cb.lifetimePeakBalance = currentEquity;
-                }
-            }
-            // Note: We do NOT reset peak when balance drops (that's the whole point of the brake)
+        if (!Number.isFinite(currentEquity) || currentEquity <= 0) return;
+        
+        const cb = tradeExecutor.circuitBreaker;
+        if (!cb) return;
+        
+        const cfg = CONFIG?.RISK || {};
+        const transferEnabled = cfg.autoTransferDetectionEnabled !== false;
+        const minDeltaPct = Number.isFinite(cfg.autoTransferMinDeltaPct) ? cfg.autoTransferMinDeltaPct : 0.15;
+        const minDeltaAbs = Number.isFinite(cfg.autoTransferMinDeltaAbs) ? cfg.autoTransferMinDeltaAbs : 5.0;
+        const quiescentSec = Number.isFinite(cfg.autoTransferQuiescentSec) ? cfg.autoTransferQuiescentSec : 120;
+        
+        const prevLifetimePeak = cb.lifetimePeakBalance || 0;
+        const prevEquity = _transferDetectionState.prevEquity;
+        const lastTradeEpoch = _transferDetectionState.lastTradeEpoch || 0;
+        const now = Date.now();
+        const nowSec = Math.floor(now / 1000);
+        
+        // Initialize state
+        if (!Number.isFinite(prevLifetimePeak) || prevLifetimePeak <= 0) {
+            cb.lifetimePeakBalance = currentEquity;
+            _transferDetectionState.prevEquity = currentEquity;
+            log(`🏔️ LIFETIME PEAK: Initialized to $${currentEquity.toFixed(2)}`);
+            return;
         }
+        if (!Number.isFinite(prevEquity)) {
+            _transferDetectionState.prevEquity = currentEquity;
+            return;
+        }
+        
+        // Track last trade activity from tradeHistory
+        const history = tradeExecutor.tradeHistory || [];
+        if (history.length > 0) {
+            const lastTrade = history[history.length - 1];
+            const lastTradeTime = lastTrade?.time || lastTrade?.closeTime || 0;
+            if (lastTradeTime > lastTradeEpoch) {
+                _transferDetectionState.lastTradeEpoch = lastTradeTime;
+            }
+        }
+        
+        const delta = currentEquity - prevEquity;
+        const deltaPct = prevEquity > 0 ? Math.abs(delta) / prevEquity : 0;
+        const secsSinceLastTrade = nowSec - Math.floor((_transferDetectionState.lastTradeEpoch || 0) / 1000);
+        const isQuiescent = secsSinceLastTrade >= quiescentSec;
+        
+        // Detect external transfer (deposit or withdrawal)
+        if (transferEnabled && isQuiescent && Math.abs(delta) >= minDeltaAbs && deltaPct >= minDeltaPct) {
+            const type = delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL';
+            const oldPeak = cb.lifetimePeakBalance;
+            cb.lifetimePeakBalance = currentEquity;
+            _transferDetectionState.lastTransfer = {
+                type,
+                amount: Math.abs(delta),
+                timestamp: now,
+                oldPeak,
+                newPeak: currentEquity
+            };
+            log(`💰 ${type} DETECTED: Balance changed $${Math.abs(delta).toFixed(2)} (${(deltaPct * 100).toFixed(1)}%) after ${secsSinceLastTrade}s idle → resetting lifetime peak to $${currentEquity.toFixed(2)}`);
+        }
+        // Normal growth from trading - just update peak if higher
+        else if (currentEquity > prevLifetimePeak) {
+            cb.lifetimePeakBalance = currentEquity;
+        }
+        
+        // Update prev equity for next iteration
+        _transferDetectionState.prevEquity = currentEquity;
     } catch { }
 }, 10 * 1000);
+
+// ==================== 🏆 v93 GUARDED AUTO-OPTIMIZER ====================
+// Periodically searches for better settings and auto-applies if safe.
+// Only runs if autoOptimizerEnabled=true and enough time has passed since last run.
+let _autoOptimizerState = {
+    lastRunEpoch: 0,
+    lastResult: null,
+    isRunning: false
+};
+
+async function runGuardedAutoOptimizer() {
+    const cfg = CONFIG?.RISK || {};
+    if (!cfg.autoOptimizerEnabled) return;
+    if (_autoOptimizerState.isRunning) return;
+    
+    const intervalHours = Math.max(1, Number(cfg.autoOptimizerIntervalHours) || 24);
+    const intervalMs = intervalHours * 60 * 60 * 1000;
+    const now = Date.now();
+    
+    if (now - _autoOptimizerState.lastRunEpoch < intervalMs) return;
+    
+    _autoOptimizerState.isRunning = true;
+    _autoOptimizerState.lastRunEpoch = now;
+    
+    try {
+        log(`🔄 AUTO-OPTIMIZER: Starting scheduled optimization run...`);
+        
+        const minImprovementPct = Number(cfg.autoOptimizerMinImprovementPct) || 10;
+        const requireZeroRuin = cfg.autoOptimizerRequireZeroRuin !== false;
+        const maxDrawdownPct = Number(cfg.autoOptimizerMaxDrawdownPct) || 40;
+        const tunableParams = cfg.autoOptimizerTunableParams || ['vaultTriggerBalance'];
+        
+        // Only support vaultTriggerBalance tuning for now (safe scope)
+        if (!tunableParams.includes('vaultTriggerBalance')) {
+            log(`⚠️ AUTO-OPTIMIZER: No supported tunable params configured, skipping.`);
+            _autoOptimizerState.isRunning = false;
+            return;
+        }
+        
+        // Get current config baseline
+        const currentTrigger = getVaultThresholds().vaultTriggerBalance;
+        const currentBalance = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || 40);
+        
+        // Run quick speed-score evaluation on current config
+        const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
+        const offsets = [0, 24, 48, 72];
+        
+        async function evalSpeedScore(trigger) {
+            let scores = [];
+            let ruinAny = false;
+            let maxDDSum = 0;
+            let validWindows = 0;
+            
+            for (const offset of offsets) {
+                try {
+                    const url = `${baseUrl}/api/backtest-polymarket?hours=72&offsetHours=${offset}&balance=${currentBalance}&vaultTriggerBalance=${trigger}&limit=100`;
+                    const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
+                    if (!resp.ok) continue;
+                    const data = await resp.json();
+                    
+                    const metrics = data.objectiveMetrics || {};
+                    const summary = data.summary || {};
+                    
+                    if (metrics.ruined) ruinAny = true;
+                    const finalBal = Number(summary.finalBalance) || currentBalance;
+                    const returnPct = ((finalBal - currentBalance) / currentBalance) * 100;
+                    scores.push(returnPct);
+                    
+                    const ddStr = String(summary.maxDrawdown || '0').replace('%', '');
+                    maxDDSum += parseFloat(ddStr) || 0;
+                    validWindows++;
+                } catch { }
+            }
+            
+            if (validWindows === 0) return null;
+            
+            const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+            const avgMaxDD = maxDDSum / validWindows;
+            
+            return { trigger, avgScore, ruinAny, avgMaxDD, validWindows };
+        }
+        
+        // Evaluate current config
+        const currentEval = await evalSpeedScore(currentTrigger);
+        if (!currentEval) {
+            log(`⚠️ AUTO-OPTIMIZER: Could not evaluate current config, skipping.`);
+            _autoOptimizerState.isRunning = false;
+            return;
+        }
+        
+        log(`📊 AUTO-OPTIMIZER: Current trigger=$${currentTrigger} → avgScore=${currentEval.avgScore.toFixed(1)}% avgDD=${currentEval.avgMaxDD.toFixed(1)}%`);
+        
+        // Sweep a small range around current trigger
+        const candidates = [];
+        const step = 1.0;
+        const minT = Math.max(6, currentTrigger - 3);
+        const maxT = Math.min(20, currentTrigger + 3);
+        
+        for (let t = minT; t <= maxT; t += step) {
+            if (Math.abs(t - currentTrigger) < 0.5) continue; // Skip current
+            const ev = await evalSpeedScore(t);
+            if (ev) candidates.push(ev);
+        }
+        
+        // Filter by hard constraints
+        const passing = candidates.filter(c => {
+            if (requireZeroRuin && c.ruinAny) return false;
+            if (c.avgMaxDD > maxDrawdownPct) return false;
+            return true;
+        });
+        
+        // Find best improvement
+        const best = passing.reduce((acc, c) => {
+            if (!acc) return c;
+            return c.avgScore > acc.avgScore ? c : acc;
+        }, null);
+        
+        if (!best) {
+            log(`✅ AUTO-OPTIMIZER: No better candidate found. Keeping current.`);
+            _autoOptimizerState.lastResult = { action: 'KEPT', currentTrigger, reason: 'no_improvement' };
+            _autoOptimizerState.isRunning = false;
+            return;
+        }
+        
+        const improvement = best.avgScore - currentEval.avgScore;
+        const improvementPct = currentEval.avgScore !== 0 ? (improvement / Math.abs(currentEval.avgScore)) * 100 : (improvement > 0 ? 100 : 0);
+        
+        if (improvement < 0 || improvementPct < minImprovementPct) {
+            log(`✅ AUTO-OPTIMIZER: Best candidate trigger=$${best.trigger} only ${improvementPct.toFixed(1)}% better (need ${minImprovementPct}%). Keeping current.`);
+            _autoOptimizerState.lastResult = { action: 'KEPT', currentTrigger, best, improvementPct, reason: 'insufficient_improvement' };
+            _autoOptimizerState.isRunning = false;
+            return;
+        }
+        
+        // Apply the new config
+        log(`🚀 AUTO-OPTIMIZER: Applying new trigger=$${best.trigger} (${improvementPct.toFixed(1)}% improvement, DD=${best.avgMaxDD.toFixed(1)}%)`);
+        
+        CONFIG.RISK.vaultTriggerBalance = best.trigger;
+        CONFIG.RISK.stage1Threshold = best.trigger;
+        
+        // Persist to Redis if available
+        try {
+            if (typeof redis !== 'undefined' && redis && redis.status === 'ready') {
+                await redis.set('polyprophet:settings', JSON.stringify(CONFIG));
+            }
+        } catch { }
+        
+        _autoOptimizerState.lastResult = {
+            action: 'APPLIED',
+            oldTrigger: currentTrigger,
+            newTrigger: best.trigger,
+            improvementPct,
+            avgScore: best.avgScore,
+            avgMaxDD: best.avgMaxDD,
+            timestamp: now
+        };
+        
+        log(`✅ AUTO-OPTIMIZER: Successfully applied vaultTriggerBalance=$${best.trigger}`);
+        
+    } catch (e) {
+        log(`❌ AUTO-OPTIMIZER: Error: ${e.message}`);
+        _autoOptimizerState.lastResult = { action: 'ERROR', error: e.message, timestamp: Date.now() };
+    }
+    
+    _autoOptimizerState.isRunning = false;
+}
+
+// Run auto-optimizer check every hour (actual execution gated by intervalHours)
+setInterval(() => {
+    runGuardedAutoOptimizer().catch(() => {});
+}, 60 * 60 * 1000);
+
+// Also run once at startup after 5 minutes (give server time to warm up)
+setTimeout(() => {
+    runGuardedAutoOptimizer().catch(() => {});
+}, 5 * 60 * 1000);
+
+// ==================== 🏆 v93 AUTO SAFETY SELF-CHECK ====================
+// Periodically validates critical conditions and auto-halts trading if unsafe.
+let _selfCheckState = {
+    lastCheckEpoch: 0,
+    lastResult: null,
+    autoHaltReason: null
+};
+
+function runAutoSelfCheck() {
+    const now = Date.now();
+    _selfCheckState.lastCheckEpoch = now;
+    
+    const failures = [];
+    const warnings = [];
+    
+    // Check 1: Feed freshness
+    if (typeof anyFeedStale !== 'undefined' && anyFeedStale) {
+        failures.push('CHAINLINK_FEED_STALE');
+    }
+    
+    // Check 2: Balance floor
+    const cashBalance = tradeExecutor.mode === 'PAPER' 
+        ? tradeExecutor.paperBalance 
+        : (tradeExecutor.cachedLiveBalance || 0);
+    const floorEnabled = CONFIG?.RISK?.minBalanceFloorEnabled;
+    const floor = CONFIG?.RISK?.minBalanceFloor || 2;
+    if (floorEnabled && cashBalance < floor) {
+        failures.push(`BALANCE_BELOW_FLOOR($${cashBalance.toFixed(2)}<$${floor})`);
+    }
+    
+    // Check 3: Circuit breaker already halted
+    if (tradeExecutor?.circuitBreaker?.state === 'HALTED') {
+        warnings.push('CIRCUIT_BREAKER_HALTED');
+    }
+    
+    // Check 4: Redis availability for LIVE mode
+    if (tradeExecutor.mode === 'LIVE') {
+        const redisOk = typeof redis !== 'undefined' && redis && redis.status === 'ready';
+        if (!redisOk) {
+            failures.push('LIVE_MODE_NO_REDIS');
+        }
+        
+        // Check 5: Wallet loaded for LIVE
+        if (!tradeExecutor.wallet) {
+            failures.push('LIVE_MODE_NO_WALLET');
+        }
+    }
+    
+    // Check 6: Stale pending sells (stuck for > 1 hour)
+    const stalePendingCount = Object.values(tradeExecutor.positions || {})
+        .filter(p => p && p.stalePending && (now - (p.staleSince || 0)) > 3600000).length;
+    if (stalePendingCount > 0) {
+        warnings.push(`STALE_PENDING_SELLS(${stalePendingCount})`);
+    }
+    
+    // Check 7: Crash recovery queue growing
+    const crashQueue = (tradeExecutor.tradeHistory || []).filter(t => 
+        t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
+    ).length;
+    if (crashQueue > 5) {
+        warnings.push(`CRASH_RECOVERY_QUEUE(${crashQueue})`);
+    }
+    
+    // Check 8: Redemption queue growing
+    const redemptionQueue = (tradeExecutor.redemptionQueue || []).length;
+    if (redemptionQueue > 10) {
+        warnings.push(`REDEMPTION_QUEUE(${redemptionQueue})`);
+    }
+    
+    const result = {
+        timestamp: now,
+        passed: failures.length === 0,
+        failures,
+        warnings,
+        tradingAllowed: failures.length === 0
+    };
+    
+    _selfCheckState.lastResult = result;
+    
+    // Auto-halt on critical failures (for LIVE mode only)
+    if (failures.length > 0 && tradeExecutor.mode === 'LIVE') {
+        if (tradeExecutor.circuitBreaker && tradeExecutor.circuitBreaker.state !== 'HALTED') {
+            const reason = `AUTO_SELFCHECK: ${failures.join(', ')}`;
+            tradeExecutor.circuitBreaker.state = 'HALTED';
+            tradeExecutor.circuitBreaker.triggerTime = now;
+            _selfCheckState.autoHaltReason = reason;
+            log(`🛑 AUTO-HALT: Trading halted due to: ${reason}`);
+            
+            // Send Telegram notification if configured
+            if (typeof sendTelegramNotification === 'function') {
+                sendTelegramNotification(`🛑 AUTO-HALT: ${reason}`);
+            }
+        }
+    }
+    
+    if (failures.length > 0) {
+        log(`⚠️ SELF-CHECK FAILED: ${failures.join(', ')}`);
+    }
+    
+    return result;
+}
+
+// Run self-check every 60 seconds
+setInterval(() => {
+    try {
+        runAutoSelfCheck();
+    } catch (e) {
+        log(`❌ SELF-CHECK ERROR: ${e.message}`);
+    }
+}, 60 * 1000);
 
 // 🎯 GOAT v44.1: GateTrace - records why trades were blocked for each cycle/asset
 const gateTrace = {

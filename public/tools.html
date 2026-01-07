@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🛠️ Tools - POLYPROPHET</title>
-    <!-- POLYPROPHET_TOOLS_UI_MARKER_v90 -->
+    <!-- POLYPROPHET_TOOLS_UI_MARKER_v93 -->
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -629,6 +629,13 @@
             return apiKey ? `&apiKey=${encodeURIComponent(apiKey)}` : '';
         }
         
+        // 🏆 v93: Truncate large JSON to prevent OOM in browser
+        function truncateJson(data, maxLen = 8000) {
+            const str = JSON.stringify(data, null, 2);
+            if (str.length <= maxLen) return str;
+            return str.substring(0, maxLen) + '\n\n... [TRUNCATED - ' + (str.length - maxLen) + ' chars omitted. Use API Explorer with compact=0 for full data]';
+        }
+        
         // ==================== VAULT PROJECTION ====================
         async function runProjection() {
             const btn = document.getElementById('proj-btn');
@@ -825,7 +832,7 @@
                 const kelly = document.getElementById('pm-kelly').value;
                 const autoProfile = document.getElementById('pm-autoProfile')?.value || '1';
                 
-                let url = `/api/vault-optimize-polymarket?min=${min}&max=${max}&step=${step}&hours=${hours}&offsets=${encodeURIComponent(offsets)}&balance=${start}&tier=${tier}`;
+                let url = `/api/vault-optimize-polymarket?min=${min}&max=${max}&step=${step}&hours=${hours}&offsets=${encodeURIComponent(offsets)}&balance=${start}&tier=${tier}&compact=1`;
                 if (String(autoProfile) === '0') {
                     url += `&autoProfile=0&kellyMax=${kelly}`;
                 } else {
@@ -859,13 +866,13 @@
                     status.className = 'status-badge pass';
                     result.className = 'result-box success';
                     result.style.display = 'block';
-                    result.textContent = JSON.stringify(data, null, 2);
+                    result.textContent = truncateJson(data);
                 } else {
                     status.textContent = 'NO RESULTS';
                     status.className = 'status-badge fail';
                     result.className = 'result-box error';
                     result.style.display = 'block';
-                    result.textContent = JSON.stringify(data, null, 2);
+                    result.textContent = truncateJson(data);
                 }
                 
             } catch (e) {

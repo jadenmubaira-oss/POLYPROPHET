@@ -1,8 +1,8 @@
-# POLYPROPHET v91 — EMPIRICALLY OPTIMAL (AUTO-BANKROLL) TRADING SYSTEM
+# POLYPROPHET v93 — FULLY AUTONOMOUS TRADING SYSTEM
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v91 CRITICAL**: AUTO-BANKROLL PROFILE (LIVE+PAPER+BACKTEST parity) + runtime-parity backtests + Tools UI v90
+> **v93 CRITICAL**: FULLY AUTONOMOUS + AUTO-TRANSFER DETECTION + GUARDED AUTO-OPTIMIZER + SELF-CHECK HALTS
 
 ---
 
@@ -31,7 +31,34 @@
 
 ## NORTH STAR / ASPIRATIONS
 
-### Your Goal Hierarchy (v91 FINAL)
+### What is TRULY Automatic (v93)
+
+| Feature | Behavior | Manual Override |
+|---------|----------|-----------------|
+| **Auto-Bankroll Profile** | Switches MICRO_SAFE/GROWTH at $20 | `autoProfile=0` in backtests |
+| **Peak-DD Size Brake** | Caps size to 12% if down 20% from peak (at ≥$20) | Disable via `peakDrawdownBrakeEnabled=false` |
+| **Auto-Transfer Detection** | Resets lifetime peak on deposits AND withdrawals | Thresholds in `CONFIG.RISK.autoTransfer*` |
+| **Guarded Auto-Optimizer** | Runs every 24h, applies only if 10%+ improvement + 0% ruin | `autoOptimizerEnabled=false` to disable |
+| **Auto Safety Self-Check** | Halts LIVE trading on critical failures (no Redis, no wallet, etc.) | Always on for safety |
+| **Balance Floor** | Never trades if balance < $2 | Adjust `minBalanceFloor` |
+| **Global Stop** | Halts at 35% daily loss | `globalStopLossOverride=true` to bypass |
+| **Loss Cooldown** | Pauses after 3 consecutive losses | `enableLossCooldown=false` |
+
+### Can I Lose Money? (Honest Answer)
+
+**YES.** There is **NO 0% LOSS GUARANTEE**. Here's why:
+- Binary outcomes are inherently random
+- Smart contract/wallet/infrastructure risks exist
+- Slippage, fees, and fills are non-deterministic
+- Market conditions can change faster than the bot adapts
+
+**What we CAN guarantee:**
+- The bot will never trade below the $2 floor
+- The bot will auto-halt on critical failures (LIVE mode)
+- Deposits/withdrawals won't permanently break the peak-DD brake
+- All trades are logged and recoverable (see Recovery Runbook below)
+
+### Your Goal Hierarchy (v93 FINAL)
 
 | Priority | Objective | Metric |
 |----------|-----------|--------|
