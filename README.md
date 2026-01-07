@@ -70,7 +70,7 @@
 
 - **Last verified runtime fingerprint**: `serverSha256` = `7504e36c331f389780e9097e74bdeac3693f72158f76f2fe5f208dda32e27777` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
-- **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (latest pushed commit: `c3f7cec`).
+- **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
   - `npm test` (sanity)
   - `npm run forensics:debug` → writes `docs/forensics/DEBUG_CORPUS_REPORT_v96.json`

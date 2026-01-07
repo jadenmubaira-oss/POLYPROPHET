@@ -1,6 +1,6 @@
 {
-    "timestamp": "2026-01-07T23:36:40.626Z",
-    "gitCommit": "c3f7cec9d0e0b0b5d98be63e9961e5a449ba6d31",
+    "timestamp": "2026-01-07T23:37:56.827Z",
+    "gitCommit": "9b75bf707f83c79647d6e3157313ab3d7118c930",
     "counts": {
         "requiredFiles": 11,
         "debugFiles": 149,
@@ -34,10 +34,10 @@
         },
         {
             "path": "README.md",
-            "bytes": 73688,
+            "bytes": 73733,
             "lines": 1622,
             "nonEmptyLines": 1255,
-            "sha256": "a9687de7ad27b4bb1b1b8f98c965fd6da9d96698721c99806c41fe4cda084409",
+            "sha256": "686ce972444e75b89e6968f455d553f6cdc8217d56a0e336465ab1930787b566",
             "purpose": "Primary operator/deployment/verification documentation (the “single source of truth” narrative)."
         },
         {
