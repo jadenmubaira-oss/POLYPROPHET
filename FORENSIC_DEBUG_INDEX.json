@@ -1,0 +1,3050 @@
+﻿{
+    "generatedAt":  "2026-01-07T18:36:24.6360051Z",
+    "count":  149,
+    "byType":  {
+                   "markdown_report":  2,
+                   "audit_summary":  1,
+                   "live_gates_snapshot":  1,
+                   "liquidity_report":  1,
+                   "live_debug_snapshot":  1,
+                   "backtest_aggregate":  1,
+                   "trade_replay_backtest":  1,
+                   "cycle_summary":  1,
+                   "trade_deep_report":  1,
+                   "live_debug_export":  4,
+                   "polyprophet_debug_export":  135
+               },
+    "files":  [
+                  {
+                      "path":  "debug\\audit_report.json",
+                      "bytes":  2618,
+                      "type":  "audit_summary",
+                      "topLevelKeys":  [
+                                           "dir",
+                                           "fileCount",
+                                           "parseErrors",
+                                           "uniqueTrades",
+                                           "closedTrades",
+                                           "wins",
+                                           "losses",
+                                           "flats",
+                                           "winRate",
+                                           "totalPnL",
+                                           "avgPnL",
+                                           "medianPnL",
+                                           "configVersionsSeen",
+                                           "breakdown",
+                                           "sample"
+                                       ],
+                      "stats":  {
+                                    "winRate":  0.5437158469945356,
+                                    "uniqueTrades":  376,
+                                    "closedTrades":  366,
+                                    "fileCount":  112
+                                }
+                  },
+                  {
+                      "path":  "debug\\audit_report.md",
+                      "bytes":  2533,
+                      "type":  "markdown_report",
+                      "topLevelKeys":  null,
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\comprehensive_backtest_results.json",
+                      "bytes":  6948,
+                      "type":  "backtest_aggregate",
+                      "topLevelKeys":  [
+                                           "startingBalance",
+                                           "finalBalance",
+                                           "totalProfit",
+                                           "totalReturn",
+                                           "tradesExecuted",
+                                           "wins",
+                                           "losses",
+                                           "winRate",
+                                           "avgProfitPerTrade",
+                                           "tradesPerDay",
+                                           "projected24hBalance",
+                                           "projected24hProfit",
+                                           "tradeResults"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\cycle_report.json",
+                      "bytes":  30589,
+                      "type":  "cycle_summary",
+                      "topLevelKeys":  [
+                                           "dir",
+                                           "fileCount",
+                                           "parseErrors",
+                                           "cycles",
+                                           "breakdown"
+                                       ],
+                      "stats":  {
+                                    "fileCount":  110
+                                }
+                  },
+                  {
+                      "path":  "debug\\cycle_report.md",
+                      "bytes":  24586,
+                      "type":  "markdown_report",
+                      "topLevelKeys":  null,
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\illiquidity_gap_report.json",
+                      "bytes":  1030,
+                      "type":  "liquidity_report",
+                      "topLevelKeys":  [
+                                           "dir",
+                                           "fileCount",
+                                           "parseErrors",
+                                           "thresholds",
+                                           "points",
+                                           "gapStats",
+                                           "byAsset",
+                                           "topQualifying"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\live_debug_2026-01-01T08-35-32.json",
+                      "bytes":  18484059,
+                      "type":  "live_debug_snapshot",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\live_debug_export_2025-12-31T15-50-45-600Z.json",
+                      "bytes":  141094,
+                      "type":  "live_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+                                    "tradeHistoryLen":  50
+                                }
+                  },
+                  {
+                      "path":  "debug\\live_debug_export_2025-12-31T16-22-09-729Z.json",
+                      "bytes":  222305,
+                      "type":  "live_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+                                    "tradeHistoryLen":  50
+                                }
+                  },
+                  {
+                      "path":  "debug\\live_debug_export_2025-12-31T16-28-28-787Z.json",
+                      "bytes":  162028,
+                      "type":  "live_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+                                    "tradeHistoryLen":  50
+                                }
+                  },
+                  {
+                      "path":  "debug\\live_debug_export_2025-12-31T16-31-12-024Z.json",
+                      "bytes":  461357,
+                      "type":  "live_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+                                    "tradeHistoryLen":  50
+                                }
+                  },
+                  {
+                      "path":  "debug\\live_gates_2025-12-31T16-00-17-685Z.json",
+                      "bytes":  15829,
+                      "type":  "live_gates_snapshot",
+                      "topLevelKeys":  [
+                                           "summary",
+                                           "recentTraces",
+                                           "config"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-18T10-59-02-670Z.json",
+                      "bytes":  254796,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-18T20-40-25-896Z.json",
+                      "bytes":  174171,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-18T22-30-35-403Z.json",
+                      "bytes":  189654,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-18T23-33-14-868Z.json",
+                      "bytes":  228983,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-19T10-49-38-681Z.json",
+                      "bytes":  218353,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-19T12-20-26-784Z.json",
+                      "bytes":  249756,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-19T14-59-42-755Z.json",
+                      "bytes":  185050,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-19T15-32-58-456Z.json",
+                      "bytes":  205789,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-19T18-15-30-228Z.json",
+                      "bytes":  205989,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-19T21-24-23-191Z.json",
+                      "bytes":  227892,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-19T21-45-10-845Z.json",
+                      "bytes":  241079,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T00-17-20-114Z.json",
+                      "bytes":  234590,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T07-03-36-163Z.json",
+                      "bytes":  242392,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T11-30-16-715Z.json",
+                      "bytes":  234276,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T13-18-39-796Z.json",
+                      "bytes":  211531,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T16-03-43-077Z.json",
+                      "bytes":  236054,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T16-18-09-967Z.json",
+                      "bytes":  243735,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T16-58-50-525Z.json",
+                      "bytes":  244746,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T17-56-27-218Z.json",
+                      "bytes":  247300,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T19-24-52-540Z.json",
+                      "bytes":  212451,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T21-52-57-638Z.json",
+                      "bytes":  219867,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T22-42-04-464Z.json",
+                      "bytes":  242582,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-20T23-00-03-191Z.json",
+                      "bytes":  238574,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-21T03-29-21-806Z.json",
+                      "bytes":  177401,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-21T06-15-16-927Z.json",
+                      "bytes":  189967,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-21T15-36-07-773Z.json",
+                      "bytes":  214675,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-21T16-01-55-479Z.json",
+                      "bytes":  230387,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-21T17-22-54-172Z.json",
+                      "bytes":  179828,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-21T20-46-05-213Z.json",
+                      "bytes":  227250,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T04-13-29-832Z.json",
+                      "bytes":  242583,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T07-30-10-239Z.json",
+                      "bytes":  195422,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T11-30-28-153Z.json",
+                      "bytes":  241839,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T14-21-07-438Z.json",
+                      "bytes":  234370,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T17-31-58-687Z.json",
+                      "bytes":  241127,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T18-28-40-718Z.json",
+                      "bytes":  242812,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T18-45-55-368Z.json",
+                      "bytes":  243660,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T22-01-33-414Z.json",
+                      "bytes":  241406,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-22T22-45-28-950Z.json",
+                      "bytes":  241783,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T02-33-09-871Z.json",
+                      "bytes":  245129,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T09-46-08-879Z.json",
+                      "bytes":  247995,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T12-21-28-753Z.json",
+                      "bytes":  196845,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T13-03-15-572Z.json",
+                      "bytes":  221269,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T15-25-48-825Z.json",
+                      "bytes":  247968,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T16-46-47-851Z.json",
+                      "bytes":  202917,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T17-26-42-320Z.json",
+                      "bytes":  220321,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-23T20-36-02-820Z.json",
+                      "bytes":  181189,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T04-12-58-113Z.json",
+                      "bytes":  241818,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T09-33-09-808Z.json",
+                      "bytes":  174823,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T10-34-43-912Z.json",
+                      "bytes":  207060,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T11-27-42-500Z.json",
+                      "bytes":  166442,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T16-06-45-883Z.json",
+                      "bytes":  246020,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T17-32-56-886Z.json",
+                      "bytes":  178631,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T19-19-25-598Z.json",
+                      "bytes":  180972,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-24T22-35-38-932Z.json",
+                      "bytes":  189863,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T00-56-51-502Z.json",
+                      "bytes":  244760,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T02-00-13-000Z.json",
+                      "bytes":  246159,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T07-33-34-462Z.json",
+                      "bytes":  248824,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T11-11-58-190Z.json",
+                      "bytes":  243149,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T11-30-04-780Z.json",
+                      "bytes":  181243,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T12-50-44-776Z.json",
+                      "bytes":  222914,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T13-48-29-813Z.json",
+                      "bytes":  175440,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T14-23-38-476Z.json",
+                      "bytes":  191536,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T15-21-02-246Z.json",
+                      "bytes":  222050,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T16-18-43-191Z.json",
+                      "bytes":  243983,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T18-48-35-348Z.json",
+                      "bytes":  244009,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T19-16-37-940Z.json",
+                      "bytes":  181388,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-25T19-55-04-560Z.json",
+                      "bytes":  196792,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T00-26-06-256Z.json",
+                      "bytes":  241379,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T07-03-44-173Z.json",
+                      "bytes":  243999,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T15-42-16-342Z.json",
+                      "bytes":  243344,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T16-40-56-062Z.json",
+                      "bytes":  243097,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T19-31-40-253Z.json",
+                      "bytes":  196646,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T20-17-24-336Z.json",
+                      "bytes":  181074,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T20-44-18-684Z.json",
+                      "bytes":  134374,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T21-04-33-443Z.json",
+                      "bytes":  183547,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-26T21-48-55-618Z.json",
+                      "bytes":  185116,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T04-39-48-742Z.json",
+                      "bytes":  244283,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T04-50-47-240Z.json",
+                      "bytes":  245693,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T06-29-34-638Z.json",
+                      "bytes":  206990,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T09-00-30-396Z.json",
+                      "bytes":  228050,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T09-31-21-135Z.json",
+                      "bytes":  240516,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T10-09-54-711Z.json",
+                      "bytes":  177318,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T10-24-01-499Z.json",
+                      "bytes":  184007,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T11-08-27-276Z.json",
+                      "bytes":  206539,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T11-39-42-577Z.json",
+                      "bytes":  222970,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T12-44-54-802Z.json",
+                      "bytes":  247043,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T12-45-01-465Z.json",
+                      "bytes":  240637,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T13-06-12-787Z.json",
+                      "bytes":  247405,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T14-26-26-713Z.json",
+                      "bytes":  249188,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T14-46-40-801Z.json",
+                      "bytes":  246947,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T15-13-40-475Z.json",
+                      "bytes":  248802,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T15-48-48-538Z.json",
+                      "bytes":  249767,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T16-41-25-005Z.json",
+                      "bytes":  251374,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T17-12-55-378Z.json",
+                      "bytes":  251475,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T18-26-49-053Z.json",
+                      "bytes":  253539,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T19-02-36-695Z.json",
+                      "bytes":  254908,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T20-58-00-752Z.json",
+                      "bytes":  258353,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T22-04-59-755Z.json",
+                      "bytes":  258611,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-27T22-15-03-392Z.json",
+                      "bytes":  253671,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T05-31-41-477Z.json",
+                      "bytes":  261064,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T05-31-56-485Z.json",
+                      "bytes":  260664,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T06-00-21-220Z.json",
+                      "bytes":  262036,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T06-29-37-860Z.json",
+                      "bytes":  262763,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T06-30-04-550Z.json",
+                      "bytes":  259370,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T09-53-37-705Z.json",
+                      "bytes":  268245,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T14-30-43-481Z.json",
+                      "bytes":  190043,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T20-18-55-590Z.json",
+                      "bytes":  247571,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-28T20-25-24-472Z.json",
+                      "bytes":  246614,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-29T01-30-27-943Z.json",
+                      "bytes":  198371,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-29T05-33-53-173Z.json",
+                      "bytes":  244343,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-29T07-32-20-332Z.json",
+                      "bytes":  244548,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-31T14-13-24-351Z.json",
+                      "bytes":  212377,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "config",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-31T17-00-04-269Z.json",
+                      "bytes":  5141609,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-31T20-07-14-186Z.json",
+                      "bytes":  15394810,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-31T20-24-49-231Z.json",
+                      "bytes":  19084466,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-31T20-42-31-533Z.json",
+                      "bytes":  22800963,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2025-12-31T20-55-15-543Z.json",
+                      "bytes":  24720832,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T00-45-49-982Z.json",
+                      "bytes":  25279903,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T04-55-38-896Z.json",
+                      "bytes":  32175262,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T05-36-29-514Z.json",
+                      "bytes":  31300641,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T06-36-38-187Z.json",
+                      "bytes":  31324497,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T07-40-51-066Z.json",
+                      "bytes":  32020131,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T12-04-10-572Z.json",
+                      "bytes":  31768629,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T12-31-36-996Z.json",
+                      "bytes":  31247624,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T13-27-32-737Z.json",
+                      "bytes":  5737158,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T14-30-19-049Z.json",
+                      "bytes":  10301858,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T14-33-30-577Z.json",
+                      "bytes":  10897002,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T16-15-00-377Z.json",
+                      "bytes":  9235606,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T16-50-58-933Z.json",
+                      "bytes":  15848883,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-01T20-13-48-691Z.json",
+                      "bytes":  20808908,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-02T16-41-59-718Z.json",
+                      "bytes":  7480211,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-03T20-07-20-032Z.json",
+                      "bytes":  1311582,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-03T21-37-39-617Z.json",
+                      "bytes":  14242264,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-04T07-37-18-236Z.json",
+                      "bytes":  23295465,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\polyprophet_debug_2026-01-04T10-18-52-424Z.json",
+                      "bytes":  6411070,
+                      "type":  "polyprophet_debug_export",
+                      "topLevelKeys":  [
+                                           "exportTime",
+                                           "serverUptime",
+                                           "cycleInterval",
+                                           "nodeVersion",
+                                           "memoryUsage",
+                                           "code",
+                                           "runtimeConfigSha256",
+                                           "config",
+                                           "configAll",
+                                           "globalState",
+                                           "tradeExecutor",
+                                           "opportunityDetector",
+                                           "assets"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\trade_deep_report.json",
+                      "bytes":  27922,
+                      "type":  "trade_deep_report",
+                      "topLevelKeys":  [
+                                           "dir",
+                                           "fileCount",
+                                           "parseErrors",
+                                           "trades",
+                                           "breakdown",
+                                           "topBucketsByWinRate",
+                                           "topBucketsByAvgPnlPct",
+                                           "sampleTrades"
+                                       ],
+                      "stats":  {
+
+                                }
+                  },
+                  {
+                      "path":  "debug\\trade_replay_backtest.json",
+                      "bytes":  1999,
+                      "type":  "trade_replay_backtest",
+                      "topLevelKeys":  [
+                                           "parseErrors",
+                                           "result"
+                                       ],
+                      "stats":  {
+
+                                }
+                  }
+              ]
+}

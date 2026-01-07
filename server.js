@@ -97,8 +97,10 @@ app.use(express.json()); // CRITICAL: Parse JSON bodies BEFORE any routes
 
 // ==================== PASSWORD PROTECTION ====================
 // 🎯 GOAT v44.1: Support both Basic Auth AND Bearer token for API access
-const API_KEY = process.env.API_KEY || crypto.randomBytes(32).toString('hex');
-console.log(`🔑 API Key (for programmatic access): ${API_KEY.substring(0, 8)}...${API_KEY.substring(API_KEY.length - 4)}`);
+const API_KEY = (process.env.API_KEY || '').trim() || crypto.randomBytes(32).toString('hex');
+const API_KEY_SOURCE = process.env.API_KEY ? 'ENV' : 'GENERATED';
+// SECURITY: Do not print tokens to logs. (If generated, retrieve it via /api/api-key after authenticating.)
+console.log(`🔑 API Key source: ${API_KEY_SOURCE}${API_KEY_SOURCE === 'GENERATED' ? ' (set API_KEY env var to pin a stable token)' : ''}`);
 
 app.use((req, res, next) => {
     // Public endpoints (no auth) for uptime checks / deploy verification only.
@@ -5419,6 +5421,7 @@ app.get('/api/risk-controls', (req, res) => {
         if (anyFeedStale) blocks.push('CHAINLINK_FEED_STALE');
         if (belowFloor) blocks.push('BALANCE_FLOOR');
         if (tradeExecutor?.circuitBreaker?.state === 'HALTED') blocks.push('CIRCUIT_BREAKER_HALTED');
+        if (tradeExecutor?.tradingPaused) blocks.push('MANUAL_PAUSE');
 
         // 🏆 v96: LCB usage status
         const lcbAvailable = ASSETS.some(a => typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function');
@@ -5626,6 +5629,7 @@ app.get('/api/halts', (req, res) => {
         currentState: {
             isHalted: inCooldown || globalStopTriggered || cb.state === 'HALTED',
             isThrottled: cb.state === 'SAFE_ONLY' || cb.state === 'PROBE_ONLY',
+            isManuallyPaused: !!tradeExecutor.tradingPaused,
             effectiveState: cb.state === 'HALTED' ? 'HALTED' : 
                            (globalStopTriggered ? 'GLOBAL_STOP' : 
                            (inCooldown ? 'COOLDOWN' : cb.state)),
@@ -5636,6 +5640,12 @@ app.get('/api/halts', (req, res) => {
         
         // Active triggers
         activeTriggers: {
+            manualPause: tradeExecutor.tradingPaused ? {
+                active: true,
+                since: tradeExecutor.tradingPausedAt ? new Date(tradeExecutor.tradingPausedAt).toISOString() : null,
+                reason: tradeExecutor.tradingPausedReason || 'manual_pause',
+                resume: 'POST /api/trading-pause with { paused: false }'
+            } : { active: false },
             cooldown: inCooldown ? {
                 active: true,
                 remainingSeconds: cooldownRemaining,
@@ -5694,9 +5704,50 @@ app.get('/api/halts', (req, res) => {
         // Override endpoints
         overrides: {
             circuitBreaker: 'POST /api/circuit-breaker/override with action=reset|disable|enable|halt',
-            globalStopLoss: 'POST /api/toggle-stop-loss-override'
+            globalStopLoss: 'POST /api/toggle-stop-loss-override',
+            manualPause: 'POST /api/trading-pause with { paused: true|false }'
         }
     });
+});
+
+// Manual pause/resume endpoint (soft-block automated trades; MANUAL trades still allowed)
+app.get('/api/trading-pause', (req, res) => {
+    if (!tradeExecutor) return res.status(500).json({ error: 'TradeExecutor not initialized' });
+    res.json({
+        paused: !!tradeExecutor.tradingPaused,
+        reason: tradeExecutor.tradingPausedReason || null,
+        pausedAt: tradeExecutor.tradingPausedAt || 0,
+        pausedAtIso: tradeExecutor.tradingPausedAt ? new Date(tradeExecutor.tradingPausedAt).toISOString() : null
+    });
+});
+
+app.post('/api/trading-pause', async (req, res) => {
+    try {
+        if (!tradeExecutor) return res.status(500).json({ error: 'TradeExecutor not initialized' });
+
+        const paused = !!(req.body && (req.body.paused === true || req.body.paused === 'true' || req.body.paused === 1));
+        const reasonRaw = (req.body && req.body.reason) ? String(req.body.reason) : '';
+        const reason = reasonRaw.trim().slice(0, 200);
+
+        tradeExecutor.tradingPaused = paused;
+        tradeExecutor.tradingPausedReason = paused ? (reason || 'manual_pause') : null;
+        tradeExecutor.tradingPausedAt = paused ? Date.now() : 0;
+
+        log(`⏸️ Manual pause: ${paused ? 'ENABLED' : 'DISABLED'}${paused ? ` (${tradeExecutor.tradingPausedReason})` : ''}`);
+
+        // Persist best-effort (Redis-backed saveState)
+        try { await saveState(); } catch { }
+
+        return res.json({
+            success: true,
+            paused: !!tradeExecutor.tradingPaused,
+            reason: tradeExecutor.tradingPausedReason || null,
+            pausedAt: tradeExecutor.tradingPausedAt || 0,
+            pausedAtIso: tradeExecutor.tradingPausedAt ? new Date(tradeExecutor.tradingPausedAt).toISOString() : null
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 // 🎯 GOAT v3: Portfolio accounting endpoint
@@ -6179,6 +6230,8 @@ app.get('/api/verify', async (req, res) => {
         if (passed) passCount++;
         else failCount++;
     };
+
+    const effectiveMode = String(tradeExecutor?.mode || CONFIG.TRADE_MODE || 'PAPER').toUpperCase();
     
     // ==================== CORE CHECKS ====================
     
@@ -6211,17 +6264,28 @@ app.get('/api/verify', async (req, res) => {
     
     // Check 4: LIVE balance freshness enforcement (HONEST CHECK)
     const hasFreshnessCheck = tradeExecutor?.lastBalanceFetch !== undefined;
-    const freshnessAge = hasFreshnessCheck ? (Date.now() - (tradeExecutor.lastBalanceFetch || 0)) : Infinity;
-    const freshnessOk = hasFreshnessCheck && (tradeExecutor.mode !== 'LIVE' || freshnessAge < 120000);
-    addCheck('LIVE balance freshness', 
-        freshnessOk,
-        hasFreshnessCheck ? `Age: ${Math.round(freshnessAge/1000)}s (max: 60s for LIVE trades)` : 'Freshness tracking not found',
-        'warn');
+    let freshnessOk = false;
+    let freshnessDetails = 'Freshness tracking not found';
+    if (hasFreshnessCheck) {
+        if (effectiveMode !== 'LIVE') {
+            freshnessOk = true;
+            freshnessDetails = `N/A (mode=${effectiveMode})`;
+        } else {
+            const lastFetch = tradeExecutor.lastBalanceFetch || 0;
+            const freshnessAge = Date.now() - lastFetch;
+            freshnessOk = freshnessAge < 120000; // 2 minutes
+            freshnessDetails = `Age: ${Math.round(freshnessAge / 1000)}s (max: 60s for LIVE trades)`;
+        }
+    }
+    addCheck('LIVE balance freshness', freshnessOk, freshnessDetails, 'warn');
     
     // Check 5: Redis available (for persistence)
+    const redisOk = typeof redisAvailable !== 'undefined' && redisAvailable === true;
+    const redisRequired = effectiveMode === 'LIVE';
     addCheck('Redis available',
-        typeof redisAvailable !== 'undefined' && redisAvailable === true,
-        redisAvailable ? 'Connected' : 'Not connected');
+        redisOk || !redisRequired,
+        redisOk ? 'Connected' : (redisRequired ? 'Not connected (REQUIRED for LIVE)' : 'Not connected (optional in PAPER)'),
+        redisRequired ? 'error' : 'warn');
     
     // Check 6: Brains initialized with calibration
     const brainsOk = typeof Brains !== 'undefined' && ASSETS.every(a => Brains[a]);
@@ -6245,25 +6309,26 @@ app.get('/api/verify', async (req, res) => {
         `v${CONFIG_VERSION || 'UNDEFINED'} (need >=45 for GOAT features)`);
     
     // Check 9: Trade history idempotent (HONEST CHECK - verify structure)
-    let historyIdempotent = false;
-    let historyDetails = 'Not tested';
+    let historyIdempotent = true;
+    let historyDetails = 'Skipped (no Redis)';
+    let historySeverity = 'warn';
     if (typeof loadTradeHistory === 'function' && redisAvailable && redis) {
+        historySeverity = 'error';
         try {
             // Check that the new hash+zset keys exist (not old list key)
             const hashExists = await redis.exists(TRADE_HISTORY_PAPER_HASH);
             const zsetExists = await redis.exists(TRADE_HISTORY_PAPER_ZSET);
             // Either both exist, or neither (fresh start)
             historyIdempotent = (hashExists && zsetExists) || (!hashExists && !zsetExists);
-            historyDetails = historyIdempotent ? 
-                `Using idempotent hash+zset structure` : 
-                `Legacy list structure detected - run migration`;
+            historyDetails = historyIdempotent
+                ? `Using idempotent hash+zset structure`
+                : `Legacy list structure detected - run migration`;
         } catch (e) {
+            historyIdempotent = false;
             historyDetails = `Error: ${e.message}`;
         }
     }
-    addCheck('Trade history idempotent',
-        historyIdempotent,
-        historyDetails);
+    addCheck('Trade history idempotent', historyIdempotent, historyDetails, historySeverity);
     
     // Check 10: GateTrace available
     addCheck('GateTrace available',
@@ -6299,11 +6364,16 @@ app.get('/api/verify', async (req, res) => {
         tradeExecutor?.streakSizing?.enabled === true,
         `Multiplier: ${tradeExecutor?.getStreakSizeMultiplier?.() || 'N/A'}`);
     
-    // Check 14: Auth configured
-    const authConfigured = process.env.AUTH_USERNAME && process.env.AUTH_PASSWORD;
+    // Check 14: Auth configured (env set AND not using default credentials)
+    const authUser = String(process.env.AUTH_USERNAME || 'admin').trim();
+    const authPass = String(process.env.AUTH_PASSWORD || 'changeme').trim();
+    const authEnvPresent = !!(process.env.AUTH_USERNAME && process.env.AUTH_PASSWORD);
+    const usingDefaults = authUser === 'admin' && authPass === 'changeme';
     addCheck('Auth configured',
-        authConfigured,
-        authConfigured ? 'Username and password set' : 'Using defaults (insecure)',
+        authEnvPresent && !usingDefaults,
+        authEnvPresent
+            ? (usingDefaults ? 'Using defaults (insecure)' : 'Username and password set')
+            : 'AUTH_USERNAME/AUTH_PASSWORD not set (defaults active)',
         'warn');
     
     // Check 15: Baseline bankroll initialized (v96)
@@ -8053,6 +8123,13 @@ class TradeExecutor {
         this.baselineBankroll = CONFIG.PAPER_BALANCE;
         this.baselineBankrollInitialized = (CONFIG.TRADE_MODE !== 'LIVE'); // PAPER starts initialized
         this.baselineBankrollSource = (CONFIG.TRADE_MODE === 'LIVE') ? 'pending_live_fetch' : 'paper_balance';
+
+        // Manual pause/resume (UI/API controlled). This is a soft block on automated trades.
+        // - Persisted across restarts via saveState/loadState.
+        // - MANUAL trades remain allowed so a user can still exit/cleanup if needed.
+        this.tradingPaused = false;
+        this.tradingPausedReason = null;
+        this.tradingPausedAt = 0;
         
         this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
         this.closedPositions = [];     // 🏆 v77: Track closed positions for frequency floor calculation
@@ -8198,15 +8275,13 @@ class TradeExecutor {
                 // CRITICAL FIX: Use direct provider (bypasses proxy for RPC calls)
                 // NOTE: Using ethers v5 syntax (required by @polymarket/clob-client)
                 const provider = createDirectProvider('https://polygon-mainnet.g.alchemy.com/v2/demo');
-                // DEBUG: Log private key prefix to verify correct key is loaded
-                const keyPreview = CONFIG.POLYMARKET_PRIVATE_KEY.substring(0, 10);
-                log(`🔑 Loading wallet from key: ${keyPreview}...`);
+                // SECURITY: Never log private key material (even partial).
+                log(`🔑 Loading wallet from POLYMARKET_PRIVATE_KEY (redacted)...`);
                 this.wallet = new ethers.Wallet(CONFIG.POLYMARKET_PRIVATE_KEY, provider);
                 // NOTE: ethers v5 natively has _signTypedData - no wrapper needed
                 log(`✅ Wallet Loaded: ${this.wallet.address}`);
             } catch (e) {
                 log(`⚠️ Wallet Load Failed: ${e.message}`);
-                log(`🔑 Key starts with: ${CONFIG.POLYMARKET_PRIVATE_KEY?.substring(0, 10) || 'UNDEFINED'}`);
             }
         } else {
             log(`⚠️ No POLYMARKET_PRIVATE_KEY found in environment!`);
@@ -8219,10 +8294,10 @@ class TradeExecutor {
         const passphraseSource = process.env.POLYMARKET_PASSPHRASE ? 'ENV' : 'FALLBACK';
         const privateKeySource = process.env.POLYMARKET_PRIVATE_KEY ? 'ENV' : 'FALLBACK';
         log(`🔐 API Credentials Source:`);
-        log(`   API Key: ${CONFIG.POLYMARKET_API_KEY?.substring(0, 12)}... [${apiKeySource}]`);
-        log(`   Secret: ${CONFIG.POLYMARKET_SECRET?.substring(0, 12)}... [${secretSource}]`);
-        log(`   Passphrase: ${CONFIG.POLYMARKET_PASSPHRASE?.substring(0, 12)}... [${passphraseSource}]`);
-        log(`   Private Key: ${CONFIG.POLYMARKET_PRIVATE_KEY?.substring(0, 12)}... [${privateKeySource}]`);
+        log(`   API Key: ${apiKeySource} (${CONFIG.POLYMARKET_API_KEY ? 'set' : 'missing'})`);
+        log(`   Secret: ${secretSource} (${CONFIG.POLYMARKET_SECRET ? 'set' : 'missing'})`);
+        log(`   Passphrase: ${passphraseSource} (${CONFIG.POLYMARKET_PASSPHRASE ? 'set' : 'missing'})`);
+        log(`   Private Key: ${privateKeySource} (${CONFIG.POLYMARKET_PRIVATE_KEY ? 'set' : 'missing'})`);
     }
 
     reloadWallet() {
@@ -9523,6 +9598,13 @@ class TradeExecutor {
         if (feedStaleAssets[asset]) {
             log(`🛑 CHAINLINK STALE: ${asset} price feed is stale (>30s) - TRADE BLOCKED`, asset);
             return { success: false, error: `CHAINLINK_STALE: ${asset} feed unavailable - trading blocked until WS reconnects` };
+        }
+
+        // Manual pause/resume (runtime control). Block automated entries while paused.
+        if (this.tradingPaused && mode !== 'MANUAL') {
+            const reason = this.tradingPausedReason ? ` (${this.tradingPausedReason})` : '';
+            log(`⏸️ TRADING PAUSED${reason}: ${mode} entry blocked`, asset);
+            return { success: false, error: `TRADING_PAUSED${reason}` };
         }
 
         // 🏆 v77: CONVICTION-ONLY MODE with FREQUENCY FLOOR exception for ADVISORY
@@ -16351,6 +16433,10 @@ async function saveState() {
             baselineBankroll: tradeExecutor.baselineBankroll,
             baselineBankrollInitialized: tradeExecutor.baselineBankrollInitialized,
             baselineBankrollSource: tradeExecutor.baselineBankrollSource,
+            // Manual pause state (soft-block automated trading)
+            tradingPaused: !!tradeExecutor.tradingPaused,
+            tradingPausedReason: tradeExecutor.tradingPausedReason || null,
+            tradingPausedAt: tradeExecutor.tradingPausedAt || 0,
             tradeHistory: tradeExecutor.tradeHistory.slice(-200), // Keep last 200 trades
             todayPnL: tradeExecutor.todayPnL,
             consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
@@ -16644,6 +16730,10 @@ async function loadState() {
                         tradeExecutor.baselineBankrollInitialized = te.baselineBankrollInitialized ?? true;
                         tradeExecutor.baselineBankrollSource = te.baselineBankrollSource ?? 'redis_restore';
                     }
+                    // Restore manual pause state
+                    if (te.tradingPaused !== undefined) tradeExecutor.tradingPaused = !!te.tradingPaused;
+                    if (te.tradingPausedReason !== undefined) tradeExecutor.tradingPausedReason = te.tradingPausedReason;
+                    if (te.tradingPausedAt !== undefined) tradeExecutor.tradingPausedAt = te.tradingPausedAt;
                     if (te.tradeHistory && Array.isArray(te.tradeHistory)) tradeExecutor.tradeHistory = te.tradeHistory;
                     // One-time cleanup for legacy hedge records left OPEN by older code
                     try { tradeExecutor.reconcileLegacyOpenHedgeTrades(); } catch { }
@@ -19689,7 +19779,6 @@ app.get('/api/settings', (req, res) => {
         POLYMARKET_PASSPHRASE: CONFIG.POLYMARKET_PASSPHRASE ? '****HIDDEN****' : '',
         POLYMARKET_ADDRESS: CONFIG.POLYMARKET_ADDRESS,
         POLYMARKET_PRIVATE_KEY: CONFIG.POLYMARKET_PRIVATE_KEY ? '****HIDDEN****' : '',
-        POLYMARKET_PROXY_KEY: CONFIG.POLYMARKET_PROXY_KEY ? `${CONFIG.POLYMARKET_PROXY_KEY.substring(0, 4)}...` : '',
 
         // Trading settings (fully visible)
         TRADE_MODE: CONFIG.TRADE_MODE,
@@ -19904,7 +19993,6 @@ app.post('/api/settings', async (req, res) => {
                 POLYMARKET_PASSPHRASE: CONFIG.POLYMARKET_PASSPHRASE,
                 POLYMARKET_ADDRESS: CONFIG.POLYMARKET_ADDRESS,
                 POLYMARKET_PRIVATE_KEY: CONFIG.POLYMARKET_PRIVATE_KEY,
-                POLYMARKET_PROXY_KEY: CONFIG.POLYMARKET_PROXY_KEY,
                 // Core Trading
                 TRADE_MODE: CONFIG.TRADE_MODE,
                 PAPER_BALANCE: CONFIG.PAPER_BALANCE,
@@ -20996,7 +21084,7 @@ async function startup() {
         
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);
         log(`🌐 Access at: http://localhost:${PORT}`);
-        log(`🔑 API Key: ${API_KEY.substring(0, 8)}...`);
+        log(`🔑 API Key source: ${typeof API_KEY_SOURCE !== 'undefined' ? API_KEY_SOURCE : 'unknown'}`);
 
         // 📱 Telegram: Server Online notification
         if (!LIGHT_MODE) {

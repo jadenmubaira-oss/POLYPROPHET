@@ -1,0 +1,1343 @@
+{
+  "generatedAt": "2026-01-07T22:51:46.371Z",
+  "debugDir": "debug",
+  "fileCount": 147,
+  "parseErrors": [],
+  "files": [
+    {
+      "path": "debug\\audit_report.json",
+      "bytes": 2618,
+      "sha256": "1da08e7349c5db269881f1a6152cb829e7fcf9af9e9175abd1c55dade30cde8d",
+      "ok": true
+    },
+    {
+      "path": "debug\\comprehensive_backtest_results.json",
+      "bytes": 6948,
+      "sha256": "adc038b1b2009fcd7df996767c1742bb67d0ea5bb65489fad69f0ca6771802af",
+      "ok": true
+    },
+    {
+      "path": "debug\\cycle_report.json",
+      "bytes": 30589,
+      "sha256": "bb9cfa0428bd31ec095594062c35c0632f8700ace8eb95d265dcef0e6ac48a40",
+      "ok": true
+    },
+    {
+      "path": "debug\\illiquidity_gap_report.json",
+      "bytes": 1030,
+      "sha256": "28a119ee48cd976fbff1d16427eed9f6a565a212b7f2f512316b1c0369253dcc",
+      "ok": true
+    },
+    {
+      "path": "debug\\live_debug_2026-01-01T08-35-32.json",
+      "bytes": 18484059,
+      "sha256": "ac3ca49bb5bac0b2ef8e24be37339368d3ebd13aa5c49729c57c703417992917",
+      "ok": true
+    },
+    {
+      "path": "debug\\live_debug_export_2025-12-31T15-50-45-600Z.json",
+      "bytes": 141094,
+      "sha256": "4a2c327669208c748ee17d48ad670e7742de94638b50a9b2c5d082d6895c4e84",
+      "ok": true
+    },
+    {
+      "path": "debug\\live_debug_export_2025-12-31T16-22-09-729Z.json",
+      "bytes": 222305,
+      "sha256": "f55ed053e6f7019d04ba749878e943e7c670fe0bcd04c343f33563ddb55d4d6b",
+      "ok": true
+    },
+    {
+      "path": "debug\\live_debug_export_2025-12-31T16-28-28-787Z.json",
+      "bytes": 162028,
+      "sha256": "057ec624c652fb6e73d9a9628eeec178e2eeca96980bc7a4837d47bda9bc6ea8",
+      "ok": true
+    },
+    {
+      "path": "debug\\live_debug_export_2025-12-31T16-31-12-024Z.json",
+      "bytes": 461357,
+      "sha256": "1e64c52499c7392dbfa4cb70210a2573ead23c22c97c67ad9e9a97d1a226e081",
+      "ok": true
+    },
+    {
+      "path": "debug\\live_gates_2025-12-31T16-00-17-685Z.json",
+      "bytes": 15829,
+      "sha256": "5e39088f7b07a04881759cb82e1bcdf09db0edf7ef7b3cf5a0a3e285e4698f45",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-18T10-59-02-670Z.json",
+      "bytes": 254796,
+      "sha256": "6638727ec90d81111f33ecaa59d999a91e7565bf23a65df1ca75d5d7a5ee6d29",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-18T20-40-25-896Z.json",
+      "bytes": 174171,
+      "sha256": "a18f9d3dc84379e29952bf302f482a4e91e4bdb00787c5e537783c20eead7735",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-18T22-30-35-403Z.json",
+      "bytes": 189654,
+      "sha256": "c219c865a61c0902a5752fdc873d011f5e00ed7db3445cb90d5e7be4ae7f833a",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-18T23-33-14-868Z.json",
+      "bytes": 228983,
+      "sha256": "06cf13491e1e5f4f6750c26b8723df66c9ff66c1fe5191e2bac657743fe6b9f7",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-19T10-49-38-681Z.json",
+      "bytes": 218353,
+      "sha256": "401e10d568af22774031f6e644ee20419f608ee69b4893bea242cbbd22325863",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-19T12-20-26-784Z.json",
+      "bytes": 249756,
+      "sha256": "b5fe34a287fbcd3ed93d2131964d9abb20a823fbeec21e5d70097d8021e5efd4",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-19T14-59-42-755Z.json",
+      "bytes": 185050,
+      "sha256": "d4df8163636fe66b9b2f57b63f067e81970be2d23b17a5aaa58e6889d2d569ef",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-19T15-32-58-456Z.json",
+      "bytes": 205789,
+      "sha256": "a14b61fec1a02d825f547339fd5e9821e3f882e39d818472fa97deeb0d38c9ad",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-19T18-15-30-228Z.json",
+      "bytes": 205989,
+      "sha256": "98845c61f34e9e75b1499dfa30b0b3fae8ee8bf9bd9645fbc58ad9953f1acf80",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-19T21-24-23-191Z.json",
+      "bytes": 227892,
+      "sha256": "f4833ef17caa0cc6e9b6684ef5584e383a22248b6a58d25c902223515add01ec",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-19T21-45-10-845Z.json",
+      "bytes": 241079,
+      "sha256": "94955a1c34bded2144801545cf4fb877771f18c0d73bef7674f082994e7d0558",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T00-17-20-114Z.json",
+      "bytes": 234590,
+      "sha256": "12d3095636912972054b0f1069e69ef2662f498461542e8f8c4dbf32c8a600f1",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T07-03-36-163Z.json",
+      "bytes": 242392,
+      "sha256": "bf926b448491e09bd45b15bab6c956375d45be34b76af6efadbf169659bce251",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T11-30-16-715Z.json",
+      "bytes": 234276,
+      "sha256": "8c9f12ff47fb370a43983d70f504b69c281c72c619fe1b38cc145b607fd671c8",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T13-18-39-796Z.json",
+      "bytes": 211531,
+      "sha256": "045629538d4cc4be828f1633fb57de7cd927f09fa092028d66ba6d45e7c5c05e",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T16-03-43-077Z.json",
+      "bytes": 236054,
+      "sha256": "22f6ddc5de2721aed1d79051886bf176532cb66a0c85e36c4d948c5c5bcafd76",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T16-18-09-967Z.json",
+      "bytes": 243735,
+      "sha256": "008bbb598a887caad3e557ebb4b57b48f30e1c465ddaf59fc4feb8dcec3e4d37",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T16-58-50-525Z.json",
+      "bytes": 244746,
+      "sha256": "24c7fcdc03baf2c26f6685638d0346a974326a9d91a0b2d09c71bc23daa25e75",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T17-56-27-218Z.json",
+      "bytes": 247300,
+      "sha256": "655a95ceb49621027e0731bae5c0a4803d3b408eee33ea46935dcf90a8051d8e",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T19-24-52-540Z.json",
+      "bytes": 212451,
+      "sha256": "38559dad1cfdddee71b15f2436fb6d3f27d22cf29c6dbf69907371692dd42ef3",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T21-52-57-638Z.json",
+      "bytes": 219867,
+      "sha256": "fa0287fc04aa0794c7618bdf22d812189ae0ee47a87af91ec6592db771d1371e",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T22-42-04-464Z.json",
+      "bytes": 242582,
+      "sha256": "668413063c9c6f609e68349649c5de9c5d902c1991c6446f9091f83bc763525f",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-20T23-00-03-191Z.json",
+      "bytes": 238574,
+      "sha256": "d5e20a0b56f711869cf1c6625f9bdebd5315fd63bf5e0dd4a0a4d365b2e503ad",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-21T03-29-21-806Z.json",
+      "bytes": 177401,
+      "sha256": "99b6e14f788fe5360c7729544030aa869af2389490b2eebbe35c9fdbd59fe28c",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-21T06-15-16-927Z.json",
+      "bytes": 189967,
+      "sha256": "5a3a0977341cebaf88b9dd7b155ed6b7f1b21871cc242869c2f7ca0aea2766af",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-21T15-36-07-773Z.json",
+      "bytes": 214675,
+      "sha256": "e56c7c65d059ae0c0f17d2491fc53d29b20db3aca8eb06a186cf5dc55da7c1be",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-21T16-01-55-479Z.json",
+      "bytes": 230387,
+      "sha256": "2618578e08f92fa160e9b2d9f3e8241818f61258caddc7eafc10143434d2e310",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-21T17-22-54-172Z.json",
+      "bytes": 179828,
+      "sha256": "ddf850e7bc948867ba74512d88a4792d515facd0c3dda85e544a93ca8b629afa",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-21T20-46-05-213Z.json",
+      "bytes": 227250,
+      "sha256": "5a1a3e457b79672389fe4667fd1ab641f2998f0fe51073f6261bc7f0399dda67",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T04-13-29-832Z.json",
+      "bytes": 242583,
+      "sha256": "ed4c4faad441556f4688ba46ee91dc561eab2b7fcbd45f0176b4dc112abc80b2",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T07-30-10-239Z.json",
+      "bytes": 195422,
+      "sha256": "a9326ed88f07fc618c592d7cca13921725f56ffd196027bf0ba9ba3929341076",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T11-30-28-153Z.json",
+      "bytes": 241839,
+      "sha256": "e6bcf31436009c5b921fa90a08759778a2eb16316aa0853ac06620b40639e9f8",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T14-21-07-438Z.json",
+      "bytes": 234370,
+      "sha256": "f02529570976aac70598ea448657f4c24ed59787ac005319de22439c2bdc1575",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T17-31-58-687Z.json",
+      "bytes": 241127,
+      "sha256": "c1c0ee2b9977a40e5b2686e9aa40e415203649cc21f449683a7808858abab285",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T18-28-40-718Z.json",
+      "bytes": 242812,
+      "sha256": "cc49af0b4eb718f991b1eb7627f602d5104ea3bd929959b25974a4ade5deca82",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T18-45-55-368Z.json",
+      "bytes": 243660,
+      "sha256": "83e7b918b33f0a74c1c7391757b758681c0a4e811cf5eb3212d0ec5127e268dd",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T22-01-33-414Z.json",
+      "bytes": 241406,
+      "sha256": "c3fde6b331447580245de2acf8c0d50051ea29f286babd8dfa0ba80761085247",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-22T22-45-28-950Z.json",
+      "bytes": 241783,
+      "sha256": "c659305d4a64449c7ba42a0fa3d578071c24b67ad0171bd728ce226f65b815a8",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T02-33-09-871Z.json",
+      "bytes": 245129,
+      "sha256": "869d0c1b4e8d7a21ca41d3191fab258a9f381432e21d501fd9dbaae454177f3e",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T09-46-08-879Z.json",
+      "bytes": 247995,
+      "sha256": "824b2632ac8693de529a91e0cda1c01182a597f456a604ecfd1f6d75d891a9a2",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T12-21-28-753Z.json",
+      "bytes": 196845,
+      "sha256": "0bb329e59461c58cbb26c6137a21b9b152fdd1215e5a560339a68dd19d1f3997",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T13-03-15-572Z.json",
+      "bytes": 221269,
+      "sha256": "94002b5e1ca4863edd0ee59473434735ecfc5efe9cd8106f78aecf3aa6ab1b00",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T15-25-48-825Z.json",
+      "bytes": 247968,
+      "sha256": "7f5365aaddb1cbd54122ceeb36d567a9ba77212fe0ea6417deb814e13cdf459b",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T16-46-47-851Z.json",
+      "bytes": 202917,
+      "sha256": "dd435fec937607d8363d2cac5a7e1aef0509a492c934169f6f866fa132bb1fb8",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T17-26-42-320Z.json",
+      "bytes": 220321,
+      "sha256": "f8922fadb4a43aab21f5ead39b344e7e3efb575993c1c0c9d8f795c736ad2b58",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-23T20-36-02-820Z.json",
+      "bytes": 181189,
+      "sha256": "f0fe535fc444307801abe5f42ec562613b5d446331a036e89e4b0935ed59a4a1",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T04-12-58-113Z.json",
+      "bytes": 241818,
+      "sha256": "2357c43ba36faac7bcdd92cf4ed69b1a3066f4203570bce9216a52ca389cc742",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T09-33-09-808Z.json",
+      "bytes": 174823,
+      "sha256": "9f06dea49e602da9219dc13db271778330229242cfab4562e9fe5b630c3c5693",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T10-34-43-912Z.json",
+      "bytes": 207060,
+      "sha256": "30bded0a4f8ca5f86bcbb9725f988195923e292aa797450bf8c98c0fc82ecd23",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T11-27-42-500Z.json",
+      "bytes": 166442,
+      "sha256": "33aba444a0feea69b540c63e1221e5d5d63fb99cb819cb86f53aa83f6645d23b",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T16-06-45-883Z.json",
+      "bytes": 246020,
+      "sha256": "d2665f2c1de9e765a73b13a166169a54e54711abfb447319a4f3a93b08a53eea",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T17-32-56-886Z.json",
+      "bytes": 178631,
+      "sha256": "68c03f44528da919766fd712eb9f714b33378f8855f1e1680825f1cd1f56c12d",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T19-19-25-598Z.json",
+      "bytes": 180972,
+      "sha256": "813e0e01821ba58e66ad22981f480aca46ce1bea1f04bf8f7223115d32834959",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-24T22-35-38-932Z.json",
+      "bytes": 189863,
+      "sha256": "76161389e404505e58f674d9c1c778646374f7207f94a445bd311c5cc350ec59",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T00-56-51-502Z.json",
+      "bytes": 244760,
+      "sha256": "8813fa7d9d8dfe0fe59bef411bc2cc5cdbfd79e8543e0de04002fd94898b026b",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T02-00-13-000Z.json",
+      "bytes": 246159,
+      "sha256": "60cec26c2722f40fe6c6a7b514fe26d3ba9f2c006badf0114b4a5f022bcb78cc",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T07-33-34-462Z.json",
+      "bytes": 248824,
+      "sha256": "82348fb773cbf4176750296fb8bfe3626d8c272a28a8940329870e065baa24c2",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T11-11-58-190Z.json",
+      "bytes": 243149,
+      "sha256": "8c81abe70a8f56238f84c7b6848363ff61b7931d0e36af557ac1c25cc30c19ad",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T11-30-04-780Z.json",
+      "bytes": 181243,
+      "sha256": "1f2e7acef32c383a2893d495d081c6c0cc68a1b5e21d1259e5ca4467d8000244",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T12-50-44-776Z.json",
+      "bytes": 222914,
+      "sha256": "4dae3775a94a35361680dedd2f8bc9abe538bc80d1bb97afc2a293c0b81335bc",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T13-48-29-813Z.json",
+      "bytes": 175440,
+      "sha256": "07ef9c1b0fa8fa81f4774e279b27c0e14a8a9129a387161b07451cc40cb10453",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T14-23-38-476Z.json",
+      "bytes": 191536,
+      "sha256": "85acebf657d246980e2a7e69ea6371fba8c9cfef454158a049b0daa80f37cc6a",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T15-21-02-246Z.json",
+      "bytes": 222050,
+      "sha256": "0a3f5228a2e31a05d657c4c3d5a43d379cd9efbfac2791d5b33222f904436c85",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T16-18-43-191Z.json",
+      "bytes": 243983,
+      "sha256": "63cb5a6f9a475ff93bf9adc676383d30d04724bd3f6a6797dc0f8ae077c0f196",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T18-48-35-348Z.json",
+      "bytes": 244009,
+      "sha256": "7f52843c305acfc74e951fa03a40d60e7c69e2898f5bb629bb3edf5de68929e6",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T19-16-37-940Z.json",
+      "bytes": 181388,
+      "sha256": "5d227024cbe48728abe9cd0d87dcb70cc33cc148271d50d95ca392ec4d5225a7",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-25T19-55-04-560Z.json",
+      "bytes": 196792,
+      "sha256": "e924794cc26d0b7868037dd364776ffa38afb805c90f08e68ba48ed7618b96d8",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T00-26-06-256Z.json",
+      "bytes": 241379,
+      "sha256": "98acb373537523eacb6c109ae98e6ea309cf0bb81bc3a788126b512aa1194570",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T07-03-44-173Z.json",
+      "bytes": 243999,
+      "sha256": "ee8ea8935958b42375d716405435e05817248688d5f3640a056b63261c2c2b9f",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T15-42-16-342Z.json",
+      "bytes": 243344,
+      "sha256": "587636f85ce8dd73077667f09e13dbdf5640a7d64f1a259cd7bee5d61874fe5b",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T16-40-56-062Z.json",
+      "bytes": 243097,
+      "sha256": "873d755af3f5ac5e90cb66d8cb070db3b2ede9b860b64573662107d69abd9738",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T19-31-40-253Z.json",
+      "bytes": 196646,
+      "sha256": "cbd983f40efa075bc37deea65da4f2600018352346a4523ea0fc422f2d45d1f4",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T20-17-24-336Z.json",
+      "bytes": 181074,
+      "sha256": "9dd92e6dbaccde9cdf25f7edb6ebb883b5b6521577f10e9f9ac99bd18e69cce6",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T20-44-18-684Z.json",
+      "bytes": 134374,
+      "sha256": "8e3c3a7536410bac3f138e0f7424d432239e3121703c174d73ea152ec9deb2f4",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T21-04-33-443Z.json",
+      "bytes": 183547,
+      "sha256": "8794af71478a54d651deb249c873471c1e74d51946a878178b21918913638fa7",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-26T21-48-55-618Z.json",
+      "bytes": 185116,
+      "sha256": "65bf71e56fb75937c3cb2f286eaf2a5d00b3cf14675cf67a50da8a55774bf628",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T04-39-48-742Z.json",
+      "bytes": 244283,
+      "sha256": "dc49b2b0c365b37c0450e4a09ac64971879aaec5435c4eebb3acbca047d816d0",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T04-50-47-240Z.json",
+      "bytes": 245693,
+      "sha256": "7dc8fd65a61373af8e78905692c82376fcd69e5a60a8a06273cc4bbb52e65ba6",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T06-29-34-638Z.json",
+      "bytes": 206990,
+      "sha256": "eebb3353e008b0977f567ce231e2ee4195f403dbb419da852b8582ed5230bfe7",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T09-00-30-396Z.json",
+      "bytes": 228050,
+      "sha256": "019f5654ea8c54c10e985cace347bd87ab990b4af01660af2bb40f3ab3ba4701",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T09-31-21-135Z.json",
+      "bytes": 240516,
+      "sha256": "bddac957d616b9ec8f61ff1c6b260851314e2d8f2969ad97d191a97566feaad0",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T10-09-54-711Z.json",
+      "bytes": 177318,
+      "sha256": "f7dd640952ec9dc8ab3f269ef7d2d5909301a3cfea370415f856e07b5aa2c1fe",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T10-24-01-499Z.json",
+      "bytes": 184007,
+      "sha256": "f50bb182e602ddc48e7e4db772bd3d56a6ffc09a9ad6f67e536cc4b0ef56607d",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T11-08-27-276Z.json",
+      "bytes": 206539,
+      "sha256": "4c3bc5dfb7a912e4bc0fbf45190c70c4df2955a5b1ca517f8746a9c585dbac69",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T11-39-42-577Z.json",
+      "bytes": 222970,
+      "sha256": "2e9bf6e1825cfe002a01a6d8162fb5cf733c8dc2b22ecccd1a0f0187c7882f98",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T12-44-54-802Z.json",
+      "bytes": 247043,
+      "sha256": "c45da4e114888f6718668baf3ab9b41cfea1b580b3d36ebb07f079914eeca09c",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T12-45-01-465Z.json",
+      "bytes": 240637,
+      "sha256": "5d7cbbde6cf7cc95dc272d0a69fd435be8b43bd9616eaeb31b58f225125d3238",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T13-06-12-787Z.json",
+      "bytes": 247405,
+      "sha256": "59004093b36ddef8a6639537d73ac105195a57ffeefcc34b800e3ba02cdcf9a5",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T14-26-26-713Z.json",
+      "bytes": 249188,
+      "sha256": "275321fd88e56f3aa20ea9ff12175a728f9215789476316f158257b200fe11af",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T14-46-40-801Z.json",
+      "bytes": 246947,
+      "sha256": "3e01abb7f29af246f8dff46688d1d4eb7a6f1d0c2cfddd9d530a6f641441a9cb",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T15-13-40-475Z.json",
+      "bytes": 248802,
+      "sha256": "c908a56a88a20d1ee7557aa1ae7e733ed09b3fb5c6cb2eb2b4ab93eb11e83365",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T15-48-48-538Z.json",
+      "bytes": 249767,
+      "sha256": "739b596aa13da80391d7aa7e136edeafef81ab3e3e72f4b896c079223809d1da",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T16-41-25-005Z.json",
+      "bytes": 251374,
+      "sha256": "1d1b52a8e55b1afa19e42af0d4fdd4e665e11d782b4077dcb83bd61fc2f661e5",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T17-12-55-378Z.json",
+      "bytes": 251475,
+      "sha256": "54b2466c6c9d0c735eff5791c015b28a7b6d94a658dfe4d936768e757505b243",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T18-26-49-053Z.json",
+      "bytes": 253539,
+      "sha256": "efbaa515bdcea32d33a48b24009de4b8c002cca4b2d698f5d30545ec836a46dc",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T19-02-36-695Z.json",
+      "bytes": 254908,
+      "sha256": "413388b34aa0c95bbb0f1c6285ca9259a41e8ff024e03b2352aa655f4ec14d3d",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T20-58-00-752Z.json",
+      "bytes": 258353,
+      "sha256": "cd9123ba0fa8fac06497a8d2884c3f0b8810ce37572f6f155990dc156d171c67",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T22-04-59-755Z.json",
+      "bytes": 258611,
+      "sha256": "8b9aa334c915ddfdeab21c4343e6a9a13d83b5f551579b3646834048116c16cc",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-27T22-15-03-392Z.json",
+      "bytes": 253671,
+      "sha256": "3ee8bd1d2b5c879ddc2df503938863094c00259f1a94da69f1d87e93a6921fcb",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T05-31-41-477Z.json",
+      "bytes": 261064,
+      "sha256": "8b01a25e671dbde0dd286c1c791dc6d6dfc6046fe393c3d3ffbfa5e5d424324d",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T05-31-56-485Z.json",
+      "bytes": 260664,
+      "sha256": "fdb568a5ee0ecbcbc36b20afaecf4f04acc247f8a8b68532727e5a0c5c7bc53c",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T06-00-21-220Z.json",
+      "bytes": 262036,
+      "sha256": "bbc753d256f84d650cf5c5fc3fcb931e2639de218c8fa52b90763f5b3cac5094",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T06-29-37-860Z.json",
+      "bytes": 262763,
+      "sha256": "3e0b0dc69d228fb8002f8a6423bd1af5b8daa8594f66772de00820c5bf6ded2d",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T06-30-04-550Z.json",
+      "bytes": 259370,
+      "sha256": "55bae06c821337d02c15ff263be386149831e7721cab23d754ca10f3e682a453",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T09-53-37-705Z.json",
+      "bytes": 268245,
+      "sha256": "da525af7db3fb2dc83b1f5c69a253cfeed6782fdd81eb5a31a13d323e9fa13c0",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T14-30-43-481Z.json",
+      "bytes": 190043,
+      "sha256": "d69a6f996faa9b1b4314046266eb840737b588e03fddf682fc3c757df22f7b3e",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T20-18-55-590Z.json",
+      "bytes": 247571,
+      "sha256": "e774c8329a20d150ff39ca9fa43bfa8c3cfb0380ebb4f7f307c9ebaa85250e80",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-28T20-25-24-472Z.json",
+      "bytes": 246614,
+      "sha256": "00708b6b7c62f7f27c22e06c9a1103e62b8a6b270dac73fec12de26a11cf9cc9",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-29T01-30-27-943Z.json",
+      "bytes": 198371,
+      "sha256": "c52673f952ba08d266d0cc7f66b743c08d68a072983e7fea50c292cabea64791",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-29T05-33-53-173Z.json",
+      "bytes": 244343,
+      "sha256": "0e05581b474138ec177bd87b92bf601776a92f75c40da22a71b7e215655975bd",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-29T07-32-20-332Z.json",
+      "bytes": 244548,
+      "sha256": "f828a93231fc629e5bfece5851c4a7958a6be83f26c84129af6c769460330493",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-31T14-13-24-351Z.json",
+      "bytes": 212377,
+      "sha256": "c83fc4353b84975d20eae4aa8fba896a604274310bcd56787a0d45d5d6e01d38",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-31T17-00-04-269Z.json",
+      "bytes": 5141609,
+      "sha256": "4ea98a0f5b14f1e6c41431ad179fe8b8864046a4ec386d1ffaa7316bf3c2e958",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-31T20-07-14-186Z.json",
+      "bytes": 15394810,
+      "sha256": "540af87b9fd8a4a4996168a41d7e8ac0f968dae4bd8d0ce4c537c10709c9e06f",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-31T20-24-49-231Z.json",
+      "bytes": 19084466,
+      "sha256": "29134ef189b03707f4f2b4dc5b9232db530e5aa6e09e3a5b69266ab13cc01997",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-31T20-42-31-533Z.json",
+      "bytes": 22800963,
+      "sha256": "e4e243e5a08b8479e982b61fb44854adc7ba8a12e1701a116ec6d6b32f03e363",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2025-12-31T20-55-15-543Z.json",
+      "bytes": 24720832,
+      "sha256": "9cb287ec02cfbb544292cf001620f09e20d927d3513a498cbec3526f29be1eee",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T00-45-49-982Z.json",
+      "bytes": 25279903,
+      "sha256": "1c4eb2dc17e0de72ad40ad854363d228f27322d4175613b9d2a9fae480a71c12",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T04-55-38-896Z.json",
+      "bytes": 32175262,
+      "sha256": "d346aaf8341bcbc17bb9b8b86f8bab5e6afa6c5b85c4ae43daaa58a1c87616a0",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T05-36-29-514Z.json",
+      "bytes": 31300641,
+      "sha256": "0cb69e394ded2c40afd77455d4ec0daf4462f924f54fab4878b7baf4390ba2bc",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T06-36-38-187Z.json",
+      "bytes": 31324497,
+      "sha256": "42dfa3d5c06c1b5ca20a4c9b124430d1abb6f5db9e46117d4b644c91c5d4e93c",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T07-40-51-066Z.json",
+      "bytes": 32020131,
+      "sha256": "cf7169cf757567982c0525603eb44c07cd6d46a4eec1dc5f59df335401a8d25a",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T12-04-10-572Z.json",
+      "bytes": 31768629,
+      "sha256": "8c3047e500b16008dafb19347be3265f56ace7e62d0a7e046f553f061f51c905",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T12-31-36-996Z.json",
+      "bytes": 31247624,
+      "sha256": "37868c64a8ef88ffd020bf159f53600bc612bf804bb1f661a0dd6434e8e81a94",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T13-27-32-737Z.json",
+      "bytes": 5737158,
+      "sha256": "94311d8ccaa16ec5a5348f2bd0f493114d3ad3f327a9967584da4f721a644048",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T14-30-19-049Z.json",
+      "bytes": 10301858,
+      "sha256": "edcbca107d97d16e55ad45c373b1a662d69f11af36ac0833c64c7b07f5d6acbe",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T14-33-30-577Z.json",
+      "bytes": 10897002,
+      "sha256": "e5c95b4b74582e480585a80ebae4945bd0c0be3fddac14a99589436183323d44",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T16-15-00-377Z.json",
+      "bytes": 9235606,
+      "sha256": "bf31eb7822eddbb4210e0c30c9a18324be0b4d3ebad97b2ea8cc47c46567b59e",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T16-50-58-933Z.json",
+      "bytes": 15848883,
+      "sha256": "d15a916a93a1b75a448252e6d5b6f66e817cf230fb3899e5581f5098adbae8a8",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-01T20-13-48-691Z.json",
+      "bytes": 20808908,
+      "sha256": "282d1e840349fb6e337baee66a2de38ab64b6cde4b17e32c3009e7cfd9b11cd2",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-02T16-41-59-718Z.json",
+      "bytes": 7480211,
+      "sha256": "5401e15b41dcdaf09a31984f0f88be0f2be75bb915705649a4b9295d2563eb49",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-03T20-07-20-032Z.json",
+      "bytes": 1311582,
+      "sha256": "aa95d2ff5f56c7c27317ecf7833fd2618611985448eb98b198a584d1d5fbb9c0",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-03T21-37-39-617Z.json",
+      "bytes": 14242264,
+      "sha256": "61afc499823a10d6baa2f4e748842e120eeb0e864cabb27a68cc28760f6c654c",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-04T07-37-18-236Z.json",
+      "bytes": 23295465,
+      "sha256": "3a0489d1782186d9dca1d7bd557bf22a17a4fdfa9bda192b2cbbebda87052af4",
+      "ok": true
+    },
+    {
+      "path": "debug\\polyprophet_debug_2026-01-04T10-18-52-424Z.json",
+      "bytes": 6411070,
+      "sha256": "59b97f65f0a7b2d70324f1e2e407890dc1cd28de9b5618634c23ef74f392982b",
+      "ok": true
+    },
+    {
+      "path": "debug\\trade_deep_report.json",
+      "bytes": 27922,
+      "sha256": "7770aef512f2733f394ef3b8dd7183d3be8a6dc6dfed1521a26ddbf56bd16e71",
+      "ok": true
+    },
+    {
+      "path": "debug\\trade_replay_backtest.json",
+      "bytes": 1999,
+      "sha256": "b58dea11e715eea45c6e3015de3a18603ce6f435b2c3fbd95e35b04986dc416f",
+      "ok": true
+    }
+  ],
+  "summaries": {
+    "cycles": {
+      "dedupe": {
+        "key": "asset|floor(Date.parse(cycleEndTime)/900000)*900000",
+        "unique": 2397
+      },
+      "byTier": {
+        "CONVICTION": {
+          "n": 860,
+          "correct": 803,
+          "accuracy": 0.9337209302325581
+        },
+        "ADVISORY": {
+          "n": 467,
+          "correct": 459,
+          "accuracy": 0.9828693790149893
+        },
+        "NONE": {
+          "n": 1070,
+          "correct": 463,
+          "accuracy": 0.4327102803738318
+        },
+        "UNKNOWN": {
+          "n": 0,
+          "correct": 0,
+          "accuracy": null
+        }
+      },
+      "byAsset": {
+        "BTC": {
+          "n": 597,
+          "correct": 466,
+          "byTier": {
+            "CONVICTION": {
+              "n": 55,
+              "correct": 53,
+              "accuracy": 0.9636363636363636
+            },
+            "ADVISORY": {
+              "n": 204,
+              "correct": 202,
+              "accuracy": 0.9901960784313726
+            },
+            "NONE": {
+              "n": 338,
+              "correct": 211,
+              "accuracy": 0.6242603550295858
+            },
+            "UNKNOWN": {
+              "n": 0,
+              "correct": 0,
+              "accuracy": null
+            }
+          },
+          "accuracy": 0.7805695142378559
+        },
+        "ETH": {
+          "n": 601,
+          "correct": 461,
+          "byTier": {
+            "CONVICTION": {
+              "n": 109,
+              "correct": 103,
+              "accuracy": 0.944954128440367
+            },
+            "ADVISORY": {
+              "n": 195,
+              "correct": 190,
+              "accuracy": 0.9743589743589743
+            },
+            "NONE": {
+              "n": 297,
+              "correct": 168,
+              "accuracy": 0.5656565656565656
+            },
+            "UNKNOWN": {
+              "n": 0,
+              "correct": 0,
+              "accuracy": null
+            }
+          },
+          "accuracy": 0.7670549084858569
+        },
+        "SOL": {
+          "n": 584,
+          "correct": 434,
+          "byTier": {
+            "CONVICTION": {
+              "n": 293,
+              "correct": 285,
+              "accuracy": 0.9726962457337884
+            },
+            "ADVISORY": {
+              "n": 67,
+              "correct": 66,
+              "accuracy": 0.9850746268656716
+            },
+            "NONE": {
+              "n": 224,
+              "correct": 83,
+              "accuracy": 0.3705357142857143
+            },
+            "UNKNOWN": {
+              "n": 0,
+              "correct": 0,
+              "accuracy": null
+            }
+          },
+          "accuracy": 0.7431506849315068
+        },
+        "XRP": {
+          "n": 615,
+          "correct": 364,
+          "byTier": {
+            "CONVICTION": {
+              "n": 403,
+              "correct": 362,
+              "accuracy": 0.8982630272952854
+            },
+            "ADVISORY": {
+              "n": 1,
+              "correct": 1,
+              "accuracy": 1
+            },
+            "NONE": {
+              "n": 211,
+              "correct": 1,
+              "accuracy": 0.004739336492890996
+            },
+            "UNKNOWN": {
+              "n": 0,
+              "correct": 0,
+              "accuracy": null
+            }
+          },
+          "accuracy": 0.591869918699187
+        }
+      },
+      "overall": {
+        "n": 2397,
+        "correct": 1725,
+        "accuracy": 0.7196495619524406
+      },
+      "missed": {
+        "noneButCorrect": 463,
+        "tradeTierButIncorrect": 65
+      }
+    },
+    "trades": {
+      "uniqueTrades": 525,
+      "closedTrades": 509,
+      "wins": 291,
+      "losses": 190,
+      "flats": 25,
+      "unknown": 19,
+      "byTier": {
+        "CONVICTION": {
+          "n": 181,
+          "wins": 124,
+          "losses": 54,
+          "flats": 0,
+          "unknown": 3,
+          "winRate": 0.6966292134831461
+        },
+        "ADVISORY": {
+          "n": 7,
+          "wins": 4,
+          "losses": 3,
+          "flats": 0,
+          "unknown": 0,
+          "winRate": 0.5714285714285714
+        },
+        "NONE": {
+          "n": 0,
+          "wins": 0,
+          "losses": 0,
+          "flats": 0,
+          "unknown": 0,
+          "winRate": null
+        },
+        "UNKNOWN": {
+          "n": 337,
+          "wins": 163,
+          "losses": 133,
+          "flats": 25,
+          "unknown": 16,
+          "winRate": 0.5077881619937694
+        }
+      },
+      "byAsset": {
+        "SOL": {
+          "n": 79,
+          "wins": 33,
+          "losses": 32,
+          "flats": 9,
+          "unknown": 5
+        },
+        "ETH": {
+          "n": 120,
+          "wins": 67,
+          "losses": 45,
+          "flats": 5,
+          "unknown": 3
+        },
+        "BTC": {
+          "n": 147,
+          "wins": 87,
+          "losses": 51,
+          "flats": 4,
+          "unknown": 5
+        },
+        "XRP": {
+          "n": 179,
+          "wins": 104,
+          "losses": 62,
+          "flats": 7,
+          "unknown": 6
+        }
+      },
+      "byEntryBucket": {
+        "<20¢": 78,
+        "20–50¢": 95,
+        "50–80¢": 332,
+        "80–95¢": 20,
+        "95–100¢": 0,
+        "unknown": 0
+      },
+      "pnl": {
+        "total": 3011698429.476738,
+        "mean": 5951973.180784067,
+        "median": 0.2744661244567852
+      },
+      "reasons": {
+        "totalUniqueReasons": 118,
+        "top": [
+          {
+            "reason": "ORACLE WIN ✅",
+            "count": 74
+          },
+          {
+            "reason": "ORACLE LOSS ❌",
+            "count": 66
+          },
+          {
+            "reason": "TIME EXIT (before resolution)",
+            "count": 31
+          },
+          {
+            "reason": "PRE-RESOLUTION EXIT (30s)",
+            "count": 28
+          },
+          {
+            "reason": "ARBITRAGE TARGET",
+            "count": 19
+          },
+          {
+            "reason": "TARGET HIT",
+            "count": 18
+          },
+          {
+            "reason": "🧻 CHAOS SAFETY EXIT +16%",
+            "count": 18
+          },
+          {
+            "reason": "ORACLE WIN ✅ (Polymarket)",
+            "count": 18
+          },
+          {
+            "reason": "ORACLE WIN ✅ (Chainlink)",
+            "count": 17
+          },
+          {
+            "reason": "ORACLE SMART STOP LOSS",
+            "count": 15
+          },
+          {
+            "reason": "ORACLE LOSS ❌ (Chainlink)",
+            "count": 8
+          },
+          {
+            "reason": "🧻 CHAOS SAFETY EXIT +17%",
+            "count": 7
+          },
+          {
+            "reason": "HEDGE CLOSED (with main)",
+            "count": 6
+          },
+          {
+            "reason": "🧻 CHAOS SAFETY EXIT +15%",
+            "count": 6
+          },
+          {
+            "reason": "🧻 CHAOS SAFETY EXIT +19%",
+            "count": 6
+          },
+          {
+            "reason": "ORACLE EARLY TP +21% ✅",
+            "count": 5
+          },
+          {
+            "reason": "ORACLE EARLY TP +22% ✅",
+            "count": 5
+          },
+          {
+            "reason": "🧻 CHAOS SAFETY EXIT +18%",
+            "count": 5
+          },
+          {
+            "reason": "ORACLE LOSS ❌ (Polymarket)",
+            "count": 5
+          },
+          {
+            "reason": "ORACLE EARLY TP +33% ✅",
+            "count": 4
+          },
+          {
+            "reason": "ORACLE EARLY TP +25% ✅",
+            "count": 4
+          },
+          {
+            "reason": "CHAOS STOP LOSS",
+            "count": 4
+          },
+          {
+            "reason": "VOLATILE STOP LOSS (-42%)",
+            "count": 4
+          },
+          {
+            "reason": "CHAOS STOP LOSS (-50%)",
+            "count": 4
+          },
+          {
+            "reason": "ORACLE EARLY TP +42% ✅",
+            "count": 3
+          }
+        ]
+      },
+      "oracleResolved": {
+        "n": 189,
+        "wins": 110,
+        "losses": 79,
+        "winRate": 0.582010582010582,
+        "byTier": {
+          "CONVICTION": {
+            "n": 62,
+            "wins": 43,
+            "losses": 19,
+            "winRate": 0.6935483870967742
+          },
+          "ADVISORY": {
+            "n": 3,
+            "wins": 3,
+            "losses": 0,
+            "winRate": 1
+          },
+          "NONE": {
+            "n": 0,
+            "wins": 0,
+            "losses": 0,
+            "winRate": null
+          },
+          "UNKNOWN": {
+            "n": 124,
+            "wins": 64,
+            "losses": 60,
+            "winRate": 0.5161290322580645
+          }
+        },
+        "byAsset": {
+          "SOL": {
+            "n": 22,
+            "wins": 12,
+            "losses": 10,
+            "winRate": 0.5454545454545454
+          },
+          "ETH": {
+            "n": 53,
+            "wins": 30,
+            "losses": 23,
+            "winRate": 0.5660377358490566
+          },
+          "BTC": {
+            "n": 59,
+            "wins": 35,
+            "losses": 24,
+            "winRate": 0.5932203389830508
+          },
+          "XRP": {
+            "n": 55,
+            "wins": 33,
+            "losses": 22,
+            "winRate": 0.6
+          }
+        }
+      },
+      "winRate": 0.5717092337917485
+    },
+    "liveGates": {
+      "totalEvaluations": 152,
+      "totalBlocked": 138,
+      "gateFailures": {
+        "mid_range_odds": 74,
+        "consensus": 10,
+        "odds": 5,
+        "confidence": 1,
+        "negative_EV": 47,
+        "genesis_veto": 7
+      },
+      "byAsset": {
+        "SOL": {
+          "evaluations": 50,
+          "blocked": 50,
+          "traded": 0,
+          "failedGates": {
+            "mid_range_odds": 48,
+            "consensus": 2
+          }
+        },
+        "XRP": {
+          "evaluations": 50,
+          "blocked": 49,
+          "traded": 1,
+          "failedGates": {
+            "consensus": 2,
+            "odds": 2,
+            "confidence": 1,
+            "negative_EV": 47
+          }
+        },
+        "BTC": {
+          "evaluations": 18,
+          "blocked": 10,
+          "traded": 8,
+          "failedGates": {
+            "consensus": 2,
+            "odds": 1,
+            "mid_range_odds": 1,
+            "genesis_veto": 7
+          }
+        },
+        "ETH": {
+          "evaluations": 34,
+          "blocked": 29,
+          "traded": 5,
+          "failedGates": {
+            "mid_range_odds": 25,
+            "consensus": 4,
+            "odds": 2
+          }
+        }
+      }
+    }
+  }
+}

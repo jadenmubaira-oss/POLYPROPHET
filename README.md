@@ -58,6 +58,14 @@
 - Deposits/withdrawals won't permanently break the peak-DD brake
 - All trades are logged and recoverable (see Recovery Runbook below)
 
+### Secrets Safety (Read This First)
+
+- **NEVER commit any real env file** (`.env`, `*.env`, `POLYPROPHET.env`). They contain wallet/private keys and exchange credentials.
+- If you ever pasted a private key or API secret into chat, a screenshot, or a public repo: **treat it as compromised**.
+  - Move funds to a new wallet.
+  - Re-generate Polymarket API credentials.
+  - Rotate proxy credentials and Redis passwords if applicable.
+
 ### Your Goal Hierarchy (v93 FINAL)
 
 | Priority | Objective | Metric |
@@ -637,7 +645,7 @@ if (maxTradeSize < $1.10) {
 Before enabling LIVE mode, verify ALL:
 
 ```
-[ ] /api/version shows configVersion: 84
+[ ] /api/version shows configVersion: 96
 [ ] /api/perfection-check shows allPassed: true
 [ ] /api/health shows status: "ok"
 [ ] /api/health shows dataFeed.anyStale: false
@@ -664,22 +672,33 @@ Before enabling LIVE mode, verify ALL:
 
 ## DEPLOYMENT GUIDE
 
-### Current Deployment
+### Deployment Target (Render / local)
 
 ```
-URL: https://polyprophet.onrender.com
-Auth: bandito / bandito
-Version: v84 (Polymarket-native vault optimizer + perfection check)
-Mode: PAPER (change to LIVE in Render dashboard)
+URL (Render): https://<your-service>.onrender.com
+URL (local):  http://localhost:3000
+Auth:         <AUTH_USERNAME> / <AUTH_PASSWORD>
+API key:      API_KEY (Bearer/query) OR AUTH_PASSWORD (backwards-compatible)
+ConfigVersion: 96  (verify via /api/version)
+Mode:          PAPER by default (switch to LIVE via Render env or /api/settings)
 ```
+
+Note: If you do NOT set `API_KEY`, PolyProphet will generate one at startup and **will not log it**. Retrieve it (after authenticating) via `GET /api/api-key`.
 
 ### Required Render Dashboard Changes
 
 ```
 MAX_POSITION_SIZE = 0.32    (v80 sweet spot stake)
 PAPER_BALANCE = 5           ($5 starting capital)
+AUTH_USERNAME = <your-username>
+AUTH_PASSWORD = <your-password>
+API_KEY = <optional token for Bearer/query auth>
 REDIS_URL = <your-redis>    (REQUIRED FOR LIVE MODE)
+PROXY_URL = <optional>      (set if Polymarket/CLOB is blocked in your region)
 POLYMARKET_PRIVATE_KEY = <your-key>  (REQUIRED FOR LIVE)
+POLYMARKET_API_KEY = <derived from generate_creds.js>
+POLYMARKET_SECRET = <derived from generate_creds.js>
+POLYMARKET_PASSPHRASE = <derived from generate_creds.js>
 
 # v94 SAFETY GATES (optional - enable only if you need these features)
 ENABLE_WALLET_TRANSFER = true   (Required to use /api/wallet/transfer in LIVE)
@@ -690,10 +709,14 @@ ENABLE_MANUAL_TRADING = true    (Required for /api/manual-buy, /api/manual-sell 
 
 1. Push code to GitHub (triggers Render deploy)
 2. Wait for deployment to complete (~2-5 minutes)
-3. Verify via `/api/version` shows `configVersion: 84`
+3. Verify via `/api/version` shows `configVersion: 96`
 4. Verify via `/api/perfection-check` shows `allPassed: true`
 5. Run 24-72h PAPER to validate behavior
 6. Set `TRADE_MODE=LIVE` in Render dashboard when ready
+7. Optional: pause/resume trading (auth required)
+   - Check status: `GET /api/trading-pause`
+   - Pause: `POST /api/trading-pause` with `{ "paused": true, "reason": "…" }`
+   - Resume: `POST /api/trading-pause` with `{ "paused": false }`
 
 ---
 
@@ -702,7 +725,7 @@ ENABLE_MANUAL_TRADING = true    (Required for /api/manual-buy, /api/manual-sell 
 ### PowerShell
 
 ```powershell
-# Check version (should show configVersion: 84)
+# Check version (should show configVersion: 96)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check vault system perfection (should show allPassed: true)
@@ -750,6 +773,16 @@ curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyM
 ### For Any AI Verifying This Repo
 
 Run these commands in order. If ANY fails, fix it before proceeding.
+
+Optional (offline, no server needed) forensic proofs:
+
+```bash
+# Regenerate integrity ledger (hash/bytes/line counts + purpose notes)
+npm run forensics:ledger
+
+# Re-ingest ALL /debug JSON and regenerate the deterministic corpus report + replay markdown (v96)
+npm run forensics:debug
+```
 
 ```bash
 # 1. PERFECTION CHECK (vault system wiring - most comprehensive)
@@ -956,7 +989,7 @@ The check verifies:
 
 | # | Check | Command | Pass Criteria |
 |---|-------|---------|---------------|
-| 1 | CONFIG_VERSION >= 84 | `/api/version` | `configVersion: 84` |
+| 1 | CONFIG_VERSION >= 96 | `/api/version` | `configVersion: 96` |
 | 2 | Perfection check | `/api/perfection-check` | `allPassed: true`, `criticalFailed: 0` |
 | 3 | System verify | `/api/verify` | `failed: 0` |
 | 4 | Vault thresholds exposed | `/api/risk-controls` | `vaultThresholds.sources` shows value origins |
@@ -1570,4 +1603,4 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ---
 
-*Version: v95 | Updated: 2026-01-07 | Single Source of Truth*
+*Version: v96 | Updated: 2026-01-07 | Single Source of Truth*

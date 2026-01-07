@@ -1,10 +1,12 @@
 {
     "name": "polyprophet",
-    "version": "4.7.0-v83",
-    "description": "POLYPROPHET v83 - VaultTriggerBalance optimization system, seeded projections/optimizer, hardened perfection-check, README AI handoff runbook",
+    "version": "4.7.0-v96",
+    "description": "POLYPROPHET v96 - Baseline bankroll for LIVE/PAPER parity, LCB wired into ADVISORY EV gating/sizing, relative-mode vault thresholds, hardened verify/perfection checks",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
+        "forensics:debug": "node scripts/forensics/analyze_debug.js",
+        "forensics:ledger": "node scripts/forensics/generate_ledger.js",
         "test": "node -e \"console.log('OK')\""
     },
     "dependencies": {

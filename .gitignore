@@ -10,6 +10,9 @@ node_modules/
 .env.local
 .env.*.local
 .env.example.tmp
+*.env
+.env.*
+!.env.example
 
 # Logs
 *.log
@@ -46,6 +49,10 @@ repo_integrity_manifest.json
 debug_trade_analysis_output.json
 *analysis_results*.json
 *.json.bak
+
+# Keep the authoritative ledger/index tracked (proof artifacts)
+!FORENSIC_LEDGER_LOCAL.json
+!FORENSIC_DEBUG_INDEX.json
 
 # Investigation docs
 *_INVESTIGATION*.md
