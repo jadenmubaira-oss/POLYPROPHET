@@ -6489,7 +6489,8 @@ app.get('/api/perfection-check', async (req, res) => {
             toolsUiHasMarker =
                 toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v86') ||
                 toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v88') ||
-                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v90');
+                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v90') ||
+                toolsContent.includes('POLYPROPHET_TOOLS_UI_MARKER_v93');
             const hasVaultPanel = toolsContent.includes('vault-projection') && toolsContent.includes('vault-optimize');
             const hasPolymarketPanel = toolsContent.includes('vault-optimize-polymarket') && toolsContent.includes('runPolymarketOptimizer');
             const hasAuditPanel = toolsContent.includes('perfection-check');
