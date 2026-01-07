@@ -553,10 +553,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         
         // 🏆 v83: Vault thresholds (use threshold contract for parity with runtime)
         // Query overrides: vaultTriggerBalance, stage2Threshold
+        // 🏆 v96: Pass startingBalance for relative-mode support
         const vaultTriggerBalanceParam = parseFloat(req.query.vaultTriggerBalance);
         const stage2ThresholdParam = parseFloat(req.query.stage2Threshold);
         // Build overrides object for threshold contract (will be resolved at simulation time)
         const backtestThresholdOverrides = {
+            startingBalance: startingBalance, // 🏆 v96: For relative-mode thresholds
             vaultTriggerBalance: Number.isFinite(vaultTriggerBalanceParam) ? vaultTriggerBalanceParam : undefined,
             stage2Threshold: Number.isFinite(stage2ThresholdParam) ? stage2ThresholdParam : undefined
         };
@@ -2208,9 +2210,11 @@ app.get('/api/vault-projection', async (req, res) => {
         const usedSeed = rng.seed;
         
         // 🏆 v83: Vault thresholds via threshold contract
+        // 🏆 v96: Pass startingBalance for relative-mode support
         const vaultTriggerBalanceParam = parseFloat(req.query.vaultTriggerBalance);
         const stage2ThresholdParam = parseFloat(req.query.stage2Threshold);
         const thresholdOverrides = {
+            startingBalance: startingBalance, // 🏆 v96: For relative-mode thresholds
             vaultTriggerBalance: Number.isFinite(vaultTriggerBalanceParam) ? vaultTriggerBalanceParam : undefined,
             stage2Threshold: Number.isFinite(stage2ThresholdParam) ? stage2ThresholdParam : undefined
         };
@@ -5076,6 +5080,10 @@ app.get('/api/debug-export', (req, res) => {
                 mode: tradeExecutor.mode,
                 paperBalance: tradeExecutor.paperBalance,
                 startingBalance: tradeExecutor.startingBalance,
+                // 🏆 v96 BASELINE BANKROLL: For profit-lock + relative thresholds
+                baselineBankroll: tradeExecutor.baselineBankroll,
+                baselineBankrollInitialized: tradeExecutor.baselineBankrollInitialized,
+                baselineBankrollSource: tradeExecutor.baselineBankrollSource,
                 todayPnL: tradeExecutor.todayPnL,
                 positions: tradeExecutor.positions,
                 pendingSells: tradeExecutor.pendingSells,
@@ -5412,14 +5420,35 @@ app.get('/api/risk-controls', (req, res) => {
         if (belowFloor) blocks.push('BALANCE_FLOOR');
         if (tradeExecutor?.circuitBreaker?.state === 'HALTED') blocks.push('CIRCUIT_BREAKER_HALTED');
 
+        // 🏆 v96: LCB usage status
+        const lcbAvailable = ASSETS.some(a => typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function');
+        const wilsonLCBAvailable = typeof wilsonLCB === 'function';
+        
         res.json({
             code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
+            configVersion: typeof CONFIG_VERSION !== 'undefined' ? CONFIG_VERSION : null,
             mode: { config: CONFIG.TRADE_MODE, executor: executorMode },
             balances: {
                 cashBalance,
                 equityEstimate,
                 bankrollForRisk,
                 bankrollAdaptivePolicy
+            },
+            // 🏆 v96: Baseline bankroll (for profit-lock and relative thresholds)
+            baselineBankroll: {
+                value: tradeExecutor?.baselineBankroll || 0,
+                initialized: tradeExecutor?.baselineBankrollInitialized || false,
+                source: tradeExecutor?.baselineBankrollSource || 'unknown',
+                profitMultiple: tradeExecutor?.baselineBankroll > 0 
+                    ? (cashBalance / tradeExecutor.baselineBankroll).toFixed(2) + 'x' 
+                    : 'N/A'
+            },
+            // 🏆 v96: LCB gating status
+            lcbGating: {
+                available: lcbAvailable && wilsonLCBAvailable,
+                wiredToAdvisory: lcbAvailable && wilsonLCBAvailable, // v96: Always wired if available
+                getCalibratedPWinWithLCB: lcbAvailable,
+                wilsonLCB: wilsonLCBAvailable
             },
             dataFeed: {
                 anyStale: anyFeedStale,
@@ -5454,7 +5483,8 @@ app.get('/api/risk-controls', (req, res) => {
             // 🏆 v93: Auto safety self-check status
             autoSelfCheck: (typeof _selfCheckState !== 'undefined') ? _selfCheckState : null,
             // 🏆 v83: Explicit vault thresholds for forensic auditing
-            vaultThresholds: getVaultThresholds(),
+            // 🏆 v96: Pass baseline for relative-mode support
+            vaultThresholds: getVaultThresholds({ startingBalance: tradeExecutor?.baselineBankroll }),
             dynamicRiskProfile: profile,
             riskEnvelope: envelope,
             frequencyFloor: {
@@ -6170,13 +6200,14 @@ app.get('/api/verify', async (req, res) => {
         cbExists ? `State: ${cbExists.state}, Thresholds: ${cbExists.softDrawdownPct*100}%/${cbExists.hardDrawdownPct*100}%/${cbExists.haltDrawdownPct*100}%` : 'Not configured');
     
     // Check 3: LCB gating (HONEST CHECK - verify function exists on at least one brain)
+    // 🏆 v96: LCB is now WIRED into ADVISORY EV/price-cap/Kelly (not just "exists")
     const hasLcbFunction = ASSETS.some(a => 
         typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function'
     );
     const wilsonLCBExists = typeof wilsonLCB === 'function';
-    addCheck('LCB gating active', 
+    addCheck('LCB gating active (wired into ADVISORY)', 
         hasLcbFunction && wilsonLCBExists,
-        hasLcbFunction ? 'getCalibratedPWinWithLCB + wilsonLCB available' : 'LCB functions not found');
+        hasLcbFunction ? 'v96: LCB used for ADVISORY pWin → EV/price-cap/Kelly' : 'LCB functions not found');
     
     // Check 4: LIVE balance freshness enforcement (HONEST CHECK)
     const hasFreshnessCheck = tradeExecutor?.lastBalanceFetch !== undefined;
@@ -6275,6 +6306,15 @@ app.get('/api/verify', async (req, res) => {
         authConfigured ? 'Username and password set' : 'Using defaults (insecure)',
         'warn');
     
+    // Check 15: Baseline bankroll initialized (v96)
+    const baselineInitialized = tradeExecutor?.baselineBankrollInitialized === true;
+    const baselineValue = tradeExecutor?.baselineBankroll || 0;
+    const baselineSource = tradeExecutor?.baselineBankrollSource || 'unknown';
+    addCheck('Baseline bankroll initialized (v96)',
+        baselineInitialized && baselineValue > 0,
+        baselineInitialized ? `$${baselineValue.toFixed(2)} (source: ${baselineSource})` : 'Awaiting first balance fetch',
+        'warn');
+    
     // ==================== CALCULATE STATUS ====================
     const criticalFails = checks.filter(c => !c.passed && c.severity === 'error').length;
     const warnFails = checks.filter(c => !c.passed && c.severity === 'warn').length;
@@ -6296,13 +6336,16 @@ app.get('/api/verify', async (req, res) => {
             action: getFixAction(c.name)
         })),
         
-        // Summary of GOAT v45 features
+        // Summary of GOAT v45+ features
         goatFeatures: {
             hybridThrottle: cbHasThresholds && cbHasResumeConditions,
             lcbGating: hasLcbFunction && wilsonLCBExists,
             liveFreshness: hasFreshnessCheck,
             idempotentHistory: historyIdempotent,
-            collectorPersistence: collectorStatePersisted
+            collectorPersistence: collectorStatePersisted,
+            // 🏆 v96 features
+            baselineBankroll: baselineInitialized && baselineValue > 0,
+            lcbWiredToAdvisory: hasLcbFunction && wilsonLCBExists // v96: LCB actually used in ADVISORY path
         },
         
         timestamp: new Date().toISOString(),
@@ -6314,7 +6357,8 @@ app.get('/api/verify', async (req, res) => {
         const actions = {
             'TradeExecutor initialized': 'Check server startup logs for errors',
             'Hybrid throttle (CircuitBreaker v45)': 'Ensure circuitBreaker is initialized with resumeConditions',
-            'LCB gating active': 'Ensure getCalibratedPWinWithLCB method exists on SupremeBrain',
+            'LCB gating active (wired into ADVISORY)': 'v96: LCB should be used for ADVISORY EV/price-cap/Kelly',
+            'Baseline bankroll initialized (v96)': 'For PAPER: auto-initialized. For LIVE: first successful balance fetch initializes it.',
             'LIVE balance freshness': 'refreshLiveBalance() must update lastBalanceFetch',
             'Streak sizing enabled': 'Check TradeExecutor configuration',
             'Redis available': 'Set REDIS_URL environment variable',
@@ -6406,13 +6450,21 @@ app.get('/api/perfection-check', async (req, res) => {
     addCheck('Runtime threshold matches CONFIG', runtimeConfigMatch,
         runtimeConfigMatch ? 'Threshold contract resolves to CONFIG value' : 'Mismatch between runtime and CONFIG');
     
-    // Check 6: vaultTriggerBalance is in valid range ($6.10-$15.00 recommended)
+    // Check 6: vaultTriggerBalance is in valid range 
+    // 🏆 v96: Support relative mode - if relativeMode=true, just check it's positive
     let inRecommendedRange = false;
     if (thresholds) {
-        inRecommendedRange = thresholds.vaultTriggerBalance >= 5 && thresholds.vaultTriggerBalance <= 20;
+        if (thresholds.relativeMode) {
+            // Relative mode: just check it's positive and sensible relative to starting balance
+            inRecommendedRange = thresholds.vaultTriggerBalance > 0 && 
+                                 thresholds.vaultTriggerBalance >= thresholds.startingBalance;
+        } else {
+            // Absolute mode: old range check
+            inRecommendedRange = thresholds.vaultTriggerBalance >= 5 && thresholds.vaultTriggerBalance <= 20;
+        }
     }
     addCheck('vaultTriggerBalance in sensible range', inRecommendedRange,
-        thresholds ? `$${thresholds.vaultTriggerBalance} (recommended: $6.10-$15.00)` : 'N/A',
+        thresholds ? `$${thresholds.vaultTriggerBalance.toFixed(2)} (${thresholds.relativeMode ? 'relative mode' : 'absolute mode'})` : 'N/A',
         'warn');
     
     // Check 7: CONFIG_VERSION is v86+
@@ -6503,6 +6555,26 @@ app.get('/api/perfection-check', async (req, res) => {
         overrideDetails = 'Override test threw error: ' + e.message;
     }
     addCheck('Threshold override resolution', overrideResolutionPass, overrideDetails);
+    
+    // Check 13b (v96): Relative mode support works correctly
+    let relativeModePass = false;
+    let relativeModeDetails = '';
+    try {
+        const testRelative = getVaultThresholds({ relativeMode: true, startingBalance: 20, stage1Mult: 1.5, stage2Mult: 2.5 });
+        const expectedStage1 = 20 * 1.5; // 30
+        const expectedStage2 = 20 * 2.5; // 50
+        relativeModePass = testRelative.relativeMode === true &&
+                          testRelative.startingBalance === 20 &&
+                          testRelative.vaultTriggerBalance === expectedStage1 &&
+                          testRelative.stage2Threshold === expectedStage2 &&
+                          testRelative.sources.vaultTriggerBalance.includes('relative_mode');
+        relativeModeDetails = relativeModePass 
+            ? `relativeMode(20 * 1.5 = $${expectedStage1}, 20 * 2.5 = $${expectedStage2}) ✓` 
+            : `Expected stage1=$${expectedStage1}/stage2=$${expectedStage2}, got ${testRelative.vaultTriggerBalance}/${testRelative.stage2Threshold}`;
+    } catch (e) {
+        relativeModeDetails = 'Relative mode test threw error: ' + e.message;
+    }
+    addCheck('Relative mode threshold support (v96)', relativeModePass, relativeModeDetails);
     
     // Check 14: Seedable RNG available for reproducibility
     const rngAvailable = typeof createSeededRng === 'function';
@@ -7234,7 +7306,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 95;  // v95: /api/verify PASS (LCB gating + resumeConditions + redemptionEvents) + LARGE_BANKROLL preserve+balanced mix
+const CONFIG_VERSION = 96;  // v96: Baseline bankroll for LIVE/PAPER parity (profit-lock + relative thresholds), LCB wired into ADVISORY EV
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -7975,6 +8047,16 @@ class TradeExecutor {
         this.mode = CONFIG.TRADE_MODE;
         this.paperBalance = CONFIG.PAPER_BALANCE;
         this.startingBalance = CONFIG.PAPER_BALANCE;
+        
+        // 🏆 v96 BASELINE BANKROLL: Mode-aware baseline for profit lock-in and relative thresholds
+        // - PAPER: Uses CONFIG.PAPER_BALANCE (set immediately)
+        // - LIVE: Initialized on FIRST successful wallet balance fetch, reset on deposit/withdrawal
+        // This ensures profit-lock sizing and vault thresholds are relative to actual LIVE start,
+        // not the paper default. Auto-transfer detection resets this on deposits/withdrawals.
+        this.baselineBankroll = CONFIG.PAPER_BALANCE;
+        this.baselineBankrollInitialized = (CONFIG.TRADE_MODE !== 'LIVE'); // PAPER starts initialized
+        this.baselineBankrollSource = (CONFIG.TRADE_MODE === 'LIVE') ? 'pending_live_fetch' : 'paper_balance';
+        
         this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
         this.closedPositions = [];     // 🏆 v77: Track closed positions for frequency floor calculation
         this.wallet = null;
@@ -8492,9 +8574,15 @@ class TradeExecutor {
     // 🏆 v77/v83 DYNAMIC RISK PROFILE: Get risk parameters based on bankroll stage
     // This allows aggressive compounding at small bankrolls, then tightens as balance grows
     // 🏆 v83: Now uses threshold contract for consistency with backtests + /api/vault-optimize
+    // 🏆 v96: Feed baselineBankroll into relative-mode thresholds
     getDynamicRiskProfile(bankroll, overrides = {}) {
+        // 🏆 v96: Merge in baseline for relative-mode support if not already provided
+        const effectiveOverrides = {
+            startingBalance: this.baselineBankroll || overrides.startingBalance,
+            ...overrides
+        };
         // 🏆 v83: Use threshold contract for consistent threshold resolution
-        const thresholds = getVaultThresholds(overrides);
+        const thresholds = getVaultThresholds(effectiveOverrides);
         const STAGE1_THRESHOLD = thresholds.vaultTriggerBalance;
         const STAGE2_THRESHOLD = thresholds.stage2Threshold;
         
@@ -8738,9 +8826,10 @@ class TradeExecutor {
 
         // 🏆 v62 ADAPTIVE PROFIT PROTECTION: Reduce stake as profits grow
         // This "locks in" profits by reducing risk as balance increases
-        const startingBalance = this.startingBalance || 5;
-        const currentBalance = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || startingBalance);
-        const profitMultiple = currentBalance / startingBalance;
+        // 🏆 v96: Use baselineBankroll for LIVE/PAPER parity (initialized on first LIVE fetch, reset on transfers)
+        const baselineForProfitLock = this.baselineBankroll || this.startingBalance || 5;
+        const currentBalance = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || baselineForProfitLock);
+        const profitMultiple = currentBalance / baselineForProfitLock;
         
         // 🏆 v67 ABSOLUTE OPTIMAL: Exhaustive Monte Carlo search found this is THE BEST
         // Tested all combinations of stake (40-60%) and lock-in thresholds (1.1-2.5x)
@@ -9282,6 +9371,24 @@ class TradeExecutor {
                 this.lastGoodBalance = result.balance; // Store as known good
                 this.lastBalanceFetch = Date.now();
                 log(`💰 Live balance updated: $${this.cachedLiveBalance.toFixed(2)}`);
+                
+                // 🏆 v96 BASELINE BANKROLL: Initialize on first successful LIVE fetch
+                // This ensures profit-lock and relative thresholds use real LIVE start, not paper default
+                if (this.mode === 'LIVE' && !this.baselineBankrollInitialized && result.balance > 0) {
+                    this.baselineBankroll = result.balance;
+                    this.baselineBankrollInitialized = true;
+                    this.baselineBankrollSource = 'first_live_fetch';
+                    // Also sync startingBalance for backward compat
+                    this.startingBalance = result.balance;
+                    log(`🏦 BASELINE BANKROLL: Initialized to $${result.balance.toFixed(2)} (first LIVE fetch)`);
+                    
+                    // Initialize circuit breaker baselines too
+                    if (this.circuitBreaker) {
+                        this.circuitBreaker.dayStartBalance = result.balance;
+                        this.circuitBreaker.peakBalance = result.balance;
+                        this.circuitBreaker.lifetimePeakBalance = result.balance;
+                    }
+                }
             } else {
                 // Fetch returned but wasn't successful - keep last known good
                 log(`⚠️ Balance fetch returned failure, using last known: $${lastGoodBalance.toFixed(2)}`);
@@ -12982,6 +13089,7 @@ setInterval(() => {
         if (transferEnabled && isQuiescent && Math.abs(delta) >= minDeltaAbs && deltaPct >= minDeltaPct) {
             const type = delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL';
             const oldPeak = cb.lifetimePeakBalance;
+            const oldBaseline = tradeExecutor.baselineBankroll || 0;
             cb.lifetimePeakBalance = currentCashBalance;
             _transferDetectionState.lastTransfer = {
                 type,
@@ -12990,7 +13098,20 @@ setInterval(() => {
                 oldPeak,
                 newPeak: currentCashBalance
             };
-            log(`💰 ${type} DETECTED: Cash balance changed $${Math.abs(delta).toFixed(2)} (${(deltaPct * 100).toFixed(1)}%) after ${secsSinceLastTrade}s idle → resetting lifetime peak to $${currentCashBalance.toFixed(2)}`);
+            
+            // 🏆 v96 BASELINE BANKROLL: Reset baseline on transfer so profit-lock uses new start
+            // This prevents withdrawals looking like drawdowns and deposits inflating profit multiple
+            tradeExecutor.baselineBankroll = currentCashBalance;
+            tradeExecutor.startingBalance = currentCashBalance; // backward compat
+            tradeExecutor.baselineBankrollSource = `transfer_reset_${type.toLowerCase()}`;
+            
+            // Also reset day-start balance so intraday drawdown doesn't false-trigger
+            cb.dayStartBalance = currentCashBalance;
+            cb.peakBalance = currentCashBalance;
+            
+            log(`💰 ${type} DETECTED: Cash balance changed $${Math.abs(delta).toFixed(2)} (${(deltaPct * 100).toFixed(1)}%) after ${secsSinceLastTrade}s idle`);
+            log(`   → Resetting lifetime peak: $${oldPeak.toFixed(2)} → $${currentCashBalance.toFixed(2)}`);
+            log(`   → Resetting baseline bankroll: $${oldBaseline.toFixed(2)} → $${currentCashBalance.toFixed(2)}`);
         }
         // Normal growth from trading - just update peak if higher
         else if (currentCashBalance > prevLifetimePeak) {
@@ -14698,8 +14819,21 @@ class SupremeBrain {
                             (s.total > 0 ? (s.wins / s.total) : 0.5);
                     
                     // 🎯 GOAT: Prefer tier+price conditioned pWin, fall back to bucket-based
+                    // 🏆 v96 LCB GATING: For ADVISORY, use Wilson LCB (conservative estimate) to reduce variance
                     let pWinRaw = null;
-                    if (typeof this.getTierConditionedPWin === 'function') {
+                    let lcbUsed = false;
+                    
+                    if (tier === 'ADVISORY' && typeof this.getCalibratedPWinWithLCB === 'function') {
+                        // ADVISORY: Use conservative LCB estimate to reduce overconfidence
+                        pWinRaw = this.getCalibratedPWinWithLCB(finalConfidence, { z: 1.645, minSamples: 5, fallback: null });
+                        if (pWinRaw !== null) {
+                            lcbUsed = true;
+                            log(`📊 LCB GATING: ADVISORY using Wilson LCB pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
+                        }
+                    }
+                    
+                    // Fallback chain: tier-conditioned → calibrated → prior-based
+                    if (pWinRaw === null && typeof this.getTierConditionedPWin === 'function') {
                         pWinRaw = this.getTierConditionedPWin(tier, currentOdds, { fallback: null, minSamples: 5 });
                     }
                     if (pWinRaw === null && typeof this.getCalibratedWinProb === 'function') {
@@ -14736,6 +14870,8 @@ class SupremeBrain {
                         confidence: finalConfidence,
                         tier,
                         pWin: pWinEff,
+                        pWinRaw: pWinRaw,  // 🏆 v96: Raw pWin before weighting
+                        lcbUsed: lcbUsed,  // 🏆 v96: True if Wilson LCB was used (ADVISORY)
                         evRoi,
                         edgePercent,
                         currentOdds,
@@ -14827,8 +14963,9 @@ class SupremeBrain {
                             gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
                             
                             // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
+                            // 🏆 v96: Pass lcbUsed for audit trail
                             const genesisAgree = modelVotes.genesis === finalSignal;
-                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree });
+                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree, lcbUsed });
                         }
                         else {
                             // Safe to proceed with normal checks
@@ -14890,8 +15027,9 @@ class SupremeBrain {
                                 gateTrace.record(this.asset, { decision: 'TRADE', reason: 'ORACLE_ALL_GATES_PASSED', failedGates: [], inputs: gateInputs, checks: oracleChecks });
                                 
                                 // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
+                                // 🏆 v96: Pass lcbUsed for audit trail
                                 const genesisAgreeStd = modelVotes.genesis === finalSignal;
-                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree: genesisAgreeStd });
+                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree: genesisAgreeStd, lcbUsed });
                             } else {
                                 log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
                                 // 🎯 GOAT v44.1: Record blocked trade with specific gates that failed
@@ -16212,6 +16350,10 @@ async function saveState() {
         tradeExecutor: {
             paperBalance: tradeExecutor.paperBalance,
             startingBalance: tradeExecutor.startingBalance,
+            // 🏆 v96 BASELINE BANKROLL: Persist baseline for profit-lock and relative thresholds
+            baselineBankroll: tradeExecutor.baselineBankroll,
+            baselineBankrollInitialized: tradeExecutor.baselineBankrollInitialized,
+            baselineBankrollSource: tradeExecutor.baselineBankrollSource,
             tradeHistory: tradeExecutor.tradeHistory.slice(-200), // Keep last 200 trades
             todayPnL: tradeExecutor.todayPnL,
             consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
@@ -16499,6 +16641,12 @@ async function loadState() {
                     const te = state.tradeExecutor;
                     if (te.paperBalance !== undefined) tradeExecutor.paperBalance = te.paperBalance;
                     if (te.startingBalance !== undefined) tradeExecutor.startingBalance = te.startingBalance;
+                    // 🏆 v96 BASELINE BANKROLL: Restore baseline across restarts
+                    if (te.baselineBankroll !== undefined) {
+                        tradeExecutor.baselineBankroll = te.baselineBankroll;
+                        tradeExecutor.baselineBankrollInitialized = te.baselineBankrollInitialized ?? true;
+                        tradeExecutor.baselineBankrollSource = te.baselineBankrollSource ?? 'redis_restore';
+                    }
                     if (te.tradeHistory && Array.isArray(te.tradeHistory)) tradeExecutor.tradeHistory = te.tradeHistory;
                     // One-time cleanup for legacy hedge records left OPEN by older code
                     try { tradeExecutor.reconcileLegacyOpenHedgeTrades(); } catch { }
@@ -19594,6 +19742,11 @@ app.post('/api/reset-balance', async (req, res) => {
     // Reset trade executor
     tradeExecutor.paperBalance = newBalance;
     tradeExecutor.startingBalance = newBalance;
+    // 🏆 v96 BASELINE BANKROLL: Reset baseline on manual reset
+    tradeExecutor.baselineBankroll = newBalance;
+    tradeExecutor.baselineBankrollInitialized = true;
+    tradeExecutor.baselineBankrollSource = 'manual_reset';
+    
     tradeExecutor.positions = {};
     tradeExecutor.tradeHistory = [];
     tradeExecutor.todayPnL = 0;

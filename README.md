@@ -1,8 +1,8 @@
-# POLYPROPHET v95 — FULLY AUTONOMOUS TRADING SYSTEM
+# POLYPROPHET v96 — FULLY AUTONOMOUS TRADING SYSTEM
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v95 CRITICAL**: /api/verify PASS (LCB gating + resumeConditions) + LARGE_BANKROLL preserve+balanced mix (12% Kelly, 7% maxPos)
+> **v96 CRITICAL**: Baseline bankroll for LIVE/PAPER parity + LCB wired into ADVISORY EV/sizing + relative-mode vault thresholds
 
 ---
 
@@ -1199,6 +1199,43 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 ---
 
 ## CHANGELOG
+
+### v96 (2026-01-07) — BASELINE BANKROLL + LCB WIRED INTO ADVISORY
+
+**🏆 LIVE/PAPER parity for profit-lock and relative thresholds:**
+
+1. **🏦 Baseline Bankroll**: New `baselineBankroll` property in TradeExecutor:
+   - **PAPER**: Initialized from `CONFIG.PAPER_BALANCE` immediately
+   - **LIVE**: Initialized on **first successful wallet balance fetch**
+   - **Transfers**: Auto-reset on detected deposits/withdrawals
+   - Used by `applyVarianceControls()` for profit-lock sizing (ensures profit multiples are relative to actual LIVE start, not paper default)
+   - Exposed in `/api/risk-controls` → `baselineBankroll` object
+
+2. **📊 LCB Wired into ADVISORY EV/Sizing**: Wilson LCB now **actually used** (not just available):
+   - For ADVISORY trades, `getCalibratedPWinWithLCB()` provides a conservative pWin
+   - This conservative pWin is used for EV hard-blocks, EV-derived max entry price, and passed to `executeTrade` for Kelly sizing
+   - `lcbUsed` flag added to gateInputs and trade options for audit trail
+   - `/api/verify` check renamed to "LCB gating active (wired into ADVISORY)"
+
+3. **🔧 Relative-Mode Vault Thresholds**: `getVaultThresholds()` now receives baseline:
+   - `getDynamicRiskProfile()` passes `baselineBankroll` for relative-mode support
+   - Backtests pass `startingBalance` in threshold overrides
+   - `/api/risk-controls` includes `baselineBankroll` in vaultThresholds call
+   - `/api/perfection-check` updated with relative-mode validation check
+
+4. **✅ New Verify Checks**:
+   - "Baseline bankroll initialized (v96)" — confirms baseline is set and source is tracked
+   - "Relative mode threshold support (v96)" — validates `getVaultThresholds()` handles relative multipliers correctly
+
+**Evidence**:
+- `baselineBankroll` property at ~line 7983
+- `refreshLiveBalance()` initializes baseline at ~line 9303
+- Transfer detection resets baseline at ~line 13020
+- LCB wiring in ORACLE evaluation at ~line 14755
+- `/api/verify` baseline check at ~line 6283
+- `/api/perfection-check` relative mode check at ~line 6539
+
+---
 
 ### v95 (2026-01-07) — /API/VERIFY PASS + PRESERVE+BALANCED SCALING
 
