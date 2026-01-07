@@ -1,11 +1,11 @@
 {
-    "timestamp": "2026-01-07T22:52:01.409Z",
-    "gitCommit": "83a996f0012f37fd4d52823b82cec0688a2566c0",
+    "timestamp": "2026-01-07T23:02:19.202Z",
+    "gitCommit": "15f66abdf93399f66ee8ab971b0fab4968d05c8c",
     "counts": {
         "requiredFiles": 11,
         "debugFiles": 149,
-        "otherFiles": 145,
-        "totalFiles": 305
+        "otherFiles": 143,
+        "totalFiles": 303
     },
     "requiredFiles": [
         {
@@ -34,10 +34,10 @@
         },
         {
             "path": "README.md",
-            "bytes": 72423,
-            "lines": 1606,
-            "nonEmptyLines": 1241,
-            "sha256": "d603ed02655e1627f00672c3c1fd14120b6a90a4bb94d9b008d8ca38fe6bdec8",
+            "bytes": 73233,
+            "lines": 1619,
+            "nonEmptyLines": 1252,
+            "sha256": "bb63aff0630d3dbe5ffb6fd5d4d9260fa3acc9a4f0bc2026c5d09bd470c59411",
             "purpose": "Primary operator/deployment/verification documentation (the “single source of truth” narrative)."
         },
         {
@@ -2414,10 +2414,10 @@
         },
         {
             "path": "POLYPROPHET.env",
-            "bytes": 487,
+            "bytes": 495,
             "lines": 10,
             "nonEmptyLines": 10,
-            "sha256": "b20e99f801440a41fc37ab768bae0d58c16f9036f7481df92f75d3cfcc78845d",
+            "sha256": "8ea382cf940faa22cb7ed51e4b221958910ecf4d04d22d0af43cf4e06560f1e0",
             "purpose": "Repository file (see path/name for its specific role)."
         },
         {
@@ -2435,22 +2435,6 @@
             "nonEmptyLines": 203,
             "sha256": "77abea85ba881edee8a28abf1bf018553b261f8a83434dd3b39d8b184026808e",
             "purpose": "Generates integrity ledger (sha256/lines/bytes) for repo files to prove what was ingested."
-        },
-        {
-            "path": "tools\\forensics\\analyze_debug.js",
-            "bytes": 17023,
-            "lines": 420,
-            "nonEmptyLines": 379,
-            "sha256": "5de23cb33327562abdc92e9c007b44a5d19cb5ad3a6035a27cd7db7b2c4f9ba1",
-            "purpose": "JavaScript source file in this repository."
-        },
-        {
-            "path": "tools\\forensics\\DEBUG_CORPUS_REPORT.json",
-            "bytes": 41250,
-            "lines": 1343,
-            "nonEmptyLines": 1343,
-            "sha256": "159fa686bbaa1e0ec0be5d989b5b6fc536d38559eee74e38d8ee6a26bedc0b6d",
-            "purpose": "Structured data/config used by the repo or produced by scripts."
         }
     ]
 }

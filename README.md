@@ -66,6 +66,19 @@
   - Re-generate Polymarket API credentials.
   - Rotate proxy credentials and Redis passwords if applicable.
 
+### Maintainer Journal (Handover Snapshot)
+
+- **Last verified commit (repo)**: `15f66ab` (v96 final hardening + proof artifacts)
+- **Offline proofs**:
+  - `npm test` (sanity)
+  - `npm run forensics:debug` → writes `docs/forensics/DEBUG_CORPUS_REPORT_v96.json`
+  - `npm run forensics:ledger` → writes `FORENSIC_LEDGER_LOCAL.json`
+- **Runtime proofs (PAPER, $5 start)**:
+  - `/api/perfection-check` → `allPassed: true` (vault wiring)
+  - `/api/verify` → `PASS` (mode-aware; Redis required only for LIVE)
+  - `/api/risk-controls` confirms: `MICRO_SAFE` policy + `BOOTSTRAP` stage + `minOrderRiskOverride: true` + `$2 floor` enabled
+- **LIVE-mode limitation**: full LIVE execution/redeem/restart proof requires real wallet funding + a live trade lifecycle (cannot be “proven” from static code alone).
+
 ### Your Goal Hierarchy (v93 FINAL)
 
 | Priority | Objective | Metric |
