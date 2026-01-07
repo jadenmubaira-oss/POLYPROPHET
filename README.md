@@ -70,6 +70,7 @@
 
 - **Last verified runtime fingerprint**: `serverSha256` = `7504e36c331f389780e9097e74bdeac3693f72158f76f2fe5f208dda32e27777` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
+- **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (latest pushed commit: `c3f7cec`).
 - **Offline proofs**:
   - `npm test` (sanity)
   - `npm run forensics:debug` → writes `docs/forensics/DEBUG_CORPUS_REPORT_v96.json`
@@ -78,6 +79,7 @@
   - `/api/perfection-check` → `allPassed: true` (vault wiring)
   - `/api/verify` → `PASS` (mode-aware; Redis required only for LIVE)
   - `/api/risk-controls` confirms: `MICRO_SAFE` policy + `BOOTSTRAP` stage + `minOrderRiskOverride: true` + `$2 floor` enabled
+- **LIVE safety invariant (proven in code)**: if `TRADE_MODE=LIVE` and Redis is not available, startup **forces** `TRADE_MODE=PAPER` (prevents unsafe LIVE-without-persistence).
 - **LIVE-mode limitation**: full LIVE execution/redeem/restart proof requires real wallet funding + a live trade lifecycle (cannot be “proven” from static code alone).
 
 ### Your Goal Hierarchy (v93 FINAL)

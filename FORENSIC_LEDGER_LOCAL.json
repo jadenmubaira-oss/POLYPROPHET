@@ -1,11 +1,11 @@
 {
-    "timestamp": "2026-01-07T23:06:04.815Z",
-    "gitCommit": "61048ec666f27bc98a22dce4b82ecbcb77e8a2f9",
+    "timestamp": "2026-01-07T23:36:40.626Z",
+    "gitCommit": "c3f7cec9d0e0b0b5d98be63e9961e5a449ba6d31",
     "counts": {
         "requiredFiles": 11,
         "debugFiles": 149,
-        "otherFiles": 143,
-        "totalFiles": 303
+        "otherFiles": 142,
+        "totalFiles": 302
     },
     "requiredFiles": [
         {
@@ -34,10 +34,10 @@
         },
         {
             "path": "README.md",
-            "bytes": 73409,
-            "lines": 1620,
-            "nonEmptyLines": 1253,
-            "sha256": "bcc9a9a5357486e04ad4486735fe88b0167f03335e26320cdc559c676ebe8f86",
+            "bytes": 73688,
+            "lines": 1622,
+            "nonEmptyLines": 1255,
+            "sha256": "a9687de7ad27b4bb1b1b8f98c965fd6da9d96698721c99806c41fe4cda084409",
             "purpose": "Primary operator/deployment/verification documentation (the “single source of truth” narrative)."
         },
         {
@@ -2411,14 +2411,6 @@
             "nonEmptyLines": 212,
             "sha256": "34c0e3fa652dee2206769290ff553f889fb71b97fc7fa7b9b3436deab09e6d35",
             "purpose": "Documentation/notes for operators or forensic tracking."
-        },
-        {
-            "path": "POLYPROPHET.env",
-            "bytes": 495,
-            "lines": 10,
-            "nonEmptyLines": 10,
-            "sha256": "8ea382cf940faa22cb7ed51e4b221958910ecf4d04d22d0af43cf4e06560f1e0",
-            "purpose": "Repository file (see path/name for its specific role)."
         },
         {
             "path": "scripts\\forensics\\analyze_debug.js",
