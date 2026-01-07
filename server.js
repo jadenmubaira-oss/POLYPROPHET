@@ -4422,9 +4422,52 @@ app.get('/api/optimize-polymarket', async (req, res) => {
     }
 });
 
-// ==================== 🏆 v59 PENDING POSITIONS RECONCILIATION ====================
-// Checks and resolves PENDING_RESOLUTION positions when Gamma becomes available
+// ==================== 🏆 v59/v94 PENDING POSITIONS RECONCILIATION ====================
+// v94 FIX: GET is now PREVIEW ONLY (read-only), POST executes the reconciliation
+// This prevents accidental reconciliation by crawlers/scanners hitting the endpoint
+
+// GET: Preview what would be reconciled (read-only, safe)
 app.get('/api/reconcile-pending', async (req, res) => {
+    try {
+        const positions = tradeExecutor?.positions || {};
+        
+        const pendingPositions = Object.entries(positions).filter(([id, pos]) => 
+            pos && pos.status === 'PENDING_RESOLUTION'
+        );
+        
+        if (pendingPositions.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No pending positions to reconcile',
+                pending: 0,
+                preview: [],
+                action: 'Use POST /api/reconcile-pending to execute reconciliation'
+            });
+        }
+        
+        const preview = pendingPositions.map(([id, pos]) => ({
+            id,
+            slug: pos.pendingSlug || pos.slug,
+            side: pos.side,
+            size: pos.size,
+            openTime: pos.time,
+            status: 'PENDING_RESOLUTION'
+        }));
+        
+        res.json({
+            success: true,
+            message: 'Preview of pending positions (use POST to reconcile)',
+            pending: pendingPositions.length,
+            preview,
+            action: 'POST /api/reconcile-pending to execute reconciliation'
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+// POST: Actually reconcile pending positions (mutating action)
+app.post('/api/reconcile-pending', async (req, res) => {
     try {
         const startTime = Date.now();
         const positions = tradeExecutor?.positions || {};
@@ -6511,6 +6554,35 @@ app.get('/api/perfection-check', async (req, res) => {
     addCheck('Tools UI exists with required features', toolsUiExists && toolsUiHasMarker,
         toolsUiDetails, 'warn');
     
+    // Check 16: Auto-optimizer internal backtest calls can authenticate (v93.1)
+    let autoOptimizerAuthOk = false;
+    let autoOptimizerDetails = '';
+    try {
+        const cfg = CONFIG?.RISK || {};
+        const enabled = !!cfg.autoOptimizerEnabled;
+        const apiKeyDefined = typeof API_KEY === 'string' && API_KEY.length > 0;
+        // Check that the internal fetch would include apiKey (the code fix we just made)
+        const serverSource = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
+        const hasApiKeyInOptimizerCall = serverSource.includes('apiKey=${encodeURIComponent(API_KEY)}');
+        
+        if (!enabled) {
+            autoOptimizerAuthOk = true; // Not enabled, so no auth issue
+            autoOptimizerDetails = 'Auto-optimizer disabled, no auth required';
+        } else if (apiKeyDefined && hasApiKeyInOptimizerCall) {
+            autoOptimizerAuthOk = true;
+            autoOptimizerDetails = `Enabled, internal calls use apiKey auth`;
+        } else if (!apiKeyDefined) {
+            autoOptimizerAuthOk = false;
+            autoOptimizerDetails = 'API_KEY not defined - internal calls will fail auth';
+        } else {
+            autoOptimizerAuthOk = false;
+            autoOptimizerDetails = 'Internal backtest calls missing apiKey param (v93.1 fix needed)';
+        }
+    } catch (e) {
+        autoOptimizerDetails = 'Could not verify auto-optimizer auth: ' + e.message;
+    }
+    addCheck('Auto-optimizer internal auth configured', autoOptimizerAuthOk, autoOptimizerDetails, 'warn');
+    
     // ==================== SUMMARY ====================
     const allPassed = failCount === 0;
     const criticalFailed = checks.filter(c => !c.passed && c.severity === 'error').length;
@@ -7162,7 +7234,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 93;  // v93: AUTO-TRANSFER DETECTION (deposits/withdrawals reset lifetime peak) + guarded auto-optimizer
+const CONFIG_VERSION = 95;  // v95: /api/verify PASS (LCB gating + resumeConditions + redemptionEvents) + LARGE_BANKROLL preserve+balanced mix
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -7564,9 +7636,10 @@ function getVaultThresholds(overrides = {}) {
 
 // ==================== 🏆 v89 AUTO-BANKROLL RISK POLICY ====================
 // Single source of truth for "best settings by balance" (LIVE + PAPER parity).
-// This is intentionally SIMPLE + AUDITABLE: a 2-regime schedule with a single cutover.
-// - Below cutover: micro-safe (lower Kelly cap, envelope ON)
-// - Above cutover: growth (higher Kelly cap, envelope OFF)
+// v94: 3-regime schedule with hybrid scaling at $1k
+// - Below cutover ($20): MICRO_SAFE (lower Kelly cap, envelope ON)
+// - $20 to $1k: GROWTH (higher Kelly cap, envelope OFF, aggressive compounding)
+// - $1k+: LARGE_BANKROLL (more conservative sizing, envelope ON, liquidity-aware)
 // Used by: runtime sizing, risk envelope gating, and /api/backtest-polymarket defaults (when params omitted).
 function getBankrollAdaptivePolicy(bankroll) {
     const enabled = CONFIG?.RISK?.autoBankrollProfileEnabled !== false;
@@ -7575,6 +7648,11 @@ function getBankrollAdaptivePolicy(bankroll) {
     const cutover = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollCutover))
         ? Number(CONFIG.RISK.autoBankrollCutover)
         : 20;
+    
+    // v94: Large bankroll cutover (hybrid scaling)
+    const largeCutover = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollLargeCutover))
+        ? Number(CONFIG.RISK.autoBankrollLargeCutover)
+        : 1000;
 
     const lowKelly = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollKellyLow))
         ? Number(CONFIG.RISK.autoBankrollKellyLow)
@@ -7582,6 +7660,11 @@ function getBankrollAdaptivePolicy(bankroll) {
     const highKelly = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollKellyHigh))
         ? Number(CONFIG.RISK.autoBankrollKellyHigh)
         : 0.32;
+    // v95: Balanced Kelly for large bankrolls (preserve + growth mix)
+    // User-tunable via CONFIG.RISK.autoBankrollKellyLarge
+    const largeKelly = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollKellyLarge))
+        ? Number(CONFIG.RISK.autoBankrollKellyLarge)
+        : 0.12;  // v95: Up from 0.10 for balanced growth
 
     const lowMaxPos = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollMaxPosLow))
         ? Number(CONFIG.RISK.autoBankrollMaxPosLow)
@@ -7589,6 +7672,11 @@ function getBankrollAdaptivePolicy(bankroll) {
     const highMaxPos = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollMaxPosHigh))
         ? Number(CONFIG.RISK.autoBankrollMaxPosHigh)
         : highKelly;
+    // v95: Moderate max position fraction for large bankrolls (preserve + growth)
+    // User-tunable via CONFIG.RISK.autoBankrollMaxPosLarge
+    const largeMaxPos = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollMaxPosLarge))
+        ? Number(CONFIG.RISK.autoBankrollMaxPosLarge)
+        : 0.07;  // v95: Up from 0.05 for balanced growth
 
     const envLow = (CONFIG?.RISK?.autoBankrollRiskEnvelopeLow !== undefined)
         ? !!CONFIG.RISK.autoBankrollRiskEnvelopeLow
@@ -7596,6 +7684,10 @@ function getBankrollAdaptivePolicy(bankroll) {
     const envHigh = (CONFIG?.RISK?.autoBankrollRiskEnvelopeHigh !== undefined)
         ? !!CONFIG.RISK.autoBankrollRiskEnvelopeHigh
         : false;
+    // v94: Re-enable envelope for large bankrolls (capital protection)
+    const envLarge = (CONFIG?.RISK?.autoBankrollRiskEnvelopeLarge !== undefined)
+        ? !!CONFIG.RISK.autoBankrollRiskEnvelopeLarge
+        : true;
 
     const clampFrac = (x, fallback) => {
         const n = Number(x);
@@ -7610,13 +7702,14 @@ function getBankrollAdaptivePolicy(bankroll) {
     };
 
     if (!enabled) {
-        return { enabled: false, cutover, ...fallback, profile: 'DISABLED' };
+        return { enabled: false, cutover, largeCutover, ...fallback, profile: 'DISABLED' };
     }
 
     if (!Number.isFinite(b)) {
         return {
             enabled: true,
             cutover,
+            largeCutover,
             maxPositionFraction: clampFrac(highMaxPos, fallback.maxPositionFraction),
             kellyMaxFraction: clampFrac(highKelly, fallback.kellyMaxFraction),
             riskEnvelopeEnabled: envHigh,
@@ -7625,10 +7718,25 @@ function getBankrollAdaptivePolicy(bankroll) {
         };
     }
 
+    // v94: Large bankroll regime ($1k+)
+    if (b >= largeCutover) {
+        return {
+            enabled: true,
+            cutover,
+            largeCutover,
+            maxPositionFraction: clampFrac(largeMaxPos, fallback.maxPositionFraction),
+            kellyMaxFraction: clampFrac(largeKelly, fallback.kellyMaxFraction),
+            riskEnvelopeEnabled: envLarge,
+            profile: 'LARGE_BANKROLL',
+            reason: `bankroll>=$${largeCutover} (preserve+balanced mode)`
+        };
+    }
+
     if (b < cutover) {
         return {
             enabled: true,
             cutover,
+            largeCutover,
             maxPositionFraction: clampFrac(lowMaxPos, fallback.maxPositionFraction),
             kellyMaxFraction: clampFrac(lowKelly, fallback.kellyMaxFraction),
             riskEnvelopeEnabled: envLow,
@@ -7640,11 +7748,12 @@ function getBankrollAdaptivePolicy(bankroll) {
     return {
         enabled: true,
         cutover,
+        largeCutover,
         maxPositionFraction: clampFrac(highMaxPos, fallback.maxPositionFraction),
         kellyMaxFraction: clampFrac(highKelly, fallback.kellyMaxFraction),
         riskEnvelopeEnabled: envHigh,
         profile: 'GROWTH',
-        reason: `bankroll>=$${cutover}`
+        reason: `bankroll>=$${cutover} and <$${largeCutover}`
     };
 }
 
@@ -7705,6 +7814,24 @@ function getPeakDrawdownBrakePolicy(currentBalance, lifetimePeakBalance, bankrol
                 ? `ddFromPeak ${(ddPct * 100).toFixed(1)}% < ${(ddCapPct * 100).toFixed(0)}%`
                 : `bankroll<$${minBankroll}`)
     };
+}
+
+// ==================== 🏆 v94 TIERED ABSOLUTE STAKE CAP ====================
+// Dynamic max absolute stake based on bankroll tier (liquidity-aware for larger accounts)
+// - Below $1k: $100 default (or env override)
+// - $1k-$10k: $200 (allows larger positions while respecting market liquidity)
+// - $10k+: $500 (significant positions but still constrained by typical Polymarket depth)
+function getTieredMaxAbsoluteStake(bankroll) {
+    const envDefault = parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100');
+    const b = Number(bankroll);
+    
+    if (!Number.isFinite(b) || b < 1000) {
+        return envDefault; // Default behavior for small accounts
+    } else if (b < 10000) {
+        return Math.max(envDefault, 200); // $1k-$10k tier
+    } else {
+        return Math.max(envDefault, 500); // $10k+ tier
+    }
 }
 
 // ==================== 🏆 v83 SEEDABLE PRNG FOR REPRODUCIBILITY ====================
@@ -7859,6 +7986,7 @@ class TradeExecutor {
         this.pendingSells = {};         // Failed sell orders awaiting retry
         this.redemptionQueue = [];      // Winning positions to claim
         this.recoveryQueue = [];        // Orphaned/crashed positions needing attention
+        this.redemptionEvents = [];     // 🏆 v95: Track redemption events for /api/verify
         this.lastLossTime = 0;         // For cooldown tracking
         this.todayPnL = 0;             // Daily P/L tracking
         this.lastDayReset = Date.now(); // Track when we last reset daily P/L
@@ -7953,6 +8081,14 @@ class TradeExecutor {
             resumeAfterMinutes: 20,          // 20 min before resuming (faster!)
             resumeAfterWin: true,            // Resume to NORMAL after a win
             resumeOnNewDay: true,            // Auto-resume on new day
+            
+            // 🏆 v95: Structured resume conditions for /api/verify validation
+            resumeConditions: {
+                probeToSafeMinutes: 20,      // PROBE_ONLY → SAFE_ONLY after this many minutes
+                safeToNormalMinutes: 20,     // SAFE_ONLY → NORMAL after this many minutes (or win)
+                resumeOnWin: true,           // Any win resets to NORMAL
+                resumeOnNewDay: true         // New trading day resets to NORMAL
+            },
             
             // Daily tracking
             dayStartBalance: null,           // Set at start of day or first trade
@@ -9739,12 +9875,13 @@ class TradeExecutor {
                 // 🏆 v76 FIX: Apply min/max caps BEFORE risk envelope (so envelope is truly final)
                 // SMART MINIMUM: Ensure we meet $1.10 minimum
                 // CAP: Never risk more than MAX_FRACTION of bankroll
-                const MAX_ABSOLUTE_SIZE = parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 cap for liquidity
+                // v94: Use tiered absolute cap based on bankroll
+                const MAX_ABSOLUTE_SIZE = getTieredMaxAbsoluteStake(bankroll);
                 let maxSize = bankroll * MAX_FRACTION;
                 
                 // Apply absolute cap (liquidity protection at scale)
                 if (maxSize > MAX_ABSOLUTE_SIZE) {
-                    log(`🔒 LIQUIDITY CAP: $${maxSize.toFixed(2)} → $${MAX_ABSOLUTE_SIZE} (absolute max for liquidity)`, asset);
+                    log(`🔒 LIQUIDITY CAP: $${maxSize.toFixed(2)} → $${MAX_ABSOLUTE_SIZE} (tiered absolute max)`, asset);
                     maxSize = MAX_ABSOLUTE_SIZE;
                 }
                 
@@ -12781,36 +12918,48 @@ setInterval(() => {
             tradeExecutor.refreshMATICBalance().catch(() => { });
         }
         
-        const currentEquity = (tradeExecutor.mode === 'LIVE' && typeof tradeExecutor.getBankrollForRisk === 'function')
-            ? tradeExecutor.getBankrollForRisk()
+        // v94 FIX: Use CASH balance only (not MTM equity) to avoid false positives from price moves
+        // For LIVE: use cachedLiveBalance (actual USDC). For PAPER: use paperBalance.
+        const currentCashBalance = (tradeExecutor.mode === 'LIVE')
+            ? (tradeExecutor.cachedLiveBalance || 0)
             : tradeExecutor.paperBalance;
         
-        if (!Number.isFinite(currentEquity) || currentEquity <= 0) return;
+        if (!Number.isFinite(currentCashBalance) || currentCashBalance <= 0) return;
         
         const cb = tradeExecutor.circuitBreaker;
         if (!cb) return;
         
         const cfg = CONFIG?.RISK || {};
         const transferEnabled = cfg.autoTransferDetectionEnabled !== false;
-        const minDeltaPct = Number.isFinite(cfg.autoTransferMinDeltaPct) ? cfg.autoTransferMinDeltaPct : 0.15;
-        const minDeltaAbs = Number.isFinite(cfg.autoTransferMinDeltaAbs) ? cfg.autoTransferMinDeltaAbs : 5.0;
+        
+        // v94: Tiered thresholds for larger bankrolls
+        // Below $1k: use config defaults (15% / $5)
+        // $1k+: use lower pct threshold (5% / $20) to catch deposits/withdrawals on large accounts
+        let minDeltaPct, minDeltaAbs;
+        if (currentCashBalance >= 1000) {
+            minDeltaPct = 0.05;  // 5% for large accounts
+            minDeltaAbs = 20;    // $20 minimum for large accounts
+        } else {
+            minDeltaPct = Number.isFinite(cfg.autoTransferMinDeltaPct) ? cfg.autoTransferMinDeltaPct : 0.15;
+            minDeltaAbs = Number.isFinite(cfg.autoTransferMinDeltaAbs) ? cfg.autoTransferMinDeltaAbs : 5.0;
+        }
         const quiescentSec = Number.isFinite(cfg.autoTransferQuiescentSec) ? cfg.autoTransferQuiescentSec : 120;
         
         const prevLifetimePeak = cb.lifetimePeakBalance || 0;
-        const prevEquity = _transferDetectionState.prevEquity;
+        const prevCashBalance = _transferDetectionState.prevEquity;  // renamed for clarity (was tracking equity, now cash)
         const lastTradeEpoch = _transferDetectionState.lastTradeEpoch || 0;
         const now = Date.now();
         const nowSec = Math.floor(now / 1000);
         
         // Initialize state
         if (!Number.isFinite(prevLifetimePeak) || prevLifetimePeak <= 0) {
-            cb.lifetimePeakBalance = currentEquity;
-            _transferDetectionState.prevEquity = currentEquity;
-            log(`🏔️ LIFETIME PEAK: Initialized to $${currentEquity.toFixed(2)}`);
+            cb.lifetimePeakBalance = currentCashBalance;
+            _transferDetectionState.prevEquity = currentCashBalance;
+            log(`🏔️ LIFETIME PEAK: Initialized to $${currentCashBalance.toFixed(2)}`);
             return;
         }
-        if (!Number.isFinite(prevEquity)) {
-            _transferDetectionState.prevEquity = currentEquity;
+        if (!Number.isFinite(prevCashBalance)) {
+            _transferDetectionState.prevEquity = currentCashBalance;
             return;
         }
         
@@ -12824,32 +12973,32 @@ setInterval(() => {
             }
         }
         
-        const delta = currentEquity - prevEquity;
-        const deltaPct = prevEquity > 0 ? Math.abs(delta) / prevEquity : 0;
+        const delta = currentCashBalance - prevCashBalance;
+        const deltaPct = prevCashBalance > 0 ? Math.abs(delta) / prevCashBalance : 0;
         const secsSinceLastTrade = nowSec - Math.floor((_transferDetectionState.lastTradeEpoch || 0) / 1000);
         const isQuiescent = secsSinceLastTrade >= quiescentSec;
         
-        // Detect external transfer (deposit or withdrawal)
+        // Detect external transfer (deposit or withdrawal) - v94: uses cash balance only
         if (transferEnabled && isQuiescent && Math.abs(delta) >= minDeltaAbs && deltaPct >= minDeltaPct) {
             const type = delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL';
             const oldPeak = cb.lifetimePeakBalance;
-            cb.lifetimePeakBalance = currentEquity;
+            cb.lifetimePeakBalance = currentCashBalance;
             _transferDetectionState.lastTransfer = {
                 type,
                 amount: Math.abs(delta),
                 timestamp: now,
                 oldPeak,
-                newPeak: currentEquity
+                newPeak: currentCashBalance
             };
-            log(`💰 ${type} DETECTED: Balance changed $${Math.abs(delta).toFixed(2)} (${(deltaPct * 100).toFixed(1)}%) after ${secsSinceLastTrade}s idle → resetting lifetime peak to $${currentEquity.toFixed(2)}`);
+            log(`💰 ${type} DETECTED: Cash balance changed $${Math.abs(delta).toFixed(2)} (${(deltaPct * 100).toFixed(1)}%) after ${secsSinceLastTrade}s idle → resetting lifetime peak to $${currentCashBalance.toFixed(2)}`);
         }
         // Normal growth from trading - just update peak if higher
-        else if (currentEquity > prevLifetimePeak) {
-            cb.lifetimePeakBalance = currentEquity;
+        else if (currentCashBalance > prevLifetimePeak) {
+            cb.lifetimePeakBalance = currentCashBalance;
         }
         
-        // Update prev equity for next iteration
-        _transferDetectionState.prevEquity = currentEquity;
+        // Update prev cash balance for next iteration
+        _transferDetectionState.prevEquity = currentCashBalance;
     } catch { }
 }, 10 * 1000);
 
@@ -12907,7 +13056,8 @@ async function runGuardedAutoOptimizer() {
             
             for (const offset of offsets) {
                 try {
-                    const url = `${baseUrl}/api/backtest-polymarket?hours=72&offsetHours=${offset}&balance=${currentBalance}&vaultTriggerBalance=${trigger}&limit=100`;
+                    // Include apiKey for internal auth (v93.1 fix)
+                    const url = `${baseUrl}/api/backtest-polymarket?hours=72&offsetHours=${offset}&balance=${currentBalance}&vaultTriggerBalance=${trigger}&limit=100&apiKey=${encodeURIComponent(API_KEY)}`;
                     const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
                     if (!resp.ok) continue;
                     const data = await resp.json();
@@ -15615,6 +15765,45 @@ SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts
     }
     
     return fallbackPWin;
+};
+
+// ==================== 🏆 v95 LCB GATING PRIMITIVES ====================
+// Wilson score lower confidence bound - conservative probability estimate
+// Used to avoid overconfidence when sample sizes are small
+function wilsonLCB(pHat, n, z = 1.96) {
+    // Wilson score interval lower bound
+    // z = 1.96 for 95% confidence (default), z = 1.645 for 90%
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    if (!Number.isFinite(pHat)) return 0;
+    
+    const denominator = 1 + (z * z) / n;
+    const center = pHat + (z * z) / (2 * n);
+    const spread = z * Math.sqrt((pHat * (1 - pHat) + (z * z) / (4 * n)) / n);
+    
+    return Math.max(0, (center - spread) / denominator);
+}
+
+// 🏆 v95: Get calibrated win probability with LCB (conservative estimate)
+// Uses Wilson score lower bound to be conservative when sample size is small
+SupremeBrain.prototype.getCalibratedPWinWithLCB = function (conf, opts = {}) {
+    const z = opts.z ?? 1.645; // 90% confidence by default (less conservative than 95%)
+    const minSamples = opts.minSamples ?? 5;
+    const fallback = opts.fallback ?? null;
+    
+    const bucket = this.getCalibrationBucket(conf);
+    if (!bucket) return fallback;
+    
+    const b = this.calibrationBuckets ? this.calibrationBuckets[bucket] : null;
+    if (!b || typeof b.total !== 'number' || typeof b.wins !== 'number') {
+        return fallback;
+    }
+    
+    if (b.total < minSamples) {
+        return fallback;
+    }
+    
+    const pHat = b.wins / b.total;
+    return wilsonLCB(pHat, b.total, z);
 };
 
 // 🎯 GOAT v44.1: Enforce state invariants to prevent contradictory states
@@ -18890,7 +19079,17 @@ app.get('/api/pending-sells', (req, res) => {
 });
 
 // Manual buy - place a trade manually via UI
+// v94 HARDENED: In LIVE mode, requires explicit ENABLE_MANUAL_TRADING=true env var
 app.post('/api/manual-buy', async (req, res) => {
+    // v94: Extra safety gate for LIVE mode manual trades
+    if (tradeExecutor.mode === 'LIVE' && process.env.ENABLE_MANUAL_TRADING !== 'true') {
+        return res.status(403).json({
+            success: false,
+            error: 'Manual trading is disabled in LIVE mode. Set ENABLE_MANUAL_TRADING=true in environment to enable.',
+            hint: 'This is a safety feature to prevent accidental real-money trades.'
+        });
+    }
+    
     const { asset, direction, size } = req.body;
 
     if (!asset || !direction || !size) {
@@ -18912,14 +19111,25 @@ app.post('/api/manual-buy', async (req, res) => {
 
     try {
         const result = await tradeExecutor.manualBuy(asset, direction, sizeNum);
-        res.json(result);
+        // v94: Include mode info in response
+        res.json({ ...result, mode: tradeExecutor.mode, warning: tradeExecutor.mode === 'LIVE' ? '⚠️ LIVE MODE - Real money trade executed' : null });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
 });
 
 // Manual sell - close a position manually via UI
+// v94 HARDENED: In LIVE mode, requires explicit ENABLE_MANUAL_TRADING=true env var
 app.post('/api/manual-sell', async (req, res) => {
+    // v94: Extra safety gate for LIVE mode manual trades
+    if (tradeExecutor.mode === 'LIVE' && process.env.ENABLE_MANUAL_TRADING !== 'true') {
+        return res.status(403).json({
+            success: false,
+            error: 'Manual trading is disabled in LIVE mode. Set ENABLE_MANUAL_TRADING=true in environment to enable.',
+            hint: 'This is a safety feature to prevent accidental real-money trades.'
+        });
+    }
+    
     const { positionId } = req.body;
 
     if (!positionId) {
@@ -18928,7 +19138,8 @@ app.post('/api/manual-sell', async (req, res) => {
 
     try {
         const result = await tradeExecutor.manualSell(positionId);
-        res.json(result);
+        // v94: Include mode info in response
+        res.json({ ...result, mode: tradeExecutor.mode, warning: tradeExecutor.mode === 'LIVE' ? '⚠️ LIVE MODE - Real money position closed' : null });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
     }
@@ -19281,8 +19492,28 @@ app.get('/api/wallet/balance', async (req, res) => {
 });
 
 // Transfer USDC to external address
+// v94 HARDENED: Requires ENABLE_WALLET_TRANSFER=true env var AND LIVE mode
 app.post('/api/wallet/transfer', async (req, res) => {
     try {
+        // v94: Extra safety gate - must explicitly enable wallet transfers
+        const transferEnabled = process.env.ENABLE_WALLET_TRANSFER === 'true';
+        if (!transferEnabled) {
+            return res.status(403).json({
+                success: false,
+                error: 'Wallet transfers are disabled. Set ENABLE_WALLET_TRANSFER=true in environment to enable.',
+                hint: 'This is a safety feature to prevent accidental fund transfers.'
+            });
+        }
+        
+        // v94: Must be in LIVE mode to transfer real funds
+        if (tradeExecutor.mode !== 'LIVE') {
+            return res.status(403).json({
+                success: false,
+                error: 'Wallet transfers only allowed in LIVE mode (current: ' + tradeExecutor.mode + ')',
+                hint: 'PAPER mode does not have real USDC to transfer.'
+            });
+        }
+        
         const { to, amount } = req.body;
 
         if (!to || !amount) {

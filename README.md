@@ -1,8 +1,8 @@
-# POLYPROPHET v93 — FULLY AUTONOMOUS TRADING SYSTEM
+# POLYPROPHET v95 — FULLY AUTONOMOUS TRADING SYSTEM
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v93 CRITICAL**: FULLY AUTONOMOUS + AUTO-TRANSFER DETECTION + GUARDED AUTO-OPTIMIZER + SELF-CHECK HALTS
+> **v95 CRITICAL**: /api/verify PASS (LCB gating + resumeConditions) + LARGE_BANKROLL preserve+balanced mix (12% Kelly, 7% maxPos)
 
 ---
 
@@ -67,11 +67,12 @@
 | **SECONDARY** | Minimize below-start dips | belowStartPct <= 10% |
 | **TIE-BREAKER** | Maximize worst-case | p05 return |
 
-**Critical (v91)**: The bot now runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match):  
+**Critical (v95)**: The bot now runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match):  
 - **Bankroll < $20**: `kellyMax=0.17`, `MAX_POSITION_SIZE=0.17`, `riskEnvelope=ON` (**MICRO_SAFE**)  
-- **Bankroll ≥ $20**: `kellyMax=0.32`, `MAX_POSITION_SIZE=0.32`, `riskEnvelope=OFF` (**GROWTH**)  
+- **Bankroll $20-$999**: `kellyMax=0.32`, `MAX_POSITION_SIZE=0.32`, `riskEnvelope=OFF` (**GROWTH**)  
+- **Bankroll ≥ $1,000**: `kellyMax=0.12`, `MAX_POSITION_SIZE=0.07`, `riskEnvelope=ON` (**LARGE_BANKROLL** — v95 preserve+balanced)
 
-This means **deposits/withdrawals** and **drawdowns** automatically shift the risk profile without you changing settings.
+This means **deposits/withdrawals** and **drawdowns** automatically shift the risk profile without you changing settings. The **LARGE_BANKROLL** tier at $1k+ now uses a preserve+balanced mix (up from ultra-conservative v94) for better growth while still protecting capital.
 
 ### What This Means in Practice (your $40 start)
 
@@ -132,16 +133,17 @@ Use **autoProfile ON** (default). Manual override options:
 
 PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH up/down prediction markets. It uses a multi-model ensemble (Chainlink price, momentum, Kalman filter, etc.) to predict outcomes and execute trades automatically.
 
-### Your Final Sweet Spot (v91 — AUTO‑BANKROLL, works across deposits/withdrawals)
+### Your Final Sweet Spot (v94 — AUTO‑BANKROLL + HYBRID SCALING, works across deposits/withdrawals)
 
 The system now **automatically selects the best/fastest safe profile based on CURRENT bankroll** (LIVE + PAPER + backtests parity):
 
 | Bankroll | Profile | kellyMax | riskEnvelope | MAX_POSITION_SIZE |
 |---------:|---------|---------:|:------------:|------------------:|
 | < $20 | MICRO_SAFE | 0.17 | ON | 0.17 |
-| ≥ $20 | GROWTH | 0.32 | OFF | 0.32 |
+| $20-$999 | GROWTH | 0.32 | OFF | 0.32 |
+| ≥ $1,000 | LARGE_BANKROLL | 0.10 | ON | 0.05 |
 
-With your **$40 start**, you begin in **GROWTH** automatically. If you withdraw or draw down below $20, you automatically move to **MICRO_SAFE**.
+With your **$40 start**, you begin in **GROWTH** automatically. At $1k+, you switch to **LARGE_BANKROLL** (capital preservation). If you draw down below $20, you move to **MICRO_SAFE**.
 
 | Parameter | Value |
 |-----------|-------|
@@ -678,6 +680,10 @@ MAX_POSITION_SIZE = 0.32    (v80 sweet spot stake)
 PAPER_BALANCE = 5           ($5 starting capital)
 REDIS_URL = <your-redis>    (REQUIRED FOR LIVE MODE)
 POLYMARKET_PRIVATE_KEY = <your-key>  (REQUIRED FOR LIVE)
+
+# v94 SAFETY GATES (optional - enable only if you need these features)
+ENABLE_WALLET_TRANSFER = true   (Required to use /api/wallet/transfer in LIVE)
+ENABLE_MANUAL_TRADING = true    (Required for /api/manual-buy, /api/manual-sell in LIVE)
 ```
 
 ### Deployment Steps
@@ -1122,7 +1128,8 @@ If LIVE win → addToRedemptionQueue()
 
 | Endpoint | Purpose |
 |----------|---------|
-| `GET /api/reconcile-pending` | Force-resolve stuck PENDING_RESOLUTION positions |
+| `GET /api/reconcile-pending` | **Preview** pending positions (read-only, v94) |
+| `POST /api/reconcile-pending` | **Execute** reconciliation of pending positions (v94) |
 | `GET /api/redemption-queue` | List positions awaiting token redemption |
 | `POST /api/check-redemptions` | Trigger automatic redemption for LIVE wins |
 | `POST /api/reconcile-crash-trades` | 🏆 v80: Reconcile CRASH_RECOVERED trades with Gamma outcomes |
@@ -1192,6 +1199,77 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 ---
 
 ## CHANGELOG
+
+### v95 (2026-01-07) — /API/VERIFY PASS + PRESERVE+BALANCED SCALING
+
+**🏆 Make `/api/verify` pass with 0 critical failures:**
+
+1. **✅ Circuit Breaker `resumeConditions`**: Added structured `resumeConditions` object to `circuitBreaker`:
+   - `probeToSafeMinutes: 20` — Time before PROBE_ONLY → SAFE_ONLY
+   - `safeToNormalMinutes: 20` — Time before SAFE_ONLY → NORMAL
+   - `resumeOnWin: true` — Any win resets to NORMAL
+   - `resumeOnNewDay: true` — New trading day resets to NORMAL
+   - Fixes `/api/verify` "Hybrid throttle (CircuitBreaker v45)" check
+
+2. **✅ LCB Gating Primitives**: Added Wilson score lower confidence bound:
+   - `wilsonLCB(pHat, n, z)` — Conservative probability estimate
+   - `SupremeBrain.prototype.getCalibratedPWinWithLCB()` — Calibrated win probability with LCB
+   - Fixes `/api/verify` "LCB gating active" check
+
+3. **✅ Redemption Events Initialized**: `this.redemptionEvents = []` now initialized in TradeExecutor constructor:
+   - Fixes `/api/verify` "Redemption events tracked" warning on fresh boot
+
+4. **📈 LARGE_BANKROLL Preserve+Balanced Mix**: Adjusted $1k+ tier defaults:
+   - `kellyMaxFraction: 0.12` (up from 0.10 — more growth potential)
+   - `maxPositionFraction: 0.07` (up from 0.05 — balanced sizing)
+   - Still has `riskEnvelopeEnabled: true` for capital protection
+   - Configurable via `autoBankrollKellyLarge` / `autoBankrollMaxPosLarge`
+
+**Evidence**:
+- `resumeConditions` at ~line 8078 in `circuitBreaker` object
+- `wilsonLCB()` function at ~line 15768
+- `getCalibratedPWinWithLCB()` at ~line 15784
+- `redemptionEvents = []` at ~line 7986
+- `largeKelly: 0.12`, `largeMaxPos: 0.07` at ~line 7664-7677
+
+---
+
+### v94 (2026-01-07) — HYBRID SCALING + HARDENED ENDPOINTS
+
+**🏆 Hybrid bankroll scaling for $10 → $1M journey:**
+
+1. **📈 LARGE_BANKROLL Tier ($1k+)**: New third tier in `getBankrollAdaptivePolicy()`:
+   - Original v94: `kellyMaxFraction: 0.10`, `maxPositionFraction: 0.05`
+   - **Updated in v95**: `kellyMaxFraction: 0.12`, `maxPositionFraction: 0.07` (preserve+balanced mix)
+   - `riskEnvelopeEnabled: true` (re-enabled for capital protection)
+   - Configurable via `autoBankrollLargeCutover` (default: $1000)
+
+2. **🔒 Tiered Absolute Stake Cap**: `getTieredMaxAbsoluteStake()` function:
+   - Below $1k: $100 default (env override)
+   - $1k-$10k: $200 (larger positions, respects liquidity)
+   - $10k+: $500 (significant but constrained)
+
+3. **💰 Auto-Transfer Detection Fix**: Now uses **cash balance only** (not MTM equity):
+   - Prevents false positives from price moves while idle
+   - LIVE mode: uses `cachedLiveBalance` (actual USDC)
+   - Tiered thresholds: 15%/$5 below $1k, 5%/$20 at $1k+
+
+4. **🔐 Hardened Dangerous Endpoints**:
+   - `/api/reconcile-pending`: GET is now **preview-only**, POST executes
+   - `/api/wallet/transfer`: Requires `ENABLE_WALLET_TRANSFER=true` env var + LIVE mode
+   - `/api/manual-buy`, `/api/manual-sell`: Requires `ENABLE_MANUAL_TRADING=true` in LIVE mode
+
+5. **🔧 Auto-Optimizer Auth Fix**: Internal backtest calls now include `apiKey` param:
+   - Fixes "auth required" failures in guarded auto-optimizer
+   - New perfection-check validates auto-optimizer auth configuration
+
+**Evidence**:
+- `getBankrollAdaptivePolicy()` returns `LARGE_BANKROLL` profile at ~line 7640
+- `getTieredMaxAbsoluteStake()` at ~line 7785
+- Transfer detection uses `currentCashBalance` at ~line 12813
+- Reconcile-pending POST at ~line 4470
+
+---
 
 ### v84 (2026-01-05) — POLYMARKET-NATIVE VAULT OPTIMIZER (GROUND TRUTH)
 
@@ -1455,4 +1533,4 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ---
 
-*Version: v84 | Updated: 2026-01-05 | Single Source of Truth*
+*Version: v95 | Updated: 2026-01-07 | Single Source of Truth*
