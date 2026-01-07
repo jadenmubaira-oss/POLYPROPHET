@@ -628,6 +628,27 @@
             const apiKey = params.get('apiKey');
             return apiKey ? `&apiKey=${encodeURIComponent(apiKey)}` : '';
         }
+
+        // 🏆 v96: SAFE FETCH (Fixes browser blocking credentialed-URL bases like https://user:pass@host/)
+        // If the page is opened with credentials in the URL, relative fetch() can fail with:
+        // "Request cannot be constructed from a URL that includes credentials"
+        const SAFE_ORIGIN = window.location.protocol + '//' + window.location.host;
+        function toSafeUrl(url) {
+            try {
+                if (typeof url !== 'string') return url;
+                // Absolute URL: strip any userinfo defensively
+                if (/^https?:\/\//i.test(url)) {
+                    const u = new URL(url);
+                    u.username = '';
+                    u.password = '';
+                    return u.toString();
+                }
+                // Relative URL: resolve against SAFE_ORIGIN (no userinfo)
+                return new URL(url, SAFE_ORIGIN).toString();
+            } catch {
+                return url;
+            }
+        }
         
         // 🏆 v93: Truncate large JSON to prevent OOM in browser
         function truncateJson(data, maxLen = 8000) {
@@ -659,7 +680,7 @@
                 if (seed) url += `&seed=${seed}`;
                 url += getApiKeyParam();
                 
-                const res = await fetch(url);
+                const res = await fetch(toSafeUrl(url));
                 const data = await res.json();
                 
                 status.textContent = 'COMPLETE';
@@ -707,7 +728,7 @@
                 if (seed) url += `&seed=${seed}`;
                 url += getApiKeyParam();
                 
-                const res = await fetch(url);
+                const res = await fetch(toSafeUrl(url));
                 const data = await res.json();
                 
                 if (data.winner) {
@@ -772,7 +793,7 @@
                 const apiKeyParam = getApiKeyParam();
                 if (apiKeyParam) settingsUrl += '?' + apiKeyParam.substring(1); // Remove leading &
                 
-                const res = await fetch(settingsUrl, {
+                const res = await fetch(toSafeUrl(settingsUrl), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -842,7 +863,7 @@
                 
                 const hoursNum = parseInt(hours, 10);
                 const timeoutMs = Number.isFinite(hoursNum) && hoursNum >= 720 ? 600000 : 180000; // 10m for 30d, else 3m
-                const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+                const res = await fetch(toSafeUrl(url), { signal: AbortSignal.timeout(timeoutMs) });
                 const data = await res.json();
                 
                 if (data.error) {
@@ -920,7 +941,7 @@
                 const apiKeyParam = getApiKeyParam();
                 if (apiKeyParam) settingsUrl += '?' + apiKeyParam.substring(1);
                 
-                const res = await fetch(settingsUrl, {
+                const res = await fetch(toSafeUrl(settingsUrl), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -966,7 +987,7 @@
                 const apiKeyParam = getApiKeyParam();
                 if (apiKeyParam) checkUrl += '?' + apiKeyParam.substring(1);
                 
-                const res = await fetch(checkUrl);
+                const res = await fetch(toSafeUrl(checkUrl));
                 const data = await res.json();
                 
                 // Count passed/failed
@@ -1085,7 +1106,7 @@
                     options.body = document.getElementById('api-body').value;
                 }
                 
-                const res = await fetch(endpoint, options);
+                const res = await fetch(toSafeUrl(endpoint), options);
                 const data = await res.json();
                 
                 result.className = 'result-box ' + (res.ok ? 'success' : 'error');
