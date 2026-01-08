@@ -8070,7 +8070,10 @@ function getBankrollAdaptivePolicy(bankroll) {
         if (mode === 'SPRINT') {
             // In SPRINT mode, treat unknown bankroll as growth (aggressive), but avoid locking in too early.
             base.profile = 'SPRINT_GROWTH';
-            base.riskEnvelopeEnabled = false;
+            // 🏆 v96.2: Keep risk envelope ON even in SPRINT.
+            // Polymarket-native backtests show this improves BOTH profit and drawdown by preventing runaway loss sequences
+            // that otherwise trigger brakes / min-order churn / near-bust behavior.
+            base.riskEnvelopeEnabled = true;
             base.profitProtectionEnabled = false;
             base.profitProtectionSchedule = 'SPRINT';
             // Keep Kelly disabled until large-bankroll regime (matches runtime sprint intent).
@@ -8113,8 +8116,9 @@ function getBankrollAdaptivePolicy(bankroll) {
                 // (Kelly can be re-enabled automatically once bankroll reaches cutover.)
                 kellyEnabled: false,
                 kellyFraction: defaultKellyFraction,
-                // Disable envelope + profit-protection while tiny to maximize compounding speed.
-                riskEnvelopeEnabled: false,
+                // 🏆 v96.2: Keep envelope ON to prevent near-bust loss cascades on $5 starts.
+                // This has been empirically validated on Polymarket-native backtests (higher final balance, lower drawdown).
+                riskEnvelopeEnabled: true,
                 profitProtectionEnabled: false,
                 profitProtectionSchedule: 'SPRINT',
                 autoBankrollMode: mode,
@@ -8148,8 +8152,8 @@ function getBankrollAdaptivePolicy(bankroll) {
             largeCutover,
             maxPositionFraction: clampFrac(highMaxPos, fallback.maxPositionFraction),
             kellyMaxFraction: clampFrac(highKelly, fallback.kellyMaxFraction),
-            // Growth sprint: keep Kelly enabled, but avoid envelope/profit-lock brakes until we're in large-bankroll preservation.
-            riskEnvelopeEnabled: false,
+            // 🏆 v96.2: Keep envelope ON during sprint-growth as well (prevents drawdown cascades and improves compounding).
+            riskEnvelopeEnabled: true,
             // 🏁 v97: Keep Kelly OFF during the entire sprint window (< largeCutover) so sizing is not reduced during compounding.
             // Kelly re-enables automatically in LARGE_BANKROLL where preservation/liquidity dominate.
             kellyEnabled: false,

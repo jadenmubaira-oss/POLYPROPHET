@@ -94,8 +94,8 @@
 **Critical (v97)**: The bot runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match), with a bankroll‑aware strategy mode:
 
 - **Default: `AUTO_BANKROLL_MODE=SPRINT`** (max profit ASAP intent; still respects the $2 floor + circuit breaker + cooldown/global stop):
-  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**MICRO_SPRINT**)
-  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**SPRINT_GROWTH**)
+  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=OFF`, **`riskEnvelope=ON`**, `profitProtection=OFF` (**MICRO_SPRINT**)
+  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=OFF`, **`riskEnvelope=ON`**, `profitProtection=OFF` (**SPRINT_GROWTH**)
   - **Bankroll ≥ $1,000**: `MAX_POSITION_SIZE=0.07`, `kelly=ON (cap 0.12)`, `riskEnvelope=ON`, `profitProtection=ON` (**LARGE_BANKROLL**)
 
 - **Optional: `AUTO_BANKROLL_MODE=SAFE`** (legacy micro-safe under $20):
@@ -132,7 +132,7 @@ We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. R
 ### The Winning Setup (your $5 start — SPRINT auto-mode)
 
 With `autoProfile=1` (default):
-- **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
+- **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=OFF`, **`riskEnvelope=ON`**, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
 
 #### Polymarket-native backtest (this repo’s debug corpus coverage, $5 start)
 
@@ -164,7 +164,7 @@ Use **autoProfile ON** (default). Manual override options:
 
 | Bankroll | Mode | kelly | riskEnvelope | Notes |
 |---------:|------|:-----:|:------------:|------|
-| < $1,000 | **SPRINT (default)** | OFF | OFF | max compounding (still respects floor + brakes) |
+| < $1,000 | **SPRINT (default)** | OFF | **ON** | max compounding (still respects floor + brakes) |
 | ≥ $1,000 | **LARGE_BANKROLL** | ON | ON | preservation / liquidity-aware |
 | < $20 | **SAFE (optional)** | ON (0.17 cap) | ON | micro-safe survival mode |
 | ≥ $20 | **SAFE (optional)** | ON (0.32 cap) | OFF | growth mode |
@@ -183,8 +183,8 @@ The system now **automatically selects the best/fastest safe profile based on CU
 
 | Bankroll | Profile | kelly | profitProtection | riskEnvelope | MAX_POSITION_SIZE |
 |---------:|---------|:-----:|:---------------:|:------------:|------------------:|
-| < $20 | MICRO_SPRINT | OFF | OFF | OFF | 0.32 |
-| $20-$999 | SPRINT_GROWTH | OFF | OFF | OFF | 0.32 |
+| < $20 | MICRO_SPRINT | OFF | **ON** | OFF | 0.32 |
+| $20-$999 | SPRINT_GROWTH | OFF | **ON** | OFF | 0.32 |
 | ≥ $1,000 | LARGE_BANKROLL | ON (cap 0.12) | ON | ON | 0.07 |
 
 With your **$5 start**, you begin in **MICRO_SPRINT** automatically (SPRINT mode). At $1k+, you switch to **LARGE_BANKROLL** (capital preservation).
