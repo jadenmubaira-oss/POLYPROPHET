@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `0fa31671eac7c64a7820eaf363c734e5763b02fd4088ded5fa3e24319796190d` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `1d096f78907f2bb624a582a760a53f04a2941d7d87b2e8f4820b0f99961aee57` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
