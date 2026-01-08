@@ -1138,6 +1138,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let intradayLoss = 0;
             let envelopeCaps = 0;
             let envelopeBlocks = 0;
+            // ⚡ v97+: Exceptional sizing booster counters (for forensic audit)
+            let exceptionalBoosts = 0;
             
             // 🏆 v76: Day-by-day tracking for 1-7 day projections
             const dayByDay = []; // { day, date, startBalance, endBalance, trades, wins, losses, pnl, maxDD }
@@ -1347,6 +1349,79 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     // Advisory trades allowed via frequency-floor should be smaller (matches runtime sizeReduction).
                     if (cycle && Number.isFinite(cycle.frequencyFloorMultiplier) && cycle.frequencyFloorMultiplier > 0 && cycle.frequencyFloorMultiplier < 1) {
                         stake = stake * cycle.frequencyFloorMultiplier;
+                    }
+
+                    // ⚡ v97+: Exceptional sizing booster (backtest parity with runtime)
+                    // Only applies when:
+                    // - autoProfile is enabled AND stake was not explicitly provided
+                    // - Kelly sizing is not in use (otherwise Kelly already encodes edge)
+                    // - single-trade windows (runtime default maxGlobalTradesPerCycle=1)
+                    // - tier matches configured exceptionalSizingTier (default: CONVICTION)
+                    if (!effectiveKellyEnabled &&
+                        autoProfileEnabled &&
+                        !stakeProvided &&
+                        windowCycles.length === 1 &&
+                        (CONFIG?.RISK?.exceptionalSizingEnabled === true) &&
+                        String(policyThisWindow?.profile || '').toUpperCase() !== 'LARGE_BANKROLL') {
+                        const requiredTier = String(CONFIG?.RISK?.exceptionalSizingTier || 'CONVICTION').toUpperCase();
+                        const tierNow = String(cycle?.tier || '').toUpperCase();
+
+                        const excMinBankroll = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMinBankroll))
+                            ? Number(CONFIG.RISK.exceptionalSizingMinBankroll)
+                            : 0;
+                        const excMinPWin = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMinPWin))
+                            ? Number(CONFIG.RISK.exceptionalSizingMinPWin)
+                            : 0.84;
+                        const excMinEvRoi = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMinEvRoi))
+                            ? Number(CONFIG.RISK.exceptionalSizingMinEvRoi)
+                            : 0.30;
+                        const excMaxFracCfg = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMaxPosFraction))
+                            ? Number(CONFIG.RISK.exceptionalSizingMaxPosFraction)
+                            : 0.45;
+
+                        const pWinExc = clamp01(cycle?.pWinUsed);
+                        const evRoiExc = Number.isFinite(Number(cycle?.evRoi))
+                            ? Number(cycle.evRoi)
+                            : calcEvRoi(pWinExc, cycle?.entryPrice);
+
+                        if (tierNow === requiredTier &&
+                            Number.isFinite(pWinExc) &&
+                            Number.isFinite(evRoiExc) &&
+                            windowBalanceStart >= excMinBankroll &&
+                            pWinExc >= excMinPWin &&
+                            evRoiExc >= excMinEvRoi) {
+
+                            // Respect profit-lock schedule if adaptive mode is enabled (parity with runtime applyVarianceControls)
+                            const profitMultipleExc = windowBalanceStart / startingBalance;
+                            const profitLockMultExc = effectiveProfitProtectionEnabled ? getProfitLockMultiplier(profitMultipleExc) : 1.0;
+
+                            // Increase the *pre-lock* cap, then apply lock multiplier.
+                            let desiredFracPreLock = Math.max(stakeFractionThisWindow, excMaxFracCfg);
+                            desiredFracPreLock = Math.max(0.01, Math.min(0.50, desiredFracPreLock));
+                            let desiredFrac = desiredFracPreLock * profitLockMultExc;
+                            desiredFrac = Math.max(0.01, Math.min(0.50, desiredFrac));
+
+                            // Survivability gate: do not size so large that a loss would drop below (floor + MIN_ORDER).
+                            const floorEnabledBt = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
+                            if (floorEnabledBt && windowBalanceStart > 0) {
+                                const floor = Number(CONFIG.RISK.minBalanceFloor);
+                                const keepAlive = floor + MIN_ORDER;
+                                if (Number.isFinite(keepAlive) && windowBalanceStart > keepAlive) {
+                                    const maxFracKeepAlive = (windowBalanceStart - keepAlive) / windowBalanceStart;
+                                    if (Number.isFinite(maxFracKeepAlive) && maxFracKeepAlive > effectiveStakeFraction) {
+                                        desiredFrac = Math.min(desiredFrac, Math.max(0.01, Math.min(0.50, maxFracKeepAlive)));
+                                    }
+                                }
+                            }
+
+                            const boostedStake = windowBalanceStart * desiredFrac;
+                            if (Number.isFinite(boostedStake) && boostedStake > stake) {
+                                stake = boostedStake;
+                                // Re-apply exposure/liquidity caps (window-level constraints)
+                                stake = Math.min(stake, maxAbsoluteStake, maxBudget);
+                                exceptionalBoosts++;
+                            }
+                        }
                     }
 
                     // ==================== MIN ORDER + FLOOR GUARDS (RUNTIME-REALISTIC) ====================
@@ -1603,6 +1678,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 // 🏆 v76: Risk envelope stats
                 envelopeCaps,
                 envelopeBlocks,
+                    // ⚡ v97+: Exceptional sizing booster stats
+                    exceptionalBoosts,
                 // 🏆 v76: Day-by-day breakdown
                 dayByDay,
                 // 🏆 v84: Objective metrics for optimizer
@@ -1707,7 +1784,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 vaultThresholds: getVaultThresholds(backtestThresholdOverrides),
                 assetsAllowed: Array.from(allowedAssets),
                 envelopeCaps: primarySim.envelopeCaps,
-                envelopeBlocks: primarySim.envelopeBlocks
+                envelopeBlocks: primarySim.envelopeBlocks,
+                // ⚡ v97+: Exceptional sizing booster (count of trades that were upsized)
+                exceptionalBoosts: primarySim.exceptionalBoosts
             },
             // 🏆 v84: Objective metrics for optimizer aggregation
             objectiveMetrics: {
@@ -1720,7 +1799,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 reachedGoal1000: primarySim.hit1000 !== null,
                 // Day-based goal checks (for 7-day and 30-day windows)
                 hit100By7d: primarySim.hit100 !== null && primarySim.hit100.day <= 7,
-                hit1000By30d: primarySim.hit1000 !== null && primarySim.hit1000.day <= 30
+                hit1000By30d: primarySim.hit1000 !== null && primarySim.hit1000.day <= 30,
+                // ⚡ v97+: How many trades were upsized via the exceptional sizing booster
+                exceptionalBoosts: primarySim.exceptionalBoosts
             },
             coverage: {
                 candidatesFound: allCycles.length,
@@ -7648,6 +7729,18 @@ const CONFIG = {
             maxAdvisoryPerHour: 2,            // Max ADVISORY trades allowed per hour even if floor is active
             sizeReduction: 0.50               // Size ADVISORY trades at 50% of CONVICTION size
         },
+
+        // ⚡ v97+: EXCEPTIONAL SIZING BOOSTER (additive)
+        // Goal: faster compounding ONLY when the edge is objectively exceptional.
+        // - Applies only to ORACLE trades and (by default) only when tier=CONVICTION.
+        // - Requires BOTH high calibrated pWin and high EV ROI.
+        // - Still bounded by hard caps and existing safety controls (circuit breaker, max exposure, etc.).
+        exceptionalSizingEnabled: true,
+        exceptionalSizingTier: 'CONVICTION',
+        exceptionalSizingMinPWin: 0.84,            // pWin threshold to be considered "exceptional"
+        exceptionalSizingMinEvRoi: 0.30,           // EV ROI threshold (after fees/slippage model)
+        exceptionalSizingMaxPosFraction: 0.45,     // Temporary max position fraction for exceptional trades (hard-capped elsewhere)
+        exceptionalSizingMinBankroll: 5.00,        // Allow from $5 start (still bounded by MIN_ORDER + floor survivability gate below)
         
         // 🏆 v85 KELLY SIZING: Mathematically optimal position sizing based on edge
         // Kelly formula: f* = (b*p - (1-p)) / b where b = payout odds, p = win probability
@@ -10089,6 +10182,79 @@ class TradeExecutor {
                 let effectiveKellyMaxFrac = Number.isFinite(bankrollPolicy?.kellyMaxFraction)
                     ? bankrollPolicy.kellyMaxFraction
                     : (CONFIG?.RISK?.kellyMaxFraction || 0.17);
+
+                // ⚡ v97+: EXCEPTIONAL SIZING BOOSTER (runtime)
+                // Allow larger max position fraction ONLY on truly exceptional ORACLE CONVICTION trades
+                // using calibrated pWin + EV ROI, while keeping survivability vs min order + floor.
+                try {
+                    const excEnabled = (CONFIG?.RISK?.exceptionalSizingEnabled === true);
+                    if (excEnabled && mode === 'ORACLE') {
+                        const requiredTier = String(CONFIG?.RISK?.exceptionalSizingTier || 'CONVICTION').toUpperCase();
+                        const tierNow = String(options?.tier || 'ADVISORY').toUpperCase();
+
+                        const excMinBankroll = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMinBankroll))
+                            ? Number(CONFIG.RISK.exceptionalSizingMinBankroll)
+                            : 0;
+                        const excMinPWin = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMinPWin))
+                            ? Number(CONFIG.RISK.exceptionalSizingMinPWin)
+                            : 0.84;
+                        const excMinEvRoi = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMinEvRoi))
+                            ? Number(CONFIG.RISK.exceptionalSizingMinEvRoi)
+                            : 0.30;
+                        const excMaxFracCfg = Number.isFinite(Number(CONFIG?.RISK?.exceptionalSizingMaxPosFraction))
+                            ? Number(CONFIG.RISK.exceptionalSizingMaxPosFraction)
+                            : 0.45;
+
+                        // Never apply exceptional sizing boost in LARGE_BANKROLL preservation regime.
+                        const profileNow = String(bankrollPolicy?.profile || '').toUpperCase();
+                        if (tierNow === requiredTier && bankroll >= excMinBankroll && profileNow !== 'LARGE_BANKROLL') {
+                            // Resolve pWin (prefer caller-provided, else calibrated)
+                            let pWinExc = Number.isFinite(options?.pWin) ? Number(options.pWin) : null;
+                            if (pWinExc === null && typeof Brains !== 'undefined' && Brains[asset] && typeof Brains[asset].getCalibratedWinProb === 'function') {
+                                const s = Brains[asset].stats || {};
+                                const priorRate =
+                                    (tierNow === 'CONVICTION' && Number(s.convictionTotal) > 0)
+                                        ? (Number(s.convictionWins) / Number(s.convictionTotal))
+                                        : (Number(s.total) > 0 ? (Number(s.wins) / Number(s.total)) : 0.5);
+                                pWinExc = Brains[asset].getCalibratedWinProb(confidence, { priorRate, priorStrength: 40, minSamples: 0 });
+                            }
+
+                            if (Number.isFinite(pWinExc)) {
+                                // EV ROI on stake under the same conservative fee/slippage model used by the EV guard.
+                                const effectiveEntryExc = Math.min(0.99, entryPrice * (1 + SLIPPAGE_ASSUMPTION_PCT));
+                                const bExc = (1 - effectiveEntryExc) / effectiveEntryExc;
+                                const evRoiExc = (pWinExc * bExc * (1 - PROFIT_FEE_PCT)) - (1 - pWinExc);
+
+                                if (pWinExc >= excMinPWin && evRoiExc >= excMinEvRoi) {
+                                    // Start from configured exceptional cap, but only ever INCREASE the maxPos cap.
+                                    let desiredMaxPosFrac = Math.max(effectiveMaxPosFrac, excMaxFracCfg);
+                                    desiredMaxPosFrac = Math.max(0.01, Math.min(0.50, desiredMaxPosFrac));
+
+                                    // Survivability gate: do not take an exceptional-size loss that would drop us below (floor + MIN_ORDER),
+                                    // which would prevent further trading without a deposit.
+                                    const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
+                                    if (floorEnabled && bankroll > 0) {
+                                        const floor = Number(CONFIG.RISK.minBalanceFloor);
+                                        const keepAlive = floor + MIN_ORDER;
+                                        if (Number.isFinite(keepAlive) && bankroll > keepAlive) {
+                                            const maxFracKeepAlive = (bankroll - keepAlive) / bankroll;
+                                            if (Number.isFinite(maxFracKeepAlive) && maxFracKeepAlive > effectiveMaxPosFrac) {
+                                                desiredMaxPosFrac = Math.min(desiredMaxPosFrac, Math.max(0.01, Math.min(0.50, maxFracKeepAlive)));
+                                            }
+                                        }
+                                    }
+
+                                    if (desiredMaxPosFrac > effectiveMaxPosFrac) {
+                                        log(`⚡ EXCEPTIONAL SIZING: pWin ${(pWinExc * 100).toFixed(1)}%, EV ${(evRoiExc * 100).toFixed(1)}% → maxPos ${(effectiveMaxPosFrac * 100).toFixed(0)}% → ${(desiredMaxPosFrac * 100).toFixed(0)}%`, asset);
+                                        effectiveMaxPosFrac = desiredMaxPosFrac;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    log(`⚠️ Exceptional sizing check failed: ${e.message}`, asset);
+                }
                 
                 // 🏆 v92 PEAK-DD BRAKE: If down >= 20% from ALL-TIME peak, cap size hard
                 const lifetimePeak = this.circuitBreaker?.lifetimePeakBalance || bankroll;

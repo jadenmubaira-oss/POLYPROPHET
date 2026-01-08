@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `7504e36c331f389780e9097e74bdeac3693f72158f76f2fe5f208dda32e27777` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `ce24ce0d0e70b9b8b291557d9c65af39fffcdb03b981f7b972d5d83fd7a60496` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
@@ -94,8 +94,8 @@
 **Critical (v97)**: The bot runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match), with a bankroll‑aware strategy mode:
 
 - **Default: `AUTO_BANKROLL_MODE=SPRINT`** (max profit ASAP intent; still respects the $2 floor + circuit breaker + cooldown/global stop):
-  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.32`, `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**MICRO_SPRINT**)
-  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32`, `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**SPRINT_GROWTH**)
+  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**MICRO_SPRINT**)
+  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**SPRINT_GROWTH**)
   - **Bankroll ≥ $1,000**: `MAX_POSITION_SIZE=0.07`, `kelly=ON (cap 0.12)`, `riskEnvelope=ON`, `profitProtection=ON` (**LARGE_BANKROLL**)
 
 - **Optional: `AUTO_BANKROLL_MODE=SAFE`** (legacy micro-safe under $20):
@@ -132,11 +132,11 @@ We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. R
 ### The Winning Setup (your $5 start — SPRINT auto-mode)
 
 With `autoProfile=1` (default):
-- **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (until $1k+)
+- **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
 
 #### Polymarket-native backtest (this repo’s debug corpus coverage, $5 start)
 
-- 720h requested (coverage-limited by corpus): **25 trades**, **92% WR**, **final $112.92**, **maxDD 32%**, **hit $100 at day 10**
+- 720h requested (coverage-limited by corpus): **25 trades**, **92% WR**, **final $164.50**, **maxDD 32%**, **hit $100 at day 10** (exceptionalBoosts=5)
   - Command: `GET /api/backtest-polymarket?hours=720&balance=5&tier=HYBRID&assets=BTC,ETH&entry=SNAPSHOT`
 
 > Note: This is **not a guarantee**. It is a deterministic replay over the repo’s available resolved windows.
@@ -363,7 +363,16 @@ RISK: {
         advisoryEvRoiThreshold: 0.08, // ADVISORY needs EV >= 8% (higher than CONVICTION)
         maxAdvisoryPerHour: 2,   // Max ADVISORY trades per hour
         sizeReduction: 0.50      // ADVISORY at 50% of CONVICTION size
-    }
+    },
+
+    // ⚡ v97+: EXCEPTIONAL SIZING BOOSTER (additive)
+    // Upsizes ONLY elite CONVICTION trades (objective pWin + EV thresholds).
+    exceptionalSizingEnabled: true,
+    exceptionalSizingTier: 'CONVICTION',
+    exceptionalSizingMinPWin: 0.84,
+    exceptionalSizingMinEvRoi: 0.30,
+    exceptionalSizingMaxPosFraction: 0.45,
+    exceptionalSizingMinBankroll: 5.00
 }
 ORACLE: {
     enabled: true,
@@ -384,7 +393,7 @@ ASSET_CONTROLS: {
 
 | Parameter | Why This Value |
 |-----------|---------------|
-| **32% max stake** | 🏆 v80 Sweet spot - max profit with minimal ruin probability. Kelly + dynamic risk envelope adjust lower. |
+| **32% base max stake (+ exceptional boost)** | 🏆 v80 Sweet spot baseline. **v97 exceptional sizing** can temporarily raise cap to **45%** only when pWin≥84% AND EV≥30% on CONVICTION trades (otherwise stays at 32% cap). |
 | **Kelly enabled** | Reduces variance ~50% in bad windows, ~14% less profit in good windows |
 | **Half-Kelly (k=0.5)** | Full Kelly is too aggressive. k=0.5 provides 75% of growth with 50% of variance |
 | **Dynamic risk profile** | **v77**: Bootstrap stage allows aggressive growth; Lock-in stage protects gains |
