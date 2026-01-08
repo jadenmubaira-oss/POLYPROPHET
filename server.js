@@ -14157,15 +14157,24 @@ setTimeout(() => {
 let _selfCheckState = {
     lastCheckEpoch: 0,
     lastResult: null,
-    autoHaltReason: null
+    autoHaltReason: null,
+    lastVerifyEpoch: 0,
+    lastVerifySummary: null,
+    lastPerfectionEpoch: 0,
+    lastPerfectionSummary: null,
+    lastAutoResumeEpoch: 0,
+    isRunning: false
 };
 
-function runAutoSelfCheck() {
-    const now = Date.now();
-    _selfCheckState.lastCheckEpoch = now;
-    
-    const failures = [];
-    const warnings = [];
+async function runAutoSelfCheck() {
+    if (_selfCheckState.isRunning) return _selfCheckState.lastResult;
+    _selfCheckState.isRunning = true;
+    try {
+        const now = Date.now();
+        _selfCheckState.lastCheckEpoch = now;
+        
+        const failures = [];
+        const warnings = [];
     
     // Check 1: Feed freshness
     if (typeof anyFeedStale !== 'undefined' && anyFeedStale) {
@@ -14222,6 +14231,72 @@ function runAutoSelfCheck() {
     if (redemptionQueue > 10) {
         warnings.push(`REDEMPTION_QUEUE(${redemptionQueue})`);
     }
+
+    // Check 9 (Autonomy): Internal /api/verify + /api/perfection-check (detect hidden regressions without manual testing)
+    // Run these less frequently to avoid unnecessary load.
+    const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
+    const verifyIntervalMs = 5 * 60 * 1000;      // every 5 minutes
+    const perfectionIntervalMs = 15 * 60 * 1000; // every 15 minutes
+
+    // VERIFY
+    if (now - (_selfCheckState.lastVerifyEpoch || 0) >= verifyIntervalMs) {
+        _selfCheckState.lastVerifyEpoch = now;
+        try {
+            const url = `${baseUrl}/api/verify?apiKey=${encodeURIComponent(API_KEY)}`;
+            const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
+            if (!resp.ok) {
+                failures.push(`VERIFY_HTTP_${resp.status}`);
+                _selfCheckState.lastVerifySummary = { ok: false, httpStatus: resp.status, timestamp: now };
+            } else {
+                const j = await resp.json();
+                const status = String(j?.status || '').toUpperCase();
+                const criticalFailures = Number(j?.criticalFailures) || 0;
+                const warningsCount = Number(j?.warnings) || 0;
+                _selfCheckState.lastVerifySummary = {
+                    ok: status === 'PASS',
+                    status,
+                    criticalFailures,
+                    warnings: warningsCount,
+                    passed: Number(j?.passed) || 0,
+                    failed: Number(j?.failed) || 0,
+                    timestamp: now
+                };
+                if (status === 'FAIL' || criticalFailures > 0) failures.push('VERIFY_FAILED');
+                else if (status === 'WARN' || warningsCount > 0) warnings.push('VERIFY_WARN');
+            }
+        } catch (e) {
+            failures.push(`VERIFY_ERROR(${e.message})`);
+            _selfCheckState.lastVerifySummary = { ok: false, error: e.message, timestamp: now };
+        }
+    }
+
+    // PERFECTION CHECK
+    if (now - (_selfCheckState.lastPerfectionEpoch || 0) >= perfectionIntervalMs) {
+        _selfCheckState.lastPerfectionEpoch = now;
+        try {
+            const url = `${baseUrl}/api/perfection-check?apiKey=${encodeURIComponent(API_KEY)}`;
+            const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
+            if (!resp.ok) {
+                failures.push(`PERFECTION_HTTP_${resp.status}`);
+                _selfCheckState.lastPerfectionSummary = { ok: false, httpStatus: resp.status, timestamp: now };
+            } else {
+                const j = await resp.json();
+                const allPassed = j?.summary?.allPassed === true;
+                const criticalFailed = Number(j?.summary?.criticalFailed) || 0;
+                const failCount = Number(j?.summary?.failCount) || 0;
+                _selfCheckState.lastPerfectionSummary = {
+                    ok: allPassed,
+                    failCount,
+                    criticalFailed,
+                    timestamp: now
+                };
+                if (!allPassed || criticalFailed > 0 || failCount > 0) failures.push('PERFECTION_FAILED');
+            }
+        } catch (e) {
+            failures.push(`PERFECTION_ERROR(${e.message})`);
+            _selfCheckState.lastPerfectionSummary = { ok: false, error: e.message, timestamp: now };
+        }
+    }
     
     const result = {
         timestamp: now,
@@ -14248,21 +14323,39 @@ function runAutoSelfCheck() {
             }
         }
     }
+
+    // Auto-resume (for LIVE mode only) when failures clear AND the halt was caused by AUTO_SELFCHECK.
+    // Do NOT auto-resume halts caused by drawdown / user actions.
+    if (failures.length === 0 && tradeExecutor.mode === 'LIVE') {
+        const halted = tradeExecutor?.circuitBreaker?.state === 'HALTED';
+        const autoReason = String(_selfCheckState.autoHaltReason || '');
+        if (halted && autoReason.startsWith('AUTO_SELFCHECK:')) {
+            tradeExecutor.circuitBreaker.state = 'NORMAL';
+            tradeExecutor.circuitBreaker.triggerTime = 0;
+            _selfCheckState.autoHaltReason = null;
+            _selfCheckState.lastAutoResumeEpoch = now;
+            log(`✅ AUTO-RESUME: Trading resumed (self-check recovered)`);
+            if (typeof sendTelegramNotification === 'function') {
+                sendTelegramNotification(`✅ AUTO-RESUME: Self-check recovered, trading resumed`);
+            }
+        }
+    }
     
     if (failures.length > 0) {
         log(`⚠️ SELF-CHECK FAILED: ${failures.join(', ')}`);
     }
-    
-    return result;
+
+        return result;
+    } finally {
+        _selfCheckState.isRunning = false;
+    }
 }
 
 // Run self-check every 60 seconds
 setInterval(() => {
-    try {
-        runAutoSelfCheck();
-    } catch (e) {
-        log(`❌ SELF-CHECK ERROR: ${e.message}`);
-    }
+    runAutoSelfCheck().catch(e => {
+        try { log(`❌ SELF-CHECK ERROR: ${e.message}`); } catch {}
+    });
 }, 60 * 1000);
 
 // 🎯 GOAT v44.1: GateTrace - records why trades were blocked for each cycle/asset
