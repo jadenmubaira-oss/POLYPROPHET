@@ -5366,7 +5366,9 @@ app.get('/api/health', (req, res) => {
     if (tradeExecutor && tradeExecutor.circuitBreaker) {
         tradeExecutor.updateCircuitBreaker();
         const dayStart = tradeExecutor.circuitBreaker.dayStartBalance || tradeExecutor.paperBalance;
-        const currentBal = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance;
+        const currentBal = (typeof tradeExecutor.getBankrollForRisk === 'function')
+            ? tradeExecutor.getBankrollForRisk()
+            : (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance);
         const drawdownPct = dayStart > 0 ? (dayStart - currentBal) / dayStart : 0;
         
         cbStatus = {
@@ -5519,7 +5521,8 @@ app.get('/api/risk-controls', (req, res) => {
         const equityEstimate = typeof tradeExecutor.getEquityEstimate === 'function'
             ? tradeExecutor.getEquityEstimate()
             : cashBalance;
-        const bankrollForRisk = (executorMode === 'LIVE' && typeof tradeExecutor.getBankrollForRisk === 'function')
+        // 🏆 v97: Use equity-aware bankroll for BOTH PAPER and LIVE
+        const bankrollForRisk = (typeof tradeExecutor.getBankrollForRisk === 'function')
             ? tradeExecutor.getBankrollForRisk()
             : cashBalance;
 
@@ -5597,7 +5600,7 @@ app.get('/api/risk-controls', (req, res) => {
                 initialized: tradeExecutor?.baselineBankrollInitialized || false,
                 source: tradeExecutor?.baselineBankrollSource || 'unknown',
                 profitMultiple: tradeExecutor?.baselineBankroll > 0 
-                    ? (cashBalance / tradeExecutor.baselineBankroll).toFixed(2) + 'x' 
+                    ? (bankrollForRisk / tradeExecutor.baselineBankroll).toFixed(2) + 'x' 
                     : 'N/A'
             },
             // 🏆 v96: LCB gating status
@@ -8670,18 +8673,15 @@ class TradeExecutor {
     }
     
     // 🏆 v77: Get bankroll for risk calculations
-    // Uses equity estimate for LIVE (accounts for locked funds), paperBalance for PAPER
+    // Uses equity estimate for BOTH LIVE and PAPER (accounts for locked funds / open positions).
+    // This prevents false drawdown / false SAFE_ONLY when a position is open (cash decreases but equity remains).
     getBankrollForRisk() {
-        if (this.mode === 'PAPER') {
-            return this.paperBalance;
-        }
-        
-        // LIVE: Use equity estimate to prevent false "low balance" from locked funds
+        // Use equity estimate to prevent false "low balance" from locked funds / open positions
         const equity = this.getEquityEstimate();
-        
-        // Use totalEquity but floor at cachedLiveBalance to be conservative
-        // (don't assume positions are worth more than they were)
-        return Math.max(equity.totalEquity, this.cachedLiveBalance || 0);
+        const cash = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
+        const eq = Number.isFinite(equity?.totalEquity) ? Number(equity.totalEquity) : cash;
+        // Never return less than cash (equity estimate can be missing market data)
+        return Math.max(eq, cash);
     }
     
     // 🏆 v77 TRADE FREQUENCY FLOOR: Track recent trades for frequency calculation
@@ -8788,10 +8788,10 @@ class TradeExecutor {
     // 🎯 GOAT v3: Initialize day tracking for CircuitBreaker
     initDayTracking() {
         const now = Date.now();
-        // 🏆 v81 FIX: Use total equity (cash + positions) for LIVE mode, not just cash
-        const bankroll = this.mode === 'PAPER' 
-            ? this.paperBalance 
-            : (typeof this.getBankrollForRisk === 'function' ? this.getBankrollForRisk() : (this.cachedLiveBalance || this.paperBalance));
+        // 🏆 v97: Use equity-aware bankroll for BOTH PAPER and LIVE (prevents false drawdown while positions are open)
+        const bankroll = (typeof this.getBankrollForRisk === 'function')
+            ? this.getBankrollForRisk()
+            : (this.mode === 'LIVE' ? (this.cachedLiveBalance || this.paperBalance) : this.paperBalance);
 
         // Check if it's a new day
         if (!this.circuitBreaker.dayStartTime ||
@@ -8819,10 +8819,10 @@ class TradeExecutor {
         if (!this.circuitBreaker.enabled) return;
         
         const dayStart = this.initDayTracking();
-        // 🏆 v81 FIX: Use total equity (cash + positions) for LIVE mode drawdown calculation
-        const currentBalance = this.mode === 'PAPER' 
-            ? this.paperBalance 
-            : (typeof this.getBankrollForRisk === 'function' ? this.getBankrollForRisk() : (this.cachedLiveBalance || this.paperBalance));
+        // 🏆 v97: Use equity-aware bankroll for BOTH PAPER and LIVE (prevents false SAFE_ONLY during open positions)
+        const currentBalance = (typeof this.getBankrollForRisk === 'function')
+            ? this.getBankrollForRisk()
+            : (this.mode === 'LIVE' ? (this.cachedLiveBalance || this.paperBalance) : this.paperBalance);
         const drawdownPct = dayStart > 0 ? (dayStart - currentBalance) / dayStart : 0;
         const lossStreak = this.consecutiveLosses || 0;
         const now = Date.now();
@@ -8999,10 +8999,10 @@ class TradeExecutor {
     // 🏆 v77 RISK ENVELOPE: Get remaining risk budget based on intraday + trailing drawdown
     // Now uses dynamic profile based on bankroll stage
     getRiskEnvelopeBudget() {
-        // 🏆 v77: Use equity-aware balance for LIVE mode
-        const currentBalance = this.mode === 'LIVE' 
-            ? this.getBankrollForRisk() 
-            : this.paperBalance;
+        // 🏆 v97: Use equity-aware balance for BOTH PAPER and LIVE
+        const currentBalance = (typeof this.getBankrollForRisk === 'function')
+            ? this.getBankrollForRisk()
+            : (this.mode === 'LIVE' ? (this.cachedLiveBalance || this.paperBalance) : this.paperBalance);
 
         // 🏆 v89 AUTO-BANKROLL: Envelope enable/disable can be dynamic by bankroll.
         const bankrollPolicy = getBankrollAdaptivePolicy(currentBalance);
@@ -9089,7 +9089,9 @@ class TradeExecutor {
         const effectiveBudget = envelope.effectiveBudget || 0;
         const stageName = envelope.profile?.stageName || 'UNKNOWN';
         const minOrderRiskOverride = envelope.profile?.minOrderRiskOverride || false;
-        const actualBalance = this.mode === 'LIVE' ? this.getBankrollForRisk() : this.paperBalance;
+        const actualBalance = (typeof this.getBankrollForRisk === 'function')
+            ? this.getBankrollForRisk()
+            : (this.mode === 'LIVE' ? (this.cachedLiveBalance || this.paperBalance) : this.paperBalance);
         const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
         const floor = floorEnabled ? Number(CONFIG.RISK.minBalanceFloor) : null;
         const canLose = (loss) => !floorEnabled || (actualBalance - Number(loss) >= Number(floor));
@@ -10170,8 +10172,10 @@ class TradeExecutor {
 
             // Check total exposure
             const totalExposure = this.getTotalExposure();
-            // Use REAL wallet balance for LIVE mode, paper balance for PAPER
-            const bankroll = this.mode === 'LIVE' ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE || 1000) : this.paperBalance;
+            // Use equity-aware bankroll for BOTH LIVE and PAPER (prevents false exposure spikes when cash is locked in positions)
+            const bankroll = (typeof this.getBankrollForRisk === 'function')
+                ? this.getBankrollForRisk()
+                : (this.mode === 'LIVE' ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE || 1000) : this.paperBalance);
             if (totalExposure / bankroll > CONFIG.RISK.maxTotalExposure) {
                 log(`⚠️ Max total exposure (${CONFIG.RISK.maxTotalExposure * 100}%) reached`, asset);
                 return { success: false, error: `Max exposure (${(CONFIG.RISK.maxTotalExposure * 100).toFixed(0)}%) reached` };
