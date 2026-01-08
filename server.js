@@ -972,7 +972,54 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             const cycles = byWindow.get(w) || [];
             const enriched = [];
             for (const c of cycles) {
-                const pWinUsed = clamp01(c.pWin ?? c.confidence);
+                // 🏆 v97: Prefer recomputing pWin from current calibration (LCB-aware) for backtest parity.
+                // Collector snapshots may contain optimistic pWin; this keeps Polymarket-native tests conservative.
+                let pWinUsed = null;
+                try {
+                    const assetKey = String(c?.asset || '').toUpperCase();
+                    const brain = (typeof Brains !== 'undefined' && Brains) ? Brains[assetKey] : null;
+                    const tierNow = String(c?.tier || '').toUpperCase();
+                    const entryPx = Number(c?.entryPrice);
+                    if (brain && Number.isFinite(entryPx) && entryPx > 0) {
+                        const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false);
+                        const convictionLcbZ = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBZ))
+                            ? Number(CONFIG.RISK.convictionPWinLCBZ)
+                            : 1.96;
+                        const convictionLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBMinSamples))
+                            ? Number(CONFIG.RISK.convictionPWinLCBMinSamples)
+                            : 25;
+                        const convictionTierMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionTierPWinMinSamples))
+                            ? Number(CONFIG.RISK.convictionTierPWinMinSamples)
+                            : 20;
+                        if (tierNow === 'CONVICTION' && convictionLcbEnabled && typeof brain.getTierConditionedPWinWithLCB === 'function') {
+                            const p = brain.getTierConditionedPWinWithLCB('CONVICTION', entryPx, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
+                            if (p !== null) pWinUsed = p;
+                        }
+                        if (pWinUsed === null && typeof brain.getTierConditionedPWin === 'function') {
+                            const minSamplesTier = (tierNow === 'CONVICTION' && convictionLcbEnabled) ? convictionTierMinSamples : 5;
+                            const p = brain.getTierConditionedPWin(tierNow, entryPx, { fallback: null, minSamples: minSamplesTier });
+                            if (p !== null) pWinUsed = p;
+                        }
+                        if (pWinUsed === null && typeof brain.getCalibratedWinProb === 'function') {
+                            const conf = Number(c?.confidence);
+                            if (Number.isFinite(conf)) {
+                                const s = brain.stats || {};
+                                const priorRate =
+                                    (tierNow === 'CONVICTION' && Number(s.convictionTotal) > 0)
+                                        ? (Number(s.convictionWins) / Number(s.convictionTotal))
+                                        : (Number(s.total) > 0 ? (Number(s.wins) / Number(s.total)) : 0.5);
+                                const p = brain.getCalibratedWinProb(conf, { priorRate, priorStrength: 40, minSamples: 0 });
+                                if (p !== null) pWinUsed = p;
+                            }
+                        }
+                    }
+                } catch { /* ignore */ }
+
+                if (pWinUsed === null) {
+                    pWinUsed = clamp01(c.pWin ?? c.confidence);
+                } else {
+                    pWinUsed = clamp01(pWinUsed);
+                }
                 const evRoi = calcEvRoi(pWinUsed, c.entryPrice);
                 if (respectEVGate && (evRoi === null || evRoi <= 0)) { evBlocked++; continue; }
                 enriched.push({ ...c, pWinUsed, evRoi });
@@ -1151,7 +1198,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let hit1000 = null; // { day, tradeIndex, balance } when first hit $1000
             let tradeIndex = 0;
             let minBalance = startingBalance;
-            const RUIN_FLOOR = 2.00; // Balance below this = ruin
+            // 🏆 v97: Define "ruin" as reaching a bankroll where we can no longer place MIN_ORDER
+            // while respecting the (dynamic) balance floor. This matches the real "stuck" condition for $5 starts.
+            const floorMinCfg = Number(CONFIG?.RISK?.minBalanceFloorDynamicMin);
+            const floorMin = Number.isFinite(floorMinCfg) ? Math.max(0, floorMinCfg) : 0.50;
+            const RUIN_FLOOR = (CONFIG?.RISK?.minBalanceFloorEnabled !== false) ? (floorMin + MIN_ORDER) : MIN_ORDER;
 
             // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss state variables
             // (Configuration params are defined at endpoint scope above)
@@ -1404,7 +1455,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             // Survivability gate: do not size so large that a loss would drop below (floor + MIN_ORDER).
                             const floorEnabledBt = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
                             if (floorEnabledBt && windowBalanceStart > 0) {
-                                const floor = Number(CONFIG.RISK.minBalanceFloor);
+                                const floor = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+                                    ? tradeExecutor.getEffectiveBalanceFloor(windowBalanceStart)
+                                    : Number(CONFIG.RISK.minBalanceFloor);
                                 const keepAlive = floor + MIN_ORDER;
                                 if (Number.isFinite(keepAlive) && windowBalanceStart > keepAlive) {
                                     const maxFracKeepAlive = (windowBalanceStart - keepAlive) / windowBalanceStart;
@@ -1429,7 +1482,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     // - bump to MIN_ORDER (if it is SAFE vs the balance floor), or
                     // - skip the trade (more realistic than "phantom" sub-min orders).
                     const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
-                    const floor = floorEnabled ? Number(CONFIG.RISK.minBalanceFloor) : 0;
+                    const floor = floorEnabled
+                        ? ((tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+                            ? tradeExecutor.getEffectiveBalanceFloor(windowBalanceStart)
+                            : Number(CONFIG.RISK.minBalanceFloor))
+                        : 0;
                     const minBankrollForMinOrder = floorEnabled ? (floor + MIN_ORDER) : MIN_ORDER;
                     if (stake < MIN_ORDER) {
                         if (windowBalanceStart >= minBankrollForMinOrder) {
@@ -5446,12 +5503,25 @@ app.get('/api/health', (req, res) => {
         // 🏆 v70: Balance floor guard status
         balanceFloor: {
             enabled: CONFIG.RISK.minBalanceFloorEnabled,
-            floor: CONFIG.RISK.minBalanceFloor,
+            baseFloor: CONFIG.RISK.minBalanceFloor,
+            effectiveFloor: (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+                ? tradeExecutor.getEffectiveBalanceFloor(tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0))
+                : CONFIG.RISK.minBalanceFloor,
             currentBalance: tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0),
-            belowFloor: CONFIG.RISK.minBalanceFloorEnabled && 
-                        (tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0)) < CONFIG.RISK.minBalanceFloor,
-            tradingBlocked: CONFIG.RISK.minBalanceFloorEnabled && 
-                            (tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0)) < CONFIG.RISK.minBalanceFloor
+            belowFloor: (() => {
+                const bal = tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0);
+                const eff = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+                    ? tradeExecutor.getEffectiveBalanceFloor(bal)
+                    : CONFIG.RISK.minBalanceFloor;
+                return CONFIG.RISK.minBalanceFloorEnabled && (bal < eff);
+            })(),
+            tradingBlocked: (() => {
+                const bal = tradeExecutor?.mode === 'PAPER' ? tradeExecutor?.paperBalance : (tradeExecutor?.cachedLiveBalance || 0);
+                const eff = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+                    ? tradeExecutor.getEffectiveBalanceFloor(bal)
+                    : CONFIG.RISK.minBalanceFloor;
+                return CONFIG.RISK.minBalanceFloorEnabled && (bal < eff);
+            })()
         },
         watchdog: {
             lastCycleAge: typeof watchdogState !== 'undefined' ? Math.round((now - watchdogState.lastCycleDetected) / 1000) : null,
@@ -5552,7 +5622,10 @@ app.get('/api/risk-controls', (req, res) => {
             : null;
 
         const staleAssets = ASSETS.filter(a => feedStaleAssets[a]);
-        const belowFloor = !!CONFIG?.RISK?.minBalanceFloorEnabled && (cashBalance < (CONFIG?.RISK?.minBalanceFloor || 0));
+        const effectiveFloor = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+            ? tradeExecutor.getEffectiveBalanceFloor(cashBalance)
+            : (CONFIG?.RISK?.minBalanceFloor || 0);
+        const belowFloor = !!CONFIG?.RISK?.minBalanceFloorEnabled && (cashBalance < effectiveFloor);
 
         const drift = {};
         for (const asset of ASSETS) {
@@ -5617,7 +5690,8 @@ app.get('/api/risk-controls', (req, res) => {
             },
             balanceFloor: {
                 enabled: CONFIG.RISK.minBalanceFloorEnabled,
-                floor: CONFIG.RISK.minBalanceFloor,
+                baseFloor: CONFIG.RISK.minBalanceFloor,
+                effectiveFloor: effectiveFloor,
                 currentBalance: cashBalance,
                 belowFloor,
                 tradingBlocked: belowFloor
@@ -7374,12 +7448,39 @@ async function runForwardDataCollector() {
                 snapshot.markets[asset] = currentMarkets[asset] || null;
                 const brain = Brains[asset];
                 if (brain) {
+                    const marketNow = currentMarkets[asset] || null;
+                    const predNow = String(brain.prediction || '').toUpperCase();
+                    const entryOddsNow = predNow === 'DOWN' ? (marketNow?.noPrice) : (marketNow?.yesPrice);
+                    let pWinNow = null;
+                    let pWinSourceNow = null;
+                    try {
+                        const tierNow = String(brain.tier || '').toUpperCase();
+                        const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false);
+                        const convictionLcbZ = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBZ))
+                            ? Number(CONFIG.RISK.convictionPWinLCBZ)
+                            : 1.96;
+                        const convictionLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBMinSamples))
+                            ? Number(CONFIG.RISK.convictionPWinLCBMinSamples)
+                            : 25;
+                        if (tierNow === 'CONVICTION' && convictionLcbEnabled && typeof brain.getTierConditionedPWinWithLCB === 'function') {
+                            pWinNow = brain.getTierConditionedPWinWithLCB('CONVICTION', entryOddsNow, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
+                            if (pWinNow !== null) pWinSourceNow = 'tier_lcb';
+                        }
+                        if (pWinNow === null && typeof brain.getTierConditionedPWin === 'function') {
+                            pWinNow = brain.getTierConditionedPWin(brain.tier, entryOddsNow, { fallback: null });
+                            if (pWinNow !== null) pWinSourceNow = 'tier';
+                        }
+                    } catch { /* ignore */ }
                     snapshot.signals[asset] = {
                         prediction: brain.prediction,
                         confidence: brain.confidence,
                         tier: brain.tier,
                         edge: brain.edge,
-                        pWin: brain.getTierConditionedPWin ? brain.getTierConditionedPWin(brain.tier, currentMarkets[asset]?.yesPrice, { fallback: null }) : null,
+                        // pWin is stored for Polymarket-native backtests; use the correct side odds (YES for UP, NO for DOWN)
+                        // and prefer conservative LCB when available to reduce overconfidence.
+                        pWin: pWinNow,
+                        pWinSource: pWinSourceNow,
+                        entryOdds: entryOddsNow,
                         oracleLocked: brain.oracleLocked,
                         convictionLocked: brain.convictionLocked
                     };
@@ -7740,6 +7841,12 @@ const CONFIG = {
         // 🏆 v70: BALANCE FLOOR GUARD - Stop trading if balance drops too low
         minBalanceFloor: 2.00,  // 🏆 v73 FINAL: HALT new trades if balance drops below $2.00 (60% of $5 start)
         minBalanceFloorEnabled: true, // 🏆 v73 FINAL: HARD STOP at 60% drawdown
+        // 🏆 v97: Dynamic floor (prevents a permanent "min-order freeze" after drawdown on micro bankrolls).
+        // Keeps the base floor at $2.00 when bankroll is healthy, but allows it to shrink when bankroll drops,
+        // so the bot can still place the Polymarket MIN_ORDER and recover without manual deposits.
+        minBalanceFloorDynamicEnabled: true,
+        minBalanceFloorDynamicFraction: 0.40, // floor <= 40% of current bankroll when in drawdown
+        minBalanceFloorDynamicMin: 0.50,      // never shrink below $0.50
 
         // 🚀 v61.2: QUALITY > QUANTITY
         maxConsecutiveLosses: 3,  // 🚀 v61.2: 3 losses before pause
@@ -7765,6 +7872,14 @@ const CONFIG = {
             maxAdvisoryPerHour: 2,            // Max ADVISORY trades allowed per hour even if floor is active
             sizeReduction: 0.50               // Size ADVISORY trades at 50% of CONVICTION size
         },
+
+        // 🏆 v97: Conservative pWin LCB tuning (reduces overconfidence when sample sizes are limited)
+        convictionPWinLCBEnabled: true,
+        convictionPWinLCBZ: 1.96,            // 95% Wilson LCB for CONVICTION (more conservative)
+        convictionPWinLCBMinSamples: 25,     // require at least this many samples for LCB
+        convictionTierPWinMinSamples: 20,    // if LCB unavailable, require more samples before trusting tier pWin
+        advisoryPWinLCBZ: 1.645,             // 90% Wilson LCB for ADVISORY
+        advisoryPWinLCBMinSamples: 8,
 
         // ⚡ v97+: EXCEPTIONAL SIZING BOOSTER (additive)
         // Goal: faster compounding ONLY when the edge is objectively exceptional.
@@ -8683,6 +8798,44 @@ class TradeExecutor {
         // Never return less than cash (equity estimate can be missing market data)
         return Math.max(eq, cash);
     }
+
+    // 🏆 v97: Dynamic balance floor (prevents permanent min-order freeze after drawdown).
+    // The base floor is CONFIG.RISK.minBalanceFloor, but when bankroll shrinks we allow the floor
+    // to shrink too (bounded by minBalanceFloorDynamicMin) so the bot can still place MIN_ORDER.
+    getEffectiveBalanceFloor(balanceOverride) {
+        const enabled = !!CONFIG?.RISK?.minBalanceFloorEnabled;
+        if (!enabled) return 0;
+        const baseFloor = Number(CONFIG?.RISK?.minBalanceFloor);
+        if (!Number.isFinite(baseFloor) || baseFloor <= 0) return 0;
+
+        const bal = Number.isFinite(Number(balanceOverride))
+            ? Number(balanceOverride)
+            : (this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0));
+
+        if (!Number.isFinite(bal) || bal <= 0) return baseFloor;
+
+        const dynEnabled = (CONFIG?.RISK?.minBalanceFloorDynamicEnabled !== false);
+        if (!dynEnabled) return baseFloor;
+
+        const fracCfg = Number(CONFIG?.RISK?.minBalanceFloorDynamicFraction);
+        const frac = Number.isFinite(fracCfg) ? Math.max(0, Math.min(0.95, fracCfg)) : 0.40;
+
+        const minCfg = Number(CONFIG?.RISK?.minBalanceFloorDynamicMin);
+        const minFloor = Number.isFinite(minCfg) ? Math.max(0, minCfg) : 0.50;
+
+        // Primary: shrink floor as a fraction of current bankroll
+        let floor = Math.min(baseFloor, Math.max(minFloor, bal * frac));
+
+        // Secondary: avoid a "min-order freeze" when bal >= MIN_ORDER but (bal - floor) < MIN_ORDER.
+        // This keeps the system autonomous even after drawdown (at the cost of allowing deeper drawdown).
+        const MIN_ORDER = 1.10;
+        if (bal >= MIN_ORDER) {
+            const maxFloorToAllowMinOrder = Math.max(minFloor, bal - MIN_ORDER);
+            floor = Math.min(floor, maxFloorToAllowMinOrder);
+        }
+
+        return (Number.isFinite(floor) && floor >= 0) ? floor : 0;
+    }
     
     // 🏆 v77 TRADE FREQUENCY FLOOR: Track recent trades for frequency calculation
     getRecentTradesCount(lookbackMinutes = 120) {
@@ -9089,13 +9242,18 @@ class TradeExecutor {
         const effectiveBudget = envelope.effectiveBudget || 0;
         const stageName = envelope.profile?.stageName || 'UNKNOWN';
         const minOrderRiskOverride = envelope.profile?.minOrderRiskOverride || false;
-        const actualBalance = (typeof this.getBankrollForRisk === 'function')
-            ? this.getBankrollForRisk()
-            : (this.mode === 'LIVE' ? (this.cachedLiveBalance || this.paperBalance) : this.paperBalance);
+        // Use CASH for floor safety (equity can include locked funds; floor is about ability to keep trading).
+        const cashBalanceForFloor = this.mode === 'PAPER'
+            ? this.paperBalance
+            : (this.cachedLiveBalance || 0);
         const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
-        const floor = floorEnabled ? Number(CONFIG.RISK.minBalanceFloor) : null;
-        const canLose = (loss) => !floorEnabled || (actualBalance - Number(loss) >= Number(floor));
-        const maxSafeStake = floorEnabled ? Math.max(0, actualBalance - Number(floor)) : Infinity;
+        const floor = floorEnabled
+            ? (typeof this.getEffectiveBalanceFloor === 'function'
+                ? this.getEffectiveBalanceFloor(cashBalanceForFloor)
+                : Number(CONFIG.RISK.minBalanceFloor))
+            : null;
+        const canLose = (loss) => !floorEnabled || (cashBalanceForFloor - Number(loss) >= Number(floor));
+        const maxSafeStake = floorEnabled ? Math.max(0, cashBalanceForFloor - Number(floor)) : Infinity;
         
         // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
         // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
@@ -9933,10 +10091,13 @@ class TradeExecutor {
         // 🏆 v70: BALANCE FLOOR GUARD - Stop new trades if balance dropped below floor
         if (CONFIG.RISK.minBalanceFloorEnabled) {
             const currentBal = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
-            if (currentBal < CONFIG.RISK.minBalanceFloor) {
-                log(`🛑 BALANCE FLOOR: Current balance £${currentBal.toFixed(2)} < floor £${CONFIG.RISK.minBalanceFloor.toFixed(2)} - TRADE BLOCKED`, asset);
+            const effectiveFloor = (typeof this.getEffectiveBalanceFloor === 'function')
+                ? this.getEffectiveBalanceFloor(currentBal)
+                : CONFIG.RISK.minBalanceFloor;
+            if (currentBal < effectiveFloor) {
+                log(`🛑 BALANCE FLOOR: Current balance £${currentBal.toFixed(2)} < floor £${effectiveFloor.toFixed(2)} - TRADE BLOCKED`, asset);
                 log(`   New trades halted to preserve remaining capital. Deposit more funds or adjust minBalanceFloor in Settings.`, asset);
-                return { success: false, error: `BALANCE_FLOOR: Balance £${currentBal.toFixed(2)} below £${CONFIG.RISK.minBalanceFloor.toFixed(2)} floor - trading halted` };
+                return { success: false, error: `BALANCE_FLOOR: Balance £${currentBal.toFixed(2)} below £${effectiveFloor.toFixed(2)} floor - trading halted` };
             }
         }
 
@@ -10275,7 +10436,9 @@ class TradeExecutor {
                                     // which would prevent further trading without a deposit.
                                     const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
                                     if (floorEnabled && bankroll > 0) {
-                                        const floor = Number(CONFIG.RISK.minBalanceFloor);
+                                        const floor = (typeof this.getEffectiveBalanceFloor === 'function')
+                                            ? this.getEffectiveBalanceFloor(bankroll)
+                                            : Number(CONFIG.RISK.minBalanceFloor);
                                         const keepAlive = floor + MIN_ORDER;
                                         if (Number.isFinite(keepAlive) && bankroll > keepAlive) {
                                             const maxFracKeepAlive = (bankroll - keepAlive) / bankroll;
@@ -10473,7 +10636,11 @@ class TradeExecutor {
                 let bumpedToMin = false;
                 if (size < MIN_ORDER) {
                     const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
-                    const floor = floorEnabled ? Number(CONFIG.RISK.minBalanceFloor) : 0;
+                    const floor = floorEnabled
+                        ? ((typeof this.getEffectiveBalanceFloor === 'function')
+                            ? this.getEffectiveBalanceFloor(bankroll)
+                            : Number(CONFIG.RISK.minBalanceFloor))
+                        : 0;
                     const minBankrollForMinOrder = floorEnabled ? (floor + MIN_ORDER) : (MIN_ORDER * 1.5);
                     if (bankroll >= minBankrollForMinOrder) {
                         size = MIN_ORDER;
@@ -13892,9 +14059,11 @@ function runAutoSelfCheck() {
         ? tradeExecutor.paperBalance 
         : (tradeExecutor.cachedLiveBalance || 0);
     const floorEnabled = CONFIG?.RISK?.minBalanceFloorEnabled;
-    const floor = CONFIG?.RISK?.minBalanceFloor || 2;
+    const floor = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+        ? tradeExecutor.getEffectiveBalanceFloor(cashBalance)
+        : (CONFIG?.RISK?.minBalanceFloor || 2);
     if (floorEnabled && cashBalance < floor) {
-        failures.push(`BALANCE_BELOW_FLOOR($${cashBalance.toFixed(2)}<$${floor})`);
+        failures.push(`BALANCE_BELOW_FLOOR($${cashBalance.toFixed(2)}<$${Number(floor).toFixed(2)})`);
     }
     
     // Check 3: Circuit breaker already halted
@@ -15441,31 +15610,47 @@ class SupremeBrain {
                     let pWinRaw = null;
                     let lcbUsed = false;
                     
-                    // 🏆 v96.3: Use conservative LCB pWin for BOTH ADVISORY and (optionally) CONVICTION.
-                    // This protects against overconfidence at high prices and improves robustness across regimes.
+                    // 🏆 v97: Use conservative LCB pWin for BOTH ADVISORY and CONVICTION (tunable in CONFIG.RISK).
+                    // This protects against overconfidence (especially at high entry prices) and improves robustness across regimes.
                     const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false); // default ON
+                    const convictionLcbZ = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBZ))
+                        ? Number(CONFIG.RISK.convictionPWinLCBZ)
+                        : 1.96;
+                    const convictionLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBMinSamples))
+                        ? Number(CONFIG.RISK.convictionPWinLCBMinSamples)
+                        : 25;
+                    const convictionTierMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionTierPWinMinSamples))
+                        ? Number(CONFIG.RISK.convictionTierPWinMinSamples)
+                        : 20;
+                    const advisoryLcbZ = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBZ))
+                        ? Number(CONFIG.RISK.advisoryPWinLCBZ)
+                        : 1.645;
+                    const advisoryLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBMinSamples))
+                        ? Number(CONFIG.RISK.advisoryPWinLCBMinSamples)
+                        : 8;
 
                     if (tier === 'CONVICTION' && convictionLcbEnabled && typeof this.getTierConditionedPWinWithLCB === 'function') {
                         // CONVICTION: Use tier-conditioned Wilson LCB when enough samples exist
-                        pWinRaw = this.getTierConditionedPWinWithLCB('CONVICTION', currentOdds, { z: 1.645, minSamples: 10, fallback: null });
+                        pWinRaw = this.getTierConditionedPWinWithLCB('CONVICTION', currentOdds, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
                         if (pWinRaw !== null) {
                             lcbUsed = true;
-                            log(`📊 LCB GATING: CONVICTION using tier-conditioned Wilson LCB pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
+                            log(`📊 LCB GATING: CONVICTION Wilson LCB(z=${convictionLcbZ}) pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
                         }
                     }
 
                     if (pWinRaw === null && tier === 'ADVISORY' && typeof this.getCalibratedPWinWithLCB === 'function') {
                         // ADVISORY: Use conservative LCB estimate to reduce overconfidence
-                        pWinRaw = this.getCalibratedPWinWithLCB(finalConfidence, { z: 1.645, minSamples: 5, fallback: null });
+                        pWinRaw = this.getCalibratedPWinWithLCB(finalConfidence, { z: advisoryLcbZ, minSamples: advisoryLcbMinSamples, fallback: null });
                         if (pWinRaw !== null) {
                             lcbUsed = true;
-                            log(`📊 LCB GATING: ADVISORY using Wilson LCB pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
+                            log(`📊 LCB GATING: ADVISORY Wilson LCB(z=${advisoryLcbZ}) pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
                         }
                     }
                     
                     // Fallback chain: tier-conditioned → calibrated → prior-based
                     if (pWinRaw === null && typeof this.getTierConditionedPWin === 'function') {
-                        pWinRaw = this.getTierConditionedPWin(tier, currentOdds, { fallback: null, minSamples: 5 });
+                        const minSamplesTier = (tier === 'CONVICTION' && convictionLcbEnabled) ? convictionTierMinSamples : 5;
+                        pWinRaw = this.getTierConditionedPWin(tier, currentOdds, { fallback: null, minSamples: minSamplesTier });
                     }
                     if (pWinRaw === null && typeof this.getCalibratedWinProb === 'function') {
                         pWinRaw = this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 });
