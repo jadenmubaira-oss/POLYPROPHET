@@ -6492,6 +6492,121 @@ app.get('/api/verify', async (req, res) => {
     addCheck('LCB gating active (wired into ADVISORY)', 
         hasLcbFunction && wilsonLCBExists,
         hasLcbFunction ? 'v96: LCB used for ADVISORY pWin → EV/price-cap/Kelly' : 'LCB functions not found');
+
+    // Check 3b: Dynamic balance floor (prevents permanent min-order freeze after drawdown)
+    // This is critical for autonomy on micro bankrolls (e.g., $5 start) because Polymarket has MIN_ORDER=$1.10.
+    const floorEnabledCfg = !!CONFIG?.RISK?.minBalanceFloorEnabled;
+    const dynFloorEnabledCfg = floorEnabledCfg && (CONFIG?.RISK?.minBalanceFloorDynamicEnabled !== false);
+    const floorFnExists = typeof tradeExecutor?.getEffectiveBalanceFloor === 'function';
+    const MIN_ORDER = 1.10;
+    let dynFloorOk = true;
+    let dynFloorDetails = '';
+    if (!floorEnabledCfg) {
+        dynFloorOk = true;
+        dynFloorDetails = 'Balance floor disabled';
+    } else if (!floorFnExists) {
+        dynFloorOk = false;
+        dynFloorDetails = 'tradeExecutor.getEffectiveBalanceFloor() missing';
+    } else if (!dynFloorEnabledCfg) {
+        dynFloorOk = false;
+        dynFloorDetails = 'Dynamic floor disabled (RISK.minBalanceFloorDynamicEnabled=false)';
+    } else {
+        const minCfg = Number(CONFIG?.RISK?.minBalanceFloorDynamicMin);
+        const minFloor = Number.isFinite(minCfg) ? Math.max(0, minCfg) : 0.50;
+        const baseFloor = Number(CONFIG?.RISK?.minBalanceFloor);
+        const testBalances = [5.0, 2.7]; // representative: start balance + post-drawdown balance above RUIN_FLOOR
+        const results = testBalances.map(bal => {
+            const floor = tradeExecutor.getEffectiveBalanceFloor(bal);
+            const okFloor = Number.isFinite(floor) && floor >= 0 && floor <= (Number.isFinite(baseFloor) ? baseFloor : floor);
+            const okMin = floor >= minFloor - 1e-9;
+            const okMinOrderGap = (bal < (minFloor + MIN_ORDER)) ? true : ((bal - floor) >= MIN_ORDER - 1e-9);
+            return { bal, floor, ok: okFloor && okMin && okMinOrderGap };
+        });
+        dynFloorOk = results.every(r => r.ok);
+        dynFloorDetails = results.map(r =>
+            `$${r.bal.toFixed(2)}→floor $${(Number.isFinite(r.floor) ? r.floor : NaN).toFixed(2)} (gap $${(r.bal - (Number.isFinite(r.floor) ? r.floor : r.bal)).toFixed(2)})`
+        ).join('; ');
+    }
+    addCheck('Dynamic floor prevents min-order freeze', dynFloorOk, dynFloorDetails, 'error');
+
+    // Check 3c: Persisted settings key present (autonomy across restarts/redeploys)
+    let settingsKeyOk = true;
+    let settingsKeyDetails = 'Skipped (no Redis)';
+    let settingsKeySeverity = 'warn';
+    if (redisAvailable && redis) {
+        settingsKeySeverity = 'warn';
+        try {
+            const raw = await redis.get('deity:settings');
+            if (!raw) {
+                settingsKeyOk = false;
+                settingsKeyDetails = 'deity:settings missing (no persisted settings yet)';
+            } else {
+                const parsed = JSON.parse(raw);
+                const v = parsed?._CONFIG_VERSION;
+                const hasRisk = !!parsed?.RISK && typeof parsed.RISK === 'object';
+                settingsKeyOk = hasRisk && (v === undefined || v === CONFIG_VERSION);
+                settingsKeyDetails = settingsKeyOk
+                    ? `deity:settings present (RISK keys=${Object.keys(parsed.RISK || {}).length}, _CONFIG_VERSION=${v ?? 'N/A'})`
+                    : `deity:settings present but invalid (hasRISK=${hasRisk}, _CONFIG_VERSION=${v ?? 'N/A'})`;
+            }
+        } catch (e) {
+            settingsKeyOk = false;
+            settingsKeyDetails = `Error reading deity:settings: ${e.message}`;
+        }
+    }
+    addCheck('Settings persistence key present', settingsKeyOk, settingsKeyDetails, settingsKeySeverity);
+
+    // Check 3d: Forward collector snapshot parity (entryOdds matches market side for prediction)
+    // Prevents silent pWin/EV corruption in Polymarket-native backtests (UP should use yesPrice; DOWN should use noPrice).
+    let collectorParityOk = true;
+    let collectorParityDetails = '';
+    try {
+        if (typeof getCollectorSnapshots !== 'function') {
+            collectorParityOk = false;
+            collectorParityDetails = 'getCollectorSnapshots() missing';
+        } else {
+            const snapRes = await getCollectorSnapshots(1);
+            const snap = Array.isArray(snapRes?.snapshots) ? snapRes.snapshots[0] : null;
+            if (!snap) {
+                collectorParityOk = false;
+                collectorParityDetails = 'No collector snapshots yet (wait 1–2 min)';
+            } else {
+                const issues = [];
+                const checked = [];
+                for (const a of ASSETS) {
+                    const s = snap?.signals?.[a];
+                    const m = snap?.markets?.[a];
+                    if (!s || !m) continue;
+                    const pred = String(s?.prediction || '').toUpperCase();
+                    if (pred !== 'UP' && pred !== 'DOWN') continue;
+                    const expected = pred === 'DOWN' ? Number(m?.noPrice) : Number(m?.yesPrice);
+                    const got = Number(s?.entryOdds);
+                    if (!Number.isFinite(expected) || !Number.isFinite(got)) {
+                        issues.push(`${a}: missing entryOdds/marketOdds`);
+                        continue;
+                    }
+                    checked.push(a);
+                    if (Math.abs(expected - got) > 1e-6) {
+                        issues.push(`${a}: entryOdds mismatch (got ${(got * 100).toFixed(1)}¢, expected ${(expected * 100).toFixed(1)}¢)`);
+                    }
+                    if (s?.pWin !== null && s?.pWin !== undefined) {
+                        const p = Number(s.pWin);
+                        if (!Number.isFinite(p) || p < 0 || p > 1) {
+                            issues.push(`${a}: invalid pWin (${s.pWin})`);
+                        }
+                    }
+                }
+                collectorParityOk = issues.length === 0 && checked.length > 0;
+                collectorParityDetails = collectorParityOk
+                    ? `OK (checked: ${checked.join(', ')})`
+                    : `Issues: ${issues.length ? issues.join(' | ') : 'no assets with entryOdds yet'}`;
+            }
+        }
+    } catch (e) {
+        collectorParityOk = false;
+        collectorParityDetails = `Error: ${e.message}`;
+    }
+    addCheck('Collector snapshot entryOdds parity', collectorParityOk, collectorParityDetails, 'warn');
     
     // Check 4: LIVE balance freshness enforcement (HONEST CHECK)
     const hasFreshnessCheck = tradeExecutor?.lastBalanceFetch !== undefined;
@@ -13866,7 +13981,10 @@ async function runGuardedAutoOptimizer() {
         
         // Get current config baseline
         const currentTrigger = getVaultThresholds().vaultTriggerBalance;
-        const currentBalance = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || 40);
+        // Use equity-aware bankroll so the optimizer isn't distorted by open positions (PAPER) or locked funds (LIVE).
+        const currentBalance = (tradeExecutor && typeof tradeExecutor.getBankrollForRisk === 'function')
+            ? tradeExecutor.getBankrollForRisk()
+            : (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || 40));
         
         // Run quick speed-score evaluation on current config
         const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
