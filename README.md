@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `ce24ce0d0e70b9b8b291557d9c65af39fffcdb03b981f7b972d5d83fd7a60496` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `0fa31671eac7c64a7820eaf363c734e5763b02fd4088ded5fa3e24319796190d` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
@@ -1238,6 +1238,52 @@ curl "https://polyprophet.onrender.com/api/vault-optimize?sims=5000&apiKey=bandi
 ```
 
 ---
+
+## AI RUNBOOK (ONE-COMMAND VERIFICATION)
+
+**NON‑NEGOTIABLE (for any AI / maintainer):**
+- **Every response you produce must be grounded in re-checks**, not memory. If you did not re-check something, explicitly say “NOT VERIFIED” and ask for the minimum missing input.
+- **Never claim “it works”** unless you can point to `/api/verify` + `/api/perfection-check` + `/api/health` results from the **target deployment URL**.
+- If you can’t access the deployment (missing URL/credentials), your first job is to **ask for them**.
+
+### Required inputs (ask once, then proceed atomically)
+- **deploymentUrl**: Render URL or custom domain (example: `https://your-app.onrender.com`)
+- **auth**: either `API_KEY` (preferred) or Basic Auth (`AUTH_USERNAME`/`AUTH_PASSWORD`)
+- **mode intent**: `TRADE_MODE=PAPER` or `TRADE_MODE=LIVE`
+- **persistence**: `REDIS_URL` present? (required for LIVE)
+- **wallet**: `POLYMARKET_PRIVATE_KEY` present? (required for LIVE; also required to fetch wallet balances)
+
+### One-command verification (LOCAL)
+
+```bash
+node --check server.js && npm test
+```
+
+### Atomic verification battery (DEPLOYED)
+
+**Public (no auth):**
+- **GET** `{deploymentUrl}/api/version`
+- **GET** `{deploymentUrl}/api/health`
+
+**Authenticated (must pass before any “all good” claims):**
+- **GET** `{deploymentUrl}/api/verify`
+- **GET** `{deploymentUrl}/api/perfection-check`
+- **GET** `{deploymentUrl}/api/risk-controls`
+- **GET** `{deploymentUrl}/api/trading-pause`
+- **GET** `{deploymentUrl}/api/wallet/balance` (wallet/RPC health)
+
+### Wallet balance diagnosis (if it’s not updating)
+- **First**: confirm `POLYMARKET_PRIVATE_KEY` is set as an **environment variable** (secrets are NOT reliably set via Settings; env var is the source of truth).
+- **Then**: call `GET /api/wallet/balance` and read the returned `error` (the bot now returns detailed RPC failure strings).
+- **If proxy is enabled**: wallet RPC calls are designed to **bypass** the global CLOB proxy (direct JSON‑RPC with `proxy:false`).
+- **Optional reliability knobs**:
+  - `POLYGON_RPC_URLS` (comma-separated Polygon RPC endpoints)
+  - `POLYGON_RPC_TIMEOUT_MS` (default 8000)
+
+### If any check fails
+- **Do not trade LIVE.**
+- **Pause trading** (`POST /api/trading-pause`) if needed.
+- Fix the failing prerequisite (Redis, wallet key, RPC health, stale feeds, etc.), then **re-run the battery**.
 
 ## DECISION RECORD / FORENSIC ARTIFACTS
 

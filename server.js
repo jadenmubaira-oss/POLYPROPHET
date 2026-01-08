@@ -21043,6 +21043,7 @@ app.get('/wallet', (req, res) => {
                 </div>
             </div>
             <p class="gas-warning" id="gasWarning" style="display:none;">⚠️ Low MATIC balance! You need MATIC to pay for transaction gas fees.</p>
+            <div class="status" id="balanceStatus"></div>
         </div>
         
         <div class="card deposit-card">
@@ -21085,11 +21086,22 @@ app.get('/wallet', (req, res) => {
             try {
                 const res = await fetch('/api/wallet');
                 walletData = await res.json();
+
+                // Reset status banner
+                const balanceStatus = document.getElementById('balanceStatus');
+                if (balanceStatus) {
+                    balanceStatus.className = 'status';
+                    balanceStatus.textContent = '';
+                }
                 
                 if (!walletData.loaded) {
                     document.getElementById('usdcBalance').textContent = 'No Wallet';
                     document.getElementById('maticBalance').textContent = '--';
-                    document.getElementById('depositAddress').textContent = 'Wallet not loaded. Add private key in Settings.';
+                    document.getElementById('depositAddress').textContent = 'Wallet not loaded.';
+                    if (balanceStatus) {
+                        balanceStatus.className = 'status error';
+                        balanceStatus.textContent = 'Wallet not loaded. Set POLYMARKET_PRIVATE_KEY in environment variables (Render) and redeploy.';
+                    }
                     return;
                 }
                 
@@ -21099,7 +21111,10 @@ app.get('/wallet', (req, res) => {
                 } else {
                     const msg = (walletData.usdc && walletData.usdc.error) ? String(walletData.usdc.error) : 'Unknown error';
                     document.getElementById('usdcBalance').textContent = 'Error';
-                    document.getElementById('depositAddress').textContent = 'USDC balance error: ' + msg;
+                    if (balanceStatus) {
+                        balanceStatus.className = 'status error';
+                        balanceStatus.textContent = 'USDC balance error: ' + msg;
+                    }
                 }
                 
                 if (walletData.matic.success) {
@@ -21114,8 +21129,12 @@ app.get('/wallet', (req, res) => {
                     const msg = (walletData.matic && walletData.matic.error) ? String(walletData.matic.error) : 'Unknown error';
                     // Keep UI clean but surface debug in console + deposit box
                     console.warn('MATIC balance error:', msg);
-                    if (document.getElementById('depositAddress').textContent === walletData.address) {
-                        document.getElementById('depositAddress').textContent = 'MATIC balance error: ' + msg;
+                    if (balanceStatus) {
+                        // Don't overwrite a USDC error if it already exists
+                        if (!balanceStatus.textContent) {
+                            balanceStatus.className = 'status error';
+                            balanceStatus.textContent = 'MATIC balance error: ' + msg;
+                        }
                     }
                 }
                 
