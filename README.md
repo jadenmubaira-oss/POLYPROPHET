@@ -35,7 +35,7 @@
 
 | Feature | Behavior | Manual Override |
 |---------|----------|-----------------|
-| **Auto-Bankroll Profile** | Switches MICRO_SAFE/GROWTH at $20 | `autoProfile=0` in backtests |
+| **Auto-Bankroll Profile** | Bankroll-aware profiles (**AUTO_BANKROLL_MODE=SPRINT** default; SAFE available) | `autoProfile=0` in backtests |
 | **Peak-DD Size Brake** | Caps size to 12% if down 20% from peak (at ≥$20) | Disable via `peakDrawdownBrakeEnabled=false` |
 | **Auto-Transfer Detection** | Resets lifetime peak on deposits AND withdrawals | Thresholds in `CONFIG.RISK.autoTransfer*` |
 | **Guarded Auto-Optimizer** | Runs every 24h, applies only if 10%+ improvement + 0% ruin | `autoOptimizerEnabled=false` to disable |
@@ -78,7 +78,7 @@
 - **Runtime proofs (PAPER, $5 start)**:
   - `/api/perfection-check` → `allPassed: true` (vault wiring)
   - `/api/verify` → `PASS` (mode-aware; Redis required only for LIVE)
-  - `/api/risk-controls` confirms: `MICRO_SAFE` policy + `BOOTSTRAP` stage + `minOrderRiskOverride: true` + `$2 floor` enabled
+  - `/api/risk-controls` confirms: **SPRINT** policy (e.g. `MICRO_SPRINT`) + `BOOTSTRAP` stage + `$2 floor` enabled
 - **LIVE safety invariant (proven in code)**: if `TRADE_MODE=LIVE` and Redis is not available, startup **forces** `TRADE_MODE=PAPER` (prevents unsafe LIVE-without-persistence).
 - **LIVE-mode limitation**: full LIVE execution/redeem/restart proof requires real wallet funding + a live trade lifecycle (cannot be “proven” from static code alone).
 
@@ -91,17 +91,28 @@
 | **SECONDARY** | Minimize below-start dips | belowStartPct <= 10% |
 | **TIE-BREAKER** | Maximize worst-case | p05 return |
 
-**Critical (v95)**: The bot now runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match):  
-- **Bankroll < $20**: `kellyMax=0.17`, `MAX_POSITION_SIZE=0.17`, `riskEnvelope=ON` (**MICRO_SAFE**)  
-- **Bankroll $20-$999**: `kellyMax=0.32`, `MAX_POSITION_SIZE=0.32`, `riskEnvelope=OFF` (**GROWTH**)  
-- **Bankroll ≥ $1,000**: `kellyMax=0.12`, `MAX_POSITION_SIZE=0.07`, `riskEnvelope=ON` (**LARGE_BANKROLL** — v95 preserve+balanced)
+**Critical (v97)**: The bot runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match), with a bankroll‑aware strategy mode:
+
+- **Default: `AUTO_BANKROLL_MODE=SPRINT`** (max profit ASAP intent; still respects the $2 floor + circuit breaker + cooldown/global stop):
+  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.32`, `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**MICRO_SPRINT**)
+  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32`, `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (**SPRINT_GROWTH**)
+  - **Bankroll ≥ $1,000**: `MAX_POSITION_SIZE=0.07`, `kelly=ON (cap 0.12)`, `riskEnvelope=ON`, `profitProtection=ON` (**LARGE_BANKROLL**)
+
+- **Optional: `AUTO_BANKROLL_MODE=SAFE`** (legacy micro-safe under $20):
+  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.17`, `kellyMax=0.17`, `riskEnvelope=ON` (**MICRO_SAFE**)
+  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32`, `kellyMax=0.32`, `riskEnvelope=OFF` (**GROWTH**)
+  - **Bankroll ≥ $1,000**: `MAX_POSITION_SIZE=0.07`, `kellyMax=0.12`, `riskEnvelope=ON` (**LARGE_BANKROLL**)
+
+To switch modes:
+- **Env**: set `AUTO_BANKROLL_MODE=SAFE` or `AUTO_BANKROLL_MODE=SPRINT`
+- **API**: `POST /api/settings` with `{ "RISK": { "autoBankrollMode": "SAFE" } }` (or `"SPRINT"`)
 
 This means **deposits/withdrawals** and **drawdowns** automatically shift the risk profile without you changing settings. The **LARGE_BANKROLL** tier at $1k+ now uses a preserve+balanced mix (up from ultra-conservative v94) for better growth while still protecting capital.
 
-### What This Means in Practice (your $40 start)
+### What This Means in Practice (your $5 start)
 
-- **Fast compounding**: at $40 you start in **GROWTH** automatically.
-- **Automatic de‑risking**: if equity drops below $20, you automatically switch to **MICRO_SAFE**.
+- **Fast compounding**: at $5 you start in **MICRO_SPRINT** automatically (SPRINT mode).
+- **Automatic de‑risking**: at $1k+ you automatically switch to **LARGE_BANKROLL**.
 - **Reality backtests are coverage‑gated**: we only count a horizon when `summary.timeSpan.hours ≥ 0.9 × requestedHours`. (Right now, 168h often has <168h coverage, so treat “7‑day” claims as invalid unless coverage proves it.)
 
 ---
@@ -118,12 +129,19 @@ This means **deposits/withdrawals** and **drawdowns** automatically shift the ri
 
 We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. Right now, **168h often has <168h coverage**, so the score typically uses **24h + 72h**.
 
-### The Winning Setup (your $40 start)
+### The Winning Setup (your $5 start — SPRINT auto-mode)
 
 With `autoProfile=1` (default):
-- **Bankroll ≥ $20 ⇒ GROWTH**: `kellyMax=0.32`, `MAX_POSITION_SIZE=0.32`, `riskEnvelope=OFF`
+- **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=OFF`, `riskEnvelope=OFF`, `profitProtection=OFF` (until $1k+)
 
-#### Example 72h outcomes (deployed build `29aa77a`)
+#### Polymarket-native backtest (this repo’s debug corpus coverage, $5 start)
+
+- 720h requested (coverage-limited by corpus): **25 trades**, **92% WR**, **final $112.92**, **maxDD 32%**, **hit $100 at day 10**
+  - Command: `GET /api/backtest-polymarket?hours=720&balance=5&tier=HYBRID&assets=BTC,ETH&entry=SNAPSHOT`
+
+> Note: This is **not a guarantee**. It is a deterministic replay over the repo’s available resolved windows.
+
+#### Historical ($40 start) notes (do not treat as current truth)
 
 - 72h, offset=0: **final $98.55** (no ruin)
 - 72h, offset=24: **final $116.72** (no ruin)
@@ -138,16 +156,18 @@ Coverage‑gated 24h+72h speed score across offsets **0/12/24/48/60/72**:
 
 #### Risk envelope ON vs OFF (sanity)
 
-At $40, `riskEnvelope=ON` now **does trade** (v89 fixed min‑order freeze), but **speed collapses** vs env=OFF. If your goal is “max profit ASAP”, env=OFF is required in GROWTH.
+At $40, `riskEnvelope=ON` now **does trade** (v89 fixed min‑order freeze), but **speed collapses** vs envelope OFF.
 
 ### Balance‑dependent recommendation (the “perfect” setup)
 
 Use **autoProfile ON** (default). Manual override options:
 
-| Bankroll | kellyMax | riskEnvelope | Notes |
-|---------:|---------:|:------------:|------|
-| < $20 | 0.17 | ON | micro‑safe survival mode |
-| ≥ $20 | 0.32 | OFF | growth mode (your $40 start) |
+| Bankroll | Mode | kelly | riskEnvelope | Notes |
+|---------:|------|:-----:|:------------:|------|
+| < $1,000 | **SPRINT (default)** | OFF | OFF | max compounding (still respects floor + brakes) |
+| ≥ $1,000 | **LARGE_BANKROLL** | ON | ON | preservation / liquidity-aware |
+| < $20 | **SAFE (optional)** | ON (0.17 cap) | ON | micro-safe survival mode |
+| ≥ $20 | **SAFE (optional)** | ON (0.32 cap) | OFF | growth mode |
 
 ---
 
@@ -161,13 +181,13 @@ PolyProphet is an automated trading bot for Polymarket's 15-minute BTC/ETH up/do
 
 The system now **automatically selects the best/fastest safe profile based on CURRENT bankroll** (LIVE + PAPER + backtests parity):
 
-| Bankroll | Profile | kellyMax | riskEnvelope | MAX_POSITION_SIZE |
-|---------:|---------|---------:|:------------:|------------------:|
-| < $20 | MICRO_SAFE | 0.17 | ON | 0.17 |
-| $20-$999 | GROWTH | 0.32 | OFF | 0.32 |
-| ≥ $1,000 | LARGE_BANKROLL | 0.10 | ON | 0.05 |
+| Bankroll | Profile | kelly | profitProtection | riskEnvelope | MAX_POSITION_SIZE |
+|---------:|---------|:-----:|:---------------:|:------------:|------------------:|
+| < $20 | MICRO_SPRINT | OFF | OFF | OFF | 0.32 |
+| $20-$999 | SPRINT_GROWTH | OFF | OFF | OFF | 0.32 |
+| ≥ $1,000 | LARGE_BANKROLL | ON (cap 0.12) | ON | ON | 0.07 |
 
-With your **$40 start**, you begin in **GROWTH** automatically. At $1k+, you switch to **LARGE_BANKROLL** (capital preservation). If you draw down below $20, you move to **MICRO_SAFE**.
+With your **$5 start**, you begin in **MICRO_SPRINT** automatically (SPRINT mode). At $1k+, you switch to **LARGE_BANKROLL** (capital preservation).
 
 | Parameter | Value |
 |-----------|-------|
@@ -1503,7 +1523,8 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ### v78 (2026-01-03) — FINAL
 
-- **FIX**: Backtest parity - `adaptiveMode` and `kellyEnabled` now DEFAULT TO TRUE (matching runtime)
+- **FIX**: Backtest parity - `adaptiveMode` and `kellyEnabled` request flags default to TRUE (matching runtime)
+  - **v97 note**: `AUTO_BANKROLL_MODE=SPRINT` can auto-disable profitProtection/Kelly at small bankrolls for parity with runtime SPRINT policy.
 - **FIX**: Risk envelope min-order freeze - only blocks when `effectiveBudget < MIN_ORDER` (not `maxTradeSize < MIN_ORDER`)
 - **ADD**: HYBRID tier mode for backtest - allows both CONVICTION and ADVISORY (blocks NONE)
 - **FIX**: Kelly fraction/maxFraction now pull from runtime CONFIG if query param not specified
@@ -1511,7 +1532,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 **Backtest Parity Fixes**:
 - Before v78: `adaptiveMode=false` and `kellyEnabled=false` were defaults (diverged from runtime)
-- After v78: Both default to TRUE, matching `CONFIG.RISK.kellyEnabled=true` and runtime profit lock-in
+- After v78: Both default to TRUE, matching runtime request defaults; policy may still disable them (e.g. SPRINT mode).
 
 **Risk Envelope Min-Order Fix**:
 - Before v78: Trades blocked when `maxTradeSize = effectiveBudget * perTradeCap < $1.10`
