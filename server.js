@@ -15406,7 +15406,20 @@ class SupremeBrain {
                     let pWinRaw = null;
                     let lcbUsed = false;
                     
-                    if (tier === 'ADVISORY' && typeof this.getCalibratedPWinWithLCB === 'function') {
+                    // 🏆 v96.3: Use conservative LCB pWin for BOTH ADVISORY and (optionally) CONVICTION.
+                    // This protects against overconfidence at high prices and improves robustness across regimes.
+                    const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false); // default ON
+
+                    if (tier === 'CONVICTION' && convictionLcbEnabled && typeof this.getTierConditionedPWinWithLCB === 'function') {
+                        // CONVICTION: Use tier-conditioned Wilson LCB when enough samples exist
+                        pWinRaw = this.getTierConditionedPWinWithLCB('CONVICTION', currentOdds, { z: 1.645, minSamples: 10, fallback: null });
+                        if (pWinRaw !== null) {
+                            lcbUsed = true;
+                            log(`📊 LCB GATING: CONVICTION using tier-conditioned Wilson LCB pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
+                        }
+                    }
+
+                    if (pWinRaw === null && tier === 'ADVISORY' && typeof this.getCalibratedPWinWithLCB === 'function') {
                         // ADVISORY: Use conservative LCB estimate to reduce overconfidence
                         pWinRaw = this.getCalibratedPWinWithLCB(finalConfidence, { z: 1.645, minSamples: 5, fallback: null });
                         if (pWinRaw !== null) {
@@ -16504,6 +16517,57 @@ SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts
     }
     
     return fallbackPWin;
+};
+
+// 🏆 v96.3: Tier-conditioned pWin with Wilson LCB (conservative)
+// This is used to prevent overconfidence (especially at high entry prices) when sample sizes are limited.
+// Unlike getTierConditionedPWin(), this returns a LOWER-BOUND estimate when enough samples exist.
+SupremeBrain.prototype.getTierConditionedPWinWithLCB = function (tier, entryPrice, opts = {}) {
+    const z = opts.z ?? 1.645; // 90% confidence by default
+    const minSamples = opts.minSamples ?? 10;
+    // IMPORTANT: allow explicit null fallback
+    const fallback = Object.prototype.hasOwnProperty.call(opts, 'fallback') ? opts.fallback : null;
+
+    const safeLcb = (wins, total) => {
+        const n = Number(total);
+        const w = Number(wins);
+        if (!Number.isFinite(n) || n <= 0) return fallback;
+        if (!Number.isFinite(w) || w < 0) return fallback;
+        const pHat = Math.max(0, Math.min(1, w / n));
+        const lcb = wilsonLCB(pHat, n, z);
+        return Number.isFinite(lcb) ? lcb : fallback;
+    };
+
+    if (!this.tierCalibration || !this.tierCalibration[tier]) {
+        return fallback;
+    }
+
+    const tc = this.tierCalibration[tier];
+
+    // First: price-band specific (most precise)
+    if (Number.isFinite(entryPrice)) {
+        const band = (entryPrice < 0.20 || entryPrice > 0.95) ? 'extreme' : 'mid';
+        const pb = tc.priceBands && tc.priceBands[band];
+        if (pb && Number(pb.total) >= minSamples) {
+            return safeLcb(pb.wins, pb.total);
+        }
+    }
+
+    // Second: tier-wide
+    if (Number(tc.total) >= minSamples) {
+        return safeLcb(tc.wins, tc.total);
+    }
+
+    // Third: overall stats fallback (still tier-aware when possible)
+    const s = this.stats || {};
+    if (tier === 'CONVICTION' && Number(s.convictionTotal) >= minSamples) {
+        return safeLcb(s.convictionWins, s.convictionTotal);
+    }
+    if (Number(s.total) >= minSamples) {
+        return safeLcb(s.wins, s.total);
+    }
+
+    return fallback;
 };
 
 // ==================== 🏆 v95 LCB GATING PRIMITIVES ====================
