@@ -7,13 +7,21 @@ const WebSocket = require('ws');
 const cors = require('cors');
 const Redis = require('ioredis');
 const auth = require('basic-auth');
-require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
+const dotenv = require('dotenv');
+// Prefer explicit ENV_FILE, then .env, then POLYPROPHET.env. (No secrets printed.)
+// This makes local/operator workflows resilient while keeping Render (env-vars) as the canonical deploy path.
+const _envFileCandidate = (process.env.ENV_FILE || '').trim();
+const _envFile =
+    (_envFileCandidate && fs.existsSync(path.join(__dirname, _envFileCandidate))) ? _envFileCandidate :
+    (fs.existsSync(path.join(__dirname, '.env')) ? '.env' :
+        (fs.existsSync(path.join(__dirname, 'POLYPROPHET.env')) ? 'POLYPROPHET.env' : null));
+dotenv.config(_envFile ? { path: path.join(__dirname, _envFile) } : undefined);
 const { ethers } = require('ethers');
 const axios = require('axios');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const https = require('https');
-const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 
 // ==================== PROXY CONFIGURATION ====================

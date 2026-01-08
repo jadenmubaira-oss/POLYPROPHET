@@ -1,6 +1,6 @@
 {
-    "timestamp": "2026-01-07T23:37:56.827Z",
-    "gitCommit": "9b75bf707f83c79647d6e3157313ab3d7118c930",
+    "timestamp": "2026-01-08T00:28:31.234Z",
+    "gitCommit": "9d738214f34c506915e3157861b0a45d852f445e",
     "counts": {
         "requiredFiles": 11,
         "debugFiles": 149,
@@ -10,10 +10,10 @@
     "requiredFiles": [
         {
             "path": "server.js",
-            "bytes": 1092998,
-            "lines": 21327,
-            "nonEmptyLines": 19952,
-            "sha256": "7504e36c331f389780e9097e74bdeac3693f72158f76f2fe5f208dda32e27777",
+            "bytes": 1093617,
+            "lines": 21335,
+            "nonEmptyLines": 19960,
+            "sha256": "7e5eb66b3264e65977746d0a6d4990f6f7ba57fe081638c28b4db9b362f06d39",
             "purpose": "Main PolyProphet server + trading engine: prediction, gating, execution, redemption, recovery, persistence, dashboards, and API routes."
         },
         {
@@ -1293,14 +1293,6 @@
     ],
     "otherFiles": [
         {
-            "path": ".env",
-            "bytes": 2998,
-            "lines": 89,
-            "nonEmptyLines": 69,
-            "sha256": "4700b5a4b711142be46056cccd522f006da844e5365733bed4081a5fdcdc7bbc",
-            "purpose": "Repository file (see path/name for its specific role)."
-        },
-        {
             "path": ".env.example.tmp",
             "bytes": 5572,
             "lines": 84,
@@ -2411,6 +2403,14 @@
             "nonEmptyLines": 212,
             "sha256": "34c0e3fa652dee2206769290ff553f889fb71b97fc7fa7b9b3436deab09e6d35",
             "purpose": "Documentation/notes for operators or forensic tracking."
+        },
+        {
+            "path": "POLYPROPHET.env",
+            "bytes": 487,
+            "lines": 10,
+            "nonEmptyLines": 10,
+            "sha256": "b20e99f801440a41fc37ab768bae0d58c16f9036f7481df92f75d3cfcc78845d",
+            "purpose": "Repository file (see path/name for its specific role)."
         },
         {
             "path": "scripts\\forensics\\analyze_debug.js",
