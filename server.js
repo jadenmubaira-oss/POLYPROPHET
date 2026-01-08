@@ -12558,87 +12558,148 @@ class TradeExecutor {
 
     // ==================== WALLET MANAGEMENT ====================
 
-    // Get live USDC balance from Polygon - RACE all RPCs for maximum speed
+    // Get live USDC balance from Polygon.
+    // IMPORTANT: We must bypass the GLOBAL HTTPS proxy (used for Polymarket/CLOB) for RPC calls.
+    // Ethers' JsonRpcProvider does not reliably bind to the agent at construction time, so using it while a global
+    // proxy is active can silently break balance fetching. We therefore perform direct JSON-RPC calls via axios
+    // with an explicit non-proxy agent (directAgent).
     async getUSDCBalance() {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
 
         const walletAddress = this.wallet.address;
-        const rpcEndpoints = [
-            'https://polygon-rpc.com',
-            'https://rpc.ankr.com/polygon',
-            'https://1rpc.io/matic',
-            'https://polygon-mainnet.g.alchemy.com/v2/demo'
-        ];
 
-        // Race all RPCs - first successful one wins
+        const envRpcUrls = String(process.env.POLYGON_RPC_URLS || '').trim();
+        const rpcEndpoints = (envRpcUrls
+            ? envRpcUrls.split(',').map(s => s.trim()).filter(Boolean)
+            : [
+                'https://polygon-rpc.com',
+                'https://rpc.ankr.com/polygon',
+                'https://1rpc.io/matic',
+                'https://polygon-mainnet.g.alchemy.com/v2/demo'
+            ]).slice(0, 10);
+
+        const timeoutMs = (() => {
+            const n = Number(process.env.POLYGON_RPC_TIMEOUT_MS || 8000);
+            return Number.isFinite(n) ? Math.max(2000, Math.min(20000, n)) : 8000;
+        })();
+
+        const iface = new ethers.utils.Interface(USDC_ABI);
+        const data = iface.encodeFunctionData('balanceOf', [walletAddress]);
+
+        const errors = [];
         const racePromises = rpcEndpoints.map(async (rpc) => {
-            const provider = createDirectProvider(rpc);
-            const usdcContract = new ethers.Contract(USDC_ADDRESS, USDC_ABI, provider);
-            const balance = await usdcContract.balanceOf(walletAddress);
-            const formatted = parseFloat(ethers.utils.formatUnits(balance, USDC_DECIMALS));
-            return { rpc, balance: formatted, balanceRaw: balance.toString() };
+            try {
+                const resp = await axios.post(rpc, {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'eth_call',
+                    params: [{ to: USDC_ADDRESS, data }, 'latest']
+                }, {
+                    timeout: timeoutMs,
+                    httpsAgent: directAgent,
+                    proxy: false,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const resultHex = resp?.data?.result;
+                if (!resultHex || typeof resultHex !== 'string') {
+                    throw new Error('Invalid JSON-RPC response (no result)');
+                }
+                const bn = ethers.BigNumber.from(resultHex);
+                const formatted = parseFloat(ethers.utils.formatUnits(bn, USDC_DECIMALS));
+                return { rpc, balance: formatted, balanceRaw: bn.toString() };
+            } catch (e) {
+                const msg = e?.message ? String(e.message) : String(e);
+                errors.push({ rpc, error: msg });
+                throw e;
+            }
         });
 
-        // Add a 5-second timeout
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('All RPCs timed out (5s)')), 5000)
-        );
-
         try {
-            const result = await Promise.race([
-                Promise.any(racePromises),
-                timeoutPromise
-            ]);
+            const result = await Promise.any(racePromises);
             return {
                 success: true,
                 balance: result.balance,
                 balanceRaw: result.balanceRaw,
-                address: walletAddress
+                address: walletAddress,
+                rpcUsed: result.rpc
             };
         } catch (e) {
-            log(`⚠️ USDC balance fetch failed: ${e.message}`);
-            return { success: false, error: e.message, balance: 0 };
+            const aggregate =
+                (e && e.errors && Array.isArray(e.errors))
+                    ? `All RPCs failed (${rpcEndpoints.length}). Example: ${String(e.errors[0]?.message || e.errors[0] || e.message)}`
+                    : (e?.message ? String(e.message) : String(e));
+            const detail = errors.length ? `${aggregate} | ${errors.map(x => `${x.rpc}: ${x.error}`).slice(0, 4).join(' ; ')}` : aggregate;
+            log(`⚠️ USDC balance fetch failed: ${detail}`);
+            return { success: false, error: detail, balance: 0, address: walletAddress };
         }
     }
 
-    // Get MATIC/POL balance (for gas) - RACE all RPCs for maximum speed
+    // Get MATIC/POL balance (for gas) (direct JSON-RPC, bypass proxy).
     async getMATICBalance() {
         if (!this.wallet) {
             return { success: false, error: 'No wallet loaded', balance: 0 };
         }
 
         const walletAddress = this.wallet.address;
-        const rpcEndpoints = [
-            'https://polygon-rpc.com',
-            'https://rpc.ankr.com/polygon',
-            'https://1rpc.io/matic',
-            'https://polygon-mainnet.g.alchemy.com/v2/demo'
-        ];
 
-        // Race all RPCs - first successful one wins
+        const envRpcUrls = String(process.env.POLYGON_RPC_URLS || '').trim();
+        const rpcEndpoints = (envRpcUrls
+            ? envRpcUrls.split(',').map(s => s.trim()).filter(Boolean)
+            : [
+                'https://polygon-rpc.com',
+                'https://rpc.ankr.com/polygon',
+                'https://1rpc.io/matic',
+                'https://polygon-mainnet.g.alchemy.com/v2/demo'
+            ]).slice(0, 10);
+
+        const timeoutMs = (() => {
+            const n = Number(process.env.POLYGON_RPC_TIMEOUT_MS || 8000);
+            return Number.isFinite(n) ? Math.max(2000, Math.min(20000, n)) : 8000;
+        })();
+
+        const errors = [];
         const racePromises = rpcEndpoints.map(async (rpc) => {
-            const provider = createDirectProvider(rpc);
-            const balance = await provider.getBalance(walletAddress);
-            const formatted = parseFloat(ethers.utils.formatEther(balance));
-            return { rpc, balance: formatted };
+            try {
+                const resp = await axios.post(rpc, {
+                    jsonrpc: '2.0',
+                    id: 1,
+                    method: 'eth_getBalance',
+                    params: [walletAddress, 'latest']
+                }, {
+                    timeout: timeoutMs,
+                    httpsAgent: directAgent,
+                    proxy: false,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const resultHex = resp?.data?.result;
+                if (!resultHex || typeof resultHex !== 'string') {
+                    throw new Error('Invalid JSON-RPC response (no result)');
+                }
+                const bn = ethers.BigNumber.from(resultHex);
+                const formatted = parseFloat(ethers.utils.formatEther(bn));
+                return { rpc, balance: formatted, balanceRaw: bn.toString() };
+            } catch (e) {
+                const msg = e?.message ? String(e.message) : String(e);
+                errors.push({ rpc, error: msg });
+                throw e;
+            }
         });
 
-        // Add a 5-second timeout
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('All RPCs timed out (5s)')), 5000)
-        );
-
         try {
-            const result = await Promise.race([
-                Promise.any(racePromises),
-                timeoutPromise
-            ]);
-            return { success: true, balance: result.balance };
+            const result = await Promise.any(racePromises);
+            return { success: true, balance: result.balance, balanceRaw: result.balanceRaw, rpcUsed: result.rpc };
         } catch (e) {
-            log(`⚠️ MATIC balance fetch failed: ${e.message}`);
-            return { success: false, error: e.message, balance: 0 };
+            const aggregate =
+                (e && e.errors && Array.isArray(e.errors))
+                    ? `All RPCs failed (${rpcEndpoints.length}). Example: ${String(e.errors[0]?.message || e.errors[0] || e.message)}`
+                    : (e?.message ? String(e.message) : String(e));
+            const detail = errors.length ? `${aggregate} | ${errors.map(x => `${x.rpc}: ${x.error}`).slice(0, 4).join(' ; ')}` : aggregate;
+            log(`⚠️ MATIC balance fetch failed: ${detail}`);
+            return { success: false, error: detail, balance: 0 };
         }
     }
 
@@ -21036,7 +21097,9 @@ app.get('/wallet', (req, res) => {
                 if (walletData.usdc.success) {
                     document.getElementById('usdcBalance').textContent = '$' + walletData.usdc.balance.toFixed(2);
                 } else {
+                    const msg = (walletData.usdc && walletData.usdc.error) ? String(walletData.usdc.error) : 'Unknown error';
                     document.getElementById('usdcBalance').textContent = 'Error';
+                    document.getElementById('depositAddress').textContent = 'USDC balance error: ' + msg;
                 }
                 
                 if (walletData.matic.success) {
@@ -21046,6 +21109,13 @@ app.get('/wallet', (req, res) => {
                         document.getElementById('gasWarning').style.display = 'block';
                     } else {
                         document.getElementById('gasWarning').style.display = 'none';
+                    }
+                } else {
+                    const msg = (walletData.matic && walletData.matic.error) ? String(walletData.matic.error) : 'Unknown error';
+                    // Keep UI clean but surface debug in console + deposit box
+                    console.warn('MATIC balance error:', msg);
+                    if (document.getElementById('depositAddress').textContent === walletData.address) {
+                        document.getElementById('depositAddress').textContent = 'MATIC balance error: ' + msg;
                     }
                 }
                 
