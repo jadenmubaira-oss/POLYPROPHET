@@ -13799,10 +13799,41 @@ async function runGuardedAutoOptimizer() {
         CONFIG.RISK.vaultTriggerBalance = best.trigger;
         CONFIG.RISK.stage1Threshold = best.trigger;
         
-        // Persist to Redis if available
+        // Persist to Redis if available (MUST survive restarts + redeploys)
+        // Use the same settings key that startup restores from: deity:settings.
+        // Only mutate the RISK threshold values; do NOT write the full CONFIG blob here.
         try {
             if (typeof redis !== 'undefined' && redis && redis.status === 'ready') {
-                await redis.set('polyprophet:settings', JSON.stringify(CONFIG));
+                const settingsKey = 'deity:settings';
+                let persisted = {};
+                try {
+                    const raw = await redis.get(settingsKey);
+                    persisted = raw ? JSON.parse(raw) : {};
+                } catch {
+                    persisted = {};
+                }
+
+                // Ensure metadata is present (used for diagnostics; no longer hard-invalidates on sha mismatch)
+                persisted._CONFIG_VERSION = CONFIG_VERSION;
+                persisted._SERVER_SHA256 = (typeof CODE_FINGERPRINT !== 'undefined' && CODE_FINGERPRINT)
+                    ? (CODE_FINGERPRINT.serverSha256 || null)
+                    : (persisted._SERVER_SHA256 || null);
+                persisted._GIT_COMMIT = (typeof CODE_FINGERPRINT !== 'undefined' && CODE_FINGERPRINT)
+                    ? (CODE_FINGERPRINT.gitCommit || null)
+                    : (persisted._GIT_COMMIT || null);
+
+                // Merge into existing RISK object to avoid clobbering unrelated keys
+                const existingRisk = (persisted.RISK && typeof persisted.RISK === 'object' && !Array.isArray(persisted.RISK))
+                    ? persisted.RISK
+                    : {};
+                persisted.RISK = {
+                    ...existingRisk,
+                    vaultTriggerBalance: best.trigger,
+                    stage1Threshold: best.trigger
+                };
+
+                await redis.set(settingsKey, JSON.stringify(persisted));
+                log(`💾 AUTO-OPTIMIZER: Persisted vaultTriggerBalance=$${best.trigger} to Redis settings`);
             }
         } catch { }
         
@@ -17194,19 +17225,26 @@ async function loadState() {
                 const shaMismatch = !!(currentSha && savedSha && savedSha !== currentSha);
                 const shaMissing = !!(currentSha && !savedSha);
 
-                if (savedVersion !== CONFIG_VERSION || shaMismatch || shaMissing) {
+                // 🏆 v97: Only invalidate persisted settings on CONFIG_VERSION mismatch (schema change).
+                // Server SHA changes on every deploy; clearing on SHA mismatch breaks autonomy (auto-optimizer + ops settings
+                // get wiped on redeploy). We instead deep-merge settings into the current CONFIG and rely on:
+                // - protectedKeys (never override secrets),
+                // - deep merge (preserve new keys),
+                // - CONFIG_VERSION (hard schema gate).
+                if (savedVersion !== CONFIG_VERSION) {
                     if (savedVersion !== CONFIG_VERSION) {
                         log(`⚠️ CONFIG_VERSION mismatch: Redis v${savedVersion} != Code v${CONFIG_VERSION}`);
-                    } else if (shaMissing) {
-                        log(`⚠️ SETTINGS FINGERPRINT missing: Redis has no _SERVER_SHA256; clearing to prevent stale overrides`);
-                    } else if (shaMismatch) {
-                        log(`⚠️ SETTINGS FINGERPRINT mismatch: Redis sha != Code sha; clearing to prevent stale overrides`);
                     }
                     log(`🔄 CLEARING stale Redis settings - using fresh hardcoded values!`);
                     await redis.del('deity:settings');
                     // Don't apply any settings - use hardcoded CONFIG as-is
                 } else {
                     // Version matches - safe to apply Redis settings
+                    if (shaMissing) {
+                        log(`⚠️ SETTINGS FINGERPRINT missing: Redis has no _SERVER_SHA256; applying settings via deep-merge`);
+                    } else if (shaMismatch) {
+                        log(`⚠️ SETTINGS FINGERPRINT mismatch: Redis sha != Code sha; applying settings via deep-merge`);
+                    }
                     // CRITICAL: These keys should NEVER be overwritten from Redis
                     // Environment variables ALWAYS take priority for security
                     const protectedKeys = [
@@ -17217,6 +17255,20 @@ async function loadState() {
                         'POLYMARKET_ADDRESS'
                     ];
 
+                    const deepMerge = (target, source) => {
+                        if (!source || typeof source !== 'object' || Array.isArray(source)) return source;
+                        if (!target || typeof target !== 'object' || Array.isArray(target)) return source;
+                        const result = { ...target };
+                        for (const k of Object.keys(source)) {
+                            if (source[k] !== null && typeof source[k] === 'object' && !Array.isArray(source[k])) {
+                                result[k] = deepMerge(target[k], source[k]);
+                            } else if (source[k] !== undefined) {
+                                result[k] = source[k];
+                            }
+                        }
+                        return result;
+                    };
+
                     // Apply persisted settings to CONFIG (except protected keys)
                     for (const [key, value] of Object.entries(settings)) {
                         if (key.startsWith('_')) continue; // Skip internal keys like _CONFIG_VERSION
@@ -17225,7 +17277,13 @@ async function loadState() {
                                 log(`🔒 Skipping Redis override for ${key} (env var takes priority)`);
                                 continue; // Skip - use env var instead
                             }
-                            CONFIG[key] = value;
+                            // Deep-merge objects (RISK/ORACLE/etc) to preserve new defaults and avoid schema drift
+                            if (typeof CONFIG[key] === 'object' && CONFIG[key] !== null && !Array.isArray(CONFIG[key]) &&
+                                typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                                CONFIG[key] = deepMerge(CONFIG[key], value);
+                            } else {
+                                CONFIG[key] = value;
+                            }
                         }
                     }
                     log('⚙️ Settings restored from Redis (credentials from env)');
