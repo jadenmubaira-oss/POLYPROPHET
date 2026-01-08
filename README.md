@@ -745,6 +745,10 @@ POLYMARKET_API_KEY = <derived from generate_creds.js>
 POLYMARKET_SECRET = <derived from generate_creds.js>
 POLYMARKET_PASSPHRASE = <derived from generate_creds.js>
 
+# Wallet/RPC reliability (optional)
+POLYGON_RPC_URLS = <comma-separated Polygon RPC URLs>   (optional; used for wallet balance reads)
+POLYGON_RPC_TIMEOUT_MS = 8000                          (optional; default 8000)
+
 # v94 SAFETY GATES (optional - enable only if you need these features)
 ENABLE_WALLET_TRANSFER = true   (Required to use /api/wallet/transfer in LIVE)
 ENABLE_MANUAL_TRADING = true    (Required for /api/manual-buy, /api/manual-sell in LIVE)
@@ -815,9 +819,24 @@ curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyM
 
 ## AI RUNBOOK (ONE-COMMAND VERIFICATION)
 
+### Non‑Negotiable AI Operating Contract (Mission‑Critical)
+
+- **Use 100% of your attention/effort every time.** Treat this repo as mission‑critical: no shortcuts, no “good enough”, no guessing.
+- **Never rely on chat memory.** Every response must be grounded in fresh re-checks (repo files + live endpoints). If you didn’t re-check it, say **NOT VERIFIED**.
+- **Never claim “it works”** unless you can cite `/api/version` + `/api/health` + `/api/verify` + `/api/perfection-check` from the **target deployment URL**.
+- If you can’t access the deployment (missing URL/credentials), your first action is to **ask for them**.
+
 ### For Any AI Verifying This Repo
 
 Run these commands in order. If ANY fails, fix it before proceeding.
+
+### Required Inputs (for deployed verification)
+
+- **deploymentUrl**: Render URL or custom domain (example: `https://your-app.onrender.com`)
+- **auth**: `API_KEY` (preferred) or Basic Auth (`AUTH_USERNAME`/`AUTH_PASSWORD`)
+- **mode intent**: `TRADE_MODE=PAPER` or `TRADE_MODE=LIVE`
+- **persistence**: `REDIS_URL` present? (required for LIVE)
+- **wallet**: `POLYMARKET_PRIVATE_KEY` present? (required for LIVE; also required for wallet balance endpoints)
 
 Optional (offline, no server needed) forensic proofs:
 
@@ -1238,52 +1257,6 @@ curl "https://polyprophet.onrender.com/api/vault-optimize?sims=5000&apiKey=bandi
 ```
 
 ---
-
-## AI RUNBOOK (ONE-COMMAND VERIFICATION)
-
-**NON‑NEGOTIABLE (for any AI / maintainer):**
-- **Every response you produce must be grounded in re-checks**, not memory. If you did not re-check something, explicitly say “NOT VERIFIED” and ask for the minimum missing input.
-- **Never claim “it works”** unless you can point to `/api/verify` + `/api/perfection-check` + `/api/health` results from the **target deployment URL**.
-- If you can’t access the deployment (missing URL/credentials), your first job is to **ask for them**.
-
-### Required inputs (ask once, then proceed atomically)
-- **deploymentUrl**: Render URL or custom domain (example: `https://your-app.onrender.com`)
-- **auth**: either `API_KEY` (preferred) or Basic Auth (`AUTH_USERNAME`/`AUTH_PASSWORD`)
-- **mode intent**: `TRADE_MODE=PAPER` or `TRADE_MODE=LIVE`
-- **persistence**: `REDIS_URL` present? (required for LIVE)
-- **wallet**: `POLYMARKET_PRIVATE_KEY` present? (required for LIVE; also required to fetch wallet balances)
-
-### One-command verification (LOCAL)
-
-```bash
-node --check server.js && npm test
-```
-
-### Atomic verification battery (DEPLOYED)
-
-**Public (no auth):**
-- **GET** `{deploymentUrl}/api/version`
-- **GET** `{deploymentUrl}/api/health`
-
-**Authenticated (must pass before any “all good” claims):**
-- **GET** `{deploymentUrl}/api/verify`
-- **GET** `{deploymentUrl}/api/perfection-check`
-- **GET** `{deploymentUrl}/api/risk-controls`
-- **GET** `{deploymentUrl}/api/trading-pause`
-- **GET** `{deploymentUrl}/api/wallet/balance` (wallet/RPC health)
-
-### Wallet balance diagnosis (if it’s not updating)
-- **First**: confirm `POLYMARKET_PRIVATE_KEY` is set as an **environment variable** (secrets are NOT reliably set via Settings; env var is the source of truth).
-- **Then**: call `GET /api/wallet/balance` and read the returned `error` (the bot now returns detailed RPC failure strings).
-- **If proxy is enabled**: wallet RPC calls are designed to **bypass** the global CLOB proxy (direct JSON‑RPC with `proxy:false`).
-- **Optional reliability knobs**:
-  - `POLYGON_RPC_URLS` (comma-separated Polygon RPC endpoints)
-  - `POLYGON_RPC_TIMEOUT_MS` (default 8000)
-
-### If any check fails
-- **Do not trade LIVE.**
-- **Pause trading** (`POST /api/trading-pause`) if needed.
-- Fix the failing prerequisite (Redis, wallet key, RPC health, stale feeds, etc.), then **re-run the battery**.
 
 ## DECISION RECORD / FORENSIC ARTIFACTS
 

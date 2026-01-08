@@ -5419,7 +5419,13 @@ app.get('/api/health', (req, res) => {
     // 🏆 v70: Determine overall status including feed staleness
     const staleAssetsList = ASSETS.filter(a => feedStaleAssets[a]);
     const hasStalePending = stalePendingPositions.length > 0;
-    const isDataDegraded = anyFeedStale || anyTradingHalted || hasStalePending;
+    // 🏆 v96.1: Consider drift auto-disable + non-NORMAL circuit breaker + manual pause as "degraded trading"
+    const enabledAssetsForHealth = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
+    const autoDisabledAssetsForHealth = enabledAssetsForHealth.filter(a => !!Brains?.[a]?.autoDisabled);
+    const hasAutoDisabled = autoDisabledAssetsForHealth.length > 0;
+    const hasManualPause = !!tradeExecutor?.tradingPaused;
+    const cbDegraded = !!(cbStatus && cbStatus.state && cbStatus.state !== 'NORMAL');
+    const isDataDegraded = anyFeedStale || anyTradingHalted || hasStalePending || hasAutoDisabled || hasManualPause || cbDegraded;
     
     res.json({
         status: isDataDegraded ? 'degraded' : 'ok',
@@ -5452,6 +5458,13 @@ app.get('/api/health', (req, res) => {
             alertsPending: typeof watchdogState !== 'undefined' ? watchdogState.alertsSent.size : 0
         },
         circuitBreaker: cbStatus,
+        // 🏆 v96.1: Explicit trading suppression signals (prevents silent no-trade confusion)
+        tradingSuppression: {
+            manualPause: hasManualPause,
+            circuitBreakerState: cbStatus?.state || null,
+            driftAutoDisabledAssets: autoDisabledAssetsForHealth,
+            feedStaleAssets: staleAssetsList
+        },
         // 🏆 v60: Pending settlements (awaiting Gamma, not blocking trades)
         pendingSettlements: {
             count: pendingSettlements.length,
@@ -5555,6 +5568,14 @@ app.get('/api/risk-controls', (req, res) => {
         if (belowFloor) blocks.push('BALANCE_FLOOR');
         if (tradeExecutor?.circuitBreaker?.state === 'HALTED') blocks.push('CIRCUIT_BREAKER_HALTED');
         if (tradeExecutor?.tradingPaused) blocks.push('MANUAL_PAUSE');
+        // 🏆 v96.1: Surface drift-based suppression explicitly (prevents "silent no-trade" confusion)
+        try {
+            const enabledAssets = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
+            const autoDisabledAssets = enabledAssets.filter(a => !!drift?.[a]?.autoDisabled);
+            const driftWarnAssets = enabledAssets.filter(a => !!drift?.[a]?.driftWarning);
+            if (autoDisabledAssets.length > 0) blocks.push(`AUTO_DISABLED:${autoDisabledAssets.join(',')}`);
+            else if (driftWarnAssets.length > 0) blocks.push(`DRIFT_WARNING:${driftWarnAssets.join(',')}`);
+        } catch { }
 
         // 🏆 v96: LCB usage status
         const lcbAvailable = ASSETS.some(a => typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function');
@@ -6428,6 +6449,18 @@ app.get('/api/verify', async (req, res) => {
     addCheck('Brains with calibration',
         brainsOk && brainsWithCalibration > 0,
         `${brainsWithCalibration}/${ASSETS.length} assets have calibration data`);
+
+    // Check 6.5: Drift auto-disable status (WARN if any enabled asset is auto-disabled)
+    // This is a common cause of "bot isn't trading" while everything else looks healthy.
+    const enabledAssetsForDrift = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
+    const autoDisabledAssets = enabledAssetsForDrift.filter(a => !!Brains?.[a]?.autoDisabled);
+    const driftWarningAssets = enabledAssetsForDrift.filter(a => !!Brains?.[a]?.driftWarning);
+    addCheck('Drift / auto-disable status',
+        autoDisabledAssets.length === 0,
+        autoDisabledAssets.length > 0
+            ? `Auto-disabled: ${autoDisabledAssets.join(', ')} (probes may still trade at reduced size)`
+            : (driftWarningAssets.length > 0 ? `Drift warning: ${driftWarningAssets.join(', ')}` : 'No drift warnings / auto-disable'),
+        'warn');
     
     // Check 7: Live data feed
     const now = Date.now();
@@ -10317,6 +10350,15 @@ class TradeExecutor {
                     log(`📊 FREQUENCY FLOOR SIZE: $${originalSize.toFixed(2)} × ${(options.frequencyFloorMultiplier * 100).toFixed(0)}% = $${size.toFixed(2)}`, asset);
                 }
 
+                // 🏆 v96.1: Drift probe sizing (self-healing auto-disable)
+                // When an asset is autoDisabled (rolling accuracy drift), we allow throttled reduced-size CONVICTION probes.
+                // This prevents permanent lockouts while keeping risk bounded.
+                if (options.driftProbeMultiplier && options.driftProbeMultiplier < 1.0) {
+                    const originalSize = size;
+                    size = size * options.driftProbeMultiplier;
+                    log(`🧪 DRIFT PROBE SIZE: $${originalSize.toFixed(2)} × ${(options.driftProbeMultiplier * 100).toFixed(0)}% = $${size.toFixed(2)}${options.driftProbeReason ? ` (${options.driftProbeReason})` : ''}`, asset);
+                }
+
                 // 🏆 v74 KELLY SIZING: Apply mathematically optimal position sizing
                 // Only for ORACLE mode with valid pWin and entryPrice
                 const effectiveKellyEnabled =
@@ -11515,11 +11557,15 @@ class TradeExecutor {
                             if (rollingWR < 0.60 && !brain.autoDisabled) {
                                 log(`🛑 AUTO-DISABLE: ${pos.asset} rolling WR ${(rollingWR * 100).toFixed(1)}% < 60% - suspending CONVICTION trades`, pos.asset);
                                 brain.autoDisabled = true;
+                                brain.autoDisabledAt = Date.now();
+                                brain.autoDisabledProbeLastAt = 0; // allow an immediate probe next time a CONVICTION signal appears
                             }
                         } else if (rollingWR >= 0.75 && brain.driftWarning) {
                             log(`✅ DRIFT RECOVERED: ${pos.asset} rolling WR = ${(rollingWR * 100).toFixed(1)}% - back above threshold`, pos.asset);
                             brain.driftWarning = false;
                             brain.autoDisabled = false;
+                            brain.autoDisabledAt = 0;
+                            brain.autoDisabledProbeLastAt = 0;
                         }
                     }
                 }
@@ -14304,6 +14350,11 @@ class SupremeBrain {
         this.rollingConviction = [];  // Array of { time, wasCorrect } for last 50 CONVICTION trades
         this.driftWarning = false;    // True if rolling WR < 70%
         this.autoDisabled = false;    // True if accuracy dropped below threshold
+        // 🏆 v96.1: Auto-disable must be SELF-HEALING (no permanent lockouts).
+        // We persist timestamps so the bot can (a) throttle "probe" conviction trades while suspended and
+        // (b) provide full diagnostics to /api/health and /api/risk-controls.
+        this.autoDisabledAt = 0;          // epoch ms when autoDisabled was set
+        this.autoDisabledProbeLastAt = 0; // epoch ms last reduced-size "probe" conviction trade attempt
 
         // 🎯 v53 TRADE ENTRY TRACKING (for accurate profit backtesting)
         // Captures the ENTRY-TIME prices when trade decision was made (not cycle-end prices)
@@ -15228,6 +15279,13 @@ class SupremeBrain {
             let shouldBlockTrade = false;
             let frequencyFloorPending = false;  // True if ADVISORY should be evaluated against frequency floor
             
+            // Drift probe (self-healing auto-disable): if an asset is autoDisabled, we allow reduced-size
+            // CONVICTION "probe" trades at a throttled interval so the system can recover autonomously.
+            // Without this, autoDisabled can become a permanent lockout (no new conviction trades → no new data).
+            let driftProbeEnabled = true;
+            let driftProbeMultiplier = null;
+            let driftProbeReason = null;
+
             // 🚫 CRITICAL: XRP NONE tier has 0.5% accuracy - BLOCK COMPLETELY
             if (tier === 'NONE' && this.asset === 'XRP') {
                 log(`🚫 HARD BLOCK: XRP NONE tier has 0.5% accuracy - BLOCKED`, this.asset);
@@ -15235,9 +15293,48 @@ class SupremeBrain {
             }
             // 🎯 v52: Auto-disabled asset due to drift detection (rolling WR < 60%)
             else if (this.autoDisabled && tier === 'CONVICTION') {
-                log(`🛑 AUTO-DISABLED: ${this.asset} CONVICTION trades suspended - rolling WR dropped below threshold`, this.asset);
-                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'AUTO_DISABLED', failedGates: ['rolling_accuracy'], inputs: { signal: finalSignal, tier, autoDisabled: this.autoDisabled, driftWarning: this.driftWarning } });
-                shouldBlockTrade = true;
+                // Defaults chosen to preserve safety while remaining autonomous:
+                // - 1 probe per cycle (15m) at 25% size to test if edge has returned.
+                const probeEnabledCfg = (CONFIG?.RISK?.autoDisabledProbeEnabled !== false);
+                const probeIntervalMinCfg = Number(CONFIG?.RISK?.autoDisabledProbeIntervalMinutes);
+                const probeIntervalMin = Number.isFinite(probeIntervalMinCfg) ? Math.max(1, Math.min(1440, probeIntervalMinCfg)) : 15;
+                const probeSizeMultCfg = Number(CONFIG?.RISK?.autoDisabledProbeSizeMultiplier);
+                const probeSizeMult = Number.isFinite(probeSizeMultCfg) ? Math.max(0.05, Math.min(0.5, probeSizeMultCfg)) : 0.25;
+
+                driftProbeEnabled = !!probeEnabledCfg;
+
+                const nowMs = Date.now();
+                const lastProbeAt = Number(this.autoDisabledProbeLastAt || 0);
+                const intervalMs = probeIntervalMin * 60 * 1000;
+                const canProbe = driftProbeEnabled && (nowMs - lastProbeAt >= intervalMs);
+
+                if (canProbe) {
+                    this.autoDisabledProbeLastAt = nowMs;
+                    driftProbeMultiplier = probeSizeMult;
+                    driftProbeReason = `AUTO_DISABLED_PROBE_${Math.round(probeIntervalMin)}m@${Math.round(probeSizeMult * 100)}%`;
+                    log(`🧪 DRIFT PROBE: ${this.asset} auto-disabled → allowing reduced-size CONVICTION (${Math.round(probeSizeMult * 100)}%) to test recovery`, this.asset);
+                    // Do NOT block; proceed with normal oracle gates. Size reduction happens in executeTrade().
+                } else {
+                    const nextProbeInSec = driftProbeEnabled ? Math.max(0, Math.ceil((intervalMs - (nowMs - lastProbeAt)) / 1000)) : null;
+                    log(`🛑 AUTO-DISABLED: ${this.asset} CONVICTION suspended (drift). Next probe in ${nextProbeInSec !== null ? nextProbeInSec + 's' : 'N/A (probe disabled)'}`, this.asset);
+                    gateTrace.record(this.asset, {
+                        decision: 'NO_TRADE',
+                        reason: 'AUTO_DISABLED',
+                        failedGates: ['rolling_accuracy'],
+                        inputs: {
+                            signal: finalSignal,
+                            tier,
+                            autoDisabled: this.autoDisabled,
+                            driftWarning: this.driftWarning,
+                            autoDisabledAt: this.autoDisabledAt || 0,
+                            probeEnabled: driftProbeEnabled,
+                            probeIntervalMin,
+                            probeSizeMult,
+                            nextProbeInSec
+                        }
+                    });
+                    shouldBlockTrade = true;
+                }
             }
             // CONVICTION-ONLY MODE check
             else if (CONFIG.RISK.convictionOnlyMode && tier !== 'CONVICTION') {
@@ -15351,6 +15448,10 @@ class SupremeBrain {
                         signal: finalSignal,
                         confidence: finalConfidence,
                         tier,
+                        // 🏆 v96.1: Drift probe metadata (only set when autoDisabled and probe allowed)
+                        driftProbe: !!driftProbeMultiplier,
+                        driftProbeMultiplier: driftProbeMultiplier,
+                        driftProbeReason: driftProbeReason,
                         pWin: pWinEff,
                         pWinRaw: pWinRaw,  // 🏆 v96: Raw pWin before weighting
                         lcbUsed: lcbUsed,  // 🏆 v96: True if Wilson LCB was used (ADVISORY)
@@ -15447,7 +15548,14 @@ class SupremeBrain {
                             // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
                             // 🏆 v96: Pass lcbUsed for audit trail
                             const genesisAgree = modelVotes.genesis === finalSignal;
-                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree, lcbUsed });
+                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
+                                tier: tier,
+                                pWin: pWinEff,
+                                genesisAgree,
+                                lcbUsed,
+                                driftProbeMultiplier: driftProbeMultiplier,
+                                driftProbeReason: driftProbeReason
+                            });
                         }
                         else {
                             // Safe to proceed with normal checks
@@ -15511,7 +15619,14 @@ class SupremeBrain {
                                 // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
                                 // 🏆 v96: Pass lcbUsed for audit trail
                                 const genesisAgreeStd = modelVotes.genesis === finalSignal;
-                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, { tier: tier, pWin: pWinEff, genesisAgree: genesisAgreeStd, lcbUsed });
+                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
+                                    tier: tier,
+                                    pWin: pWinEff,
+                                    genesisAgree: genesisAgreeStd,
+                                    lcbUsed,
+                                    driftProbeMultiplier: driftProbeMultiplier,
+                                    driftProbeReason: driftProbeReason
+                                });
                             } else {
                                 log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
                                 // 🎯 GOAT v44.1: Record blocked trade with specific gates that failed
@@ -16826,6 +16941,9 @@ async function saveState() {
         rollingConviction: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].rollingConviction || [] }), {}),
         driftWarning: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].driftWarning || false }), {}),
         autoDisabled: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].autoDisabled || false }), {}),
+        // 🏆 v96.1: Persist drift auto-disable timestamps (enables self-healing probes + clean diagnostics)
+        autoDisabledAt: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].autoDisabledAt || 0 }), {}),
+        autoDisabledProbeLastAt: ASSETS.reduce((acc, a) => ({ ...acc, [a]: Brains[a].autoDisabledProbeLastAt || 0 }), {}),
 
         // 🔴 FIX #17: PERSIST TRADE EXECUTOR STATE (survives restarts!)
         // 🚀 PINNACLE v27 CRASH RECOVERY: Now persists OPEN POSITIONS + recovery queues
@@ -17113,12 +17231,16 @@ async function loadState() {
                         Brains[a].rollingConviction = [];
                         Brains[a].driftWarning = false;
                         Brains[a].autoDisabled = false;
+                        Brains[a].autoDisabledAt = 0;
+                        Brains[a].autoDisabledProbeLastAt = 0;
                     });
                     log(`🔄 Reset rollingConviction (legacy mode=${rollingMode}) - now tracks EXECUTED trades only`);
                 } else {
                     if (state.rollingConviction) ASSETS.forEach(a => { if (state.rollingConviction[a]) Brains[a].rollingConviction = state.rollingConviction[a]; });
                     if (state.driftWarning) ASSETS.forEach(a => { if (state.driftWarning[a] !== undefined) Brains[a].driftWarning = state.driftWarning[a]; });
                     if (state.autoDisabled) ASSETS.forEach(a => { if (state.autoDisabled[a] !== undefined) Brains[a].autoDisabled = state.autoDisabled[a]; });
+                    if (state.autoDisabledAt) ASSETS.forEach(a => { if (state.autoDisabledAt[a] !== undefined) Brains[a].autoDisabledAt = state.autoDisabledAt[a]; });
+                    if (state.autoDisabledProbeLastAt) ASSETS.forEach(a => { if (state.autoDisabledProbeLastAt[a] !== undefined) Brains[a].autoDisabledProbeLastAt = state.autoDisabledProbeLastAt[a]; });
                 }
 
                 // 🔴 FIX #17: RESTORE TRADE EXECUTOR STATE (preserves balance across restarts!)
@@ -20284,6 +20406,8 @@ app.post('/api/reset-drift', async (req, res) => {
             Brains[a].rollingConviction = [];
             Brains[a].driftWarning = false;
             Brains[a].autoDisabled = false;
+            Brains[a].autoDisabledAt = 0;
+            Brains[a].autoDisabledProbeLastAt = 0;
         });
 
         // Persist immediately (best-effort); interval saveState will also pick it up.
