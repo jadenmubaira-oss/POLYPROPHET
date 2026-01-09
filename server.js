@@ -6801,6 +6801,88 @@ app.get('/api/verify', async (req, res) => {
         polyCredsPresent ? 'OK (key/secret/passphrase set)' : (CONFIG?.POLYMARKET_AUTO_DERIVE_CREDS ? 'Missing POLYMARKET_API_KEY/SECRET/PASSPHRASE (auto-derive enabled but not yet successful)' : 'Missing POLYMARKET_API_KEY/SECRET/PASSPHRASE'),
         walletRequired ? 'error' : 'warn');
 
+    // Check 4f.0 (deep): Geoblock check (official Polymarket endpoint)
+    // Docs: https://docs.polymarket.com/developers/CLOB/geoblock
+    // This checks the geographic eligibility of the *requesting IP address*.
+    if (deep) {
+        let geoOk = false;
+        let geoDetails = 'Not checked';
+        const severity = walletRequired ? 'error' : 'warn';
+        try {
+            const nowMs = Date.now();
+            const cacheKey = '__POLYPROPHET_GEOBLOCK_CACHE__';
+            const cache = (global && global[cacheKey] && typeof global[cacheKey] === 'object') ? global[cacheKey] : null;
+            const ttlMs = (() => {
+                const n = Number(process.env.POLYMARKET_GEO_TTL_MS || 10 * 60 * 1000);
+                return Number.isFinite(n) ? Math.max(30_000, Math.min(60 * 60 * 1000, n)) : (10 * 60 * 1000);
+            })();
+            const fallbackMaxAgeMs = 60 * 60 * 1000; // allow last-known result during transient network blips
+
+            const isValidPayload = (p) => !!p && typeof p === 'object' && typeof p.blocked === 'boolean';
+            const fmtPayload = (p, meta = '') => {
+                const blocked = typeof p?.blocked === 'boolean' ? p.blocked : 'ERR';
+                const ip = p?.ip ? String(p.ip) : 'N/A';
+                const country = p?.country ? String(p.country) : 'N/A';
+                const region = p?.region ? String(p.region) : 'N/A';
+                return `blocked=${blocked}; country=${country}; region=${region}; ip=${ip}${meta ? `; ${meta}` : ''}`;
+            };
+
+            // Prefer fresh cache to reduce flapping/latency in LIVE self-check loops
+            if (cache && isValidPayload(cache.data) && (nowMs - Number(cache.ts || 0)) < ttlMs) {
+                geoOk = cache.data.blocked === false;
+                const ageSec = Math.max(0, Math.round((nowMs - Number(cache.ts || 0)) / 1000));
+                geoDetails = fmtPayload(cache.data, `cached age=${ageSec}s`);
+            } else {
+                const url = 'https://polymarket.com/api/geoblock';
+                const timeoutMs = (() => {
+                    const n = Number(process.env.HTTP_TIMEOUT_MS || 10000);
+                    return Number.isFinite(n) ? Math.max(2000, Math.min(30000, n)) : 10000;
+                })();
+                const res = await axios.get(url, {
+                    timeout: Math.min(15000, timeoutMs),
+                    validateStatus: () => true,
+                    responseType: 'json',
+                    httpsAgent: directAgent || undefined, // direct by default (matches our default CLOB behavior)
+                    proxy: false,
+                    headers: {
+                        'Accept': 'application/json',
+                        'User-Agent': 'POLYPROPHET/1.0'
+                    }
+                });
+
+                let payload = res?.data;
+                if (typeof payload === 'string') {
+                    try { payload = JSON.parse(payload); } catch { /* ignore */ }
+                }
+
+                if (res?.status !== 200) {
+                    geoOk = false;
+                    geoDetails = `HTTP ${res?.status || 'ERR'}`;
+                } else if (!isValidPayload(payload)) {
+                    geoOk = false;
+                    geoDetails = `Invalid response`;
+                } else {
+                    geoOk = payload.blocked === false;
+                    geoDetails = fmtPayload(payload);
+                    try {
+                        if (global) global[cacheKey] = { ts: nowMs, data: payload };
+                    } catch { /* ignore */ }
+                }
+
+                // Fallback to last-known cache if request failed/invalid (avoid false halts during brief outages)
+                if (!geoOk && cache && isValidPayload(cache.data) && (nowMs - Number(cache.ts || 0)) < fallbackMaxAgeMs) {
+                    const ageSec = Math.max(0, Math.round((nowMs - Number(cache.ts || 0)) / 1000));
+                    geoOk = cache.data.blocked === false;
+                    geoDetails = fmtPayload(cache.data, `cached(fallback) age=${ageSec}s`);
+                }
+            }
+        } catch (e) {
+            geoOk = false;
+            geoDetails = `Error: ${String(e?.message || e).slice(0, 160)}`;
+        }
+        addCheck('Polymarket geoblock endpoint (deep)', geoOk, geoDetails, severity);
+    }
+
     // Check 4f (deep): CLOB trading permission + collateral balance/allowance
     // This catches the most common "it looks healthy but won't trade" failures:
     // - account is in closed-only mode (geo/block/ban)
@@ -7170,6 +7252,7 @@ app.get('/api/verify', async (req, res) => {
             'Baseline bankroll initialized (v96)': 'For PAPER: auto-initialized. For LIVE: first successful balance fetch initializes it.',
             'LIVE balance freshness': 'refreshLiveBalance() must update lastBalanceFetch',
             'CLOB trading permission + collateral allowance (deep)': 'If closedOnly=true: geo/ban restriction. If allowance/balance is 0: fund/approve collateral. Also verify POLYMARKET_SIGNATURE_TYPE (0/1) and POLYMARKET_ADDRESS (funder/profile address).',
+            'Polymarket geoblock endpoint (deep)': 'Your server IP appears blocked from placing orders. Polymarket enforces geo restrictions; run the bot from an eligible region or contact Polymarket support if you believe this is incorrect.',
             'Streak sizing enabled': 'Check TradeExecutor configuration',
             'Redis available': 'Set REDIS_URL environment variable',
             'Brains with calibration': 'Run trades to build calibration data',
