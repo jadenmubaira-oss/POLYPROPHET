@@ -6739,10 +6739,37 @@ app.get('/api/verify', async (req, res) => {
             return !!m && !!m.tokenIds && Number.isFinite(Number(m.yesPrice)) && Number.isFinite(Number(m.noPrice));
         });
     } catch { }
+
+    // If deep verification is requested and markets aren't ready yet, attempt a one-time fetch now.
+    // This avoids false negatives right after deploy and provides a more truthful "can we fetch markets" signal.
+    if (deep && !marketsReady) {
+        try {
+            await Promise.race([
+                fetchCurrentMarkets(),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('fetchCurrentMarkets timeout')), 15000))
+            ]);
+        } catch { /* ignore */ }
+        try {
+            const enabledAssetsForMarkets = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
+            marketsReady = enabledAssetsForMarkets.some(a => {
+                const m = currentMarkets?.[a];
+                return !!m && !!m.tokenIds && Number.isFinite(Number(m.yesPrice)) && Number.isFinite(Number(m.noPrice));
+            });
+        } catch { }
+    }
+
+    // Grace period: on fresh boot, markets may take a little time to populate.
+    const uptimeSec = (() => {
+        try { return Number(process.uptime()) || 0; } catch { return 0; }
+    })();
+    const marketsGraceSec = Number.isFinite(Number(process.env.MARKETS_GRACE_SECONDS))
+        ? Math.max(30, Math.min(900, Number(process.env.MARKETS_GRACE_SECONDS)))
+        : 180;
+    const marketsSeverity = (walletRequired && uptimeSec > marketsGraceSec) ? 'error' : 'warn';
     addCheck('Current markets available (tokenIds + odds)',
         marketsReady,
-        marketsReady ? 'OK' : 'No currentMarkets/tokenIds yet (wait for next cycle or check Gamma/CLOB access)',
-        walletRequired ? 'error' : 'warn');
+        marketsReady ? 'OK' : `No currentMarkets/tokenIds yet (uptime=${Math.round(uptimeSec)}s; grace=${Math.round(marketsGraceSec)}s)`,
+        marketsSeverity);
 
     // Check 4g (deep): Can fetch a live CLOB orderbook for at least one enabled asset
     if (deep) {
@@ -6752,7 +6779,13 @@ app.get('/api/verify', async (req, res) => {
             const enabledAssetsForMarkets = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
             const pick = enabledAssetsForMarkets.find(a => currentMarkets?.[a]?.tokenIds?.yes) || null;
             const tokenId = pick ? currentMarkets[pick].tokenIds.yes : null;
-            if (pick && tokenId) {
+            if (!pick || !tokenId) {
+                // If we're still within the grace period, don't treat this as a hard failure.
+                if (marketsSeverity !== 'error') {
+                    bookOk = true;
+                    bookDetails = 'Skipped (markets warming up)';
+                }
+            } else {
                 const book = await fetchJSON(`${CLOB_API}/book?token_id=${tokenId}`, 2, 500);
                 bookOk = !!book && (Array.isArray(book?.asks) || Array.isArray(book?.bids));
                 const asks = Array.isArray(book?.asks) ? book.asks.length : 0;
@@ -6763,7 +6796,7 @@ app.get('/api/verify', async (req, res) => {
             bookOk = false;
             bookDetails = `Error: ${e.message}`;
         }
-        addCheck('CLOB orderbook fetch works (deep)', bookOk, bookDetails, walletRequired ? 'error' : 'warn');
+        addCheck('CLOB orderbook fetch works (deep)', bookOk, bookDetails, marketsSeverity);
     }
     
     // Check 5: Redis available (for persistence)
@@ -17585,7 +17618,10 @@ function connectWebSocket() {
 }
 
 async function fetchJSON(url, retries = 3, baseDelay = 1000) {
-    // Use axios so PROXY_URL (via axios.defaults.httpsAgent) applies consistently.
+    // Use axios with explicit agents so we can safely try DIRECT first and fall back to PROXY when needed.
+    // This prevents a bad proxy from silently breaking Gamma/CLOB market fetching, while still supporting regions
+    // that require a proxy for Polymarket endpoints.
+    //
     // Also enforce a timeout so a single hung request can't stall the whole engine.
     const timeoutMs = (() => {
         const n = Number(process.env.HTTP_TIMEOUT_MS || 10000);
@@ -17594,26 +17630,48 @@ async function fetchJSON(url, retries = 3, baseDelay = 1000) {
 
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
-            const res = await axios.get(url, {
-                timeout: timeoutMs,
-                responseType: 'json',
-                validateStatus: () => true,
-                headers: {
-                    'Accept': 'application/json',
-                    'User-Agent': 'POLYPROPHET/1.0'
-                }
-            });
+            const plans = [];
+            // Always try direct first (bypasses proxy even if axios defaults are set)
+            if (directAgent) plans.push({ name: 'direct', httpsAgent: directAgent });
+            // Then try proxy (if configured)
+            if (proxyAgent) plans.push({ name: 'proxy', httpsAgent: proxyAgent });
 
-            // GOD MODE: API Rate Limit Detection
-            if (res.status === 429) {
-                const retryAfter = parseInt(String(res.headers?.['retry-after'] || '5'));
-                log(`⚠️ RATE LIMITED (429): Waiting ${retryAfter}s before retry ${attempt + 1}/${retries}`);
-                await new Promise(r => setTimeout(r, retryAfter * 1000));
-                continue;
+            let lastErr = null;
+            for (const p of plans) {
+                try {
+                    const res = await axios.get(url, {
+                        timeout: timeoutMs,
+                        responseType: 'json',
+                        validateStatus: () => true,
+                        httpsAgent: p.httpsAgent,
+                        proxy: false,
+                        headers: {
+                            'Accept': 'application/json',
+                            'User-Agent': 'POLYPROPHET/1.0'
+                        }
+                    });
+
+                    // GOD MODE: API Rate Limit Detection
+                    if (res.status === 429) {
+                        const retryAfter = parseInt(String(res.headers?.['retry-after'] || '5'));
+                        log(`⚠️ RATE LIMITED (429): Waiting ${retryAfter}s before retry ${attempt + 1}/${retries}`);
+                        await new Promise(r => setTimeout(r, retryAfter * 1000));
+                        lastErr = new Error('HTTP 429');
+                        break; // don't try other agent on a true rate-limit
+                    }
+
+                    if (res.status < 200 || res.status >= 300) {
+                        lastErr = new Error(`HTTP ${res.status}`);
+                        continue;
+                    }
+                    return res.data;
+                } catch (e) {
+                    lastErr = e;
+                }
             }
 
-            if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
-            return res.data;
+            // All plans failed
+            throw lastErr || new Error('fetchJSON failed');
         } catch (e) {
             if (attempt < retries - 1) {
                 // Exponential backoff: 1s, 2s, 4s
