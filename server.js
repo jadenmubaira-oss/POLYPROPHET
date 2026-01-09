@@ -1542,7 +1542,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             ? tradeExecutor.getEffectiveBalanceFloor(windowBalanceStart)
                             : Number(CONFIG.RISK.minBalanceFloor))
                         : 0;
-                    const minBankrollForMinOrder = floorEnabled ? (floor + MIN_ORDER) : MIN_ORDER;
+                    const ruinFloor = (tradeExecutor && typeof tradeExecutor.getRuinFloor === 'function')
+                        ? tradeExecutor.getRuinFloor()
+                        : RUIN_FLOOR;
+                    const survivalFloor = floorEnabled ? Math.max(Number(floor) || 0, Number(ruinFloor) || 0) : 0;
+                    // To place MIN_ORDER without risking "ruin", require that a worst-case loss of MIN_ORDER
+                    // still leaves balance >= survivalFloor.
+                    const minBankrollForMinOrder = floorEnabled ? (survivalFloor + MIN_ORDER) : MIN_ORDER;
                     if (stake < MIN_ORDER) {
                         if (windowBalanceStart >= minBankrollForMinOrder) {
                             stake = MIN_ORDER;
@@ -1552,10 +1558,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             continue;
                         }
                     }
-                    // Hard guarantee: never place a trade that can cross the floor on a loss.
+                    // Hard guarantee: never place a trade that can cross the SURVIVAL floor on a loss.
                     // Max loss on a binary position = stake.
                     if (floorEnabled) {
-                        const maxSafeStake = Math.max(0, windowBalanceStart - floor);
+                        const maxSafeStake = Math.max(0, windowBalanceStart - survivalFloor);
                         if (stake > maxSafeStake) {
                             stake = maxSafeStake;
                             envelopeCaps++;
@@ -1617,7 +1623,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         // Case 1: Budget truly exhausted
                         if (effectiveBudget < MIN_ORDER) {
                             // 🏆 v84: Check Bootstrap min-order override before blocking
-                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= floor)) {
+                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= survivalFloor)) {
                                 // Allow MIN_ORDER via override (matches runtime behavior)
                                 stake = MIN_ORDER;
                                 envelopeCaps++;
@@ -1631,7 +1637,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         // Case 2: Per-trade cap < MIN_ORDER but budget available
                         // Allow MIN_ORDER only if override is enabled; otherwise block (can't satisfy per-trade risk cap).
                         if (maxTradeSize < MIN_ORDER) {
-                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= floor)) {
+                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= survivalFloor)) {
                                 if (stake > MIN_ORDER) {
                                     stake = MIN_ORDER;
                                     envelopeCaps++;
@@ -1650,7 +1656,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
 
                         // Final floor guard after envelope caps/overrides
                         if (floorEnabled) {
-                            const maxSafeStake2 = Math.max(0, windowBalanceStart - floor);
+                            const maxSafeStake2 = Math.max(0, windowBalanceStart - survivalFloor);
                             if (stake > maxSafeStake2) {
                                 stake = maxSafeStake2;
                                 envelopeCaps++;
@@ -1905,7 +1911,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 hit100: primarySim.hit100,  // { day, tradeIndex, balance } or null
                 hit1000: primarySim.hit1000, // { day, tradeIndex, balance } or null
                 minBalance: parseFloat(primarySim.minBalance.toFixed(2)),
-                ruined: primarySim.ruined,   // true if balance ever fell below $2 floor
+                ruined: primarySim.ruined,   // true if minBalance fell below the "ruin floor" (MIN_ORDER survivability threshold)
                 // Convenience booleans for optimizer scoring
                 reachedGoal100: primarySim.hit100 !== null,
                 reachedGoal1000: primarySim.hit1000 !== null,
@@ -9125,6 +9131,43 @@ class TradeExecutor {
 
         return (Number.isFinite(floor) && floor >= 0) ? floor : 0;
     }
+
+    // 🛡️ Ruin floor: minimum cash balance at which the bot can still place MIN_ORDER
+    // without violating the configured floor model.
+    // - If dynamic floor is enabled, the limiting floor at very low balances is minBalanceFloorDynamicMin,
+    //   so the "ruin" threshold becomes (minFloor + MIN_ORDER).
+    // - If dynamic floor is disabled, the limiting floor is the base floor, so the threshold becomes (baseFloor + MIN_ORDER).
+    //
+    // This is the correct "can we keep trading autonomously?" boundary for micro-bankrolls.
+    getRuinFloor() {
+        const MIN_ORDER = 1.10;
+        const enabled = !!CONFIG?.RISK?.minBalanceFloorEnabled;
+        if (!enabled) return MIN_ORDER;
+
+        const baseFloorCfg = Number(CONFIG?.RISK?.minBalanceFloor);
+        const baseFloor = Number.isFinite(baseFloorCfg) ? Math.max(0, baseFloorCfg) : 0;
+
+        const dynEnabled = (CONFIG?.RISK?.minBalanceFloorDynamicEnabled !== false);
+        if (!dynEnabled) {
+            return baseFloor + MIN_ORDER;
+        }
+
+        const minCfg = Number(CONFIG?.RISK?.minBalanceFloorDynamicMin);
+        const minFloor = Number.isFinite(minCfg) ? Math.max(0, minCfg) : 0.50;
+        return minFloor + MIN_ORDER;
+    }
+
+    // 🛡️ Survival floor: minimum post-loss cash balance we must preserve.
+    // This is stronger than the "effective balance floor" during drawdowns because it ensures we don't
+    // cross into a state where MIN_ORDER can no longer be placed safely (ruin-by-min-order).
+    getSurvivalFloor(balanceOverride) {
+        const enabled = !!CONFIG?.RISK?.minBalanceFloorEnabled;
+        if (!enabled) return 0;
+        const eff = (typeof this.getEffectiveBalanceFloor === 'function') ? this.getEffectiveBalanceFloor(balanceOverride) : 0;
+        const ruin = (typeof this.getRuinFloor === 'function') ? this.getRuinFloor() : 0;
+        const s = Math.max(Number(eff) || 0, Number(ruin) || 0);
+        return Number.isFinite(s) ? Math.max(0, s) : 0;
+    }
     
     // 🏆 v77 TRADE FREQUENCY FLOOR: Track recent trades for frequency calculation
     getRecentTradesCount(lookbackMinutes = 120) {
@@ -9531,18 +9574,26 @@ class TradeExecutor {
         const effectiveBudget = envelope.effectiveBudget || 0;
         const stageName = envelope.profile?.stageName || 'UNKNOWN';
         const minOrderRiskOverride = envelope.profile?.minOrderRiskOverride || false;
-        // Use CASH for floor safety (equity can include locked funds; floor is about ability to keep trading).
+        // Use CASH for safety (equity can include locked funds; min-order survivability is about cash).
         const cashBalanceForFloor = this.mode === 'PAPER'
             ? this.paperBalance
             : (this.cachedLiveBalance || 0);
+        const actualBalance = cashBalanceForFloor;
         const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
         const floor = floorEnabled
             ? (typeof this.getEffectiveBalanceFloor === 'function'
                 ? this.getEffectiveBalanceFloor(cashBalanceForFloor)
                 : Number(CONFIG.RISK.minBalanceFloor))
             : null;
-        const canLose = (loss) => !floorEnabled || (cashBalanceForFloor - Number(loss) >= Number(floor));
-        const maxSafeStake = floorEnabled ? Math.max(0, cashBalanceForFloor - Number(floor)) : Infinity;
+
+        // Survivability guard: do NOT allow a single loss to drop cash below the survival floor.
+        // This is the hard constraint that enforces "max growth subject to no ruin".
+        const survivalFloor = floorEnabled
+            ? ((typeof this.getSurvivalFloor === 'function') ? this.getSurvivalFloor(cashBalanceForFloor) : Number(floor) || 0)
+            : 0;
+
+        const canLose = (loss) => !floorEnabled || (actualBalance - Number(loss) >= Number(survivalFloor));
+        const maxSafeStake = floorEnabled ? Math.max(0, actualBalance - Number(survivalFloor)) : Infinity;
         
         // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
         // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
@@ -9609,7 +9660,7 @@ class TradeExecutor {
         if (floorEnabled && size > maxSafeStake) {
             size = maxSafeStake;
             capped = true;
-            reason = reason || `Balance floor guard ($${actualBalance.toFixed(2)} - floor $${Number(floor).toFixed(2)})`;
+            reason = reason || `Survival guard ($${actualBalance.toFixed(2)} - survival $${Number(survivalFloor).toFixed(2)})`;
         }
         if (size < MIN_ORDER) {
             return {
@@ -10925,19 +10976,20 @@ class TradeExecutor {
                 let bumpedToMin = false;
                 if (size < MIN_ORDER) {
                     const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
-                    const floor = floorEnabled
-                        ? ((typeof this.getEffectiveBalanceFloor === 'function')
-                            ? this.getEffectiveBalanceFloor(bankroll)
-                            : Number(CONFIG.RISK.minBalanceFloor))
+                    const cashBal = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
+                    const survivalFloor = floorEnabled
+                        ? ((typeof this.getSurvivalFloor === 'function') ? this.getSurvivalFloor(cashBal) : 0)
                         : 0;
-                    const minBankrollForMinOrder = floorEnabled ? (floor + MIN_ORDER) : (MIN_ORDER * 1.5);
-                    if (bankroll >= minBankrollForMinOrder) {
+                    // To place MIN_ORDER without risking "ruin", we require that a worst-case loss of MIN_ORDER
+                    // still leaves us >= survivalFloor.
+                    const minCashForMinOrder = floorEnabled ? (survivalFloor + MIN_ORDER) : (MIN_ORDER * 1.5);
+                    if (cashBal >= minCashForMinOrder) {
                         size = MIN_ORDER;
                         bumpedToMin = true;
-                        log(`📊 Size bumped to minimum $${MIN_ORDER} (bankroll: $${bankroll.toFixed(2)})`, asset);
+                        log(`📊 Size bumped to minimum $${MIN_ORDER} (cash: $${cashBal.toFixed(2)}, survival: $${survivalFloor.toFixed(2)})`, asset);
                     } else {
                         log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
-                        return { success: false, error: `Need at least $${minBankrollForMinOrder.toFixed(2)} to trade safely above floor` };
+                        return { success: false, error: `Need at least $${minCashForMinOrder.toFixed(2)} cash to place MIN_ORDER without crossing survival floor` };
                     }
                 }
                 

@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `0002e63de19e19c0d62082849df726bc7ff441c231b0e726756384c07c627524` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `f264a270b387019a6c86e359974c49532e90caa2011a927602e1edb15c667b8a` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
@@ -840,6 +840,17 @@ curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyM
 - **We can prove the engine is wired and healthy** (feeds, wallet RPC, risk gates, persistence, drift/self-check, vault wiring) via endpoints + code inspection.
 - **We cannot “prove” LIVE buy/sell execution without a real funded trade** because fills are external, non-deterministic, and dependent on Polymarket infra + liquidity.
 - Therefore, **LIVE execution proof requires a controlled LIVE smoke test** (below). Anything else is **NOT VERIFIED**.
+
+### “Max Growth + No Ruin” (How We Reconcile the Constraint)
+
+These goals are in tension, so we implement them as a **constrained optimizer**:
+
+- **Constraint (hard)**: the engine must not take a trade whose **worst‑case loss** can push the wallet below the **ruin floor** (the threshold where `MIN_ORDER` can no longer be placed safely).
+- **Objective (soft)**: within that constraint, we size as aggressively as allowed (SPRINT behavior).
+
+This means:
+- In “bad windows”, the bot may **stop trading early** (capital preserved) rather than “hero trade” into non‑autonomous territory.
+- In “good windows”, it remains **fully aggressive** up to the configured caps.
 
 ### For Any AI Verifying This Repo
 
