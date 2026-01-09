@@ -53,7 +53,7 @@
 - Market conditions can change faster than the bot adapts
 
 **What we CAN guarantee:**
-- The bot will never trade below the $2 floor
+- The bot will never take a trade that can breach the **survival floor** (effective floor + `MIN_ORDER`) on a worst‑case loss
 - The bot will auto-halt on critical failures (LIVE mode)
 - Deposits/withdrawals won't permanently break the peak-DD brake
 - All trades are logged and recoverable (see Recovery Runbook below)
@@ -68,7 +68,8 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `c6adbed2e057835802cfff4a7eb886cdc0c65f4005f9547414ef8e0be6a2a668` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `f1fbf30982e759e77543679f0644dd9696fa46f2137a61a33cc70e571838dad4` (from `GET /api/version`)
+- **Rule**: after ANY code change + deploy, re-run `GET /api/version` and update the fingerprint above (treat mismatch as “not yet deployed / not yet verified”).
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
@@ -134,16 +135,14 @@ We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. R
 With `autoProfile=1` (default):
 - **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=ON (k=0.5, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
 
-#### 72h offset sweep (0→168 step 12h) — “BOTH MAX” (best-case + worst-case final)
+#### 72h offset sweep methodology (non‑cherry‑picked, reproducible)
 
-Coverage-gated (must have `summary.timeSpan.hours ≥ 64.8`):
+To compare configurations honestly (and avoid time‑drift artifacts):
 
-- **Setup**: `tier=HYBRID`, `entry=CLOB_HISTORY`, `globalStopLoss=0.20`, `assets=BTC,ETH`, `balance=5`, `limit=120`, `autoProfile=1` (default), `simulateHalts=1` (default)
-- **Result**: `windows=11`, `ruinWindows=0`
-- **worstFinal**: `off=36h` → **$7.20** (**+43.98%**)
-- **bestFinal**: `off=60h` → **$20.18** (**+303.65%**)
-
-This single change (**globalStopLoss=0.20**) produced a **Pareto improvement** (higher worst-case and higher best-case) vs prior sweeps.
+- Pick a fixed `baseEnd` (epoch seconds), and for each offset `off` use `windowEnd = baseEnd - off*3600`.
+- Enforce coverage: only count windows where `summary.timeSpan.hours ≥ 64.8` (0.9×72h).
+- Report **ruinWindows**, **worstFinal** (and its offset), and **bestFinal** (and its offset).
+- Never claim “Pareto improvement” unless both worstFinal **and** bestFinal are better on the **same anchored** `baseEnd`.
 
 #### Polymarket-native backtest (this repo’s debug corpus coverage, $5 start)
 
@@ -692,6 +691,7 @@ if (maxTradeSize < $1.10) {
 |-----------|-------|-----------|
 | Redis connected | `redisAvailable = true` | LIVE → PAPER |
 | Wallet loaded | `POLYMARKET_PRIVATE_KEY` set | Trades blocked |
+| CLOB trade-ready | `/api/verify?deep=1` → `CLOB trading permission + collateral allowance (deep)` | Fix geo/ban (closed-only), fund collateral, ensure allowance > 0, verify `POLYMARKET_SIGNATURE_TYPE` + funder address |
 | Chainlink fresh | Feed <30s old | Trades blocked |
 | Balance > floor | Balance > $2.00 | Trades blocked |
 | Not halted | `tradingHalted = false` | Trades blocked |
@@ -704,6 +704,7 @@ Before enabling LIVE mode, verify ALL:
 [ ] /api/version shows configVersion: 96
 [ ] /api/perfection-check shows allPassed: true
 [ ] /api/health shows status: "ok"
+[ ] /api/verify?deep=1 shows status: PASS and `criticalFailures: 0`
 [ ] /api/health shows dataFeed.anyStale: false
 [ ] /api/health shows balanceFloor.floor: 2.0
 [ ] /api/health shows balanceFloor.tradingBlocked: false
@@ -755,6 +756,7 @@ POLYMARKET_PRIVATE_KEY = <your-key>  (REQUIRED FOR LIVE)
 POLYMARKET_API_KEY = <derived from generate_creds.js>
 POLYMARKET_SECRET = <derived from generate_creds.js>
 POLYMARKET_PASSPHRASE = <derived from generate_creds.js>
+POLYMARKET_SIGNATURE_TYPE = 0   (0=standard wallet, 1=Magic/email login exported key)
 
 # Wallet/RPC reliability (optional)
 POLYGON_RPC_URLS = <comma-separated Polygon RPC URLs>   (optional; used for wallet balance reads)
@@ -790,6 +792,9 @@ Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=band
 
 # Check system verify (should show status: PASS or WARN; failed should be 0)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+
+# Deep verify (CLOB permission + collateral allowance; should PASS in LIVE)
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?deep=1&apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check vault system perfection (should show allPassed: true)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/perfection-check?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
@@ -985,6 +990,10 @@ This is the “no stone unturned” layer: it’s what you review in code to con
   - `fetchJSON()` uses **timeouts** and a **proxy-aware HTTP client** so a single hung request can’t stall the engine and region blocks don’t silently disable trading.
   - Wallet RPC uses **explicit proxy bypass** (direct JSON-RPC) to avoid the global CLOB proxy breaking on-chain reads.
 
+- **CLOB execution prerequisites (silent-failure trap)**
+  - `/api/verify?deep=1` must confirm **not** `closed_only` and show **non-zero collateral allowance**.
+  - If using Magic/email login keys, `POLYMARKET_SIGNATURE_TYPE=1` must be set (otherwise signed headers can be rejected).
+
 - **Risk invariants (goal alignment)**
   - Floor/ruin constraints enforced: never place a trade that could violate the effective floor after worst-case loss.
   - Equity-aware bankroll used for risk math so open positions don’t trigger false drawdowns.
@@ -998,6 +1007,7 @@ This is the “no stone unturned” layer: it’s what you review in code to con
 
 Do this once per deployment when you want **real proof**:
 
+0. **Deep verify CLOB trade-readiness**: `GET /api/verify?deep=1` must PASS, especially `CLOB trading permission + collateral allowance (deep)`.
 1. **Enable manual LIVE trading temporarily**: set `ENABLE_MANUAL_TRADING=true` in Render env (then redeploy).
 2. **Manual BUY (min size)**: use the dashboard or `POST /api/manual-buy` with `$1.10` (min order).
 3. **Verify it actually filled**

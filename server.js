@@ -1089,6 +1089,19 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     pWinUsed = clamp01(0.5 + ((pWinRawNow - 0.5) * weight));
                 }
 
+                // 🏆 v99.1: Runtime parity — Supreme confidence mode hard-block.
+                // Runtime will not execute any trade if `supremeConfidenceMode` is enabled and confidence < 0.75.
+                // Backtests must mirror this or they will include impossible (runtime-blocked) low-confidence trades,
+                // distorting worst-case windows.
+                const supremeEnabled = (CONFIG?.RISK?.supremeConfidenceMode === true);
+                const confFloor = 0.75;
+                if (supremeEnabled) {
+                    const confVal = Number(c?.confidence);
+                    if (!Number.isFinite(confVal) || confVal < confFloor) {
+                        continue;
+                    }
+                }
+
                 const evRoi = calcEvRoi(pWinUsed, c.entryPrice);
                 if (respectEVGate && (evRoi === null || evRoi <= 0)) { evBlocked++; continue; }
                 enriched.push({ ...c, pWinUsed, evRoi });
@@ -6750,6 +6763,51 @@ app.get('/api/verify', async (req, res) => {
         polyCredsPresent ? 'OK (key/secret/passphrase set)' : 'Missing POLYMARKET_API_KEY/SECRET/PASSPHRASE',
         walletRequired ? 'error' : 'warn');
 
+    // Check 4f (deep): CLOB trading permission + collateral balance/allowance
+    // This catches the most common "it looks healthy but won't trade" failures:
+    // - account is in closed-only mode (geo/block/ban)
+    // - collateral balance/allowance is zero
+    if (deep && clobClientAvailable && walletLoaded && polyCredsPresent) {
+        let clobOk = false;
+        let clobDetails = 'Not checked';
+        const severity = walletRequired ? 'error' : 'warn';
+        try {
+            const clobClient = (typeof tradeExecutor?.getClobClient === 'function') ? tradeExecutor.getClobClient() : null;
+            if (!clobClient) {
+                clobOk = false;
+                clobDetails = 'CLOB client not ready (wallet/creds missing or invalid)';
+            } else {
+                const ban = await clobClient.getClosedOnlyMode().catch(() => null);
+                const closedOnly = !!ban?.closed_only;
+
+                const fmtMaybeUSDC = (raw) => {
+                    const s = String(raw ?? '').trim();
+                    const n = Number(s);
+                    if (!Number.isFinite(n)) return String(raw);
+                    if (s.includes('.')) return `$${n.toFixed(2)}`;
+                    if (Math.abs(n) >= 1000) return `$${(n / 1e6).toFixed(2)} (raw ${s})`;
+                    return `$${n.toFixed(2)}`;
+                };
+
+                const ba = await clobClient.getBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => null);
+                const balRaw = ba?.balance;
+                const allowRaw = ba?.allowance;
+                const balNum = Number(String(balRaw ?? ''));
+                const allowNum = Number(String(allowRaw ?? ''));
+
+                const balOk = Number.isFinite(balNum) && balNum > 0;
+                const allowOk = Number.isFinite(allowNum) && allowNum > 0;
+
+                clobOk = !closedOnly && balOk && allowOk;
+                clobDetails = `closedOnly=${closedOnly}; collateralBalance=${fmtMaybeUSDC(balRaw)}; collateralAllowance=${fmtMaybeUSDC(allowRaw)}; signatureType=${Number(CONFIG.POLYMARKET_SIGNATURE_TYPE) || 0}; funder=${String(CONFIG.POLYMARKET_ADDRESS || tradeExecutor?.wallet?.address || '').trim() || 'N/A'}`;
+            }
+        } catch (e) {
+            clobOk = false;
+            clobDetails = `Error: ${e.message}`;
+        }
+        addCheck('CLOB trading permission + collateral allowance (deep)', clobOk, clobDetails, severity);
+    }
+
     // Check 4f: Current markets/tokenIds available (if not, engine cannot trade even if wallet+creds exist)
     let marketsReady = false;
     try {
@@ -6982,6 +7040,7 @@ app.get('/api/verify', async (req, res) => {
             'LCB gating active (wired into ADVISORY)': 'v96: LCB should be used for ADVISORY EV/price-cap/Kelly',
             'Baseline bankroll initialized (v96)': 'For PAPER: auto-initialized. For LIVE: first successful balance fetch initializes it.',
             'LIVE balance freshness': 'refreshLiveBalance() must update lastBalanceFetch',
+            'CLOB trading permission + collateral allowance (deep)': 'If closedOnly=true: geo/ban restriction. If allowance/balance is 0: fund/approve collateral. Also verify POLYMARKET_SIGNATURE_TYPE (0/1) and POLYMARKET_ADDRESS (funder/profile address).',
             'Streak sizing enabled': 'Check TradeExecutor configuration',
             'Redis available': 'Set REDIS_URL environment variable',
             'Brains with calibration': 'Run trades to build calibration data',
@@ -7153,11 +7212,26 @@ app.get('/api/perfection-check', async (req, res) => {
         const hasBacktestEndpoint = serverSource.includes("app.get('/api/backtest-polymarket'");
         const usesThresholdContract = serverSource.includes('getVaultThresholds(backtestThresholdOverrides)');
         const outputsThresholds = /vaultThresholds\s*:\s*getVaultThresholds\(backtestThresholdOverrides\)/.test(serverSource);
+
+        // 🏆 v99+ parity checks:
+        // - pWin weighting by confidence (matches runtime pWinEff)
+        // - Supreme confidence mode gate (matches runtime supremeConfidenceMode)
+        const hasPWinWeighting = serverSource.includes('0.5 + ((pWinRawNow - 0.5) * weight)');
+        const hasSupremeBacktestGate =
+            serverSource.includes('Runtime parity — Supreme confidence mode hard-block') ||
+            (serverSource.includes('supremeConfidenceMode === true') && serverSource.includes('confFloor = 0.75'));
         
-        staticForensicPass = hasBacktestEndpoint && !hasHardcodedPattern && usesThresholdContract && outputsThresholds;
+        staticForensicPass =
+            hasBacktestEndpoint &&
+            !hasHardcodedPattern &&
+            usesThresholdContract &&
+            outputsThresholds &&
+            hasPWinWeighting &&
+            hasSupremeBacktestGate;
+
         staticForensicDetails = staticForensicPass 
-            ? 'Backtest uses threshold contract and outputs vaultThresholds' 
-            : `Issues: ${!hasBacktestEndpoint ? 'missing backtest endpoint' : ''} ${hasHardcodedPattern ? 'hardcoded thresholds found' : ''} ${!usesThresholdContract ? 'missing getVaultThresholds call' : ''} ${!outputsThresholds ? 'missing vaultThresholds output' : ''}`.trim();
+            ? 'Backtest uses threshold contract, outputs vaultThresholds, and enforces runtime parity gates (pWin weighting + supremeConfidenceMode)' 
+            : `Issues: ${!hasBacktestEndpoint ? 'missing backtest endpoint' : ''} ${hasHardcodedPattern ? 'hardcoded thresholds found' : ''} ${!usesThresholdContract ? 'missing getVaultThresholds call' : ''} ${!outputsThresholds ? 'missing vaultThresholds output' : ''} ${!hasPWinWeighting ? 'missing pWin confidence-weighting parity' : ''} ${!hasSupremeBacktestGate ? 'missing supremeConfidenceMode parity gate' : ''}`.trim();
     } catch (e) {
         staticForensicDetails = 'Could not read server.js for static analysis';
     }
@@ -7985,6 +8059,13 @@ const CONFIG = {
     POLYMARKET_PASSPHRASE: (process.env.POLYMARKET_PASSPHRASE || '').trim(),
     POLYMARKET_ADDRESS: (process.env.POLYMARKET_ADDRESS || '').trim(),
     POLYMARKET_PRIVATE_KEY: (process.env.POLYMARKET_PRIVATE_KEY || '').trim(),
+    // Polymarket CLOB signature type:
+    // - 0: Standard web3 wallet signing (Metamask/EOA private key)
+    // - 1: Magic/email login signing (exported key from https://reveal.magic.link/polymarket)
+    // NOTE: If you're unsure, leave this at 0.
+    POLYMARKET_SIGNATURE_TYPE: Number.isFinite(parseInt(process.env.POLYMARKET_SIGNATURE_TYPE))
+        ? Math.max(0, Math.min(1, parseInt(process.env.POLYMARKET_SIGNATURE_TYPE)))
+        : 0,
 
     // Core Trading Settings
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
@@ -9032,6 +9113,38 @@ class TradeExecutor {
             }
         }
         return false;
+    }
+
+    // Create a configured Polymarket CLOB client (single source of truth for LIVE trading).
+    // This prevents silent mismatches (signatureType/funder) between BUY/SELL and verification paths.
+    getClobClient() {
+        try {
+            if (!ClobClient) return null;
+            if (!this.wallet) return null;
+            if (!CONFIG?.POLYMARKET_API_KEY || !CONFIG?.POLYMARKET_SECRET || !CONFIG?.POLYMARKET_PASSPHRASE) return null;
+
+            const host = 'https://clob.polymarket.com';
+            const sanitizedPassphrase = String(CONFIG.POLYMARKET_PASSPHRASE || '').replace(/[^\x20-\x7E]/g, '');
+            const creds = {
+                key: String(CONFIG.POLYMARKET_API_KEY || '').replace(/[^\x20-\x7E]/g, ''),
+                secret: String(CONFIG.POLYMARKET_SECRET || '').replace(/[^\x20-\x7E]/g, ''),
+                passphrase: sanitizedPassphrase
+            };
+
+            const sigTypeRaw = Number(CONFIG.POLYMARKET_SIGNATURE_TYPE);
+            const signatureType = Number.isFinite(sigTypeRaw) ? (sigTypeRaw === 1 ? 1 : 0) : 0;
+
+            // funderAddress is the Polymarket “profile” address (where collateral is funded).
+            // For normal EOA trading, this is usually the same as the signer address.
+            const funderAddressRaw = String(CONFIG.POLYMARKET_ADDRESS || '').trim();
+            const funderAddress = funderAddressRaw && funderAddressRaw.startsWith('0x')
+                ? funderAddressRaw
+                : (this.wallet?.address || undefined);
+
+            return new ClobClient(host, POLY_CHAIN_ID, this.wallet, creds, signatureType, funderAddress);
+        } catch (e) {
+            return null;
+        }
     }
 
     // Count active positions for an asset
@@ -10449,9 +10562,9 @@ class TradeExecutor {
                 ? this.getEffectiveBalanceFloor(currentBal)
                 : CONFIG.RISK.minBalanceFloor;
             if (currentBal < effectiveFloor) {
-                log(`🛑 BALANCE FLOOR: Current balance £${currentBal.toFixed(2)} < floor £${effectiveFloor.toFixed(2)} - TRADE BLOCKED`, asset);
+                log(`🛑 BALANCE FLOOR: Current balance $${currentBal.toFixed(2)} < floor $${effectiveFloor.toFixed(2)} - TRADE BLOCKED`, asset);
                 log(`   New trades halted to preserve remaining capital. Deposit more funds or adjust minBalanceFloor in Settings.`, asset);
-                return { success: false, error: `BALANCE_FLOOR: Balance £${currentBal.toFixed(2)} below £${effectiveFloor.toFixed(2)} floor - trading halted` };
+                return { success: false, error: `BALANCE_FLOOR: Balance $${currentBal.toFixed(2)} below $${effectiveFloor.toFixed(2)} floor - trading halted` };
             }
         }
 
@@ -11280,26 +11393,11 @@ class TradeExecutor {
                 const tokenId = tokenType === 'YES' ? market.tokenIds.yes : market.tokenIds.no;
 
                 try {
-                    // Initialize CLOB Client
-                    // CRITICAL FIX: creds is 4th param (not 5th)
-                    // ApiKeyCreds interface uses 'key' not 'apiKey'
-                    // SANITIZE: Remove any non-printable ASCII characters from credentials
-                    const sanitizedPassphrase = CONFIG.POLYMARKET_PASSPHRASE.replace(/[^\x20-\x7E]/g, '');
-
-                    if (sanitizedPassphrase !== CONFIG.POLYMARKET_PASSPHRASE) {
-                        log(`⚠️ Passphrase had invalid chars removed. Original length: ${CONFIG.POLYMARKET_PASSPHRASE.length}, New: ${sanitizedPassphrase.length}`, asset);
+                    const clobClient = this.getClobClient();
+                    if (!clobClient) {
+                        log(`❌ LIVE TRADING FAILED: CLOB client not ready (wallet/creds missing or invalid)`, asset);
+                        return { success: false, error: 'CLOB client not ready (check API creds + wallet)' };
                     }
-
-                    const clobClient = new ClobClient(
-                        'https://clob.polymarket.com',
-                        POLY_CHAIN_ID,
-                        this.wallet,
-                        {
-                            key: CONFIG.POLYMARKET_API_KEY.replace(/[^\x20-\x7E]/g, ''),
-                            secret: CONFIG.POLYMARKET_SECRET.replace(/[^\x20-\x7E]/g, ''),
-                            passphrase: sanitizedPassphrase
-                        }
-                    );
 
                     // Calculate shares to buy
                     const shares = Math.floor((size / entryPrice) * 1e6) / 1e6; // 6 decimal precision
@@ -11778,19 +11876,11 @@ class TradeExecutor {
                 return { success: false, error: 'Invalid shares (must be > 0)' };
             }
 
-            // CRITICAL FIX: creds is 4th param (not 5th)
-            // ApiKeyCreds interface uses 'key' not 'apiKey'
-            // SANITIZE: Remove any non-printable ASCII characters from credentials
-            const clobClient = new ClobClient(
-                'https://clob.polymarket.com',
-                POLY_CHAIN_ID,
-                this.wallet,
-                {
-                    key: CONFIG.POLYMARKET_API_KEY.replace(/[^\x20-\x7E]/g, ''),
-                    secret: CONFIG.POLYMARKET_SECRET.replace(/[^\x20-\x7E]/g, ''),
-                    passphrase: CONFIG.POLYMARKET_PASSPHRASE.replace(/[^\x20-\x7E]/g, '')
-                }
-            );
+            const clobClient = this.getClobClient();
+            if (!clobClient) {
+                log(`❌ LIVE SELL FAILED: CLOB client not ready (wallet/creds missing or invalid)`, position.asset);
+                return { success: false, error: 'CLOB client not ready (check API creds + wallet)' };
+            }
 
             // 🔮 DYNAMIC SELL PRICE: Fetch best bid for better fills
             let sellPrice = 0.01; // Fallback minimum
@@ -20747,12 +20837,23 @@ app.get('/api/trades', async (req, res) => {
         ? rawPositions
         : Object.fromEntries(Object.entries(rawPositions).filter(([_, p]) => allowedAssets.has(String(p?.asset || '').toUpperCase())));
     
+    const requestedMode = String(mode || '').toUpperCase();
+    const effectiveBalance = requestedMode === 'LIVE'
+        ? (tradeExecutor.cachedLiveBalance || 0)
+        : tradeExecutor.paperBalance;
+    const effectiveStarting = requestedMode === 'LIVE'
+        ? (tradeExecutor.baselineBankrollInitialized ? tradeExecutor.baselineBankroll : tradeExecutor.startingBalance)
+        : tradeExecutor.startingBalance;
+    const effectiveTotalReturn = (effectiveStarting && effectiveStarting > 0)
+        ? ((effectiveBalance / effectiveStarting) - 1) * 100
+        : 0;
+
     res.json({
-        mode: mode,
-        balance: tradeExecutor.paperBalance,
-        startingBalance: tradeExecutor.startingBalance,
+        mode: requestedMode,
+        balance: effectiveBalance,
+        startingBalance: effectiveStarting,
         todayPnL: tradeExecutor.todayPnL,
-        totalReturn: ((tradeExecutor.paperBalance / tradeExecutor.startingBalance) - 1) * 100,
+        totalReturn: effectiveTotalReturn,
         positions: filteredPositions,
         trades: filteredTrades,
         // totalTrades refers to the underlying history size (for pagination correctness).
@@ -21412,6 +21513,7 @@ app.get('/api/settings', (req, res) => {
         POLYMARKET_SECRET: CONFIG.POLYMARKET_SECRET ? '****HIDDEN****' : '',
         POLYMARKET_PASSPHRASE: CONFIG.POLYMARKET_PASSPHRASE ? '****HIDDEN****' : '',
         POLYMARKET_ADDRESS: CONFIG.POLYMARKET_ADDRESS,
+        POLYMARKET_SIGNATURE_TYPE: Number(CONFIG.POLYMARKET_SIGNATURE_TYPE) || 0,
         POLYMARKET_PRIVATE_KEY: CONFIG.POLYMARKET_PRIVATE_KEY ? '****HIDDEN****' : '',
 
         // Trading settings (fully visible)
@@ -21445,7 +21547,7 @@ app.get('/api/settings', (req, res) => {
         // Status
         walletLoaded: !!tradeExecutor.wallet,
         walletAddress: tradeExecutor.wallet ? tradeExecutor.wallet.address : null,
-        currentBalance: tradeExecutor.paperBalance,
+        currentBalance: (tradeExecutor?.mode === 'LIVE') ? (tradeExecutor.cachedLiveBalance || 0) : tradeExecutor.paperBalance,
         positions: tradeExecutor.positions,
         tradeHistory: tradeExecutor.tradeHistory || []
     });
@@ -21830,6 +21932,16 @@ app.get('/settings', (req, res) => {
                 <input type="text" id="POLYMARKET_ADDRESS" placeholder="0x...">
             </div>
             <div class="form-group">
+                <label>Signature Type</label>
+                <select id="POLYMARKET_SIGNATURE_TYPE">
+                    <option value="0">0 — Standard wallet (EOA / Metamask-style)</option>
+                    <option value="1">1 — Magic / email login (reveal.magic.link export)</option>
+                </select>
+                <small style="color:#888; display:block; margin-top:6px;">
+                    Leave at <b>0</b> unless you are specifically using Polymarket email/Magic login keys.
+                </small>
+            </div>
+            <div class="form-group">
                 <label>Private Key (⚠️ SENSITIVE)</label>
                 <input type="password" id="POLYMARKET_PRIVATE_KEY" placeholder="Enter private key...">
             </div>
@@ -21859,6 +21971,7 @@ app.get('/settings', (req, res) => {
                 document.getElementById('EARLY_BOOST').value = currentSettings.EARLY_BOOST || 1.35;
                 document.getElementById('REALITY_CHECK_ATR').value = currentSettings.REALITY_CHECK_ATR || 4;
                 document.getElementById('POLYMARKET_ADDRESS').value = currentSettings.POLYMARKET_ADDRESS || '';
+                document.getElementById('POLYMARKET_SIGNATURE_TYPE').value = String(currentSettings.POLYMARKET_SIGNATURE_TYPE || 0);
                 
                 // No-Trade Detection checkbox
                 document.getElementById('NO_TRADE_DETECTION').checked = currentSettings.RISK?.noTradeDetection !== false;
@@ -21936,6 +22049,9 @@ app.get('/settings', (req, res) => {
                     updates[id] = val;
                 }
             });
+
+            // Polymarket signature type (0/1)
+            updates.POLYMARKET_SIGNATURE_TYPE = parseInt(document.getElementById('POLYMARKET_SIGNATURE_TYPE').value) || 0;
             
             // Numeric fields
             updates.PAPER_BALANCE = parseFloat(document.getElementById('PAPER_BALANCE').value);
