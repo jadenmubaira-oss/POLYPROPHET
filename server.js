@@ -8489,9 +8489,10 @@ function getBankrollAdaptivePolicy(bankroll) {
             base.riskEnvelopeEnabled = true;
             base.profitProtectionEnabled = false;
             base.profitProtectionSchedule = 'SPRINT';
-            // Keep Kelly disabled until large-bankroll regime (matches runtime sprint intent).
-            base.kellyEnabled = false;
-            base.reason = 'non_finite_bankroll (SPRINT)';
+            // 🏆 v99: Kelly stays ON even in SPRINT to improve worst-case while preserving best-case.
+            // (Half-Kelly with cap remains the governor; exceptional sizing can still lift only elite trades.)
+            base.kellyEnabled = defaultKellyEnabled;
+            base.reason = 'non_finite_bankroll (SPRINT, Kelly ON)';
         }
         return base;
     }
@@ -8525,9 +8526,9 @@ function getBankrollAdaptivePolicy(bankroll) {
                 // Keep the cap at the known-good growth max (default 0.32) unless user overrides highMaxPos/highKelly.
                 maxPositionFraction: clampFrac(highMaxPos, fallback.maxPositionFraction),
                 kellyMaxFraction: clampFrac(highKelly, fallback.kellyMaxFraction),
-                // Disable Kelly in MICRO_SPRINT so sizing is not reduced below the cap during the $5→$20 sprint.
-                // (Kelly can be re-enabled automatically once bankroll reaches cutover.)
-                kellyEnabled: false,
+                // 🏆 v99: Keep Kelly ON in MICRO_SPRINT to reduce tail risk in bad windows without neutering best-case.
+                // Half-Kelly + cap (0.32) preserves compounding on high-edge trades while cutting size on marginal/high-odds entries.
+                kellyEnabled: defaultKellyEnabled,
                 kellyFraction: defaultKellyFraction,
                 // 🏆 v96.2: Keep envelope ON to prevent near-bust loss cascades on $5 starts.
                 // This has been empirically validated on Polymarket-native backtests (higher final balance, lower drawdown).
@@ -8567,9 +8568,8 @@ function getBankrollAdaptivePolicy(bankroll) {
             kellyMaxFraction: clampFrac(highKelly, fallback.kellyMaxFraction),
             // 🏆 v96.2: Keep envelope ON during sprint-growth as well (prevents drawdown cascades and improves compounding).
             riskEnvelopeEnabled: true,
-            // 🏁 v97: Keep Kelly OFF during the entire sprint window (< largeCutover) so sizing is not reduced during compounding.
-            // Kelly re-enables automatically in LARGE_BANKROLL where preservation/liquidity dominate.
-            kellyEnabled: false,
+            // 🏆 v99: Keep Kelly ON during SPRINT_GROWTH as well (same rationale as MICRO_SPRINT).
+            kellyEnabled: defaultKellyEnabled,
             kellyFraction: defaultKellyFraction,
             profitProtectionEnabled: false,
             profitProtectionSchedule: 'SPRINT',
