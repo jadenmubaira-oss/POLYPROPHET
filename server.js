@@ -57,6 +57,32 @@ if (PROXY_URL) {
 // Export for use in Alchemy calls
 const directAgent = originalAgent;
 
+// ==================== PROXY BYPASS FOR CLOB ====================
+// Render operators sometimes set PROXY_URL to bypass Cloudflare, but proxy services can hit bandwidth limits
+// and brick LIVE trading. We therefore force DIRECT (non-proxy) for CLOB API calls by default.
+//
+// If your deployment truly requires proxy for clob.polymarket.com, set CLOB_FORCE_PROXY=1.
+const CLOB_FORCE_PROXY = String(process.env.CLOB_FORCE_PROXY || '').trim() === '1';
+if (!CLOB_FORCE_PROXY) {
+    try {
+        axios.interceptors.request.use((config) => {
+            try {
+                const url = String(config?.url || '');
+                if (url.includes('clob.polymarket.com')) {
+                    config.httpsAgent = directAgent;
+                    config.proxy = false;
+                }
+            } catch { }
+            return config;
+        });
+        console.log('✅ CLOB proxy-bypass active: clob.polymarket.com will use DIRECT agent');
+    } catch (e) {
+        console.log(`⚠️ Failed to install CLOB proxy-bypass interceptor: ${e.message}`);
+    }
+} else {
+    console.log('ℹ️ CLOB_FORCE_PROXY=1 - CLOB requests will use the global proxy agent');
+}
+
 // Helper: Create a JsonRpcProvider that bypasses the global proxy
 // Required because Alchemy/RPC calls timeout through the proxy
 function createDirectProvider(rpcUrl) {
