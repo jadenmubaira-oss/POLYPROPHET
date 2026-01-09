@@ -6924,8 +6924,7 @@ app.get('/api/verify', async (req, res) => {
                         tokenID: tokenId,
                         price,
                         size,
-                        side: 'BUY',
-                        feeRateBps: 0
+                        side: 'BUY'
                     });
                     signOk = true;
                     signDetails = `OK (${pick}) sigType=${selection?.selected?.signatureType}; price=${(price * 100).toFixed(1)}¢ tick=${safeTick}; size=${size}`;
@@ -11792,8 +11791,7 @@ class TradeExecutor {
                         tokenID: tokenId,
                         price: entryPrice,
                         size: shares,
-                        side: 'BUY',
-                        feeRateBps: 0
+                        side: 'BUY'
                     });
 
                     const response = await clobClient.postOrder(order);
@@ -12207,8 +12205,8 @@ class TradeExecutor {
             const yesTokenId = market.tokenIds.yes;
             const noTokenId = market.tokenIds.no;
 
-            const yesOrder = await clobClient.createOrder({ tokenID: yesTokenId, price: yesPrice, size: shares, side: 'BUY', feeRateBps: 0 });
-            const noOrder = await clobClient.createOrder({ tokenID: noTokenId, price: noPrice, size: shares, side: 'BUY', feeRateBps: 0 });
+            const yesOrder = await clobClient.createOrder({ tokenID: yesTokenId, price: yesPrice, size: shares, side: 'BUY' });
+            const noOrder = await clobClient.createOrder({ tokenID: noTokenId, price: noPrice, size: shares, side: 'BUY' });
 
             const [yesResp, noResp] = await Promise.all([clobClient.postOrder(yesOrder), clobClient.postOrder(noOrder)]);
             const yesOrderID = yesResp?.orderID;
@@ -12288,8 +12286,7 @@ class TradeExecutor {
                 tokenID: position.tokenId,
                 price: sellPrice,
                 size: expectedShares,
-                side: 'SELL',
-                feeRateBps: 0
+                side: 'SELL'
             });
 
             const response = await clobClient.postOrder(order);
