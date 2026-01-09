@@ -14780,11 +14780,15 @@ async function runAutoSelfCheck() {
     const verifyIntervalMs = 5 * 60 * 1000;      // every 5 minutes
     const perfectionIntervalMs = 15 * 60 * 1000; // every 15 minutes
 
-    // VERIFY
+        // VERIFY
     if (now - (_selfCheckState.lastVerifyEpoch || 0) >= verifyIntervalMs) {
         _selfCheckState.lastVerifyEpoch = now;
         try {
-            const url = `${baseUrl}/api/verify?apiKey=${encodeURIComponent(API_KEY)}`;
+            // LIVE must run deep verify so we catch "looks healthy but cannot trade" states:
+            // - closed_only mode
+            // - collateral balance/allowance = 0
+            const deep = String(tradeExecutor?.mode || '').toUpperCase() === 'LIVE';
+            const url = `${baseUrl}/api/verify?apiKey=${encodeURIComponent(API_KEY)}${deep ? '&deep=1' : ''}`;
             const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
             if (!resp.ok) {
                 failures.push(`VERIFY_HTTP_${resp.status}`);

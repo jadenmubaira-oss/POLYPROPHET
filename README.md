@@ -39,7 +39,7 @@
 | **Peak-DD Size Brake** | Caps size to 12% if down 20% from peak (at ≥$20) | Disable via `peakDrawdownBrakeEnabled=false` |
 | **Auto-Transfer Detection** | Resets lifetime peak on deposits AND withdrawals | Thresholds in `CONFIG.RISK.autoTransfer*` |
 | **Guarded Auto-Optimizer** | Runs every 24h, applies only if 10%+ improvement + 0% ruin | `autoOptimizerEnabled=false` to disable |
-| **Auto Safety Self-Check** | Runs every 60s; auto-halts LIVE on critical failures **and** periodically runs `/api/verify` + `/api/perfection-check` internally (detects regressions without manual testing). Auto-resumes when failures clear (only if it was self-check halted). | Always on for safety |
+| **Auto Safety Self-Check** | Runs every 60s; auto-halts LIVE on critical failures **and** periodically runs `/api/verify` (**deep=1 in LIVE**) + `/api/perfection-check` internally (detects regressions + “can’t actually trade” states without manual testing). Auto-resumes when failures clear (only if it was self-check halted). | Always on for safety |
 | **Balance Floor** | Balance floor is **dynamic** to prevent a permanent “min-order freeze” after drawdown (still defaults to $2 base floor). | Adjust `minBalanceFloor*` |
 | **Global Stop** | Halts at 20% daily loss | `globalStopLossOverride=true` to bypass |
 | **Loss Cooldown** | Pauses after 3 consecutive losses | `enableLossCooldown=false` |
