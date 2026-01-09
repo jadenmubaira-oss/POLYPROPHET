@@ -6883,6 +6883,61 @@ app.get('/api/verify', async (req, res) => {
         addCheck('CLOB trading permission + collateral allowance (deep)', clobOk, clobDetails, severity);
     }
 
+    // Check 4f.2 (deep): Can build a signed order payload (L1 signing) via clob-client createOrder()
+    // This does NOT place an order; it only proves the signer + signatureType/funder wiring is correct.
+    if (deep && clobClientAvailable && walletLoaded && polyCredsPresent) {
+        let signOk = false;
+        let signDetails = 'Not checked';
+        const severity = walletRequired ? 'error' : 'warn';
+        try {
+            const selection = (typeof tradeExecutor?.getTradeReadyClobClient === 'function')
+                ? await tradeExecutor.getTradeReadyClobClient({ force: true, ttlMs: 0 })
+                : null;
+            const clobClient = selection?.client || null;
+            if (!clobClient || !selection?.ok) {
+                signOk = false;
+                signDetails = `CLOB not trade-ready (${selection?.summary || selection?.reason || 'unknown'})`;
+            } else {
+                // Pick a market tokenId we already know is available
+                const enabledAssetsForMarkets = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
+                const pick = enabledAssetsForMarkets.find(a => currentMarkets?.[a]?.tokenIds?.yes) || null;
+                const tokenId = pick ? currentMarkets[pick].tokenIds.yes : null;
+                const mkt = pick ? currentMarkets[pick] : null;
+                if (!pick || !tokenId || !mkt) {
+                    signOk = false;
+                    signDetails = 'No tokenIds available for createOrder()';
+                } else {
+                    // Compute a valid tick-aligned price near current market price
+                    const rawPrice = Number(mkt.yesPrice);
+                    const tickStr = await clobClient.getTickSize(tokenId).catch(() => null);
+                    const tick = tickStr ? Number(tickStr) : 0.01;
+                    const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+                    const safeTick = (Number.isFinite(tick) && tick > 0 && tick < 0.5) ? tick : 0.01;
+                    const base = Number.isFinite(rawPrice) ? rawPrice : 0.5;
+                    const clamped = clamp(base, safeTick, 1 - safeTick);
+                    const ticks = Math.max(1, Math.round(clamped / safeTick));
+                    const price = clamp(Number((ticks * safeTick).toFixed(6)), safeTick, 1 - safeTick);
+
+                    // Minimal size (shares). This is NOT a stake; createOrder doesn't enforce min stake.
+                    const size = 1;
+                    await clobClient.createOrder({
+                        tokenID: tokenId,
+                        price,
+                        size,
+                        side: 'BUY',
+                        feeRateBps: 0
+                    });
+                    signOk = true;
+                    signDetails = `OK (${pick}) sigType=${selection?.selected?.signatureType}; price=${(price * 100).toFixed(1)}¢ tick=${safeTick}; size=${size}`;
+                }
+            }
+        } catch (e) {
+            signOk = false;
+            signDetails = `Error: ${e.message}`;
+        }
+        addCheck('CLOB order signing works (deep)', signOk, signDetails, severity);
+    }
+
     // Check 4f: Current markets/tokenIds available (if not, engine cannot trade even if wallet+creds exist)
     let marketsReady = false;
     try {
