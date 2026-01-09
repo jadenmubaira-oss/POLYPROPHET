@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `03ad01804882b70c424c43de94f7dc75dd94c894476079fbf79fba1de5b55536` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `6626571f952827377f290f712e31b0e2cb655bbb2f48a71e8101daf7024485b0` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
@@ -777,11 +777,20 @@ ENABLE_MANUAL_TRADING = true    (Required for /api/manual-buy, /api/manual-sell 
 # Check version (should show configVersion: 96)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
+# Check system verify (should show status: PASS or WARN; failed should be 0)
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+
 # Check vault system perfection (should show allPassed: true)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/perfection-check?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check health (shows all safety statuses including crash recovery)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/health?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+
+# Check wallet balances (USDC + MATIC) (LIVE requires wallet; PAPER can still report if wallet is loaded)
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/wallet?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+
+# Check effective gates + dynamic profile (fastest way to see WHY the bot is or isn't trading)
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check crash recovery status
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/crash-recovery-stats?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
@@ -834,6 +843,7 @@ Run these commands in order. If ANY fails, fix it before proceeding.
 
 - **deploymentUrl**: Render URL or custom domain (example: `https://your-app.onrender.com`)
 - **auth**: `API_KEY` (preferred) or Basic Auth (`AUTH_USERNAME`/`AUTH_PASSWORD`)
+- **UI auth note**: If you open the dashboard via `?apiKey=...`, the server should persist it via an **HttpOnly cookie** so internal UI `fetch('/api/...')` calls do not 401.
 - **mode intent**: `TRADE_MODE=PAPER` or `TRADE_MODE=LIVE`
 - **persistence**: `REDIS_URL` present? (required for LIVE)
 - **wallet**: `POLYMARKET_PRIVATE_KEY` present? (required for LIVE; also required for wallet balance endpoints)

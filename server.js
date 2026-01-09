@@ -121,6 +121,36 @@ app.use((req, res, next) => {
     const username = process.env.AUTH_USERNAME || 'admin';
     const password = process.env.AUTH_PASSWORD || 'changeme';
 
+    // Helper: Parse cookie token (no external deps)
+    const getCookie = (name) => {
+        try {
+            const header = String(req.headers.cookie || '');
+            if (!header) return null;
+            const parts = header.split(';');
+            for (const p of parts) {
+                const idx = p.indexOf('=');
+                if (idx <= 0) continue;
+                const k = p.slice(0, idx).trim();
+                if (k !== name) continue;
+                const v = p.slice(idx + 1).trim();
+                if (!v) return '';
+                try { return decodeURIComponent(v); } catch { return v; }
+            }
+            return null;
+        } catch {
+            return null;
+        }
+    };
+
+    const appendSetCookie = (cookie) => {
+        try {
+            const prev = res.getHeader('Set-Cookie');
+            if (!prev) res.setHeader('Set-Cookie', cookie);
+            else if (Array.isArray(prev)) res.setHeader('Set-Cookie', [...prev, cookie]);
+            else res.setHeader('Set-Cookie', [prev, cookie]);
+        } catch { }
+    };
+
     // 🎯 GOAT: Check Bearer token first (for programmatic/mobile access)
     const authHeader = req.headers.authorization || '';
     if (authHeader.startsWith('Bearer ')) {
@@ -128,6 +158,14 @@ app.use((req, res, next) => {
         if (token === API_KEY || token === password) {
             return next();
         }
+    }
+
+    // 🎯 GOAT v97: Persist query-param auth via HttpOnly cookie for dashboard fetch() calls.
+    // Without this, opening the UI via `?apiKey=...` works for the initial HTML, but internal API fetches (no apiKey)
+    // will 401 and appear as "wallet/balance not fetching". Cookie keeps it autonomous and frictionless.
+    const cookieToken = getCookie('pp_apiKey');
+    if (cookieToken && (cookieToken === API_KEY || cookieToken === password)) {
+        return next();
     }
 
     // Fall back to Basic Auth (for browser access)
@@ -138,12 +176,29 @@ app.use((req, res, next) => {
 
     // 🎯 GOAT: Also accept API key as query param for easy dashboard testing
     if (req.query.apiKey === API_KEY || req.query.apiKey === password) {
+        // Set a short-lived cookie so subsequent same-origin fetch() calls remain authorized.
+        try {
+            const token = String(req.query.apiKey || '');
+            const xfProto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim().toLowerCase();
+            const isHttps = !!req.secure || xfProto === 'https';
+            const attrs = [
+                'Path=/',
+                'HttpOnly',
+                'SameSite=Lax',
+                `Max-Age=${60 * 60 * 24 * 30}` // 30 days
+            ];
+            if (isHttps) attrs.push('Secure');
+            appendSetCookie(`pp_apiKey=${encodeURIComponent(token)}; ${attrs.join('; ')}`);
+        } catch { }
         return next();
     }
 
     res.statusCode = 401;
     res.setHeader('WWW-Authenticate', 'Basic realm="POLYPROPHET"');
-    res.json({ error: 'Access denied', hint: 'Use Basic Auth (username:password) or Bearer token (Authorization: Bearer <API_KEY>)' });
+    res.json({
+        error: 'Access denied',
+        hint: 'Use Basic Auth (username:password), Bearer token (Authorization: Bearer <API_KEY>), or add ?apiKey=<API_KEY> (UI will persist it via cookie).'
+    });
 });
 
 // Serve static assets, but do NOT auto-serve public/index.html at `/`
@@ -6463,6 +6518,10 @@ app.get('/api/verify', async (req, res) => {
     };
 
     const effectiveMode = String(tradeExecutor?.mode || CONFIG.TRADE_MODE || 'PAPER').toUpperCase();
+    const deep = (() => {
+        const v = String(req.query.deep || '').trim().toLowerCase();
+        return v === '1' || v === 'true' || v === 'yes' || v === 'on';
+    })();
     
     // ==================== CORE CHECKS ====================
     
@@ -6624,6 +6683,38 @@ app.get('/api/verify', async (req, res) => {
         }
     }
     addCheck('LIVE balance freshness', freshnessOk, freshnessDetails, 'warn');
+
+    // Check 4b: Wallet loaded (required for LIVE)
+    const walletLoaded = !!tradeExecutor?.wallet;
+    const walletAddr = tradeExecutor?.wallet?.address || null;
+    const walletRequired = effectiveMode === 'LIVE';
+    addCheck('Wallet loaded',
+        walletLoaded || !walletRequired,
+        walletLoaded ? `Address: ${walletAddr}` : (walletRequired ? 'Required for LIVE mode' : 'Optional in PAPER'),
+        walletRequired ? 'error' : 'warn');
+
+    // Check 4c: Wallet RPC reachable (USDC + MATIC) (only run in LIVE or deep mode)
+    let walletRpcOk = true;
+    let walletRpcDetails = 'Skipped';
+    let walletRpcSeverity = walletRequired ? 'error' : 'warn';
+    if (walletLoaded && (walletRequired || deep)) {
+        try {
+            const [u, m] = await Promise.all([
+                tradeExecutor.getUSDCBalance(),
+                tradeExecutor.getMATICBalance()
+            ]);
+            walletRpcOk = !!u?.success && !!m?.success;
+            const uMsg = u?.success ? `$${Number(u.balance || 0).toFixed(2)}` : `FAIL (${String(u?.error || 'unknown')})`;
+            const mMsg = m?.success ? `${Number(m.balance || 0).toFixed(4)} MATIC` : `FAIL (${String(m?.error || 'unknown')})`;
+            const rpcU = u?.rpcUsed ? `usdcRpc=${u.rpcUsed}` : '';
+            const rpcM = m?.rpcUsed ? `maticRpc=${m.rpcUsed}` : '';
+            walletRpcDetails = `USDC=${uMsg}; MATIC=${mMsg}${rpcU || rpcM ? `; ${[rpcU, rpcM].filter(Boolean).join(', ')}` : ''}`;
+        } catch (e) {
+            walletRpcOk = false;
+            walletRpcDetails = `Error: ${e.message}`;
+        }
+    }
+    addCheck('Wallet RPC reachable (USDC+MATIC)', walletRpcOk || !walletRequired, walletRpcDetails, walletRpcSeverity);
     
     // Check 5: Redis available (for persistence)
     const redisOk = typeof redisAvailable !== 'undefined' && redisAvailable === true;
