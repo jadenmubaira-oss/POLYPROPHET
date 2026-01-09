@@ -15310,20 +15310,40 @@ async function runAutoSelfCheck() {
         }
     }
     
+    // Sticky enforcement: if the last internal /api/verify or /api/perfection-check was failing,
+    // keep trading blocked until it recovers. Without this, the 5m/15m gating can "auto-resume"
+    // between checks even if the last known state is FAIL.
+    try {
+        if (String(tradeExecutor?.mode || '').toUpperCase() === 'LIVE') {
+            const v = _selfCheckState?.lastVerifySummary;
+            const vStatus = String(v?.status || '').toUpperCase();
+            const vCritical = Number(v?.criticalFailures) || 0;
+            const vWarn = Number(v?.warnings) || 0;
+            if (vStatus === 'FAIL' || vCritical > 0) failures.push('VERIFY_FAILED');
+            else if (vStatus === 'WARN' || vWarn > 0) warnings.push('VERIFY_WARN');
+
+            const p = _selfCheckState?.lastPerfectionSummary;
+            if (p && p.ok === false) failures.push('PERFECTION_FAILED');
+        }
+    } catch { /* ignore */ }
+
+    const failuresUnique = Array.from(new Set(failures));
+    const warningsUnique = Array.from(new Set(warnings));
+
     const result = {
         timestamp: now,
-        passed: failures.length === 0,
-        failures,
-        warnings,
-        tradingAllowed: failures.length === 0
+        passed: failuresUnique.length === 0,
+        failures: failuresUnique,
+        warnings: warningsUnique,
+        tradingAllowed: failuresUnique.length === 0
     };
     
     _selfCheckState.lastResult = result;
     
     // Auto-halt on critical failures (for LIVE mode only)
-    if (failures.length > 0 && tradeExecutor.mode === 'LIVE') {
+    if (failuresUnique.length > 0 && tradeExecutor.mode === 'LIVE') {
         if (tradeExecutor.circuitBreaker && tradeExecutor.circuitBreaker.state !== 'HALTED') {
-            const reason = `AUTO_SELFCHECK: ${failures.join(', ')}`;
+            const reason = `AUTO_SELFCHECK: ${failuresUnique.join(', ')}`;
             tradeExecutor.circuitBreaker.state = 'HALTED';
             tradeExecutor.circuitBreaker.triggerTime = now;
             _selfCheckState.autoHaltReason = reason;
@@ -15338,7 +15358,7 @@ async function runAutoSelfCheck() {
 
     // Auto-resume (for LIVE mode only) when failures clear AND the halt was caused by AUTO_SELFCHECK.
     // Do NOT auto-resume halts caused by drawdown / user actions.
-    if (failures.length === 0 && tradeExecutor.mode === 'LIVE') {
+    if (failuresUnique.length === 0 && tradeExecutor.mode === 'LIVE') {
         const halted = tradeExecutor?.circuitBreaker?.state === 'HALTED';
         const autoReason = String(_selfCheckState.autoHaltReason || '');
         if (halted && autoReason.startsWith('AUTO_SELFCHECK:')) {
@@ -15353,8 +15373,8 @@ async function runAutoSelfCheck() {
         }
     }
     
-    if (failures.length > 0) {
-        log(`⚠️ SELF-CHECK FAILED: ${failures.join(', ')}`);
+    if (failuresUnique.length > 0) {
+        log(`⚠️ SELF-CHECK FAILED: ${failuresUnique.join(', ')}`);
     }
 
         return result;
