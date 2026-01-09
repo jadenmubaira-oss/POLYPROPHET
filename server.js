@@ -1075,6 +1075,20 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 } else {
                     pWinUsed = clamp01(pWinUsed);
                 }
+
+                // 🏆 v99: Runtime parity — weight pWin toward 0.5 when confidence is weak.
+                // This mirrors the runtime `pWinEff` logic used by ORACLE gating:
+                //   weight = finalConfidence / minConfidenceRef
+                //   pWinEff = 0.5 + ((pWinRaw - 0.5) * weight)
+                // Without this, backtests can massively overbet low-confidence trades when tier-conditioned priors are strong.
+                const confNow = Number(c?.confidence);
+                const minConfRef = Math.max(0.0001, CONFIG?.ORACLE?.minConfidence || 0.8);
+                const weight = Number.isFinite(confNow) ? Math.max(0, Math.min(1, confNow / minConfRef)) : 1;
+                const pWinRawNow = pWinUsed;
+                if (Number.isFinite(pWinRawNow)) {
+                    pWinUsed = clamp01(0.5 + ((pWinRawNow - 0.5) * weight));
+                }
+
                 const evRoi = calcEvRoi(pWinUsed, c.entryPrice);
                 if (respectEVGate && (evRoi === null || evRoi <= 0)) { evBlocked++; continue; }
                 enriched.push({ ...c, pWinUsed, evRoi });
