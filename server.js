@@ -6715,6 +6715,56 @@ app.get('/api/verify', async (req, res) => {
         }
     }
     addCheck('Wallet RPC reachable (USDC+MATIC)', walletRpcOk || !walletRequired, walletRpcDetails, walletRpcSeverity);
+
+    // Check 4d: CLOB client present (required for LIVE execution)
+    const clobClientAvailable = !!ClobClient;
+    addCheck('CLOB client available',
+        clobClientAvailable || !walletRequired,
+        clobClientAvailable ? 'OK (@polymarket/clob-client loaded)' : 'Missing @polymarket/clob-client (LIVE trading cannot execute)',
+        walletRequired ? 'error' : 'warn');
+
+    // Check 4e: Polymarket API credentials present (required for LIVE execution)
+    const polyCredsPresent = !!(CONFIG?.POLYMARKET_API_KEY && CONFIG?.POLYMARKET_SECRET && CONFIG?.POLYMARKET_PASSPHRASE);
+    addCheck('Polymarket API credentials present',
+        polyCredsPresent || !walletRequired,
+        polyCredsPresent ? 'OK (key/secret/passphrase set)' : 'Missing POLYMARKET_API_KEY/SECRET/PASSPHRASE',
+        walletRequired ? 'error' : 'warn');
+
+    // Check 4f: Current markets/tokenIds available (if not, engine cannot trade even if wallet+creds exist)
+    let marketsReady = false;
+    try {
+        const enabledAssetsForMarkets = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
+        marketsReady = enabledAssetsForMarkets.some(a => {
+            const m = currentMarkets?.[a];
+            return !!m && !!m.tokenIds && Number.isFinite(Number(m.yesPrice)) && Number.isFinite(Number(m.noPrice));
+        });
+    } catch { }
+    addCheck('Current markets available (tokenIds + odds)',
+        marketsReady,
+        marketsReady ? 'OK' : 'No currentMarkets/tokenIds yet (wait for next cycle or check Gamma/CLOB access)',
+        walletRequired ? 'error' : 'warn');
+
+    // Check 4g (deep): Can fetch a live CLOB orderbook for at least one enabled asset
+    if (deep) {
+        let bookOk = false;
+        let bookDetails = 'No tokenIds available';
+        try {
+            const enabledAssetsForMarkets = ASSETS.filter(a => (CONFIG?.ASSET_CONTROLS?.[a]?.enabled !== false));
+            const pick = enabledAssetsForMarkets.find(a => currentMarkets?.[a]?.tokenIds?.yes) || null;
+            const tokenId = pick ? currentMarkets[pick].tokenIds.yes : null;
+            if (pick && tokenId) {
+                const book = await fetchJSON(`${CLOB_API}/book?token_id=${tokenId}`, 2, 500);
+                bookOk = !!book && (Array.isArray(book?.asks) || Array.isArray(book?.bids));
+                const asks = Array.isArray(book?.asks) ? book.asks.length : 0;
+                const bids = Array.isArray(book?.bids) ? book.bids.length : 0;
+                bookDetails = bookOk ? `OK (${pick}) tokenId=${tokenId} asks=${asks} bids=${bids}` : `Failed (${pick}) tokenId=${tokenId}`;
+            }
+        } catch (e) {
+            bookOk = false;
+            bookDetails = `Error: ${e.message}`;
+        }
+        addCheck('CLOB orderbook fetch works (deep)', bookOk, bookDetails, walletRequired ? 'error' : 'warn');
+    }
     
     // Check 5: Redis available (for persistence)
     const redisOk = typeof redisAvailable !== 'undefined' && redisAvailable === true;
@@ -11173,36 +11223,48 @@ class TradeExecutor {
                         log(`🎯 Status: ${response.status || 'SUBMITTED'}`, asset);
 
                         // FAILSAFE: Verify order fill with retry logic
+                        // Truthful mode: we only consider this a filled trade if matched shares > 0.
+                        // (CLOB can return a LIVE/resting status with 0 matched; treating that as filled corrupts state.)
                         let fillStatus = 'UNVERIFIED';
-                        let actualShares = shares;
+                        let actualShares = 0;
+                        let matchedShares = 0;
                         for (let attempt = 1; attempt <= 3; attempt++) {
                             await new Promise(r => setTimeout(r, 2000));
                             try {
                                 const orderStatus = await clobClient.getOrder(response.orderID);
                                 if (orderStatus) {
-                                    fillStatus = orderStatus.status || 'UNKNOWN';
-                                    if (['FILLED', 'MATCHED', 'LIVE'].includes(fillStatus.toUpperCase())) {
-                                        log(`✅ Order CONFIRMED: ${fillStatus}`, asset);
-                                        if (orderStatus.size_matched) {
-                                            actualShares = parseFloat(orderStatus.size_matched);
-                                        }
+                                    fillStatus = String(orderStatus.status || 'UNKNOWN');
+                                    const m = Number(orderStatus.size_matched || 0);
+                                    matchedShares = Number.isFinite(m) ? m : 0;
+
+                                    if (matchedShares > 0) {
+                                        actualShares = matchedShares;
+                                        log(`✅ Order MATCHED: status=${fillStatus} matched=${matchedShares.toFixed(4)}`, asset);
                                         break;
                                     } else if (['CANCELLED', 'EXPIRED', 'REJECTED'].includes(fillStatus.toUpperCase())) {
                                         log(`❌ Order ${fillStatus} - trade failed`, asset);
                                         return { success: false, error: `Order was ${fillStatus}` };
                                     }
                                 }
-                                log(`⏳ Fill check ${attempt}/3: ${fillStatus}`, asset);
+                                log(`⏳ Fill check ${attempt}/3: status=${fillStatus} matched=${matchedShares.toFixed(4)}`, asset);
                             } catch (pollErr) {
                                 log(`⚠️ Fill check ${attempt}/3 failed: ${pollErr.message}`, asset);
                             }
                         }
-                        if (fillStatus === 'UNVERIFIED') {
-                            log(`⚠️ Order fill unconfirmed after 6s - tracking with caution`, asset);
+                        if (actualShares <= 0) {
+                            // Best-effort cancel to avoid surprise later fills that the engine won't track.
+                            try { await clobClient.cancelOrder({ orderID: response.orderID }); } catch { }
+                            log(`❌ Order not filled (0 matched) after 6s - cancelled`, asset);
+                            return { success: false, error: 'Order not filled (0 matched shares)' };
                         }
 
                         // 🏆 v81 FIX: Store ACTUAL filled shares/size, not requested
                         // Partial fills are common on CLOB - actualShares may differ from requested
+                        const eps = 1e-6;
+                        if (actualShares + eps < shares) {
+                            // Cancel remainder to avoid later unexpected fills that would desync accounting.
+                            try { await clobClient.cancelOrder({ orderID: response.orderID }); } catch { }
+                        }
                         const actualSize = actualShares * entryPrice;
                         if (actualShares !== shares) {
                             log(`📊 PARTIAL FILL: Requested ${shares.toFixed(4)} shares, got ${actualShares.toFixed(4)} (size: ${actualSize.toFixed(2)} vs ${size.toFixed(2)})`, asset);
@@ -11605,6 +11667,18 @@ class TradeExecutor {
         }
 
         try {
+            // Check if we have the required credentials
+            if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
+                log(`❌ LIVE SELL FAILED: Missing API credentials`, position.asset);
+                return { success: false, error: 'Missing API credentials (key/secret/passphrase)' };
+            }
+
+            const expectedSharesRaw = Number(position.shares || 0);
+            const expectedShares = Number.isFinite(expectedSharesRaw) ? expectedSharesRaw : 0;
+            if (expectedShares <= 0) {
+                return { success: false, error: 'Invalid shares (must be > 0)' };
+            }
+
             // CRITICAL FIX: creds is 4th param (not 5th)
             // ApiKeyCreds interface uses 'key' not 'apiKey'
             // SANITIZE: Remove any non-printable ASCII characters from credentials
@@ -11638,15 +11712,86 @@ class TradeExecutor {
             const order = await clobClient.createOrder({
                 tokenID: position.tokenId,
                 price: sellPrice,
-                size: position.shares,
+                size: expectedShares,
                 side: 'SELL',
                 feeRateBps: 0
             });
 
             const response = await clobClient.postOrder(order);
             if (response && response.orderID) {
-                log(`📤 LIVE SELL ORDER: ${response.orderID}`, position.asset);
-                return { success: true, orderID: response.orderID };
+                const orderID = response.orderID;
+                log(`📤 LIVE SELL ORDER SUBMITTED: ${orderID}`, position.asset);
+
+                // Confirm fill (truthful: do not treat a LIVE/resting order as a completed sell)
+                const eps = 1e-6;
+                let fillStatus = String(response.status || 'SUBMITTED');
+                let matchedShares = 0;
+
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    await new Promise(r => setTimeout(r, 2000));
+                    try {
+                        const orderStatus = await clobClient.getOrder(orderID);
+                        if (orderStatus) {
+                            fillStatus = String(orderStatus.status || fillStatus || 'UNKNOWN');
+                            const m = Number(orderStatus.size_matched || 0);
+                            matchedShares = Number.isFinite(m) ? m : matchedShares;
+
+                            if (matchedShares + eps >= expectedShares) {
+                                return {
+                                    success: true,
+                                    orderID,
+                                    sellPrice,
+                                    status: fillStatus,
+                                    filledShares: expectedShares,
+                                    remainingShares: 0
+                                };
+                            }
+
+                            if (['CANCELLED', 'EXPIRED', 'REJECTED'].includes(fillStatus.toUpperCase())) {
+                                log(`❌ Sell order ${fillStatus}`, position.asset);
+                                return {
+                                    success: false,
+                                    orderID,
+                                    sellPrice,
+                                    status: fillStatus,
+                                    filledShares: Math.max(0, matchedShares),
+                                    remainingShares: Math.max(0, expectedShares - Math.max(0, matchedShares)),
+                                    error: `Sell order was ${fillStatus}`
+                                };
+                            }
+                        }
+                        log(`⏳ Sell fill check ${attempt}/3: status=${fillStatus} matched=${matchedShares.toFixed(4)}/${expectedShares.toFixed(4)}`, position.asset);
+                    } catch (pollErr) {
+                        log(`⚠️ Sell fill check ${attempt}/3 failed: ${pollErr.message}`, position.asset);
+                    }
+                }
+
+                // If we didn't fully fill, cancel remainder to avoid later unexpected fills that desync accounting.
+                try { await clobClient.cancelOrder({ orderID }); } catch { }
+
+                if (matchedShares <= eps) {
+                    return {
+                        success: false,
+                        orderID,
+                        sellPrice,
+                        status: fillStatus,
+                        filledShares: 0,
+                        remainingShares: expectedShares,
+                        error: 'Sell not filled (0 matched shares)'
+                    };
+                }
+
+                // Partial fill
+                return {
+                    success: false,
+                    orderID,
+                    sellPrice,
+                    status: fillStatus,
+                    partialFill: true,
+                    filledShares: Math.max(0, matchedShares),
+                    remainingShares: Math.max(0, expectedShares - Math.max(0, matchedShares)),
+                    error: `Partial sell fill: matched ${matchedShares.toFixed(4)} of ${expectedShares.toFixed(4)}`
+                };
             } else {
                 log(`❌ Sell order failed: ${JSON.stringify(response)}`, position.asset);
                 return { success: false, error: 'Order rejected' };
@@ -11659,21 +11804,61 @@ class TradeExecutor {
 
     // CRITICAL: Sell with retry logic - keeps trying until sold or max attempts
     // 🔄 EXPONENTIAL BACKOFF: 3s, 6s, 12s, 24s, 48s (doubles each attempt)
-    async executeSellOrderWithRetry(position, maxAttempts = 5, delayMs = 3000) {
+    async executeSellOrderWithRetry(position, maxAttempts = 5, delayMs = 3000, options = {}) {
         log(`🔄 SELL RETRY: Starting sell attempts for ${position.asset} (max ${maxAttempts} attempts)`, position.asset);
+
+        const positionId = options?.positionId || position?.positionId || null;
+        const startSharesRaw = Number(position?.shares || 0);
+        const startShares = Number.isFinite(startSharesRaw) ? startSharesRaw : 0;
+        const eps = 1e-6;
+        let soldShares = 0;
+        let soldProceeds = 0;
+        let lastOrderID = null;
+        let lastSellPrice = null;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             log(`📤 Sell attempt ${attempt}/${maxAttempts}...`, position.asset);
 
             const result = await this.executeSellOrder(position);
 
-            if (result.success) {
-                log(`✅ SELL SUCCESS on attempt ${attempt}: ${result.orderID}`, position.asset);
+            if (result && result.orderID) lastOrderID = result.orderID;
+            if (result && Number.isFinite(Number(result.sellPrice))) lastSellPrice = Number(result.sellPrice);
+
+            // Track partial/full fills for an average exit price estimate
+            const filled = Number(result?.filledShares || 0);
+            if (Number.isFinite(filled) && filled > eps && Number.isFinite(lastSellPrice)) {
+                soldShares += filled;
+                soldProceeds += filled * lastSellPrice;
+            }
+
+            if (result && result.success) {
+                log(`✅ SELL FILLED on attempt ${attempt}: ${result.orderID}`, position.asset);
                 // Remove from pending sells if it was there
-                if (this.pendingSells) {
-                    delete this.pendingSells[position.asset + '_' + position.tokenId];
+                try {
+                    if (this.pendingSells) {
+                        delete this.pendingSells[position.asset + '_' + position.tokenId];
+                    }
+                } catch { }
+
+                const avgExitPrice = soldShares > eps ? (soldProceeds / soldShares) : (Number.isFinite(lastSellPrice) ? lastSellPrice : null);
+                return { ...result, avgExitPrice, soldShares, startShares, positionId };
+            }
+
+            // Partial fill: reduce remaining shares and keep trying (or allow later pending sell retry)
+            if (result && result.partialFill) {
+                const rem = Number(result.remainingShares || 0);
+                if (Number.isFinite(rem) && rem > eps) {
+                    position.shares = rem;
+                    // Keep size roughly consistent for reporting; LIVE settlement is on-chain.
+                    if (Number.isFinite(Number(position.entry))) {
+                        position.size = Number(position.entry) * rem;
+                    }
+                    log(`📊 PARTIAL SELL: filled=${filled.toFixed(4)} remaining=${rem.toFixed(4)} (will retry)`, position.asset);
+                } else {
+                    // Treat as success if effectively sold out
+                    const avgExitPrice = soldShares > eps ? (soldProceeds / soldShares) : (Number.isFinite(lastSellPrice) ? lastSellPrice : null);
+                    return { success: true, orderID: lastOrderID, sellPrice: lastSellPrice, avgExitPrice, soldShares, startShares, positionId };
                 }
-                return result;
             }
 
             if (attempt < maxAttempts) {
@@ -11691,10 +11876,20 @@ class TradeExecutor {
         // Get market info for additional context
         const market = currentMarkets[position.asset] || {};
 
-        this.pendingSells[position.asset + '_' + position.tokenId] = {
+        const pendingKey = position.asset + '_' + position.tokenId;
+        const avgExitPrice = soldShares > eps ? (soldProceeds / soldShares) : (Number.isFinite(lastSellPrice) ? lastSellPrice : null);
+        this.pendingSells[pendingKey] = {
+            positionId,
             ...position,
             failedAt: Date.now(),
             attempts: maxAttempts,
+            // Partial-fill bookkeeping (helps truthful finalization on retry)
+            startShares,
+            soldShares,
+            soldProceeds,
+            avgExitPrice,
+            lastOrderID,
+            lastSellPrice,
             // 🔮 COMPLETE REDEMPTION INFO
             marketSlug: market.slug || 'unknown',
             marketUrl: market.slug ? `https://polymarket.com/event/${market.slug}` : null,
@@ -11711,7 +11906,7 @@ class TradeExecutor {
             ]
         };
 
-        return { success: false, error: `Failed after ${maxAttempts} attempts`, needsManualIntervention: true };
+        return { success: false, error: `Failed after ${maxAttempts} attempts`, needsManualIntervention: true, positionId, avgExitPrice, soldShares, startShares };
     }
 
     // Get pending sells that need manual intervention
@@ -11726,7 +11921,7 @@ class TradeExecutor {
             // Check pending sells
             for (const [key, pending] of Object.entries(this.pendingSells || {})) {
                 if (key.startsWith(positionId) || pending.tokenId === positionId) {
-                    const result = await this.executeSellOrderWithRetry(pending, 3, 2000);
+                    const result = await this.executeSellOrderWithRetry(pending, 3, 2000, { positionId: pending.positionId || null });
                     if (result.success) {
                         delete this.pendingSells[key];
                     }
@@ -11745,11 +11940,13 @@ class TradeExecutor {
         }
 
         // Live mode - execute with retry
-        const result = await this.executeSellOrderWithRetry(pos, 3, 2000);
+        const result = await this.executeSellOrderWithRetry(pos, 3, 2000, { positionId });
         if (result.success) {
+            const avgExit = Number.isFinite(Number(result.avgExitPrice)) ? Number(result.avgExitPrice) : null;
             const market = currentMarkets[pos.asset];
-            const exitPrice = pos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
-            this.closePosition(positionId, exitPrice, 'MANUAL SELL');
+            const fallbackExit = pos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+            const exitPrice = avgExit !== null ? avgExit : fallbackExit;
+            this.closePosition(positionId, exitPrice, 'MANUAL SELL', { skipLiveSell: true });
         }
         return result;
     }
@@ -11790,10 +11987,92 @@ class TradeExecutor {
     }
 
     // EXIT: Close a position
-    closePosition(positionId, exitPrice, reason) {
+    closePosition(positionId, exitPrice, reason, options = {}) {
         const pos = this.positions[positionId];
         if (!pos) return;
         const isBinaryExit = (typeof exitPrice === 'number') && (exitPrice <= 0.01 || exitPrice >= 0.99);
+        const skipLiveSell = !!options?.skipLiveSell;
+
+        // ==================== LIVE SELL TRUTHFULNESS ====================
+        // In LIVE mode, non-binary exits require an on-CLOB SELL. We must confirm fill BEFORE marking the trade CLOSED,
+        // otherwise we corrupt state (trade marked closed while tokens are still held / order is resting).
+        if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit && !skipLiveSell) {
+            // Avoid duplicate exit attempts
+            if (pos.exitInProgress || pos.sellPending) {
+                return;
+            }
+
+            pos.exitInProgress = true;
+            pos.exitRequestedAt = Date.now();
+            pos.exitRequestedOdds = exitPrice;
+            pos.exitRequestedReason = reason;
+
+            log(`📤 LIVE EXIT REQUESTED: ${pos.asset} ${pos.side} @ ${(Number(exitPrice) * 100).toFixed(1)}¢ (${reason})`, pos.asset);
+
+            (async () => {
+                const cur = this.positions[positionId];
+                if (!cur || !cur.isLive || this.mode !== 'LIVE') return;
+
+                const res = await this.executeSellOrderWithRetry(cur, 5, 3000, { positionId });
+                const still = this.positions[positionId];
+                if (!still) return;
+
+                still.exitInProgress = false;
+
+                if (res && res.success) {
+                    const avg = Number.isFinite(Number(res.avgExitPrice)) ? Number(res.avgExitPrice) : null;
+                    const px =
+                        avg !== null ? avg :
+                        (Number.isFinite(Number(res.sellPrice)) ? Number(res.sellPrice) :
+                            (Number.isFinite(Number(exitPrice)) ? Number(exitPrice) : 0.5));
+                    // Finalize close (skipLiveSell prevents recursion)
+                    this.closePosition(positionId, px, `LIVE SELL CONFIRMED: ${reason}`, { skipLiveSell: true });
+                    return;
+                }
+
+                // Mark as pending so it can be retried (UI + /api/retry-sell + optional auto-retry)
+                still.sellPending = true;
+                still.sellPendingSince = Date.now();
+                still.sellLastError = res?.error || 'Sell failed';
+                try {
+                    if (!this.pendingSells) this.pendingSells = {};
+                    const key = still.asset + '_' + still.tokenId;
+                    this.pendingSells[key] = {
+                        positionId,
+                        ...still,
+                        failedAt: Date.now(),
+                        attempts: 5,
+                        startShares: res?.startShares || null,
+                        soldShares: res?.soldShares || 0,
+                        avgExitPrice: res?.avgExitPrice || null
+                    };
+                } catch { }
+
+                log(`🚨 LIVE EXIT FAILED: ${still.asset} - will retry (check /api/pending-sells)`, still.asset);
+            })().catch(e => {
+                try {
+                    const still = this.positions[positionId];
+                    if (still) {
+                        still.exitInProgress = false;
+                        still.sellPending = true;
+                        still.sellPendingSince = Date.now();
+                        still.sellLastError = e?.message || String(e);
+                    }
+                } catch { }
+                log(`❌ LIVE EXIT ERROR: ${e.message}`, pos.asset);
+            });
+
+            return;
+        }
+
+        // If this position is being tracked as a pending sell, clear that state on FINAL closure (e.g., binary resolution).
+        try {
+            if (pos.isLive && pos.tokenId && this.pendingSells) {
+                delete this.pendingSells[pos.asset + '_' + pos.tokenId];
+            }
+            pos.exitInProgress = false;
+            pos.sellPending = false;
+        } catch { }
 
         // ==================== 🏆 APEX v24: HEDGED POSITION CLOSING ====================
         // If this is a hedged main position, also close the hedge
@@ -11845,23 +12124,6 @@ class TradeExecutor {
             }
 
             delete this.positions[pos.hedgeId];
-        }
-
-        // LIVE MODE: Execute actual sell order WITH RETRY (skip at binary resolution — redeem instead)
-        if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit) {
-            log(`📤 Executing LIVE sell order with retry for ${pos.asset} ${pos.side}...`, pos.asset);
-            // Use async retry - don't block
-            this.executeSellOrderWithRetry(pos, 5, 3000).then(result => {
-                if (result.success) {
-                    log(`✅ Live sell executed: ${result.orderID}`, pos.asset);
-                } else if (result.needsManualIntervention) {
-                    log(`🚨 MANUAL INTERVENTION REQUIRED: ${pos.asset} sell failed - check /api/pending-sells`, pos.asset);
-                } else {
-                    log(`⚠️ Live sell issue: ${result.error}`, pos.asset);
-                }
-            }).catch(e => {
-                log(`❌ Live sell retry failed: ${e.message}`, pos.asset);
-            });
         }
 
         const pnl = (exitPrice - pos.entry) * pos.shares;
@@ -11979,8 +12241,8 @@ class TradeExecutor {
         // Note: Auxiliary legs (HEDGE/ILLIQUIDITY) don't affect streak logic
 
         // Add WINNING live positions to redemption queue for later claiming
-        // Only if position has a tokenId (live trade) and won (exitPrice = 1.0)
-        if (pos.isLive && pos.tokenId && exitPrice >= 0.99) {
+        // Only on binary resolution (exitPrice ~= 1.0), not on early sells.
+        if (pos.isLive && pos.tokenId && exitPrice >= 0.999) {
             this.addToRedemptionQueue(pos);
         }
 
@@ -17323,20 +17585,35 @@ function connectWebSocket() {
 }
 
 async function fetchJSON(url, retries = 3, baseDelay = 1000) {
+    // Use axios so PROXY_URL (via axios.defaults.httpsAgent) applies consistently.
+    // Also enforce a timeout so a single hung request can't stall the whole engine.
+    const timeoutMs = (() => {
+        const n = Number(process.env.HTTP_TIMEOUT_MS || 10000);
+        return Number.isFinite(n) ? Math.max(2000, Math.min(30000, n)) : 10000;
+    })();
+
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
-            const res = await fetch(url);
+            const res = await axios.get(url, {
+                timeout: timeoutMs,
+                responseType: 'json',
+                validateStatus: () => true,
+                headers: {
+                    'Accept': 'application/json',
+                    'User-Agent': 'POLYPROPHET/1.0'
+                }
+            });
 
             // GOD MODE: API Rate Limit Detection
             if (res.status === 429) {
-                const retryAfter = parseInt(res.headers.get('Retry-After') || '5');
+                const retryAfter = parseInt(String(res.headers?.['retry-after'] || '5'));
                 log(`⚠️ RATE LIMITED (429): Waiting ${retryAfter}s before retry ${attempt + 1}/${retries}`);
                 await new Promise(r => setTimeout(r, retryAfter * 1000));
                 continue;
             }
 
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return await res.json();
+            if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
+            return res.data;
         } catch (e) {
             if (attempt < retries - 1) {
                 // Exponential backoff: 1s, 2s, 4s
@@ -20534,10 +20811,27 @@ app.post('/api/retry-sell', async (req, res) => {
     }
 
     try {
-        const result = await tradeExecutor.executeSellOrderWithRetry(pendingSells[key], 3, 2000);
+        const pending = pendingSells[key];
+        const positionId = pending?.positionId || null;
+        const livePos = (positionId && tradeExecutor.positions && tradeExecutor.positions[positionId])
+            ? tradeExecutor.positions[positionId]
+            : null;
+        const sellTarget = livePos || pending;
+
+        const result = await tradeExecutor.executeSellOrderWithRetry(sellTarget, 3, 2000, { positionId });
+
         if (result.success) {
+            // If this was tied to an in-memory open position, finalize the close now that the sell is confirmed.
+            if (livePos && positionId && tradeExecutor.positions[positionId]) {
+                const avgExit = Number.isFinite(Number(result.avgExitPrice)) ? Number(result.avgExitPrice) : null;
+                const market = currentMarkets[livePos.asset];
+                const fallbackExit = livePos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+                const exitPrice = avgExit !== null ? avgExit : fallbackExit;
+                tradeExecutor.closePosition(positionId, exitPrice, 'PENDING SELL RETRY', { skipLiveSell: true });
+            }
             delete tradeExecutor.pendingSells[key];
         }
+
         res.json(result);
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -20768,8 +21062,22 @@ app.post('/api/retry-pending-sells', async (req, res) => {
 
     for (const [key, position] of Object.entries(pending)) {
         try {
-            const result = await tradeExecutor.executeSellOrderWithRetry(position, 3, 2000);
+            const positionId = position?.positionId || null;
+            const livePos = (positionId && tradeExecutor.positions && tradeExecutor.positions[positionId])
+                ? tradeExecutor.positions[positionId]
+                : null;
+            const sellTarget = livePos || position;
+
+            const result = await tradeExecutor.executeSellOrderWithRetry(sellTarget, 3, 2000, { positionId });
             if (result.success) {
+                // If this was tied to an in-memory open position, finalize the close now that the sell is confirmed.
+                if (livePos && positionId && tradeExecutor.positions[positionId]) {
+                    const avgExit = Number.isFinite(Number(result.avgExitPrice)) ? Number(result.avgExitPrice) : null;
+                    const market = currentMarkets[livePos.asset];
+                    const fallbackExit = livePos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+                    const exitPrice = avgExit !== null ? avgExit : fallbackExit;
+                    tradeExecutor.closePosition(positionId, exitPrice, 'PENDING SELL RETRY (BATCH)', { skipLiveSell: true });
+                }
                 delete tradeExecutor.pendingSells[key];
                 log(`✅ Pending sell resolved: ${key}`);
             }
@@ -20795,6 +21103,65 @@ setInterval(async () => {
         }
     }
 }, 5 * 60 * 1000); // Every 5 minutes
+
+// 🛡️ Autonomy: Periodically retry pending sells in LIVE mode (self-healing).
+// Pending sells can happen due to temporary liquidity gaps / rate limits / network jitter.
+// We keep this lightweight and idempotent; it does NOT open new risk, it only tries to close exposure.
+let _autoRetryPendingSellsRunning = false;
+setInterval(async () => {
+    const enabledEnv = String(process.env.AUTO_RETRY_PENDING_SELLS ?? '').trim().toLowerCase();
+    const enabled = !(enabledEnv === '0' || enabledEnv === 'false' || enabledEnv === 'off');
+    if (!enabled) return;
+
+    if (_autoRetryPendingSellsRunning) return;
+    if (!tradeExecutor || tradeExecutor.mode !== 'LIVE' || !tradeExecutor.wallet) return;
+
+    const pending = tradeExecutor.pendingSells || {};
+    const keys = Object.keys(pending);
+    if (keys.length === 0) return;
+
+    _autoRetryPendingSellsRunning = true;
+    try {
+        // Bound work per tick (avoid long stalls if many pending sells appear at once)
+        const maxPerTick = 5;
+        let processed = 0;
+
+        for (const key of keys) {
+            if (processed >= maxPerTick) break;
+            const item = pending[key];
+            if (!item || !item.tokenId || !item.asset) continue;
+
+            const positionId = item.positionId || null;
+            const livePos = (positionId && tradeExecutor.positions && tradeExecutor.positions[positionId])
+                ? tradeExecutor.positions[positionId]
+                : null;
+            const sellTarget = livePos || item;
+
+            try {
+                const result = await tradeExecutor.executeSellOrderWithRetry(sellTarget, 3, 2000, { positionId });
+                if (result && result.success) {
+                    if (livePos && positionId && tradeExecutor.positions[positionId]) {
+                        const avgExit = Number.isFinite(Number(result.avgExitPrice)) ? Number(result.avgExitPrice) : null;
+                        const market = currentMarkets[livePos.asset];
+                        const fallbackExit = livePos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+                        const exitPrice = avgExit !== null ? avgExit : fallbackExit;
+                        tradeExecutor.closePosition(positionId, exitPrice, 'AUTO RETRY PENDING SELL', { skipLiveSell: true });
+                    }
+                    delete tradeExecutor.pendingSells[key];
+                    log(`✅ AUTO RETRY: Pending sell resolved: ${key}`);
+                }
+            } catch (e) {
+                log(`❌ AUTO RETRY: Pending sell failed: ${key} - ${e.message}`);
+            }
+
+            processed++;
+            // Small spacing to reduce burstiness
+            await new Promise(r => setTimeout(r, 250));
+        }
+    } finally {
+        _autoRetryPendingSellsRunning = false;
+    }
+}, 2 * 60 * 1000); // Every 2 minutes
 
 // EXPORT ENDPOINT (New Feature)
 app.get('/api/export', (req, res) => {

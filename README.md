@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `6626571f952827377f290f712e31b0e2cb655bbb2f48a71e8101daf7024485b0` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `6940f23b3f50eac98871c8a1bd5fb366b06632e037323f115b1414b79b9cdb08` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
@@ -835,6 +835,12 @@ curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyM
 - **Never claim “it works”** unless you can cite `/api/version` + `/api/health` + `/api/verify` + `/api/perfection-check` from the **target deployment URL**.
 - If you can’t access the deployment (missing URL/credentials), your first action is to **ask for them**.
 
+### Proof Boundary (Honest, Non‑Negotiable)
+
+- **We can prove the engine is wired and healthy** (feeds, wallet RPC, risk gates, persistence, drift/self-check, vault wiring) via endpoints + code inspection.
+- **We cannot “prove” LIVE buy/sell execution without a real funded trade** because fills are external, non-deterministic, and dependent on Polymarket infra + liquidity.
+- Therefore, **LIVE execution proof requires a controlled LIVE smoke test** (below). Anything else is **NOT VERIFIED**.
+
 ### For Any AI Verifying This Repo
 
 Run these commands in order. If ANY fails, fix it before proceeding.
@@ -866,6 +872,10 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito"
 # 2. VERIFY (general system health)
 # Expected: passed >= 10, failed == 0
 curl "http://localhost:3000/api/verify?apiKey=bandito"
+
+# 2b. VERIFY (deep - LIVE execution readiness)
+# Expected: PASS, and deep checks for CLOB orderbook/markets pass (or explain why NOT VERIFIED)
+curl "http://localhost:3000/api/verify?deep=1&apiKey=bandito"
 
 # 3. RISK CONTROLS (runtime state)
 # Expected: vaultThresholds.sources shows where values came from
@@ -939,6 +949,44 @@ curl "http://localhost:3000/api/backtest-polymarket?hours=24&stake=0.32&apiKey=b
    - `/api/risk-controls` response
    - `/api/backtest-polymarket` risk envelope simulation
 4. Re-run `/api/perfection-check` until all pass
+
+### Deep Audit Checklist (Beyond Endpoints)
+
+This is the “no stone unturned” layer: it’s what you review in code to confirm the system matches the stated objectives.
+
+- **LIVE execution truthfulness (critical)**
+  - LIVE **BUY** only becomes a position when **matched shares > 0** (not merely “order accepted”).
+  - LIVE **SELL** must be **confirmed filled** before the position is marked `CLOSED` (no “close first, hope it sold later”).
+  - Partial fills must not corrupt accounting: remaining shares stay tracked; sell retries are safe and idempotent.
+
+- **Proxy + networking (critical for autonomy)**
+  - `fetchJSON()` uses **timeouts** and a **proxy-aware HTTP client** so a single hung request can’t stall the engine and region blocks don’t silently disable trading.
+  - Wallet RPC uses **explicit proxy bypass** (direct JSON-RPC) to avoid the global CLOB proxy breaking on-chain reads.
+
+- **Risk invariants (goal alignment)**
+  - Floor/ruin constraints enforced: never place a trade that could violate the effective floor after worst-case loss.
+  - Equity-aware bankroll used for risk math so open positions don’t trigger false drawdowns.
+  - Drift auto-disable is self-healing (probe trades) and observable in `/api/risk-controls`.
+
+- **Persistence + no-regression**
+  - Redis settings restore must deep-merge (new keys preserved) and never override secrets.
+  - Trade history persistence must only record `CLOSED` trades that correspond to real lifecycle events (filled sell or binary resolution).
+
+### LIVE Smoke Test (Authoritative Proof of Buy + Sell)
+
+Do this once per deployment when you want **real proof**:
+
+1. **Enable manual LIVE trading temporarily**: set `ENABLE_MANUAL_TRADING=true` in Render env (then redeploy).
+2. **Manual BUY (min size)**: use the dashboard or `POST /api/manual-buy` with `$1.10` (min order).
+3. **Verify it actually filled**
+   - `GET /api/wallet` shows the expected USDC change.
+   - `GET /api/pending-sells` remains empty for buys; positions appear in runtime state endpoints.
+4. **Manual SELL**
+   - Confirm `GET /api/pending-sells` is empty (or auto-retries clear it).
+   - Confirm USDC is returned in `GET /api/wallet`.
+5. **Disable manual trading again**: remove `ENABLE_MANUAL_TRADING` or set it to `false`.
+
+If you did not perform this smoke test (or cannot), you must state: **LIVE buy/sell NOT VERIFIED**.
 
 ---
 
