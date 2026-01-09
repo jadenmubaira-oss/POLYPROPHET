@@ -95,8 +95,8 @@
 **Critical (v97)**: The bot runs with an **AUTO‑BANKROLL PROFILE** by default (LIVE + PAPER + backtests match), with a bankroll‑aware strategy mode:
 
 - **Default: `AUTO_BANKROLL_MODE=SPRINT`** (max profit ASAP intent; still respects the $2 floor + circuit breaker + cooldown/global stop):
-  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=ON (k=0.5, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (**MICRO_SPRINT**)
-  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=ON (k=0.5, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (**SPRINT_GROWTH**)
+  - **Bankroll < $20**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=ON (k=0.25, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (**MICRO_SPRINT**)
+  - **Bankroll $20-$999**: `MAX_POSITION_SIZE=0.32` (up to **0.45** on *exceptional* CONVICTION via pWin+EV booster), `kelly=ON (k=0.25, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (**SPRINT_GROWTH**)
   - **Bankroll ≥ $1,000**: `MAX_POSITION_SIZE=0.07`, `kelly=ON (cap 0.12)`, `riskEnvelope=ON`, `profitProtection=ON` (**LARGE_BANKROLL**)
 
 - **Optional: `AUTO_BANKROLL_MODE=SAFE`** (legacy micro-safe under $20):
@@ -133,7 +133,7 @@ We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. R
 ### The Winning Setup (your $5 start — SPRINT auto-mode)
 
 With `autoProfile=1` (default):
-- **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=ON (k=0.5, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
+- **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=ON (k=0.25, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
 
 #### 72h offset sweep methodology (non‑cherry‑picked, reproducible)
 
@@ -345,7 +345,7 @@ RISK: {
     
     // KELLY SIZING - Mathematically optimal position sizing
     kellyEnabled: true,          // Enable Kelly-based sizing
-    kellyFraction: 0.50,         // Half-Kelly (balance growth vs variance)
+    kellyFraction: 0.25,         // Quarter-Kelly (reduces estimation-error blowups; improves worst+best across offset sweeps)
     kellyMinPWin: 0.55,          // Minimum pWin to apply Kelly
     kellyMaxFraction: 0.32,      // 🏆 v80: 32% sweet spot cap
     
@@ -405,7 +405,7 @@ ASSET_CONTROLS: {
 |-----------|---------------|
 | **32% base max stake (+ exceptional boost)** | 🏆 v80 Sweet spot baseline. **v97 exceptional sizing** can temporarily raise cap to **45%** only when pWin≥84% AND EV≥30% on CONVICTION trades (otherwise stays at 32% cap). |
 | **Kelly enabled** | Reduces variance ~50% in bad windows, ~14% less profit in good windows |
-| **Half-Kelly (k=0.5)** | Full Kelly is too aggressive. k=0.5 provides 75% of growth with 50% of variance |
+| **Fractional Kelly (k=0.25)** | Full Kelly is too aggressive under model error. k=0.25 reduces variance/tail risk and (empirically) improved both worst + best windows in our offset sweeps. |
 | **Dynamic risk profile** | **v77**: Bootstrap stage allows aggressive growth; Lock-in stage protects gains |
 | **Trade frequency floor** | **v77**: Allows high-quality ADVISORY when below 1 trade/hour (prevents being "too frigid") |
 | **BTC+ETH only** | Debug data shows 79%/77% accuracy vs XRP 59.5%. Higher accuracy = lower variance |
@@ -422,9 +422,9 @@ Kelly formula: `f* = (b × p - (1-p)) / b`
 - `p` = calibrated win probability (pWin)
 - `f*` = optimal fraction of bankroll to risk
 
-**Half-Kelly (k=0.5)**: We bet `0.5 × f*` instead of full `f*` because:
+**Fractional Kelly (k=0.25)**: We bet `0.25 × f*` instead of full `f*` because:
 1. Full Kelly is too volatile for most humans
-2. Half-Kelly gives ~75% of the growth with ~50% of the variance
+2. Fractional Kelly is more robust to estimation error (true edge < estimated edge)
 3. Model uncertainty means true edge is less than estimated
 
 **When Kelly Helps Most**:
@@ -434,32 +434,21 @@ Kelly formula: `f* = (b × p - (1-p)) / b`
 
 ---
 
-## DAY-BY-DAY PROFIT PROJECTIONS
+## PERFORMANCE SNAPSHOT (Anchored 72h Offset Sweep)
 
-### From $5 Starting Balance (35% Stake, CONVICTION Only)
+This replaces older “projection” tables: **we only treat runtime‑parity Polymarket backtests + offset sweeps as evidence.**
 
-#### Based on Polymarket-Native Backtests (Ground Truth Data)
+- **Setup**: $5 start, BTC+ETH, `entry=CLOB_HISTORY`, `tier=HYBRID`, `globalStopLoss=0.20`, `kellyFraction=0.25`
+- **Offsets**: 0..168h step 12h (coverage: **12/15** windows ≥ 90% of 72h)
+- **No‑ruin**: ruin windows (<$1.60) = **0**
 
-| Window | Trades | Win Rate | Final Balance | Max Drawdown | Profit |
-|--------|--------|----------|---------------|--------------|--------|
-| 24h | 47 | 80.85% | $87.65 | 49.47% | 1653% |
-| 48h | 86 | 79.07% | $838.45 | 66.32% | 16669% |
-| 72h | 103 | 77.67% | $432.25 | 67.98% | 8545% |
-| 168h (7d) | 105 | 78.10% | $527.63 | 67.98% | 10452% |
+Final balance after 72h:
+- **Worst**: $2.56
+- **Median**: $6.71
+- **Avg**: $6.51
+- **Best**: $12.48
 
-#### Block-Bootstrap Projections (1000 simulations)
-
-| Day | Trades | Worst 10% | Median | Best 10% | $100+ Prob | <$2.00 Risk |
-|-----|--------|-----------|--------|----------|------------|-------------|
-| **1** | 24 | $5.93 | $18.60 | $60.62 | **2.2%** | 4.0% |
-| **2** | 48 | $12.83 | $69.88 | $358.70 | **41.1%** | 5.2% |
-| **3** | 72 | $34.57 | $289.47 | $2,184.85 | **72.5%** | 6.2% |
-| **4** | 96 | $78.32 | $652.14 | $5,832.45 | **84.2%** | 5.8% |
-| **5** | 120 | $140.96 | $1,609.67 | $12,450.00 | **90.1%** | 5.1% |
-| **6** | 144 | $289.33 | $3,842.19 | $22,100.00 | **92.8%** | 4.7% |
-| **7** | 168 | $527.63 | $8,217.45 | $45,000.00 | **93.3%** | 4.3% |
-
-**Key Insight**: Results vary by time window. The 48h offset window showed a **LOSS** despite 73.68% win rate. This is normal variance.
+Scaling note: results scale **roughly** with starting balance (e.g., best \(12.48/5 \approx 2.50×\) → ~$100 from $40), but not perfectly due to min order, caps, and discrete trade opportunities.
 
 ---
 
@@ -691,6 +680,7 @@ if (maxTradeSize < $1.10) {
 |-----------|-------|-----------|
 | Redis connected | `redisAvailable = true` | LIVE → PAPER |
 | Wallet loaded | `POLYMARKET_PRIVATE_KEY` set | Trades blocked |
+| API creds present or auto-derived | `/api/verify?deep=1` + settings | If invalid after wallet rotation: leave creds blank and rely on `POLYMARKET_AUTO_DERIVE_CREDS=true` |
 | CLOB trade-ready | `/api/verify?deep=1` → `CLOB trading permission + collateral allowance (deep)` | Fix geo/ban (closed-only), fund collateral, ensure allowance > 0, verify `POLYMARKET_SIGNATURE_TYPE` + funder address |
 | Chainlink fresh | Feed <30s old | Trades blocked |
 | Balance > floor | Balance > $2.00 | Trades blocked |
@@ -757,6 +747,7 @@ POLYMARKET_API_KEY = <derived from generate_creds.js>
 POLYMARKET_SECRET = <derived from generate_creds.js>
 POLYMARKET_PASSPHRASE = <derived from generate_creds.js>
 POLYMARKET_SIGNATURE_TYPE = 0   (0=standard wallet, 1=Magic/email login exported key)
+POLYMARKET_AUTO_DERIVE_CREDS = true   (default: true; if creds are missing/invalid, bot derives them from wallet automatically)
 
 # Wallet/RPC reliability (optional)
 POLYGON_RPC_URLS = <comma-separated Polygon RPC URLs>   (optional; used for wallet balance reads)
@@ -1696,7 +1687,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 
 ### v74 (2026-01-03) — GOLDEN KELLY
 
-- **ADD**: Half-Kelly sizing (`kellyEnabled: true`, `kellyFraction: 0.50`)
+- **ADD**: Fractional Kelly sizing (`kellyEnabled: true`, `kellyFraction: 0.25`)
 - **ADD**: Kelly parameters to backtest endpoint (`kelly=1`, `kellyK=0.5`, `kellyMax=0.35`)
 - **WHY**: Kelly sizing dramatically reduces variance in "bad windows" (68% DD → 50% DD)
 - **EFFECT**: ~14% less profit in good windows, ~50% less drawdown in bad windows

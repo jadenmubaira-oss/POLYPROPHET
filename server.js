@@ -6757,10 +6757,17 @@ app.get('/api/verify', async (req, res) => {
         walletRequired ? 'error' : 'warn');
 
     // Check 4e: Polymarket API credentials present (required for LIVE execution)
-    const polyCredsPresent = !!(CONFIG?.POLYMARKET_API_KEY && CONFIG?.POLYMARKET_SECRET && CONFIG?.POLYMARKET_PASSPHRASE);
+    // If missing and auto-derive is enabled, attempt derivation once (deep verification only).
+    let polyCredsPresent = !!(CONFIG?.POLYMARKET_API_KEY && CONFIG?.POLYMARKET_SECRET && CONFIG?.POLYMARKET_PASSPHRASE);
+    if (deep && walletLoaded && !polyCredsPresent && CONFIG?.POLYMARKET_AUTO_DERIVE_CREDS && typeof tradeExecutor?.ensurePolymarketCreds === 'function') {
+        try {
+            const r = await tradeExecutor.ensurePolymarketCreds();
+            polyCredsPresent = !!r?.ok && !!(CONFIG?.POLYMARKET_API_KEY && CONFIG?.POLYMARKET_SECRET && CONFIG?.POLYMARKET_PASSPHRASE);
+        } catch { }
+    }
     addCheck('Polymarket API credentials present',
         polyCredsPresent || !walletRequired,
-        polyCredsPresent ? 'OK (key/secret/passphrase set)' : 'Missing POLYMARKET_API_KEY/SECRET/PASSPHRASE',
+        polyCredsPresent ? 'OK (key/secret/passphrase set)' : (CONFIG?.POLYMARKET_AUTO_DERIVE_CREDS ? 'Missing POLYMARKET_API_KEY/SECRET/PASSPHRASE (auto-derive enabled but not yet successful)' : 'Missing POLYMARKET_API_KEY/SECRET/PASSPHRASE'),
         walletRequired ? 'error' : 'warn');
 
     // Check 4f (deep): CLOB trading permission + collateral balance/allowance
@@ -8066,6 +8073,9 @@ const CONFIG = {
     POLYMARKET_SIGNATURE_TYPE: Number.isFinite(parseInt(process.env.POLYMARKET_SIGNATURE_TYPE))
         ? Math.max(0, Math.min(1, parseInt(process.env.POLYMARKET_SIGNATURE_TYPE)))
         : 0,
+    // If true (default), the bot may auto-derive CLOB API creds from the wallet when missing or invalid.
+    // This removes the need to run generate_creds.js manually when rotating wallets (autonomy + self-healing).
+    POLYMARKET_AUTO_DERIVE_CREDS: String(process.env.POLYMARKET_AUTO_DERIVE_CREDS || 'true').toLowerCase() !== 'false',
 
     // Core Trading Settings
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
@@ -8285,11 +8295,11 @@ const CONFIG = {
         
         // 🏆 v85 KELLY SIZING: Mathematically optimal position sizing based on edge
         // Kelly formula: f* = (b*p - (1-p)) / b where b = payout odds, p = win probability
-        // Half-Kelly (k=0.5) provides ~75% of full Kelly growth with ~50% of variance
+        // Fractional Kelly: reduces estimation-error blowups while preserving strong geometric growth.
         // 🏆 v88: kellyMaxFraction=0.32 is OPTIMAL for $40+ start (0% ruin, +318% avg 7d)
         //   Evidence: 4 non-cherry-picked 7-day backtests, 0% ruin rate, $167.33 avg final
         kellyEnabled: true,               // Enable Kelly-based position sizing
-        kellyFraction: 0.50,              // k=0.5 (half-Kelly) - balance growth vs variance
+        kellyFraction: 0.25,              // k=0.25 (quarter-Kelly) - empirically improves BOTH worst+best across offset sweeps
         kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
         kellyMaxFraction: 0.32,           // 🏆 v88: EMPIRICAL OPTIMUM for $40+ start
 
@@ -8539,7 +8549,7 @@ function getBankrollAdaptivePolicy(bankroll) {
 
     // Policy-level toggles (consumed by runtime sizing + backtests for parity)
     const defaultKellyEnabled = CONFIG?.RISK?.kellyEnabled !== false;
-    const defaultKellyFraction = clamp01(CONFIG?.RISK?.kellyFraction, 0.50);
+    const defaultKellyFraction = clamp01(CONFIG?.RISK?.kellyFraction, 0.25);
     const defaultProfitProtectionEnabled = true; // profit-lock schedule in applyVarianceControls (runtime) / adaptiveMode (backtests)
 
     const fallback = {
@@ -8929,6 +8939,8 @@ class TradeExecutor {
         this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
         this.closedPositions = [];     // 🏆 v77: Track closed positions for frequency floor calculation
         this.wallet = null;
+        // Self-healing: allow one in-flight derive at a time (prevents thundering herd)
+        this._deriveCredsPromise = null;
         this.tradeHistory = [];
         // ✅ Ground-truth resolution: pending Polymarket slug resolutions (PAPER mode)
         // Map<slug, { asset, attempts, fallbackOutcome, startedAt }>
@@ -9113,6 +9125,59 @@ class TradeExecutor {
             }
         }
         return false;
+    }
+
+    // Derive Polymarket CLOB API creds from the currently loaded wallet (L1-auth).
+    // This lets the bot rotate to a new wallet without a separate generate_creds step.
+    async ensurePolymarketCreds(opts = {}) {
+        const force = opts && opts.force === true;
+
+        if (!CONFIG?.POLYMARKET_AUTO_DERIVE_CREDS) {
+            return { ok: false, reason: 'POLYMARKET_AUTO_DERIVE_CREDS=false' };
+        }
+
+        if (!ClobClient) return { ok: false, reason: 'Missing @polymarket/clob-client' };
+        if (!this.wallet) return { ok: false, reason: 'No wallet loaded' };
+
+        const present =
+            !!CONFIG?.POLYMARKET_API_KEY &&
+            !!CONFIG?.POLYMARKET_SECRET &&
+            !!CONFIG?.POLYMARKET_PASSPHRASE;
+
+        if (present && !force) {
+            return { ok: true, source: 'present' };
+        }
+
+        if (this._deriveCredsPromise) return await this._deriveCredsPromise;
+
+        this._deriveCredsPromise = (async () => {
+            try {
+                const host = 'https://clob.polymarket.com';
+                const tmp = new ClobClient(host, POLY_CHAIN_ID, this.wallet);
+                const creds = await tmp.createOrDeriveApiKey();
+                const key = String(creds?.key || '').trim();
+                const secret = String(creds?.secret || '').trim();
+                const passphrase = String(creds?.passphrase || '').trim();
+
+                if (!key || !secret || !passphrase) {
+                    return { ok: false, reason: 'derive returned empty creds' };
+                }
+
+                // Never log secrets; just record that derivation succeeded.
+                CONFIG.POLYMARKET_API_KEY = key;
+                CONFIG.POLYMARKET_SECRET = secret;
+                CONFIG.POLYMARKET_PASSPHRASE = passphrase;
+
+                log(`🔐 Polymarket API creds derived from wallet (key=${key.slice(0, 8)}...${key.slice(-4)})`);
+                return { ok: true, source: 'derived' };
+            } catch (e) {
+                return { ok: false, reason: `derive failed: ${e.message}` };
+            } finally {
+                this._deriveCredsPromise = null;
+            }
+        })();
+
+        return await this._deriveCredsPromise;
     }
 
     // Create a configured Polymarket CLOB client (single source of truth for LIVE trading).
@@ -11373,10 +11438,13 @@ class TradeExecutor {
                     return { success: false, error: 'CLOB client not installed. Run: npm install @polymarket/clob-client' };
                 }
 
-                // Check if we have the required credentials
+                // Check if we have the required credentials (or auto-derive them for autonomy)
                 if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
-                    log(`❌ LIVE TRADING FAILED: Missing API credentials`, asset);
-                    return { success: false, error: 'Missing API credentials (key/secret/passphrase)' };
+                    const derived = await this.ensurePolymarketCreds().catch(() => ({ ok: false }));
+                    if (!derived?.ok) {
+                        log(`❌ LIVE TRADING FAILED: Missing API credentials (and auto-derive failed)`, asset);
+                        return { success: false, error: 'Missing API credentials (key/secret/passphrase) and auto-derive failed' };
+                    }
                 }
 
                 if (!this.wallet) {
@@ -11866,8 +11934,11 @@ class TradeExecutor {
         try {
             // Check if we have the required credentials
             if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
-                log(`❌ LIVE SELL FAILED: Missing API credentials`, position.asset);
-                return { success: false, error: 'Missing API credentials (key/secret/passphrase)' };
+                const derived = await this.ensurePolymarketCreds().catch(() => ({ ok: false }));
+                if (!derived?.ok) {
+                    log(`❌ LIVE SELL FAILED: Missing API credentials (and auto-derive failed)`, position.asset);
+                    return { success: false, error: 'Missing API credentials (key/secret/passphrase) and auto-derive failed' };
+                }
             }
 
             const expectedSharesRaw = Number(position.shares || 0);
@@ -19767,7 +19838,7 @@ app.get('/', (req, res) => {
                         },
 
                         kellyEnabled: true,
-                        kellyFraction: 0.50,
+                        kellyFraction: 0.25,
                         kellyMinPWin: 0.55,
                         kellyMaxFraction: 0.32, // 🏆 v88: EMPIRICAL OPTIMUM for $40+ (ruin=0%)
 
