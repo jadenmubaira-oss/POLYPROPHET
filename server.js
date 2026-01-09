@@ -15341,14 +15341,22 @@ async function runAutoSelfCheck() {
     _selfCheckState.lastResult = result;
     
     // Auto-halt on critical failures (for LIVE mode only)
+    // NOTE: CircuitBreaker state is recomputed continuously (updateCircuitBreaker),
+    // so using it as a manual "halt latch" is not reliable. Use tradingPaused instead.
     if (failuresUnique.length > 0 && tradeExecutor.mode === 'LIVE') {
-        if (tradeExecutor.circuitBreaker && tradeExecutor.circuitBreaker.state !== 'HALTED') {
-            const reason = `AUTO_SELFCHECK: ${failuresUnique.join(', ')}`;
-            tradeExecutor.circuitBreaker.state = 'HALTED';
-            tradeExecutor.circuitBreaker.triggerTime = now;
-            _selfCheckState.autoHaltReason = reason;
-            log(`🛑 AUTO-HALT: Trading halted due to: ${reason}`);
-            
+        const reason = `AUTO_SELFCHECK: ${failuresUnique.join(', ')}`;
+        _selfCheckState.autoHaltReason = reason;
+
+        const alreadyPausedBySelfCheck =
+            !!tradeExecutor?.tradingPaused &&
+            String(tradeExecutor?.tradingPausedReason || '').startsWith('AUTO_SELFCHECK:');
+
+        if (!alreadyPausedBySelfCheck) {
+            tradeExecutor.tradingPaused = true;
+            tradeExecutor.tradingPausedReason = reason;
+            tradeExecutor.tradingPausedAt = now;
+            log(`🛑 AUTO-HALT: Trading paused due to: ${reason}`);
+
             // Send Telegram notification if configured
             if (typeof sendTelegramNotification === 'function') {
                 sendTelegramNotification(`🛑 AUTO-HALT: ${reason}`);
@@ -15356,14 +15364,16 @@ async function runAutoSelfCheck() {
         }
     }
 
-    // Auto-resume (for LIVE mode only) when failures clear AND the halt was caused by AUTO_SELFCHECK.
-    // Do NOT auto-resume halts caused by drawdown / user actions.
+    // Auto-resume (for LIVE mode only) when failures clear AND the pause was caused by AUTO_SELFCHECK.
+    // Do NOT auto-resume manual pauses.
     if (failuresUnique.length === 0 && tradeExecutor.mode === 'LIVE') {
-        const halted = tradeExecutor?.circuitBreaker?.state === 'HALTED';
+        const paused = !!tradeExecutor?.tradingPaused;
+        const pauseReason = String(tradeExecutor?.tradingPausedReason || '');
         const autoReason = String(_selfCheckState.autoHaltReason || '');
-        if (halted && autoReason.startsWith('AUTO_SELFCHECK:')) {
-            tradeExecutor.circuitBreaker.state = 'NORMAL';
-            tradeExecutor.circuitBreaker.triggerTime = 0;
+        if (paused && pauseReason.startsWith('AUTO_SELFCHECK:') && autoReason.startsWith('AUTO_SELFCHECK:')) {
+            tradeExecutor.tradingPaused = false;
+            tradeExecutor.tradingPausedReason = null;
+            tradeExecutor.tradingPausedAt = 0;
             _selfCheckState.autoHaltReason = null;
             _selfCheckState.lastAutoResumeEpoch = now;
             log(`✅ AUTO-RESUME: Trading resumed (self-check recovered)`);
