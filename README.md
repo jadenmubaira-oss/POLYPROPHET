@@ -1703,7 +1703,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 | **Asset accuracy** | ✅ YES - BTC+ETH only (79%/77%) vs XRP (59.5%) |
 | **Stop-loss policy** | ✅ YES - CONVICTION holds to resolution (bypass SL) |
 | **Backtest parity** | ✅ YES - v79 backtest defaults match runtime (kelly, adaptive, assets) |
-| **Rolling validation** | ✅ YES - ALL offset windows profitable (no cherry-picking) |
+| **Rolling validation** | ⚠️ NOT GUARANTEED - results vary by offset; re-run non-cherry-picked sweeps before LIVE |
 | **Market-proof** | ⚠️ PARTIAL - Edge exists, variance is real |
 | **Perfect/faultless** | ❌ NO - No system can be |
 | **$100 in 24h** | ⚠️ POSSIBLE - ~5% probability |
@@ -1720,7 +1720,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 - **SET-AND-FORGET**: All parameters are defaulted correctly in v80
 - **LIVE ROBUST**: Equity-aware balance + bounded resolution prevent hangs and false alerts
 - **CRASH PROOF**: 🏆 v80 automatically reconciles crashed trades with Gamma outcomes
-- **VALIDATED**: Rolling non-cherry-picked backtests all profitable (168h, 24h@24h, 24h@48h)
+- **VALIDATION RULE**: Never claim “all windows profitable”. You must re-run offset sweeps on the current build + recent data and report worst-case window + any ruin.
 
 **Expected outcome**: $5 → $15+ in 3-4 days with ~81% win rate. Dynamic risk profile starts aggressive for fast compounding, then automatically tightens to protect gains. Day 1 variance is expected with micro-bankroll, but edge compounds.
 
