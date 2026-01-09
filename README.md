@@ -41,7 +41,7 @@
 | **Guarded Auto-Optimizer** | Runs every 24h, applies only if 10%+ improvement + 0% ruin | `autoOptimizerEnabled=false` to disable |
 | **Auto Safety Self-Check** | Runs every 60s; auto-halts LIVE on critical failures **and** periodically runs `/api/verify` + `/api/perfection-check` internally (detects regressions without manual testing). Auto-resumes when failures clear (only if it was self-check halted). | Always on for safety |
 | **Balance Floor** | Balance floor is **dynamic** to prevent a permanent “min-order freeze” after drawdown (still defaults to $2 base floor). | Adjust `minBalanceFloor*` |
-| **Global Stop** | Halts at 35% daily loss | `globalStopLossOverride=true` to bypass |
+| **Global Stop** | Halts at 20% daily loss | `globalStopLossOverride=true` to bypass |
 | **Loss Cooldown** | Pauses after 3 consecutive losses | `enableLossCooldown=false` |
 
 ### Can I Lose Money? (Honest Answer)
@@ -68,7 +68,7 @@
 
 ### Maintainer Journal (Handover Snapshot)
 
-- **Last verified runtime fingerprint**: `serverSha256` = `f264a270b387019a6c86e359974c49532e90caa2011a927602e1edb15c667b8a` (from `GET /api/version`)
+- **Last verified runtime fingerprint**: `serverSha256` = `63d648a4875727ce1c3be7dc958872333a44ecf859f9b776ffa535623c109db1` (from `GET /api/version`)
 - **Note**: docs-only commits can change the repo commit hash without changing the runtime fingerprint above.
 - **GitHub deploy source (proven)**: local `HEAD` == `origin/main` (verified via `git rev-parse HEAD` and `git ls-remote origin refs/heads/main`).
 - **Offline proofs**:
@@ -134,6 +134,17 @@ We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. R
 With `autoProfile=1` (default):
 - **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=OFF`, **`riskEnvelope=ON`**, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
 
+#### 72h offset sweep (0→168 step 12h) — “BOTH MAX” (best-case + worst-case final)
+
+Coverage-gated (must have `summary.timeSpan.hours ≥ 64.8`):
+
+- **Setup**: `tier=HYBRID`, `entry=CLOB_HISTORY`, `globalStopLoss=0.20`, `assets=BTC,ETH`, `balance=5`, `limit=120`, `autoProfile=1` (default), `simulateHalts=1` (default)
+- **Result**: `windows=11`, `ruinWindows=0`
+- **worstFinal**: `off=36h` → **$7.20** (**+43.98%**)
+- **bestFinal**: `off=60h` → **$20.18** (**+303.65%**)
+
+This single change (**globalStopLoss=0.20**) produced a **Pareto improvement** (higher worst-case and higher best-case) vs prior sweeps.
+
 #### Polymarket-native backtest (this repo’s debug corpus coverage, $5 start)
 
 - 720h requested (coverage-limited by corpus): **25 trades**, **92% WR**, **final $164.50**, **maxDD 32%**, **hit $100 at day 10** (exceptionalBoosts=5)
@@ -183,8 +194,8 @@ The system now **automatically selects the best/fastest safe profile based on CU
 
 | Bankroll | Profile | kelly | profitProtection | riskEnvelope | MAX_POSITION_SIZE |
 |---------:|---------|:-----:|:---------------:|:------------:|------------------:|
-| < $20 | MICRO_SPRINT | OFF | **ON** | OFF | 0.32 |
-| $20-$999 | SPRINT_GROWTH | OFF | **ON** | OFF | 0.32 |
+| < $20 | MICRO_SPRINT | OFF | **OFF** | **ON** | 0.32 |
+| $20-$999 | SPRINT_GROWTH | OFF | **OFF** | **ON** | 0.32 |
 | ≥ $1,000 | LARGE_BANKROLL | ON (cap 0.12) | ON | ON | 0.07 |
 
 With your **$5 start**, you begin in **MICRO_SPRINT** automatically (SPRINT mode). At $1k+, you switch to **LARGE_BANKROLL** (capital preservation).
@@ -195,7 +206,7 @@ With your **$5 start**, you begin in **MICRO_SPRINT** automatically (SPRINT mode
 | **Assets** | BTC+ETH |
 | **Tier** | CONVICTION primary (ADVISORY allowed only via frequency floor rules) |
 | **Balance floor** | $2.00 (hard stop for new trades) |
-| **Global stop** | 35% daily (dayStartBalance based) |
+| **Global stop** | 20% daily (dayStartBalance based) |
 | **Cooldown** | 3 consecutive losses ⇒ 20 min pause |
 
 ### v91 New Features (what changed since v88)
@@ -327,7 +338,7 @@ MAX_POSITION_SIZE: 0.32,        // 🏆 v80: 32% sweet spot stake cap
 RISK: {
     minBalanceFloor: 2.00,       // HARD STOP at $2.00 (-60% from $5)
     minBalanceFloorEnabled: true,
-    globalStopLoss: 0.35,        // 35% daily loss halt (uses dayStartBalance)
+    globalStopLoss: 0.20,        // 20% daily loss halt (uses dayStartBalance)
     liveDailyLossCap: 0,         // Disabled (floor + globalStop sufficient)
     convictionOnlyMode: true,    // BLOCK ADVISORY trades (unless frequency floor allows)
     maxTotalExposure: 0.50,      // 50% max total exposure
@@ -402,7 +413,7 @@ ASSET_CONTROLS: {
 | **$2.00 floor** | With $5 start, this enforces HARD -60% max drawdown. Trading HALTS if breached. |
 | **CONVICTION primary** | 78% WR vs 67% with ALL tiers. Frequency floor allows ADVISORY only when idle + quality gates pass |
 | **1 trade/cycle** | More trades = lower quality = worse results. Counterfactual showed 77% less profit with 2/cycle. |
-| **35% global stop** | Uses dayStartBalance (not current balance) for stable threshold. |
+| **20% global stop** | Uses dayStartBalance (not current balance) for stable threshold. |
 | **Equity-aware risk** | **v77**: LIVE mode uses mark-to-market equity, preventing false drawdown alerts from open positions |
 
 ### Kelly Sizing Explained
@@ -474,7 +485,7 @@ Every 15-minute Polymarket cycle:
 6. Entry checks:
    - Check balance > $2.00 floor
    - Check Chainlink feed is fresh (<30s)
-   - Check daily loss < 35% global stop
+   - Check daily loss < 20% global stop
    - Check no position already open for this cycle
 7. Calculate position size:
    - Base stake = 35% of balance
@@ -629,7 +640,7 @@ if (maxTradeSize < $1.10) {
 | **Chainlink Stale** | Feed >30s old | Block trades for asset | v70+ |
 | **Redis Required** | Redis unavailable | Downgrade LIVE→PAPER | v70+ |
 | **Wallet Check** | No wallet loaded | Block all LIVE trades | v69+ |
-| **Global Stop Loss** | Daily loss >35% | HALT all trading | v61+ |
+| **Global Stop Loss** | Daily loss >20% | HALT all trading | v61+ |
 | **Profit Lock-In** | Profit 1.1x/2x/5x/10x | Reduce stake | v66+ |
 | **Risk Envelope** | Budget exhausted | Block or cap trade | v75+ |
 | **Loss Cooldown** | 3 consecutive losses | 20min cooldown | v61+ |

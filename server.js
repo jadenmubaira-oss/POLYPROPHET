@@ -654,7 +654,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const simulateHalts = req.query.simulateHalts !== '0' && req.query.simulateHalts !== 'false'; // Default: ON
         const maxConsecutiveLosses = parseInt(req.query.maxConsecLosses) || (CONFIG?.RISK?.maxConsecutiveLosses ?? 3);
         const cooldownSeconds = parseInt(req.query.cooldownSecs) || (CONFIG?.RISK?.cooldownAfterLoss ?? 1200);
-        const globalStopLoss = parseFloat(req.query.globalStopLoss) || (CONFIG?.RISK?.globalStopLoss ?? 0.35);
+        const globalStopLoss = parseFloat(req.query.globalStopLoss) || (CONFIG?.RISK?.globalStopLoss ?? 0.20);
 
         const crypto = require('crypto');
 
@@ -8123,7 +8123,7 @@ const CONFIG = {
     // 🚀 v61.2 MAX PROFIT - HIGH QUALITY AGGRESSIVE
     RISK: {
         maxTotalExposure: 0.50,  // v79 LOCKED: 50% max exposure (allows 35% stake + buffer)
-        globalStopLoss: 0.35,    // 🏆 v73: 35% day max loss
+        globalStopLoss: 0.20,    // 🏆 v98: Pareto-optimal at $5 starts: 20% day max loss
         globalStopLossOverride: false,
         liveDailyLossCap: 0,     // 🏆 v71 GOLDEN: Disabled - rely on globalStopLoss + minBalanceFloor
         cooldownAfterLoss: 1200,            // 🚀 v61.2: 20 min cooldown
@@ -8241,7 +8241,7 @@ const CONFIG = {
         // 🏆 v88 RISK ENVELOPE: DISABLED for $40+ (too restrictive, blocks all trades)
         // For small balances ($5), this provides protection. For $40+, disable it.
         riskEnvelopeEnabled: false,       // 🏆 v88: Disabled for $40+ start
-        intradayLossBudgetPct: 0.35,      // Max % of dayStartBalance that can be lost in a day (matches globalStopLoss)
+        intradayLossBudgetPct: 0.35,      // Legacy default; dynamic risk profile overrides this (see getDynamicRiskProfile)
         trailingDrawdownPct: 0.15,        // Max % drawdown from peak balance before size reduction
         perTradeLossCap: 0.10,            // Max % of remaining budget a single trade can risk
         minOrderRiskOverride: true,       // If true, allow $1.10 min order even if it exceeds risk envelope (micro-bankroll)
@@ -19508,7 +19508,7 @@ app.get('/', (req, res) => {
                 }
                 if (data.RISK) { 
                     document.getElementById('riskMaxExposure').value = ((data.RISK.maxTotalExposure ?? 0.75) * 100); 
-                    document.getElementById('riskStopLoss').value = ((data.RISK.globalStopLoss ?? 0.40) * 100); 
+                    document.getElementById('riskStopLoss').value = ((data.RISK.globalStopLoss ?? 0.20) * 100); 
                     document.getElementById('riskCooldown').value = (data.RISK.cooldownAfterLoss ?? 0);
                     document.getElementById('noTradeDetection').checked = data.RISK.noTradeDetection !== false;
                     // Smart Aggressive toggles
@@ -19621,7 +19621,7 @@ app.get('/', (req, res) => {
                     // RISK: v79 LOCKED - must match README preset (Kelly + envelope + frequency floor)
                     RISK: { 
                         maxTotalExposure: 0.50,
-                        globalStopLoss: 0.35,
+                        globalStopLoss: 0.20,
                         globalStopLossOverride: false,
                         liveDailyLossCap: 0,
                         cooldownAfterLoss: 1200,
@@ -21005,18 +21005,19 @@ app.post('/api/toggle-stop-loss-override', (req, res) => {
     CONFIG.RISK.globalStopLossOverride = !CONFIG.RISK.globalStopLossOverride;
     const status = CONFIG.RISK.globalStopLossOverride ? 'BYPASSED' : 'ACTIVE';
     log(`🔓 Global Stop Loss Override: ${status}`);
+    const pct = (Number.isFinite(Number(CONFIG?.RISK?.globalStopLoss)) ? Number(CONFIG.RISK.globalStopLoss) : 0.20) * 100;
 
     // 📱 Telegram notification
     if (CONFIG.RISK.globalStopLossOverride) {
         sendTelegramNotification(telegramSystemAlert('⚠️ Stop Loss Override', 'Global stop loss has been BYPASSED. Trading will continue even after exceeding daily loss limit.'));
     } else {
-        sendTelegramNotification(telegramSystemAlert('✅ Stop Loss Restored', 'Global stop loss is now ACTIVE. Trading will halt at 20% daily loss.'));
+        sendTelegramNotification(telegramSystemAlert('✅ Stop Loss Restored', `Global stop loss is now ACTIVE. Trading will halt at ${pct.toFixed(0)}% daily loss.`));
     }
 
     res.json({
         success: true,
         override: CONFIG.RISK.globalStopLossOverride,
-        message: `Global stop loss is now ${status}. Trading will ${CONFIG.RISK.globalStopLossOverride ? 'continue even after 20% daily loss' : 'halt at 20% daily loss'}.`
+        message: `Global stop loss is now ${status}. Trading will ${CONFIG.RISK.globalStopLossOverride ? `continue even after ${pct.toFixed(0)}% daily loss` : `halt at ${pct.toFixed(0)}% daily loss`}.`
     });
 });
 
