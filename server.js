@@ -6779,34 +6779,71 @@ app.get('/api/verify', async (req, res) => {
         let clobDetails = 'Not checked';
         const severity = walletRequired ? 'error' : 'warn';
         try {
-            const clobClient = (typeof tradeExecutor?.getClobClient === 'function') ? tradeExecutor.getClobClient() : null;
-            if (!clobClient) {
-                clobOk = false;
-                clobDetails = 'CLOB client not ready (wallet/creds missing or invalid)';
-            } else {
-                const ban = await clobClient.getClosedOnlyMode().catch(() => null);
-                const closedOnly = !!ban?.closed_only;
+            const shortAddr = (a) => {
+                const s = String(a || '').trim();
+                if (!s) return 'N/A';
+                return (s.startsWith('0x') && s.length > 12) ? `${s.slice(0, 6)}...${s.slice(-4)}` : s;
+            };
 
+            const selection = (typeof tradeExecutor?.getTradeReadyClobClient === 'function')
+                ? await tradeExecutor.getTradeReadyClobClient({ force: true, ttlMs: 0 })
+                : null;
+
+            const clobClient = selection?.client || ((typeof tradeExecutor?.getClobClient === 'function') ? tradeExecutor.getClobClient() : null);
+            if (!clobClient || !selection) {
+                clobOk = false;
+                clobDetails = selection?.reason || 'CLOB client not ready (wallet/creds missing or invalid)';
+            } else {
                 const fmtMaybeUSDC = (raw) => {
                     const s = String(raw ?? '').trim();
+                    if (!s) return 'N/A';
+                    // Decimal string
+                    if (/^\d+(\.\d+)?$/.test(s) && s.includes('.')) {
+                        const n = Number(s);
+                        return Number.isFinite(n) ? `$${n.toFixed(2)}` : s;
+                    }
+                    // Integer string (often micro-USDC or huge allowance)
+                    if (/^\d+$/.test(s)) {
+                        try {
+                            const bi = BigInt(s);
+                            // Heuristic: treat as micro-USDC when small enough, otherwise label as MAX/huge.
+                            if (bi > 10_000_000_000_000_000n) return `MAX (raw ${s.slice(0, 12)}...${s.slice(-6)})`;
+                            const whole = bi / 1_000_000n;
+                            const frac = bi % 1_000_000n;
+                            const approx = Number(whole) + (Number(frac) / 1e6);
+                            return `$${approx.toFixed(2)} (raw ${s})`;
+                        } catch {
+                            // fall through
+                        }
+                    }
                     const n = Number(s);
-                    if (!Number.isFinite(n)) return String(raw);
-                    if (s.includes('.')) return `$${n.toFixed(2)}`;
-                    if (Math.abs(n) >= 1000) return `$${(n / 1e6).toFixed(2)} (raw ${s})`;
-                    return `$${n.toFixed(2)}`;
+                    return Number.isFinite(n) ? `$${n.toFixed(2)}` : s;
                 };
 
-                const ba = await clobClient.getBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => null);
-                const balRaw = ba?.balance;
-                const allowRaw = ba?.allowance;
-                const balNum = Number(String(balRaw ?? ''));
-                const allowNum = Number(String(allowRaw ?? ''));
+                const closedOnly = (selection?.closedOnly === null || selection?.closedOnly === undefined) ? null : !!selection.closedOnly;
+                const selectedSigType = selection?.selected?.signatureType;
+                const selectedFunder = selection?.selected?.funderAddress;
+                const balRaw = selection?.selected?.balanceRaw;
+                const allowRaw = selection?.selected?.allowanceMaxRaw;
+                const allowSpender = selection?.selected?.allowanceMaxSpender;
 
-                const balOk = Number.isFinite(balNum) && balNum > 0;
-                const allowOk = Number.isFinite(allowNum) && allowNum > 0;
+                const candParts = (Array.isArray(selection?.candidates) ? selection.candidates : [])
+                    .map(c => {
+                        const bal = fmtMaybeUSDC(c?.balanceRaw);
+                        const alw = fmtMaybeUSDC(c?.allowanceMaxRaw);
+                        const err = c?.error ? ` err=${String(c.error).slice(0, 80)}` : '';
+                        return `sig${c?.signatureType}:bal=${bal} allow=${alw}${err}`;
+                    })
+                    .join(' | ');
 
-                clobOk = !closedOnly && balOk && allowOk;
-                clobDetails = `closedOnly=${closedOnly}; collateralBalance=${fmtMaybeUSDC(balRaw)}; collateralAllowance=${fmtMaybeUSDC(allowRaw)}; signatureType=${Number(CONFIG.POLYMARKET_SIGNATURE_TYPE) || 0}; funder=${String(CONFIG.POLYMARKET_ADDRESS || tradeExecutor?.wallet?.address || '').trim() || 'N/A'}`;
+                clobOk = !!selection?.ok;
+                clobDetails =
+                    `closedOnly=${closedOnly === null ? 'ERR' : closedOnly}; ` +
+                    `selectedSigType=${selectedSigType}; funder=${shortAddr(selectedFunder)}; ` +
+                    `collateralBalance=${fmtMaybeUSDC(balRaw)}; ` +
+                    `collateralAllowance=${fmtMaybeUSDC(allowRaw)}${allowSpender ? `@${shortAddr(allowSpender)}` : ''}; ` +
+                    `candidates=${candParts || 'N/A'}` +
+                    (selection?.closedOnlyErr ? `; closedOnlyErr=${String(selection.closedOnlyErr).slice(0, 120)}` : '');
             }
         } catch (e) {
             clobOk = false;
@@ -9202,13 +9239,203 @@ class TradeExecutor {
             // funderAddress is the Polymarket “profile” address (where collateral is funded).
             // For normal EOA trading, this is usually the same as the signer address.
             const funderAddressRaw = String(CONFIG.POLYMARKET_ADDRESS || '').trim();
-            const funderAddress = funderAddressRaw && funderAddressRaw.startsWith('0x')
-                ? funderAddressRaw
-                : (this.wallet?.address || undefined);
+            // CRITICAL: if signatureType=0 (EOA), funder MUST be the signer address.
+            // Passing a proxy/profile funder while signatureType=0 can silently break order signing.
+            const funderAddress =
+                (signatureType === 1 && funderAddressRaw && ethers?.utils?.isAddress && ethers.utils.isAddress(funderAddressRaw))
+                    ? funderAddressRaw
+                    : (this.wallet?.address || undefined);
 
             return new ClobClient(host, POLY_CHAIN_ID, this.wallet, creds, signatureType, funderAddress);
         } catch (e) {
             return null;
+        }
+    }
+
+    // Select a trade-ready CLOB client (auto-fallback between signatureType=0 and signatureType=1).
+    // This makes LIVE trading work when the user pasted an EOA private key but their Polymarket “profile” is a proxy wallet.
+    async getTradeReadyClobClient(opts = {}) {
+        try {
+            if (!ClobClient) return { ok: false, reason: 'Missing @polymarket/clob-client', client: null };
+            if (!this.wallet) return { ok: false, reason: 'No wallet loaded', client: null };
+
+            const force = !!opts.force;
+            const ttlMsRaw = Number(opts.ttlMs);
+            const ttlMs = Number.isFinite(ttlMsRaw) ? Math.max(0, Math.min(10 * 60 * 1000, ttlMsRaw)) : 60 * 1000;
+            const now = Date.now();
+
+            if (!force && this._tradeReadyClobCache && this._tradeReadyClobCache.expiresAt > now) {
+                return this._tradeReadyClobCache.value;
+            }
+
+            // Ensure creds (auto-derive if enabled)
+            if (!CONFIG?.POLYMARKET_API_KEY || !CONFIG?.POLYMARKET_SECRET || !CONFIG?.POLYMARKET_PASSPHRASE) {
+                const derived = await this.ensurePolymarketCreds().catch(() => ({ ok: false }));
+                if (!derived?.ok) {
+                    const out = { ok: false, reason: 'Missing API credentials (key/secret/passphrase) and auto-derive failed', client: null };
+                    this._tradeReadyClobCache = { expiresAt: now + ttlMs, value: out };
+                    return out;
+                }
+            }
+
+            const host = 'https://clob.polymarket.com';
+            const sanitizedPassphrase = String(CONFIG.POLYMARKET_PASSPHRASE || '').replace(/[^\x20-\x7E]/g, '');
+            const creds = {
+                key: String(CONFIG.POLYMARKET_API_KEY || '').replace(/[^\x20-\x7E]/g, ''),
+                secret: String(CONFIG.POLYMARKET_SECRET || '').replace(/[^\x20-\x7E]/g, ''),
+                passphrase: sanitizedPassphrase
+            };
+
+            const isAddr = (a) => {
+                try { return !!a && ethers?.utils?.isAddress && ethers.utils.isAddress(a); } catch { return false; }
+            };
+
+            const preferredRaw = Number(CONFIG?.POLYMARKET_SIGNATURE_TYPE);
+            const preferredSigType = Number.isFinite(preferredRaw) ? (preferredRaw === 1 ? 1 : 0) : 0;
+
+            const funder1Raw = String(CONFIG.POLYMARKET_ADDRESS || '').trim();
+            const funder1 = isAddr(funder1Raw) ? funder1Raw : (this.wallet.address || undefined);
+
+            const client0 = new ClobClient(host, POLY_CHAIN_ID, this.wallet, creds, 0, (this.wallet.address || undefined));
+            const client1 = new ClobClient(host, POLY_CHAIN_ID, this.wallet, creds, 1, funder1);
+
+            const toBigIntOrNull = (raw) => {
+                const s = String(raw ?? '').trim();
+                if (!s) return null;
+                if (/^\d+$/.test(s)) {
+                    try { return BigInt(s); } catch { return null; }
+                }
+                return null;
+            };
+
+            const computeMaxAllowance = (allowances) => {
+                if (!allowances || typeof allowances !== 'object') return { maxRaw: null, spender: null, max: 0n };
+                let max = 0n;
+                let spender = null;
+                let maxRaw = null;
+                for (const [addr, val] of Object.entries(allowances)) {
+                    const bi = toBigIntOrNull(val);
+                    if (bi === null) continue;
+                    if (bi > max) {
+                        max = bi;
+                        spender = addr;
+                        maxRaw = String(val);
+                    }
+                }
+                return { maxRaw, spender, max };
+            };
+
+            const probe = async (client, signatureType, funderAddress) => {
+                const out = {
+                    signatureType,
+                    funderAddress,
+                    refreshed: null,
+                    refreshError: null,
+                    balanceRaw: null,
+                    allowances: null,
+                    allowanceMaxRaw: null,
+                    allowanceMaxSpender: null,
+                    ok: false,
+                    error: null,
+                    status: null
+                };
+
+                // Refresh (best-effort) — note: clob-client returns {error,...} rather than throwing
+                const upd = await client.updateBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(e => ({ error: e?.message || String(e) }));
+                if (upd && typeof upd === 'object' && Object.prototype.hasOwnProperty.call(upd, 'error')) {
+                    out.refreshed = false;
+                    out.refreshError = String(upd.error);
+                } else {
+                    out.refreshed = true;
+                }
+
+                const ba = await client.getBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(e => ({ error: e?.message || String(e) }));
+                if (ba && typeof ba === 'object' && Object.prototype.hasOwnProperty.call(ba, 'error')) {
+                    out.error = String(ba.error);
+                    out.status = ba?.status || null;
+                    return out;
+                }
+
+                out.balanceRaw = String(ba?.balance ?? '').trim() || null;
+                out.allowances = (ba && typeof ba.allowances === 'object' && ba.allowances) ? ba.allowances : null;
+                const { maxRaw, spender, max } = computeMaxAllowance(out.allowances);
+                out.allowanceMaxRaw = maxRaw;
+                out.allowanceMaxSpender = spender;
+
+                const bal = toBigIntOrNull(out.balanceRaw) || 0n;
+                const allow = max || 0n;
+                out.ok = (bal > 0n) && (allow > 0n);
+                return out;
+            };
+
+            // Closed-only is global to account, but fetch once (best-effort)
+            const closedResp = await client0.getClosedOnlyMode().catch(e => ({ error: e?.message || String(e) }));
+            const closedOnly = (closedResp && typeof closedResp === 'object' && Object.prototype.hasOwnProperty.call(closedResp, 'error'))
+                ? null
+                : !!closedResp?.closed_only;
+            const closedOnlyErr = (closedResp && typeof closedResp === 'object' && Object.prototype.hasOwnProperty.call(closedResp, 'error'))
+                ? String(closedResp.error)
+                : null;
+
+            const [p0, p1] = await Promise.all([
+                probe(client0, 0, (this.wallet.address || undefined)),
+                probe(client1, 1, funder1)
+            ]);
+
+            // If geo/ban closed-only is true, nothing is trade-ready.
+            const closedBlocks = (closedOnly === true);
+            const ok0 = !closedBlocks && !!p0.ok;
+            const ok1 = !closedBlocks && !!p1.ok;
+
+            let selected = null;
+            if (preferredSigType === 1) {
+                selected = ok1 ? p1 : (ok0 ? p0 : p1);
+            } else {
+                selected = ok0 ? p0 : (ok1 ? p1 : p0);
+            }
+
+            const chosenSigType = selected?.signatureType;
+            const chosenFunder = selected?.funderAddress;
+            const client = (chosenSigType === 1) ? client1 : client0;
+
+            const ok = !closedBlocks && !!selected?.ok;
+            const summary = closedBlocks
+                ? `closedOnly=true`
+                : (ok ? `OK sigType=${chosenSigType}` : `NOT_READY sigType=${chosenSigType}`);
+
+            const out = {
+                ok,
+                summary,
+                closedOnly,
+                closedOnlyErr,
+                preferredSigType,
+                selected: selected ? {
+                    signatureType: chosenSigType,
+                    funderAddress: chosenFunder,
+                    balanceRaw: selected.balanceRaw,
+                    allowanceMaxRaw: selected.allowanceMaxRaw,
+                    allowanceMaxSpender: selected.allowanceMaxSpender,
+                    refreshed: selected.refreshed,
+                    refreshError: selected.refreshError,
+                    error: selected.error,
+                    status: selected.status
+                } : null,
+                candidates: [p0, p1],
+                client
+            };
+
+            // Log only when selection changes (prevents spam)
+            const prev = this._tradeReadyClobLastSelection || null;
+            const selKey = `${String(chosenSigType)}:${String(chosenFunder || '')}`;
+            if (prev !== selKey) {
+                this._tradeReadyClobLastSelection = selKey;
+                log(`🔐 CLOB mode selected: sigType=${chosenSigType} funder=${chosenFunder || 'N/A'} (preferred=${preferredSigType})`);
+            }
+
+            this._tradeReadyClobCache = { expiresAt: now + ttlMs, value: out };
+            return out;
+        } catch (e) {
+            return { ok: false, reason: `CLOB selection error: ${e.message}`, client: null };
         }
     }
 
@@ -11461,10 +11688,12 @@ class TradeExecutor {
                 const tokenId = tokenType === 'YES' ? market.tokenIds.yes : market.tokenIds.no;
 
                 try {
-                    const clobClient = this.getClobClient();
-                    if (!clobClient) {
-                        log(`❌ LIVE TRADING FAILED: CLOB client not ready (wallet/creds missing or invalid)`, asset);
-                        return { success: false, error: 'CLOB client not ready (check API creds + wallet)' };
+                    const sel = await this.getTradeReadyClobClient();
+                    const clobClient = sel?.client;
+                    if (!clobClient || !sel?.ok) {
+                        const reason = sel?.summary || sel?.reason || 'unknown';
+                        log(`❌ LIVE TRADING FAILED: CLOB not trade-ready (${reason})`, asset);
+                        return { success: false, error: `CLOB not trade-ready (${reason})` };
                     }
 
                     // Calculate shares to buy
@@ -11874,22 +12103,20 @@ class TradeExecutor {
             // LIVE MODE: place 2 limit buys (best-effort). If either fails, cancel the other.
             if (!ClobClient) return { success: false, error: 'CLOB client not installed' };
             if (!CONFIG.POLYMARKET_API_KEY || !CONFIG.POLYMARKET_SECRET || !CONFIG.POLYMARKET_PASSPHRASE) {
-                return { success: false, error: 'Missing API credentials (key/secret/passphrase)' };
+                const derived = await this.ensurePolymarketCreds().catch(() => ({ ok: false }));
+                if (!derived?.ok) {
+                    return { success: false, error: 'Missing API credentials (key/secret/passphrase) and auto-derive failed' };
+                }
             }
             if (!this.wallet) return { success: false, error: 'No wallet loaded' };
             if (!market?.tokenIds?.yes || !market?.tokenIds?.no) return { success: false, error: 'Missing token IDs' };
 
-            const sanitizedPassphrase = CONFIG.POLYMARKET_PASSPHRASE.replace(/[^\x20-\x7E]/g, '');
-            const clobClient = new ClobClient(
-                'https://clob.polymarket.com',
-                POLY_CHAIN_ID,
-                this.wallet,
-                {
-                    key: CONFIG.POLYMARKET_API_KEY.replace(/[^\x20-\x7E]/g, ''),
-                    secret: CONFIG.POLYMARKET_SECRET.replace(/[^\x20-\x7E]/g, ''),
-                    passphrase: sanitizedPassphrase
-                }
-            );
+            const sel = await this.getTradeReadyClobClient();
+            const clobClient = sel?.client;
+            if (!clobClient || !sel?.ok) {
+                const reason = sel?.summary || sel?.reason || 'unknown';
+                return { success: false, error: `CLOB not trade-ready (${reason})` };
+            }
 
             const yesTokenId = market.tokenIds.yes;
             const noTokenId = market.tokenIds.no;
@@ -11947,10 +12174,12 @@ class TradeExecutor {
                 return { success: false, error: 'Invalid shares (must be > 0)' };
             }
 
-            const clobClient = this.getClobClient();
-            if (!clobClient) {
-                log(`❌ LIVE SELL FAILED: CLOB client not ready (wallet/creds missing or invalid)`, position.asset);
-                return { success: false, error: 'CLOB client not ready (check API creds + wallet)' };
+            const sel = await this.getTradeReadyClobClient();
+            const clobClient = sel?.client;
+            if (!clobClient || !sel?.ok) {
+                const reason = sel?.summary || sel?.reason || 'unknown';
+                log(`❌ LIVE SELL FAILED: CLOB not trade-ready (${reason})`, position.asset);
+                return { success: false, error: `CLOB not trade-ready (${reason})` };
             }
 
             // 🔮 DYNAMIC SELL PRICE: Fetch best bid for better fills
