@@ -25,27 +25,32 @@ const https = require('https');
 const crypto = require('crypto');
 
 // ==================== PROXY CONFIGURATION ====================
-// GLOBAL PROXY: All HTTPS requests go through proxy (required for clob-client)
-// Alchemy requests are handled separately with direct connection
+// Proxy is OPTIONAL. We keep a proxy agent available for explicit fallbacks (e.g., `fetchJSON`),
+// but we do NOT force a global proxy by default (proxy bandwidth limits can brick LIVE trading).
+//
+// If you truly need to force all HTTPS through the proxy (legacy behavior), set GLOBAL_PROXY_FORCE=true.
+// Alchemy/RPC calls are handled separately with direct connection.
 const PROXY_URL = process.env.PROXY_URL;
 let proxyAgent = null;
 const originalAgent = https.globalAgent; // Save original for Alchemy
+const GLOBAL_PROXY_FORCE = ['1', 'true', 'yes', 'on'].includes(String(process.env.GLOBAL_PROXY_FORCE || '').trim().toLowerCase());
 
 if (PROXY_URL) {
     try {
         proxyAgent = new HttpsProxyAgent(PROXY_URL);
-
-        // CRITICAL: Override global HTTPS agent for ALL requests
-        // This is the ONLY way to force clob-client to use proxy
-        https.globalAgent = proxyAgent;
-
-        // Also set axios defaults
-        axios.defaults.httpsAgent = proxyAgent;
         axios.defaults.proxy = false;
 
         const maskedUrl = PROXY_URL.replace(/\/\/.*:.*@/, '//***:***@');
-        console.log(`✅ GLOBAL PROXY ACTIVE: ALL HTTPS via ${maskedUrl}`);
-        console.log(`   Alchemy calls will use explicit direct agent`);
+        if (GLOBAL_PROXY_FORCE) {
+            // Legacy behavior: force ALL HTTPS through proxy (NOT recommended unless you really need it).
+            https.globalAgent = proxyAgent;
+            axios.defaults.httpsAgent = proxyAgent;
+            console.log(`✅ GLOBAL PROXY ACTIVE (GLOBAL_PROXY_FORCE=true): ALL HTTPS via ${maskedUrl}`);
+            console.log(`   Alchemy calls will use explicit direct agent`);
+        } else {
+            console.log(`✅ PROXY_URL set (explicit fallback only): ${maskedUrl}`);
+            console.log(`   fetchJSON will try DIRECT then PROXY when needed`);
+        }
     } catch (e) {
         console.log(`⚠️ Proxy configuration failed: ${e.message}`);
     }
