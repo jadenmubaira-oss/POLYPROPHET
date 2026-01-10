@@ -1,0 +1,40 @@
+# Node modules
+node_modules
+
+# Git
+.git
+.gitignore
+
+# Environment files (secrets are set via flyctl secrets)
+.env
+*.env
+POLYPROPHET.env
+
+# IDE
+.vscode
+.idea
+.cursor
+
+# Build artifacts
+*.log
+npm-debug.log*
+
+# Documentation
+*.md
+!README.md
+
+# Scripts not needed in production
+_deploy.bat
+scripts/migrate-redis.js
+
+# Export files
+redis-export.json
+
+# Test files
+test/
+tests/
+*.test.js
+*.spec.js
+
+# Fly.io config (not needed in image)
+fly.toml
