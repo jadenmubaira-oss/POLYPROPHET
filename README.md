@@ -1,13 +1,63 @@
-# POLYPROPHET v96 — FULLY AUTONOMOUS TRADING SYSTEM
+# POLYPROPHET — ORACLE/ADVISORY MODE (Manual Polymarket Signals)
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v96 CRITICAL**: Baseline bankroll for LIVE/PAPER parity + LCB wired into ADVISORY EV/sizing + relative-mode vault thresholds
+> **ORACLE MODE (v97)**: Default runtime is **advisory-only for LIVE** (no automatic LIVE orders) and emits **PREPARE/BUY/SELL** signals for manual execution on **BTC/ETH/XRP/SOL**. PAPER auto-trading remains enabled for evaluation.
+>
+> Start here:
+> - `docs/ORACLE_SIGNALS.md`
+> - `docs/ORACLE_MODE_AUDIT.md`
+>
+> **v96 baseline still applies**: baseline bankroll for LIVE/PAPER parity + LCB wired into ADVISORY EV/sizing + relative-mode vault thresholds.
+
+---
+
+## ORACLE MODE QUICKSTART (Manual Trading)
+
+### What you get
+
+- **4 assets**: BTC, ETH, XRP, SOL (15m up/down markets)
+- **Signals**: PREPARE → BUY → SELL (with market links + reason trace)
+- **Metrics**: calibrated pWin, EV, edge, and time-to-correct-call (TTC)
+- **Optional**: ingest your real Polymarket profile fills (Data API) for evaluation/learning
+
+**Honest boundary**: this improves measurably (accuracy/calibration/stability), but **cannot guarantee** 100% correct outcomes or profit in live markets.
+
+### Default safety (no accidental LIVE auto-trading)
+
+- Automated LIVE entries are blocked unless you explicitly set:
+  - `LIVE_AUTOTRADING_ENABLED=true`
+- Manual LIVE endpoints remain gated behind:
+  - `ENABLE_MANUAL_TRADING=true` (and `TRADE_MODE=LIVE`)
+
+### Recommended setup (oracle-only + paper evaluation)
+
+Set these env vars (Render or local):
+
+- `TRADE_MODE=PAPER`
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+- `TELEGRAM_SIGNALS_ONLY=true` (default) — suppress PAPER open/close spam
+- Optional profile sync (recommended for “hybrid” learning):
+  - `POLYMARKET_PROFILE_URL=https://polymarket.com/profile/<...0xADDRESS...>`
+  - or `POLYMARKET_PROFILE_ADDRESS=0x...`
+
+Then run and open:
+
+- `/mobile.html` (mobile dashboard)
+- `/index.html` (simple dashboard)
+- `/tools.html` (optimizers + audits)
+
+Verification endpoints:
+
+- `GET /api/version`
+- `GET /api/state`
+- `GET /api/profile-trades/status`
 
 ---
 
 ## TABLE OF CONTENTS
 
+0. [Oracle Mode Quickstart](#oracle-mode-quickstart-manual-trading)
 1. [North Star / Aspirations](#north-star--aspirations)
 2. [Empirical Evidence (v91)](#empirical-evidence-v91)
 3. [Executive Summary](#executive-summary)
@@ -123,7 +173,7 @@ This means **deposits/withdrawals** and **drawdowns** automatically shift the ri
 ### Key invariants (what is now true by construction)
 
 - **Runtime parity backtests**: `/api/backtest-polymarket` simulates **loss cooldown** + **global stop-loss** (enabled by default via `simulateHalts`).
-- **Polymarket‑realistic execution**: backtests enforce **MIN_ORDER ($1.10)** and never allow a trade that could breach the **$2 floor on a loss**.
+- **Polymarket‑realistic execution**: backtests enforce the CLOB minimum order (**shares-based**, default **5 shares** → min cost = `minShares × entryPrice`) and never allow a trade that could breach the **$2 floor on a loss**.
 - **Defaults match runtime**: when you omit params, backtests now use the same **AUTO‑BANKROLL PROFILE** as LIVE/PAPER (disable with `autoProfile=0`).
 
 ### Reality backtest battery (coverage‑gated)
@@ -393,9 +443,10 @@ ORACLE: {
 }
 // ASSET UNIVERSE - BTC+ETH only (higher accuracy)
 ASSET_CONTROLS: {
-    BTC: { enabled: true },      // 79% accuracy
-    ETH: { enabled: true },      // 77.3% accuracy
-    XRP: { enabled: false }      // 59.5% accuracy - disabled by default
+    BTC: { enabled: true },      // 79% accuracy (debug corpus)
+    ETH: { enabled: true },      // 77.3% accuracy (debug corpus)
+    XRP: { enabled: true },      // enabled in oracle mode
+    SOL: { enabled: true }       // enabled in oracle mode
 }
 ```
 
@@ -418,7 +469,10 @@ ASSET_CONTROLS: {
 ### Kelly Sizing Explained
 
 Kelly formula: `f* = (b × p - (1-p)) / b`
-- `b` = payout odds after fees = `(1/entryPrice - 1) × 0.98`
+- `b` = gross payout odds = `(1/entryPrice - 1)`
+- **Fees (15m crypto)**: Polymarket charges a **taker fee** (makers pay 0). For safety/backtests we assume taker by default. The fee is shares-based:
+  - `feeUsd = shares × feeRate × (p × (1-p))^exponent`, default `feeRate=0.25`, `exponent=2` (see Polymarket “Maker Rebates Program” docs)
+  - This behaves like an approximate per-stake fee: `feeFrac ≈ feePerShare / p`, where `feePerShare = feeRate × (p×(1-p))^exponent` (ignores the min-fee rounding behavior)
 - `p` = calibrated win probability (pWin)
 - `f*` = optimal fraction of bankroll to risk
 
@@ -480,7 +534,7 @@ Every 15-minute Polymarket cycle:
    - Apply Kelly sizing (may reduce stake)
    - Get dynamic risk profile (Bootstrap/Transition/Lock-in) ← v77
    - Apply risk envelope with dynamic parameters ← v77
-   - Bump to $1.10 minimum if needed (micro-bankroll exception)
+   - Bump to minimum-order cost if needed (micro-bankroll exception; `minOrderCost = minOrderShares × entryPrice`)
    - Risk envelope RE-CHECKED after min bump
 8. Execute trade on Polymarket CLOB
 9. Wait for Gamma API resolution (bounded TTL in LIVE) ← v77
@@ -507,7 +561,7 @@ Profit lock-in (may reduce to 65-25% of base)
     ↓
 Variance controls (streak sizing, loss budget)
     ↓
-Min/max caps (≥$1.10, ≤$100 liquidity cap)
+Min/max caps (≥ minOrderCost, ≤$100 liquidity cap)
     ↓
 DYNAMIC RISK ENVELOPE (FINAL - may reduce or block) ← v77
     ↓
@@ -523,7 +577,7 @@ if (bankroll < $11) {
     intradayLossBudgetPct = 0.50    // Allow 50% intraday loss
     trailingDrawdownPct = 0.40      // Allow 40% trailing DD
     perTradeLossCap = 0.75          // Allow up to 75% of budget per trade
-    minOrderRiskOverride = true     // Allow $1.10 even if exceeds envelope
+    minOrderRiskOverride = true     // Allow min-order override even if exceeds envelope
 } else if (bankroll < $20) {
     // Stage 1: TRANSITION - Moderate risk
     intradayLossBudgetPct = 0.35    // 35% intraday loss
@@ -553,9 +607,11 @@ effectiveBudget = min(intradayBudget, trailingBudget)
 maxTradeSize = effectiveBudget × profile.perTradeLossCap
 
 // v77: Micro-bankroll exception only in Bootstrap stage
-if (maxTradeSize < $1.10) {
-    if (profile.minOrderRiskOverride && bankroll >= $1.65) {
-        allow $1.10  // Bootstrap allows exceeding envelope
+minOrderCost = minOrderShares × entryPrice
+
+if (maxTradeSize < minOrderCost) {
+    if (profile.minOrderRiskOverride && bankroll >= minOrderCost) {
+        allow minOrderCost  // Bootstrap allows exceeding envelope
     } else {
         BLOCK trade  // Other stages enforce strict envelope
     }
@@ -644,7 +700,7 @@ if (maxTradeSize < $1.10) {
 **Problem**: Static risk parameters don't fit both $5 bootstrap AND $100+ protection.
 
 **v77 Solution**: Three stages with dynamic parameters:
-- **Bootstrap ($5-$11)**: Aggressive - 50% intraday loss, 40% trailing DD, $1.10 override allowed
+- **Bootstrap ($5-$11)**: Aggressive - 50% intraday loss, 40% trailing DD, min-order override allowed
 - **Transition ($11-$20)**: Moderate - 35% intraday, 20% trailing DD
 - **Lock-in ($20+)**: Conservative - 25% intraday, 10% trailing DD (strict protection)
 
@@ -756,6 +812,13 @@ POLYGON_RPC_TIMEOUT_MS = 8000                          (optional; default 8000)
 # v94 SAFETY GATES (optional - enable only if you need these features)
 ENABLE_WALLET_TRANSFER = true   (Required to use /api/wallet/transfer in LIVE)
 ENABLE_MANUAL_TRADING = true    (Required for /api/manual-buy, /api/manual-sell in LIVE)
+
+# 🔒 ORACLE MODE SAFETY (recommended defaults)
+LIVE_AUTOTRADING_ENABLED = false      (Default: false; set true ONLY if you want autonomous LIVE orders)
+TELEGRAM_SIGNALS_ONLY = true          (Default: true; suppress PAPER trade spam, keep oracle signals)
+PROFILE_TRADE_SYNC_ENABLED = true     (Default: true; enables Polymarket profile fill ingestion)
+POLYMARKET_PROFILE_URL = <optional>   (preferred: profile URL containing your 0x address)
+POLYMARKET_PROFILE_ADDRESS = <optional> (direct 0x address alternative)
 ```
 
 ### Deployment Steps
@@ -1000,7 +1063,7 @@ Do this once per deployment when you want **real proof**:
 
 0. **Deep verify CLOB trade-readiness**: `GET /api/verify?deep=1` must PASS, especially `CLOB trading permission + collateral allowance (deep)`.
 1. **Enable manual LIVE trading temporarily**: set `ENABLE_MANUAL_TRADING=true` in Render env (then redeploy).
-2. **Manual BUY (min size)**: use the dashboard or `POST /api/manual-buy` with `$1.10` (min order).
+2. **Manual BUY (min size)**: use the dashboard or `POST /api/manual-buy` with a size ≥ `minOrderShares × entryPrice` (default `minOrderShares=5`). You can read `minOrderShares` + current prices from `GET /api/state`.
 3. **Verify it actually filled**
    - `GET /api/wallet` shows the expected USDC change.
    - `GET /api/pending-sells` remains empty for buys; positions appear in runtime state endpoints.
@@ -1572,7 +1635,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
    - Kelly sizing with `kellyMax` parameter (default 0.32)
    - Profit lock-in (adaptive mode)
    - Balance floor check (`$2.00` default)
-   - Min-order override in bootstrap mode (`$1.10`)
+   - Min-order override in bootstrap mode (shares-based min order)
    - Liquidity cap (`$100`)
 
 3. **📈 Ruin & Target Probabilities**: New explicit outputs:
@@ -1644,8 +1707,8 @@ curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
 - After v78: Both default to TRUE, matching runtime request defaults; policy may still disable them (e.g. SPRINT mode).
 
 **Risk Envelope Min-Order Fix**:
-- Before v78: Trades blocked when `maxTradeSize = effectiveBudget * perTradeCap < $1.10`
-- After v78: Only blocks when `effectiveBudget < $1.10` (truly exhausted); allows MIN_ORDER if budget available
+- Before v78: Trades blocked when `maxTradeSize = effectiveBudget * perTradeCap < minOrderCost`
+- After v78: Only blocks when `effectiveBudget < minOrderCost` (truly exhausted); allows min-order override if bankroll is available
 
 ### v77 (2026-01-03) — HYBRID
 

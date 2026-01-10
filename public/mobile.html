@@ -521,6 +521,37 @@
         };
         
         let lastTradeCount = 0;
+
+        function escapeHtml(s) {
+            return String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function fmtMmSs(seconds) {
+            const s = Number.isFinite(Number(seconds)) ? Math.max(0, Math.floor(Number(seconds))) : 0;
+            const mm = Math.floor(s / 60);
+            const ss = String(s % 60).padStart(2, '0');
+            return `${mm}:${ss}`;
+        }
+
+        function fmtPct01(x, digits = 1) {
+            const n = Number(x);
+            return Number.isFinite(n) ? (n * 100).toFixed(digits) + '%' : '--';
+        }
+
+        function fmtSignedPct(x, digits = 1) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            const pct = (n * 100).toFixed(digits) + '%';
+            return n >= 0 ? '+' + pct : pct;
+        }
+
+        function fmtCents01(x, digits = 1) {
+            const n = Number(x);
+            return Number.isFinite(n) ? (n * 100).toFixed(digits) + '¢' : '--';
+        }
         
         function connectWebSocket() {
             // Socket.IO client uses `connected` (not WebSocket.readyState)
@@ -709,6 +740,37 @@
                 const confClass = conf >= 70 ? 'high' : conf >= 50 ? 'medium' : 'low';
                 const predClass = pred.prediction || 'WAIT';
                 
+                const sig = pred.oracleSignal || null;
+                const action = String(sig?.action || 'WAIT').toUpperCase();
+                const actionSide = (action === 'SELL' && sig?.position?.side) ? String(sig.position.side).toUpperCase() : (sig?.direction || pred.prediction || 'WAIT');
+                const actionOdds = Number.isFinite(sig?.implied) ? fmtCents01(sig.implied, 1) : null;
+                const pWin = Number.isFinite(sig?.pWin) ? fmtPct01(sig.pWin, 1) : fmtPct01(pred.pWin, 1);
+                const ev = Number.isFinite(sig?.evRoi) ? fmtSignedPct(sig.evRoi, 1) : fmtSignedPct(pred.evRoi, 1);
+                const edgePp = Number.isFinite(sig?.mispricingEdge) ? (sig.mispricingEdge * 100).toFixed(1) + 'pp' : '--';
+                const ttcLast = Number.isFinite(pred.timeToCorrectCallSecLast) ? fmtMmSs(pred.timeToCorrectCallSecLast) : '--';
+                const ttcAvg = Number.isFinite(pred.avgTimeToCorrectCallSec10) ? fmtMmSs(pred.avgTimeToCorrectCallSec10) : '--';
+                
+                let actionBg = 'rgba(136, 136, 136, 0.12)';
+                let actionBorder = 'rgba(136, 136, 136, 0.35)';
+                let actionColor = '#aaaaaa';
+                if (action === 'BUY') { actionBg = 'rgba(0,255,136,0.12)'; actionBorder = 'rgba(0,255,136,0.35)'; actionColor = '#00ff88'; }
+                else if (action === 'SELL') { actionBg = 'rgba(255,68,102,0.12)'; actionBorder = 'rgba(255,68,102,0.35)'; actionColor = '#ff4466'; }
+                else if (action === 'PREPARE') { actionBg = 'rgba(255,215,0,0.10)'; actionBorder = 'rgba(255,215,0,0.35)'; actionColor = '#ffd700'; }
+                
+                const reasons = Array.isArray(sig?.reasons) ? sig.reasons.slice(0, 2) : [];
+                const reasonsHtml = reasons.length
+                    ? `<div style="margin-top:8px;font-size:11px;color:#aaa;line-height:1.35;">
+                        ${reasons.map(r => `• ${escapeHtml(r)}`).join('<br>')}
+                      </div>`
+                    : '';
+                
+                const marketUrl = (sig && sig.marketUrl) ? sig.marketUrl : (pred.market && pred.market.marketUrl ? pred.market.marketUrl : null);
+                const marketLinkHtml = marketUrl
+                    ? `<div style="text-align:center;margin-top:10px;">
+                        <a href="${marketUrl}" target="_blank" rel="noopener noreferrer" style="color:#4fc3f7;text-decoration:none;font-size:12px;">Open Market ↗</a>
+                      </div>`
+                    : '';
+                
                 html += `<div class="prediction-card ${pred.locked ? 'locked' : ''}">
                     <div class="asset-name">${asset}</div>
                     <div class="prediction-value ${predClass}">${pred.prediction || 'WAIT'}</div>
@@ -718,6 +780,13 @@
                     <div class="confidence-text">${conf}% Confidence</div>
                     <div class="tier-badge ${pred.tier || 'NONE'}">${pred.tier || 'NONE'}</div>
                     ${pred.market ? `<div class="market-odds">YES: ${(pred.market.yesPrice * 100).toFixed(1)}¢ | NO: ${(pred.market.noPrice * 100).toFixed(1)}¢</div>` : ''}
+                    <div style="margin-top:10px;padding:10px;border-radius:8px;background:${actionBg};border:1px solid ${actionBorder};text-align:center;font-size:12px;">
+                        <div style="font-weight:bold;color:${actionColor};">NEXT: ${escapeHtml(action)} ${escapeHtml(actionSide)}</div>
+                        ${actionOdds ? `<div style="margin-top:4px;color:#ddd;">@ <strong>${escapeHtml(actionOdds)}</strong> | pWin <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>` : `<div style="margin-top:4px;color:#ddd;">pWin <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>`}
+                        <div style="margin-top:4px;color:#888;">TTC(last) <strong>${escapeHtml(ttcLast)}</strong> | TTC(avg10) <strong>${escapeHtml(ttcAvg)}</strong></div>
+                        ${reasonsHtml}
+                        ${marketLinkHtml}
+                    </div>
                 </div>`;
             });
             

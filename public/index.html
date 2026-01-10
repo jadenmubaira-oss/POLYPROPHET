@@ -153,6 +153,40 @@
         const socket = io();
         const goal = 100;
 
+        function fmtPct01(x, digits = 0) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            return (n * 100).toFixed(digits) + '%';
+        }
+
+        function fmtCents01(x, digits = 1) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            return (n * 100).toFixed(digits) + '¢';
+        }
+
+        function renderOracleLine(asset) {
+            const sig = asset?.oracleSignal;
+            if (!sig || !sig.action) return 'Next: WAIT';
+            const action = String(sig.action || '').toUpperCase();
+            if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return 'Next: WAIT';
+            const dir = sig.direction || asset.prediction || 'WAIT';
+            const odds = Number.isFinite(sig.implied) ? fmtCents01(sig.implied, 1) : null;
+            const pWin = Number.isFinite(sig.pWin) ? fmtPct01(sig.pWin, 1) : null;
+            const ev = Number.isFinite(sig.evRoi) ? (sig.evRoi >= 0 ? '+' : '') + (sig.evRoi * 100).toFixed(1) + '%' : null;
+            const tLeft = Number.isFinite(sig.timeLeftSec) ? sig.timeLeftSec : null;
+            const mm = tLeft !== null ? Math.floor(tLeft / 60) : null;
+            const ss = tLeft !== null ? String(tLeft % 60).padStart(2, '0') : null;
+            const tl = (mm !== null && ss !== null) ? `${mm}:${ss}` : null;
+
+            let line = `Next: ${action} ${dir}`;
+            if (odds) line += ` @ ${odds}`;
+            if (pWin) line += ` | pWin ${pWin}`;
+            if (ev) line += ` | EV ${ev}`;
+            if (tl) line += ` | tLeft ${tl}`;
+            return line;
+        }
+
         async function loadVersion() {
             const el = document.getElementById('version');
             if (!el) return;
@@ -194,12 +228,17 @@
                 Object.entries(data.assets).forEach(([name, asset]) => {
                     const row = document.createElement('div');
                     row.className = 'asset-row';
-                    const tierColor = asset.tier === 'CONVICTION' ? '#22C55E' : (asset.tier === 'ADVISORY' ? '#3B82F6' : '#888888');
+                    const label = asset.marketUrl
+                        ? `<a href="${asset.marketUrl}" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:none;">${name}</a>`
+                        : name;
                     row.innerHTML = `
                         <div>
-                            <div style="font-weight: bold;">${name}</div>
+                            <div style="font-weight: bold;">${label}</div>
                             <div style="font-size: 12px; color: var(--dim);">
-                                ${asset.prediction || 'WAIT'} | ${asset.tier || 'NONE'} | ${(asset.confidence || 0).toFixed(1)}%
+                                ${asset.prediction || 'WAIT'} | ${asset.tier || 'NONE'} | ${fmtPct01(asset.confidence, 0)}
+                            </div>
+                            <div style="font-size: 12px; color: var(--dim); margin-top: 2px;">
+                                ${renderOracleLine(asset)}
                             </div>
                         </div>
                         <div class="tag tag-${asset.state.toLowerCase()}">${asset.state}</div>
@@ -219,12 +258,15 @@
             if (data.assets && Object.keys(data.assets).length > 0) {
                 let hasActivity = false;
                 Object.entries(data.assets).forEach(([name, asset]) => {
-                    if (asset.lastSignal) {
+                    const sig = asset.oracleSignal;
+                    if (sig && sig.action && ['PREPARE','BUY','SELL'].includes(String(sig.action).toUpperCase())) {
                         hasActivity = true;
                         const div = document.createElement('div');
                         div.style.marginBottom = '5px';
-                        const signal = asset.lastSignal;
-                        div.innerHTML = `<strong>${name}</strong>: ${signal.side || 'N/A'} @ ${(signal.entryPrice || 0).toFixed(2)}¢ (${signal.status || 'PENDING'})`;
+                        const action = String(sig.action).toUpperCase();
+                        const dir = sig.direction || asset.prediction || 'WAIT';
+                        const odds = Number.isFinite(sig.implied) ? fmtCents01(sig.implied, 1) : '--';
+                        div.innerHTML = `<strong>${name}</strong>: ${action} ${dir} @ ${odds}`;
                         activity.appendChild(div);
                     }
                 });

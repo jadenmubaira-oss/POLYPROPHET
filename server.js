@@ -24,6 +24,124 @@ const { HttpsProxyAgent } = require('https-proxy-agent');
 const https = require('https');
 const crypto = require('crypto');
 
+// ==================== LOCAL ARTIFACT PATHS (OOM-SAFE) ====================
+// Huge debug corpuses can crash IDE indexers. Keep them OUTSIDE the workspace and point the server at them.
+// - If DEBUG_CORPUS_DIR is set, we will read debug exports from that directory (absolute or repo-relative).
+// - Otherwise we default to `<repo>/debug`.
+function getDebugCorpusDir() {
+    const raw = String(process.env.DEBUG_CORPUS_DIR || process.env.POLYPROPHET_DEBUG_DIR || '').trim();
+    if (!raw) return path.join(__dirname, 'debug');
+    try {
+        return path.isAbsolute(raw) ? raw : path.join(__dirname, raw);
+    } catch {
+        return path.join(__dirname, 'debug');
+    }
+}
+
+// ==================== POLYMARKET TAKER FEES (15m CRYPTO) ====================
+// Polymarket docs (15m crypto markets): taker fee (USDC) = C * feeRate * (p*(1-p))^exponent
+// - C = shares traded
+// - p = trade price in [0,1]
+// - feeRate default 0.25, exponent default 2
+// A minimum fee of 0.0001 USDC is applied; smaller values round down to 0.
+// Makers pay 0 and may receive rebates; for safety/backtests we assume taker by default.
+function getPolymarketTakerFeeModel() {
+    const assumeRaw = String(process.env.POLYMARKET_ASSUME_TAKER || process.env.ASSUME_TAKER_FEES || 'true').trim().toLowerCase();
+    const assumeTaker = !['0', 'false', 'no', 'off'].includes(assumeRaw);
+    const feeRateRaw = Number(process.env.POLYMARKET_TAKER_FEE_RATE || process.env.TAKER_FEE_RATE);
+    const exponentRaw = Number(process.env.POLYMARKET_TAKER_FEE_EXPONENT || process.env.TAKER_FEE_EXPONENT);
+    const minFeeRaw = Number(process.env.POLYMARKET_TAKER_FEE_MIN_USD || process.env.TAKER_FEE_MIN_USD);
+    const feeRate = (Number.isFinite(feeRateRaw) && feeRateRaw >= 0) ? feeRateRaw : 0.25;
+    const exponent = (Number.isFinite(exponentRaw) && exponentRaw > 0) ? exponentRaw : 2;
+    const minFeeUsd = (Number.isFinite(minFeeRaw) && minFeeRaw >= 0) ? minFeeRaw : 0.0001;
+    return { assumeTaker, feeRate, exponent, minFeeUsd };
+}
+
+function calcPolymarketTakerFeeUsd(shares, price, model = getPolymarketTakerFeeModel()) {
+    if (!model?.assumeTaker) return 0;
+    const C = Number(shares);
+    const p = Number(price);
+    if (!Number.isFinite(C) || C <= 0) return 0;
+    if (!Number.isFinite(p) || p <= 0 || p >= 1) return 0;
+    const feeRate = Number(model.feeRate);
+    const exponent = Number(model.exponent);
+    if (!Number.isFinite(feeRate) || feeRate <= 0) return 0;
+    const base = p * (1 - p);
+    let fee = C * feeRate * Math.pow(base, (Number.isFinite(exponent) ? exponent : 2));
+    if (!Number.isFinite(fee) || fee <= 0) return 0;
+    const minFeeUsd = Number(model.minFeeUsd);
+    if (Number.isFinite(minFeeUsd) && minFeeUsd > 0 && fee < minFeeUsd) return 0;
+    return fee;
+}
+
+function calcPolymarketTakerFeeUsdForStake(stakeUsd, price, model = getPolymarketTakerFeeModel()) {
+    if (!model?.assumeTaker) return 0;
+    const stake = Number(stakeUsd);
+    const p = Number(price);
+    if (!Number.isFinite(stake) || stake <= 0) return 0;
+    if (!Number.isFinite(p) || p <= 0 || p >= 1) return 0;
+    return calcPolymarketTakerFeeUsd(stake / p, p, model);
+}
+
+function calcPolymarketTakerFeeUsdPerShare(price, model = getPolymarketTakerFeeModel()) {
+    if (!model?.assumeTaker) return 0;
+    const p = Number(price);
+    if (!Number.isFinite(p) || p <= 0 || p >= 1) return 0;
+    const feeRate = Number(model.feeRate);
+    const exponent = Number(model.exponent);
+    if (!Number.isFinite(feeRate) || feeRate <= 0) return 0;
+    const base = p * (1 - p);
+    const fee = feeRate * Math.pow(base, (Number.isFinite(exponent) ? exponent : 2));
+    return Number.isFinite(fee) && fee > 0 ? fee : 0;
+}
+
+// Approximate fee as fraction of stake (fee / stake). This ignores the min-fee rounding behavior.
+function calcPolymarketTakerFeeFrac(price, model = getPolymarketTakerFeeModel()) {
+    if (!model?.assumeTaker) return 0;
+    const p = Number(price);
+    if (!Number.isFinite(p) || p <= 0 || p >= 1) return 0;
+    const perShare = calcPolymarketTakerFeeUsdPerShare(p, model);
+    const frac = perShare / p;
+    return Number.isFinite(frac) && frac > 0 ? frac : 0;
+}
+
+// ==================== BINARY EV/PNL HELPERS (taker-fee aware) ====================
+// These helpers assume a binary payout (0 or 1) at resolution.
+// For a stake S at price p, shares = S/p.
+// - If win: payout = shares*1 → delta = S*(1/p - 1) - fee
+// - If lose: payout = 0        → delta = -S - fee
+function calcBinaryEvRoiAfterFees(pWin, entryPrice, options = {}) {
+    const pwRaw = Number(pWin);
+    if (!Number.isFinite(pwRaw)) return null;
+    const pw = Math.max(0, Math.min(1, pwRaw));
+    const epRaw = Number(entryPrice);
+    if (!Number.isFinite(epRaw) || epRaw <= 0 || epRaw >= 1) return null;
+    const slippagePctRaw = Number(options.slippagePct || 0);
+    const slippagePct = (Number.isFinite(slippagePctRaw) && slippagePctRaw > 0) ? slippagePctRaw : 0;
+    const effectiveEntry = Math.min(0.99, epRaw * (1 + slippagePct));
+    const feeModel = options.feeModel || getPolymarketTakerFeeModel();
+    const feeFrac = calcPolymarketTakerFeeFrac(effectiveEntry, feeModel);
+    // EV per stake = (pWin / entryPrice) - 1 - feeFrac
+    return (pw / effectiveEntry) - 1 - feeFrac;
+}
+
+function calcBinaryTradeDeltaUsdAfterFees(stakeUsd, entryPrice, won, options = {}) {
+    const stake = Number(stakeUsd);
+    if (!Number.isFinite(stake) || stake <= 0) return { deltaUsd: 0, feeUsd: 0, effectiveEntry: null };
+    const epRaw = Number(entryPrice);
+    if (!Number.isFinite(epRaw) || epRaw <= 0 || epRaw >= 1) return { deltaUsd: 0, feeUsd: 0, effectiveEntry: null };
+    const slippagePctRaw = Number(options.slippagePct || 0);
+    const slippagePct = (Number.isFinite(slippagePctRaw) && slippagePctRaw > 0) ? slippagePctRaw : 0;
+    const effectiveEntry = Math.min(0.99, epRaw * (1 + slippagePct));
+    const feeModel = options.feeModel || getPolymarketTakerFeeModel();
+    const feeUsd = calcPolymarketTakerFeeUsdForStake(stake, effectiveEntry, feeModel);
+    const win = !!won;
+    const deltaUsd = win
+        ? (stake / effectiveEntry - stake - feeUsd)
+        : (-stake - feeUsd);
+    return { deltaUsd, feeUsd, effectiveEntry };
+}
+
 // ==================== PROXY CONFIGURATION ====================
 // Proxy is OPTIONAL. We keep a proxy agent available for explicit fallbacks (e.g., `fetchJSON`),
 // but we do NOT force a global proxy by default (proxy bandwidth limits can brick LIVE trading).
@@ -250,12 +368,13 @@ app.get('/api/backtest-proof', async (req, res) => {
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, or ALL
         const priceFilter = req.query.prices || 'EXTREME'; // EXTREME (<20¢ or >95¢), ALL
         
-        // Fee model: 2% on profits at resolution
-        const PROFIT_FEE_PCT = 0.02;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/backtests we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.01;
         const MAX_POSITION_PCT = 0.60; // Max 60% of balance per trade
         
-        const debugDir = path.join(__dirname, 'debug');
+        const debugDir = getDebugCorpusDir();
         if (!fs.existsSync(debugDir)) {
             return res.json({ error: 'No debug directory found', cycles: 0 });
         }
@@ -347,26 +466,15 @@ app.get('/api/backtest-proof', async (req, res) => {
             const positionSize = Math.min(percentSize, balance - 1.0, MAX_ABSOLUTE_SIZE);
             if (positionSize <= 0) break;
             
-            // Entry price with slippage
-            const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
-            
-            // Calculate shares
-            const shares = positionSize / effectiveEntry;
-            
-            // Resolution: win pays $1/share, loss pays $0
-            let pnl;
-            if (cycle.wasCorrect) {
-                // Win: shares resolve to $1 each, minus fee on profit
-                const grossValue = shares * 1.0; // $1 per share
-                const profit = grossValue - positionSize;
-                const fee = profit * PROFIT_FEE_PCT;
-                pnl = profit - fee;
-                wins++;
-            } else {
-                // Loss: shares worth $0
-                pnl = -positionSize;
-                losses++;
-            }
+            const settled = calcBinaryTradeDeltaUsdAfterFees(positionSize, cycle.entryPrice, cycle.wasCorrect, {
+                slippagePct: SLIPPAGE_PCT,
+                feeModel
+            });
+            const effectiveEntry = Number.isFinite(settled.effectiveEntry) ? settled.effectiveEntry : Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
+            const shares = (Number.isFinite(effectiveEntry) && effectiveEntry > 0) ? (positionSize / effectiveEntry) : 0;
+            const pnl = Number(settled.deltaUsd || 0);
+            const feeUsd = Number(settled.feeUsd || 0);
+            if (cycle.wasCorrect) wins++; else losses++;
             
             balance += pnl;
             peakBalance = Math.max(peakBalance, balance);
@@ -379,6 +487,9 @@ app.get('/api/backtest-proof', async (req, res) => {
                 tier: cycle.tier,
                 prediction: cycle.prediction,
                 entryPrice: cycle.entryPrice,
+                effectiveEntry,
+                shares,
+                feeUsd,
                 wasCorrect: cycle.wasCorrect,
                 pnl: pnl,
                 balance: balance
@@ -433,37 +544,30 @@ app.get('/api/backtest-proof', async (req, res) => {
             }
         }
         
-        // 🎯 GOAT v44.1: Stress test scenarios
+        // 🎯 GOAT v44.1: Stress test scenarios (fee/slippage sensitivity)
         const stressTests = {};
-        
-        // Scenario 1: Higher fees (3% instead of 2%)
+
+        // Scenario 1: Higher taker fee rate (conservative stress)
         let stressBalance = startingBalance;
-        let stressWins = 0;
+        const highFeeModel = { ...feeModel, feeRate: Math.max(0, Number(feeModel?.feeRate || 0.25) * 1.2) }; // +20%
         for (const t of trades) {
-            if (t.wasCorrect) {
-                const profit = (t.entryPrice > 0 ? (1 / t.entryPrice - 1) : 0) * (stressBalance * MAX_POSITION_PCT);
-                stressBalance += profit * (1 - 0.03);
-                stressWins++;
-            } else {
-                stressBalance -= stressBalance * MAX_POSITION_PCT * 0.95; // Slightly worse loss
-            }
+            const stake = Math.min(stressBalance * MAX_POSITION_PCT, Math.max(0, stressBalance - 0.01));
+            if (stake <= 0) break;
+            const r = calcBinaryTradeDeltaUsdAfterFees(stake, t.entryPrice, t.wasCorrect, { slippagePct: 0, feeModel: highFeeModel });
+            stressBalance += Number(r.deltaUsd || 0);
         }
-        stressTests.higherFees = {
+        stressTests.higherTakerFees = {
             finalBalance: stressBalance.toFixed(2),
             profit: (stressBalance - startingBalance).toFixed(2)
         };
-        
-        // Scenario 2: 5% slippage
+
+        // Scenario 2: 5% entry slippage (conservative stress)
         stressBalance = startingBalance;
         for (const t of trades) {
-            const slippedEntry = t.entryPrice * 1.05;
-            if (t.wasCorrect && slippedEntry < 0.99) {
-                const shares = (stressBalance * MAX_POSITION_PCT) / slippedEntry;
-                const profit = (shares * 1.0) - (stressBalance * MAX_POSITION_PCT);
-                stressBalance += profit * (1 - PROFIT_FEE_PCT);
-            } else if (!t.wasCorrect) {
-                stressBalance -= stressBalance * MAX_POSITION_PCT;
-            }
+            const stake = Math.min(stressBalance * MAX_POSITION_PCT, Math.max(0, stressBalance - 0.01));
+            if (stake <= 0) break;
+            const r = calcBinaryTradeDeltaUsdAfterFees(stake, t.entryPrice, t.wasCorrect, { slippagePct: 0.05, feeModel });
+            stressBalance += Number(r.deltaUsd || 0);
         }
         stressTests.highSlippage = {
             finalBalance: stressBalance.toFixed(2),
@@ -476,12 +580,10 @@ app.get('/api/backtest-proof', async (req, res) => {
         for (let i = 0; i < trades.length; i++) {
             if (i % 10 === 0) { skipped++; continue; } // Skip every 10th trade
             const t = trades[i];
-            if (t.wasCorrect) {
-                const profit = (stressBalance * MAX_POSITION_PCT) * (1 / t.entryPrice - 1);
-                stressBalance += profit * (1 - PROFIT_FEE_PCT);
-            } else {
-                stressBalance -= stressBalance * MAX_POSITION_PCT;
-            }
+            const stake = Math.min(stressBalance * MAX_POSITION_PCT, Math.max(0, stressBalance - 0.01));
+            if (stake <= 0) break;
+            const r = calcBinaryTradeDeltaUsdAfterFees(stake, t.entryPrice, t.wasCorrect, { slippagePct: 0, feeModel });
+            stressBalance += Number(r.deltaUsd || 0);
         }
         stressTests.missedFills = {
             finalBalance: stressBalance.toFixed(2),
@@ -637,10 +739,23 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             !(policyAtStart && policyAtStart.profitProtectionEnabled === false);
         
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
-        // Default to BTC+ETH only (XRP disabled by default in runtime)
-        const assetsParam = String(req.query.assets || 'BTC,ETH').toUpperCase();
+        // Oracle mode defaults to all enabled assets (BTC/ETH/XRP/SOL).
+        const defaultAssetsCsv = (() => {
+            try {
+                const ctrl = CONFIG?.ASSET_CONTROLS || {};
+                const enabled = Object.entries(ctrl)
+                    .filter(([_, v]) => v && v.enabled !== false)
+                    .map(([a]) => String(a).toUpperCase())
+                    .filter(a => ['BTC', 'ETH', 'XRP', 'SOL'].includes(a));
+                if (enabled.length > 0) return enabled.join(',');
+            } catch { }
+            return 'BTC,ETH,XRP,SOL';
+        })();
+        const assetsParam = String(req.query.assets || defaultAssetsCsv).toUpperCase();
         const allowedAssets = new Set(assetsParam.split(',').map(a => a.trim()).filter(a => ['BTC', 'ETH', 'XRP', 'SOL'].includes(a)));
-        if (allowedAssets.size === 0) { allowedAssets.add('BTC'); allowedAssets.add('ETH'); }
+        if (allowedAssets.size === 0) {
+            defaultAssetsCsv.split(',').map(s => s.trim()).filter(Boolean).forEach(a => allowedAssets.add(a));
+        }
         
         // 🏆 v76: Risk envelope simulation (matches runtime applyRiskEnvelope)
         const riskEnvelopeProvided = (req.query.riskEnvelope !== undefined);
@@ -674,10 +789,26 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             stage2Threshold: Number.isFinite(stage2ThresholdParam) ? stage2ThresholdParam : undefined
         };
 
-        // Fee model
-        const PROFIT_FEE_PCT = 0.02;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/backtests we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.01;
-        const MIN_ORDER = 1.10; // Polymarket minimum (stake) + buffer
+        // CLOB-native min order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
+        // Minimum USDC therefore depends on entry price.
+        const MIN_ORDER_SHARES = (() => {
+            const q = Number(req.query.minShares);
+            if (Number.isFinite(q) && q > 0) return q;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            return (Number.isFinite(env) && env > 0) ? env : 5;
+        })();
+        // Reference min cost at the configured entry window's minimum (used for "can we keep trading?" survivability checks).
+        const REFERENCE_MIN_ORDER_COST = MIN_ORDER_SHARES * minOddsEntry;
+        // Per-trade min cost to satisfy `min_order_size` shares at the chosen entry price.
+        const minOrderCostForPrice = (entryPrice) => {
+            const p = Number(entryPrice);
+            if (!Number.isFinite(p) || p <= 0) return REFERENCE_MIN_ORDER_COST;
+            return MIN_ORDER_SHARES * p;
+        };
 
         // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss simulation
         // These were previously "runtime-only" protections; now backtests match runtime halts.
@@ -723,12 +854,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         }
 
         function calcEvRoi(pWin, entryPrice) {
-            const pw = clamp01(pWin);
-            const ep = Number(entryPrice);
-            if (!Number.isFinite(pw) || !Number.isFinite(ep) || ep <= 0) return null;
-            const effectiveEntry = Math.min(0.99, ep * (1 + SLIPPAGE_PCT));
-            const winRoiNet = (1 / effectiveEntry - 1) * (1 - PROFIT_FEE_PCT);
-            return (pw * winRoiNet) - (1 - pw);
+            return calcBinaryEvRoiAfterFees(pWin, entryPrice, { slippagePct: SLIPPAGE_PCT, feeModel });
         }
         
         // Helper to fetch Gamma market outcome + token ids (Polymarket-native)
@@ -832,7 +958,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // Also try debug files if available
         const fs = require('fs');
         const path = require('path');
-        const debugDir = path.join(__dirname, 'debug');
+        const debugDir = getDebugCorpusDir();
         let debugCycles = [];
         
         if (fs.existsSync(debugDir)) {
@@ -1277,9 +1403,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 return null; // Invalid inputs
             }
             const effectiveEntry = Math.min(0.99, entryPrice * (1 + SLIPPAGE_PCT));
-            const b = (1 / effectiveEntry - 1) * (1 - PROFIT_FEE_PCT); // Payout odds after fee
-            if (b <= 0) return null;
-            const fStar = (b * pWin - (1 - pWin)) / b;
+            const b = (1 / effectiveEntry - 1); // gross win ROI (ignoring fees)
+            const feeFrac = calcPolymarketTakerFeeFrac(effectiveEntry, feeModel); // fee/stake (ignores min-fee rounding)
+            const denom = (1 + feeFrac) * (b - feeFrac);
+            if (!Number.isFinite(denom) || denom <= 0) return null;
+            // Kelly with constant per-stake fee (taker): f* = (p*b - (1-p) - feeFrac) / ((1+feeFrac)*(b-feeFrac))
+            const fStar = (b * pWin - (1 - pWin) - feeFrac) / denom;
             return fStar > 0 ? fStar : null; // Only return positive Kelly
         }
 
@@ -1311,11 +1440,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let hit1000 = null; // { day, tradeIndex, balance } when first hit $1000
             let tradeIndex = 0;
             let minBalance = startingBalance;
-            // 🏆 v97: Define "ruin" as reaching a bankroll where we can no longer place MIN_ORDER
-            // while respecting the (dynamic) balance floor. This matches the real "stuck" condition for $5 starts.
+            // 🏆 v97: Define "ruin" as reaching a bankroll where we can no longer place the minimum order
+            // (min_order_size shares at minOddsEntry) while respecting the (dynamic) balance floor.
+            // This matches the real "stuck" condition for micro-bankrolls on CLOB.
             const floorMinCfg = Number(CONFIG?.RISK?.minBalanceFloorDynamicMin);
             const floorMin = Number.isFinite(floorMinCfg) ? Math.max(0, floorMinCfg) : 0.50;
-            const RUIN_FLOOR = (CONFIG?.RISK?.minBalanceFloorEnabled !== false) ? (floorMin + MIN_ORDER) : MIN_ORDER;
+            const RUIN_FLOOR = (CONFIG?.RISK?.minBalanceFloorEnabled !== false)
+                ? (floorMin + REFERENCE_MIN_ORDER_COST)
+                : REFERENCE_MIN_ORDER_COST;
 
             // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss state variables
             // (Configuration params are defined at endpoint scope above)
@@ -1565,13 +1697,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             let desiredFrac = desiredFracPreLock * profitLockMultExc;
                             desiredFrac = Math.max(0.01, Math.min(0.50, desiredFrac));
 
-                            // Survivability gate: do not size so large that a loss would drop below (floor + MIN_ORDER).
+                            // Survivability gate: do not size so large that a loss would drop below (floor + min order).
                             const floorEnabledBt = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
                             if (floorEnabledBt && windowBalanceStart > 0) {
                                 const floor = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
                                     ? tradeExecutor.getEffectiveBalanceFloor(windowBalanceStart)
                                     : Number(CONFIG.RISK.minBalanceFloor);
-                                const keepAlive = floor + MIN_ORDER;
+                                // Use reference min cost at minOddsEntry (since entryPrice is variable across cycles).
+                                const keepAlive = floor + REFERENCE_MIN_ORDER_COST;
                                 if (Number.isFinite(keepAlive) && windowBalanceStart > keepAlive) {
                                     const maxFracKeepAlive = (windowBalanceStart - keepAlive) / windowBalanceStart;
                                     if (Number.isFinite(maxFracKeepAlive) && maxFracKeepAlive > effectiveStakeFraction) {
@@ -1591,9 +1724,16 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     }
 
                     // ==================== MIN ORDER + FLOOR GUARDS (RUNTIME-REALISTIC) ====================
-                    // Polymarket enforces a minimum stake. If our sizing is below MIN_ORDER, we must either:
-                    // - bump to MIN_ORDER (if it is SAFE vs the balance floor), or
+                    // CLOB enforces a minimum order size in SHARES (`min_order_size`).
+                    // If our sizing is below the min-cost for this cycle's entry price, we must either:
+                    // - bump to the min-cost (if it is SAFE vs the survival floor), or
                     // - skip the trade (more realistic than "phantom" sub-min orders).
+                    const effectiveEntryMin = (() => {
+                        const ep = Number(cycle?.entryPrice);
+                        if (!Number.isFinite(ep) || ep <= 0) return null;
+                        return Math.min(0.99, ep * (1 + SLIPPAGE_PCT));
+                    })();
+                    const MIN_ORDER_COST = minOrderCostForPrice(effectiveEntryMin);
                     const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
                     const floor = floorEnabled
                         ? ((tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
@@ -1604,12 +1744,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         ? tradeExecutor.getRuinFloor()
                         : RUIN_FLOOR;
                     const survivalFloor = floorEnabled ? Math.max(Number(floor) || 0, Number(ruinFloor) || 0) : 0;
-                    // To place MIN_ORDER without risking "ruin", require that a worst-case loss of MIN_ORDER
+                    // To place the min order without risking "ruin", require that a worst-case loss of MIN_ORDER_COST
                     // still leaves balance >= survivalFloor.
-                    const minBankrollForMinOrder = floorEnabled ? (survivalFloor + MIN_ORDER) : MIN_ORDER;
-                    if (stake < MIN_ORDER) {
+                    const minBankrollForMinOrder = floorEnabled ? (survivalFloor + MIN_ORDER_COST) : MIN_ORDER_COST;
+                    if (stake < MIN_ORDER_COST) {
                         if (windowBalanceStart >= minBankrollForMinOrder) {
-                            stake = MIN_ORDER;
+                            stake = MIN_ORDER_COST;
                             envelopeCaps++; // count as a cap/bump event (size increased to meet min)
                         } else {
                             envelopeBlocks++;
@@ -1623,7 +1763,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         if (stake > maxSafeStake) {
                             stake = maxSafeStake;
                             envelopeCaps++;
-                            if (stake < MIN_ORDER) {
+                            if (stake < MIN_ORDER_COST) {
                                 envelopeBlocks++;
                                 continue;
                             }
@@ -1661,29 +1801,29 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         const trailingDDFromPeak = peakBalance > 0 ? peakBalance - balance : 0;
                         const trailingBudget = peakBalance * dynTrailingDDPct - trailingDDFromPeak;
                         const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
-                        // 🏆 v89 FIX: If budget can support MIN_ORDER, ensure maxTradeSize is at least MIN_ORDER
+                        // 🏆 v89 FIX: If budget can support min order, ensure maxTradeSize is at least MIN_ORDER_COST
                         // to prevent a min-order freeze in Stage1/2.
                         let maxTradeSize = effectiveBudget * dynPerTradeCap;
-                        if (effectiveBudget >= MIN_ORDER) {
-                            maxTradeSize = Math.max(MIN_ORDER, maxTradeSize);
+                        if (effectiveBudget >= MIN_ORDER_COST) {
+                            maxTradeSize = Math.max(MIN_ORDER_COST, maxTradeSize);
                         }
                         
                         // 🏆 v78/v86 FIX: Match runtime applyRiskEnvelope logic (including min-order override rules)
                         // The TRUE constraint is effectiveBudget, not maxTradeSize.
-                        // Only allow MIN_ORDER overrides when they do NOT violate the balance floor.
+                        // Only allow min-order overrides when they do NOT violate the survival floor.
                         
                         // 🏆 v84: Bootstrap min-order override (parity with runtime TradeExecutor.applyRiskEnvelope)
-                        // In Bootstrap stage (balance < stage1 threshold), minOrderRiskOverride=true
-                        // This allows MIN_ORDER even when budget is exhausted, as long as balance can cover it
+                        // In Bootstrap stage (balance < stage1 threshold), minOrderRiskOverride=true.
+                        // This allows MIN_ORDER_COST even when budget is exhausted, as long as balance can cover it.
                         const isBootstrapStage = balance < STAGE1_THRESHOLD;
                         const minOrderOverride = isBootstrapStage; // runtime dynamic profile: true only in BOOTSTRAP
                         
                         // Case 1: Budget truly exhausted
-                        if (effectiveBudget < MIN_ORDER) {
+                        if (effectiveBudget < MIN_ORDER_COST) {
                             // 🏆 v84: Check Bootstrap min-order override before blocking
-                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= survivalFloor)) {
-                                // Allow MIN_ORDER via override (matches runtime behavior)
-                                stake = MIN_ORDER;
+                            if (minOrderOverride && balance >= MIN_ORDER_COST && (!floorEnabled || (balance - MIN_ORDER_COST) >= survivalFloor)) {
+                                // Allow min order via override (matches runtime behavior)
+                                stake = MIN_ORDER_COST;
                                 envelopeCaps++;
                                 // Don't block - continue to trade execution
                             } else {
@@ -1692,12 +1832,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             }
                         }
                         
-                        // Case 2: Per-trade cap < MIN_ORDER but budget available
-                        // Allow MIN_ORDER only if override is enabled; otherwise block (can't satisfy per-trade risk cap).
-                        if (maxTradeSize < MIN_ORDER) {
-                            if (minOrderOverride && balance >= MIN_ORDER && (!floorEnabled || (balance - MIN_ORDER) >= survivalFloor)) {
-                                if (stake > MIN_ORDER) {
-                                    stake = MIN_ORDER;
+                        // Case 2: Per-trade cap < MIN_ORDER_COST but budget available
+                        // Allow min order only if override is enabled; otherwise block (can't satisfy per-trade risk cap).
+                        if (maxTradeSize < MIN_ORDER_COST) {
+                            if (minOrderOverride && balance >= MIN_ORDER_COST && (!floorEnabled || (balance - MIN_ORDER_COST) >= survivalFloor)) {
+                                if (stake > MIN_ORDER_COST) {
+                                    stake = MIN_ORDER_COST;
                                     envelopeCaps++;
                                 }
                             } else {
@@ -1719,7 +1859,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                                 stake = maxSafeStake2;
                                 envelopeCaps++;
                             }
-                            if (stake < MIN_ORDER) {
+                            if (stake < MIN_ORDER_COST) {
                                 envelopeBlocks++;
                                 continue;
                             }
@@ -1728,28 +1868,29 @@ app.get('/api/backtest-polymarket', async (req, res) => {
 
                     const isWin = cycle.prediction === cycle.polymarketOutcome;
 
-                    const effectiveEntry = Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
-                    const shares = stake / effectiveEntry;
+                    const settled = calcBinaryTradeDeltaUsdAfterFees(stake, cycle.entryPrice, isWin, { slippagePct: SLIPPAGE_PCT, feeModel });
+                    const effectiveEntry = Number.isFinite(Number(settled?.effectiveEntry))
+                        ? Number(settled.effectiveEntry)
+                        : Math.min(0.99, cycle.entryPrice * (1 + SLIPPAGE_PCT));
+                    const shares = (Number.isFinite(effectiveEntry) && effectiveEntry > 0) ? (stake / effectiveEntry) : 0;
+                    const feeUsd = Number.isFinite(Number(settled?.feeUsd)) ? Number(settled.feeUsd) : 0;
+                    const pnl = Number.isFinite(Number(settled?.deltaUsd)) ? Number(settled.deltaUsd) : 0;
 
-                    let pnl;
                     if (isWin) {
-                        const grossValue = shares * 1.0;
-                        const profit = grossValue - stake;
-                        const fee = profit * PROFIT_FEE_PCT;
-                        pnl = profit - fee;
                         wins++;
                         // 🏆 v88: Reset consecutive losses on win (runtime parity)
                         consecutiveLosses = 0;
+                        // Taker fee is paid regardless of outcome; count it as intraday loss budget usage.
+                        intradayLoss += feeUsd;
                         // 🏆 v76: Track day stats
                         if (currentDayStats) { currentDayStats.wins++; currentDayStats.trades++; }
                     } else {
-                        pnl = -stake;
                         losses++;
                         // 🏆 v88: Track consecutive losses (runtime parity)
                         consecutiveLosses++;
                         lastLossEpochSec = cycle.cycleStartEpochSec || w;
                         // 🏆 v76: Track intraday loss (used by risk envelope when enabled now or later)
-                        intradayLoss += stake;
+                        intradayLoss += (stake + feeUsd);
                         // 🏆 v76: Track day stats
                         if (currentDayStats) { currentDayStats.losses++; currentDayStats.trades++; }
                     }
@@ -1764,7 +1905,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         isWin,
                         entryPrice: cycle.entryPrice,
                         effectiveEntry,
+                        shares,
                         stake,
+                        feeUsd,
                         pnl,
                         windowStartBalance: windowBalanceStart,
                         tier: cycle.tier,
@@ -1830,10 +1973,20 @@ app.get('/api/backtest-polymarket', async (req, res) => {
 
             const winTrades = trades.filter(t => t && t.isWin && Number.isFinite(t.effectiveEntry) && t.effectiveEntry > 0);
             const avgWinRoiNet = winTrades.length > 0
-                ? (winTrades.reduce((s, t) => s + ((1 / t.effectiveEntry - 1) * (1 - PROFIT_FEE_PCT)), 0) / winTrades.length)
+                ? (winTrades.reduce((s, t) => {
+                    const feeFrac = calcPolymarketTakerFeeFrac(t.effectiveEntry, feeModel);
+                    return s + ((1 / t.effectiveEntry - 1) - feeFrac);
+                }, 0) / winTrades.length)
                 : 0;
-            const expectedEV = (winRate / 100) * avgWinRoiNet - (1 - winRate / 100);
-            const winRateNeededForEV = avgWinRoiNet > 0 ? (1 / (1 + avgWinRoiNet)) * 100 : null;
+            const avgFeeFrac = (Number.isFinite(avgEffectiveEntry) && avgEffectiveEntry > 0)
+                ? calcPolymarketTakerFeeFrac(avgEffectiveEntry, feeModel)
+                : 0;
+            const expectedEV = (Number.isFinite(avgEffectiveEntry) && avgEffectiveEntry > 0)
+                ? ((winRate / 100) / avgEffectiveEntry - 1 - avgFeeFrac)
+                : null;
+            const winRateNeededForEV = (Number.isFinite(avgEffectiveEntry) && avgEffectiveEntry > 0)
+                ? (avgEffectiveEntry * (1 + avgFeeFrac) * 100)
+                : null;
 
             return {
                 stakeFrac: stakeFraction,
@@ -2119,10 +2272,10 @@ app.get('/api/build-dataset', async (req, res) => {
     try {
         const startTime = Date.now();
         const lookbackDays = Math.min(parseInt(req.query.days) || 90, 365);
-        const asset = req.query.asset ? String(req.query.asset).toUpperCase() : null; // BTC, ETH, XRP or null for all
+        const asset = req.query.asset ? String(req.query.asset).toUpperCase() : null; // BTC, ETH, XRP, SOL or null for all
         const forceRefresh = req.query.refresh === '1';
         
-        const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP'];
+        const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP', 'SOL'];
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
         
@@ -2205,7 +2358,7 @@ app.get('/api/build-dataset', async (req, res) => {
                 else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
                 
                 // Extract cycle timing from slug
-                const slugMatch = slug.match(/(btc|eth|xrp)-updown-15m-(\d+)$/);
+                const slugMatch = slug.match(/(btc|eth|xrp|sol)-updown-15m-(\d+)$/);
                 const assetFromSlug = slugMatch ? slugMatch[1].toUpperCase() : null;
                 const cycleStartEpochSec = slugMatch ? parseInt(slugMatch[2]) : null;
                 
@@ -2359,7 +2512,7 @@ async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
                 else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
                 
                 // Extract cycle timing from slug
-                const slugMatch = slug.match(/(btc|eth|xrp)-updown-15m-(\d+)$/);
+                const slugMatch = slug.match(/(btc|eth|xrp|sol)-updown-15m-(\d+)$/);
                 const assetFromSlug = slugMatch ? slugMatch[1].toUpperCase() : null;
                 const cycleStartEpochSec = slugMatch ? parseInt(slugMatch[2]) : null;
                 
@@ -2403,7 +2556,7 @@ app.post('/api/dataset/build', express.json(), async (req, res) => {
         const asset = assetParam ? String(assetParam).toUpperCase() : null;
         const forceRefresh = req.body?.refresh === true || req.query.refresh === '1';
         
-        const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP'];
+        const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP', 'SOL'];
         
         const jobId = generateJobId();
         const job = {
@@ -2523,12 +2676,20 @@ app.get('/api/vault-projection', async (req, res) => {
         const STAGE1_THRESHOLD = thresholds.vaultTriggerBalance;
         const STAGE2_THRESHOLD = thresholds.stage2Threshold;
         
-        // Runtime-matching constants
-        const PROFIT_FEE_PCT = 0.02;
-        const MIN_ORDER = 1.10;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/projections we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
+        // CLOB-native min order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
+        const MIN_ORDER_SHARES = (() => {
+            const q = Number(req.query.minShares);
+            if (Number.isFinite(q) && q > 0) return q;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            return (Number.isFinite(env) && env > 0) ? env : 5;
+        })();
         const BALANCE_FLOOR = parseFloat(req.query.floor) || 2.0;
         const MAX_ABSOLUTE_STAKE = 100;
         const AVG_ENTRY_PRICE = parseFloat(req.query.entry) || 0.67;
+        const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
         const TRADES_PER_DAY = parseInt(req.query.tradesPerDay) || 16;
         const kellyMaxParam = parseFloat(req.query.kellyMax);
         const kellyMax = Number.isFinite(kellyMaxParam) ? kellyMaxParam : 0.32;
@@ -2616,44 +2777,41 @@ app.get('/api/vault-projection', async (req, res) => {
                 const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
                 const maxTradeSize = effectiveBudget * profile.perTradeCap;
                 
-                // Apply envelope constraints
-                if (effectiveBudget < MIN_ORDER) {
-                    if (profile.minOrderOverride && balance >= MIN_ORDER) {
-                        size = MIN_ORDER;
+                // Apply envelope constraints (min order is shares-based; use MIN_ORDER_COST at AVG_ENTRY_PRICE)
+                if (effectiveBudget < MIN_ORDER_COST) {
+                    if (profile.minOrderOverride && balance >= MIN_ORDER_COST) {
+                        size = MIN_ORDER_COST;
                     } else {
                         hitMinOrder = true;
                         break;
                     }
-                } else if (maxTradeSize < MIN_ORDER) {
-                    size = MIN_ORDER;
+                } else if (maxTradeSize < MIN_ORDER_COST) {
+                    size = MIN_ORDER_COST;
                 } else if (size > maxTradeSize) {
                     size = maxTradeSize;
                 }
                 
                 // Min-order override for bootstrap
-                if (size < MIN_ORDER && balance >= MIN_ORDER) {
+                if (size < MIN_ORDER_COST && balance >= MIN_ORDER_COST) {
                     if (profile.minOrderOverride) {
-                        size = MIN_ORDER;
+                        size = MIN_ORDER_COST;
                     } else {
                         hitMinOrder = true;
                         break;
                     }
                 }
                 
-                if (size < MIN_ORDER) {
+                if (size < MIN_ORDER_COST) {
                     hitMinOrder = true;
                     break;
                 }
                 
                 // Simulate trade outcome (uses seeded RNG for reproducibility)
                 const won = rng.next() < historicalWinRate;
-                if (won) {
-                    const profit = (size / AVG_ENTRY_PRICE - size) * (1 - PROFIT_FEE_PCT);
-                    balance += profit;
-                } else {
-                    balance -= size;
-                    intradayLoss += size;
-                }
+                const settled = calcBinaryTradeDeltaUsdAfterFees(size, AVG_ENTRY_PRICE, won, { slippagePct: 0, feeModel });
+                balance += Number(settled.deltaUsd || 0);
+                // Intraday loss tracks worst-case depletion of cash. Fees always reduce bankroll.
+                intradayLoss += won ? Number(settled.feeUsd || 0) : (size + Number(settled.feeUsd || 0));
                 
                 // Update peak and drawdown
                 peakBalance = Math.max(peakBalance, balance);
@@ -2672,7 +2830,7 @@ app.get('/api/vault-projection', async (req, res) => {
             finalBalances.push(balance);
             maxDrawdowns.push(maxDD);
             if (hitFloor || balance < BALANCE_FLOOR) ruinFloorCount++;
-            if (hitMinOrder || balance < MIN_ORDER) ruinMinOrderCount++;
+            if (hitMinOrder || balance < MIN_ORDER_COST) ruinMinOrderCount++;
             if (hit20_d7) reach20_day7++;
             if (hit50_d7) reach50_day7++;
             if (hit100_d7) reach100_day7++;
@@ -2708,7 +2866,8 @@ app.get('/api/vault-projection', async (req, res) => {
                 kellyMax,
                 adaptiveMode,
                 balanceFloor: BALANCE_FLOOR,
-                minOrder: MIN_ORDER
+                minOrderShares: MIN_ORDER_SHARES,
+                minOrderCost: Number.isFinite(MIN_ORDER_COST) ? Number(MIN_ORDER_COST.toFixed(4)) : null
             },
             // 🏆 v83: Vault thresholds (proves what was simulated)
             vaultThresholds: thresholds,
@@ -2728,7 +2887,8 @@ app.get('/api/vault-projection', async (req, res) => {
                 belowMinOrder: pct(ruinMinOrderCount),
                 belowMinOrder_num: pctNum(ruinMinOrderCount),
                 floor: BALANCE_FLOOR,
-                minOrder: MIN_ORDER
+                minOrderShares: MIN_ORDER_SHARES,
+                minOrderCost: Number.isFinite(MIN_ORDER_COST) ? Number(MIN_ORDER_COST.toFixed(4)) : null
             },
             // 🏆 v83: Drawdown metrics (tie-breaker: "ideally balanced")
             drawdown: {
@@ -2809,9 +2969,17 @@ app.get('/api/vault-optimize', async (req, res) => {
             return (usedSeed ^ Math.imul(k, 0x9E3779B1)) >>> 0;
         };
         
-        // Runtime-matching constants
-        const PROFIT_FEE_PCT = 0.02;
-        const MIN_ORDER = 1.10;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/optimization we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
+        // CLOB-native min order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
+        const MIN_ORDER_SHARES = (() => {
+            const q = Number(req.query.minShares);
+            if (Number.isFinite(q) && q > 0) return q;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            return (Number.isFinite(env) && env > 0) ? env : 5;
+        })();
+        const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
         const MAX_ABSOLUTE_STAKE = 100;
         const DAY7_TRADES = 7 * TRADES_PER_DAY;
         const DAY30_TRADES = 30 * TRADES_PER_DAY;
@@ -2882,42 +3050,39 @@ app.get('/api/vault-optimize', async (req, res) => {
                     const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
                     const maxTradeSize = effectiveBudget * profile.perTradeCap;
                     
-                    if (effectiveBudget < MIN_ORDER) {
-                        if (profile.minOrderOverride && balance >= MIN_ORDER) {
-                            size = MIN_ORDER;
+                    if (effectiveBudget < MIN_ORDER_COST) {
+                        if (profile.minOrderOverride && balance >= MIN_ORDER_COST) {
+                            size = MIN_ORDER_COST;
                         } else {
                             hitMinOrder = true;
                             break;
                         }
-                    } else if (maxTradeSize < MIN_ORDER) {
-                        size = MIN_ORDER;
+                    } else if (maxTradeSize < MIN_ORDER_COST) {
+                        size = MIN_ORDER_COST;
                     } else if (size > maxTradeSize) {
                         size = maxTradeSize;
                     }
                     
-                    if (size < MIN_ORDER && balance >= MIN_ORDER) {
+                    if (size < MIN_ORDER_COST && balance >= MIN_ORDER_COST) {
                         if (profile.minOrderOverride) {
-                            size = MIN_ORDER;
+                            size = MIN_ORDER_COST;
                         } else {
                             hitMinOrder = true;
                             break;
                         }
                     }
                     
-                    if (size < MIN_ORDER) {
+                    if (size < MIN_ORDER_COST) {
                         hitMinOrder = true;
                         break;
                     }
                     
                     // 🏆 v83: Uses seeded RNG for reproducibility
                     const won = rngLocal.next() < historicalWinRate;
-                    if (won) {
-                        const profit = (size / AVG_ENTRY_PRICE - size) * (1 - PROFIT_FEE_PCT);
-                        balance += profit;
-                    } else {
-                        balance -= size;
-                        intradayLoss += size;
-                    }
+                    const settled = calcBinaryTradeDeltaUsdAfterFees(size, AVG_ENTRY_PRICE, won, { slippagePct: 0, feeModel });
+                    balance += Number(settled.deltaUsd || 0);
+                    // Intraday loss tracks worst-case depletion of cash. Fees always reduce bankroll.
+                    intradayLoss += won ? Number(settled.feeUsd || 0) : (size + Number(settled.feeUsd || 0));
                     
                     peakBalance = Math.max(peakBalance, balance);
                     const dd = peakBalance > 0 ? (peakBalance - balance) / peakBalance : 0;
@@ -2929,7 +3094,7 @@ app.get('/api/vault-optimize', async (req, res) => {
                 
                 maxDrawdowns.push(maxDD);
                 if (hitFloor || balance < BALANCE_FLOOR) ruinFloorCount++;
-                if (hitMinOrder || balance < MIN_ORDER) ruinMinOrderCount++;
+                if (hitMinOrder || balance < MIN_ORDER_COST) ruinMinOrderCount++;
                 if (hit100_d7) reach100_day7++;
                 if (hit1000_d30) reach1000_day30++;
             }
@@ -3074,7 +3239,18 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         
         // Backtest parameters (passed through)
         const tier = req.query.tier || 'CONVICTION';
-        const assets = req.query.assets || 'BTC,ETH';
+        const assets = (() => {
+            if (req.query.assets) return String(req.query.assets);
+            try {
+                const ctrl = CONFIG?.ASSET_CONTROLS || {};
+                const enabled = Object.entries(ctrl)
+                    .filter(([_, v]) => v && v.enabled !== false)
+                    .map(([a]) => String(a).toUpperCase())
+                    .filter(a => ['BTC', 'ETH', 'XRP', 'SOL'].includes(a));
+                if (enabled.length > 0) return enabled.join(',');
+            } catch { }
+            return 'BTC,ETH,XRP,SOL';
+        })();
 
         // 🏆 v90: AUTO-PROFILE COMPAT
         // The optimizer is meant to optimize ONLY vaultTriggerBalance. For other knobs:
@@ -3332,12 +3508,21 @@ app.get('/api/backtest-dataset', async (req, res) => {
         const simulations = Math.min(parseInt(req.query.sims) || 5000, 20000); // 🏆 v82: More sims for accuracy
         
         // 🏆 v82: Runtime-matching constants
-        const PROFIT_FEE_PCT = 0.02;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/backtests we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
         const TRADES_PER_DAY = 16;
-        const MIN_ORDER = 1.10;
         const BALANCE_FLOOR = parseFloat(req.query.floor) || 2.0; // Match runtime CONFIG.RISK.minBalanceFloor
         const MAX_ABSOLUTE_STAKE = 100; // Liquidity cap
         const AVG_ENTRY_PRICE = parseFloat(req.query.entry) || 0.67; // Typical entry price
+        // CLOB-native min order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
+        const MIN_ORDER_SHARES = (() => {
+            const q = Number(req.query.minShares);
+            if (Number.isFinite(q) && q > 0) return q;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            return (Number.isFinite(env) && env > 0) ? env : 5;
+        })();
+        const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
         
         // Load cached dataset (unchanged)
         const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
@@ -3407,7 +3592,7 @@ app.get('/api/backtest-dataset', async (req, res) => {
             const tradesForDay = day * TRADES_PER_DAY;
             const balances = [];
             let ruinFloorCount = 0;      // Balance dropped below BALANCE_FLOOR
-            let ruinMinOrderCount = 0;    // Can't place MIN_ORDER trades
+            let ruinMinOrderCount = 0;    // Can't place minimum-size trades
             let reach20 = 0, reach50 = 0, reach100 = 0;
             
             for (let sim = 0; sim < simulations; sim++) {
@@ -3434,25 +3619,21 @@ app.get('/api/backtest-dataset', async (req, res) => {
                     size = Math.min(size, MAX_ABSOLUTE_STAKE);
                     
                     // 🏆 v82: Bootstrap min-order override (matches runtime stage 0 behavior)
-                    // If balance is small but above MIN_ORDER, allow MIN_ORDER trade
-                    if (size < MIN_ORDER && balance >= MIN_ORDER) {
-                        size = MIN_ORDER;
+                    // If balance is small but above MIN_ORDER_COST, allow MIN_ORDER_COST trade
+                    if (size < MIN_ORDER_COST && balance >= MIN_ORDER_COST) {
+                        size = MIN_ORDER_COST;
                     }
                     
-                    // Can't trade if stake < MIN_ORDER
-                    if (size < MIN_ORDER) {
+                    // Can't trade if stake < MIN_ORDER_COST
+                    if (size < MIN_ORDER_COST) {
                         hitMinOrder = true;
                         break;
                     }
                     
                     // Simulate trade outcome
                     const won = Math.random() < historicalWinRate;
-                    if (won) {
-                        const profit = (size / AVG_ENTRY_PRICE - size) * (1 - PROFIT_FEE_PCT);
-                        balance += profit;
-                    } else {
-                        balance -= size;
-                    }
+                    const settled = calcBinaryTradeDeltaUsdAfterFees(size, AVG_ENTRY_PRICE, won, { slippagePct: 0, feeModel });
+                    balance += Number(settled.deltaUsd || 0);
                     
                     // Track target hits
                     if (balance >= 20) hit20 = true;
@@ -3462,7 +3643,7 @@ app.get('/api/backtest-dataset', async (req, res) => {
                 
                 balances.push(balance);
                 if (hitFloor || balance < BALANCE_FLOOR) ruinFloorCount++;
-                if (hitMinOrder || balance < MIN_ORDER) ruinMinOrderCount++;
+                if (hitMinOrder || balance < MIN_ORDER_COST) ruinMinOrderCount++;
                 if (hit20) reach20++;
                 if (hit50) reach50++;
                 if (hit100) reach100++;
@@ -3481,7 +3662,8 @@ app.get('/api/backtest-dataset', async (req, res) => {
                     belowFloor: pct(ruinFloorCount),
                     belowMinOrder: pct(ruinMinOrderCount),
                     floor: BALANCE_FLOOR,
-                    minOrder: MIN_ORDER
+                    minOrderShares: MIN_ORDER_SHARES,
+                    minOrderCost: Number.isFinite(MIN_ORDER_COST) ? Number(MIN_ORDER_COST.toFixed(4)) : null
                 },
                 // 🏆 v82: Target hit probabilities
                 targetProbability: {
@@ -3513,7 +3695,8 @@ app.get('/api/backtest-dataset', async (req, res) => {
                 winRateUsed: (historicalWinRate * 100).toFixed(1) + '%',
                 avgEntryPrice: AVG_ENTRY_PRICE,
                 balanceFloor: BALANCE_FLOOR,
-                minOrder: MIN_ORDER,
+                minOrderShares: MIN_ORDER_SHARES,
+                minOrderCost: Number.isFinite(MIN_ORDER_COST) ? Number(MIN_ORDER_COST.toFixed(4)) : null,
                 simulations,
                 asset: asset || 'ALL'
             },
@@ -3958,7 +4141,7 @@ app.get('/api/dataset/stats', async (req, res) => {
 });
 
 // ==================== 🏆 v79 CHAINLINK-NATIVE HISTORICAL PRICES ====================
-// Builds historical price series for BTC/ETH/XRP with minute-level granularity
+// Builds historical price series for BTC/ETH/XRP/SOL with minute-level granularity
 // Uses CryptoCompare API (Chainlink tracks same underlying prices)
 // For true Chainlink on-chain data, would need to query AnswerUpdated logs via RPC
 app.get('/api/prices/build-historical', async (req, res) => {
@@ -3970,14 +4153,14 @@ app.get('/api/prices/build-historical', async (req, res) => {
         const startTime = Date.now();
         const lookbackDays = Math.min(parseInt(req.query.days) || 7, 365);
         const assetParam = req.query.asset;
-        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH', 'XRP'];
+        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH', 'XRP', 'SOL'];
         const resampleMinutes = Math.max(1, Math.min(15, parseInt(req.query.resample) || 1)); // 1-15 min
         const saveToFile = req.query.save === '1';
         
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
         
-        const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP' };
+        const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP', SOL: 'SOL' };
         const priceDataByAsset = {};
         const fetchStats = { fetched: 0, errors: 0 };
         
@@ -4144,16 +4327,26 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
         const startTime = Date.now();
         const lookbackDays = Math.min(parseInt(req.query.days) || 7, 30);
         const assetParam = req.query.asset;
-        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH'];
+        const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH', 'XRP', 'SOL'];
         const startingBalance = parseFloat(req.query.balance) || 5.0;
         const stakeFrac = parseFloat(req.query.stake) || 0.35;
         const tierFilter = String(req.query.tier || 'CONVICTION').toUpperCase();
+        // CLOB-native minimum order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
+        const MIN_ORDER_SHARES = (() => {
+            const q = Number(req.query.minShares);
+            if (Number.isFinite(q) && q > 0) return q;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            return (Number.isFinite(env) && env > 0) ? env : 5;
+        })();
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/backtests we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
         
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
         
         // Asset to CryptoCompare symbol mapping
-        const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP' };
+        const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP', SOL: 'SOL' };
         
         // 1. Fetch historical minute-level price data from CryptoCompare
         const priceDataByAsset = {};
@@ -4323,14 +4516,14 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
                 else if (profitMult >= 2) lockMult = 0.40;
                 else if (profitMult >= 1.1) lockMult = 0.65;
                 
-                const stake = Math.max(1.10, Math.min(balance * stakeFrac * lockMult, balance * 0.5));
+                const minOrderCost = MIN_ORDER_SHARES * entryPrice;
+                const stake = Math.max(minOrderCost, Math.min(balance * stakeFrac * lockMult, balance * 0.5));
                 if (stake > balance) { skipped++; continue; }
                 
                 // Determine if won
                 const won = signal.prediction === outcomeData.outcome;
-                const exitPrice = won ? 1.0 : 0.0;
-                const shares = stake / entryPrice;
-                const pnl = (exitPrice - entryPrice) * shares * 0.98; // 2% fee
+                const settled = calcBinaryTradeDeltaUsdAfterFees(stake, entryPrice, won, { slippagePct: 0, feeModel });
+                const pnl = Number(settled.deltaUsd || 0);
                 
                 balance += pnl;
                 if (balance > peakBalance) peakBalance = balance;
@@ -4424,8 +4617,9 @@ app.get('/api/optimize-polymarket', async (req, res) => {
         const stakeRange = [0.12, 0.15, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28, 0.30, 0.32, 0.35]; // 🏆 v61: VARIANCE-MIN focused
         const exitPolicies = ['HOLD_RESOLUTION']; // For now, only hold-to-resolution
         
-        // Fee model
-        const PROFIT_FEE_PCT = 0.02;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/optimization we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.01;
         
         // 🏆 v60 FINAL: Liquidity cap for realistic optimizer (matches LIVE sizing)
@@ -4554,28 +4748,17 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                     
                     // Calculate EV and filter negative EV
                     const pWin = Number(pred.pWin) || 0.5;
-                    const effectiveEntry = Math.min(0.99, pred.entryPrice * (1 + SLIPPAGE_PCT));
-                    const winRoiNet = (1 / effectiveEntry - 1) * (1 - PROFIT_FEE_PCT);
-                    const evRoi = pWin * winRoiNet - (1 - pWin);
-                    if (evRoi <= 0) continue;
+                    const evRoi = calcBinaryEvRoiAfterFees(pWin, pred.entryPrice, { slippagePct: SLIPPAGE_PCT, feeModel });
+                    if (!Number.isFinite(evRoi) || evRoi <= 0) continue;
                     
                     // Execute trade
                     // 🏆 v60 FINAL: Apply absolute liquidity cap (LIVE-realistic)
                     const stake = Math.min(balance * stakeFrac, maxAbsoluteStake);
                     const isWin = pred.prediction === entry.resolvedOutcome;
                     
-                    let pnl;
-                    if (isWin) {
-                        const shares = stake / effectiveEntry;
-                        const grossValue = shares * 1.0;
-                        const profit = grossValue - stake;
-                        const fee = profit * PROFIT_FEE_PCT;
-                        pnl = profit - fee;
-                        wins++;
-                    } else {
-                        pnl = -stake;
-                        losses++;
-                    }
+                    const settled = calcBinaryTradeDeltaUsdAfterFees(stake, pred.entryPrice, isWin, { slippagePct: SLIPPAGE_PCT, feeModel });
+                    const pnl = Number(settled.deltaUsd || 0);
+                    if (isWin) wins++; else losses++;
                     
                     balance += pnl;
                     peakBalance = Math.max(peakBalance, balance);
@@ -4973,8 +5156,9 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
         const limit = Math.min(parseInt(req.query.limit) || 100, 500);
         const offset = Math.max(0, parseInt(req.query.offset) || 0);
         const assetFilter = req.query.asset ? String(req.query.asset).toUpperCase() : null;
-
-        const PROFIT_FEE_PCT = 0.02;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/verification we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
 
         // Load most recent trades (newest first)
         const history = await loadTradeHistory(mode, offset, limit);
@@ -4999,7 +5183,8 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
         const assetSlugBase = {
             BTC: 'btc-updown-15m-',
             ETH: 'eth-updown-15m-',
-            XRP: 'xrp-updown-15m-'
+            XRP: 'xrp-updown-15m-',
+            SOL: 'sol-updown-15m-'
         };
 
         function buildSlugFromTrade(trade) {
@@ -5151,19 +5336,13 @@ app.get('/api/verify-trades-polymarket', async (req, res) => {
             const mismatch = (isComparable && recordedWin !== null) ? (recordedWin !== verifiedWin) : false;
             if (mismatch) { mismatches++; byAsset[asset].mismatches++; }
 
-            // What PnL would be if held to resolution (profit-fee model), using stored entry+size
+            // What PnL would be if held to resolution (taker-fee model), using stored entry+size
             const entry = Number(trade.entry);
             const size = Number(trade.size);
             let expectedPnl = null;
             if (Number.isFinite(entry) && entry > 0 && Number.isFinite(size) && size > 0) {
-                if (verifiedWin) {
-                    const shares = size / entry;
-                    const grossProfit = shares - size;
-                    const fee = grossProfit * PROFIT_FEE_PCT;
-                    expectedPnl = grossProfit - fee;
-                } else {
-                    expectedPnl = -size;
-                }
+                const settled = calcBinaryTradeDeltaUsdAfterFees(size, entry, verifiedWin, { slippagePct: 0, feeModel });
+                expectedPnl = Number(settled.deltaUsd || 0);
             }
 
             verifiedTrades.push({
@@ -6237,8 +6416,21 @@ app.get('/api/projection', async (req, res) => {
         let reachedTargetCount = 0;
         let bustCount = 0;
         
-        const positionSize = 0.20; // 20% position size (conservative)
-        const avgEntryPrice = 0.65; // Average entry price
+        const positionSizeParam = Number(req.query.stakePct);
+        const positionSize = (Number.isFinite(positionSizeParam) && positionSizeParam > 0) ? positionSizeParam : 0.20; // Default: 20%
+        const avgEntryPriceParam = Number(req.query.entry);
+        const avgEntryPrice = (Number.isFinite(avgEntryPriceParam) && avgEntryPriceParam > 0) ? avgEntryPriceParam : 0.65; // Average entry price
+        // CLOB-native minimum order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
+        const MIN_ORDER_SHARES = (() => {
+            const q = Number(req.query.minShares);
+            if (Number.isFinite(q) && q > 0) return q;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            return (Number.isFinite(env) && env > 0) ? env : 5;
+        })();
+        const MIN_ORDER_COST = MIN_ORDER_SHARES * avgEntryPrice;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/projections we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
         const winPayout = 1.0 / avgEntryPrice; // Win pays ~1.54x
         
         for (let sim = 0; sim < simulations; sim++) {
@@ -6246,19 +6438,18 @@ app.get('/api/projection', async (req, res) => {
             let trades = 0;
             let reached = false;
             
-            while (trades < maxTrades && balance >= 1.10 && !reached) {
-                const size = Math.min(balance * positionSize, balance - 1.0);
-                if (size < 1.10) break;
+            while (trades < maxTrades && balance >= MIN_ORDER_COST && !reached) {
+                let size = Math.min(balance * positionSize, balance - 1.0);
+                // Min-order override: if we have enough bankroll, bump to the minimum cost.
+                if (size < MIN_ORDER_COST && balance >= MIN_ORDER_COST) {
+                    size = MIN_ORDER_COST;
+                }
+                if (size < MIN_ORDER_COST) break;
                 
                 // Simulate trade outcome
                 const won = Math.random() < historicalWinRate;
-                
-                if (won) {
-                    const profit = size * (winPayout - 1) * 0.98; // 2% fee on profit
-                    balance += profit;
-                } else {
-                    balance -= size;
-                }
+                const settled = calcBinaryTradeDeltaUsdAfterFees(size, avgEntryPrice, won, { slippagePct: 0, feeModel });
+                balance += Number(settled.deltaUsd || 0);
                 
                 trades++;
                 
@@ -6269,7 +6460,7 @@ app.get('/api/projection', async (req, res) => {
                 }
             }
             
-            if (balance < 1.10) bustCount++;
+            if (balance < MIN_ORDER_COST) bustCount++;
             finalBalances.push(balance);
         }
         
@@ -6292,7 +6483,9 @@ app.get('/api/projection', async (req, res) => {
                 maxTrades,
                 historicalWinRate: (historicalWinRate * 100).toFixed(1) + '%',
                 positionSize: (positionSize * 100) + '%',
-                avgEntryPrice: (avgEntryPrice * 100) + '¢'
+                avgEntryPrice: (avgEntryPrice * 100) + '¢',
+                minOrderShares: MIN_ORDER_SHARES,
+                minOrderCost: '$' + MIN_ORDER_COST.toFixed(2)
             },
             results: {
                 reachedTargetPct: ((reachedTargetCount / simulations) * 100).toFixed(1) + '%',
@@ -6317,7 +6510,7 @@ app.get('/api/projection', async (req, res) => {
             summary: `Based on ${simulations} Monte Carlo simulations with ${(historicalWinRate * 100).toFixed(0)}% win rate: ` +
                      `There's a ${((reachedTargetCount / simulations) * 100).toFixed(0)}% chance of reaching $${targetBalance} from $${startingBalance}. ` +
                      `Median ending balance after ${maxTrades} trades: $${p50Balance.toFixed(2)}. ` +
-                     `Risk of bust (balance < $1.10): ${((bustCount / simulations) * 100).toFixed(1)}%.`,
+                     `Risk of bust (balance < minOrderCost ~$${MIN_ORDER_COST.toFixed(2)}): ${((bustCount / simulations) * 100).toFixed(1)}%.`,
             
             disclaimer: 'These projections are based on historical data and Monte Carlo simulation. ' +
                         'Past performance does not guarantee future results. Markets can behave unexpectedly.'
@@ -6346,7 +6539,9 @@ app.get('/api/stress-test', async (req, res) => {
             CHAOS: { winRate: 0.35, probability: 0.05, name: 'Chaos/Black Swan (35% WR)' }
         };
         
-        const PROFIT_FEE_PCT = 0.02;
+        // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+        // For safety/stress tests we assume taker by default (configurable via env).
+        const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.02;
         const avgEntryPrice = 0.60;
         
@@ -6433,18 +6628,12 @@ app.get('/api/stress-test', async (req, res) => {
                 const winRate = regimes[currentRegime].winRate;
                 const won = Math.random() < winRate;
                 
-                let pnl;
+                const settled = calcBinaryTradeDeltaUsdAfterFees(positionSize, avgEntryPrice, won, { slippagePct: SLIPPAGE_PCT, feeModel });
+                const pnl = Number(settled.deltaUsd || 0);
                 if (won) {
-                    const effectiveEntry = avgEntryPrice * (1 + SLIPPAGE_PCT);
-                    const shares = positionSize / effectiveEntry;
-                    const grossValue = shares * 1.0;
-                    const profit = grossValue - positionSize;
-                    const fee = profit * PROFIT_FEE_PCT;
-                    pnl = profit - fee;
                     consecutiveLosses = 0;
                     regimeLosses = Math.max(0, regimeLosses - 1);
                 } else {
-                    pnl = -positionSize;
                     consecutiveLosses++;
                     regimeLosses++;
                 }
@@ -6617,11 +6806,27 @@ app.get('/api/verify', async (req, res) => {
         hasLcbFunction ? 'v96: LCB used for ADVISORY pWin → EV/price-cap/Kelly' : 'LCB functions not found');
 
     // Check 3b: Dynamic balance floor (prevents permanent min-order freeze after drawdown)
-    // This is critical for autonomy on micro bankrolls (e.g., $5 start) because Polymarket has MIN_ORDER=$1.10.
+    // This is critical for autonomy on micro bankrolls (e.g., $5 start) because Polymarket min order is shares-based
+    // (typically 5 shares), so you can get stuck unable to place even the minimum-sized order after a drawdown.
     const floorEnabledCfg = !!CONFIG?.RISK?.minBalanceFloorEnabled;
     const dynFloorEnabledCfg = floorEnabledCfg && (CONFIG?.RISK?.minBalanceFloorDynamicEnabled !== false);
     const floorFnExists = typeof tradeExecutor?.getEffectiveBalanceFloor === 'function';
-    const MIN_ORDER = 1.10;
+    // CLOB-native min order is shares-based; for this check we use the same conservative
+    // reference cost as the dynamic floor: (minOrderShares × ORACLE.minOdds).
+    const MIN_ORDER = (() => {
+        let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+        try {
+            const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
+            const shares = enabledAssets
+                .map(a => Number(currentMarkets?.[a]?.minOrderShares))
+                .filter(n => Number.isFinite(n) && n > 0);
+            if (shares.length) minShares = Math.max(...shares);
+        } catch { }
+        if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
+        const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
+        const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
+        return minShares * minOdds;
+    })();
     let dynFloorOk = true;
     let dynFloorDetails = '';
     if (!floorEnabledCfg) {
@@ -7738,7 +7943,18 @@ function emitUIUpdate() {
                     } : null,
                     tier: brain.tier || 'NONE',
                     confidence: brain.confidence || 0,
-                    prediction: brain.prediction || 'WAIT'
+                    prediction: brain.prediction || 'WAIT',
+                    marketUrl: currentMarkets[asset]?.marketUrl || null,
+                    oracleSignal: oracleSignals?.[asset] ? {
+                        action: oracleSignals[asset].action,
+                        direction: oracleSignals[asset].direction,
+                        implied: oracleSignals[asset].implied,
+                        pWin: oracleSignals[asset].pWin,
+                        evRoi: oracleSignals[asset].evRoi,
+                        mispricingEdge: oracleSignals[asset].mispricingEdge,
+                        timeLeftSec: oracleSignals[asset].timeLeftSec,
+                        marketUrl: oracleSignals[asset].marketUrl
+                    } : null
                 };
             }
         });
@@ -7800,8 +8016,8 @@ if (process.env.REDIS_URL) {
 }
 
 // ==================== IMMUTABLE DATA LAYER (Node.js Port) ====================
-// GOAL: Crypto checkpoints only (BTC/ETH/XRP). SOL is intentionally removed to avoid future confusion.
-const ASSETS = ['BTC', 'ETH', 'XRP'];
+// GOAL: Crypto checkpoints for all 4 Polymarket 15m markets (BTC/ETH/XRP/SOL)
+const ASSETS = ['BTC', 'ETH', 'XRP', 'SOL'];
 const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
 const WS_ENDPOINT = 'wss://ws-live-data.polymarket.com';
@@ -7819,6 +8035,26 @@ let lastUpdateTimestamp = Date.now();
 let fearGreedIndex = 50;
 let fundingRates = {};
 
+// ==================== POLYMARKET PROFILE TRADE SYNC (Data API) ====================
+// Optional: ingest YOUR real fills from Polymarket so the bot can learn from your actual actions.
+// Uses: https://data-api.polymarket.com/trades?user=<profileAddress>
+const DATA_API = 'https://data-api.polymarket.com';
+const PROFILE_TRADE_MAX = 5000; // keep last N trades in memory/state
+let profileTradeSync = {
+    profileUrl: null,
+    profileAddress: null,
+    lastSyncAt: 0,
+    lastSyncError: null,
+    trades: [] // newest-first
+};
+let profileTradeKeySet = new Set();
+let profileTradeSyncInFlight = null;
+
+// ==================== ORACLE SIGNAL ENGINE (PREPARE / BUY / SELL) ====================
+// Advisory layer: emits human-actionable signals without placing real orders.
+let oracleSignals = {};        // { [asset]: latestSignalObject }
+let oracleSignalRuntime = {};  // { [asset]: per-cycle throttles + last emitted actions }
+
 // 🏆 v70: Chainlink feed staleness tracking - HARD BLOCK trades when stale
 let feedStaleAssets = {}; // { BTC: true, ETH: false, ... }
 let anyFeedStale = false; // Quick check for any stale feed
@@ -7833,6 +8069,17 @@ ASSETS.forEach(asset => {
     currentMarkets[asset] = null;
     marketOddsHistory[asset] = [];
     feedStaleAssets[asset] = true; // 🏆 v70: Start stale until first Chainlink data arrives
+    oracleSignals[asset] = null;
+    oracleSignalRuntime[asset] = {
+        cycleStartEpochSec: 0,
+        lastPrepareAt: 0,
+        lastBuyAt: 0,
+        lastSellAt: 0,
+        lastAction: 'WAIT',
+        telegramPrepareSentAt: 0,
+        telegramBuySentAt: 0,
+        telegramSellSentAt: 0
+    };
 });
 
 // ==================== DEBUG EXPORT: CYCLE HISTORY STORAGE ====================
@@ -8271,6 +8518,10 @@ const CONFIG = {
     POLYMARKET_PASSPHRASE: (process.env.POLYMARKET_PASSPHRASE || '').trim(),
     POLYMARKET_ADDRESS: (process.env.POLYMARKET_ADDRESS || '').trim(),
     POLYMARKET_PRIVATE_KEY: (process.env.POLYMARKET_PRIVATE_KEY || '').trim(),
+    // Manual-trading support: sync your real Polymarket profile fills via Data API
+    POLYMARKET_PROFILE_URL: (process.env.POLYMARKET_PROFILE_URL || '').trim(),
+    POLYMARKET_PROFILE_ADDRESS: (process.env.POLYMARKET_PROFILE_ADDRESS || '').trim(),
+    PROFILE_TRADE_SYNC_ENABLED: String(process.env.PROFILE_TRADE_SYNC_ENABLED || 'true').trim().toLowerCase() !== 'false',
     // Polymarket CLOB signature type:
     // - 0: Standard web3 wallet signing (Metamask/EOA private key)
     // - 1: Magic/email login signing (exported key from https://reveal.magic.link/polymarket)
@@ -8284,6 +8535,13 @@ const CONFIG = {
 
     // Core Trading Settings
     TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
+    // 🔒 ORACLE MODE SAFETY: Disable automatic LIVE order placement unless explicitly enabled.
+    // - PAPER auto-trading remains enabled for evaluation/backtests
+    // - LIVE manual endpoints remain available only if ENABLE_MANUAL_TRADING=true (separate safety gate)
+    LIVE_AUTOTRADING_ENABLED: (() => {
+        const raw = String(process.env.LIVE_AUTOTRADING_ENABLED || '').trim().toLowerCase();
+        return raw === 'true' || raw === '1';
+    })(),
     PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '5'),   // 🏆 v80+: Default $5 (matches README + render.yaml)
     LIVE_BALANCE: parseFloat(process.env.LIVE_BALANCE || '100'),     // Configurable live balance
     // 🏆 v64 GOLDEN OPTIMAL - 80% profit probability + 58% 100x chance
@@ -8554,7 +8812,7 @@ const CONFIG = {
         intradayLossBudgetPct: 0.35,      // Legacy default; dynamic risk profile overrides this (see getDynamicRiskProfile)
         trailingDrawdownPct: 0.15,        // Max % drawdown from peak balance before size reduction
         perTradeLossCap: 0.10,            // Max % of remaining budget a single trade can risk
-        minOrderRiskOverride: true,       // If true, allow $1.10 min order even if it exceeds risk envelope (micro-bankroll)
+        minOrderRiskOverride: true,       // If true, allow minimum-order override even if it exceeds envelope (micro-bankroll bootstrap)
         
         // 🏆 v83 VAULT TRIGGER BALANCE: Stage0→Stage1 (Bootstrap→Transition) threshold
         // This is the "vault trigger" - when balance exceeds this, aggressive bootstrap mode ends.
@@ -8569,21 +8827,22 @@ const CONFIG = {
     TELEGRAM: {
         enabled: false,
         botToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
-        chatId: (process.env.TELEGRAM_CHAT_ID || '').trim()
+        chatId: (process.env.TELEGRAM_CHAT_ID || '').trim(),
+        // If true, suppress PAPER trade open/close spam and only send oracle advisory signals + critical alerts.
+        signalsOnly: String(process.env.TELEGRAM_SIGNALS_ONLY || 'true').trim().toLowerCase() !== 'false'
     },
 
-    // 🏆 v75 ASSET UNIVERSE POLICY: Default BTC+ETH only (higher accuracy in debug data)
-    // XRP: 59.5% accuracy vs BTC: 79%, ETH: 77.3% - disabled by default for low-drawdown goals
-    // Can be auto-enabled if rolling win rate proves itself (see assetAutoEnable rules below)
+    // 🏆 v97 ORACLE ASSET UNIVERSE: all 4 Polymarket 15m markets by default
     ASSET_CONTROLS: {
         BTC: { enabled: true, maxTradesPerCycle: 1 },
         ETH: { enabled: true, maxTradesPerCycle: 1 },
-        XRP: { enabled: false, maxTradesPerCycle: 1 }   // 🏆 v75: Disabled by default (low accuracy 59.5%)
+        XRP: { enabled: true, maxTradesPerCycle: 1 },
+        SOL: { enabled: true, maxTradesPerCycle: 1 }
     },
     
     // 🏆 v76: ASSET AUTO-ENABLE REMOVED - Static config only
     // Auto-enable was removed because disabled assets produce no trades to evaluate.
-    // To re-enable XRP/SOL, manually set ASSET_CONTROLS[asset].enabled = true in Settings.
+    // To enable/disable assets, set ASSET_CONTROLS[asset].enabled in Settings.
     ASSET_AUTO_ENABLE: {
         enabled: false                      // v76: Disabled - use manual ASSET_CONTROLS only
     }
@@ -9064,6 +9323,143 @@ async function sendTelegramNotification(message, silent = false) {
 // 📱 TELEGRAM: Styled notification builders
 // Dashboard URL for quick access
 const DASHBOARD_URL = process.env.RENDER_EXTERNAL_URL || 'https://polyprophet.onrender.com/';
+
+function tgEscape(s) {
+    return String(s ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function formatMmSs(seconds) {
+    const s = Number.isFinite(Number(seconds)) ? Math.max(0, Math.floor(Number(seconds))) : 0;
+    const mm = Math.floor(s / 60);
+    const ss = (s % 60).toString().padStart(2, '0');
+    return `${mm}:${ss}`;
+}
+
+function telegramOraclePrepare(signal) {
+    const asset = tgEscape(signal?.asset || '?');
+    const dir = tgEscape(signal?.direction || '?');
+    const tier = tgEscape(signal?.tier || 'NONE');
+    const price = Number.isFinite(signal?.implied) ? `${(signal.implied * 100).toFixed(1)}¢` : 'n/a';
+    const pWin = Number.isFinite(signal?.pWin) ? `${(signal.pWin * 100).toFixed(1)}%` : 'n/a';
+    const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
+    const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
+    const tLeft = formatMmSs(signal?.timeLeftSec);
+
+    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 4) : [];
+    let msg = `🟡 <b>PREPARE</b> 🔮\n`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b> — <b>${dir}</b> (<code>${tier}</code>)\n`;
+    msg += `⏳ Time left: <code>${tLeft}</code>\n`;
+    msg += `💰 Odds: <code>${price}</code>\n`;
+    msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code> | Edge: <code>${edgePp}</code>\n`;
+    if (reasons.length) {
+        msg += `━━━━━━━━━━━━━━━━━\n`;
+        for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
+    }
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Polymarket Market</a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
+    return msg;
+}
+
+function telegramOracleBuy(signal) {
+    const asset = tgEscape(signal?.asset || '?');
+    const dir = tgEscape(signal?.direction || '?');
+    const tier = tgEscape(signal?.tier || 'NONE');
+    const price = Number.isFinite(signal?.implied) ? `${(signal.implied * 100).toFixed(1)}¢` : 'n/a';
+    const pWin = Number.isFinite(signal?.pWin) ? `${(signal.pWin * 100).toFixed(1)}%` : 'n/a';
+    const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
+    const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
+    const tLeft = formatMmSs(signal?.timeLeftSec);
+
+    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 5) : [];
+    let msg = `🟢 <b>SIGNAL: BUY</b> 🔮\n`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b> — <b>${dir}</b> (<code>${tier}</code>)\n`;
+    msg += `💰 Entry odds: <code>${price}</code>\n`;
+    msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code> | Edge: <code>${edgePp}</code>\n`;
+    msg += `⏳ Time left: <code>${tLeft}</code>\n`;
+    if (reasons.length) {
+        msg += `━━━━━━━━━━━━━━━━━\n`;
+        for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
+    }
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Polymarket Market</a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
+    return msg;
+}
+
+function telegramOracleSell(signal) {
+    const asset = tgEscape(signal?.asset || '?');
+    const tier = tgEscape(signal?.tier || 'NONE');
+    const tLeft = formatMmSs(signal?.timeLeftSec);
+
+    const pos = signal?.position || null;
+    const posSide = tgEscape(pos?.side || '?');
+    const prediction = tgEscape(signal?.direction || '?');
+    const cur = Number.isFinite(pos?.currentOdds) ? `${(pos.currentOdds * 100).toFixed(1)}¢` : 'n/a';
+    const entry = Number.isFinite(pos?.entry) ? `${(pos.entry * 100).toFixed(1)}¢` : 'n/a';
+    const pnlPct = Number.isFinite(pos?.pnlPercent) ? `${pos.pnlPercent >= 0 ? '+' : ''}${pos.pnlPercent.toFixed(1)}%` : 'n/a';
+    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 5) : [];
+
+    let msg = `🔴 <b>SIGNAL: SELL</b> 🔮\n`;
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b> — <b>${posSide}</b> (<code>${tier}</code>)\n`;
+    if (prediction && posSide && prediction !== '?' && posSide !== '?' && prediction !== posSide) {
+        msg += `🔁 Current prediction: <b>${prediction}</b>\n`;
+    }
+    msg += `📊 Odds: <code>${entry}</code> → <code>${cur}</code> (P/L <b>${tgEscape(pnlPct)}</b>)\n`;
+    msg += `⏳ Time left: <code>${tLeft}</code>\n`;
+    if (reasons.length) {
+        msg += `━━━━━━━━━━━━━━━━━\n`;
+        for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
+    }
+    msg += `━━━━━━━━━━━━━━━━━\n`;
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Polymarket Market</a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
+    return msg;
+}
+
+function maybeSendOracleSignalTelegram(asset, signal) {
+    try {
+        if (!CONFIG?.TELEGRAM?.enabled) return;
+        if (!signal || signal.asset !== asset) return;
+        const rt = oracleSignalRuntime?.[asset];
+        if (!rt) return;
+
+        const now = Date.now();
+        const action = String(signal.action || '').toUpperCase();
+        if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return;
+
+        if (action === 'PREPARE') {
+            if (rt.telegramBuySentAt) return; // don't prewarn after we already sent BUY
+            if (rt.telegramPrepareSentAt) return;
+            rt.telegramPrepareSentAt = now;
+            sendTelegramNotification(telegramOraclePrepare(signal), true);
+            return;
+        }
+
+        if (action === 'BUY') {
+            if (rt.telegramBuySentAt) return;
+            rt.telegramBuySentAt = now;
+            sendTelegramNotification(telegramOracleBuy(signal), false);
+            return;
+        }
+
+        if (action === 'SELL') {
+            // Throttle SELL spam (at most once per 2 minutes per asset, per cycle)
+            if (rt.telegramSellSentAt && (now - rt.telegramSellSentAt) < 120000) return;
+            rt.telegramSellSentAt = now;
+            sendTelegramNotification(telegramOracleSell(signal), false);
+            return;
+        }
+    } catch {
+        // never crash on telegram
+    }
+}
 
 function telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market = null) {
     const emoji = direction === 'UP' ? '📈' : '📉';
@@ -9682,8 +10078,9 @@ class TradeExecutor {
     }
 
     // 🏆 v97: Dynamic balance floor (prevents permanent min-order freeze after drawdown).
-    // The base floor is CONFIG.RISK.minBalanceFloor, but when bankroll shrinks we allow the floor
-    // to shrink too (bounded by minBalanceFloorDynamicMin) so the bot can still place MIN_ORDER.
+    // IMPORTANT: Polymarket min order is `min_order_size` SHARES (typically 5 on 15m markets),
+    // so the minimum USDC required depends on entry price. For floor dynamics we use a conservative
+    // reference min cost computed from (minOrderShares × ORACLE.minOdds).
     getEffectiveBalanceFloor(balanceOverride) {
         const enabled = !!CONFIG?.RISK?.minBalanceFloorEnabled;
         if (!enabled) return 0;
@@ -9708,40 +10105,68 @@ class TradeExecutor {
         // Primary: shrink floor as a fraction of current bankroll
         let floor = Math.min(baseFloor, Math.max(minFloor, bal * frac));
 
-        // Secondary: avoid a "min-order freeze" when bal >= MIN_ORDER but (bal - floor) < MIN_ORDER.
-        // This keeps the system autonomous even after drawdown (at the cost of allowing deeper drawdown).
-        const MIN_ORDER = 1.10;
-        if (bal >= MIN_ORDER) {
-            const maxFloorToAllowMinOrder = Math.max(minFloor, bal - MIN_ORDER);
+        const referenceMinOrderCost = (() => {
+            // Prefer live per-market min order (shares) when known; fall back to 5 shares.
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            try {
+                const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
+                const shares = enabledAssets
+                    .map(a => Number(currentMarkets?.[a]?.minOrderShares))
+                    .filter(n => Number.isFinite(n) && n > 0);
+                if (shares.length) minShares = Math.max(...shares);
+            } catch { }
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
+            const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
+            const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
+            return minShares * minOdds;
+        })();
+
+        // Secondary: avoid a "min-order freeze" when bal >= referenceMinOrderCost
+        // but (bal - floor) < referenceMinOrderCost.
+        if (bal >= referenceMinOrderCost) {
+            const maxFloorToAllowMinOrder = Math.max(minFloor, bal - referenceMinOrderCost);
             floor = Math.min(floor, maxFloorToAllowMinOrder);
         }
 
         return (Number.isFinite(floor) && floor >= 0) ? floor : 0;
     }
 
-    // 🛡️ Ruin floor: minimum cash balance at which the bot can still place MIN_ORDER
-    // without violating the configured floor model.
+    // 🛡️ Ruin floor: minimum cash balance at which the bot can still place the minimum order
+    // (min_order_size shares at ORACLE.minOdds) without violating the configured floor model.
     // - If dynamic floor is enabled, the limiting floor at very low balances is minBalanceFloorDynamicMin,
     //   so the "ruin" threshold becomes (minFloor + MIN_ORDER).
     // - If dynamic floor is disabled, the limiting floor is the base floor, so the threshold becomes (baseFloor + MIN_ORDER).
     //
     // This is the correct "can we keep trading autonomously?" boundary for micro-bankrolls.
     getRuinFloor() {
-        const MIN_ORDER = 1.10;
+        const referenceMinOrderCost = (() => {
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            try {
+                const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
+                const shares = enabledAssets
+                    .map(a => Number(currentMarkets?.[a]?.minOrderShares))
+                    .filter(n => Number.isFinite(n) && n > 0);
+                if (shares.length) minShares = Math.max(...shares);
+            } catch { }
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
+            const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
+            const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
+            return minShares * minOdds;
+        })();
         const enabled = !!CONFIG?.RISK?.minBalanceFloorEnabled;
-        if (!enabled) return MIN_ORDER;
+        if (!enabled) return referenceMinOrderCost;
 
         const baseFloorCfg = Number(CONFIG?.RISK?.minBalanceFloor);
         const baseFloor = Number.isFinite(baseFloorCfg) ? Math.max(0, baseFloorCfg) : 0;
 
         const dynEnabled = (CONFIG?.RISK?.minBalanceFloorDynamicEnabled !== false);
         if (!dynEnabled) {
-            return baseFloor + MIN_ORDER;
+            return baseFloor + referenceMinOrderCost;
         }
 
         const minCfg = Number(CONFIG?.RISK?.minBalanceFloorDynamicMin);
         const minFloor = Number.isFinite(minCfg) ? Math.max(0, minCfg) : 0.50;
-        return minFloor + MIN_ORDER;
+        return minFloor + referenceMinOrderCost;
     }
 
     // 🛡️ Survival floor: minimum post-loss cash balance we must preserve.
@@ -10070,7 +10495,7 @@ class TradeExecutor {
     
     // 🏆 v77 RISK ENVELOPE: Get remaining risk budget based on intraday + trailing drawdown
     // Now uses dynamic profile based on bankroll stage
-    getRiskEnvelopeBudget() {
+    getRiskEnvelopeBudget(minOrderCostUsd = null) {
         // 🏆 v97: Use equity-aware balance for BOTH PAPER and LIVE
         const currentBalance = (typeof this.getBankrollForRisk === 'function')
             ? this.getBankrollForRisk()
@@ -10113,13 +10538,30 @@ class TradeExecutor {
         // The effective remaining budget is the SMALLER of the two
         const effectiveBudget = Math.min(remainingIntradayBudget, remainingTrailingBudget);
         
-        // Per-trade cap: no single trade should risk more than X% of remaining budget
-        // 🏆 v89 FIX: Avoid min-order freeze when effectiveBudget >= MIN_ORDER.
+        // Per-trade cap: no single trade should risk more than X% of remaining budget.
+        // Min-order is share-based; we treat `minOrderCostUsd` as the minimum viable USDC for THIS trade,
+        // and fall back to a conservative reference cost when unknown.
         const perTradeCap = profile.perTradeLossCap;
-        const MIN_ORDER = 1.10; // Polymarket minimum
+        const referenceMinOrderCost = (() => {
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            try {
+                const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
+                const shares = enabledAssets
+                    .map(a => Number(currentMarkets?.[a]?.minOrderShares))
+                    .filter(n => Number.isFinite(n) && n > 0);
+                if (shares.length) minShares = Math.max(...shares);
+            } catch { }
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
+            const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
+            const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
+            return minShares * minOdds;
+        })();
+        const MIN_ORDER_COST = (Number.isFinite(Number(minOrderCostUsd)) && Number(minOrderCostUsd) > 0)
+            ? Number(minOrderCostUsd)
+            : referenceMinOrderCost;
         let maxTradeSize = effectiveBudget * perTradeCap;
-        if (effectiveBudget >= MIN_ORDER) {
-            maxTradeSize = Math.max(MIN_ORDER, maxTradeSize);
+        if (effectiveBudget >= MIN_ORDER_COST) {
+            maxTradeSize = Math.max(MIN_ORDER_COST, maxTradeSize);
         }
         
         const reason = remainingTrailingBudget < remainingIntradayBudget
@@ -10135,6 +10577,7 @@ class TradeExecutor {
             peakBalance,
             currentBalance,
             reason,
+            minOrderCostUsd: MIN_ORDER_COST,
             // 🏆 v77: Include profile info for debugging/logging
             profile: {
                 stage: profile.stage,
@@ -10150,14 +10593,14 @@ class TradeExecutor {
     // 🏆 v78: Apply risk envelope to proposed trade size
     // REDESIGNED: Avoids min-order freeze by using effectiveBudget as the true limit
     // Only blocks when effectiveBudget < MIN_ORDER (truly exhausted)
-    applyRiskEnvelope(proposedSize, bankroll) {
-        const envelope = this.getRiskEnvelopeBudget();
+    applyRiskEnvelope(proposedSize, bankroll, minOrderCostUsd = null) {
+        const envelope = this.getRiskEnvelopeBudget(minOrderCostUsd);
         
         if (envelope.maxTradeSize === Infinity) {
             return { size: proposedSize, capped: false, envelope };
         }
         
-        const MIN_ORDER = 1.10; // Polymarket minimum
+        const MIN_ORDER_COST = Number(envelope?.minOrderCostUsd);
         const effectiveBudget = envelope.effectiveBudget || 0;
         const stageName = envelope.profile?.stageName || 'UNKNOWN';
         const minOrderRiskOverride = envelope.profile?.minOrderRiskOverride || false;
@@ -10184,19 +10627,19 @@ class TradeExecutor {
         
         // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
         // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
-        // If effectiveBudget >= MIN_ORDER, we should ALWAYS allow at least MIN_ORDER
+        // If effectiveBudget >= MIN_ORDER_COST, we should ALWAYS allow at least MIN_ORDER_COST
         
         // Case 1: Budget truly exhausted - block trade
         // 🏆 v80 FIX: Respect minOrderRiskOverride from dynamic profile
         // In Bootstrap mode (Stage 0), minOrderRiskOverride=true allows MIN_ORDER even when budget is tight
-        if (effectiveBudget < MIN_ORDER) {
-            // Check if we have enough ACTUAL balance for MIN_ORDER (ignore budget exhaustion),
-            // BUT never allow a trade that can cross the balance floor on a loss.
-            if (minOrderRiskOverride && actualBalance >= MIN_ORDER && canLose(MIN_ORDER)) {
-                log(`🛡️ RISK ENVELOPE [${stageName}]: Budget exhausted ($${effectiveBudget.toFixed(2)}) but MIN_ORDER override active - allowing $${MIN_ORDER.toFixed(2)}`);
+        if (Number.isFinite(MIN_ORDER_COST) && effectiveBudget < MIN_ORDER_COST) {
+            // Check if we have enough ACTUAL balance for MIN_ORDER_COST (ignore budget exhaustion),
+            // BUT never allow a trade that can cross the survival floor on a loss.
+            if (minOrderRiskOverride && actualBalance >= MIN_ORDER_COST && canLose(MIN_ORDER_COST)) {
+                log(`🛡️ RISK ENVELOPE [${stageName}]: Budget exhausted ($${effectiveBudget.toFixed(2)}) but min-order override active - allowing $${MIN_ORDER_COST.toFixed(2)}`);
                 return { 
-                    size: MIN_ORDER, 
-                    capped: proposedSize > MIN_ORDER,
+                    size: MIN_ORDER_COST, 
+                    capped: proposedSize > MIN_ORDER_COST,
                     overrideUsed: true,
                     envelope,
                     reason: `Bootstrap min-order override (stage: ${stageName}, balance $${actualBalance.toFixed(2)})`
@@ -10207,20 +10650,20 @@ class TradeExecutor {
                 size: 0, 
                 blocked: true, 
                 envelope,
-                reason: `Risk budget exhausted: $${effectiveBudget.toFixed(2)} < MIN_ORDER $${MIN_ORDER} (${envelope.reason}, stage: ${stageName})`
+                reason: `Risk budget exhausted: $${effectiveBudget.toFixed(2)} < minOrderCost $${(Number.isFinite(MIN_ORDER_COST) ? MIN_ORDER_COST.toFixed(2) : 'N/A')} (${envelope.reason}, stage: ${stageName})`
             };
         }
         
-        // Case 2: Budget available but per-trade cap would be < MIN_ORDER
-        // Allow MIN_ORDER ONLY when minOrderRiskOverride is enabled AND it does not violate the balance floor.
-        if (envelope.maxTradeSize < MIN_ORDER) {
-            if (minOrderRiskOverride && actualBalance >= MIN_ORDER && canLose(MIN_ORDER)) {
-                if (proposedSize > MIN_ORDER) {
-                    log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${MIN_ORDER.toFixed(2)} (per-trade cap $${envelope.maxTradeSize.toFixed(2)} < MIN, budget $${effectiveBudget.toFixed(2)})`);
+        // Case 2: Budget available but per-trade cap would be < MIN_ORDER_COST
+        // Allow MIN_ORDER_COST ONLY when minOrderRiskOverride is enabled AND it does not violate the survival floor.
+        if (Number.isFinite(MIN_ORDER_COST) && envelope.maxTradeSize < MIN_ORDER_COST) {
+            if (minOrderRiskOverride && actualBalance >= MIN_ORDER_COST && canLose(MIN_ORDER_COST)) {
+                if (proposedSize > MIN_ORDER_COST) {
+                    log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${MIN_ORDER_COST.toFixed(2)} (per-trade cap $${envelope.maxTradeSize.toFixed(2)} < min, budget $${effectiveBudget.toFixed(2)})`);
                 }
                 return { 
-                    size: MIN_ORDER, 
-                    capped: proposedSize > MIN_ORDER,
+                    size: MIN_ORDER_COST, 
+                    capped: proposedSize > MIN_ORDER_COST,
                     capRelaxed: true,
                     envelope,
                     reason: `Per-trade cap relaxed to MIN_ORDER (override enabled, stage: ${stageName})`
@@ -10230,7 +10673,7 @@ class TradeExecutor {
                 size: 0, 
                 blocked: true, 
                 envelope,
-                reason: `Per-trade cap too small for MIN_ORDER ($${envelope.maxTradeSize.toFixed(2)} < $${MIN_ORDER}) and override disabled (stage: ${stageName})`
+                reason: `Per-trade cap too small for minOrderCost ($${envelope.maxTradeSize.toFixed(2)} < $${(Number.isFinite(MIN_ORDER_COST) ? MIN_ORDER_COST.toFixed(2) : 'N/A')}) and override disabled (stage: ${stageName})`
             };
         }
         
@@ -10249,12 +10692,12 @@ class TradeExecutor {
             capped = true;
             reason = reason || `Survival guard ($${actualBalance.toFixed(2)} - survival $${Number(survivalFloor).toFixed(2)})`;
         }
-        if (size < MIN_ORDER) {
+        if (Number.isFinite(MIN_ORDER_COST) && size < MIN_ORDER_COST) {
             return {
                 size: 0,
                 blocked: true,
                 envelope,
-                reason: `Size $${size.toFixed(2)} < MIN_ORDER $${MIN_ORDER} after floor/envelope caps (stage: ${stageName})`
+                reason: `Size $${size.toFixed(2)} < minOrderCost $${MIN_ORDER_COST.toFixed(2)} after floor/envelope caps (stage: ${stageName})`
             };
         }
         return { size, capped, envelope, reason: reason || 'Within envelope' };
@@ -10894,8 +11337,22 @@ class TradeExecutor {
         const gasTradesRemaining = this.cachedMATICBalance > 0
             ? Math.floor(this.cachedMATICBalance / this.GAS_PER_TRADE)
             : 0;
+        const referenceMinOrderCost = (() => {
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            try {
+                const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
+                const shares = enabledAssets
+                    .map(a => Number(currentMarkets?.[a]?.minOrderShares))
+                    .filter(n => Number.isFinite(n) && n > 0);
+                if (shares.length) minShares = Math.max(...shares);
+            } catch { }
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
+            const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
+            const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
+            return minShares * minOdds;
+        })();
         const usdcTradesRemaining = this.cachedLiveBalance > 0
-            ? Math.floor(this.cachedLiveBalance / 1.10) // Min trade size is $1.10
+            ? Math.floor(this.cachedLiveBalance / Math.max(0.01, referenceMinOrderCost))
             : 0;
         return { gas: gasTradesRemaining, usdc: usdcTradesRemaining };
     }
@@ -10973,6 +11430,27 @@ class TradeExecutor {
     async executeTrade(asset, direction, mode, confidence, entryPrice, market, options = {}) {
         log(`🔍 executeTrade called: ${asset} ${direction} ${mode} @ ${(entryPrice * 100).toFixed(1)}¢`, asset);
 
+        // ==================== MIN ORDER (CLOB-NATIVE) ====================
+        // Polymarket min order is `min_order_size` in SHARES (outcome tokens).
+        // Minimum USDC therefore depends on entry price.
+        const minOrderShares = (() => {
+            const n = Number(market?.minOrderShares);
+            if (Number.isFinite(n) && n > 0) return n;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            return (Number.isFinite(env) && env > 0) ? env : 5;
+        })();
+        const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
+        const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
+        const referenceMinOrderCost = minOrderShares * minOdds;
+        const minOrderCost = (Number.isFinite(Number(entryPrice)) && Number(entryPrice) > 0)
+            ? (minOrderShares * Number(entryPrice))
+            : null;
+
+        // Fee model (15m crypto): taker fees are shares-based; maker fees are 0.
+        // For safety we assume taker by default (configurable via env).
+        const feeModelExec = getPolymarketTakerFeeModel();
+        const SLIPPAGE_ASSUMPTION_PCT = 0.01; // estimated entry slippage for fee/EV checks
+
         // 🏆 v69: LIVE MODE PREREQUISITE CHECK - Wallet MUST be loaded for LIVE trading
         if (this.mode === 'LIVE' && !this.wallet) {
             log(`🛑 LIVE PREREQUISITE FAILED: No wallet loaded - cannot execute LIVE trades`, asset);
@@ -10993,6 +11471,13 @@ class TradeExecutor {
             return { success: false, error: `TRADING_PAUSED${reason}` };
         }
 
+        // 🔒 ORACLE MODE SAFETY: Never auto-execute LIVE trades unless explicitly enabled.
+        // This keeps the bot as an advisory oracle in LIVE mode while still allowing PAPER auto-trading for evaluation.
+        if (this.mode === 'LIVE' && !CONFIG.LIVE_AUTOTRADING_ENABLED && mode !== 'MANUAL') {
+            log(`🛑 ADVISORY-ONLY: LIVE auto-trading disabled (set LIVE_AUTOTRADING_ENABLED=true to override)`, asset);
+            return { success: false, error: 'ADVISORY_ONLY: LIVE auto-trading disabled' };
+        }
+
         // 🏆 v77: CONVICTION-ONLY MODE with FREQUENCY FLOOR exception for ADVISORY
         // Block ADVISORY trades UNLESS frequency floor allows them with high-quality gates
         const tradeTierCheck = options.tier || 'ADVISORY';
@@ -11000,10 +11485,9 @@ class TradeExecutor {
             const pWinForFloor = options.pWin || confidence; // Use pWin if available, else raw confidence
             
             // Calculate EV for frequency floor gate
-            const evForFloor = pWinForFloor * (1 - entryPrice) * 0.98 - (1 - pWinForFloor) * entryPrice;
-            const evRoiForFloor = evForFloor / entryPrice;
+            const evRoiForFloor = calcBinaryEvRoiAfterFees(pWinForFloor, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
             
-            const floorResult = this.shouldAllowAdvisoryTrade(pWinForFloor, evRoiForFloor);
+            const floorResult = this.shouldAllowAdvisoryTrade(pWinForFloor, Number.isFinite(evRoiForFloor) ? evRoiForFloor : -Infinity);
             
             if (!floorResult.allowed) {
                 log(`💎 CONVICTION-ONLY BLOCK: ADVISORY tier blocked (${floorResult.reason}) - waiting for CONVICTION`, asset);
@@ -11033,9 +11517,7 @@ class TradeExecutor {
         // and liquidity is sufficient to execute without excessive slippage.
         
         // 💰 EV CALCULATION (ORACLE-only): Use calibrated pWin, not raw signal score
-        // Fee model: conservative assumption = 2% fee on PROFITS at settlement (not stake).
-        const PROFIT_FEE_PCT = 0.02;
-        const SLIPPAGE_ASSUMPTION_PCT = 0.01; // estimated entry slippage
+        // Fee model: Polymarket taker fee (shares-based). We assume taker by default.
         
         if (mode === 'ORACLE' && direction !== 'BOTH' && entryPrice > 0) {
             // Resolve pWin (prefer caller-provided, else derive from current brain calibration + priors)
@@ -11050,14 +11532,12 @@ class TradeExecutor {
             }
             
             if (Number.isFinite(pWin)) {
-                // Binary bet odds: b = (1 - price)/price. EV on stake = pWin*b*(1-fee) - (1-pWin)
-                const effectivePrice = Math.min(0.99, entryPrice * (1 + SLIPPAGE_ASSUMPTION_PCT));
-                const b = (1 - effectivePrice) / effectivePrice;
-                const evRoi = (pWin * b * (1 - PROFIT_FEE_PCT)) - (1 - pWin);
+                const evRoi = calcBinaryEvRoiAfterFees(pWin, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
                 
-                if (evRoi <= 0) {
-                    log(`📉 EV GUARD: EV=${(evRoi * 100).toFixed(2)}% (pWin ${(pWin * 100).toFixed(1)}%, price ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
-                    return { success: false, error: `Negative EV: ${(evRoi * 100).toFixed(2)}%` };
+                if (!Number.isFinite(evRoi) || evRoi <= 0) {
+                    const evTxt = Number.isFinite(evRoi) ? `${(evRoi * 100).toFixed(2)}%` : 'N/A';
+                    log(`📉 EV GUARD: EV=${evTxt} (pWin ${(pWin * 100).toFixed(1)}%, price ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
+                    return { success: false, error: `Negative EV: ${evTxt}` };
                 }
                 log(`📈 EV CHECK: EV=${(evRoi * 100).toFixed(2)}% (pWin ${(pWin * 100).toFixed(1)}%) ✓`, asset);
             } else {
@@ -11140,7 +11620,6 @@ class TradeExecutor {
             // If pWin is provided, compute EV-derived max entry; otherwise use hardMaxOdds as fallback
             // This prevents blocking trades that have positive EV at higher prices
             const pWinProvided = (options.pWin !== null && options.pWin !== undefined && Number.isFinite(options.pWin)) ? options.pWin : null;
-            const PROFIT_FEE_PCT_EXEC = 0.02;
             const SAFETY_MARGIN_EXEC = 0.02;
             const hardMinOddsExec = CONFIG.ORACLE.minOdds || 0.20;
             const hardMaxOddsExec = (typeof this.getEffectiveMaxOdds === 'function')
@@ -11149,9 +11628,20 @@ class TradeExecutor {
             let evDerivedMaxExec = hardMaxOddsExec;
             if (pWinProvided !== null) {
                 const p = Math.max(0, Math.min(1, pWinProvided));
-                const pAfterFee = p * (1 - PROFIT_FEE_PCT_EXEC);
-                const breakeven = pAfterFee / (pAfterFee + (1 - p));
-                evDerivedMaxExec = Math.max(hardMinOddsExec, Math.min(0.99, breakeven - SAFETY_MARGIN_EXEC));
+                // Find the highest entry price that still has positive EV after taker fees + slippage.
+                const step = 0.001;
+                let maxOk = null;
+                const startPx = Math.min(0.99, hardMaxOddsExec);
+                const minPx = Math.max(0.01, hardMinOddsExec);
+                for (let px = startPx; px >= minPx; px -= step) {
+                    const ev = calcBinaryEvRoiAfterFees(p, px, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
+                    if (Number.isFinite(ev) && ev > 0) { maxOk = px; break; }
+                }
+                if (maxOk !== null) {
+                    evDerivedMaxExec = Math.max(minPx, Math.min(0.99, maxOk - SAFETY_MARGIN_EXEC));
+                } else {
+                    evDerivedMaxExec = minPx;
+                }
             }
             const effectiveMaxExec = Math.min(evDerivedMaxExec, hardMaxOddsExec);
             
@@ -11302,7 +11792,7 @@ class TradeExecutor {
                 // SMART SIZING: Scale percentage based on bankroll
                 // For small bankrolls: use minimum viable size
                 // For large bankrolls: use percentage-based sizing
-                const MIN_ORDER = 1.10; // Polymarket minimum + fee buffer
+                // Min order enforcement uses minOrderShares/minOrderCost computed at function start.
                 // 🏆 v89 AUTO-BANKROLL: Adapt max position + Kelly cap by CURRENT bankroll.
                 const bankrollPolicy = getBankrollAdaptivePolicy(bankroll);
                 let effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
@@ -11350,11 +11840,9 @@ class TradeExecutor {
 
                             if (Number.isFinite(pWinExc)) {
                                 // EV ROI on stake under the same conservative fee/slippage model used by the EV guard.
-                                const effectiveEntryExc = Math.min(0.99, entryPrice * (1 + SLIPPAGE_ASSUMPTION_PCT));
-                                const bExc = (1 - effectiveEntryExc) / effectiveEntryExc;
-                                const evRoiExc = (pWinExc * bExc * (1 - PROFIT_FEE_PCT)) - (1 - pWinExc);
+                                const evRoiExc = calcBinaryEvRoiAfterFees(pWinExc, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
 
-                                if (pWinExc >= excMinPWin && evRoiExc >= excMinEvRoi) {
+                                if (pWinExc >= excMinPWin && Number.isFinite(evRoiExc) && evRoiExc >= excMinEvRoi) {
                                     // Start from configured exceptional cap, but only ever INCREASE the maxPos cap.
                                     let desiredMaxPosFrac = Math.max(effectiveMaxPosFrac, excMaxFracCfg);
                                     desiredMaxPosFrac = Math.max(0.01, Math.min(0.50, desiredMaxPosFrac));
@@ -11366,7 +11854,7 @@ class TradeExecutor {
                                         const floor = (typeof this.getEffectiveBalanceFloor === 'function')
                                             ? this.getEffectiveBalanceFloor(bankroll)
                                             : Number(CONFIG.RISK.minBalanceFloor);
-                                        const keepAlive = floor + MIN_ORDER;
+                                        const keepAlive = floor + referenceMinOrderCost;
                                         if (Number.isFinite(keepAlive) && bankroll > keepAlive) {
                                             const maxFracKeepAlive = (bankroll - keepAlive) / bankroll;
                                             if (Number.isFinite(maxFracKeepAlive) && maxFracKeepAlive > effectiveMaxPosFrac) {
@@ -11478,17 +11966,21 @@ class TradeExecutor {
                         pWinKelly = Brains[asset].getCalibratedWinProb(confidence, { priorRate, priorStrength: 40, minSamples: 0 });
                     }
                     
-                    const KELLY_FEE_PCT = 0.02;
                     const KELLY_SLIPPAGE_PCT = 0.01;
                     
                     if (Number.isFinite(pWinKelly) && pWinKelly >= CONFIG.RISK.kellyMinPWin) {
                         // Kelly formula: f* = (b*p - (1-p)) / b
-                        // b = payout odds = (1/price - 1) * (1 - fee)
+                        // b = payout odds (gross win ROI) = (1/price - 1)
+                        // With taker fees, both win and loss payoffs shift by a constant feeFrac (fee/stake).
                         const effectiveEntry = Math.min(0.99, entryPrice * (1 + KELLY_SLIPPAGE_PCT));
-                        const b = (1 / effectiveEntry - 1) * (1 - KELLY_FEE_PCT);
+                        const b = (1 / effectiveEntry - 1);
+                        const feeFrac = calcPolymarketTakerFeeFrac(effectiveEntry, feeModelExec);
                         
                         if (b > 0) {
-                            const fullKelly = (b * pWinKelly - (1 - pWinKelly)) / b;
+                            const denom = (1 + feeFrac) * (b - feeFrac);
+                            const fullKelly = (Number.isFinite(denom) && denom > 0)
+                                ? ((b * pWinKelly - (1 - pWinKelly) - feeFrac) / denom)
+                                : -1;
                             
                             if (fullKelly > 0) {
                                 // Apply fractional Kelly (e.g., half-Kelly with k=0.5)
@@ -11541,7 +12033,7 @@ class TradeExecutor {
                 }
 
                 // 🏆 v76 FIX: Apply min/max caps BEFORE risk envelope (so envelope is truly final)
-                // SMART MINIMUM: Ensure we meet $1.10 minimum
+                // SMART MINIMUM: Ensure we meet the per-market min order (shares-based)
                 // CAP: Never risk more than MAX_FRACTION of bankroll
                 // v94: Use tiered absolute cap based on bankroll
                 const MAX_ABSOLUTE_SIZE = getTieredMaxAbsoluteStake(bankroll);
@@ -11561,28 +12053,28 @@ class TradeExecutor {
 
                 // Bump to minimum if needed (before envelope check), but NEVER if it can violate the balance floor on a loss.
                 let bumpedToMin = false;
-                if (size < MIN_ORDER) {
+                if (Number.isFinite(minOrderCost) && size < minOrderCost) {
                     const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
                     const cashBal = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
                     const survivalFloor = floorEnabled
                         ? ((typeof this.getSurvivalFloor === 'function') ? this.getSurvivalFloor(cashBal) : 0)
                         : 0;
-                    // To place MIN_ORDER without risking "ruin", we require that a worst-case loss of MIN_ORDER
+                    // To place the min order without risking "ruin", we require that a worst-case loss
                     // still leaves us >= survivalFloor.
-                    const minCashForMinOrder = floorEnabled ? (survivalFloor + MIN_ORDER) : (MIN_ORDER * 1.5);
+                    const minCashForMinOrder = floorEnabled ? (survivalFloor + minOrderCost) : (minOrderCost * 1.5);
                     if (cashBal >= minCashForMinOrder) {
-                        size = MIN_ORDER;
+                        size = minOrderCost;
                         bumpedToMin = true;
-                        log(`📊 Size bumped to minimum $${MIN_ORDER} (cash: $${cashBal.toFixed(2)}, survival: $${survivalFloor.toFixed(2)})`, asset);
+                        log(`📊 Size bumped to min-order ~$${minOrderCost.toFixed(2)} (${minOrderShares} shares @ ${(Number(entryPrice) * 100).toFixed(1)}¢) (cash: $${cashBal.toFixed(2)}, survival: $${survivalFloor.toFixed(2)})`, asset);
                     } else {
                         log(`❌ TRADE BLOCKED: Bankroll $${bankroll.toFixed(2)} too small for safe trading`, asset);
-                        return { success: false, error: `Need at least $${minCashForMinOrder.toFixed(2)} cash to place MIN_ORDER without crossing survival floor` };
+                        return { success: false, error: `Need at least $${minCashForMinOrder.toFixed(2)} cash to place min-order (~$${minOrderCost.toFixed(2)} at ${(Number(entryPrice) * 100).toFixed(1)}¢) without crossing survival floor` };
                     }
                 }
                 
                 // 🏆 v76 RISK ENVELOPE: Apply as FINAL sizing step (after min/max)
                 // This ensures no subsequent code can increase size above envelope
-                const envelopeResult = this.applyRiskEnvelope(size, bankroll);
+                const envelopeResult = this.applyRiskEnvelope(size, bankroll, (Number.isFinite(minOrderCost) ? minOrderCost : null));
                 if (envelopeResult.blocked) {
                     log(`🛡️ TRADE BLOCKED by risk envelope: ${envelopeResult.reason}`, asset);
                     return { success: false, error: envelopeResult.reason };
@@ -11593,11 +12085,10 @@ class TradeExecutor {
                 }
             }
 
-            // FINAL MINIMUM CHECK: Polymarket requires $1 minimum
-            const minDollars = 1.10;
-            if (size < minDollars) {
-                log(`❌ TRADE BLOCKED: $${size.toFixed(2)} below $${minDollars} minimum`, asset);
-                return { success: false, error: `Minimum order size is $${minDollars}` };
+            // FINAL MINIMUM CHECK (CLOB-native): enforce min_order_size shares for this market
+            if (Number.isFinite(minOrderCost) && size < minOrderCost) {
+                log(`❌ TRADE BLOCKED: $${size.toFixed(2)} below min-order ~$${minOrderCost.toFixed(2)} (${minOrderShares} shares @ ${(Number(entryPrice) * 100).toFixed(1)}¢)`, asset);
+                return { success: false, error: `Minimum order is ${minOrderShares} shares (~$${minOrderCost.toFixed(2)} at ${(Number(entryPrice) * 100).toFixed(1)}¢)` };
             }
 
             const tokenType = direction === 'UP' ? 'YES' : 'NO';
@@ -11645,7 +12136,10 @@ class TradeExecutor {
             log(`🎯 ═══════════════════════════════════════`, asset);
 
             // 📱 TELEGRAM NOTIFICATION: Trade opened (with market links)
-            sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market));
+            // In "signalsOnly" mode, suppress PAPER auto-trade spam (oracleSignals handle human advisories).
+            if (!CONFIG.TELEGRAM?.signalsOnly || this.mode === 'LIVE' || mode === 'MANUAL') {
+                sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market));
+            }
 
 
             if (this.mode === 'PAPER') {
@@ -11998,8 +12492,7 @@ class TradeExecutor {
                                     tokenID: hedgeTokenId,
                                     price: hedgePrice,
                                     size: hedgeShares,
-                                    side: 'BUY',
-                                    feeRateBps: 0
+                                    side: 'BUY'
                                 });
 
                                 const hedgeResponse = await clobClient.postOrder(hedgeOrder);
@@ -12154,13 +12647,19 @@ class TradeExecutor {
                 ? (this.cachedLiveBalance || CONFIG.LIVE_BALANCE || 0)
                 : this.paperBalance;
 
-            // Per-leg minimum (same buffer used elsewhere)
-            const MIN_ORDER = 1.10;
-            const minLegPrice = Math.min(yesPrice, noPrice);
-            const minTotalForMinOrders = (MIN_ORDER * totalOdds) / Math.max(minLegPrice, 1e-9);
+            // CLOB-native minimum order is shares-based.
+            const minShares = (() => {
+                const n = Number(market?.minOrderShares);
+                if (Number.isFinite(n) && n > 0) return n;
+                const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+                return (Number.isFinite(env) && env > 0) ? env : 5;
+            })();
+            // Pair uses the SAME share size on both legs, so the minimum total cost is:
+            // (minShares * yesPrice) + (minShares * noPrice) = minShares * (yesPrice + noPrice)
+            const minTotalForMinOrders = minShares * totalOdds;
 
             if (bankroll < minTotalForMinOrders) {
-                return { success: false, error: `Bankroll $${bankroll.toFixed(2)} too small for pair min (~$${minTotalForMinOrders.toFixed(2)})` };
+                return { success: false, error: `Bankroll $${bankroll.toFixed(2)} too small for pair min (${minShares} shares/leg; ~$${minTotalForMinOrders.toFixed(2)})` };
             }
 
             // Sizing: use MAX_POSITION_SIZE as the cap for total pair cost, but auto-bump to meet minimums.
@@ -12191,8 +12690,8 @@ class TradeExecutor {
             const sizeNo = shares * noPrice;
             const totalCost = sizeYes + sizeNo;
 
-            if (shares <= 0 || sizeYes < MIN_ORDER || sizeNo < MIN_ORDER) {
-                return { success: false, error: 'Illiquidity sizing produced sub-minimum leg(s)' };
+            if (shares <= 0 || shares < minShares) {
+                return { success: false, error: `Illiquidity sizing produced sub-minimum shares (shares=${shares.toFixed(6)} < minShares=${minShares})` };
             }
 
             log(`💰 ILLIQUIDITY: YES ${(yesPrice * 100).toFixed(1)}¢ + NO ${(noPrice * 100).toFixed(1)}¢ = ${(totalOdds * 100).toFixed(1)}¢ (Gap ${(gap * 100).toFixed(2)}%)`, asset);
@@ -12651,6 +13150,21 @@ class TradeExecutor {
         // ==================== LIVE SELL TRUTHFULNESS ====================
         // In LIVE mode, non-binary exits require an on-CLOB SELL. We must confirm fill BEFORE marking the trade CLOSED,
         // otherwise we corrupt state (trade marked closed while tokens are still held / order is resting).
+        //
+        // 🔒 ORACLE MODE SAFETY: If LIVE auto-trading is disabled, do NOT place automated LIVE sell orders.
+        // We leave the position OPEN and record the suggested exit for UI/alerts.
+        if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit && !skipLiveSell && !CONFIG.LIVE_AUTOTRADING_ENABLED) {
+            const now = Date.now();
+            const last = Number(pos.exitSuggestedAt) || 0;
+            // Throttle repeated suggestions (checkExits runs every second)
+            if ((now - last) > 15000) {
+                pos.exitSuggestedAt = now;
+                pos.exitSuggestedPrice = exitPrice;
+                pos.exitSuggestedReason = reason;
+                log(`🛑 ADVISORY-ONLY: LIVE sell blocked for ${pos.asset} ${pos.side} @ ${(Number(exitPrice) * 100).toFixed(1)}¢ (${reason})`, pos.asset);
+            }
+            return;
+        }
         if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit && !skipLiveSell) {
             // Avoid duplicate exit attempts
             if (pos.exitInProgress || pos.sellPending) {
@@ -12806,7 +13320,10 @@ class TradeExecutor {
 
         // 📱 TELEGRAM NOTIFICATION: Trade closed (with market links)
         const market = currentMarkets[pos.asset];
-        sendTelegramNotification(telegramTradeClose(pos.asset, pos.side, pos.mode, pos.entry, exitPrice, pnl, pnlPercent, reason, this.paperBalance, market));
+        // In "signalsOnly" mode, suppress PAPER auto-trade spam (oracleSignals handle human advisories).
+        if (!CONFIG.TELEGRAM?.signalsOnly || pos.isLive || pos.mode === 'MANUAL') {
+            sendTelegramNotification(telegramTradeClose(pos.asset, pos.side, pos.mode, pos.entry, exitPrice, pnl, pnlPercent, reason, this.paperBalance, market));
+        }
 
         // Update trade history
         const trade = this.tradeHistory.find(t => t.id === positionId);
@@ -13351,6 +13868,12 @@ class TradeExecutor {
     checkExits(asset, currentPrice, elapsed, yesPrice, noPrice) {
         const now = Date.now();
         const timeToEnd = INTERVAL_SECONDS - elapsed;
+
+        // 🔒 ORACLE MODE SAFETY: Never auto-exit LIVE positions when auto-trading is disabled.
+        // (Prevents automated LIVE sell orders; user can exit manually in Polymarket UI.)
+        if (this.mode === 'LIVE' && !CONFIG.LIVE_AUTOTRADING_ENABLED) {
+            return;
+        }
 
         Object.entries(this.positions).forEach(([id, pos]) => {
             if (pos.asset !== asset) return;
@@ -16850,9 +17373,10 @@ class SupremeBrain {
                     const totalVotesForConsensus = upVotesNum + downVotesNum;
                     const consensusVotes = Math.max(upVotesNum, downVotesNum);
                     const consensusRatio = totalVotesForConsensus > 0 ? consensusVotes / totalVotesForConsensus : 0;
-                    // 🎯 GOAT: EV/EDGE uses tier-conditioned calibrated probability (pWin), not raw signal score
-                    // This accounts for the fact that CONVICTION tier at extreme prices has ~99% win rate
-                    const PROFIT_FEE_PCT = 0.02; // conservative: fee on profits at settlement
+                    // 🎯 GOAT: EV/EDGE uses tier-conditioned calibrated probability (pWin), not raw signal score.
+                    // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+                    const feeModelOracle = getPolymarketTakerFeeModel();
+                    const EV_SLIPPAGE_PCT = 0.01; // estimated entry slippage for EV/price-cap math
                     const s = this.stats || {};
                     const priorRate =
                         (tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
@@ -16915,7 +17439,9 @@ class SupremeBrain {
                     const pWinEff = Number.isFinite(pWinRaw) ? (0.5 + ((pWinRaw - 0.5) * weight)) : null;
                     const edgePercent = (pWinEff !== null && currentOdds > 0) ? (((pWinEff - currentOdds) / currentOdds) * 100) : 0;
                     const b = currentOdds > 0 ? ((1 - currentOdds) / currentOdds) : 0;
-                    const evRoi = (pWinEff !== null && currentOdds > 0) ? ((pWinEff * b * (1 - PROFIT_FEE_PCT)) - (1 - pWinEff)) : null;
+                    const evRoi = (pWinEff !== null && currentOdds > 0)
+                        ? calcBinaryEvRoiAfterFees(pWinEff, currentOdds, { slippagePct: EV_SLIPPAGE_PCT, feeModel: feeModelOracle })
+                        : null;
                     const priceMovingRight = (finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0);
                     const isTrending = regime === 'TRENDING';
                     const stabilityMet = this.stabilityCounter >= CONFIG.ORACLE.minStability || this.prediction === finalSignal;
@@ -17050,20 +17576,22 @@ class SupremeBrain {
                         else {
                             // Safe to proceed with normal checks
 
-                            // 🎯 GOAT v44.1: EV-derived max price instead of hard maxOdds
-                            // If pWin implies positive EV even at higher prices, allow entry
-                            // Correct breakeven under profit-fee model:
-                            // ROI_win = (1/price - 1) * (1 - fee)
-                            // Need pWin * ROI_win > (1 - pWin)
-                            // => price_max = pAfterFee / (pAfterFee + (1 - pWin))
                             const SAFETY_MARGIN = 0.02; // 2¢ absolute safety margin
                             const hardMinOdds = CONFIG.ORACLE.minOdds || 0.20;
                             const hardMaxOdds = tradeExecutor.getEffectiveMaxOdds();
                             const pClamped = (pWinEff !== null && Number.isFinite(pWinEff)) ? Math.max(0, Math.min(1, pWinEff)) : null;
-                            const pAfterFee = pClamped !== null ? (pClamped * (1 - PROFIT_FEE_PCT)) : null;
-                            const breakevenPrice = (pAfterFee !== null)
-                                ? (pAfterFee / (pAfterFee + (1 - pClamped)))
-                                : hardMaxOdds;
+                            // 🎯 GOAT v44.1: EV-derived max price under taker-fee model (numeric search).
+                            let maxOk = null;
+                            if (pClamped !== null) {
+                                const step = 0.001; // 0.1¢ precision
+                                const startPx = Math.min(0.99, hardMaxOdds);
+                                const minPx = Math.max(0.01, hardMinOdds);
+                                for (let px = startPx; px >= minPx; px -= step) {
+                                    const ev = calcBinaryEvRoiAfterFees(pClamped, px, { slippagePct: EV_SLIPPAGE_PCT, feeModel: feeModelOracle });
+                                    if (Number.isFinite(ev) && ev > 0) { maxOk = px; break; }
+                                }
+                            }
+                            const breakevenPrice = (maxOk !== null) ? maxOk : hardMaxOdds;
                             const evDerivedMaxPrice = Math.max(hardMinOdds, Math.min(0.99, breakevenPrice - SAFETY_MARGIN));
                             const effectiveMaxPrice = Math.min(evDerivedMaxPrice, hardMaxOdds);
                             const oddsCheckPassed = (currentOdds >= hardMinOdds) && (currentOdds <= effectiveMaxPrice);
@@ -17799,6 +18327,49 @@ class SupremeBrain {
 
                 // ==================== DEBUG EXPORT: SAVE CYCLE DATA ====================
                 // Store complete cycle data for debugging (last 10 cycles)
+                // 🎯 ORACLE METRIC: time-to-correct-call (when the bot became correct and never predicted the wrong side again)
+                const tickHistory = Array.isArray(this.currentCycleHistory) ? this.currentCycleHistory : [];
+                const wrongDir = actual === 'UP' ? 'DOWN' : 'UP';
+                let lastWrongIdx = -1;
+                for (let i = tickHistory.length - 1; i >= 0; i--) {
+                    const p = String(tickHistory[i]?.prediction || '').toUpperCase();
+                    if (p === wrongDir) { lastWrongIdx = i; break; }
+                }
+
+                let timeToCorrectCallSec = null;
+                let timeToCorrectCallConfidence = null;
+                let timeToCertifiedCallSec = null;
+                let timeToCertifiedCallConfidence = null;
+
+                for (let i = Math.max(0, lastWrongIdx + 1); i < tickHistory.length; i++) {
+                    const t = tickHistory[i];
+                    const p = String(t?.prediction || '').toUpperCase();
+                    if (p !== actual) continue;
+                    const e = Number(t?.elapsed);
+                    if (Number.isFinite(e)) {
+                        timeToCorrectCallSec = e;
+                        const c = Number(t?.confidence);
+                        timeToCorrectCallConfidence = Number.isFinite(c) ? c : null;
+                    }
+                    break;
+                }
+
+                const certifiedTiers = new Set(['ADVISORY', 'CONVICTION', 'STRONG', 'MODERATE']);
+                for (let i = Math.max(0, lastWrongIdx + 1); i < tickHistory.length; i++) {
+                    const t = tickHistory[i];
+                    const p = String(t?.prediction || '').toUpperCase();
+                    if (p !== actual) continue;
+                    const tierNow = String(t?.tier || '').toUpperCase();
+                    if (!certifiedTiers.has(tierNow)) continue;
+                    const e = Number(t?.elapsed);
+                    if (Number.isFinite(e)) {
+                        timeToCertifiedCallSec = e;
+                        const c = Number(t?.confidence);
+                        timeToCertifiedCallConfidence = Number.isFinite(c) ? c : null;
+                    }
+                    break;
+                }
+
                 const cycleSnapshot = {
                     cycleEndTime: new Date().toISOString(),
                     cycleStartPrice: startPrice,
@@ -17809,6 +18380,11 @@ class SupremeBrain {
                     tier: tier,
                     // Use FINAL state confidence (direction-consistent); fall back to raw signal confidence.
                     confidence: Number.isFinite(this.confidence) ? this.confidence : (this.lastSignal?.confidence || 0),
+                    // Oracle timing metrics (seconds into cycle)
+                    timeToCorrectCallSec,
+                    timeToCorrectCallConfidence,
+                    timeToCertifiedCallSec,
+                    timeToCertifiedCallConfidence,
                     certaintyAtEnd: this.certaintyScore,
                     certaintyVelocityAtEnd: this.certaintyVelocity,
                     phaseAtEnd: this.currentPhase,
@@ -18161,7 +18737,7 @@ function connectWebSocket() {
 
         // Backup price feed subscription
         // Backup feed filter must be a JSON-encoded string (server validates `filters` with a JSON regex).
-        const pricesSub = { action: 'subscribe', subscriptions: [{ topic: 'crypto_prices', type: 'update', filters: '["btcusdt","ethusdt","xrpusdt"]' }] };
+        const pricesSub = { action: 'subscribe', subscriptions: [{ topic: 'crypto_prices', type: 'update', filters: '["btcusdt","ethusdt","xrpusdt","solusdt"]' }] };
         ws.send(JSON.stringify(pricesSub));
         log('📡 Subscribed to crypto_prices backup');
 
@@ -18207,7 +18783,7 @@ function connectWebSocket() {
             }
 
             if (msg.topic === 'crypto_prices_chainlink') {
-                const map = { 'btc/usd': 'BTC', 'eth/usd': 'ETH', 'xrp/usd': 'XRP' };
+                const map = { 'btc/usd': 'BTC', 'eth/usd': 'ETH', 'xrp/usd': 'XRP', 'sol/usd': 'SOL' };
                 const asset = map[msg.payload?.symbol];
                 if (asset && msg.payload?.value) {
                     const price = parseFloat(msg.payload.value);
@@ -18233,7 +18809,7 @@ function connectWebSocket() {
                 }
             }
             if (msg.topic === 'crypto_prices' && msg.type === 'update') {
-                const map = { btcusdt: 'BTC', ethusdt: 'ETH', xrpusdt: 'XRP' };
+                const map = { btcusdt: 'BTC', ethusdt: 'ETH', xrpusdt: 'XRP', solusdt: 'SOL' };
                 const asset = map[msg.payload?.symbol];
                 if (asset && msg.payload?.value) {
                     const price = parseFloat(msg.payload.value);
@@ -18339,6 +18915,217 @@ async function fetchJSON(url, retries = 3, baseDelay = 1000) {
     return null;
 }
 
+// ==================== PROFILE TRADE SYNC (POLYMARKET DATA API) ====================
+function normalizeHexAddress(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    return /^0x[a-fA-F0-9]{40}$/.test(s) ? s.toLowerCase() : null;
+}
+
+function extractProfileAddress(input) {
+    const s = String(input || '').trim();
+    if (!s) return null;
+    const direct = normalizeHexAddress(s);
+    if (direct) return direct;
+    const m = s.match(/0x[a-fA-F0-9]{40}/);
+    return m ? m[0].toLowerCase() : null;
+}
+
+function extractUpdown15mSlugFromTrade(trade) {
+    try {
+        const candidates = [
+            trade?.eventSlug,
+            trade?.event_slug,
+            trade?.event?.slug,
+            trade?.event?.eventSlug,
+            trade?.marketSlug,
+            trade?.market_slug,
+            trade?.slug,
+            trade?.eventSlug || trade?.event_slug,
+            trade?.title,
+            trade?.eventTitle
+        ];
+        for (const c of candidates) {
+            const s = String(c || '').trim();
+            if (!s) continue;
+            const m = s.match(/(btc|eth|xrp|sol)-updown-15m-\d+/i);
+            if (m) return String(m[0]).toLowerCase();
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+function extractTradeTimestampMs(trade) {
+    const candidates = [
+        trade?.timestamp,
+        trade?.time,
+        trade?.createdAt,
+        trade?.created_at,
+        trade?.matchedAt,
+        trade?.matched_at
+    ];
+    for (const c of candidates) {
+        const n = Number(c);
+        if (!Number.isFinite(n) || n <= 0) continue;
+        // Heuristic: epoch ms is ~1.6e12+, epoch seconds is ~1.6e9+
+        return (n > 1e11) ? Math.floor(n) : Math.floor(n * 1000);
+    }
+    return null;
+}
+
+function mapOutcomeToDirection(outcomeRaw) {
+    const s = String(outcomeRaw || '').trim().toLowerCase();
+    if (!s) return null;
+    if (s.includes('yes') || s.includes('up') || s.includes('above')) return 'UP';
+    if (s.includes('no') || s.includes('down') || s.includes('below')) return 'DOWN';
+    return null;
+}
+
+function normalizeProfileTrade(rawTrade) {
+    try {
+        if (!rawTrade || typeof rawTrade !== 'object') return null;
+
+        const timestampMs = extractTradeTimestampMs(rawTrade);
+        if (!timestampMs) return null;
+        const timestampSec = Math.floor(timestampMs / 1000);
+
+        const eventSlug = extractUpdown15mSlugFromTrade(rawTrade);
+        const slugEpochMatch = eventSlug ? eventSlug.match(/-updown-15m-(\d+)$/i) : null;
+        const cycleStartEpochSec = slugEpochMatch ? parseInt(slugEpochMatch[1], 10) : (timestampSec - (timestampSec % INTERVAL_SECONDS));
+
+        const assetFromSlug = eventSlug ? String(eventSlug.split('-')[0] || '').toUpperCase() : null;
+        const assetFromField = String(rawTrade.asset || rawTrade.underlyingAsset || rawTrade.symbol || '').trim().toUpperCase();
+        const asset = assetFromSlug || assetFromField || null;
+        if (!asset || !Array.isArray(ASSETS) || !ASSETS.includes(asset)) return null;
+
+        // Only ingest the 15m up/down cycle markets (avoid polluting with unrelated trades)
+        const isUpdown15m = !!(eventSlug && /^(btc|eth|xrp|sol)-updown-15m-\d+$/i.test(eventSlug));
+        if (!isUpdown15m) return null;
+
+        const side = String(rawTrade.side || rawTrade.takerSide || rawTrade.orderSide || '').trim().toUpperCase() || null; // BUY/SELL
+        const outcomeRaw = rawTrade.outcome || rawTrade.outcomeName || rawTrade.outcome_name || rawTrade.outcomeTitle || null;
+        const direction = mapOutcomeToDirection(outcomeRaw);
+
+        const price = Number(rawTrade.price ?? rawTrade.tradePrice ?? rawTrade.rate);
+        const size = Number(rawTrade.size ?? rawTrade.amount ?? rawTrade.usdcSize ?? rawTrade.sizeUsd ?? rawTrade.sizeUSD);
+
+        const conditionId = rawTrade.conditionId || rawTrade.condition_id || null;
+        const txHash = rawTrade.transactionHash || rawTrade.transaction_hash || rawTrade.txHash || null;
+        const id = rawTrade.id || rawTrade.tradeId || rawTrade.trade_id || txHash || null;
+
+        const key = String(id || `${timestampSec}_${conditionId || 'na'}_${side || 'na'}_${String(direction || 'na')}_${String(price || 'na')}_${String(size || 'na')}`);
+
+        return {
+            key,
+            id: id ? String(id) : null,
+            txHash: txHash ? String(txHash) : null,
+            asset,
+            eventSlug,
+            conditionId: conditionId ? String(conditionId) : null,
+            timestampMs,
+            timestampSec,
+            cycleStartEpochSec,
+            cycleEndEpochSec: cycleStartEpochSec + INTERVAL_SECONDS,
+            timeIntoCycleSec: Math.max(0, Math.min(INTERVAL_SECONDS, timestampSec - cycleStartEpochSec)),
+            timeLeftInCycleSec: Math.max(0, Math.min(INTERVAL_SECONDS, (cycleStartEpochSec + INTERVAL_SECONDS) - timestampSec)),
+            side,
+            outcomeRaw: outcomeRaw ? String(outcomeRaw) : null,
+            direction,
+            price: Number.isFinite(price) ? price : null,
+            size: Number.isFinite(size) ? size : null
+        };
+    } catch {
+        return null;
+    }
+}
+
+function mergeProfileTrades(newTrades) {
+    const incoming = Array.isArray(newTrades) ? newTrades.filter(Boolean) : [];
+    if (incoming.length === 0) return { added: 0, total: profileTradeSync.trades.length };
+
+    const beforeKeys = profileTradeKeySet;
+    let added = 0;
+    for (const t of incoming) {
+        if (!t?.key) continue;
+        if (!beforeKeys.has(t.key)) added++;
+    }
+
+    const combined = [...incoming, ...(profileTradeSync.trades || [])];
+    const byKey = new Map();
+    for (const t of combined) {
+        if (!t?.key) continue;
+        if (!byKey.has(t.key)) byKey.set(t.key, t);
+    }
+    const merged = Array.from(byKey.values())
+        .sort((a, b) => Number(b.timestampMs || 0) - Number(a.timestampMs || 0))
+        .slice(0, PROFILE_TRADE_MAX);
+
+    profileTradeSync.trades = merged;
+    profileTradeKeySet = new Set(merged.map(t => t.key).filter(Boolean));
+    return { added, total: merged.length };
+}
+
+async function syncProfileTrades(opts = {}) {
+    try {
+        if (!CONFIG?.PROFILE_TRADE_SYNC_ENABLED) {
+            return { ok: false, reason: 'PROFILE_TRADE_SYNC_DISABLED' };
+        }
+
+        // Determine profile address from (1) explicit address, (2) profile URL, (3) fallback to POLYMARKET_ADDRESS.
+        const profileUrl = String(CONFIG.POLYMARKET_PROFILE_URL || '').trim() || null;
+        const addr =
+            extractProfileAddress(CONFIG.POLYMARKET_PROFILE_ADDRESS) ||
+            extractProfileAddress(profileUrl) ||
+            extractProfileAddress(CONFIG.POLYMARKET_ADDRESS);
+
+        profileTradeSync.profileUrl = profileUrl;
+        profileTradeSync.profileAddress = addr;
+
+        if (!addr) {
+            profileTradeSync.lastSyncError = 'Missing POLYMARKET_PROFILE_URL/POLYMARKET_PROFILE_ADDRESS';
+            return { ok: false, reason: 'MISSING_PROFILE_ADDRESS' };
+        }
+
+        if (profileTradeSyncInFlight) return await profileTradeSyncInFlight;
+
+        profileTradeSyncInFlight = (async () => {
+            const limit = Number.isFinite(Number(opts.limit)) ? Math.max(10, Math.min(1000, Number(opts.limit))) : 200;
+            const url = `${DATA_API}/trades?user=${encodeURIComponent(addr)}&limit=${limit}&offset=0&takerOnly=false`;
+
+            const data = await fetchJSON(url, 2, 500);
+            const rawTrades = Array.isArray(data)
+                ? data
+                : (Array.isArray(data?.trades) ? data.trades : (Array.isArray(data?.data) ? data.data : []));
+
+            const normalized = rawTrades.map(normalizeProfileTrade).filter(Boolean);
+            const merge = mergeProfileTrades(normalized);
+
+            profileTradeSync.lastSyncAt = Date.now();
+            profileTradeSync.lastSyncError = null;
+
+            return {
+                ok: true,
+                profileAddress: addr,
+                fetched: rawTrades.length,
+                relevant: normalized.length,
+                added: merge.added,
+                total: merge.total
+            };
+        })();
+
+        const out = await profileTradeSyncInFlight;
+        return out;
+    } catch (e) {
+        profileTradeSync.lastSyncAt = Date.now();
+        profileTradeSync.lastSyncError = e?.message || String(e);
+        return { ok: false, error: profileTradeSync.lastSyncError };
+    } finally {
+        profileTradeSyncInFlight = null;
+    }
+}
+
 async function fetchCurrentMarkets() {
     const marketStart = getCurrentCheckpoint();
     for (const asset of ASSETS) {
@@ -18365,6 +19152,22 @@ async function fetchCurrentMarkets() {
                 fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[0]}`),
                 fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[1]}`)
             ]);
+
+            // Market execution constraints (CLOB-native):
+            // - min_order_size is in SHARES (outcome tokens), not USDC.
+            // - tick_size is the minimum price increment.
+            const minOrderShares = (() => {
+                const a = Number(upBook?.min_order_size);
+                const b = Number(downBook?.min_order_size);
+                const cand = [a, b].filter(n => Number.isFinite(n) && n > 0);
+                return cand.length ? Math.max(...cand) : null;
+            })();
+            const tickSize = (() => {
+                const a = Number(upBook?.tick_size);
+                const b = Number(downBook?.tick_size);
+                const cand = [a, b].filter(n => Number.isFinite(n) && n > 0);
+                return cand.length ? Math.max(...cand) : null;
+            })();
 
             // 🔴 FORENSIC FIX: Default to null (not 50/50) when no order book
             // 50/50 default causes cross-cycle bug: old cycle 1¢ + new cycle 50¢ default = fake profits
@@ -18407,6 +19210,8 @@ async function fetchCurrentMarkets() {
                 title: eventData.title,
                 yesPrice,
                 noPrice,
+                minOrderShares,
+                tickSize,
                 marketUrl: `https://polymarket.com/event/${eventData.slug}`,
                 volume: market.volume24hr || 0,
                 lastUpdated: Date.now(),
@@ -18441,7 +19246,7 @@ async function fetchFearGreedIndex() {
 }
 
 async function fetchFundingRates() {
-    const symbolMap = { 'BTC': 'BTCUSDT', 'ETH': 'ETHUSDT', 'XRP': 'XRPUSDT' };
+    const symbolMap = { 'BTC': 'BTCUSDT', 'ETH': 'ETHUSDT', 'XRP': 'XRPUSDT', 'SOL': 'SOLUSDT' };
     for (const asset of ASSETS) {
         try {
             const data = await fetchJSON(`https://fapi.binance.com/fapi/v1/premiumIndex?symbol=${symbolMap[asset]}`);
@@ -18557,7 +19362,16 @@ async function saveState() {
         // 🎯 GOAT v44.1: Persist forward-collector state in the main state blob
         // (enables deterministic replay/analysis across restarts)
         forwardCollectorEnabled: typeof forwardCollectorEnabled === 'boolean' ? forwardCollectorEnabled : false,
-        lastCollectorSave: typeof lastCollectorSave === 'number' ? lastCollectorSave : 0
+        lastCollectorSave: typeof lastCollectorSave === 'number' ? lastCollectorSave : 0,
+
+        // Manual-trading telemetry: Polymarket profile trade sync (Data API)
+        profileTradeSync: {
+            profileUrl: profileTradeSync?.profileUrl || null,
+            profileAddress: profileTradeSync?.profileAddress || null,
+            lastSyncAt: Number(profileTradeSync?.lastSyncAt) || 0,
+            lastSyncError: profileTradeSync?.lastSyncError || null,
+            trades: Array.isArray(profileTradeSync?.trades) ? profileTradeSync.trades.slice(0, PROFILE_TRADE_MAX) : []
+        }
     };
 
     // Save to Redis if available
@@ -18607,7 +19421,7 @@ function isLearningEmpty() {
 
 async function seedPriorsFromLocalDebugCorpus() {
     try {
-        const debugDir = path.join(__dirname, 'debug');
+        const debugDir = getDebugCorpusDir();
         if (!fs.existsSync(debugDir)) return { seeded: false, source: 'none' };
 
         const files = fs.readdirSync(debugDir)
@@ -18783,6 +19597,20 @@ async function loadState() {
                 }
                 if (typeof state.lastCollectorSave === 'number') {
                     lastCollectorSave = state.lastCollectorSave;
+                }
+
+                // Manual-trading telemetry: Restore Polymarket profile trade sync ledger
+                if (state.profileTradeSync && typeof state.profileTradeSync === 'object') {
+                    const pts = state.profileTradeSync;
+                    profileTradeSync = {
+                        ...profileTradeSync,
+                        profileUrl: pts.profileUrl || null,
+                        profileAddress: pts.profileAddress || null,
+                        lastSyncAt: Number(pts.lastSyncAt) || 0,
+                        lastSyncError: pts.lastSyncError || null,
+                        trades: Array.isArray(pts.trades) ? pts.trades.slice(0, PROFILE_TRADE_MAX) : []
+                    };
+                    profileTradeKeySet = new Set((profileTradeSync.trades || []).map(t => t?.key).filter(Boolean));
                 }
 
                 if (state.stats) ASSETS.forEach(a => { if (state.stats[a]) Brains[a].stats = state.stats[a]; });
@@ -19390,6 +20218,13 @@ app.get('/', (req, res) => {
                             <input type="number" id="xrpMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
                         </label>
                     </div>
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px;background:rgba(0,0,0,0.2);border-radius:4px;">
+                        <span style="color:#00ffa3;">◎ SOL</span>
+                        <label style="display:flex;align-items:center;gap:8px;">
+                            <input type="checkbox" id="solEnabled" checked> Enabled
+                            <input type="number" id="solMaxTrades" value="1" min="1" max="10" style="width:50px;padding:4px;border-radius:4px;border:1px solid #444;background:rgba(0,0,0,0.3);color:#fff;"> /cycle
+                        </label>
+                    </div>
                 </div>
                 <div style="margin-top:12px;">
                     <label style="color:#888;display:block;margin-bottom:6px;">🕐 Min Wait Before Trading (seconds)</label>
@@ -19507,7 +20342,7 @@ app.get('/', (req, res) => {
                 </div>
                 <div class="guide-section">
                     <h3>🎛️ Per-Asset Controls</h3>
-                    <p><strong>Enable/Disable:</strong> Turn trading on/off for each coin (BTC, ETH, XRP)</p>
+                    <p><strong>Enable/Disable:</strong> Turn trading on/off for each coin (BTC, ETH, XRP, SOL)</p>
                     <p><strong>Max Trades /cycle:</strong> Limit how many trades per 15-minute period per coin. Default is 1 to prevent overtrading.</p>
                     <p><strong>Min Wait Before Trading:</strong> How many seconds to wait after a cycle starts before allowing trades. Default 60s prevents premature trades from noisy early data.</p>
                 </div>
@@ -19870,7 +20705,7 @@ app.get('/', (req, res) => {
                 if (!data) { console.error('No data received'); return; }
                 
                 // RENDER PREDICTION CARDS
-                const assets = ['BTC', 'ETH', 'XRP'];
+                const assets = ['BTC', 'ETH', 'XRP', 'SOL'];
                 let html = '';
                 assets.forEach(asset => {
                     try {
@@ -20165,6 +21000,12 @@ app.get('/', (req, res) => {
                         if (xrpEnabledEl) xrpEnabledEl.checked = data.ASSET_CONTROLS.XRP.enabled !== false;
                         if (xrpMaxEl) xrpMaxEl.value = (data.ASSET_CONTROLS.XRP.maxTradesPerCycle ?? 1);
                     }
+                    if (data.ASSET_CONTROLS.SOL) {
+                        const solEnabledEl = document.getElementById('solEnabled');
+                        const solMaxEl = document.getElementById('solMaxTrades');
+                        if (solEnabledEl) solEnabledEl.checked = data.ASSET_CONTROLS.SOL.enabled !== false;
+                        if (solMaxEl) solMaxEl.value = (data.ASSET_CONTROLS.SOL.maxTradesPerCycle ?? 1);
+                    }
                 }
                 // 🕐 MIN ELAPSED SECONDS
                 if (data.ORACLE && data.ORACLE.minElapsedSeconds !== undefined) {
@@ -20273,11 +21114,12 @@ app.get('/', (req, res) => {
                         perTradeLossCap: 0.10,
                         minOrderRiskOverride: true
                     },
-                    // ASSETS: v79 LOCKED = BTC + ETH only (XRP disabled)
+                    // ASSETS: v97 ORACLE = All 4 Polymarket 15m markets
                     ASSET_CONTROLS: { 
                         BTC: { enabled: true, maxTradesPerCycle: 1 }, 
                         ETH: { enabled: true, maxTradesPerCycle: 1 }, 
-                        XRP: { enabled: false, maxTradesPerCycle: 1 } 
+                        XRP: { enabled: true, maxTradesPerCycle: 1 },
+                        SOL: { enabled: true, maxTradesPerCycle: 1 }
                     }
                 }
             };
@@ -20400,7 +21242,8 @@ app.get('/', (req, res) => {
             updates.ASSET_CONTROLS = {
                 BTC: { enabled: document.getElementById('btcEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('btcMaxTrades').value) || 1 },
                 ETH: { enabled: document.getElementById('ethEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('ethMaxTrades').value) || 1 },
-                XRP: { enabled: document.getElementById('xrpEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('xrpMaxTrades').value) || 1 }
+                XRP: { enabled: document.getElementById('xrpEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('xrpMaxTrades').value) || 1 },
+                SOL: { enabled: document.getElementById('solEnabled').checked, maxTradesPerCycle: parseInt(document.getElementById('solMaxTrades').value) || 1 }
             };
             
             // 🕐 MIN ELAPSED SECONDS (add to ORACLE config)
@@ -21070,8 +21913,279 @@ app.get('/', (req, res) => {
 
 
 
+// ==================== ORACLE SIGNAL ENGINE (ADVISORY) ====================
+// Produces human-actionable PREPARE/BUY/SELL signals per asset for the current 15m cycle.
+// Does NOT place real orders (LIVE_AUTOTRADING_ENABLED defaults false).
+function computeTierConditionedPWin(brain, entryPrice) {
+    if (!brain) return null;
+    const s = brain.stats || {};
+    const priorRate =
+        (brain.tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
+            (s.total > 0 ? (s.wins / s.total) : 0.5);
+
+    let pWin = null;
+    if (typeof brain.getTierConditionedPWin === 'function') {
+        pWin = brain.getTierConditionedPWin(brain.tier, entryPrice, { fallback: null, minSamples: 5 });
+    }
+    if (pWin === null && typeof brain.getCalibratedWinProb === 'function') {
+        pWin = brain.getCalibratedWinProb(brain.confidence, { priorRate, priorStrength: 40, minSamples: 0 });
+    }
+    return Number.isFinite(pWin) ? pWin : null;
+}
+
+function computeEvRoi(pWin, price) {
+    if (!Number.isFinite(pWin) || !Number.isFinite(price) || price <= 0 || price >= 1) return null;
+    const feeModel = getPolymarketTakerFeeModel();
+    return calcBinaryEvRoiAfterFees(pWin, price, { slippagePct: 0.01, feeModel });
+}
+
+function computeOddsTrend(asset, direction, windowMs = 60000) {
+    const hist = marketOddsHistory?.[asset] || [];
+    const now = Date.now();
+    const m = currentMarkets?.[asset] || null;
+    const cur = direction === 'UP' ? m?.yesPrice : m?.noPrice;
+    if (!Number.isFinite(cur)) return { delta: null, velocityPerMin: null, windowSec: null };
+    const cutoff = now - windowMs;
+    let prev = null;
+    for (let i = hist.length - 1; i >= 0; i--) {
+        const h = hist[i];
+        if (!h || !Number.isFinite(h.timestamp)) continue;
+        if (h.timestamp <= cutoff) { prev = h; break; }
+    }
+    if (!prev) return { delta: null, velocityPerMin: null, windowSec: null };
+    const prevOdds = direction === 'UP' ? prev.yes : prev.no;
+    if (!Number.isFinite(prevOdds)) return { delta: null, velocityPerMin: null, windowSec: null };
+    const dt = (now - prev.timestamp) / 1000;
+    if (dt <= 0) return { delta: null, velocityPerMin: null, windowSec: null };
+    const delta = cur - prevOdds;
+    const velocityPerMin = (delta / dt) * 60;
+    return { delta, velocityPerMin, windowSec: dt };
+}
+
+function getMostRecentPositionForAsset(asset) {
+    try {
+        const positions = tradeExecutor?.positions || {};
+        const matches = Object.entries(positions)
+            .filter(([_, p]) => p && String(p.asset || '').toUpperCase() === String(asset).toUpperCase());
+        if (matches.length === 0) return null;
+        matches.sort((a, b) => Number(b[1]?.time || 0) - Number(a[1]?.time || 0));
+        const [id, pos] = matches[0];
+        return { id, ...pos };
+    } catch {
+        return null;
+    }
+}
+
+function updateOracleSignalForAsset(asset) {
+    try {
+        if (!asset || !Brains?.[asset]) return null;
+
+        const nowMs = Date.now();
+        const nowSec = Math.floor(nowMs / 1000);
+        const cycleStartEpochSec = getCurrentCheckpoint();
+        const elapsedSec = nowSec - cycleStartEpochSec;
+        const timeLeftSec = INTERVAL_SECONDS - elapsedSec;
+
+        if (!oracleSignalRuntime[asset]) {
+            oracleSignalRuntime[asset] = {
+                cycleStartEpochSec: 0,
+                lastPrepareAt: 0,
+                lastBuyAt: 0,
+                lastSellAt: 0,
+                lastAction: 'WAIT',
+                telegramPrepareSentAt: 0,
+                telegramBuySentAt: 0,
+                telegramSellSentAt: 0
+            };
+        }
+        const rt = oracleSignalRuntime[asset];
+        if (rt.cycleStartEpochSec !== cycleStartEpochSec) {
+            rt.cycleStartEpochSec = cycleStartEpochSec;
+            rt.lastPrepareAt = 0;
+            rt.lastBuyAt = 0;
+            rt.lastSellAt = 0;
+            rt.lastAction = 'WAIT';
+            rt.telegramPrepareSentAt = 0;
+            rt.telegramBuySentAt = 0;
+            rt.telegramSellSentAt = 0;
+        }
+
+        const brain = Brains[asset];
+        const market = currentMarkets?.[asset] || null;
+
+        const signal = {
+            asset,
+            cycleStartEpochSec,
+            cycleEndEpochSec: cycleStartEpochSec + INTERVAL_SECONDS,
+            timestampMs: nowMs,
+            elapsedSec,
+            timeLeftSec,
+            marketUrl: market?.marketUrl || null,
+
+            action: 'WAIT', // WAIT | PREPARE | BUY | SELL | HOLD | AVOID
+            direction: (brain?.prediction === 'UP' || brain?.prediction === 'DOWN') ? brain.prediction : null,
+            tier: brain?.tier || 'NONE',
+            confidence: Number.isFinite(brain?.confidence) ? brain.confidence : null,
+
+            implied: null,
+            pWin: null,
+            evRoi: null,
+            mispricingEdge: null,
+            oddsDelta60s: null,
+            oddsVelocityPerMin: null,
+
+            position: null,
+            reasons: []
+        };
+
+        // Preconditions
+        if (!market || !Number.isFinite(market.yesPrice) || !Number.isFinite(market.noPrice)) {
+            signal.reasons.push('No active market/odds yet');
+            oracleSignals[asset] = signal;
+            return signal;
+        }
+        if (feedStaleAssets?.[asset]) {
+            signal.reasons.push('Chainlink feed stale → suppress signals');
+            oracleSignals[asset] = signal;
+            return signal;
+        }
+        if (!signal.direction) {
+            signal.reasons.push('No directional prediction yet');
+            oracleSignals[asset] = signal;
+            return signal;
+        }
+
+        const entryPrice = signal.direction === 'UP' ? market.yesPrice : market.noPrice;
+        signal.implied = entryPrice;
+
+        const pWin = computeTierConditionedPWin(brain, entryPrice);
+        signal.pWin = pWin;
+
+        const evRoi = computeEvRoi(pWin, entryPrice);
+        signal.evRoi = evRoi;
+
+        if (Number.isFinite(pWin)) {
+            signal.mispricingEdge = pWin - entryPrice;
+        }
+
+        const trend = computeOddsTrend(asset, signal.direction, 60000);
+        signal.oddsDelta60s = trend.delta;
+        signal.oddsVelocityPerMin = trend.velocityPerMin;
+
+        const voteStability = Number.isFinite(Number(brain.voteTrendScore)) ? Number(brain.voteTrendScore) : 0;
+        const minStability = Number.isFinite(Number(CONFIG?.ORACLE?.minStability)) ? Number(CONFIG.ORACLE.minStability) : 2;
+        const minElapsedSeconds = Number.isFinite(Number(CONFIG?.ORACLE?.minElapsedSeconds)) ? Number(CONFIG.ORACLE.minElapsedSeconds) : 60;
+        const inBlackout = (typeof brain.isInBlackout === 'function') ? brain.isInBlackout(elapsedSec) : (elapsedSec >= 840);
+
+        // Position-aware SELL/HOLD (paper eval + optional manual endpoints)
+        const pos = getMostRecentPositionForAsset(asset);
+        if (pos && pos.side && Number.isFinite(pos.entry)) {
+            const currentOdds = pos.side === 'UP' ? market.yesPrice : market.noPrice;
+            const pnl = Number.isFinite(currentOdds) ? (currentOdds - pos.entry) * Number(pos.shares || 0) : null;
+            const pnlPercent = (Number.isFinite(currentOdds) && pos.entry > 0) ? ((currentOdds / pos.entry) - 1) * 100 : null;
+            signal.position = {
+                id: pos.id,
+                side: pos.side,
+                entry: pos.entry,
+                currentOdds,
+                pnl,
+                pnlPercent
+            };
+
+            // SELL rules (advisory)
+            const flipAgainstPosition = (brain.prediction === 'UP' || brain.prediction === 'DOWN')
+                ? (brain.prediction !== pos.side)
+                : false;
+            const flipHighConviction = flipAgainstPosition && voteStability >= minStability && Number.isFinite(pWin) && pWin >= 0.70;
+
+            if (flipHighConviction) {
+                signal.action = 'SELL';
+                signal.reasons.push(`Prediction flipped against position (stability=${voteStability})`);
+            } else if (Number.isFinite(pnlPercent) && pnlPercent >= 25 && timeLeftSec > 60) {
+                signal.action = 'SELL';
+                signal.reasons.push(`Take profit (+${pnlPercent.toFixed(1)}%)`);
+            } else if (Number.isFinite(pnlPercent) && pnlPercent <= -25 && timeLeftSec > 60) {
+                signal.action = 'SELL';
+                signal.reasons.push(`Cut loss (${pnlPercent.toFixed(1)}%)`);
+            } else {
+                signal.action = inBlackout ? 'HOLD' : 'HOLD';
+                if (Number.isFinite(pnlPercent)) signal.reasons.push(`Hold (P/L ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)`);
+            }
+
+            // Throttle SELL notify per cycle (for telegram layer)
+            if (signal.action === 'SELL' && !rt.lastSellAt) rt.lastSellAt = nowMs;
+
+            oracleSignals[asset] = signal;
+            rt.lastAction = signal.action;
+            return signal;
+        }
+
+        // No position: PREPARE / BUY
+        const advisoryPWinThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.tradeFrequencyFloor?.advisoryPWinThreshold))
+            ? Number(CONFIG.ORACLE.tradeFrequencyFloor.advisoryPWinThreshold)
+            : 0.65;
+        const advisoryEvRoiThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.tradeFrequencyFloor?.advisoryEvRoiThreshold))
+            ? Number(CONFIG.ORACLE.tradeFrequencyFloor.advisoryEvRoiThreshold)
+            : 0.08;
+
+        const buyPWinThreshold = Math.max(
+            Number.isFinite(Number(CONFIG?.ORACLE?.minConfidence)) ? Number(CONFIG.ORACLE.minConfidence) : 0.80,
+            advisoryPWinThreshold
+        );
+        const buyEvRoiThreshold = Math.max(0.10, advisoryEvRoiThreshold);
+        const buyEdgeThreshold = 0.05;
+        const severeMispricing = Number.isFinite(signal.mispricingEdge) && signal.mispricingEdge >= 0.15 && Number.isFinite(pWin) && pWin >= 0.70;
+
+        const inTradeWindow = elapsedSec >= minElapsedSeconds && timeLeftSec > 60 && !inBlackout;
+        const stable = voteStability >= minStability;
+
+        if (!Number.isFinite(pWin) || !Number.isFinite(evRoi)) {
+            signal.reasons.push('Insufficient calibration samples → no certified signal');
+        } else {
+            signal.reasons.push(`pWin=${(pWin * 100).toFixed(1)}% vs implied=${(entryPrice * 100).toFixed(1)}% (edge=${((pWin - entryPrice) * 100).toFixed(1)}%)`);
+            signal.reasons.push(`EV=${(evRoi * 100).toFixed(1)}% ROI, stability=${voteStability}/${minStability}, tLeft=${timeLeftSec}s`);
+            if (Number.isFinite(signal.oddsDelta60s) || Number.isFinite(signal.oddsVelocityPerMin)) {
+                const d = Number.isFinite(signal.oddsDelta60s) ? `${(signal.oddsDelta60s * 100).toFixed(1)}¢` : 'n/a';
+                const v = Number.isFinite(signal.oddsVelocityPerMin) ? `${(signal.oddsVelocityPerMin * 100).toFixed(1)}¢/min` : 'n/a';
+                signal.reasons.push(`Odds: Δ60s=${d}, vel=${v}`);
+            }
+        }
+
+        if (inBlackout) {
+            signal.action = 'AVOID';
+            signal.reasons.push('Final 60s blackout');
+        } else if (!stable) {
+            signal.action = 'WAIT';
+            signal.reasons.push('Signal not stable enough');
+        } else if (!inTradeWindow) {
+            signal.action = 'WAIT';
+            signal.reasons.push(`Waiting for minElapsedSeconds=${minElapsedSeconds}s`);
+        } else if (Number.isFinite(pWin) && Number.isFinite(evRoi) &&
+            ((pWin >= buyPWinThreshold && evRoi >= buyEvRoiThreshold && Number.isFinite(signal.mispricingEdge) && signal.mispricingEdge >= buyEdgeThreshold) || severeMispricing)) {
+            signal.action = 'BUY';
+            if (severeMispricing) signal.reasons.push('Severe mispricing detected');
+            if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
+        } else if (Number.isFinite(pWin) && Number.isFinite(evRoi) &&
+            pWin >= advisoryPWinThreshold && evRoi >= advisoryEvRoiThreshold && timeLeftSec > 180) {
+            signal.action = 'PREPARE';
+            if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
+        } else {
+            signal.action = 'WAIT';
+        }
+
+        oracleSignals[asset] = signal;
+        rt.lastAction = signal.action;
+        return signal;
+    } catch (e) {
+        // Never crash the engine on advisory computation
+        return null;
+    }
+}
+
 function buildStateSnapshot() {
     const response = {};
+    const feeModel = getPolymarketTakerFeeModel();
+    const EV_SLIPPAGE_PCT = 0.01;
     ASSETS.forEach(a => {
         const recentWins = Brains[a].recentOutcomes.filter(Boolean).length;
         const recentTotal = Brains[a].recentOutcomes.length;
@@ -21098,10 +22212,23 @@ function buildStateSnapshot() {
         // 🎯 GOAT: Calculate EV for UI display
         let evRoi = null;
         if (Number.isFinite(pWin) && Number.isFinite(entryPrice) && entryPrice > 0 && entryPrice < 1) {
-            const PROFIT_FEE_PCT = 0.02;
-            const b = (1 - entryPrice) / entryPrice;
-            evRoi = (pWin * b * (1 - PROFIT_FEE_PCT)) - (1 - pWin);
+            evRoi = calcBinaryEvRoiAfterFees(pWin, entryPrice, { slippagePct: EV_SLIPPAGE_PCT, feeModel });
         }
+
+        // 🎯 ORACLE METRICS: time-to-correct-call (from last completed cycles)
+        const cycles = Array.isArray(cycleDebugHistory?.[a]) ? cycleDebugHistory[a] : [];
+        const lastCycle = cycles.length > 0 ? cycles[cycles.length - 1] : null;
+        const timeToCorrectCallSecLast = Number.isFinite(Number(lastCycle?.timeToCorrectCallSec))
+            ? Number(lastCycle.timeToCorrectCallSec)
+            : null;
+        const timeToCertifiedCallSecLast = Number.isFinite(Number(lastCycle?.timeToCertifiedCallSec))
+            ? Number(lastCycle.timeToCertifiedCallSec)
+            : null;
+
+        const ttcVals = cycles.map(c => Number(c?.timeToCorrectCallSec)).filter(Number.isFinite);
+        const ttcCertifiedVals = cycles.map(c => Number(c?.timeToCertifiedCallSec)).filter(Number.isFinite);
+        const avgTimeToCorrectCallSec10 = ttcVals.length > 0 ? (ttcVals.reduce((s, x) => s + x, 0) / ttcVals.length) : null;
+        const avgTimeToCertifiedCallSec10 = ttcCertifiedVals.length > 0 ? (ttcCertifiedVals.reduce((s, x) => s + x, 0) / ttcCertifiedVals.length) : null;
         
         response[a] = {
             prediction: Brains[a].prediction,
@@ -21111,6 +22238,10 @@ function buildStateSnapshot() {
             pWinBucket: calBucket,
             pWinSamples: calStats ? calStats.total : 0,
             evRoi: evRoi, // 🎯 GOAT: Expected Value ROI (positive = profitable trade)
+            timeToCorrectCallSecLast,
+            timeToCertifiedCallSecLast,
+            avgTimeToCorrectCallSec10,
+            avgTimeToCertifiedCallSec10,
             tier: Brains[a].tier,
             edge: Brains[a].edge,
             votes: Brains[a].ensembleVotes,
@@ -21127,6 +22258,7 @@ function buildStateSnapshot() {
             calibration: Brains[a].calibrationBuckets,
             tierCalibration: Brains[a].tierCalibration, // 🎯 GOAT: Tier+price conditioned calibration
             newsState: Brains[a].newsState,
+            oracleSignal: oracleSignals[a] || null,
             modelVotes: Brains[a].lastSignal ? Brains[a].lastSignal.modelVotes : {}
         };
     });
@@ -21412,6 +22544,55 @@ app.get('/api/trades/export', async (req, res) => {
     }
 });
 
+// ==================== PROFILE TRADE SYNC API (POLYMARKET DATA API) ====================
+app.get('/api/profile-trades/status', async (req, res) => {
+    try {
+        res.json({
+            enabled: !!CONFIG.PROFILE_TRADE_SYNC_ENABLED,
+            configuredProfileUrl: CONFIG.POLYMARKET_PROFILE_URL || '',
+            configuredProfileAddress: CONFIG.POLYMARKET_PROFILE_ADDRESS || '',
+            effectiveProfileAddress: profileTradeSync.profileAddress,
+            lastSyncAt: profileTradeSync.lastSyncAt || 0,
+            lastSyncIso: profileTradeSync.lastSyncAt ? new Date(profileTradeSync.lastSyncAt).toISOString() : null,
+            lastSyncError: profileTradeSync.lastSyncError || null,
+            tradeCount: Array.isArray(profileTradeSync.trades) ? profileTradeSync.trades.length : 0
+        });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+app.get('/api/profile-trades', async (req, res) => {
+    try {
+        const offset = Math.max(0, parseInt(req.query.offset) || 0);
+        const limit = Math.max(1, Math.min(1000, parseInt(req.query.limit) || 200));
+        const all = Array.isArray(profileTradeSync.trades) ? profileTradeSync.trades : [];
+        res.json({
+            ok: true,
+            enabled: !!CONFIG.PROFILE_TRADE_SYNC_ENABLED,
+            profileAddress: profileTradeSync.profileAddress,
+            lastSyncAt: profileTradeSync.lastSyncAt || 0,
+            lastSyncError: profileTradeSync.lastSyncError || null,
+            total: all.length,
+            offset,
+            limit,
+            trades: all.slice(offset, offset + limit)
+        });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
+app.post('/api/profile-trades/sync', async (req, res) => {
+    try {
+        const limit = req.body?.limit ?? req.query.limit;
+        const result = await syncProfileTrades({ limit });
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e.message });
+    }
+});
+
 // 🎯 GOAT v3: Reset trade history (with confirmation)
 app.post('/api/trades/reset', async (req, res) => {
     const mode = req.body.mode || 'PAPER';
@@ -21475,7 +22656,7 @@ app.post('/api/manual-buy', async (req, res) => {
         return res.status(400).json({ success: false, error: 'Missing asset, direction, or size' });
     }
 
-    if (!['BTC', 'ETH', 'XRP'].includes(asset)) {
+    if (!['BTC', 'ETH', 'XRP', 'SOL'].includes(asset)) {
         return res.status(400).json({ success: false, error: 'Invalid asset' });
     }
 
@@ -22016,8 +23197,21 @@ app.get('/api/settings', (req, res) => {
         POLYMARKET_SIGNATURE_TYPE: Number(CONFIG.POLYMARKET_SIGNATURE_TYPE) || 0,
         POLYMARKET_PRIVATE_KEY: CONFIG.POLYMARKET_PRIVATE_KEY ? '****HIDDEN****' : '',
 
+        // Manual trading sync (public profile; not a secret)
+        POLYMARKET_PROFILE_URL: CONFIG.POLYMARKET_PROFILE_URL || '',
+        POLYMARKET_PROFILE_ADDRESS: CONFIG.POLYMARKET_PROFILE_ADDRESS || '',
+        PROFILE_TRADE_SYNC_ENABLED: !!CONFIG.PROFILE_TRADE_SYNC_ENABLED,
+        PROFILE_TRADE_SYNC: {
+            effectiveProfileAddress: profileTradeSync.profileAddress,
+            lastSyncAt: profileTradeSync.lastSyncAt || 0,
+            lastSyncIso: profileTradeSync.lastSyncAt ? new Date(profileTradeSync.lastSyncAt).toISOString() : null,
+            lastSyncError: profileTradeSync.lastSyncError || null,
+            tradeCount: Array.isArray(profileTradeSync.trades) ? profileTradeSync.trades.length : 0
+        },
+
         // Trading settings (fully visible)
         TRADE_MODE: CONFIG.TRADE_MODE,
+        LIVE_AUTOTRADING_ENABLED: !!CONFIG.LIVE_AUTOTRADING_ENABLED,
         PAPER_BALANCE: CONFIG.PAPER_BALANCE,
         LIVE_BALANCE: CONFIG.LIVE_BALANCE,
         MAX_POSITION_SIZE: CONFIG.MAX_POSITION_SIZE,
@@ -22038,7 +23232,8 @@ app.get('/api/settings', (req, res) => {
         TELEGRAM: {
             enabled: CONFIG.TELEGRAM?.enabled || false,
             botToken: CONFIG.TELEGRAM?.botToken ? '****HIDDEN****' : '',
-            chatId: CONFIG.TELEGRAM?.chatId || ''
+            chatId: CONFIG.TELEGRAM?.chatId || '',
+            signalsOnly: CONFIG.TELEGRAM?.signalsOnly !== false
         },
 
         // 🎛️ Per-Asset Trading Controls
@@ -22109,7 +23304,7 @@ app.post('/api/reset-drift', async (req, res) => {
 
         const valid = targets.filter(a => Array.isArray(ASSETS) && ASSETS.includes(a));
         if (valid.length === 0) {
-            return res.status(400).json({ ok: false, error: `Unknown asset '${requested}'. Use BTC/ETH/XRP or ALL.` });
+            return res.status(400).json({ ok: false, error: `Unknown asset '${requested}'. Use BTC/ETH/XRP/SOL or ALL.` });
         }
 
         valid.forEach(a => {
@@ -23277,6 +24472,8 @@ async function startup() {
         setInterval(() => {
             ASSETS.forEach(a => {
                 Brains[a].update();
+                const sig = updateOracleSignalForAsset(a);
+                maybeSendOracleSignalTelegram(a, sig || oracleSignals?.[a]);
 
                 // 🔴 CRITICAL: Check exit conditions for all positions
                 // This was MISSING - checkExits was never called!
@@ -23295,6 +24492,11 @@ async function startup() {
 
         setInterval(saveState, 5000);
         setInterval(fetchCurrentMarkets, 2000);
+
+        // 👁️ PROFILE TRADE SYNC (optional): ingest your real Polymarket profile fills for learning/evaluation
+        // Runs only when PROFILE_TRADE_SYNC_ENABLED=true AND a profile address/url is configured.
+        setTimeout(() => { syncProfileTrades().catch(() => { }); }, 5000);
+        setInterval(() => { syncProfileTrades().catch(() => { }); }, 20000);
 
         fetchFearGreedIndex();
         fetchFundingRates();

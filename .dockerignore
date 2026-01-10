@@ -10,6 +10,10 @@ node_modules
 *.env
 POLYPROPHET.env
 
+# Cursor / IDE metadata
+.cursor
+.vscode
+
 # IDE
 .vscode
 .idea
@@ -22,6 +26,15 @@ npm-debug.log*
 # Documentation
 *.md
 !README.md
+
+# Large local artifacts (keep OUT of Docker context)
+debug/
+debug_backtest/
+backtest-data/
+local-archive/
+local_archive/
+cursor_*.md
+**/*.out.txt
 
 # Scripts not needed in production
 _deploy.bat

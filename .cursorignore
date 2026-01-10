@@ -1,0 +1,23 @@
+﻿# Prevent Cursor IDE OOM / indexing crashes
+# (These are large local artifacts and are NOT required for normal development.)
+
+# Debug corpuses (can be 10sâ€“100s of MB locally)
+debug/
+debug_backtest/
+backtest-data/
+
+# Local archives / logs
+local-archive/
+local_archive/
+**/*.out.txt
+**/*.log
+
+# Large chat/export files
+cursor_*.md
+
+# Safety: ignore any local redis export artifacts
+redis-export.json
+
+# Dependencies
+node_modules/
+.git/

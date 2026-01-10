@@ -113,10 +113,12 @@ flyctl secrets set AUTH_USERNAME="bandito"
 flyctl secrets set AUTH_PASSWORD="bandito"
 
 # Polymarket credentials
-flyctl secrets set POLYMARKET_API_KEY="ec05b79f-5c60-baef-c45f-c7cb131eff36"
-flyctl secrets set POLYMARKET_SECRET="6hC-wPEJ8_I0AICdaN5GZC3ZjYPWsLuSPizTgIVYoS0="
-flyctl secrets set POLYMARKET_PASSPHRASE="581466eda27ddf6030baee95a2b36f430542172d86cd5220c5e0e05ad623e052"
-flyctl secrets set POLYMARKET_PRIVATE_KEY="0x7500b5809170c84aaa5329cba59454c9883a9165e42e36f135eae3fcf7dbede7"
+# ⚠️ IMPORTANT: NEVER paste real keys into docs / commits. Treat any leaked key as compromised.
+# Generate these via `generate_creds.js.example` (see README for full steps).
+flyctl secrets set POLYMARKET_PRIVATE_KEY="0xYOUR_PRIVATE_KEY"
+flyctl secrets set POLYMARKET_API_KEY="YOUR_POLYMARKET_API_KEY"
+flyctl secrets set POLYMARKET_SECRET="YOUR_POLYMARKET_SECRET"
+flyctl secrets set POLYMARKET_PASSPHRASE="YOUR_POLYMARKET_PASSPHRASE"
 
 # Redis (Upstash URL from Step 1)
 flyctl secrets set REDIS_URL="rediss://default:YOUR_PASSWORD@eu1-YOUR-ID.upstash.io:6379"
