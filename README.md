@@ -4,19 +4,47 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v109 HARD-FLOOR ORACLE**: Maximum accuracy enforcement for manual trading from $1.
+> **v110 ROBUST ORACLE**: Market fetch hardened + oracle blind alerts.
 > - **85% pWin FLOOR**: **HARD-ENFORCED for ALL tiers** (startup-reset, no legacy state)
 > - **85% WIN RATE TARGET**: 1-2 losses per 10 trades (user-specified)
 > - **~1 BUY/HOUR TARGET**: When market conditions allow
 > - **$1 MANUAL TRADING**: Website market orders support $1 minimum
 > - **ACTUAL ENTRY PRICES**: Backtest uses recorded entryOdds (not fixed 50¢)
-> - **NO_AUTH=true**: Easy access, no login prompts
-> - **START_PAUSED=false**: Paper auto-trading enabled on deploy
-> - **CALIBRATION DIAGNOSTICS**: Signals show "LOCKED vs MOVABLE" status
+> - **GAMMA PARSING FIX**: Handles JSON-string arrays (outcomes/clobTokenIds)
+> - **ORACLE BLIND ALERTS**: Telegram notification when market data unavailable
+> - **FETCH DIAGNOSTICS**: Per-asset `fetchOk`, `fetchError`, `tokenMappingSource` in /api/state
 
 ---
 
-## 🎯 v109: HARD-FLOOR ORACLE MODE
+## 🎯 v110: ROBUST ORACLE MODE
+
+v110 fixes market data fetch (Gamma API returns JSON strings) + adds oracle blind alerts.
+
+### v110 Critical Fixes
+
+1. **Gamma Field Parsing**: `market.outcomes` and `market.clobTokenIds` come from Gamma API as JSON **strings** (e.g., `"[\"Up\",\"Down\"]"`), not arrays. v110 safely parses both formats without throwing.
+
+2. **Oracle Blind Alerts**: When market data is unavailable for 5+ consecutive refreshes (~10s), a Telegram alert fires with asset, slug, and error details. 5-minute cooldown per asset.
+
+3. **Fetch Diagnostics**: Every market object now includes `fetchOk`, `fetchAt`, `fetchError`, and `tokenMappingSource` so failures are visible in `/api/state` without needing server logs.
+
+4. **TokenId Mapping**: Uses `tokenMappingSource: "OUTCOMES_MAPPED"` when outcomes are parsed successfully; falls back to `DEFAULT_ORDER` if parsing fails.
+
+### Oracle Blind Troubleshooting Runbook
+
+If oracle shows `"market": null` or `"reasons": ["No active market/odds yet"]`:
+
+1. **Check `/api/state`** for `fetchError` field - it shows the exact exception
+2. **Common causes**:
+   - Gamma API rate limit or downtime
+   - CLOB orderbook unavailable for slug
+   - Invalid slug (e.g., market not yet created for future cycle)
+3. **Telegram alert fires** if blind for 5+ refreshes - check message for details
+4. **Recovery**: Usually auto-heals within a few refreshes; force restart if persistent
+
+---
+
+## 🎯 v109 Foundation: HARD-FLOOR ORACLE MODE
 
 v109 **hard-enforces** the 85% pWin floor for ALL tiers and uses actual entry prices:
 
