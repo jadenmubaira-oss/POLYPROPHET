@@ -786,6 +786,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v93: Compact mode - omit large arrays to prevent OOM in UI/IDE
         const compactMode = req.query.compact === '1' || String(req.query.compact || '').toLowerCase() === 'true';
         
+        // 🏆 v109: Full trades output - returns ALL trades (not just last 30) for $1 MANUAL analysis
+        const fullTradesMode = req.query.fullTrades === '1' || String(req.query.fullTrades || '').toLowerCase() === 'true';
+        
         // 🏆 v83: Vault thresholds (use threshold contract for parity with runtime)
         // Query overrides: vaultTriggerBalance, stage2Threshold
         // 🏆 v96: Pass startingBalance for relative-mode support
@@ -2044,10 +2047,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const scanResults = scan ? scanStakes.map(sf => simulate(sf, { allowDynamicStake: false })).map(r => ({
             stake: r.stakeFrac,
             trades: r.totalTrades,
-            winRate: (r.winRate).toFixed(2) + '%',
-            finalBalance: Number(r.balance.toFixed(2)),
-            profitPct: ((r.totalProfit / startingBalance) * 100).toFixed(2) + '%',
-            maxDrawdown: (r.maxDrawdown * 100).toFixed(2) + '%'
+            winRate: Number.isFinite(r.winRate) ? r.winRate.toFixed(2) + '%' : 'N/A',
+            finalBalance: Number.isFinite(r.balance) ? Number(r.balance.toFixed(2)) : 0,
+            profitPct: Number.isFinite(r.totalProfit) ? ((r.totalProfit / startingBalance) * 100).toFixed(2) + '%' : 'N/A',
+            maxDrawdown: Number.isFinite(r.maxDrawdown) ? (r.maxDrawdown * 100).toFixed(2) + '%' : 'N/A'
         })) : null;
         
         // 🏆 v69: Knee analysis - find optimal stake based on profit/drawdown ratio
@@ -2098,14 +2101,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 runtime: runtime + 's',
                 startingBalance,
                 timeSpan,
-                totalTrades: primarySim.totalTrades,
-                finalBalance: parseFloat(primarySim.balance.toFixed(2)),
-                totalProfit: parseFloat(primarySim.totalProfit.toFixed(2)),
-                profitPct: (primarySim.totalProfit / startingBalance * 100).toFixed(2) + '%',
-                wins: primarySim.wins,
-                losses: primarySim.losses,
-                winRate: primarySim.winRate.toFixed(2) + '%',
-                maxDrawdown: (primarySim.maxDrawdown * 100).toFixed(2) + '%',
+                totalTrades: primarySim.totalTrades || 0,
+                finalBalance: Number.isFinite(primarySim.balance) ? parseFloat(primarySim.balance.toFixed(2)) : startingBalance,
+                totalProfit: Number.isFinite(primarySim.totalProfit) ? parseFloat(primarySim.totalProfit.toFixed(2)) : 0,
+                profitPct: Number.isFinite(primarySim.totalProfit) ? (primarySim.totalProfit / startingBalance * 100).toFixed(2) + '%' : '0.00%',
+                wins: primarySim.wins || 0,
+                losses: primarySim.losses || 0,
+                winRate: Number.isFinite(primarySim.winRate) ? primarySim.winRate.toFixed(2) + '%' : '0.00%',
+                maxDrawdown: Number.isFinite(primarySim.maxDrawdown) ? (primarySim.maxDrawdown * 100).toFixed(2) + '%' : '0.00%',
                 avgEntryPrice: Number.isFinite(primarySim.avgEntryPrice) ? primarySim.avgEntryPrice.toFixed(3) : 'N/A',
                 avgEffectiveEntry: Number.isFinite(primarySim.avgEffectiveEntry) ? primarySim.avgEffectiveEntry.toFixed(3) : 'N/A',
                 avgPnlPerTrade: Number.isFinite(primarySim.avgPnlPerTrade) ? primarySim.avgPnlPerTrade.toFixed(4) : 'N/A',
@@ -2138,8 +2141,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             objectiveMetrics: {
                 hit100: primarySim.hit100,  // { day, tradeIndex, balance } or null
                 hit1000: primarySim.hit1000, // { day, tradeIndex, balance } or null
-                minBalance: parseFloat(primarySim.minBalance.toFixed(2)),
-                ruined: primarySim.ruined,   // true if minBalance fell below the "ruin floor" (MIN_ORDER survivability threshold)
+                minBalance: Number.isFinite(primarySim.minBalance) ? parseFloat(primarySim.minBalance.toFixed(2)) : startingBalance,
+                ruined: primarySim.ruined || false,   // true if minBalance fell below the "ruin floor" (MIN_ORDER survivability threshold)
                 // Convenience booleans for optimizer scoring
                 reachedGoal100: primarySim.hit100 !== null,
                 reachedGoal1000: primarySim.hit1000 !== null,
@@ -2227,19 +2230,43 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             kneeAnalysis: compactMode ? (kneeAnalysis ? { optimalKnee: kneeAnalysis.optimalKnee, conservative: kneeAnalysis.conservative } : null) : kneeAnalysis,
             // 🏆 v76: Day-by-day breakdown (for 1-7 day projections from single run)
             // 🏆 v93: Omit in compact mode to prevent OOM
-            dayByDay: compactMode ? `[${primarySim.dayByDay.length} days omitted - use compact=0 for full data]` : primarySim.dayByDay.map(d => ({
+            dayByDay: compactMode ? `[${(primarySim.dayByDay || []).length} days omitted - use compact=0 for full data]` : (primarySim.dayByDay || []).map(d => ({
                 day: d.day,
                 date: d.date,
-                startBalance: parseFloat(d.startBalance.toFixed(2)),
-                endBalance: parseFloat(d.endBalance.toFixed(2)),
-                trades: d.trades,
-                wins: d.wins,
-                losses: d.losses,
+                startBalance: Number.isFinite(d.startBalance) ? parseFloat(d.startBalance.toFixed(2)) : 0,
+                endBalance: Number.isFinite(d.endBalance) ? parseFloat(d.endBalance.toFixed(2)) : 0,
+                trades: d.trades || 0,
+                wins: d.wins || 0,
+                losses: d.losses || 0,
                 winRate: d.trades > 0 ? ((d.wins / d.trades) * 100).toFixed(1) + '%' : 'N/A',
-                pnl: parseFloat(d.pnl.toFixed(2)),
-                maxDD: (d.maxDD * 100).toFixed(2) + '%'
+                pnl: Number.isFinite(d.pnl) ? parseFloat(d.pnl.toFixed(2)) : 0,
+                maxDD: Number.isFinite(d.maxDD) ? (d.maxDD * 100).toFixed(2) + '%' : '0.00%'
             })),
-            trades: compactMode ? `[${primarySim.trades.length} trades omitted - use compact=0 for full data]` : primarySim.trades.slice(-30),
+            // 🏆 v109: Trade output modes:
+            // - compactMode: omit all trades
+            // - fullTradesMode: return ALL trades (for $1 MANUAL backtest analysis)
+            // - default: return last 30 trades
+            trades: compactMode 
+                ? `[${(primarySim.trades || []).length} trades omitted - use compact=0 for full data]` 
+                : fullTradesMode 
+                    ? (primarySim.trades || []).map((t, idx) => ({
+                        tradeIndex: idx + 1,
+                        asset: t.asset,
+                        slug: t.slug,
+                        cycleStart: t.cycleStartEpochSec ? new Date(t.cycleStartEpochSec * 1000).toISOString() : null,
+                        prediction: t.prediction,
+                        outcome: t.polymarketOutcome,
+                        isWin: t.isWin,
+                        entryPrice: Number.isFinite(t.entryPrice) ? t.entryPrice.toFixed(4) : 'N/A',
+                        effectiveEntry: Number.isFinite(t.effectiveEntry) ? t.effectiveEntry.toFixed(4) : 'N/A',
+                        stake: Number.isFinite(t.stake) ? t.stake.toFixed(4) : 'N/A',
+                        feeUsd: Number.isFinite(t.feeUsd) ? t.feeUsd.toFixed(4) : 'N/A',
+                        pnl: Number.isFinite(t.pnl) ? t.pnl.toFixed(4) : 'N/A',
+                        pWin: Number.isFinite(t.pWinUsed) ? t.pWinUsed.toFixed(4) : 'N/A',
+                        tier: t.tier,
+                        source: t.source
+                    }))
+                    : (primarySim.trades || []).slice(-30),
             interpretation: {
                 winRateNeededForEV: Number.isFinite(primarySim.winRateNeededForEV) ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
                 currentWinRate: Number.isFinite(primarySim.winRate) ? primarySim.winRate.toFixed(1) + '%' : 'N/A',
@@ -8519,7 +8546,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 108;  // v108: User-tuned oracle (85% WR target, 85% pWin floor, ~1/hour frequency), NO_AUTH, $1 MANUAL mode
+const CONFIG_VERSION = 109;  // v109: Force-reset adaptive gate to 85% floor on startup, hard-enforce floor for ALL tiers (ADVISORY+CONVICTION)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -19777,46 +19804,71 @@ async function fetchCurrentMarkets() {
             }
 
             const tokenIds = JSON.parse(market.clobTokenIds);
-            const [upBook, downBook] = await Promise.all([
-                fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[0]}`),
-                fetchJSON(`${CLOB_API}/book?token_id=${tokenIds[1]}`)
+            
+            // 🏆 v109: Map tokenIds to outcomes using market.outcomes
+            // Polymarket convention: outcomes[i] corresponds to clobTokenIds[i]
+            let yesTokenId = tokenIds[0];
+            let noTokenId = tokenIds[1];
+            
+            // Try to determine token mapping from market outcomes
+            const outcomes = market.outcomes || [];
+            if (outcomes.length >= 2) {
+                const yesIdx = outcomes.findIndex(o => /^(yes|up)$/i.test(String(o).trim()));
+                const noIdx = outcomes.findIndex(o => /^(no|down)$/i.test(String(o).trim()));
+                if (yesIdx >= 0 && noIdx >= 0 && tokenIds[yesIdx] && tokenIds[noIdx]) {
+                    yesTokenId = tokenIds[yesIdx];
+                    noTokenId = tokenIds[noIdx];
+                }
+            }
+            
+            const [yesBook, noBook] = await Promise.all([
+                fetchJSON(`${CLOB_API}/book?token_id=${yesTokenId}`),
+                fetchJSON(`${CLOB_API}/book?token_id=${noTokenId}`)
             ]);
 
             // Market execution constraints (CLOB-native):
             // - min_order_size is in SHARES (outcome tokens), not USDC.
             // - tick_size is the minimum price increment.
             const minOrderShares = (() => {
-                const a = Number(upBook?.min_order_size);
-                const b = Number(downBook?.min_order_size);
+                const a = Number(yesBook?.min_order_size);
+                const b = Number(noBook?.min_order_size);
                 const cand = [a, b].filter(n => Number.isFinite(n) && n > 0);
                 return cand.length ? Math.max(...cand) : null;
             })();
             const tickSize = (() => {
-                const a = Number(upBook?.tick_size);
-                const b = Number(downBook?.tick_size);
+                const a = Number(yesBook?.tick_size);
+                const b = Number(noBook?.tick_size);
                 const cand = [a, b].filter(n => Number.isFinite(n) && n > 0);
                 return cand.length ? Math.max(...cand) : null;
             })();
 
-            // 🔴 FORENSIC FIX: Default to null (not 50/50) when no order book
-            // 50/50 default causes cross-cycle bug: old cycle 1¢ + new cycle 50¢ default = fake profits
+            // 🏆 v109: Extract best ask prices with diagnostics
             let yesPrice = null, noPrice = null;
+            let yesBestAsk = null, noBestAsk = null;
+            let pricingFallback = null;
 
-            // Extract best ask prices from order book
-            if (upBook?.asks?.length) {
-                const sortedUpAsks = [...upBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-                yesPrice = parseFloat(sortedUpAsks[0].price);
-            } else if (downBook?.asks?.length) {
-                const sortedDownAsks = [...downBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-                noPrice = parseFloat(sortedDownAsks[0].price);
-                yesPrice = 1 - noPrice;
+            // Get YES price from YES order book (best ask = price to buy YES)
+            if (yesBook?.asks?.length) {
+                const sortedYesAsks = [...yesBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                yesBestAsk = parseFloat(sortedYesAsks[0].price);
+                yesPrice = yesBestAsk;
             }
 
-            if (downBook?.asks?.length) {
-                const sortedDownAsks = [...downBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
-                noPrice = parseFloat(sortedDownAsks[0].price);
-            } else if (upBook?.asks?.length) {
+            // Get NO price from NO order book (best ask = price to buy NO)
+            if (noBook?.asks?.length) {
+                const sortedNoAsks = [...noBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
+                noBestAsk = parseFloat(sortedNoAsks[0].price);
+                noPrice = noBestAsk;
+            }
+
+            // Fallback: if one side is missing, derive from the other
+            if (yesPrice === null && noPrice !== null) {
+                yesPrice = 1 - noPrice;
+                pricingFallback = 'YES derived from NO';
+            }
+            if (noPrice === null && yesPrice !== null) {
                 noPrice = 1 - yesPrice;
+                pricingFallback = 'NO derived from YES';
             }
 
             // 🔴 FORENSIC FIX: If no order book data at all, market is not tradeable
@@ -19825,10 +19877,6 @@ async function fetchCurrentMarkets() {
                 currentMarkets[asset] = null;
                 continue;
             }
-
-            // Fallback: if only one side has data, derive the other
-            if (yesPrice === null && noPrice !== null) yesPrice = 1 - noPrice;
-            if (noPrice === null && yesPrice !== null) noPrice = 1 - yesPrice;
 
             if (!marketOddsHistory[asset]) marketOddsHistory[asset] = [];
             marketOddsHistory[asset].push({ yes: yesPrice, no: noPrice, timestamp: Date.now() });
@@ -19844,10 +19892,19 @@ async function fetchCurrentMarkets() {
                 marketUrl: `https://polymarket.com/event/${eventData.slug}`,
                 volume: market.volume24hr || 0,
                 lastUpdated: Date.now(),
-                tokenIds: { yes: tokenIds[0], no: tokenIds[1] } // Store Token IDs for trading
+                tokenIds: { yes: yesTokenId, no: noTokenId }, // 🏆 v109: Corrected token mapping
+                // 🏆 v109: Diagnostics for price verification
+                pricingDiagnostics: {
+                    yesBestAsk,
+                    noBestAsk,
+                    pricingFallback,
+                    spread: (yesBestAsk !== null && noBestAsk !== null) ? Math.abs((yesBestAsk + noBestAsk) - 1) : null,
+                    outcomesFromGamma: outcomes
+                }
             };
 
-            log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}% | NO ${(noPrice * 100).toFixed(1)}%`, asset);
+            const fallbackNote = pricingFallback ? ` [${pricingFallback}]` : '';
+            log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}¢ | NO ${(noPrice * 100).toFixed(1)}¢${fallbackNote}`, asset);
         } catch (e) {
             log(`❌ Market fetch error: ${e.message}`, asset);
 
@@ -20509,15 +20566,22 @@ async function loadState() {
                     primaryBuyState.lastPrimaryBuyAt = Number(pbs.lastPrimaryBuyAt) || 0;
                     primaryBuyState.otherCandidates = Array.isArray(pbs.otherCandidates) ? pbs.otherCandidates.slice(0, 10) : [];
                 }
-                // 🎯 v105: Restore adaptive gate state
+                // 🏆 v108.1: FORCE-RESET adaptive gate state to v108 defaults on every startup
+                // User decision: override persisted state to ensure 85% floor is always enforced
+                // Keep only the rolling signals for continuity
                 if (state.adaptiveGateState && typeof state.adaptiveGateState === 'object') {
                     const ags = state.adaptiveGateState;
-                    adaptiveGateState.targetWinRate = Number(ags.targetWinRate) || 0.90;
+                    // Keep signal history for continuity
                     adaptiveGateState.recentOracleSignals = Array.isArray(ags.recentOracleSignals) ? ags.recentOracleSignals.slice(-50) : [];
-                    adaptiveGateState.currentPWinThreshold = Number(ags.currentPWinThreshold) || 0.75;
                     adaptiveGateState.globalRollingWins = Number(ags.globalRollingWins) || 0;
                     adaptiveGateState.globalRollingTotal = Number(ags.globalRollingTotal) || 0;
                 }
+                // FORCE v108 defaults regardless of persisted values
+                adaptiveGateState.targetWinRate = 0.85;
+                adaptiveGateState.currentPWinThreshold = 0.85;
+                adaptiveGateState.minPWinThreshold = 0.85;
+                adaptiveGateState.maxPWinThreshold = 0.90;
+                log('🏆 v108.1: Adaptive gate FORCE-RESET to 85% floor (targetWR=85%, threshold=85%, min=85%, max=90%)');
                 // 🔥 v105: Restore streak state
                 if (state.streakState && typeof state.streakState === 'object') {
                     const ss = state.streakState;
@@ -20587,15 +20651,20 @@ async function loadState() {
                 primaryBuyState.lastPrimaryBuyAt = Number(pbs.lastPrimaryBuyAt) || 0;
                 primaryBuyState.otherCandidates = Array.isArray(pbs.otherCandidates) ? pbs.otherCandidates.slice(0, 10) : [];
             }
-            // 🎯 v105: Restore adaptive gate state (local file)
+            // 🏆 v108.1: FORCE-RESET adaptive gate state to v108 defaults (local file)
             if (state.adaptiveGateState && typeof state.adaptiveGateState === 'object') {
                 const ags = state.adaptiveGateState;
-                adaptiveGateState.targetWinRate = Number(ags.targetWinRate) || 0.90;
+                // Keep signal history for continuity
                 adaptiveGateState.recentOracleSignals = Array.isArray(ags.recentOracleSignals) ? ags.recentOracleSignals.slice(-50) : [];
-                adaptiveGateState.currentPWinThreshold = Number(ags.currentPWinThreshold) || 0.75;
                 adaptiveGateState.globalRollingWins = Number(ags.globalRollingWins) || 0;
                 adaptiveGateState.globalRollingTotal = Number(ags.globalRollingTotal) || 0;
             }
+            // FORCE v108 defaults regardless of persisted values
+            adaptiveGateState.targetWinRate = 0.85;
+            adaptiveGateState.currentPWinThreshold = 0.85;
+            adaptiveGateState.minPWinThreshold = 0.85;
+            adaptiveGateState.maxPWinThreshold = 0.90;
+            log('🏆 v108.1: Adaptive gate FORCE-RESET to 85% floor (local file)');
             // 🔥 v105: Restore streak state (local file)
             if (state.streakState && typeof state.streakState === 'object') {
                 const ss = state.streakState;
@@ -23056,10 +23125,12 @@ function checkAdaptiveGate(pWin, tier, ultraProphet) {
         };
     }
     
-    // CONVICTION tier gets slight threshold reduction
+    // 🏆 v108.1: Hard-enforce floor for ALL tiers (ADVISORY and CONVICTION)
+    // CONVICTION tier gets slight threshold reduction (-3pp) but never below floor
+    // ADVISORY tier uses standard threshold but never below floor
     const effectiveThreshold = tier === 'CONVICTION' 
         ? Math.max(threshold - 0.03, adaptiveGateState.minPWinThreshold)
-        : threshold;
+        : Math.max(threshold, adaptiveGateState.minPWinThreshold);
     
     if (pWin >= effectiveThreshold) {
         return {

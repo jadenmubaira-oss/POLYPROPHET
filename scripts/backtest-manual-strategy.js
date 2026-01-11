@@ -1,17 +1,22 @@
 #!/usr/bin/env node
 /**
- * 🔮 POLYPROPHET v105 - ADAPTIVE FREQUENCY BACKTEST
+ * 🔮 POLYPROPHET v109 - ADAPTIVE FREQUENCY BACKTEST
  *
  * Sweeps pWin thresholds to find optimal balance between:
  * - Frequency (trades per cycle/day)
- * - Accuracy (targeting ≤1 loss per 10 trades = 90% WR)
+ * - Accuracy (targeting ≤1-2 loss per 10 trades = 85% WR)
+ *
+ * 🏆 v109 IMPROVEMENTS:
+ * - Uses ACTUAL entry prices (entryOdds/entryPrice/yesPrice) when available
+ * - Falls back to 50¢ only when no actual price recorded
+ * - Reports entry price statistics (actual vs fallback usage)
  *
  * Uses walk-forward validation to avoid overfitting:
  * - Train on first 70% of data
  * - Test on remaining 30%
  *
  * Usage:
- *   node scripts/backtest-manual-strategy.js --data=debg [--sweep] [--target-wr=0.90]
+ *   node scripts/backtest-manual-strategy.js --data=debg [--sweep] [--target-wr=0.85]
  *
  * Examples:
  *   node scripts/backtest-manual-strategy.js --data=debg --sweep
@@ -25,7 +30,7 @@ const path = require('path');
 const CONFIG = {
     startingBankroll: 1.00,
     maxAbsoluteStake: 100.00,
-    targetWinRate: 0.90,  // ≤1 loss per 10 trades
+    targetWinRate: 0.85,  // 🏆 v109: ≤1-2 losses per 10 trades (85% WR)
     
     // Threshold sweep range
     sweep: {
@@ -98,7 +103,11 @@ function extractCyclesFromDebugExport(json, sourceLabel = 'unknown') {
                 consensus,
                 stability: stabilityProxy,
                 genesisAgrees,
-                wasCorrect: row.wasCorrect === true || prediction === outcome
+                wasCorrect: row.wasCorrect === true || prediction === outcome,
+                // 🏆 v109: Capture actual entry prices for realistic simulation
+                entryOdds: safeNum(row.entryOdds, null),
+                entryPrice: safeNum(row.entryPrice, null),
+                yesPrice: safeNum(row.yesPrice, null)
             });
         }
     }
@@ -174,6 +183,9 @@ function loadPerCycleCorpus(dataPath) {
 }
 
 // ==================== ADAPTIVE GATE CHECK ====================
+// 🏆 v109: Hard-enforce 85% floor for ALL tiers (matches server.js v109)
+const PWIN_HARD_FLOOR = 0.85;
+
 function checkAdaptiveGate(cycle, pWinThreshold, tierRequired) {
     const tier = cycle.tier;
     const pWin = safeNum(cycle.pWin, 0);
@@ -183,10 +195,12 @@ function checkAdaptiveGate(cycle, pWinThreshold, tierRequired) {
         return { passes: false, reason: `Tier=${tier} not in ${tierRequired.join('/')}` };
     }
     
-    // CONVICTION gets slight threshold reduction
+    // 🏆 v109: Hard-enforce floor for ALL tiers
+    // CONVICTION gets slight threshold reduction (-3pp) but never below floor
+    // ADVISORY uses standard threshold but never below floor
     const effectiveThreshold = tier === 'CONVICTION' 
-        ? Math.max(pWinThreshold - 0.03, 0.60)
-        : pWinThreshold;
+        ? Math.max(pWinThreshold - 0.03, PWIN_HARD_FLOOR)
+        : Math.max(pWinThreshold, PWIN_HARD_FLOOR);
     
     // pWin check
     if (pWin < effectiveThreshold) {
@@ -303,6 +317,7 @@ function runThresholdSweep(trainCycles, testCycles, targetWR = 0.90) {
 }
 
 // ==================== FULL SIMULATION ====================
+// 🏆 v109: Uses actual entry prices (entryOdds) from cycle data when available
 function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
     const tierRequired = CONFIG.sweep.tierRequired;
     
@@ -314,6 +329,8 @@ function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
     let losses = 0;
     let currentStreak = 0;
     let maxStreak = 0;
+    let usedActualEntry = 0;
+    let usedFallbackEntry = 0;
     
     for (let i = 0; i < cycles.length; i++) {
         const cycle = cycles[i];
@@ -340,8 +357,28 @@ function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
             stake = CONFIG.maxAbsoluteStake;
         }
         
-        // Simulate trade (assuming 50¢ entry for simplicity)
-        const entryPrice = 0.50;
+        // 🏆 v109: Use actual entry price from cycle data when available
+        // Look for entryOdds, entryPrice, or yesPrice fields
+        let entryPrice = null;
+        const entryOdds = safeNum(cycle.entryOdds, null);
+        const cycleEntryPrice = safeNum(cycle.entryPrice, null);
+        const yesPrice = safeNum(cycle.yesPrice, null);
+        
+        if (entryOdds !== null && entryOdds > 0 && entryOdds < 1) {
+            entryPrice = entryOdds;
+            usedActualEntry++;
+        } else if (cycleEntryPrice !== null && cycleEntryPrice > 0 && cycleEntryPrice < 1) {
+            entryPrice = cycleEntryPrice;
+            usedActualEntry++;
+        } else if (yesPrice !== null && yesPrice > 0 && yesPrice < 1) {
+            entryPrice = yesPrice;
+            usedActualEntry++;
+        } else {
+            // Fallback to 50¢ only if no actual price available
+            entryPrice = 0.50;
+            usedFallbackEntry++;
+        }
+        
         const shares = stake / entryPrice;
         const isWin = cycle.wasCorrect;
         
@@ -369,18 +406,21 @@ function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
             prediction: cycle.prediction,
             outcome: cycle.outcome,
             isWin,
+            entryPrice,  // 🏆 v109: Include actual entry price
             stake,
             pnl,
             bankrollBefore,
             bankrollAfter: bankroll,
             pWin: cycle.pWin,
-            tier: cycle.tier
+            tier: cycle.tier,
+            entrySource: entryOdds !== null ? 'ACTUAL' : 'FALLBACK'
         });
         
         // Log significant events
         if (trades.length <= 20 || bankroll >= 100 || bankroll < 0.5) {
             const icon = isWin ? '✅' : '❌';
-            console.log(`${icon} #${trades.length} ${cycle.asset} ${cycle.prediction} | ` +
+            const entryNote = entryPrice !== 0.50 ? ` @${(entryPrice * 100).toFixed(0)}¢` : '';
+            console.log(`${icon} #${trades.length} ${cycle.asset} ${cycle.prediction}${entryNote} | ` +
                        `Stake: $${stake.toFixed(2)} | P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | ` +
                        `Balance: $${bankroll.toFixed(2)}`);
         } else if (trades.length === 21) {
@@ -398,7 +438,13 @@ function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
         winRate: trades.length > 0 ? wins / trades.length : 0,
         maxStreak,
         totalCycles: cycles.length,
-        tradesPerDay: (trades.length / cycles.length) * 96
+        tradesPerDay: (trades.length / cycles.length) * 96,
+        // 🏆 v109: Entry price statistics
+        entryStats: {
+            usedActualEntry,
+            usedFallbackEntry,
+            actualEntryPct: trades.length > 0 ? ((usedActualEntry / trades.length) * 100).toFixed(1) + '%' : 'N/A'
+        }
     };
 }
 
@@ -472,7 +518,7 @@ function main() {
         }
     }
     
-    console.log('🔮 POLYPROPHET v106 - ADAPTIVE FREQUENCY BACKTEST');
+    console.log('🔮 POLYPROPHET v109 - ADAPTIVE FREQUENCY BACKTEST');
     console.log('━'.repeat(50));
 
     if (!dataPath) {
@@ -508,8 +554,8 @@ function main() {
     const trainCycles = cycles.slice(0, splitIdx);
     const testCycles = cycles.slice(splitIdx);
     
-    console.log(`\n⚠️ NOTE: Bankroll simulation uses simplified assumptions (fixed 50¢ entry).`);
-    console.log(`   Real results will vary. Focus on FREQUENCY and WIN RATE metrics.`);
+    console.log(`\n⚠️ NOTE: Bankroll simulation now uses ACTUAL entry prices when available.`);
+    console.log(`   Falls back to 50¢ only when cycle lacks entryOdds/entryPrice/yesPrice.`);
     
     if (true) {  // Always do sweep for v105
         const sweep = runThresholdSweep(trainCycles, testCycles, targetWR);
@@ -544,11 +590,10 @@ function main() {
             }
             
             console.log('\n' + '─'.repeat(80));
-            console.log('⚠️ DISCLAIMER: Bankroll simulation is ILLUSTRATIVE ONLY.');
-            console.log('   - Assumes fixed 50¢ entry price (real prices vary)');
-            console.log('   - Ignores slippage, fees, and execution timing');
+            console.log('⚠️ DISCLAIMER: Bankroll simulation uses ACTUAL entry prices when available.');
+            console.log(`   - Entry stats: ${sim.entryStats.actualEntryPct} actual prices, ${sim.entryStats.usedFallbackEntry} fallbacks`);
+            console.log('   - Does not include slippage or taker fees');
             console.log('   - Past performance does not guarantee future results');
-            console.log('   - FOCUS ON: Win rate and trades/day metrics');
             console.log('─'.repeat(80));
             
             // Per-asset and per-tier breakdown
