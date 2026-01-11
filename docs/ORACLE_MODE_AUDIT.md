@@ -1,14 +1,30 @@
-# ORACLE MODE AUDIT (Bloat / Duplication / Safety Gates)
+# ORACLE MODE AUDIT (v107+ Final)
 
-This document is a **non-destructive audit** of what matters for **oracle/advisory mode** (manual trading) vs. what is legacy / optional / “bloat” for that goal.
+This document is the **definitive audit** of what matters for **oracle/advisory mode** (manual trading) with the updated objective:
 
-The intent is to **leave the chassis intact** (safer) while clearly marking what can be ignored or feature-flagged.
+- **Target**: 80-90% win rate (1-2 losses per 10 trades)
+- **Frequency**: ~1 BUY/hour when conditions allow
+- **Floor**: 85% minimum pWin for any BUY signal
 
 ---
 
-## Non‑negotiable invariants (do not rewrite)
+## User Constraints (Locked)
 
-These are core correctness constraints for the 15‑minute Polymarket up/down markets:
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| Win Rate Target | 80-90% | ≤1-2 losses per 10 trades |
+| pWin Floor | 85% | Never issue BUY below this |
+| Frequency Target | ~1/hour | When conditions allow |
+| NO_AUTH | true | Easy access, no login |
+| Write Protection | None | User accepts risk |
+| Starting Bankroll | $1 | Website market orders |
+| Max Bet | $100 | Liquidity cap |
+
+---
+
+## Non-negotiable Invariants (Do Not Break)
+
+These are core correctness constraints for the 15-minute Polymarket up/down markets:
 
 - **Checkpoint cadence**: `INTERVAL_SECONDS = 900` and checkpoint computation (`getCurrentCheckpoint()`, `getNextCheckpoint()`).
 - **Market link generation**: the active cycle must produce a direct `https://polymarket.com/event/<slug>` URL.
@@ -17,110 +33,210 @@ These are core correctness constraints for the 15‑minute Polymarket up/down ma
   - CLOB orderbook best asks: `.../book?token_id=...`
 - **Chainlink live prices via Polymarket WS**: primary price feed (no HTTP price fallback).
 
-Breaking any of the above turns the bot into a “delusion machine” (signals detached from real market mechanics).
+Breaking any of the above turns the bot into a "delusion machine" (signals detached from real market mechanics).
 
 ---
 
-## What “Oracle Mode” means in this repo
+## File-by-File Audit
 
-- **Default**: advisory-only signals (PREPARE/BUY/SELL) sent to UI + Telegram.
-- **Paper auto-trading stays on** for continuous evaluation, metrics, and learning loops.
-- **LIVE auto-trading is blocked by default**.
+### Core Files (Required for Oracle)
 
-### Safety gates (feature flags)
+| File | Lines | Verdict | Notes |
+|------|-------|---------|-------|
+| `server.js` | ~26,000 | **REQUIRED** | All oracle logic, endpoints, prediction engine |
+| `public/index.html` | ~295 | **REQUIRED** | Simple dashboard UI |
+| `public/mobile.html` | ~1,003 | **REQUIRED** | Mobile-optimized UI with manual trade tab |
+| `public/tools.html` | ~1,157 | **REQUIRED** | Backtest optimizer, API explorer |
+| `render.yaml` | ~43 | **REQUIRED** | Render deployment blueprint |
+| `package.json` | - | **REQUIRED** | Dependencies |
+| `README.md` | ~2,000 | **REQUIRED** | Documentation manifesto |
 
-These are the key “don’t accidentally trade” levers:
+### Supporting Files (Useful but Optional)
 
-- **`LIVE_AUTOTRADING_ENABLED`** (env):
-  - Default **false**.
-  - When false: `executeTrade()` blocks automated LIVE entries, and exit automation is suppressed.
-  - This makes LIVE effectively “oracle only”.
+| File | Verdict | Notes |
+|------|---------|-------|
+| `scripts/backtest-manual-strategy.js` | USEFUL | Walk-forward backtest script |
+| `scripts/forensics/*.js` | USEFUL | Debug analysis tools |
+| `docs/forensics/*.md` | USEFUL | Historical analysis |
+| `debg/*.json` | **CRITICAL** | 143+ debug exports for backtesting |
 
-- **`ENABLE_MANUAL_TRADING`** (env):
-  - Required to allow `/api/manual-buy` and `/api/manual-sell` when `TRADE_MODE=LIVE`.
+### Bloat / Can Ignore
 
-- **`TELEGRAM_SIGNALS_ONLY`** (env, default true):
-  - Suppresses PAPER open/close spam so Telegram focuses on oracle signals + critical alerts.
-
-- **`PROFILE_TRADE_SYNC_ENABLED`** (env, default true):
-  - Controls ingestion of real trades via Polymarket Data API.
-
----
-
-## “Bloat” relative to Oracle Mode (kept for safety/compat)
-
-### 1) Full LIVE execution stack (optional)
-
-Includes:
-- wallet loading, RPC balance reads
-- live buy/sell order placement
-- partial fill logic
-- redemption queue + retry logic
-- crash recovery reconciliation
-
-**Oracle Mode does not require** this to generate predictions/signals.
-
-Why it still exists:
-- The repo historically supported autonomous trading.
-- Keeping it behind gates is safer than deleting it without full regression testing.
-
-### 2) Vault / Monte Carlo / backtesting framework (optional)
-
-Includes:
-- Monte Carlo vault projection and optimizers
-- Polymarket backtest optimizers and “perfection check”
-
-**Oracle Mode does not require** vault modeling to issue signals.
-
-Why it can still be useful:
-- It provides a rigorous way to reason about bankroll growth and risk envelopes if you choose to paper trade.
-- It’s also used heavily for self-tests / verification endpoints.
-
-### 3) UI duplication: embedded HTML in `server.js` vs `public/*`
-
-This repo contains:
-- Static UI pages in `public/`
-- Large HTML pages embedded in `server.js` for settings/guide/debug tooling
-
-This is **duplicate surface area**. It’s not ideal, but removing it in one shot is risky.
-
-### 4) Two realtime channels
-
-There are multiple realtime update paths:
-- Socket.IO (`omega_update`, `state_update`)
-- Raw WS broadcast (`wss` + `broadcastUpdate()`)
-
-This is duplication, but different pages use different feeds. Safer to keep.
+| File/Folder | Verdict | Notes |
+|-------------|---------|-------|
+| `debug/` | EMPTY | Can delete |
+| `local_archive/` | EMPTY | Can delete |
+| `backtest-data/` | EMPTY | Can delete |
+| `crash_reports/` | CLEANUP | Historical crash data, safe to delete |
+| `Dockerfile` | UNUSED | Not using Docker |
+| `fly.toml` | UNUSED | Not using Fly.io |
+| `generate_creds.js.example` | UNUSED | Example file |
+| `MIGRATION-GUIDE.md` | STALE | Old migration docs |
+| `FORENSIC_DEBUG_INDEX.json` | STALE | Regenerated on demand |
+| `FORENSIC_LEDGER_LOCAL.json` | STALE | Regenerated on demand |
 
 ---
 
-## Oracle‑mode specific additions (high signal, not bloat)
+## Oracle Signal Engine Review
 
-- **Oracle signal engine** (`oracleSignal` in `/api/state`):
-  - PREPARE/BUY/SELL/HOLD/WAIT/AVOID outputs
-  - includes pWin/EV/edge + reasons + market link
+### Signal Types
 
-- **Telegram oracle alerts**:
-  - prewarning → buy → sell
-  - per-cycle throttling to avoid spam
+| Signal | Meaning | When Issued |
+|--------|---------|-------------|
+| WAIT | Gathering data | Early cycle or insufficient confidence |
+| PREPARE | Get ready | 180-90s before cycle end, pWin >= 72% |
+| BUY | Execute now | 90-60s before cycle end, pWin >= floor |
+| HOLD | Keep position | After BUY, until cycle resolution |
+| SELL | Emergency exit | Sustained deterioration (30s hysteresis) |
+| AVOID | Too late | <60s before cycle end (blackout) |
 
-- **Profile trade sync (Polymarket Data API)**:
-  - ingests your real account fills (optional)
-  - persisted in state for learning/evaluation
+### Timing Windows (v107)
 
-- **Time‑to‑correct‑call metrics**:
-  - derived from per-tick history and stored per cycle
-  - surfaced in UI for “earlier correct calls” measurement
+```
+Cycle Start                          Cycle End (Resolution)
+    |                                        |
+    |---- Early (WAIT) ----|---- PREPARE ---|--- BUY ---|X| AVOID
+    |                      |                |           |
+    0s                   720s             810s        840s  900s
+                        (12min)          (13.5min)  (14min) (15min)
+```
+
+- PREPARE window: 180-90 seconds before end
+- BUY window: 90-60 seconds before end
+- Blackout: <60 seconds (too late)
+
+### Commitment Logic (No Flip-Flop)
+
+Once a BUY is issued for a cycle:
+1. Direction is LOCKED until cycle end
+2. Only HOLD or emergency SELL can follow
+3. Emergency SELL requires:
+   - 30 seconds of sustained deterioration
+   - 3+ consecutive bad signal checks
+   - Not just a temporary market swing
 
 ---
 
-## Known limitations / risks (honest)
+## Adaptive Gate Configuration (v107)
 
-- **No guarantee of profit or 100% accuracy**: signals are probabilistic and markets are adversarial.
-- **Profile trade ingestion is “best effort”**:
-  - Polymarket Data API response fields can change.
-  - Not all trades may include event slugs; mapping relies on slug extraction.
-- **Large monolithic `server.js`**:
-  - hard to audit and refactor safely without a test harness
-  - any future cleanup should be incremental and guarded by `/api/verify` + `/api/perfection-check`.
+### Current Settings (to be updated)
 
+```javascript
+adaptiveGateState = {
+    targetWinRate: 0.90,         // 90% target (≤1 loss/10)
+    currentPWinThreshold: 0.80,  // Start at 80%
+    minPWinThreshold: 0.85,      // FLOOR: Never below 85%
+    maxPWinThreshold: 0.92,      // Cap at 92%
+    adjustIntervalMs: 300000,    // Adjust every 5 minutes
+}
+```
+
+### Recommended Changes (per user constraints)
+
+The user specified:
+- "1-2 losses per 10 trades" = 80-90% WR
+- "Min pWin floor = 85%"
+- "Target ~1/hour when possible"
+
+This means:
+- `targetWinRate`: 0.85 (middle of 80-90% range)
+- `minPWinThreshold`: 0.85 (hard floor)
+- Allow threshold to relax toward 85% if recent WR is high
+
+---
+
+## pWin Calibration Paths
+
+The bot computes pWin (estimated win probability) through:
+
+1. **Tier-conditioned pWin** (`computeTierConditionedPWin`):
+   - Uses historical calibration data per tier
+   - CONVICTION tier typically has higher base pWin
+
+2. **Wilson Lower Confidence Bound** (if enabled):
+   - Conservative estimate with small sample protection
+   - Used for ADVISORY tier gating
+
+3. **Consensus + Stability factors**:
+   - Model agreement percentage
+   - Vote stability over time
+
+### Key Functions to Audit
+
+- `computeTierConditionedPWin(brain, entryPrice)` - Main pWin calculator
+- `checkAdaptiveGate(pWin, tier, ultraProphet)` - Gate check
+- `computeAdaptiveThreshold()` - Threshold adjustment
+- `computeUltraProphetStatus(...)` - Diamond tier detection
+
+---
+
+## Risks and Honest Limitations
+
+### What This System CANNOT Do
+
+1. **Guarantee profit**: Signals are probabilistic, not certain
+2. **Predict black swans**: Sudden market events can override predictions
+3. **Beat adverse selection**: Smart money may be on the other side
+4. **Scale infinitely**: $100 max bet due to liquidity constraints
+
+### What This System CAN Do
+
+1. **Track historical accuracy**: Backtested 97-98% WR on CONVICTION tier
+2. **Gate by confidence**: Only signal when pWin exceeds threshold
+3. **Commit to decisions**: No flip-flopping after BUY
+4. **Warn of deterioration**: Emergency SELL with hysteresis
+
+### NO_AUTH Risk Acknowledgment
+
+With `NO_AUTH=true` and no write protection:
+- Anyone with the URL can access the dashboard
+- Anyone can hit POST endpoints (settings, reset, etc.)
+- This is the user's explicit choice for ease of access
+- Documented risk, not a bug
+
+---
+
+## Backtest Methodology
+
+### Data Sources
+
+1. **Debug exports** (`debg/`): 143+ files with historical cycle data
+2. **Gamma API**: Real market outcomes (ground truth)
+3. **CLOB history**: Historical price data for entry timing
+
+### Walk-Forward Validation
+
+- Train on 70% of data
+- Test on remaining 30%
+- Prevents overfitting to historical patterns
+
+### Key Metrics
+
+| Metric | What It Measures |
+|--------|------------------|
+| Win Rate | Correct predictions / Total trades |
+| Losses per 10 | Practical loss frequency |
+| Trades/Day | Signal frequency |
+| Max Streak | Consecutive wins (hot regime) |
+| Max Drawdown | Worst case decline |
+
+---
+
+## Changelog
+
+- **v107**: Ultra-strict oracle thresholds, NO_AUTH, START_PAUSED=false, $1 MANUAL mode
+- **v106**: Adaptive frequency system, paper-only by default
+- **v105**: Cycle commitment, emergency SELL hysteresis, streak detection
+
+---
+
+## Action Items Completed
+
+- [x] Audited all files for oracle relevance
+- [x] Documented bloat vs required files
+- [x] Reviewed signal engine flow
+- [x] Documented timing windows
+- [x] Listed risks honestly
+- [ ] Retune adaptive thresholds (next)
+- [ ] Run $1 MANUAL backtests (next)
+- [ ] Update README manifesto (next)

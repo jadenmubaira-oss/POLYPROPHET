@@ -8519,7 +8519,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 107;  // v107: Ultra-strict oracle (95% WR target, 80% pWin start, 75% min), NO_AUTH, MANUAL order mode, START_PAUSED
+const CONFIG_VERSION = 108;  // v108: User-tuned oracle (85% WR target, 85% pWin floor, ~1/hour frequency), NO_AUTH, $1 MANUAL mode
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8617,9 +8617,9 @@ const CONFIG = {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale
         minElapsedSeconds: 60,   // 1 min - catch VERY early
-        // 🏆 v107: ULTRA-STRICT - Raised consensus for maximum accuracy
-        minConsensus: 0.75,      // 🏆 v107: 75% model agreement (was 70%)
-        minConfidence: 0.82,     // 🏆 v107: 82% entry threshold (was 80%)
+        // 🏆 v107.1: Aligned with 85% pWin floor for 80-90% WR target
+        minConsensus: 0.72,      // 72% model agreement (balanced for ~1/hour)
+        minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
         // 🏆 v58 TRUE OPTIMAL: pWin-gated entries allow profitable <50¢ trades
         // Raw calibration shows <50¢ = 28% WR, BUT high-pWin <50¢ trades WIN
@@ -8632,10 +8632,10 @@ const CONFIG = {
         // NOTE: voteTrendScore is a 0..1 metric (based on leader flip rate), not "ticks".
         // This threshold is used ONLY by the oracle advisory signal layer (PREPARE/BUY/SELL),
         // not by the core prediction debounce logic.
-        // 🏆 v107: Raised minVoteStability for maximum signal certainty
+        // 🏆 v107.1: Balanced minVoteStability for 80-90% WR with ~1/hour frequency
         minVoteStability: Number.isFinite(parseFloat(process.env.ORACLE_MIN_VOTE_STABILITY))
             ? Math.max(0, Math.min(1, parseFloat(process.env.ORACLE_MIN_VOTE_STABILITY)))
-            : 0.85,  // Was 0.80
+            : 0.80,  // Balanced for frequency
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
         // The bot automatically switches regimes based on Confidence Volatility (StdDev)
@@ -9430,22 +9430,25 @@ let primaryBuyState = {
 // Replaces the old ULTRA-only mode with a dynamic threshold system.
 // ═══════════════════════════════════════════════════════════════════════════════
 let adaptiveGateState = {
-    // 🏆 v107: ULTRA-STRICT TARGET - Cannot afford losses with $1 bankroll
-    // Target: ≤1 loss per 20 trades = 95% min WR (was 90%)
-    targetWinRate: 0.95,
+    // 🏆 v107.1: USER CONSTRAINT - 1-2 losses per 10 trades = 80-90% WR
+    // Target: middle of range = 85%
+    targetWinRate: 0.85,
     // Rolling window for adaptive threshold (last N oracle signals with known outcomes)
     recentOracleSignals: [],  // [{ asset, direction, pWin, tier, isWin, timestamp }]
     maxRecentSignals: 50,
-    // 🏆 v107: CONSERVATIVE START - Start at 80% threshold (was 75%)
-    currentPWinThreshold: 0.80,  // Start at 80%, adapts based on performance
-    minPWinThreshold: 0.75,      // 🏆 v107: Never go below 75% (was 65%)
-    maxPWinThreshold: 0.92,      // 🏆 v107: Cap at 92% (was 88%)
+    // 🏆 v107.1: USER CONSTRAINT - 85% floor (never issue BUY below this)
+    currentPWinThreshold: 0.85,  // Start at floor
+    minPWinThreshold: 0.85,      // HARD FLOOR per user: 85% minimum
+    maxPWinThreshold: 0.90,      // Cap at 90% (allows tightening when WR drops)
     // Threshold adjustment rate
     lastThresholdAdjustAt: 0,
     adjustIntervalMs: 300000,    // Adjust every 5 minutes
     // Global rolling stats (all assets combined)
     globalRollingWins: 0,
-    globalRollingTotal: 0
+    globalRollingTotal: 0,
+    // 🏆 v107.1: Frequency target tracking
+    targetTradesPerHour: 1,      // User wants ~1/hour when possible
+    recentTradeTimestamps: []    // Track trade times for frequency monitoring
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -9648,6 +9651,17 @@ function telegramOracleBuy(signal) {
     msg += `📈 If WIN: <code>+${profitUsd}</code> (+${potRoi})\n`;
     msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
+    
+    // 🏆 v108: Add calibration confidence indicator
+    const cal = signal?.calibration;
+    if (cal) {
+        const lockIcon = cal.isLocked ? '🔒' : '🔓';
+        const confIcon = cal.pWinConfidence === 'VERY_HIGH' ? '💎' : 
+                        cal.pWinConfidence === 'HIGH' ? '✨' : 
+                        cal.pWinConfidence === 'MODERATE' ? '📊' : '⚠️';
+        msg += `${lockIcon} ${cal.isLocked ? 'LOCKED' : 'MOVABLE'} | ${confIcon} Conf: <code>${cal.pWinConfidence}</code>\n`;
+    }
+    
     if (stake.tradesToMillion < 100) {
         msg += `🚀 ~${stake.tradesToMillion} trades to $1M\n`;
     }
@@ -23660,6 +23674,44 @@ function updateOracleSignalForAsset(asset) {
         }
 
         // ═══════════════════════════════════════════════════════════════════════════════
+        // 🏆 v108: CALIBRATION DIAGNOSTICS - "Locked vs Movable" reasoning
+        // Expose why the prediction is trustworthy (or not) for manual trading decisions.
+        // ═══════════════════════════════════════════════════════════════════════════════
+        const calibrationSampleSize = adaptiveGateState.globalRollingTotal || 0;
+        const predictionLocked = stable && brain?.oracleLocked === true;
+        const couldFlip = !predictionLocked && timeLeftSec > 120;  // Still movable if >2min left and not locked
+        
+        signal.calibration = {
+            // Is the prediction locked (committed) or could it still change?
+            isLocked: predictionLocked,
+            couldFlip,
+            lockReason: predictionLocked 
+                ? `Direction locked (stability=${voteStability.toFixed(2)}, oracleLocked=${brain?.oracleLocked})` 
+                : (couldFlip ? `Still early - direction could change (${timeLeftSec}s left, stability=${voteStability.toFixed(2)})` : 'Near end but not locked'),
+            // pWin confidence level
+            pWinConfidence: !Number.isFinite(pWin) ? 'UNKNOWN' : 
+                           pWin >= 0.90 ? 'VERY_HIGH' :
+                           pWin >= 0.85 ? 'HIGH' :
+                           pWin >= 0.80 ? 'MODERATE' :
+                           pWin >= 0.70 ? 'LOW' : 'VERY_LOW',
+            // Sample size for calibration
+            sampleSize: calibrationSampleSize,
+            sampleSizeAdequate: calibrationSampleSize >= 20,
+            // Why this pWin should be trusted (or not)
+            trustReason: calibrationSampleSize < 10 
+                ? '⚠️ Low sample size - pWin estimate less reliable'
+                : calibrationSampleSize < 20
+                ? 'Moderate sample - pWin estimate somewhat reliable'
+                : 'Adequate sample - pWin estimate reliable',
+            // Tier explains base accuracy
+            tierNote: signal.tier === 'CONVICTION' ? 'CONVICTION tier = highest historical accuracy' :
+                     signal.tier === 'ADVISORY' ? 'ADVISORY tier = moderate historical accuracy' : 'Low tier = use caution'
+        };
+        
+        // Add calibration summary to reasons
+        signal.reasons.push(`📊 ${signal.calibration.isLocked ? '🔒 LOCKED' : '🔓 MOVABLE'}: ${signal.calibration.lockReason.substring(0, 50)}`);
+
+        // ═══════════════════════════════════════════════════════════════════════════════
         // 🔒 v105: CYCLE COMMITMENT CHECK (No flip-flop)
         // If we already committed to a direction this cycle, honor it.
         // Only allow emergency exit under sustained deterioration.
@@ -23700,8 +23752,8 @@ function updateOracleSignalForAsset(asset) {
                     signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
                 }
                 if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
-            } else if (inPrepareWindow && Number.isFinite(pWin) && pWin >= 0.72) {
-                // 🏆 v107: PREPARE window raised to 72% (was 65%) for higher quality alerts
+            } else if (inPrepareWindow && Number.isFinite(pWin) && pWin >= 0.75) {
+                // 🏆 v107.1: PREPARE threshold 75% (below BUY floor of 85%) for early warning
                 signal.action = 'PREPARE';
                 const gateStatus = adaptiveGate.passes 
                     ? '✅ Gate passes - BUY coming soon'

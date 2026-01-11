@@ -4,29 +4,31 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v107 ULTRA-STRICT ORACLE**: Maximum accuracy mode - designed for $1 manual trading.
-> - **95% WIN RATE TARGET**: Cannot afford losses with micro-bankroll (raised from 90%)
-> - **$1 MANUAL TRADING**: Website market orders support $1 minimum (not CLOB's 5-share min)
-> - **NO_AUTH MODE**: Set `NO_AUTH=true` for easy access (no login prompts)
-> - **START_PAUSED=false**: Paper auto-trading enabled by default on deploy
-> - **80% pWin THRESHOLD**: Conservative start (raised from 75%)
-> - **HOLD-TO-RESOLUTION**: Once you BUY, default is HOLD until cycle ends
-> - **EMERGENCY SELL ONLY**: Exit only under sustained deterioration (30s hysteresis)
-> - **BACKTEST $1 FIX**: Use `orderMode=MANUAL` for realistic $1-start backtests
+> **v108 USER-TUNED ORACLE**: Balanced accuracy + frequency for manual trading from $1.
+> - **85% WIN RATE TARGET**: 1-2 losses per 10 trades (user-specified)
+> - **85% pWin FLOOR**: Never issues BUY below this threshold
+> - **~1 BUY/HOUR TARGET**: When market conditions allow
+> - **$1 MANUAL TRADING**: Website market orders support $1 minimum
+> - **NO_AUTH=true**: Easy access, no login prompts
+> - **START_PAUSED=false**: Paper auto-trading enabled on deploy
+> - **CALIBRATION DIAGNOSTICS**: Signals show "LOCKED vs MOVABLE" status
 
 ---
 
-## 🎯 v107: ULTRA-STRICT ACCURACY MODE
+## 🎯 v108: USER-TUNED ORACLE MODE
 
-v107 raises all thresholds for **maximum prediction accuracy** - designed for manual trading from $1:
+v108 is tuned to the user's explicit constraints for manual trading from $1:
 
-- **Targets ≤1 loss per 20 trades** (~95% win rate floor, raised from 90%)
-- **75% minimum pWin** threshold (raised from 65%)
-- **80% starting pWin** threshold (raised from 75%)
-- **92% maximum pWin** cap (raised from 88%)
-- **85% vote stability** required (raised from 80%)
-- **75% model consensus** required (raised from 70%)
-- **82% confidence** entry threshold (raised from 80%)
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| **Win Rate Target** | 85% | 1-2 losses per 10 trades |
+| **pWin Floor** | 85% | Hard minimum for BUY signals |
+| **pWin Start** | 85% | Conservative starting threshold |
+| **pWin Max** | 90% | Cap for tightening |
+| **PREPARE Threshold** | 75% | Early warning (below BUY floor) |
+| **Model Consensus** | 72% | Balanced for frequency |
+| **Vote Stability** | 80% | Balanced for frequency |
+| **Frequency Target** | ~1/hour | When conditions allow |
 
 ### Backtest Results (2,546 unique cycles, deduped from Dec 2025 debug exports)
 
@@ -64,37 +66,38 @@ Focus on **win rate** and **trades/day** as the reliable metrics.
 ### How It Works
 
 1. **Timing Windows**:
-   - **PREPARE**: 3-1.5 minutes before cycle end (get ready, pWin ≥ 72%)
-   - **BUY**: 1.5-1 minute before end (execute now)
+   - **PREPARE**: 3-1.5 minutes before cycle end (get ready, pWin ≥ 75%)
+   - **BUY**: 1.5-1 minute before end (execute now, pWin ≥ 85%)
    - **AVOID**: <60 seconds (blackout, too late)
 
-2. **Ultra-Strict Adaptive Threshold** (v107):
-   - Starts at **80%** pWin threshold (conservative)
-   - Relaxes to **75%** if recent WR > 95%
-   - Tightens to **92%** if recent WR < 85%
-   - **Never drops below 75%** (safety floor)
+2. **Adaptive Threshold** (v108):
+   - Starts at **85%** pWin threshold (user's hard floor)
+   - **Never drops below 85%** (hard constraint)
+   - Tightens to **90%** if recent WR drops below 85%
+   - Adjusts every 5 minutes based on rolling performance
 
-3. **Tier Bonus**:
-   - CONVICTION tier gets -3% threshold reduction
-   - ADVISORY tier uses standard threshold
+3. **Calibration Diagnostics** (v108):
+   - Signals include `calibration.isLocked` (true = direction committed)
+   - `calibration.couldFlip` warns if direction might still change
+   - `calibration.pWinConfidence` shows VERY_HIGH/HIGH/MODERATE/LOW
+   - Telegram messages show 🔒 LOCKED or 🔓 MOVABLE status
 
-4. **$1 Manual Trading Mode** (v107):
+4. **$1 Manual Trading Mode**:
    - Use `orderMode=MANUAL` in backtests for website market orders ($1 min)
    - CLOB mode (default) uses 5-share minimum (price-dependent)
 
 ---
 
-## 🔒 v107: PAPER AUTO-TRADING + NO AUTH
+## 🔒 v108: NO_AUTH + PAPER AUTO-TRADING
 
 By default, POLYPROPHET operates in **PAPER mode** with auto-trading enabled:
 
-- **START_PAUSED=false**: Paper trading starts automatically (no manual unpause needed)
-- **NO_AUTH=true**: Easy access - no login prompts for your personal deployment
+- **START_PAUSED=false**: Paper trading starts automatically
+- **NO_AUTH=true**: Easy access - no login prompts
 - **ENABLE_LIVE_TRADING**: Must be set to `1` explicitly for any LIVE trading
-- **LIVE without opt-in**: Forced to PAPER with warning in logs and `/api/version`
-- **Drift Alerts**: Telegram notification when win rate drops below target (auto-tightens thresholds)
+- **Drift Alerts**: Telegram notification when win rate drops below target
 
-### Environment Variables (v107)
+### Environment Variables (v108)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -104,6 +107,17 @@ By default, POLYPROPHET operates in **PAPER mode** with auto-trading enabled:
 | `PAPER_BALANCE` | `5.00` | Starting paper balance |
 | `TELEGRAM_BOT_TOKEN` | - | Your Telegram bot token |
 | `TELEGRAM_CHAT_ID` | - | Your Telegram chat ID |
+
+### ⚠️ NO_AUTH Risk Acknowledgment
+
+With `NO_AUTH=true` and **no write protection**:
+- Anyone with the URL can access the dashboard and all GET endpoints
+- Anyone can hit POST endpoints (settings, reset-balance, manual-buy, etc.)
+- This is the user's explicit choice for ease of access
+
+**This is documented, not a bug.** If you deploy publicly and want protection, set:
+- `NO_AUTH=false` to re-enable Basic Auth
+- Or add firewall rules to restrict access
 
 ### Why Paper-Only Default?
 

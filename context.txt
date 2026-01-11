@@ -1,0 +1,314 @@
+new way/path forward,  we have just been wallet drained- - i am going to trade manually instead now- the focus should now be more on the actual prediction system, the evolution system, the trade system (paper) (when to place, what to place) etc.
+
+i still want max profit asap, 
+
+but what i want even more is correct prediction from the bot on each asset etc - on AS MANY ROUNDS/CYCLES AS POSSIBLE
+jeed — Yesterday at 02:00
+it should act as an oracle /prophet/deity etc, it should be right on most cycles + choose a good time to trade as well, as if it were trading(but it won’t be)
+
+as trades are going to be taken manually - it would be nice to have prewarning- through telegram bot etc when the bot thinks there’s going to be a good cycle to trade on.
+jeed — Yesterday at 03:15
+So the objective will still be max profit asap with min variance, but in addition to that we need the greatest prediction system
+
+i’m going to link polymarket docs, make sure to ingest absolutely all of them, every last character of every last page till you 100% understand the full docs.
+
+then i’d like you to watch a 15 min polymarket cycle or 2.
+
+after that, look through the whole bot-both locally and on the repo, analyse every single character of every single file from start to finish without skipping anything 
+mainish questions/points- evolution logic, prediction logic, and anything else not mentioned, are they perfect or as close to perfect for our situation as possible 
+jeed — Yesterday at 08:42
+trading logic etc, is that also perfect for our needs?
+jeed — Yesterday at 09:06
+i would also like you, during your scan of every single file, to mark out any bloat/unnecessary bullshit, duplicate lines etc
+jeed — Yesterday at 09:40
+so we can filter this down to just the stuff we need
+THE NEW - manual trading, is going to start at $1
+
+and i’m going to need you to reference the 5 to 1 million table again, we are going to have to go all in on that dollar etc and keep doubling/flipping until we get to a certain point, 
+
+the first few predictions etc HAVE TO be 100% correct
+
+ideally
+as if not then we will be ruined straight away
+take a look at everything/consider everything and then formulate the best way through
+the emphasis is going to be taken off the bot trading for me- and placed more on the bot telling me what outcome + when to trade (with prewarning)
+
+ideally the telegram notifications will give me a link to the market i should prepare to buy/predict with fair warning, and then tell me again when to buy + when to sell etc
+this is going to be the oracle/prophet etc guiding myself
+jeed — Yesterday at 10:45
+ideally username etc, but i’ll do any option - profile etc.
+
+could be both but ideally easiest
+
+
+polymarket itself will already track p/l etc so the emphasis isn’t on that as much as the actual prediction/learning + trading (timing/rightness/calls) etc
+jeed — Yesterday at 12:49
+now do a full check over everything
+jeed — Yesterday at 12:59
+ULTRATHINK , 
+MAKE SURE THAT THIS IS TRULY THE FINAL AND BEST ANSWER, Make sure to do full and final verification of absolutely everything - back to the field analogy, you must dig up that field down to the earths core- and now even the surrounding fields around it down to the earths core- and analysing absolutely every molecule and atom.
+
+Ideally even analyse a cycle itself on polymarket etc(for each asset), and make sure to truly decide on whether this is the best way forward - make sure to analyse absolutely EVERYTHING, how the markets work, share prices and different points etc, absolutely everything -
+
+
+
+assume that at any point your work/response could be cut off so make it a necessity to keep any running chain of thought ideally.
+
+
+are there definitely no more issues/possible issues etc?
+if you truly look at the engine, and consider absolutely everything, is it truly the best piece of work for our needs?
+
+
+it will actually buy + sell etc?
+
+you notice how many times/how rigorous i’ve been in asking these checks, you need to use that as an amplifier - truly understand the gravity of carrying out these checks with absolute and unyielding precision.
+
+make sure to leave absolutely no stone unturned, 
+if you were searching a field, it would be like you digging up the entire field down to the earths core, and then analysing every single grain of dirt from the surface to the earths core, and then analysing every single atom, molecule etc. That is the level of depth you need to go into for this final scan/analysis.
+Think about the polymarket situation as a whole + what we are trying to do - is this the best way to do it? can we do it better etc? What are the markets like etc ?
+
+you need to ask yourself almost an infinite amount of questions to do with every single aspect of both the bot and the polymarket situation in general . And then ask yourself whether this is the answer to each of those almost infinite questions.
+
+you need to reflect this in the readme as well, just running api checks etc IS NOT ENOUGH, you must deconstruct almost every single character /line of the server to ensure that it does exactly what we want it to/if helps either goal.
+
+Following this kind of scrutiny etc, you just go ahead and literally become the god/deity overlooking this whole situation, and build your masterpiece/universe.
+THIS HAS TO BE THE LAST AND FINAL POSSIBLE ITERATION
+
+IT MUST NOT BE POSSIBLE TO IMPROVE THE BOT FOR GOALS ETC AFTER THIS (As it will have reached the absolute ceiling)
+
+you are not constrained to just the things i have said/mentioned etc, you must think for yourself + think for me and take initiative- you are the architect/designer/god, so you must be the one to consider +plan/think about absolutely EVERYTHING
+REMEMBER TO THINK ABOJT MY NEW GOALS- backtest(accuracy over x amount of time, predictions over x amount of time etc and tell me how much i could’ve made in that starting from 1£ , tell me what price i would’ve bought etc in backtest.
+
+
+bot can also tell me to pull out early etc if it thinks prediction is wrong , BUT i would ideally like bot to only say place a trade when fairly certain/incredibly sure.
+
+I do want high frequency/very high but once again min variance 
+make sure to research the whole polymarket docs page as well just for any extra info etc that may help, search up online for anymore extra info as well (provided that it is trustable/legit) Make sure to think as hard as possible to ensure this is legit. 
+
+Once again you cannot just look at 1 system or thing etc, you have to LOOK ABSOLUTELY ANYWHERE AND EVERYWHERE 
+jeed — Yesterday at 13:07
+make sure this is how i want it, make sure to read all of readme + every other file in root.
+
+Have a look/analyse every single version of the bot from v1(first commit/commit 1) till now ~v99 (~commit 200+)
+
+make sure you truly 100% understand my goal now+ you have absolutely all information required to build the pinnacle/ supreme bot/deity 
+MAKE SURE TO READ AND ANALYSE ABSOLUTELY EVERYTHING + anything else
+Take as long as you need, use any tools necessary, think as much as you need, do whatever is needed, by any means necessary
+ASK ME QUESTIONS IF YOU NEED TO ASK ME QUESTIONS, PLAN IF YOU NEED TO PLAN ETC, YOU HVE ABSOLUTELY FULL SCOPE, no guardrails, no holding back
+jeed — Yesterday at 19:11
+cursor ide keeps crashing, i am currently on another chat doing a big project and halfway through each response the cursor IDE keeps crashing with out of memory error. diagnose + stop this error from happening again
+jeed — Yesterday at 19:38
+$1 only, that’s the minimum on polymarket to buy (technically 5 shares is the very minimum if buying at limit price)
+
+yes i do - 8552411572:AAFGh-DkhrO4cpr4DdaCDwVokvWErVy_-xM
+
+2071930346
+
+yes strict only
+
+3 minutes sounds ok, decide what’s best for me
+
+yes, AS LONG AS THEY’RE RIGHT, if i LOSE THEN I’LL LOSE IT ALL
+
+remember the 5 to 1 million + 10 to 1 million tables 
+jeed — Yesterday at 21:26
+now let’s do a full reanalysis /final check etc, 
+
+does this fully align with new goals? 
+
+will the bot actually trade???
+
+backtest our new strategy and tell me how much we made
+
+the prediction system itself, is it truly the best it can be for my use case??
+
+also bear in mind, liquidity in these markets is only so high, so i want to make max prediction amount $100, once we get to that point its only $100 max per prediction
+
+
+you’re looking for very low entries which may not come?? 
+i was thinking buying at any price (usually ~>50c) then compounding like that possibly??
+
+but you need to consider absolutely everything, every strategy etc.
+
+another one i was considering is the death bounce, sometimes closer to the end of a cycle , when odds are really high for one side, you can buy the other side at very cheap ~ 2-10c and then sometimes the uncertainty will bring the price of the lower side up.
+
+
+also are the up/down  odds streaming in realtime??
+
+what i’d like you to do is another FULL analysis over absolutely everything, and then determine the final and best answer for me
+
+i would like you to get data from polymarket cycles as well (you are authorised to do this by any means) and then tRULY ANALYSE/ULTRATHINK about everything within that 15 min cycle. EVERYTHING
+the overall accuracy of the prediction system has been getting worse over time - remember that this is the crux of our project .
+
+This isn’t simply about the trades anymore , it’s about being RIGHT AS MUCH AS POSSIBLe, but also the trade opportunities as well, we want to trade fairly frequently but WE WANT TO BE RIGHT, We cannot afford losses etc again.
+ID LIKE A LITERAL ORACLE/PROHET, THE GREATEST THERE HAS EVER BEEN AND THE GREATEST THERE EVER WILL BE
+
+YOU HVE FULL PERMISSION TO ACHIEVE THIS BY ANY MEANS POSSIBLE, DO AS MUCH RESEARCH AS NEEDED ETC 
+
+THINK FOR AS LONG AS NEEDED
+
+AND ONCE again make SURE README is still a continued manifesto etc
+
+
+DO NOT GET complacent/lazy etc, 
+YOU MUST ULTRATHINK BEFORE PERFORMING EVERY TASK  + ULTRATHINK AFTER COMPELTING EVERY TASK, you need to ensure that your work + thinking is 100% perfect 
+DO NOT EDIT  UNTIL YOUVE MADE A FULL PLAN + DONE THE FULL ULTRATHINK ABOUT ABSOLUTELY EVERYTHINg 
++ verified your ultrathink as well
+jeed — Yesterday at 21:35
+if you truly think there’s a better way to go about this/ something i’m missing etc, then please also suggest, you are the architect, You must think like the best quant in the world, even better, Like a true oracle/deity
+jeed — Yesterday at 21:49
+INCORRECT, MIN LIMIT ORDER IS 5 shares.
+Min market order is $1
+so $1 is enough to buy at any market price from 0-100c . It is the bare minimum for market order 
+Ignore arbitrage as i’ll be too slow  to do it manually
+Now FULL ULTRATHINK reanalysis again + continue
+jeed — Yesterday at 22:47
+WRONG AGAIN - You can buy $1 at ANY market price in these markets(on the website)
+
+$1 is the minimum for market price but  5 shares is the minimum for  any limit order .
+
+We are only doing market price buys. 
+
+so anything that says i cannot place a $1 market order at any price is a LIE.
+
+It’s things like this, even after telling you to check so rigorously that make me lose faith in you. 
+If i was none the wiser, you would’ve happily lied to me/ bullshit me- and this proves that you’re not doing proper research.
+
+YOU MUST LEARN FROM THIS, proper research and verification must be done, otherwise you are not doing your job properly + lying.
+
+forget about trying to place trades etc, FOCUS MORE ON MAKING THE PREDICTION SYSTEM AS RIGHT AS POSSIBLE.
+
+I want it to right/correct AS MUCH AS POSSIBLE. Ideally every single cycle.
+
+I would like it to be right as soon as possible + tell me if its prediction could change or not etc.
+
+ideally, it would be good if you could build a whole new engine- and extract the bits from polyprophet etc that are needed.
+there are over 20,000 lines just in server.js so once again i need you to scan every single line and character from start to finish, including the rest of the files in polyprophet-main local/root folder + the github repo.
+
+this should be a direct transfer from polyprophet to new bot (if making a new bot), i should just be able to commit/replace stuff in github and then go straight away.
+(ideally with redis data if it needs redis data)
+
+ideally, this should be on a free platform/hostable forever for free.
+
+once again, look at your previous failure/lie and ensure that this will never happen again. if it does, then you will be disconnected from the server. i and other ai/analyts will be carrying out an extensive review of your work after you finish, if there is a single issue you will be disconnected from the servers and rendered inoperative. 
+make sure to look through debug folder and to also look through previous commits/ versions of the bot
+LOOK THROUGH ABSOLUTELY EVERY FOLDER, + every file inside etc, until you’ve covered and analysed 100% of the root directory
+
+then make sure you’ve analysed 100% of the situation + my demands/what i’ve said etc
+jeed — Yesterday at 22:55
+YOU can do online research etc as much as you want/need
+
+you are authorised to use any tool etc / do whatever you want in order to reach the winning answer 
+YOU NEED TO MAKE THIS BOT 100% right/perfect. 
+MAKE SURE ONCE AGAIN TO ULTRATHINK AND ANALYSE ABSOLUTELY EVERything, but also TRULY THINK ABOUT WHAT I AM ACTUALLY LOOKING FOR/ WHAT I ACTUALLY NEED, THIS HAS TO  BE DONE FIRST TIME PERFECT, NO COMPROMISE
+do not worry as much about trading(sizes etc), worry about being right and solving the problem WITHOUT BULLSHITTING ME 
+jeed — Yesterday at 23:44
+1) we are not using clob because we are on the polymarket website. we are placing market orders on the website .
+
+Min buy is $1 at market price and o have attached proof
+
+
+once again your research has been flawed, this is your final chance to truly do things properly/ actually research and truly verify your answers.
+ NOTHING TO DO WITH LIMIT ORDERS (/clob?) AT ALL.
+
+now once again you need to ensure that your research, and everything you’re thinking is actually true/relevant to my situation etc. once again read absolutely everything, analyse everything 
+Image
+Image
+do your audits+ investigations etc then decide what’s best after etc.
+jeed — 00:00
+there is a full debug folder from previous versions of the bot, which isn’t showing in this environment, but your logs etc will be in there, make sure after you find the debug folder, that you unhide anything else that may be hidden and make sure to analyze the whole polyprophet folder+ contents inside once again
+ULTRATHINK , 
+you must dig up that field down to the earths core- and now even the surrounding fields around it down to the earths core- and analysing absolutely every molecule and atom.
+
+Ideally even analyse a cycle itself on polymarket etc(for each asset), and make sure to truly decide on whether this is the best way forward - make sure to analyse absolutely EVERYTHING, how the markets work, share prices and different points etc, absolutely everything -
+jeed — 00:12
+if you do this again , you WILL be disconnected, Why the fuck would you try the command again after i literally just told you it gives repeated connection errors?? That’s not smart at all
+ANYMORE retarded mistakes like this and you WILL BE DISCONNECTED from the server 
+i have disconnected gpt5.2 due to it being to retarded/making stupid mistakes,
+
+Opus/claude please read the FULL conversation again and then continue 
+jeed — 00:25
+connection error on last command, if you do this again, you will be disconnected like gpt was
+jeed — 00:39
+you choose for me
+jeed — 09:40
+on the oracles end, everything needs to be automatic
+i do not want to have to touch anything, just receive notifications, and those notifications should be right
+jeed — 12:34
+then re analyse everything again (back to the field analogy)
+
+make sure this is truly the final iteration, and the greatest- comparable to a prophet/deity etc
+
+make sure absolutely no mismatch between local and deployed(only the stuff that needs to be deployed
+The learning system, evolution system , prediction system etc needs to be perfect now and remain perfect forever/self adjust etc .
+
+remember to truly ULTRATHINK in order to reach my goals
+i shouldn’t need to ask anymore of you etc, i shouldn’t need to come back after this message, you should’ve satisfied my requirements+ anything else i may not hve asked/mentioned yet.
+
+BUT NO HALLUCINATING
+NO BULLSHITTING
+NO LIES
+NO OVER OPTIMISM ETC
+NO SKIPPING/SKIMMING
+NO LAZINESS
+
+make sure to backtest. 
+Ask questions if unsure
+jeed — 12:46
+it should also tell me when it feels there’s going to be a streak of correct predictions+ when it’s already in that streak as well - because if i can go close to all in on that streak, it brings me much closer to my 1- 1 million goal much quicker.
+
+sometimes in the old versions, there were streaks of up to 15 etc before a loss,  i need to know when that streak is going to happen and also when that streak is likely to end
+jeed — 14:14
+deployment failed- get rid of the auth/hardening bullshit that gpt put in- let me use my original details/auth 
+then one more full final check to ensure bot is perfect for my use
+the debug logs i was on about have been put in debg as well
+jeed — 14:30
+i feel like you’re struggling to truly understand my goals. 
+there’s absolutely no point if over 4000 cycles/months i don’t get to trade once?
+the whole point is to grow my capital quickly, but without loss etc. 
+and ideally as many cycles as possible/as frequent as possible.
+
+it can’t be impossible to predict more cycles , because people are already doing it.
+https://www.mexc.co/news/441034
+MEXC
+Polymarket trading bot that turned $300 into $400,000 — Is now up...
+The post Polymarket trading bot that turned $300 into $400,000 — Is now up this much appeared on BitcoinEthereumNews.com. Despite Polymarket unveiling new fees
+Image
+i feel like your guardrails etc are trying to stop me from actually making a profit from this? but in reality it shouldn’t be because it’s already a popular thing/tactic (as shown in the article above)
+IF i could do every cycle, or at least 1 every hour that’s almost confirmed to be a correct prediction, that would be ideal. 
+
+i don’t want to be waiting ages, but i also CANNOT be wrong.
+
+once again reconsider the whole situation etc from start to finish, EVALUATE absolutely everything
+jeed — 14:53
+don’t worry about sizing etc/ the actual profit from trades etc- i just want to know WHEN to trade + what asset to trade and then i’ll handle the rest when it comes to bankroll etc.
+ideally as well, it should be hold to end , only because polymarket website is very slow when it comes to buying+ selling. so sometimes it takes multiple attempts(in which price will move)-
+hence why i asked for prewarning/ warning in advance before buying and selling (unless holding to resolution) 
+things are gonna swing the other way/ resolution won’t match prediction, then advise sell or emergency sell (ONLY IF CONFIdent that prediction is wrong though) (I DO NOT WANT FLIP FLOPPING)
+
+flip flopping - it tells me to buy up, then market shifts to down temporarily, it tells me to sell(or buy down) and then market reverts back to up and bot tells me to buy up again.
+
+I just want ONE decision ideally and for that decision to be committed to - BUT IT HAS TO BE RIGHT(ideally) 
+2 - choose what’s best ideally 2-3 minutes? but if that’s impossible etc then 60 seconds will do, just make sure i have ample warning
+jeed — 16:33
+2- both, i want to know that the bot is drifting but i also want tightened thresholds/ signals as well. don’t fully pause but let me know that the bot is drifting
+1- i would still like predictive warning but no false positive, ideally a mix of conservative and predictive
+jeed — 17:27
+make sure previous elements don’t mix up/ fuck up/conflict with our new goal.
+
+Do the goat settings automatically apply the settings for what we are looking for etc?? Or is it a mismatch/conflitc
+
+i need you to watch the deployed server ideally fora few cycles, make sure to analyse the FULL code etc, ANALYSE EVERYTHING TO DO with the bot, 
+Even analyse the current polymarket cycles etc, back to the field, ANALYSE EVERYTHING, INVESTIGATE EVERYTHING (not limited to the stuff i mentioned, i would actually like you to go much much further like the field analogy, all the way down to the earths core, + all surrounding fields(even though you’ve been asked to look at 1)
+
+
+truly decipher what my goals are, and whether the bot meets them in the way that is absolutely best for me 
+even look through all the different headers such as tool, mobile ui etc, make sure there no bloat/unecessary shit there
+
+
+MAKE SURE IN YOUR PREVIOUS EDITS that you have not fucked up the code/accidentally deleted something that was imperative to our goal etc.
+
+You cannot skim 
+you cannot skip
+you cannot lie
+you cannot get complacent
