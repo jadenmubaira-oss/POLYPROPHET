@@ -8078,7 +8078,8 @@ ASSETS.forEach(asset => {
         lastAction: 'WAIT',
         telegramPrepareSentAt: 0,
         telegramBuySentAt: 0,
-        telegramSellSentAt: 0
+        telegramSellSentAt: 0,
+        telegramUltraSentAt: 0  // 🔮 ULTRA-PROPHET tracking
     };
 });
 
@@ -8485,7 +8486,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 96;  // v96: Baseline bankroll for LIVE/PAPER parity (profit-lock + relative thresholds), LCB wired into ADVISORY EV
+const CONFIG_VERSION = 102;  // v102: Shadow-book auto position tracking, single-primary-BUY orchestration, "Other candidates" in BUY message, ULTRA-only until $20, dissent-based early exits
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8824,8 +8825,15 @@ const CONFIG = {
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
+    // 🔮 PROPHET MODE: Auto-enable when both token and chatId are provided
     TELEGRAM: {
-        enabled: false,
+        enabled: (() => {
+            const token = (process.env.TELEGRAM_BOT_TOKEN || '').trim();
+            const chatId = (process.env.TELEGRAM_CHAT_ID || '').trim();
+            const explicitDisable = String(process.env.TELEGRAM_ENABLED || '').toLowerCase() === 'false';
+            // Auto-enable if both credentials exist and not explicitly disabled
+            return !explicitDisable && token.length > 10 && chatId.length > 5;
+        })(),
         botToken: (process.env.TELEGRAM_BOT_TOKEN || '').trim(),
         chatId: (process.env.TELEGRAM_CHAT_ID || '').trim(),
         // If true, suppress PAPER trade open/close spam and only send oracle advisory signals + critical alerts.
@@ -9324,6 +9332,35 @@ async function sendTelegramNotification(message, silent = false) {
 // Dashboard URL for quick access
 const DASHBOARD_URL = process.env.RENDER_EXTERNAL_URL || 'https://polyprophet.onrender.com/';
 
+// 🔮 PROPHET MODE: Manual trading journey tracker (forward declaration)
+// Full object is initialized later, but we need access in Telegram functions
+let manualTradingJourney = {
+    startingBalance: 1.00,
+    currentBalance: 1.00,
+    trades: [],
+    targetBalance: 1000000,
+    startedAt: Date.now(),
+    lastUpdated: Date.now()
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔮 SHADOW-BOOK: Automatic position tracking for manual trading
+// Assumes you execute BUY signals; tracks position for SELL automation
+// ═══════════════════════════════════════════════════════════════════════════════
+let shadowBook = {
+    position: null,  // { asset, direction, entry, shares, stake, openedAt, cycleStartEpoch }
+    lastClosedAt: 0,
+    closedTrades: [],  // Last 10 closed trades for audit
+    totalPnl: 0
+};
+
+// Global state for single-primary-BUY orchestration
+let primaryBuyState = {
+    currentPrimaryAsset: null,
+    lastPrimaryBuyAt: 0,
+    otherCandidates: []  // [{ asset, direction, price, pWin, evRoi, ultraGates, marketUrl }]
+};
+
 function tgEscape(s) {
     return String(s ?? '')
         .replace(/&/g, '&amp;')
@@ -9338,30 +9375,114 @@ function formatMmSs(seconds) {
     return `${mm}:${ss}`;
 }
 
+// 🔮 PROPHET MODE: Calculate stake recommendation for manual trading
+// Based on the $1→$1M compounding tables (90%+ WR required, high stake %)
+// 🚀 v97 ULTRA: $1 start = ALL IN. $100 CAP at higher bankrolls.
+function getManualStakeRecommendation(entryPrice, pWin, currentBankroll = null, isUltraProphet = false) {
+    // Use manual journey balance as primary reference (for accurate stake recommendations)
+    const bankroll = currentBankroll || manualTradingJourney?.currentBalance || (tradeExecutor?.paperBalance || 1);
+    
+    // Calculate potential ROI: buying at X¢ pays $1 if win
+    const potentialRoi = Number.isFinite(entryPrice) && entryPrice > 0 ? ((1 / entryPrice) - 1) * 100 : 0;
+    
+    // 🚀 ULTRA-PROPHET STAKE LOGIC:
+    // - $1-$5 bankroll: GO ALL IN (100%) - must compound aggressively
+    // - $5-$20 bankroll: 90% stake - still aggressive but buffer
+    // - $20-$100 bankroll: 80% stake - building cushion
+    // - $100+ bankroll: CAP at $100 max stake (liquidity protection)
+    let stakePercent = 0.85; // default 85%
+    let maxAbsoluteStake = 100; // Hard cap at $100 for liquidity
+    
+    if (bankroll <= 2) {
+        stakePercent = 1.00; // 100% ALL IN - no choice with $1-2
+    } else if (bankroll <= 5) {
+        stakePercent = 0.95; // 95% - almost all in for micro bankroll
+    } else if (bankroll <= 20) {
+        stakePercent = 0.90; // 90% - aggressive compounding
+    } else if (bankroll <= 100) {
+        stakePercent = 0.85; // 85% - still aggressive
+    } else {
+        stakePercent = 0.80; // 80% - but capped at $100
+    }
+    
+    // ULTRA-PROPHET gets slightly higher stake (more confident)
+    if (isUltraProphet && stakePercent < 1.00) {
+        stakePercent = Math.min(1.00, stakePercent + 0.05);
+    }
+    
+    // If pWin is exceptional (>95%), can go higher
+    if (Number.isFinite(pWin) && pWin >= 0.95 && stakePercent < 1.00) {
+        stakePercent = Math.min(1.00, stakePercent + 0.05);
+    }
+    
+    // Calculate stake (respect $100 cap)
+    let recommendedStake = bankroll * stakePercent;
+    if (recommendedStake > maxAbsoluteStake && bankroll > maxAbsoluteStake) {
+        recommendedStake = maxAbsoluteStake;
+        stakePercent = maxAbsoluteStake / bankroll;
+    }
+    
+    // For $1 minimum order on Polymarket website (fractional shares allowed)
+    recommendedStake = Math.max(1, recommendedStake);
+    
+    // Calculate shares (fractional allowed on website market orders)
+    const shares = entryPrice > 0 ? (recommendedStake / entryPrice) : 0;
+    const actualCost = recommendedStake;
+    const potentialPayout = shares * 1; // $1 per share if win
+    const potentialProfit = potentialPayout - actualCost;
+    
+    // Calculate trades to $1M from current bankroll (rough estimate)
+    // Using geometric growth: bankroll × (1 + avgRoi × stakePercent)^n = 1,000,000
+    const avgRoi = entryPrice > 0 ? (1 / entryPrice) - 1 : 0;
+    const growthPerTrade = 1 + (avgRoi * stakePercent);
+    const tradesToMillion = growthPerTrade > 1 ? Math.ceil(Math.log(1000000 / bankroll) / Math.log(growthPerTrade)) : 999;
+    
+    return {
+        bankroll,
+        stakePercent,
+        recommendedStake,
+        shares: Number(shares.toFixed(2)), // Fractional shares OK on website
+        potentialRoi,
+        potentialProfit,
+        potentialPayout,
+        tradesToMillion,
+        maxAbsoluteStake,
+        isUltraProphet
+    };
+}
+
 function telegramOraclePrepare(signal) {
     const asset = tgEscape(signal?.asset || '?');
     const dir = tgEscape(signal?.direction || '?');
     const tier = tgEscape(signal?.tier || 'NONE');
-    const price = Number.isFinite(signal?.implied) ? `${(signal.implied * 100).toFixed(1)}¢` : 'n/a';
+    const entryPrice = signal?.implied;
+    const price = Number.isFinite(entryPrice) ? `${(entryPrice * 100).toFixed(1)}¢` : 'n/a';
     const pWin = Number.isFinite(signal?.pWin) ? `${(signal.pWin * 100).toFixed(1)}%` : 'n/a';
     const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
     const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
     const tLeft = formatMmSs(signal?.timeLeftSec);
+    
+    // Calculate stake recommendation
+    const stake = getManualStakeRecommendation(entryPrice, signal?.pWin);
+    const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
+    const potRoi = stake.potentialRoi > 0 ? `${stake.potentialRoi.toFixed(0)}%` : 'n/a';
 
-    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 4) : [];
-    let msg = `🟡 <b>PREPARE</b> 🔮\n`;
-    msg += `━━━━━━━━━━━━━━━━━\n`;
-    msg += `📍 <b>${asset}</b> — <b>${dir}</b> (<code>${tier}</code>)\n`;
+    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
+    let msg = `🟡 <b>PREPARE TO TRADE</b> 🔮\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b> — Buy <b>${buyWhat}</b>\n`;
+    msg += `💰 Current odds: <code>${price}</code>\n`;
+    msg += `📈 Potential ROI: <code>${potRoi}</code> if correct\n`;
+    msg += `🎯 pWin: <code>${pWin}</code> | Edge: <code>${edgePp}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
-    msg += `💰 Odds: <code>${price}</code>\n`;
-    msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code> | Edge: <code>${edgePp}</code>\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `⚠️ <b>Get ready!</b> BUY signal coming soon.\n`;
     if (reasons.length) {
-        msg += `━━━━━━━━━━━━━━━━━\n`;
         for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
     }
-    msg += `━━━━━━━━━━━━━━━━━\n`;
-    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Polymarket Market</a>\n`;
-    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Market NOW</a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>`;
     return msg;
 }
 
@@ -9369,26 +9490,74 @@ function telegramOracleBuy(signal) {
     const asset = tgEscape(signal?.asset || '?');
     const dir = tgEscape(signal?.direction || '?');
     const tier = tgEscape(signal?.tier || 'NONE');
-    const price = Number.isFinite(signal?.implied) ? `${(signal.implied * 100).toFixed(1)}¢` : 'n/a';
+    const entryPrice = signal?.implied;
+    const price = Number.isFinite(entryPrice) ? `${(entryPrice * 100).toFixed(1)}¢` : 'n/a';
     const pWin = Number.isFinite(signal?.pWin) ? `${(signal.pWin * 100).toFixed(1)}%` : 'n/a';
     const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
     const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
     const tLeft = formatMmSs(signal?.timeLeftSec);
+    
+    // Check if ULTRA-PROPHET (for annotation)
+    const isUltra = signal?.ultraProphet?.isUltra === true;
+    const ultraGates = signal?.ultraProphet ? `${signal.ultraProphet.passedGates}/${signal.ultraProphet.totalGates}` : '?/?';
+    
+    // Calculate stake recommendation for manual trading
+    const stake = getManualStakeRecommendation(entryPrice, signal?.pWin, null, isUltra);
+    const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
+    const potRoi = stake.potentialRoi > 0 ? `${stake.potentialRoi.toFixed(0)}%` : 'n/a';
+    const stakeUsd = stake.recommendedStake > 0 ? `$${stake.recommendedStake.toFixed(2)}` : 'n/a';
+    const sharesNum = stake.shares > 0 ? stake.shares : 'n/a';
+    const profitUsd = stake.potentialProfit > 0 ? `$${stake.potentialProfit.toFixed(2)}` : 'n/a';
 
-    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 5) : [];
-    let msg = `🟢 <b>SIGNAL: BUY</b> 🔮\n`;
-    msg += `━━━━━━━━━━━━━━━━━\n`;
-    msg += `📍 <b>${asset}</b> — <b>${dir}</b> (<code>${tier}</code>)\n`;
-    msg += `💰 Entry odds: <code>${price}</code>\n`;
-    msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code> | Edge: <code>${edgePp}</code>\n`;
-    msg += `⏳ Time left: <code>${tLeft}</code>\n`;
-    if (reasons.length) {
-        msg += `━━━━━━━━━━━━━━━━━\n`;
-        for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
+    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
+    
+    // Add ULTRA annotation to header if applicable
+    let msg = isUltra 
+        ? `🟢🔮 <b>🚨 ULTRA BUY 🚨</b> ✨\n`
+        : `🟢 <b>🚨 BUY NOW 🚨</b> 🔮\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (isUltra) {
+        msg += `⚡ <b>ULTRA-PROPHET: ${ultraGates} GATES</b> ⚡\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     }
-    msg += `━━━━━━━━━━━━━━━━━\n`;
-    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Polymarket Market</a>\n`;
-    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
+    msg += `📍 <b>${asset}</b> • <code>${tier}</code>\n`;
+    msg += `\n`;
+    msg += `🎯 <b>ACTION: Buy ${buyWhat} @ ${price}</b>\n`;
+    msg += `\n`;
+    msg += `💵 Stake: <code>${stakeUsd}</code> (${(stake.stakePercent * 100).toFixed(0)}% of bankroll)\n`;
+    msg += `📊 Shares: <code>${sharesNum}</code> shares\n`;
+    msg += `📈 If WIN: <code>+${profitUsd}</code> (+${potRoi})\n`;
+    msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code>\n`;
+    msg += `⏳ Time left: <code>${tLeft}</code>\n`;
+    if (stake.tradesToMillion < 100) {
+        msg += `🚀 ~${stake.tradesToMillion} trades to $1M\n`;
+    }
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (reasons.length) {
+        for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    }
+    
+    // 🔮 OTHER CANDIDATES: Show other qualifying assets (suppressed by single-primary-BUY policy)
+    const otherCandidates = signal?.otherCandidates || [];
+    if (otherCandidates.length > 0) {
+        msg += `\n📋 <b>OTHER CANDIDATES:</b>\n`;
+        for (const c of otherCandidates.slice(0, 3)) {
+            const cAsset = tgEscape(c.asset || '?');
+            const cDir = c.direction === 'UP' ? 'YES' : 'NO';
+            const cPrice = Number.isFinite(c.price) ? `${(c.price * 100).toFixed(0)}¢` : '?';
+            const cPWin = Number.isFinite(c.pWin) ? `${(c.pWin * 100).toFixed(0)}%` : '?';
+            const cEV = Number.isFinite(c.evRoi) ? `${(c.evRoi * 100).toFixed(0)}%` : '?';
+            const cUltra = c.isUltra ? '🔮' : '';
+            const cGates = `${c.ultraGates || 0}/${c.totalGates || 10}`;
+            msg += `• ${cUltra}<b>${cAsset}</b> ${cDir} @ ${cPrice} | pWin: ${cPWin} | EV: ${cEV} (${cGates})\n`;
+            if (c.marketUrl) msg += `  <a href="${c.marketUrl}">→ Open</a>\n`;
+        }
+        msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    }
+    
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET</b></a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>`;
     return msg;
 }
 
@@ -9400,27 +9569,239 @@ function telegramOracleSell(signal) {
     const pos = signal?.position || null;
     const posSide = tgEscape(pos?.side || '?');
     const prediction = tgEscape(signal?.direction || '?');
-    const cur = Number.isFinite(pos?.currentOdds) ? `${(pos.currentOdds * 100).toFixed(1)}¢` : 'n/a';
-    const entry = Number.isFinite(pos?.entry) ? `${(pos.entry * 100).toFixed(1)}¢` : 'n/a';
+    const curOdds = pos?.currentOdds;
+    const entryOdds = pos?.entry;
+    const cur = Number.isFinite(curOdds) ? `${(curOdds * 100).toFixed(1)}¢` : 'n/a';
+    const entry = Number.isFinite(entryOdds) ? `${(entryOdds * 100).toFixed(1)}¢` : 'n/a';
     const pnlPct = Number.isFinite(pos?.pnlPercent) ? `${pos.pnlPercent >= 0 ? '+' : ''}${pos.pnlPercent.toFixed(1)}%` : 'n/a';
-    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 5) : [];
+    const pnlUsd = Number.isFinite(pos?.pnl) ? `${pos.pnl >= 0 ? '+' : ''}$${pos.pnl.toFixed(2)}` : 'n/a';
+    const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 4) : [];
+    
+    // Determine exit type
+    const isProfit = Number.isFinite(pos?.pnlPercent) && pos.pnlPercent > 0;
+    const isFlip = prediction && posSide && prediction !== '?' && posSide !== '?' && prediction !== posSide;
+    const sellWhat = posSide === 'UP' ? 'YES' : (posSide === 'DOWN' ? 'NO' : '?');
+    
+    let urgency = isFlip ? '⚠️ PREDICTION FLIPPED' : (isProfit ? '💰 TAKE PROFIT' : '🛑 CUT LOSS');
 
-    let msg = `🔴 <b>SIGNAL: SELL</b> 🔮\n`;
-    msg += `━━━━━━━━━━━━━━━━━\n`;
-    msg += `📍 <b>${asset}</b> — <b>${posSide}</b> (<code>${tier}</code>)\n`;
-    if (prediction && posSide && prediction !== '?' && posSide !== '?' && prediction !== posSide) {
-        msg += `🔁 Current prediction: <b>${prediction}</b>\n`;
+    let msg = `🔴 <b>🚨 SELL NOW 🚨</b> 🔮\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b> • ${urgency}\n`;
+    msg += `\n`;
+    msg += `🎯 <b>ACTION: Sell your ${sellWhat} shares</b>\n`;
+    msg += `\n`;
+    msg += `📊 Entry: <code>${entry}</code> → Now: <code>${cur}</code>\n`;
+    msg += `💵 P/L: <code>${pnlUsd}</code> (<code>${pnlPct}</code>)\n`;
+    if (isFlip) {
+        msg += `🔁 Oracle now predicts: <b>${prediction}</b>\n`;
     }
-    msg += `📊 Odds: <code>${entry}</code> → <code>${cur}</code> (P/L <b>${tgEscape(pnlPct)}</b>)\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (reasons.length) {
-        msg += `━━━━━━━━━━━━━━━━━\n`;
         for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
+        msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     }
-    msg += `━━━━━━━━━━━━━━━━━\n`;
-    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Polymarket Market</a>\n`;
-    msg += `🖥️ <a href="${DASHBOARD_URL}">Open Dashboard</a>`;
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET</b></a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>`;
     return msg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔮 GLOBAL ORACLE ORCHESTRATION: Single Primary BUY + Other Candidates
+// Prevents multiple concurrent BUYs (all-in compounding requires ONE trade at a time)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function computeBuyScore(signal) {
+    // Score function to select best BUY when multiple assets qualify
+    // Priority: ULTRA > highest EV with time-left/stability guards
+    if (!signal || signal.action !== 'BUY') return -Infinity;
+    
+    let score = 0;
+    
+    // ULTRA bonus: +1000 points (always prefer ULTRA)
+    if (signal.ultraProphet?.isUltra) score += 1000;
+    
+    // EV ROI: +0-100 points (scale 0-100% EV to 0-100 points)
+    if (Number.isFinite(signal.evRoi)) score += signal.evRoi * 100;
+    
+    // pWin: +0-50 points (scale 50-100% to 0-50 points)
+    if (Number.isFinite(signal.pWin)) score += (signal.pWin - 0.5) * 100;
+    
+    // Edge: +0-50 points (scale 0-50% edge to 0-50 points)
+    if (Number.isFinite(signal.mispricingEdge)) score += signal.mispricingEdge * 100;
+    
+    // Time left bonus: more time = better (can exit if wrong)
+    if (Number.isFinite(signal.timeLeftSec)) score += Math.min(30, signal.timeLeftSec / 30);
+    
+    // ULTRA gates count: +1 point per gate passed (tiebreaker)
+    if (signal.ultraProphet?.passedGates) score += signal.ultraProphet.passedGates;
+    
+    return score;
+}
+
+function orchestrateOracleNotifications() {
+    try {
+        if (!CONFIG?.TELEGRAM?.enabled) return;
+        
+        const now = Date.now();
+        
+        // Don't send another BUY if shadow-book has an open position
+        if (shadowBook.position) return;
+        
+        // Cooldown: don't spam BUYs (at least 30s between primary BUYs)
+        if (now - primaryBuyState.lastPrimaryBuyAt < 30000) return;
+        
+        // Gather all current signals
+        const allSignals = ASSETS.map(a => oracleSignals[a]).filter(Boolean);
+        
+        // Find all BUY signals
+        const buySignals = allSignals.filter(s => s.action === 'BUY');
+        
+        // Find all SELL signals (process these first)
+        const sellSignals = allSignals.filter(s => s.action === 'SELL');
+        
+        // Process SELL signals (for shadow-book position)
+        for (const sellSig of sellSignals) {
+            if (shadowBook.position && shadowBook.position.asset === sellSig.asset) {
+                maybeSendOracleSignalTelegram(sellSig.asset, sellSig);
+            }
+        }
+        
+        // If no BUY signals, nothing to orchestrate
+        if (buySignals.length === 0) {
+            // Still send PREPARE signals normally
+            for (const sig of allSignals) {
+                if (sig.action === 'PREPARE') {
+                    maybeSendOracleSignalTelegram(sig.asset, sig);
+                }
+            }
+            return;
+        }
+        
+        // Score all BUY signals and find the best one
+        const scoredBuys = buySignals.map(sig => ({
+            signal: sig,
+            score: computeBuyScore(sig)
+        })).sort((a, b) => b.score - a.score);
+        
+        const primaryBuy = scoredBuys[0];
+        const otherBuys = scoredBuys.slice(1);
+        
+        // Build other candidates list
+        const otherCandidates = otherBuys.map(({ signal: s }) => ({
+            asset: s.asset,
+            direction: s.direction,
+            price: s.implied,
+            pWin: s.pWin,
+            evRoi: s.evRoi,
+            ultraGates: s.ultraProphet?.passedGates || 0,
+            totalGates: s.ultraProphet?.totalGates || 10,
+            isUltra: s.ultraProphet?.isUltra || false,
+            marketUrl: s.marketUrl
+        }));
+        
+        // Attach other candidates to primary signal
+        primaryBuy.signal.otherCandidates = otherCandidates;
+        
+        // Update global state
+        primaryBuyState.currentPrimaryAsset = primaryBuy.signal.asset;
+        primaryBuyState.otherCandidates = otherCandidates;
+        
+        // Check if we already sent this BUY
+        const rt = oracleSignalRuntime?.[primaryBuy.signal.asset];
+        if (rt?.telegramBuySentAt) return;
+        
+        // Send the primary BUY notification
+        if (rt) rt.telegramBuySentAt = now;
+        primaryBuyState.lastPrimaryBuyAt = now;
+        
+        sendTelegramNotification(telegramOracleBuy(primaryBuy.signal), false);
+        
+        // Open shadow-book position (assume user will execute)
+        openShadowPosition(primaryBuy.signal);
+        
+        // Send ULTRA notification too if applicable
+        if (primaryBuy.signal.ultraProphet?.isUltra) {
+            const ultraRt = oracleSignalRuntime?.[primaryBuy.signal.asset];
+            if (ultraRt && !ultraRt.telegramUltraSentAt) {
+                ultraRt.telegramUltraSentAt = now;
+                maybeSendUltraProphetTelegram(primaryBuy.signal.asset, primaryBuy.signal);
+            }
+        }
+        
+        // Downgrade other BUYs to PREPARE (for logging purposes, not notifications)
+        for (const { signal: otherSig } of otherBuys) {
+            otherSig.action = 'PREPARE';
+            otherSig.reasons.unshift(`⚠️ Suppressed: ${primaryBuy.signal.asset} selected as primary BUY`);
+        }
+        
+    } catch (e) {
+        // Never crash on orchestration
+    }
+}
+
+// Shadow-book position management
+function openShadowPosition(signal) {
+    if (!signal || shadowBook.position) return;
+    
+    const entryPrice = signal.implied || 0.5;
+    const stake = getManualStakeRecommendation(entryPrice, signal.pWin, null, signal.ultraProphet?.isUltra);
+    const shares = stake.recommendedStake / entryPrice;
+    
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cycleStart = nowSec - (nowSec % 900);
+    
+    shadowBook.position = {
+        asset: signal.asset,
+        direction: signal.direction,
+        entry: entryPrice,
+        shares,
+        stake: stake.recommendedStake,
+        openedAt: Date.now(),
+        cycleStartEpoch: cycleStart
+    };
+    
+    log(`📖 SHADOW-BOOK OPENED: ${signal.asset} ${signal.direction} @ ${(entryPrice * 100).toFixed(1)}¢ | Stake: $${stake.recommendedStake.toFixed(2)} | Shares: ${shares.toFixed(2)}`);
+}
+
+function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
+    if (!shadowBook.position) return;
+    
+    const pos = shadowBook.position;
+    const pnl = isWin ? (pos.shares - pos.stake) : -pos.stake;
+    
+    // Update bankroll
+    manualTradingJourney.currentBalance += pnl;
+    manualTradingJourney.lastUpdated = Date.now();
+    shadowBook.totalPnl += pnl;
+    
+    // Record closed trade
+    const closedTrade = {
+        ...pos,
+        exit: exitPrice,
+        pnl,
+        isWin,
+        reason,
+        closedAt: Date.now()
+    };
+    
+    shadowBook.closedTrades.push(closedTrade);
+    if (shadowBook.closedTrades.length > 10) shadowBook.closedTrades.shift();
+    
+    log(`📖 SHADOW-BOOK CLOSED: ${pos.asset} ${pos.direction} | ${isWin ? 'WIN' : 'LOSS'} | P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | Balance: $${manualTradingJourney.currentBalance.toFixed(2)}`);
+    
+    shadowBook.position = null;
+    shadowBook.lastClosedAt = Date.now();
+}
+
+function settleShadowPositionOnCycleEnd(asset, outcome) {
+    if (!shadowBook.position || shadowBook.position.asset !== asset) return;
+    
+    const pos = shadowBook.position;
+    const isWin = pos.direction === outcome;
+    const exitPrice = isWin ? 1.0 : 0;
+    
+    closeShadowPosition(exitPrice, isWin, 'CYCLE_END');
 }
 
 function maybeSendOracleSignalTelegram(asset, signal) {
@@ -9454,6 +9835,16 @@ function maybeSendOracleSignalTelegram(asset, signal) {
             if (rt.telegramSellSentAt && (now - rt.telegramSellSentAt) < 120000) return;
             rt.telegramSellSentAt = now;
             sendTelegramNotification(telegramOracleSell(signal), false);
+            
+            // 🔮 SHADOW-BOOK: Close position on SELL signal
+            if (shadowBook.position && shadowBook.position.asset === asset) {
+                const pos = shadowBook.position;
+                const market = currentMarkets?.[asset];
+                const currentOdds = market ? (pos.direction === 'UP' ? market.yesPrice : market.noPrice) : pos.entry;
+                // Estimate win/loss based on current odds vs entry
+                const isWin = currentOdds > pos.entry;
+                closeShadowPosition(currentOdds, isWin, 'SELL_SIGNAL');
+            }
             return;
         }
     } catch {
@@ -21916,6 +22307,181 @@ app.get('/', (req, res) => {
 // ==================== ORACLE SIGNAL ENGINE (ADVISORY) ====================
 // Produces human-actionable PREPARE/BUY/SELL signals per asset for the current 15m cycle.
 // Does NOT place real orders (LIVE_AUTOTRADING_ENABLED defaults false).
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔮 ULTRA-PROPHET: The Supreme Oracle for $1→$1M Manual Trading
+// ═══════════════════════════════════════════════════════════════════════════════
+// ULTRA-PROPHET is a MUCH stricter tier than CONVICTION.
+// When ULTRA fires, you have maximum confidence in the prediction.
+// 
+// GATES (ALL must pass):
+// 1. pWin ≥ 88% (calibrated win probability)
+// 2. EV ROI ≥ 25% (massive edge required)
+// 3. Genesis agrees with final prediction
+// 4. Oracle is locked (certainty threshold met)
+// 5. Model consensus ≥ 85% (strong agreement)
+// 6. Vote stability ≥ 0.8 (direction held consistently)
+// 7. Time left ≥ 180s (not too close to resolution)
+// 8. Entry price ≤ 35¢ OR ≥ 85¢ (extreme odds = clearer edge)
+// 9. No prediction flip since oracle lock
+// 10. Tier is CONVICTION
+// ═══════════════════════════════════════════════════════════════════════════════
+function computeUltraProphetStatus(asset, brain, signal, entryPrice, pWin, evRoi, timeLeftSec, voteStability) {
+    const result = {
+        isUltra: false,
+        passedGates: 0,
+        totalGates: 10,
+        gates: {},
+        reasons: []
+    };
+    
+    if (!brain || !signal) return result;
+    
+    // Gate 1: pWin ≥ 88%
+    const pWinOk = Number.isFinite(pWin) && pWin >= 0.88;
+    result.gates.pWin = { passed: pWinOk, value: pWin, threshold: 0.88 };
+    if (pWinOk) result.passedGates++;
+    else result.reasons.push(`pWin=${((pWin || 0) * 100).toFixed(1)}% < 88%`);
+    
+    // Gate 2: EV ROI ≥ 25%
+    const evOk = Number.isFinite(evRoi) && evRoi >= 0.25;
+    result.gates.evRoi = { passed: evOk, value: evRoi, threshold: 0.25 };
+    if (evOk) result.passedGates++;
+    else result.reasons.push(`EV=${((evRoi || 0) * 100).toFixed(1)}% < 25%`);
+    
+    // Gate 3: Genesis agrees
+    const modelVotes = brain.lastSignal?.modelVotes || {};
+    const finalPrediction = brain.prediction;
+    const genesisAgrees = modelVotes.genesis !== undefined && modelVotes.genesis === finalPrediction;
+    result.gates.genesis = { passed: genesisAgrees, value: modelVotes.genesis, expected: finalPrediction };
+    if (genesisAgrees) result.passedGates++;
+    else result.reasons.push(`Genesis=${modelVotes.genesis} vs pred=${finalPrediction}`);
+    
+    // Gate 4: Oracle locked
+    const oracleLocked = brain.oracleLocked === true;
+    result.gates.oracleLocked = { passed: oracleLocked, value: brain.oracleLocked };
+    if (oracleLocked) result.passedGates++;
+    else result.reasons.push('Oracle not locked');
+    
+    // Gate 5: Model consensus ≥ 85%
+    // FIX: Use voteHistory (stores actual up/down tallies) instead of lastSignal.votes (doesn't exist)
+    // voteHistory is populated by SupremeBrain.update() at line ~17285
+    const voteHistoryArr = brain.voteHistory || [];
+    const latestVotes = voteHistoryArr.length > 0 ? voteHistoryArr[voteHistoryArr.length - 1] : null;
+    let consensus = 0;
+    if (latestVotes && Number.isFinite(latestVotes.up) && Number.isFinite(latestVotes.down)) {
+        const totalVotes = latestVotes.up + latestVotes.down;
+        const maxVotes = Math.max(latestVotes.up, latestVotes.down);
+        consensus = totalVotes > 0 ? maxVotes / totalVotes : 0;
+    } else {
+        // Fallback: count modelVotes agreement
+        const mv = modelVotes || {};
+        const mvValues = Object.values(mv).filter(v => v === 'UP' || v === 'DOWN');
+        if (mvValues.length > 0) {
+            const upCount = mvValues.filter(v => v === 'UP').length;
+            const downCount = mvValues.filter(v => v === 'DOWN').length;
+            consensus = Math.max(upCount, downCount) / mvValues.length;
+        }
+    }
+    const consensusOk = consensus >= 0.85;
+    result.gates.consensus = { passed: consensusOk, value: consensus, threshold: 0.85 };
+    if (consensusOk) result.passedGates++;
+    else result.reasons.push(`Consensus=${(consensus * 100).toFixed(0)}% < 85%`);
+    
+    // Gate 6: Vote stability ≥ 0.8
+    const stabilityOk = Number.isFinite(voteStability) && voteStability >= 0.8;
+    result.gates.stability = { passed: stabilityOk, value: voteStability, threshold: 0.8 };
+    if (stabilityOk) result.passedGates++;
+    else result.reasons.push(`Stability=${voteStability?.toFixed(2) || 0} < 0.8`);
+    
+    // Gate 7: Time left ≥ 180s
+    const timeOk = Number.isFinite(timeLeftSec) && timeLeftSec >= 180;
+    result.gates.timeLeft = { passed: timeOk, value: timeLeftSec, threshold: 180 };
+    if (timeOk) result.passedGates++;
+    else result.reasons.push(`TimeLeft=${timeLeftSec}s < 180s`);
+    
+    // Gate 8: Extreme odds (≤35¢ OR ≥85¢)
+    const extremeOdds = Number.isFinite(entryPrice) && (entryPrice <= 0.35 || entryPrice >= 0.85);
+    result.gates.extremeOdds = { passed: extremeOdds, value: entryPrice, range: '≤35¢ OR ≥85¢' };
+    if (extremeOdds) result.passedGates++;
+    else result.reasons.push(`Price=${((entryPrice || 0) * 100).toFixed(0)}¢ not extreme`);
+    
+    // Gate 9: No flip since lock (if locked, prediction matches lock)
+    const noFlip = !brain.oracleLocked || brain.prediction === brain.oracleLockPrediction;
+    result.gates.noFlip = { passed: noFlip, value: brain.prediction, lockValue: brain.oracleLockPrediction };
+    if (noFlip) result.passedGates++;
+    else result.reasons.push('Prediction flipped since lock');
+    
+    // Gate 10: Tier is CONVICTION
+    const tierOk = brain.tier === 'CONVICTION';
+    result.gates.tier = { passed: tierOk, value: brain.tier, expected: 'CONVICTION' };
+    if (tierOk) result.passedGates++;
+    else result.reasons.push(`Tier=${brain.tier} not CONVICTION`);
+    
+    // ALL gates must pass for ULTRA
+    result.isUltra = result.passedGates === result.totalGates;
+    
+    return result;
+}
+
+// 🔮 ULTRA-PROPHET Telegram notification
+function telegramUltraProphet(signal) {
+    const asset = tgEscape(signal?.asset || '?');
+    const dir = tgEscape(signal?.direction || '?');
+    const entryPrice = signal?.implied;
+    const price = Number.isFinite(entryPrice) ? `${(entryPrice * 100).toFixed(1)}¢` : 'n/a';
+    const pWin = Number.isFinite(signal?.pWin) ? `${(signal.pWin * 100).toFixed(1)}%` : 'n/a';
+    const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
+    const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
+    const tLeft = formatMmSs(signal?.timeLeftSec);
+    
+    const stake = getManualStakeRecommendation(entryPrice, signal?.pWin, null, true);
+    const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
+    const potRoi = stake.potentialRoi > 0 ? `${stake.potentialRoi.toFixed(0)}%` : 'n/a';
+    const stakeUsd = stake.recommendedStake > 0 ? `$${stake.recommendedStake.toFixed(2)}` : 'n/a';
+    const profitUsd = stake.potentialProfit > 0 ? `$${stake.potentialProfit.toFixed(2)}` : 'n/a';
+    
+    const ultra = signal?.ultraProphet || {};
+    const gatesStr = `${ultra.passedGates || 0}/${ultra.totalGates || 10}`;
+
+    let msg = `🔮✨ <b>ULTRA-PROPHET SIGNAL</b> ✨🔮\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `⚡ <b>MAXIMUM CONFIDENCE</b> ⚡\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `\n`;
+    msg += `📍 <b>${asset}</b>\n`;
+    msg += `🎯 <b>BUY ${buyWhat} @ ${price}</b>\n`;
+    msg += `\n`;
+    msg += `💵 Stake: <code>${stakeUsd}</code>\n`;
+    msg += `📈 If WIN: <code>+${profitUsd}</code> (+${potRoi})\n`;
+    msg += `🎯 pWin: <code>${pWin}</code>\n`;
+    msg += `💰 EV: <code>${ev}</code>\n`;
+    msg += `📊 Edge: <code>${edgePp}</code>\n`;
+    msg += `⏳ Time: <code>${tLeft}</code>\n`;
+    msg += `✅ Gates: <code>${gatesStr}</code>\n`;
+    if (stake.tradesToMillion < 150) {
+        msg += `🚀 ~${stake.tradesToMillion} wins to $1M\n`;
+    }
+    msg += `\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `⚠️ <b>ALL 10 GATES PASSED</b>\n`;
+    msg += `This is the HIGHEST confidence signal.\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET NOW</b></a>\n`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>`;
+    return msg;
+}
+
+function maybeSendUltraProphetTelegram(asset, signal) {
+    try {
+        if (!CONFIG?.TELEGRAM?.enabled) return;
+        if (!signal?.ultraProphet?.isUltra) return;
+        sendTelegramNotification(telegramUltraProphet(signal), false);
+    } catch {
+        // never crash on telegram
+    }
+}
+
 function computeTierConditionedPWin(brain, entryPrice) {
     if (!brain) return null;
     const s = brain.stats || {};
@@ -21964,6 +22530,22 @@ function computeOddsTrend(asset, direction, windowMs = 60000) {
 
 function getMostRecentPositionForAsset(asset) {
     try {
+        // 🔮 SHADOW-BOOK FIRST: Prefer shadow-book position for manual trading SELL logic
+        // This prevents PAPER auto-positions from polluting manual oracle SELLs
+        if (shadowBook.position && 
+            String(shadowBook.position.asset || '').toUpperCase() === String(asset).toUpperCase()) {
+            return {
+                id: `shadow_${shadowBook.position.cycleStartEpoch}`,
+                asset: shadowBook.position.asset,
+                side: shadowBook.position.direction,
+                entry: shadowBook.position.entry,
+                shares: shadowBook.position.shares,
+                time: shadowBook.position.openedAt,
+                isShadow: true
+            };
+        }
+        
+        // Fallback: check tradeExecutor positions (for PAPER evaluation)
         const positions = tradeExecutor?.positions || {};
         const matches = Object.entries(positions)
             .filter(([_, p]) => p && String(p.asset || '').toUpperCase() === String(asset).toUpperCase());
@@ -21995,7 +22577,8 @@ function updateOracleSignalForAsset(asset) {
                 lastAction: 'WAIT',
                 telegramPrepareSentAt: 0,
                 telegramBuySentAt: 0,
-                telegramSellSentAt: 0
+                telegramSellSentAt: 0,
+                telegramUltraSentAt: 0  // 🔮 ULTRA-PROPHET tracking
             };
         }
         const rt = oracleSignalRuntime[asset];
@@ -22008,6 +22591,7 @@ function updateOracleSignalForAsset(asset) {
             rt.telegramPrepareSentAt = 0;
             rt.telegramBuySentAt = 0;
             rt.telegramSellSentAt = 0;
+            rt.telegramUltraSentAt = 0;  // 🔮 ULTRA-PROPHET reset
         }
 
         const brain = Brains[asset];
@@ -22098,9 +22682,53 @@ function updateOracleSignalForAsset(asset) {
                 : false;
             const flipHighConviction = flipAgainstPosition && voteStability >= minStability && Number.isFinite(pWin) && pWin >= 0.70;
 
+            // ═══════════════════════════════════════════════════════════════════════════════
+            // 🚨 DISSENT-BASED EARLY EXIT: Detect deterioration even when direction is locked
+            // These triggers work when oracleLocked/cycleCommitted prevent prediction flips
+            // ═══════════════════════════════════════════════════════════════════════════════
+            const modelVotesNow = brain.lastSignal?.modelVotes || {};
+            const genesisVote = modelVotesNow.genesis;
+            const genesisDisagrees = genesisVote && genesisVote !== pos.side;
+            
+            // Consensus collapse: check if current consensus dropped below 60%
+            const voteHistoryArr = brain.voteHistory || [];
+            const latestVotes = voteHistoryArr.length > 0 ? voteHistoryArr[voteHistoryArr.length - 1] : null;
+            let currentConsensus = 0;
+            if (latestVotes && Number.isFinite(latestVotes.up) && Number.isFinite(latestVotes.down)) {
+                const totalV = latestVotes.up + latestVotes.down;
+                const maxV = Math.max(latestVotes.up, latestVotes.down);
+                currentConsensus = totalV > 0 ? maxV / totalV : 0;
+            }
+            const consensusCollapsed = currentConsensus < 0.60 && voteHistoryArr.length >= 3;
+            
+            // Certainty collapse: certainty dropped >30 points from lock
+            const certaintyCurrent = brain.certaintyScore || 0;
+            const certaintyAtLock = brain.lockCertainty || 0;
+            const certaintyCollapsed = brain.oracleLocked && certaintyAtLock > 0 && (certaintyAtLock - certaintyCurrent) > 30;
+            
+            // Edge deterioration: our pWin vs entry has collapsed (edge now negative or very small)
+            const currentEdge = Number.isFinite(pWin) && pos.entry > 0 ? (pWin - pos.entry) : null;
+            const edgeCollapsed = Number.isFinite(currentEdge) && currentEdge < 0.02; // Edge < 2%
+
             if (flipHighConviction) {
                 signal.action = 'SELL';
                 signal.reasons.push(`Prediction flipped against position (stability=${voteStability})`);
+            } else if (genesisDisagrees && timeLeftSec > 120) {
+                // Genesis (94% accurate) now disagrees with our position
+                signal.action = 'SELL';
+                signal.reasons.push(`⚠️ GENESIS DISSENT: Genesis says ${genesisVote}, position is ${pos.side}`);
+            } else if (consensusCollapsed && timeLeftSec > 120) {
+                // Model consensus collapsed below 60%
+                signal.action = 'SELL';
+                signal.reasons.push(`⚠️ CONSENSUS COLLAPSED: ${(currentConsensus * 100).toFixed(0)}% < 60%`);
+            } else if (certaintyCollapsed && timeLeftSec > 120) {
+                // Certainty dropped significantly from lock
+                signal.action = 'SELL';
+                signal.reasons.push(`⚠️ CERTAINTY COLLAPSED: ${certaintyCurrent.toFixed(0)} vs ${certaintyAtLock.toFixed(0)} at lock (-${(certaintyAtLock - certaintyCurrent).toFixed(0)})`);
+            } else if (edgeCollapsed && Number.isFinite(pnlPercent) && pnlPercent < 0 && timeLeftSec > 120) {
+                // Edge collapsed AND we're in the red - cut early
+                signal.action = 'SELL';
+                signal.reasons.push(`⚠️ EDGE COLLAPSED: edge=${((currentEdge || 0) * 100).toFixed(1)}% < 2%, P/L=${pnlPercent.toFixed(1)}%`);
             } else if (Number.isFinite(pnlPercent) && pnlPercent >= 25 && timeLeftSec > 60) {
                 signal.action = 'SELL';
                 signal.reasons.push(`Take profit (+${pnlPercent.toFixed(1)}%)`);
@@ -22173,8 +22801,45 @@ function updateOracleSignalForAsset(asset) {
             signal.action = 'WAIT';
         }
 
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🔮 ULTRA-PROPHET DETECTION: The highest certainty signals for $1→$1M journey
+        // These gates are MUCH stricter than normal BUY signals.
+        // When ULTRA fires, you should have >95% confidence in the prediction.
+        // ═══════════════════════════════════════════════════════════════════════════════
+        const ultraProphet = computeUltraProphetStatus(asset, brain, signal, entryPrice, pWin, evRoi, timeLeftSec, voteStability);
+        signal.ultraProphet = ultraProphet;
+        
+        // If ULTRA-PROPHET fires and action is BUY, upgrade the signal
+        if (ultraProphet.isUltra && signal.action === 'BUY') {
+            signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🚨 ULTRA-ONLY MODE: When bankroll < $20, only allow BUY if ULTRA passes
+        // This protects the $1→$1M journey from early losses that would be catastrophic.
+        // PREPARE signals are still allowed (so you get heads-up), but BUY requires ULTRA.
+        // ═══════════════════════════════════════════════════════════════════════════════
+        const manualBankroll = manualTradingJourney?.currentBalance || 1;
+        const ultraOnlyThreshold = 20; // $20 threshold for ULTRA-only mode
+        
+        if (signal.action === 'BUY' && manualBankroll < ultraOnlyThreshold && !ultraProphet.isUltra) {
+            // Downgrade BUY to PREPARE - bankroll too low for non-ULTRA trades
+            signal.action = 'PREPARE';
+            signal.reasons.unshift(`⚠️ ULTRA-ONLY MODE: Bankroll $${manualBankroll.toFixed(2)} < $${ultraOnlyThreshold} - need ULTRA (${ultraProphet.passedGates}/${ultraProphet.totalGates} gates)`);
+            // Reset BUY timestamp since we're not actually buying
+            rt.lastBuyAt = 0;
+            if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
+        }
+
         oracleSignals[asset] = signal;
         rt.lastAction = signal.action;
+        
+        // Send special ULTRA notification if this is a new ULTRA signal
+        if (ultraProphet.isUltra && signal.action === 'BUY' && !rt.telegramUltraSentAt) {
+            rt.telegramUltraSentAt = nowMs;
+            maybeSendUltraProphetTelegram(asset, signal);
+        }
+        
         return signal;
     } catch (e) {
         // Never crash the engine on advisory computation
@@ -22354,8 +23019,249 @@ function buildStateSnapshot() {
     return response;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔮 PROPHET MODE: MANUAL TRADING JOURNEY TRACKER
+// Track your $1→$1M manual trading journey
+// (manualTradingJourney object declared earlier for Telegram function access)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Get manual trading journey status
+app.get('/api/manual-journey', (req, res) => {
+    const j = manualTradingJourney;
+    const totalProfit = j.currentBalance - j.startingBalance;
+    const profitPct = j.startingBalance > 0 ? ((j.currentBalance / j.startingBalance) - 1) * 100 : 0;
+    const tradesWon = j.trades.filter(t => t.won).length;
+    const tradesLost = j.trades.filter(t => !t.won).length;
+    const winRate = j.trades.length > 0 ? (tradesWon / j.trades.length * 100) : 0;
+    
+    // Estimate trades to $1M
+    const avgRoi = j.trades.length > 0 
+        ? j.trades.filter(t => t.won).reduce((sum, t) => sum + (t.roi || 0), 0) / Math.max(1, tradesWon)
+        : 0.5; // assume 50% avg ROI if no data
+    const tradesToMillion = avgRoi > 0 && j.currentBalance > 0
+        ? Math.ceil(Math.log(1000000 / j.currentBalance) / Math.log(1 + avgRoi * 0.85))
+        : 999;
+    
+    res.json({
+        startingBalance: j.startingBalance,
+        currentBalance: j.currentBalance,
+        targetBalance: j.targetBalance,
+        totalProfit,
+        profitPct: profitPct.toFixed(1) + '%',
+        trades: j.trades.length,
+        tradesWon,
+        tradesLost,
+        winRate: winRate.toFixed(1) + '%',
+        tradesToMillion,
+        progressPct: (Math.log(j.currentBalance) / Math.log(1000000) * 100).toFixed(2) + '%',
+        recentTrades: j.trades.slice(-10),
+        startedAt: new Date(j.startedAt).toISOString(),
+        lastUpdated: new Date(j.lastUpdated).toISOString()
+    });
+});
+
+// Record a manual trade result
+app.post('/api/manual-journey/trade', (req, res) => {
+    try {
+        const { asset, direction, entryPrice, exitPrice, stake, won, notes } = req.body;
+        
+        if (typeof won !== 'boolean') {
+            return res.status(400).json({ error: 'Missing required field: won (boolean)' });
+        }
+        
+        const entry = Number(entryPrice) || 0.5;
+        const exit = Number(exitPrice) || (won ? 1.0 : 0);
+        const stakeAmt = Number(stake) || manualTradingJourney.currentBalance * 0.85;
+        
+        // Calculate P&L
+        const shares = entry > 0 ? stakeAmt / entry : 0;
+        const payout = won ? shares * 1.0 : 0; // $1 per share if win
+        const pnl = payout - stakeAmt;
+        const roi = stakeAmt > 0 ? (payout / stakeAmt) - 1 : 0;
+        
+        const trade = {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            asset: asset || 'UNKNOWN',
+            direction: direction || 'UNKNOWN',
+            entryPrice: entry,
+            exitPrice: exit,
+            stake: stakeAmt,
+            shares,
+            payout,
+            pnl,
+            roi,
+            won,
+            notes: notes || '',
+            balanceBefore: manualTradingJourney.currentBalance,
+            balanceAfter: manualTradingJourney.currentBalance + pnl
+        };
+        
+        manualTradingJourney.trades.push(trade);
+        manualTradingJourney.currentBalance += pnl;
+        manualTradingJourney.lastUpdated = Date.now();
+        
+        // Keep only last 100 trades in memory
+        if (manualTradingJourney.trades.length > 100) {
+            manualTradingJourney.trades = manualTradingJourney.trades.slice(-100);
+        }
+        
+        const emoji = won ? '✅' : '❌';
+        const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
+        log(`${emoji} MANUAL TRADE: ${asset} ${direction} @ ${(entry*100).toFixed(0)}¢ → ${won ? 'WIN' : 'LOSS'} (${pnlStr}) | Balance: $${manualTradingJourney.currentBalance.toFixed(2)}`);
+        
+        // Send Telegram notification
+        if (CONFIG.TELEGRAM?.enabled) {
+            const msg = won 
+                ? `✅ <b>MANUAL WIN</b>\n${asset} ${direction} @ ${(entry*100).toFixed(0)}¢\nP/L: <code>${pnlStr}</code>\nBalance: <code>$${manualTradingJourney.currentBalance.toFixed(2)}</code>`
+                : `❌ <b>MANUAL LOSS</b>\n${asset} ${direction} @ ${(entry*100).toFixed(0)}¢\nP/L: <code>${pnlStr}</code>\nBalance: <code>$${manualTradingJourney.currentBalance.toFixed(2)}</code>`;
+            sendTelegramNotification(msg);
+        }
+        
+        res.json({
+            success: true,
+            trade,
+            currentBalance: manualTradingJourney.currentBalance,
+            totalTrades: manualTradingJourney.trades.length
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Update manual bankroll (for stake calculations)
+app.post('/api/manual-journey/balance', (req, res) => {
+    try {
+        const { balance, reset } = req.body;
+        const newBalance = Number(balance);
+        
+        if (!Number.isFinite(newBalance) || newBalance < 0) {
+            return res.status(400).json({ error: 'Invalid balance' });
+        }
+        
+        if (reset) {
+            manualTradingJourney.startingBalance = newBalance;
+            manualTradingJourney.currentBalance = newBalance;
+            manualTradingJourney.trades = [];
+            manualTradingJourney.startedAt = Date.now();
+            log(`🔄 MANUAL JOURNEY RESET: Starting balance set to $${newBalance.toFixed(2)}`);
+        } else {
+            manualTradingJourney.currentBalance = newBalance;
+            log(`💰 MANUAL BALANCE UPDATED: $${newBalance.toFixed(2)}`);
+        }
+        
+        manualTradingJourney.lastUpdated = Date.now();
+        
+        // Also update paper balance for stake calculations
+        if (tradeExecutor) {
+            tradeExecutor.paperBalance = newBalance;
+        }
+        
+        res.json({
+            success: true,
+            startingBalance: manualTradingJourney.startingBalance,
+            currentBalance: manualTradingJourney.currentBalance,
+            message: reset ? 'Journey reset' : 'Balance updated'
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/api/state', (req, res) => {
     res.json(buildStateSnapshot());
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔮 CYCLE RECORDER: Export cycle-level data for analysis
+// Returns odds path, prediction evolution, and ULTRA gate status per asset
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/cycle-recorder', (req, res) => {
+    try {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const cycleStart = nowSec - (nowSec % INTERVAL_SECONDS);
+        const elapsedSec = nowSec - cycleStart;
+        const timeLeftSec = INTERVAL_SECONDS - elapsedSec;
+        
+        const result = {
+            cycleStartEpoch: cycleStart,
+            cycleStartISO: new Date(cycleStart * 1000).toISOString(),
+            cycleEndEpoch: cycleStart + INTERVAL_SECONDS,
+            cycleEndISO: new Date((cycleStart + INTERVAL_SECONDS) * 1000).toISOString(),
+            elapsedSec,
+            timeLeftSec,
+            assets: {}
+        };
+        
+        for (const asset of ASSETS) {
+            const brain = Brains[asset];
+            const market = currentMarkets[asset];
+            const oddsHistory = marketOddsHistory[asset] || [];
+            const signal = oracleSignals[asset] || null;
+            
+            // Filter odds history to current cycle
+            const cycleOdds = oddsHistory.filter(h => h && h.timestamp >= cycleStart * 1000);
+            
+            // Get current cycle prediction history from brain
+            const predictionHistory = brain?.currentCycleHistory || [];
+            
+            // Compute ULTRA status
+            const ultraStatus = signal?.ultraProphet || null;
+            
+            result.assets[asset] = {
+                // Current state
+                currentPrediction: brain?.prediction || 'WAIT',
+                currentTier: brain?.tier || 'NONE',
+                currentConfidence: brain?.confidence || 0,
+                oracleLocked: brain?.oracleLocked || false,
+                oracleLockPrediction: brain?.oracleLockPrediction || null,
+                lockCertainty: brain?.lockCertainty || 0,
+                certaintyScore: brain?.certaintyScore || 0,
+                
+                // Market odds
+                currentOdds: market ? { yes: market.yesPrice, no: market.noPrice } : null,
+                marketUrl: market?.marketUrl || null,
+                
+                // History this cycle
+                oddsPath: cycleOdds.map(h => ({
+                    timestamp: h.timestamp,
+                    yes: h.yes,
+                    no: h.no
+                })),
+                predictionPath: predictionHistory.map(p => ({
+                    timestamp: p.timestamp,
+                    elapsed: p.elapsed,
+                    prediction: p.prediction,
+                    confidence: p.confidence,
+                    tier: p.tier,
+                    odds: p.marketOdds
+                })),
+                
+                // ULTRA-PROPHET status
+                ultraProphet: ultraStatus ? {
+                    isUltra: ultraStatus.isUltra,
+                    passedGates: ultraStatus.passedGates,
+                    totalGates: ultraStatus.totalGates,
+                    gates: ultraStatus.gates,
+                    reasons: ultraStatus.reasons
+                } : null,
+                
+                // Oracle signal
+                oracleSignal: signal ? {
+                    action: signal.action,
+                    direction: signal.direction,
+                    pWin: signal.pWin,
+                    evRoi: signal.evRoi,
+                    mispricingEdge: signal.mispricingEdge,
+                    reasons: signal.reasons
+                } : null
+            };
+        }
+        
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // 🎯 GOAT v44.1: Public state endpoint (no auth, no sensitive data)
@@ -24470,15 +25376,42 @@ async function startup() {
     if (!LIGHT_MODE) {
         // 🔮 MAIN UPDATE LOOP: Every second, update brains AND check exit conditions
         setInterval(() => {
+            // Step 1: Update all brains and compute oracle signals
             ASSETS.forEach(a => {
                 Brains[a].update();
-                const sig = updateOracleSignalForAsset(a);
-                maybeSendOracleSignalTelegram(a, sig || oracleSignals?.[a]);
-
-                // 🔴 CRITICAL: Check exit conditions for all positions
-                // This was MISSING - checkExits was never called!
-                const now = Math.floor(Date.now() / 1000);
-                const elapsed = now % INTERVAL_SECONDS;
+                updateOracleSignalForAsset(a);
+            });
+            
+            // Step 2: Orchestrate notifications (single primary BUY + other candidates)
+            orchestrateOracleNotifications();
+            
+            // Step 3: Check shadow-book position for SELL conditions
+            if (shadowBook.position) {
+                const posAsset = shadowBook.position.asset;
+                const sig = oracleSignals[posAsset];
+                if (sig?.action === 'SELL') {
+                    maybeSendOracleSignalTelegram(posAsset, sig);
+                }
+            }
+            
+            // Step 4: Settle shadow-book position on cycle end
+            const nowSec = Math.floor(Date.now() / 1000);
+            const elapsed = nowSec % INTERVAL_SECONDS;
+            if (shadowBook.position && elapsed < 5) {
+                // Near cycle start - check if previous cycle ended
+                const posCycleEnd = shadowBook.position.cycleStartEpoch + INTERVAL_SECONDS;
+                if (nowSec >= posCycleEnd) {
+                    // Cycle ended - settle position based on outcome
+                    const posAsset = shadowBook.position.asset;
+                    const brain = Brains[posAsset];
+                    if (brain?.lastOutcome) {
+                        settleShadowPositionOnCycleEnd(posAsset, brain.lastOutcome);
+                    }
+                }
+            }
+            
+            // Step 5: Check exit conditions for PAPER positions
+            ASSETS.forEach(a => {
                 const market = currentMarkets[a];
                 if (market) {
                     tradeExecutor.checkExits(a, livePrices[a], elapsed, market.yesPrice, market.noPrice);

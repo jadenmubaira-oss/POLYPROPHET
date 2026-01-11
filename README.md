@@ -1,14 +1,151 @@
-# POLYPROPHET — ORACLE/ADVISORY MODE (Manual Polymarket Signals)
+# POLYPROPHET — THE SUPREME ORACLE 🔮
+
+## $1 → $1,000,000 Fully Automatic Manual Trading Journey
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **ORACLE MODE (v97)**: Default runtime is **advisory-only for LIVE** (no automatic LIVE orders) and emits **PREPARE/BUY/SELL** signals for manual execution on **BTC/ETH/XRP/SOL**. PAPER auto-trading remains enabled for evaluation.
->
-> Start here:
-> - `docs/ORACLE_SIGNALS.md`
-> - `docs/ORACLE_MODE_AUDIT.md`
->
-> **v96 baseline still applies**: baseline bankroll for LIVE/PAPER parity + LCB wired into ADVISORY EV/sizing + relative-mode vault thresholds.
+> **v102 HANDS-OFF ORACLE MODE**: You do nothing except receive Telegram notifications and execute trades manually.
+> - **SINGLE PRIMARY BUY**: Only ONE trade at a time (all-in compounding requires focus)
+> - **OTHER CANDIDATES SHOWN**: If multiple assets qualify, you see them all in the BUY message
+> - **SHADOW-BOOK AUTOMATION**: Position tracking and SELL signals work automatically
+> - **ULTRA-PROPHET**: 10 gates that ALL must pass for maximum confidence signals
+> - **$1 START**: All-in compounding strategy with $100 cap at higher bankrolls
+
+---
+
+## 🔮 ULTRA-PROPHET: THE SUPREME SIGNAL
+
+ULTRA-PROPHET is a **new tier above CONVICTION** designed for the $1→$1M journey where **first predictions MUST be correct**.
+
+### 10 Gates (ALL Must Pass)
+
+| Gate | Requirement | Why |
+|------|-------------|-----|
+| 1. pWin | ≥ 88% | High calibrated win probability |
+| 2. EV ROI | ≥ 25% | Massive edge required |
+| 3. Genesis | Agrees with prediction | 94% accuracy model must agree |
+| 4. Oracle Lock | Must be locked | Certainty threshold met |
+| 5. Consensus | ≥ 85% model agreement | Almost unanimous |
+| 6. Stability | ≥ 0.8 vote stability | Direction held consistently |
+| 7. Time Left | ≥ 180 seconds | Not too close to resolution |
+| 8. Extreme Odds | ≤ 35¢ OR ≥ 85¢ | Clearer edge at extremes |
+| 9. No Flip | No prediction flip since lock | Stable signal |
+| 10. Tier | CONVICTION | Base tier must be CONVICTION |
+
+### When ULTRA Fires
+
+```
+🔮✨ ULTRA-PROPHET SIGNAL ✨🔮
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚡ MAXIMUM CONFIDENCE ⚡
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📍 BTC
+🎯 BUY YES @ 28.5¢
+
+💵 Stake: $1.00
+📈 If WIN: +$2.51 (+251%)
+🎯 pWin: 92.0%
+💰 EV: 45.0%
+📊 Edge: 63.5pp
+⏳ Time: 08:45
+✅ Gates: 10/10
+🚀 ~23 wins to $1M
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ ALL 10 GATES PASSED
+This is the HIGHEST confidence signal.
+━━━━━━━━━━━━━━━━━━━━━━━━
+🔗 OPEN MARKET NOW
+```
+
+---
+
+## 💰 $1 → $1M Compounding Strategy
+
+### Stake Recommendations (Auto-calculated)
+
+| Bankroll | Stake % | Max Stake | Strategy |
+|----------|---------|-----------|----------|
+| $1-$2 | **100%** | ALL IN | Must compound aggressively |
+| $2-$5 | **95%** | Almost all | Micro bankroll, no buffer |
+| $5-$20 | **90%** | Aggressive | Building momentum |
+| $20-$100 | **85%** | Growth | Cushion building |
+| $100+ | **80%** | **$100 CAP** | Liquidity protection |
+
+### The Math (From Your Tables)
+
+At 90% win rate with 50% ROI average:
+- **321 winning trades** from $5 → $1M
+- **47 winning trades** from $1 → $1M (at 28¢ entry = 257% ROI)
+
+**CRITICAL**: One loss at $1-5 bankroll = game over. ULTRA-PROPHET exists to prevent this.
+
+### ULTRA-Only Mode (Automatic Protection)
+
+When your bankroll is **below $20**, the system automatically enforces **ULTRA-ONLY** mode:
+
+- **BUY signals require 10/10 ULTRA gates** to pass
+- Non-ULTRA opportunities are **downgraded to PREPARE** (you see them but shouldn't trade)
+- This prevents catastrophic early losses during the compounding phase
+- Once bankroll reaches **$20+**, strict CONVICTION trades are also allowed
+
+### Early Exit Warnings (Dissent Detection)
+
+Even when a prediction is locked, the system monitors for deterioration:
+
+| Warning | Trigger | Action |
+|---------|---------|--------|
+| **Genesis Dissent** | Genesis model (94% accurate) disagrees with position | SELL immediately |
+| **Consensus Collapse** | Model consensus drops below 60% | SELL immediately |
+| **Certainty Collapse** | Certainty score drops 30+ points from lock | SELL immediately |
+| **Edge Collapse** | Edge vs entry drops below 2% while in loss | SELL immediately |
+
+These warnings work **even when direction is locked** by `oracleLocked` or `cycleCommitted`.
+
+### Fully Automatic Operation (v100)
+
+**You do nothing except:**
+1. Receive Telegram notifications
+2. Execute the trades on Polymarket website
+
+**The oracle handles everything else automatically:**
+
+| Feature | Automation |
+|---------|------------|
+| **Single Primary BUY** | Only ONE BUY signal at a time (best scoring asset wins) |
+| **Other Candidates** | All qualifying assets shown in the BUY message |
+| **Shadow-Book Tracking** | Position opened when BUY sent, closed on SELL or cycle end |
+| **Bankroll Updates** | Automatic P/L calculation updates stake recommendations |
+| **SELL Signals** | Automatic when dissent/profit/loss triggers fire |
+| **Cycle Settlement** | Positions auto-settle at cycle resolution |
+
+**BUY Scoring Priority:**
+1. ULTRA signals (+1000 points)
+2. EV ROI (higher = better)
+3. pWin (higher = better)
+4. Edge (higher = better)
+5. Time left (more = better)
+6. ULTRA gate count (tiebreaker)
+
+**Example BUY message with Other Candidates:**
+```
+🟢🔮 🚨 ULTRA BUY 🚨 ✨
+━━━━━━━━━━━━━━━━━━━━━
+⚡ ULTRA-PROPHET: 10/10 GATES ⚡
+━━━━━━━━━━━━━━━━━━━━━
+📍 BTC • CONVICTION
+
+🎯 ACTION: Buy YES @ 28.5¢
+...
+
+📋 OTHER CANDIDATES:
+• ETH YES @ 32¢ | pWin: 85% | EV: 22% (8/10)
+  → Open
+• SOL NO @ 88¢ | pWin: 82% | EV: 18% (7/10)
+  → Open
+━━━━━━━━━━━━━━━━━━━━━
+```
 
 ---
 
@@ -18,10 +155,11 @@
 
 - **4 assets**: BTC, ETH, XRP, SOL (15m up/down markets)
 - **Signals**: PREPARE → BUY → SELL (with market links + reason trace)
+- **🔮 ULTRA-PROPHET**: Maximum confidence signals with 10 gates
 - **Metrics**: calibrated pWin, EV, edge, and time-to-correct-call (TTC)
-- **Optional**: ingest your real Polymarket profile fills (Data API) for evaluation/learning
+- **Telegram**: Auto-notifications when credentials are set
 
-**Honest boundary**: this improves measurably (accuracy/calibration/stability), but **cannot guarantee** 100% correct outcomes or profit in live markets.
+**Honest boundary**: ULTRA-PROPHET significantly improves signal quality, but **cannot guarantee** 100% correct outcomes. Markets are inherently unpredictable.
 
 ### Default safety (no accidental LIVE auto-trading)
 
@@ -32,26 +170,71 @@
 
 ### Recommended setup (oracle-only + paper evaluation)
 
-Set these env vars (Render or local):
+### Telegram Setup (CRITICAL for Manual Trading)
 
-- `TRADE_MODE=PAPER`
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
-- `TELEGRAM_SIGNALS_ONLY=true` (default) — suppress PAPER open/close spam
-- Optional profile sync (recommended for “hybrid” learning):
-  - `POLYMARKET_PROFILE_URL=https://polymarket.com/profile/<...0xADDRESS...>`
-  - or `POLYMARKET_PROFILE_ADDRESS=0x...`
+Telegram **auto-enables** when credentials are set:
 
-Then run and open:
+```bash
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
+TELEGRAM_SIGNALS_ONLY=true
+```
 
-- `/mobile.html` (mobile dashboard)
-- `/index.html` (simple dashboard)
-- `/tools.html` (optimizers + audits)
+**Get credentials:**
+1. BotFather on Telegram - /newbot - copy token
+2. userinfobot - copy chat ID
 
-Verification endpoints:
+**Signals you receive:**
+- PREPARE: Opportunity forming
+- BUY NOW: Stake, shares, profit, market link
+- SELL NOW: P/L and exit reason  
+- ULTRA: 10/10 gates (highest confidence)
 
-- `GET /api/version`
-- `GET /api/state`
-- `GET /api/profile-trades/status`
+Run: `npm start`
+
+Dashboards:
+- `/mobile.html` - Mobile
+- `/index.html` - Simple
+- `/tools.html` - Tools
+
+### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/state` | Full state snapshot for all assets |
+| `GET /api/cycle-recorder` | Current cycle odds path + prediction evolution |
+| `GET /api/manual-journey` | Manual trading journey status |
+| `POST /api/manual-journey/trade` | Record a manual trade result |
+| `POST /api/manual-journey/balance` | Update manual bankroll |
+
+---
+
+## Backtest Your Strategy
+
+Run the manual strategy backtest against historical debug corpus:
+
+```bash
+# Basic backtest (uses all available cycles)
+node scripts/backtest-manual-strategy.js
+
+# Limit to N cycles
+node scripts/backtest-manual-strategy.js --cycles=100
+
+# Start with different bankroll
+node scripts/backtest-manual-strategy.js --start=5
+
+# Use custom data file
+node scripts/backtest-manual-strategy.js --data=/path/to/corpus.json
+```
+
+**Output includes:**
+- Trade-by-trade ledger
+- Win rate (overall and ULTRA-specific)
+- Max drawdown
+- Bust detection
+- Final bankroll and ROI
+
+Results are saved to `backtest_results.json`.
 
 ---
 
