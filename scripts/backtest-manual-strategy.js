@@ -1,20 +1,28 @@
 #!/usr/bin/env node
 /**
- * 🔮 POLYPROPHET MANUAL STRATEGY BACKTEST
- * 
- * Simulates the $1→$1M manual trading journey using historical debug corpus data.
- * 
- * Strategy:
+ * 🔮 POLYPROPHET MANUAL STRATEGY BACKTEST (v103)
+ *
+ * IMPORTANT (Honest proof boundary):
+ * - This backtester requires per-cycle historical records (e.g. `assets[ASSET].cycleHistory[]`)
+ *   from `debug/polyprophet_debug_*.json` exports.
+ * - `docs/forensics/DEBUG_CORPUS_REPORT_v96.json` is a SUMMARY report (no per-cycle rows),
+ *   so it cannot be used for trade-by-trade simulation.
+ *
+ * Strategy simulated:
  * - Start with $1 bankroll
  * - ULTRA-only trades until bankroll reaches $20
  * - Strict CONVICTION trades after $20
  * - $100 max stake cap at higher bankrolls
- * 
+ *
  * Usage:
- *   node scripts/backtest-manual-strategy.js [--cycles=N] [--start=1]
- * 
+ *   node scripts/backtest-manual-strategy.js --data=<fileOrDir> [--cycles=N] [--start=1]
+ *
+ * Examples:
+ *   node scripts/backtest-manual-strategy.js --data=debug/polyprophet_debug_2025-12-18T10-59-02-670Z.json
+ *   node scripts/backtest-manual-strategy.js --data=debug --cycles=500
+ *
  * Output:
- * - Trade-by-trade ledger
+ * - Trade-by-trade ledger (best-effort fields)
  * - Win rate, max drawdown, bust rate
  * - Final bankroll
  */
@@ -46,6 +54,17 @@ const CONFIG = {
         edgeMin: 0.05
     }
 };
+
+function safeNum(x, fallback = null) {
+    const n = Number(x);
+    return Number.isFinite(n) ? n : fallback;
+}
+
+function clamp01(x) {
+    const n = safeNum(x, null);
+    if (n === null) return null;
+    return Math.max(0, Math.min(1, n));
+}
 
 // ==================== STAKE CALCULATOR ====================
 function calculateStake(bankroll, entryPrice, pWin, isUltra) {
@@ -112,30 +131,126 @@ function checkConvictionGates(cycle) {
            (cycle.edge || 0) >= CONFIG.convictionGates.edgeMin;
 }
 
-// ==================== LOAD DEBUG CORPUS ====================
-function loadDebugCorpus(dataPath) {
-    // Try multiple locations
-    const possiblePaths = [
-        dataPath,
-        path.join(__dirname, '..', 'docs', 'forensics', 'DEBUG_CORPUS_REPORT_v96.json'),
-        path.join(__dirname, '..', 'FORENSIC_LEDGER_LOCAL.json'),
-        path.join(__dirname, '..', 'debug_corpus.json')
-    ];
-    
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
-            try {
-                const raw = fs.readFileSync(p, 'utf8');
-                const data = JSON.parse(raw);
-                console.log(`📂 Loaded corpus from: ${p}`);
-                return data;
-            } catch (e) {
-                console.log(`⚠️ Failed to parse ${p}: ${e.message}`);
-            }
+// ==================== LOAD PER-CYCLE CORPUS ====================
+function extractCyclesFromDebugExport(json, sourceLabel = 'unknown') {
+    // Expected format (archive branch debug exports):
+    // { assets: { BTC: { cycleHistory: [...] }, ... } }
+    const assets = json && typeof json === 'object' ? json.assets : null;
+    if (!assets || typeof assets !== 'object') return [];
+
+    const out = [];
+    for (const [asset, assetData] of Object.entries(assets)) {
+        const ch = assetData && typeof assetData === 'object' ? (assetData.cycleHistory || assetData.cycles || null) : null;
+        if (!Array.isArray(ch)) continue;
+        for (const row of ch) {
+            if (!row || typeof row !== 'object') continue;
+            const prediction = row.prediction || row.predicted || null;
+            const outcome = row.actualOutcome || row.outcome || null;
+            const tier = row.tier || null;
+            const modelVotes = (row.modelVotes && typeof row.modelVotes === 'object') ? row.modelVotes : {};
+            const mvValues = Object.values(modelVotes).filter(v => v === 'UP' || v === 'DOWN');
+            const upCount = mvValues.filter(v => v === 'UP').length;
+            const downCount = mvValues.filter(v => v === 'DOWN').length;
+            const totalVotes = upCount + downCount;
+            const consensus = totalVotes > 0 ? (Math.max(upCount, downCount) / totalVotes) : null;
+
+            const oracleLocked = row.oracleWasLocked === true;
+            const oracleLockPrediction = row.oracleLockPrediction || null;
+            const noFlipSinceLock = oracleLocked ? (oracleLockPrediction === prediction) : true;
+
+            // Best-effort "vote stability" proxy for legacy exports:
+            // - locked implies stability was high enough to lock; treat as strong
+            // - otherwise treat as weak/unknown
+            const stabilityProxy = oracleLocked ? 0.90 : 0.50;
+
+            // Genesis agreement from per-cycle modelVotes if present
+            const genesisVote = modelVotes.genesis;
+            const genesisAgrees = (genesisVote === 'UP' || genesisVote === 'DOWN') ? (genesisVote === prediction) : null;
+
+            // Time-left proxy: legacy cycleHistory rows do not store entry timestamp.
+            // Use blackout flag as a hard "late" indicator.
+            const wasInBlackout = row.wasInBlackout === true || String(row.phaseAtEnd || '').toUpperCase() === 'BLACKOUT';
+            const timeLeftAtEntryProxy = wasInBlackout ? 60 : 600;
+
+            out.push({
+                source: sourceLabel,
+                asset,
+                cycleEndTime: row.cycleEndTime || null,
+                cycleStartPrice: safeNum(row.cycleStartPrice, null),
+                cycleEndPrice: safeNum(row.cycleEndPrice, null),
+                outcome,
+                prediction,
+                tier,
+                pWin: safeNum(row.confidence, null), // best available proxy in legacy exports
+                oracleLocked,
+                genesisAgrees,
+                consensus,
+                stability: stabilityProxy,
+                // Price proxy (legacy): use cycle-end odds snapshot if present. NOT true entry price.
+                // This is a limitation of legacy exports.
+                entryPrice: clamp01(
+                    (prediction === 'UP')
+                        ? (row.marketOdds && (row.marketOdds.yes ?? row.marketOdds.YES))
+                        : (prediction === 'DOWN')
+                            ? (row.marketOdds && (row.marketOdds.no ?? row.marketOdds.NO))
+                            : null
+                ),
+                timeLeftAtEntry: timeLeftAtEntryProxy,
+                noFlipSinceLock
+            });
         }
     }
-    
-    return null;
+    return out;
+}
+
+function loadPerCycleCorpus(dataPath) {
+    if (!dataPath) return { cycles: [], sources: [] };
+    const p = dataPath;
+    const sources = [];
+    const cycles = [];
+
+    if (!fs.existsSync(p)) return { cycles: [], sources: [] };
+
+    const stat = fs.statSync(p);
+    if (stat.isDirectory()) {
+        // Load multiple exports from a directory (debug/)
+        const files = fs.readdirSync(p)
+            .filter(f => f.startsWith('polyprophet_debug_') && f.endsWith('.json'))
+            .sort();
+        for (const f of files) {
+            const fp = path.join(p, f);
+            try {
+                const raw = fs.readFileSync(fp, 'utf8');
+                const json = JSON.parse(raw);
+                const extracted = extractCyclesFromDebugExport(json, fp);
+                if (extracted.length > 0) {
+                    sources.push(fp);
+                    cycles.push(...extracted);
+                }
+            } catch { /* skip */ }
+        }
+        return { cycles, sources };
+    }
+
+    // Load a single file export
+    try {
+        const raw = fs.readFileSync(p, 'utf8');
+        const json = JSON.parse(raw);
+
+        // Guard: summary reports are not usable for trade-by-trade simulation
+        if (json && typeof json === 'object' && json.summaries && json.summaries.cycles) {
+            return {
+                cycles: [],
+                sources: [p],
+                error: 'This looks like a summary report (summaries.cycles present) and does not contain per-cycle rows. Use a debug export (polyprophet_debug_*.json) or a debug/ directory.'
+            };
+        }
+
+        const extracted = extractCyclesFromDebugExport(json, p);
+        return { cycles: extracted, sources: [p] };
+    } catch (e) {
+        return { cycles: [], sources: [p], error: e.message };
+    }
 }
 
 // ==================== SIMULATE CYCLE ====================
@@ -144,8 +259,8 @@ function simulateCycle(cycle, bankroll) {
     const prediction = cycle.prediction || cycle.predicted;
     const outcome = cycle.outcome || cycle.actual;
     const tier = cycle.tier;
-    const entryPrice = cycle.entryPrice || cycle.implied || 0.5;
-    const pWin = cycle.pWin || cycle.calibratedPWin || 0.5;
+    const entryPrice = safeNum(cycle.entryPrice || cycle.implied, 0.5);
+    const pWin = safeNum(cycle.pWin || cycle.calibratedPWin, 0.5);
     const evRoi = cycle.evRoi || ((1 / entryPrice) - 1) * (pWin - entryPrice);
     
     // Reconstruct additional fields if missing
@@ -244,34 +359,17 @@ function simulateCycle(cycle, bankroll) {
 
 // ==================== MAIN BACKTEST ====================
 function runBacktest(corpus, maxCycles = null) {
-    // Extract cycles from corpus
-    let cycles = [];
-    
-    if (Array.isArray(corpus)) {
-        cycles = corpus;
-    } else if (corpus.cycles) {
-        cycles = corpus.cycles;
-    } else if (corpus.byTier) {
-        // Flatten tier-grouped data
-        for (const tierData of Object.values(corpus.byTier)) {
-            if (tierData.cycles) cycles.push(...tierData.cycles);
-        }
-    } else if (corpus.assets) {
-        // Extract from per-asset structure
-        for (const assetData of Object.values(corpus.assets)) {
-            if (assetData.cycles) cycles.push(...assetData.cycles);
-        }
-    }
+    let cycles = Array.isArray(corpus) ? corpus : (Array.isArray(corpus?.cycles) ? corpus.cycles : []);
     
     if (cycles.length === 0) {
         console.log('❌ No cycles found in corpus');
         return null;
     }
     
-    // Sort by timestamp if available
+    // Sort by time if available
     cycles.sort((a, b) => {
-        const tA = a.timestamp || a.cycleStart || 0;
-        const tB = b.timestamp || b.cycleStart || 0;
+        const tA = Date.parse(a.cycleEndTime || '') || a.timestamp || a.cycleStart || 0;
+        const tB = Date.parse(b.cycleEndTime || '') || b.timestamp || b.cycleStart || 0;
         return tA - tB;
     });
     
@@ -415,20 +513,31 @@ function main() {
     
     console.log('🔮 POLYPROPHET MANUAL STRATEGY BACKTEST');
     console.log('━'.repeat(40));
-    
-    const corpus = loadDebugCorpus(dataPath);
-    
-    if (!corpus) {
-        console.log('\n❌ No debug corpus found.');
-        console.log('   Place debug data in one of:');
-        console.log('   - docs/forensics/DEBUG_CORPUS_REPORT_v96.json');
-        console.log('   - FORENSIC_LEDGER_LOCAL.json');
-        console.log('   - debug_corpus.json');
-        console.log('   Or specify with --data=/path/to/corpus.json');
+
+    if (!dataPath) {
+        console.log('\n❌ Missing required --data.');
+        console.log('   This backtest needs per-cycle debug exports (polyprophet_debug_*.json).');
+        console.log('   Example (archive branch):');
+        console.log('   node scripts/backtest-manual-strategy.js --data=debug/polyprophet_debug_2025-12-18T10-59-02-670Z.json');
         process.exit(1);
     }
-    
-    const results = runBacktest(corpus, maxCycles);
+
+    const loaded = loadPerCycleCorpus(dataPath);
+    if (loaded?.error) {
+        console.log(`\n❌ ${loaded.error}`);
+        process.exit(1);
+    }
+    if (!loaded || !Array.isArray(loaded.cycles) || loaded.cycles.length === 0) {
+        console.log('\n❌ No per-cycle rows found in the provided --data input.');
+        console.log('   Provide a debug export (polyprophet_debug_*.json) or a directory containing them.');
+        process.exit(1);
+    }
+
+    console.log(`📂 Loaded ${loaded.cycles.length} cycle rows from ${loaded.sources.length} source(s).`);
+    console.log('⚠️ NOTE: legacy debug exports do not contain true entry odds or oracle pWin;');
+    console.log('   entryPrice uses a cycle-end odds snapshot when available, and pWin uses legacy confidence as a proxy.');
+
+    const results = runBacktest(loaded.cycles, maxCycles);
     
     // Save results
     const outputPath = path.join(__dirname, '..', 'backtest_results.json');

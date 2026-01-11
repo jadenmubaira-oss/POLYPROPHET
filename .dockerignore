@@ -22,6 +22,8 @@ POLYPROPHET.env
 # Build artifacts
 *.log
 npm-debug.log*
+deity_state.json
+backtest_results.json
 
 # Documentation
 *.md

@@ -26,10 +26,15 @@ services:
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"
       # Auth - CHANGE THESE in Render dashboard!
+      # IMPORTANT:
+      # - Do NOT hardcode credentials in git.
+      # - Render will generate secure values and keep them stable across deploys.
       - key: AUTH_USERNAME
-        value: bandito
+        value: polyprophet
       - key: AUTH_PASSWORD
-        value: bandito
+        generateValue: true
+      - key: API_KEY
+        generateValue: true
       # 🏆 v70: REQUIRED FOR LIVE MODE - Set in Render dashboard
       # Without Redis, LIVE mode will be downgraded to PAPER for safety
       # - key: REDIS_URL

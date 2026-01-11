@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.7.0-v96",
-    "description": "POLYPROPHET v96 - Baseline bankroll for LIVE/PAPER parity, LCB wired into ADVISORY EV gating/sizing, relative-mode vault thresholds, hardened verify/perfection checks",
+    "version": "4.7.0-v103",
+    "description": "POLYPROPHET v103 - Hands-off oracle mode: stability mismatch fix, correct early-exit P/L, persist shadow-book/manual bankroll, hardened auth tokens",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

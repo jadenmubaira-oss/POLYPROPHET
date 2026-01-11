@@ -21,6 +21,10 @@ npm-debug.log*
 # State files (regenerated on startup)
 omega_state.json
 state.json
+deity_state.json
+
+# Local script outputs (keep out of repo)
+backtest_results.json
 
 # OS files
 .DS_Store

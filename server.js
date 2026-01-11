@@ -270,6 +270,10 @@ app.use((req, res, next) => {
     const username = process.env.AUTH_USERNAME || 'admin';
     const password = process.env.AUTH_PASSWORD || 'changeme';
 
+    // SECURITY: Never accept Basic Auth password as a token.
+    // Only API_KEY is accepted for Bearer/cookie/query token auth.
+    const isApiKey = (t) => (typeof t === 'string' && t.length > 0 && t === API_KEY);
+
     // Helper: Parse cookie token (no external deps)
     const getCookie = (name) => {
         try {
@@ -304,7 +308,7 @@ app.use((req, res, next) => {
     const authHeader = req.headers.authorization || '';
     if (authHeader.startsWith('Bearer ')) {
         const token = authHeader.substring(7);
-        if (token === API_KEY || token === password) {
+        if (isApiKey(token)) {
             return next();
         }
     }
@@ -313,7 +317,7 @@ app.use((req, res, next) => {
     // Without this, opening the UI via `?apiKey=...` works for the initial HTML, but internal API fetches (no apiKey)
     // will 401 and appear as "wallet/balance not fetching". Cookie keeps it autonomous and frictionless.
     const cookieToken = getCookie('pp_apiKey');
-    if (cookieToken && (cookieToken === API_KEY || cookieToken === password)) {
+    if (cookieToken && isApiKey(cookieToken)) {
         return next();
     }
 
@@ -324,7 +328,7 @@ app.use((req, res, next) => {
     }
 
     // 🎯 GOAT: Also accept API key as query param for easy dashboard testing
-    if (req.query.apiKey === API_KEY || req.query.apiKey === password) {
+    if (isApiKey(req.query.apiKey)) {
         // Set a short-lived cookie so subsequent same-origin fetch() calls remain authorized.
         try {
             const token = String(req.query.apiKey || '');
@@ -8486,7 +8490,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 102;  // v102: Shadow-book auto position tracking, single-primary-BUY orchestration, "Other candidates" in BUY message, ULTRA-only until $20, dissent-based early exits
+const CONFIG_VERSION = 103;  // v103: Fix oracle stability mismatch, persist shadow-book/manual bankroll, correct early-exit P/L, harden auth tokens
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8573,6 +8577,12 @@ const CONFIG = {
         minOdds: 0.35,
         maxOdds: 0.95,
         minStability: 2,         // 2 ticks - fast lock
+        // NOTE: voteTrendScore is a 0..1 metric (based on leader flip rate), not "ticks".
+        // This threshold is used ONLY by the oracle advisory signal layer (PREPARE/BUY/SELL),
+        // not by the core prediction debounce logic.
+        minVoteStability: Number.isFinite(parseFloat(process.env.ORACLE_MIN_VOTE_STABILITY))
+            ? Math.max(0, Math.min(1, parseFloat(process.env.ORACLE_MIN_VOTE_STABILITY)))
+            : 0.80,
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
         // The bot automatically switches regimes based on Confidence Volatility (StdDev)
@@ -9768,7 +9778,15 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     if (!shadowBook.position) return;
     
     const pos = shadowBook.position;
-    const pnl = isWin ? (pos.shares - pos.stake) : -pos.stake;
+    // IMPORTANT: Shadow-book must support early exits.
+    // Realized value of a binary share position at exit is shares * exitPrice (0..1),
+    // not a forced 0/1 settlement unless we're at resolution.
+    const exit = Number.isFinite(Number(exitPrice))
+        ? Math.max(0, Math.min(1, Number(exitPrice)))
+        : (isWin ? 1.0 : 0.0);
+    const realized = Number(pos.shares || 0) * exit;
+    const pnl = realized - Number(pos.stake || 0);
+    const isWinResolved = pnl >= 0;
     
     // Update bankroll
     manualTradingJourney.currentBalance += pnl;
@@ -9778,9 +9796,9 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     // Record closed trade
     const closedTrade = {
         ...pos,
-        exit: exitPrice,
+        exit,
         pnl,
-        isWin,
+        isWin: isWinResolved,
         reason,
         closedAt: Date.now()
     };
@@ -9788,7 +9806,7 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     shadowBook.closedTrades.push(closedTrade);
     if (shadowBook.closedTrades.length > 10) shadowBook.closedTrades.shift();
     
-    log(`📖 SHADOW-BOOK CLOSED: ${pos.asset} ${pos.direction} | ${isWin ? 'WIN' : 'LOSS'} | P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | Balance: $${manualTradingJourney.currentBalance.toFixed(2)}`);
+    log(`📖 SHADOW-BOOK CLOSED: ${pos.asset} ${pos.direction} | ${isWinResolved ? 'WIN' : 'LOSS'} | Exit: ${(exit * 100).toFixed(1)}¢ | P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | Balance: $${manualTradingJourney.currentBalance.toFixed(2)}`);
     
     shadowBook.position = null;
     shadowBook.lastClosedAt = Date.now();
@@ -9841,8 +9859,8 @@ function maybeSendOracleSignalTelegram(asset, signal) {
                 const pos = shadowBook.position;
                 const market = currentMarkets?.[asset];
                 const currentOdds = market ? (pos.direction === 'UP' ? market.yesPrice : market.noPrice) : pos.entry;
-                // Estimate win/loss based on current odds vs entry
-                const isWin = currentOdds > pos.entry;
+                // Early-exit settle at current mark (best available proxy for exit price)
+                const isWin = Number.isFinite(currentOdds) && Number.isFinite(pos.entry) ? (currentOdds >= pos.entry) : false;
                 closeShadowPosition(currentOdds, isWin, 'SELL_SIGNAL');
             }
             return;
@@ -19762,8 +19780,37 @@ async function saveState() {
             lastSyncAt: Number(profileTradeSync?.lastSyncAt) || 0,
             lastSyncError: profileTradeSync?.lastSyncError || null,
             trades: Array.isArray(profileTradeSync?.trades) ? profileTradeSync.trades.slice(0, PROFILE_TRADE_MAX) : []
+        },
+
+        // 🔮 HANDS-OFF ORACLE (manual trading): persist shadow-book + bankroll so restarts do NOT reset your journey
+        manualTradingJourney: {
+            startingBalance: Number(manualTradingJourney?.startingBalance) || 1.00,
+            currentBalance: Number(manualTradingJourney?.currentBalance) || 1.00,
+            targetBalance: Number(manualTradingJourney?.targetBalance) || 1000000,
+            startedAt: Number(manualTradingJourney?.startedAt) || Date.now(),
+            lastUpdated: Number(manualTradingJourney?.lastUpdated) || Date.now(),
+            trades: Array.isArray(manualTradingJourney?.trades) ? manualTradingJourney.trades.slice(-100) : []
+        },
+        shadowBook: {
+            position: shadowBook?.position || null,
+            lastClosedAt: Number(shadowBook?.lastClosedAt) || 0,
+            closedTrades: Array.isArray(shadowBook?.closedTrades) ? shadowBook.closedTrades.slice(-10) : [],
+            totalPnl: Number(shadowBook?.totalPnl) || 0
+        },
+        primaryBuyState: {
+            currentPrimaryAsset: primaryBuyState?.currentPrimaryAsset || null,
+            lastPrimaryBuyAt: Number(primaryBuyState?.lastPrimaryBuyAt) || 0,
+            otherCandidates: Array.isArray(primaryBuyState?.otherCandidates) ? primaryBuyState.otherCandidates.slice(0, 10) : []
         }
     };
+
+    // Save to local file as a best-effort fallback (helps hands-off oracle survive restarts without Redis).
+    // Redis remains the recommended source of truth for unattended operation.
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(state, null, 2), 'utf8');
+    } catch (e) {
+        log(`⚠️ Local state save error (${DB_FILE}): ${e.message}`);
+    }
 
     // Save to Redis if available
     if (redisAvailable && redis) {
@@ -20179,12 +20226,97 @@ async function loadState() {
                     log(`💰 Trade state restored: Balance=$${tradeExecutor.paperBalance.toFixed(2)}, History=${tradeExecutor.tradeHistory.length} trades, Positions=${Object.keys(tradeExecutor.positions || {}).length}, Recovery=${(tradeExecutor.recoveryQueue || []).length}`);
                 }
 
+                // 🔮 Restore hands-off manual oracle state (bankroll + shadow position)
+                if (state.manualTradingJourney && typeof state.manualTradingJourney === 'object') {
+                    const mj = state.manualTradingJourney;
+                    manualTradingJourney.startingBalance = Number(mj.startingBalance) || manualTradingJourney.startingBalance;
+                    manualTradingJourney.currentBalance = Number(mj.currentBalance);
+                    if (!Number.isFinite(manualTradingJourney.currentBalance) || manualTradingJourney.currentBalance < 0) {
+                        manualTradingJourney.currentBalance = manualTradingJourney.startingBalance;
+                    }
+                    manualTradingJourney.targetBalance = Number(mj.targetBalance) || manualTradingJourney.targetBalance;
+                    manualTradingJourney.startedAt = Number(mj.startedAt) || manualTradingJourney.startedAt;
+                    manualTradingJourney.lastUpdated = Number(mj.lastUpdated) || manualTradingJourney.lastUpdated;
+                    manualTradingJourney.trades = Array.isArray(mj.trades) ? mj.trades.slice(-100) : (manualTradingJourney.trades || []);
+                }
+                if (state.shadowBook && typeof state.shadowBook === 'object') {
+                    const sb = state.shadowBook;
+                    shadowBook.lastClosedAt = Number(sb.lastClosedAt) || 0;
+                    shadowBook.totalPnl = Number(sb.totalPnl) || 0;
+                    shadowBook.closedTrades = Array.isArray(sb.closedTrades) ? sb.closedTrades.slice(-10) : [];
+                    // Restore position (if any) so we don't spam a new BUY after restart mid-trade.
+                    shadowBook.position = (sb.position && typeof sb.position === 'object') ? sb.position : null;
+                }
+                if (state.primaryBuyState && typeof state.primaryBuyState === 'object') {
+                    const pbs = state.primaryBuyState;
+                    primaryBuyState.currentPrimaryAsset = pbs.currentPrimaryAsset || null;
+                    primaryBuyState.lastPrimaryBuyAt = Number(pbs.lastPrimaryBuyAt) || 0;
+                    primaryBuyState.otherCandidates = Array.isArray(pbs.otherCandidates) ? pbs.otherCandidates.slice(0, 10) : [];
+                }
+
                 log('💾 State Restored from Redis (including model learning!)');
                 return;
             }
         } catch (e) {
             log(`⚠️ Redis state load error: ${e.message}`);
         }
+    }
+
+    // Fallback: local state file (non-Redis deployments).
+    try {
+        if (fs.existsSync(DB_FILE)) {
+            const raw = fs.readFileSync(DB_FILE, 'utf8');
+            const state = JSON.parse(raw);
+
+            if (state.stats) ASSETS.forEach(a => { if (state.stats[a]) Brains[a].stats = state.stats[a]; });
+            if (state.evolution) ASSETS.forEach(a => {
+                if (state.evolution[a]) {
+                    Brains[a].atrMultiplier = state.evolution[a].atrMultiplier;
+                    Brains[a].winStreak = state.evolution[a].winStreak;
+                    Brains[a].lossStreak = state.evolution[a].lossStreak;
+                }
+            });
+            if (state.calibration) ASSETS.forEach(a => {
+                if (state.calibration[a]) {
+                    Brains[a].calibrationBuckets = { ...(Brains[a].calibrationBuckets || {}), ...(state.calibration[a] || {}) };
+                }
+            });
+            if (state.regime) ASSETS.forEach(a => { if (state.regime[a]) Brains[a].regimeHistory = state.regime[a]; });
+            if (state.modelAccuracy) ASSETS.forEach(a => { if (state.modelAccuracy[a]) Brains[a].modelAccuracy = state.modelAccuracy[a]; });
+            if (state.recentOutcomes) ASSETS.forEach(a => { if (state.recentOutcomes[a]) Brains[a].recentOutcomes = state.recentOutcomes[a]; });
+
+            // Restore hands-off manual oracle state (bankroll + shadow position)
+            if (state.manualTradingJourney && typeof state.manualTradingJourney === 'object') {
+                const mj = state.manualTradingJourney;
+                manualTradingJourney.startingBalance = Number(mj.startingBalance) || manualTradingJourney.startingBalance;
+                manualTradingJourney.currentBalance = Number(mj.currentBalance);
+                if (!Number.isFinite(manualTradingJourney.currentBalance) || manualTradingJourney.currentBalance < 0) {
+                    manualTradingJourney.currentBalance = manualTradingJourney.startingBalance;
+                }
+                manualTradingJourney.targetBalance = Number(mj.targetBalance) || manualTradingJourney.targetBalance;
+                manualTradingJourney.startedAt = Number(mj.startedAt) || manualTradingJourney.startedAt;
+                manualTradingJourney.lastUpdated = Number(mj.lastUpdated) || manualTradingJourney.lastUpdated;
+                manualTradingJourney.trades = Array.isArray(mj.trades) ? mj.trades.slice(-100) : (manualTradingJourney.trades || []);
+            }
+            if (state.shadowBook && typeof state.shadowBook === 'object') {
+                const sb = state.shadowBook;
+                shadowBook.lastClosedAt = Number(sb.lastClosedAt) || 0;
+                shadowBook.totalPnl = Number(sb.totalPnl) || 0;
+                shadowBook.closedTrades = Array.isArray(sb.closedTrades) ? sb.closedTrades.slice(-10) : [];
+                shadowBook.position = (sb.position && typeof sb.position === 'object') ? sb.position : null;
+            }
+            if (state.primaryBuyState && typeof state.primaryBuyState === 'object') {
+                const pbs = state.primaryBuyState;
+                primaryBuyState.currentPrimaryAsset = pbs.currentPrimaryAsset || null;
+                primaryBuyState.lastPrimaryBuyAt = Number(pbs.lastPrimaryBuyAt) || 0;
+                primaryBuyState.otherCandidates = Array.isArray(pbs.otherCandidates) ? pbs.otherCandidates.slice(0, 10) : [];
+            }
+
+            log(`💾 State Restored from local file (${DB_FILE})`);
+            return;
+        }
+    } catch (e) {
+        log(`⚠️ Local state load error (${DB_FILE}): ${e.message}`);
     }
 
     // Fresh start: seed priors so EV gating doesn't freeze the bot at pWin≈0.5.
@@ -22657,7 +22789,9 @@ function updateOracleSignalForAsset(asset) {
         signal.oddsVelocityPerMin = trend.velocityPerMin;
 
         const voteStability = Number.isFinite(Number(brain.voteTrendScore)) ? Number(brain.voteTrendScore) : 0;
-        const minStability = Number.isFinite(Number(CONFIG?.ORACLE?.minStability)) ? Number(CONFIG.ORACLE.minStability) : 2;
+        const minVoteStability = Number.isFinite(Number(CONFIG?.ORACLE?.minVoteStability))
+            ? Math.max(0, Math.min(1, Number(CONFIG.ORACLE.minVoteStability)))
+            : 0.80;
         const minElapsedSeconds = Number.isFinite(Number(CONFIG?.ORACLE?.minElapsedSeconds)) ? Number(CONFIG.ORACLE.minElapsedSeconds) : 60;
         const inBlackout = (typeof brain.isInBlackout === 'function') ? brain.isInBlackout(elapsedSec) : (elapsedSec >= 840);
 
@@ -22680,7 +22814,7 @@ function updateOracleSignalForAsset(asset) {
             const flipAgainstPosition = (brain.prediction === 'UP' || brain.prediction === 'DOWN')
                 ? (brain.prediction !== pos.side)
                 : false;
-            const flipHighConviction = flipAgainstPosition && voteStability >= minStability && Number.isFinite(pWin) && pWin >= 0.70;
+            const flipHighConviction = flipAgainstPosition && voteStability >= minVoteStability && Number.isFinite(pWin) && pWin >= 0.70;
 
             // ═══════════════════════════════════════════════════════════════════════════════
             // 🚨 DISSENT-BASED EARLY EXIT: Detect deterioration even when direction is locked
@@ -22712,7 +22846,7 @@ function updateOracleSignalForAsset(asset) {
 
             if (flipHighConviction) {
                 signal.action = 'SELL';
-                signal.reasons.push(`Prediction flipped against position (stability=${voteStability})`);
+                signal.reasons.push(`Prediction flipped against position (voteStability=${voteStability.toFixed(2)})`);
             } else if (genesisDisagrees && timeLeftSec > 120) {
                 // Genesis (94% accurate) now disagrees with our position
                 signal.action = 'SELL';
@@ -22765,13 +22899,13 @@ function updateOracleSignalForAsset(asset) {
         const severeMispricing = Number.isFinite(signal.mispricingEdge) && signal.mispricingEdge >= 0.15 && Number.isFinite(pWin) && pWin >= 0.70;
 
         const inTradeWindow = elapsedSec >= minElapsedSeconds && timeLeftSec > 60 && !inBlackout;
-        const stable = voteStability >= minStability;
+        const stable = voteStability >= minVoteStability;
 
         if (!Number.isFinite(pWin) || !Number.isFinite(evRoi)) {
             signal.reasons.push('Insufficient calibration samples → no certified signal');
         } else {
             signal.reasons.push(`pWin=${(pWin * 100).toFixed(1)}% vs implied=${(entryPrice * 100).toFixed(1)}% (edge=${((pWin - entryPrice) * 100).toFixed(1)}%)`);
-            signal.reasons.push(`EV=${(evRoi * 100).toFixed(1)}% ROI, stability=${voteStability}/${minStability}, tLeft=${timeLeftSec}s`);
+            signal.reasons.push(`EV=${(evRoi * 100).toFixed(1)}% ROI, voteStability=${voteStability.toFixed(2)}/${minVoteStability.toFixed(2)}, tLeft=${timeLeftSec}s`);
             if (Number.isFinite(signal.oddsDelta60s) || Number.isFinite(signal.oddsVelocityPerMin)) {
                 const d = Number.isFinite(signal.oddsDelta60s) ? `${(signal.oddsDelta60s * 100).toFixed(1)}¢` : 'n/a';
                 const v = Number.isFinite(signal.oddsVelocityPerMin) ? `${(signal.oddsVelocityPerMin * 100).toFixed(1)}¢/min` : 'n/a';
@@ -23070,12 +23204,14 @@ app.post('/api/manual-journey/trade', (req, res) => {
         }
         
         const entry = Number(entryPrice) || 0.5;
-        const exit = Number(exitPrice) || (won ? 1.0 : 0);
+        const exitRaw = Number.isFinite(Number(exitPrice)) ? Number(exitPrice) : (won ? 1.0 : 0.0);
+        const exit = Math.max(0, Math.min(1, exitRaw));
         const stakeAmt = Number(stake) || manualTradingJourney.currentBalance * 0.85;
         
         // Calculate P&L
         const shares = entry > 0 ? stakeAmt / entry : 0;
-        const payout = won ? shares * 1.0 : 0; // $1 per share if win
+        // Early exits supported: payout is shares * exitPrice (0..1)
+        const payout = shares * exit;
         const pnl = payout - stakeAmt;
         const roi = stakeAmt > 0 ? (payout / stakeAmt) - 1 : 0;
         
@@ -25290,6 +25426,26 @@ const LIGHT_MODE = (String(process.env.LIGHT_MODE || '').toLowerCase() === 'true
 async function startup() {
     log('🚀 SUPREME DEITY: CLOUD EDITION');
     log('🔧 Initializing...');
+
+    // SECURITY (production): refuse to run with default credentials.
+    // Prevents accidentally deploying an internet-facing instance with admin/changeme or known placeholders.
+    try {
+        const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+        if (isProd) {
+            const u = String(process.env.AUTH_USERNAME || 'admin').trim();
+            const p = String(process.env.AUTH_PASSWORD || 'changeme').trim();
+            const defaultCreds =
+                (u === 'admin' && p === 'changeme') ||
+                (u === 'bandito' && p === 'bandito') ||
+                (u.length < 3 || p.length < 8);
+            if (defaultCreds) {
+                log(`🔴 FATAL: Insecure AUTH credentials detected for production deployment.`);
+                log(`   Fix: Set AUTH_USERNAME and AUTH_PASSWORD in Render dashboard (strong values), then redeploy.`);
+                log(`   Tip: Also set API_KEY for stable token auth (required for ?apiKey=... dashboard cookie flow).`);
+                process.exit(1);
+            }
+        }
+    } catch { /* never crash here */ }
 
     // Wait for Redis connection if configured
     if (process.env.REDIS_URL && redis) {

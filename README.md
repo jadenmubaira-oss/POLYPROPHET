@@ -4,7 +4,7 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v102 HANDS-OFF ORACLE MODE**: You do nothing except receive Telegram notifications and execute trades manually.
+> **v103 HANDS-OFF ORACLE MODE**: You do nothing except receive Telegram notifications and execute trades manually.
 > - **SINGLE PRIMARY BUY**: Only ONE trade at a time (all-in compounding requires focus)
 > - **OTHER CANDIDATES SHOWN**: If multiple assets qualify, you see them all in the BUY message
 > - **SHADOW-BOOK AUTOMATION**: Position tracking and SELL signals work automatically
@@ -103,7 +103,7 @@ Even when a prediction is locked, the system monitors for deterioration:
 
 These warnings work **even when direction is locked** by `oracleLocked` or `cycleCommitted`.
 
-### Fully Automatic Operation (v100)
+### Fully Automatic Operation (v103)
 
 **You do nothing except:**
 1. Receive Telegram notifications
@@ -519,24 +519,24 @@ $5 start
 
 ```bash
 # 🏆 RECOMMENDED: Polymarket-native optimizer (uses real outcomes, not Monte Carlo)
-curl "http://localhost:3000/api/vault-optimize-polymarket?apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize-polymarket?apiKey=<API_KEY>"
 
 # Fast 7-day sweep (PRIMARY objective: P($100 by day 7))
-curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=0.5&hours=168&offsets=0,24,48,72&apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=0.5&hours=168&offsets=0,24,48,72&apiKey=<API_KEY>"
 
 # Full 30-day evaluation (SECONDARY objective: P($1000 by day 30)) — slower
 # Tip: use a coarser step and fewer offsets first, then refine near the winner
-curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=1&hours=720&offsets=0,24,48&apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=1&hours=720&offsets=0,24,48&apiKey=<API_KEY>"
 ```
 
 **Alternative: Monte Carlo optimizer (theoretical, faster):**
 
 ```bash
 # Monte Carlo sweep (theoretical projections)
-curl "http://localhost:3000/api/vault-optimize?sims=5000&apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize?sims=5000&apiKey=<API_KEY>"
 
 # Test a specific value with Monte Carlo
-curl "http://localhost:3000/api/vault-projection?vaultTriggerBalance=11&sims=20000&apiKey=bandito"
+curl "http://localhost:3000/api/vault-projection?vaultTriggerBalance=11&sims=20000&apiKey=<API_KEY>"
 ```
 
 **⚠️ Important**:
@@ -930,7 +930,7 @@ if (maxTradeSize < minOrderCost) {
 Before enabling LIVE mode, verify ALL:
 
 ```
-[ ] /api/version shows configVersion: 96
+[ ] /api/version shows configVersion: 103
 [ ] /api/perfection-check shows allPassed: true
 [ ] /api/health shows status: "ok"
 [ ] /api/verify?deep=1 shows status: PASS and `criticalFailures: 0`
@@ -964,8 +964,8 @@ Before enabling LIVE mode, verify ALL:
 URL (Render): https://<your-service>.onrender.com
 URL (local):  http://localhost:3000
 Auth:         <AUTH_USERNAME> / <AUTH_PASSWORD>
-API key:      API_KEY (Bearer/query) OR AUTH_PASSWORD (backwards-compatible)
-ConfigVersion: 96  (verify via /api/version)
+API key:      API_KEY (Bearer/query). (AUTH_PASSWORD is Basic Auth only; never accepted as a token.)
+ConfigVersion: 103  (verify via /api/version)
 Mode:          PAPER by default (switch to LIVE via Render env or /api/settings)
 ```
 
@@ -1008,7 +1008,7 @@ POLYMARKET_PROFILE_ADDRESS = <optional> (direct 0x address alternative)
 
 1. Push code to GitHub (triggers Render deploy)
 2. Wait for deployment to complete (~2-5 minutes)
-3. Verify via `/api/version` shows `configVersion: 96`
+3. Verify via `/api/version` shows `configVersion: 103`
 4. Verify via `/api/perfection-check` shows `allPassed: true`
 5. Run 24-72h PAPER to validate behavior
 6. Set `TRADE_MODE=LIVE` in Render dashboard when ready
@@ -1024,48 +1024,48 @@ POLYMARKET_PROFILE_ADDRESS = <optional> (direct 0x address alternative)
 ### PowerShell
 
 ```powershell
-# Check version (should show configVersion: 96)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+# Check version (should show configVersion: 103)
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check system verify (should show status: PASS or WARN; failed should be 0)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Deep verify (CLOB permission + collateral allowance; should PASS in LIVE)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?deep=1&apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?deep=1&apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check vault system perfection (should show allPassed: true)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/perfection-check?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/perfection-check?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check health (shows all safety statuses including crash recovery)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/health?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/health?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check wallet balances (USDC + MATIC) (LIVE requires wallet; PAPER can still report if wallet is loaded)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/wallet?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/wallet?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check effective gates + dynamic profile (fastest way to see WHY the bot is or isn't trading)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/risk-controls?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check crash recovery status
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/crash-recovery-stats?apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/crash-recovery-stats?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Run backtest with v80 sweet spot (32% stake, risk envelope, BTC+ETH only)
-Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&tier=CONVICTION&hours=168&kellyEnabled=1&kellyMax=0.32&assets=BTC,ETH&riskEnvelope=1&apiKey=bandito" -UseBasicParsing | Select-Object -ExpandProperty Content
+Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&tier=CONVICTION&hours=168&kellyEnabled=1&kellyMax=0.32&assets=BTC,ETH&riskEnvelope=1&apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 ```
 
 ### Bash/cURL
 
 ```bash
 # Check version
-curl "https://polyprophet.onrender.com/api/version?apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/version?apiKey=<API_KEY>"
 
 # Check health
-curl "https://polyprophet.onrender.com/api/health?apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/health?apiKey=<API_KEY>"
 
 # Run 168h backtest with day-by-day output (v80 sweet spot)
-curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyMax=0.32&tier=CONVICTION&hours=168&kellyEnabled=1&assets=BTC,ETH&riskEnvelope=1&apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyMax=0.32&tier=CONVICTION&hours=168&kellyEnabled=1&assets=BTC,ETH&riskEnvelope=1&apiKey=<API_KEY>"
 
 # Non-cherry-picked backtest (offset by 48h - the "bad" window)
-curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyMax=0.32&tier=CONVICTION&hours=24&offsetHours=48&kellyEnabled=1&apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/backtest-polymarket?stake=0.32&kellyMax=0.32&tier=CONVICTION&hours=24&offsetHours=48&kellyEnabled=1&apiKey=<API_KEY>"
 ```
 
 ### v76 Backtest Parameter Aliases
@@ -1131,36 +1131,36 @@ npm run forensics:debug
 ```bash
 # 1. PERFECTION CHECK (vault system wiring - most comprehensive)
 # Expected: allPassed: true, criticalFailed: 0, passCount >= 14
-curl "http://localhost:3000/api/perfection-check?apiKey=bandito"
+curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>"
 
 # 2. VERIFY (general system health)
 # Expected: passed >= 10, failed == 0
-curl "http://localhost:3000/api/verify?apiKey=bandito"
+curl "http://localhost:3000/api/verify?apiKey=<API_KEY>"
 
 # 2b. VERIFY (deep - LIVE execution readiness)
 # Expected: PASS, and deep checks for CLOB orderbook/markets pass (or explain why NOT VERIFIED)
-curl "http://localhost:3000/api/verify?deep=1&apiKey=bandito"
+curl "http://localhost:3000/api/verify?deep=1&apiKey=<API_KEY>"
 
 # 3. RISK CONTROLS (runtime state)
 # Expected: vaultThresholds.sources shows where values came from
-curl "http://localhost:3000/api/risk-controls?apiKey=bandito"
+curl "http://localhost:3000/api/risk-controls?apiKey=<API_KEY>"
 
 # 4. REPRODUCIBILITY TEST (same seed = same results)
 # Expected: Both calls return identical targetProbability values
-curl "http://localhost:3000/api/vault-projection?seed=12345&sims=1000&apiKey=bandito"
-curl "http://localhost:3000/api/vault-projection?seed=12345&sims=1000&apiKey=bandito"
+curl "http://localhost:3000/api/vault-projection?seed=12345&sims=1000&apiKey=<API_KEY>"
+curl "http://localhost:3000/api/vault-projection?seed=12345&sims=1000&apiKey=<API_KEY>"
 
 # 5. 🏆 v84: POLYMARKET VAULT OPTIMIZER (GROUND TRUTH - uses real outcomes)
 # Expected: winner.vaultTriggerBalance in range 6.10-15.00, p100_day7 percentage
-curl "http://localhost:3000/api/vault-optimize-polymarket?apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize-polymarket?apiKey=<API_KEY>"
 
 # 6. MONTE CARLO OPTIMIZER (theoretical - for comparison only)
 # Expected: winner.vaultTriggerBalance in range 6.10-15.00, seed in output
-curl "http://localhost:3000/api/vault-optimize?sims=5000&apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize?sims=5000&apiKey=<API_KEY>"
 
 # 7. BACKTEST PARITY (confirm backtest uses threshold contract)
 # Expected: summary.vaultThresholds.sources.vaultTriggerBalance = CONFIG.*
-curl "http://localhost:3000/api/backtest-polymarket?hours=24&stake=0.32&apiKey=bandito"
+curl "http://localhost:3000/api/backtest-polymarket?hours=24&stake=0.32&apiKey=<API_KEY>"
 ```
 
 **⚠️ Important**: Step 5 (Polymarket optimizer) is the AUTHORITATIVE source for optimal vaultTriggerBalance. Step 6 (Monte Carlo) may show different results - Monte Carlo is theoretical projections while Polymarket uses actual resolved market outcomes.
@@ -1360,7 +1360,7 @@ The `/api/perfection-check` endpoint verifies the Tools UI exists:
 
 ```bash
 # Check includes "Tools UI exists with required features"
-curl "http://localhost:3000/api/perfection-check?apiKey=bandito"
+curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>"
 ```
 
 The check verifies:
@@ -1380,7 +1380,7 @@ The check verifies:
 
 | # | Check | Command | Pass Criteria |
 |---|-------|---------|---------------|
-| 1 | CONFIG_VERSION >= 96 | `/api/version` | `configVersion: 96` |
+| 1 | CONFIG_VERSION >= 103 | `/api/version` | `configVersion: 103` |
 | 2 | Perfection check | `/api/perfection-check` | `allPassed: true`, `criticalFailed: 0` |
 | 3 | System verify | `/api/verify` | `failed: 0` |
 | 4 | Vault thresholds exposed | `/api/risk-controls` | `vaultThresholds.sources` shows value origins |
@@ -1418,16 +1418,16 @@ If the system is in a bad state:
 
 ```bash
 # 1. Check what's wrong
-curl "http://localhost:3000/api/perfection-check?apiKey=bandito"
-curl "http://localhost:3000/api/verify?apiKey=bandito"
+curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>"
+curl "http://localhost:3000/api/verify?apiKey=<API_KEY>"
 
 # 2. Force apply GOAT preset (resets to known-good config)
-curl -X POST "http://localhost:3000/api/settings?apiKey=bandito" \
+curl -X POST "http://localhost:3000/api/settings?apiKey=<API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{"ACTIVE_PRESET": "GOAT"}'
 
 # 3. Verify recovery
-curl "http://localhost:3000/api/perfection-check?apiKey=bandito"
+curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>"
 ```
 
 ---
@@ -1571,16 +1571,16 @@ If LIVE win → addToRedemptionQueue()
 
 ```bash
 # Check pending positions
-curl "https://polyprophet.onrender.com/api/reconcile-pending?apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/reconcile-pending?apiKey=<API_KEY>"
 
 # Check redemption queue (LIVE)
-curl "https://polyprophet.onrender.com/api/redemption-queue?apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/redemption-queue?apiKey=<API_KEY>"
 
 # Check risk controls
-curl "https://polyprophet.onrender.com/api/risk-controls?apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/risk-controls?apiKey=<API_KEY>"
 
 # Check vault optimization
-curl "https://polyprophet.onrender.com/api/vault-optimize?sims=5000&apiKey=bandito"
+curl "https://polyprophet.onrender.com/api/vault-optimize?sims=5000&apiKey=<API_KEY>"
 ```
 
 ---
@@ -1608,16 +1608,16 @@ This repository's configuration was derived from exhaustive analysis documented 
 
 ```bash
 # 🏆 Ground truth vault optimizer (recommended)
-curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=0.5&hours=168&offsets=0,24,48,72&apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=0.5&hours=168&offsets=0,24,48,72&apiKey=<API_KEY>"
 
 # Full 30-day secondary objective validation (slower)
-curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=1&hours=720&offsets=0,24,48&apiKey=bandito"
+curl "http://localhost:3000/api/vault-optimize-polymarket?min=6.10&max=15&step=1&hours=720&offsets=0,24,48&apiKey=<API_KEY>"
 
 # Check current thresholds
-curl "http://localhost:3000/api/risk-controls?apiKey=bandito" | jq '.vaultThresholds'
+curl "http://localhost:3000/api/risk-controls?apiKey=<API_KEY>" | jq '.vaultThresholds'
 
 # Run perfection check to verify all wiring
-curl "http://localhost:3000/api/perfection-check?apiKey=bandito" | jq '.summary'
+curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summary'
 ```
 
 ---
