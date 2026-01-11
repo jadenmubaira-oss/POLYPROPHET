@@ -4,25 +4,29 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v106 ADAPTIVE ORACLE**: Paper-only by default, explicit opt-in for live trading.
-> - **PAPER-ONLY SAFETY**: LIVE mode requires `ENABLE_LIVE_TRADING=1` explicitly
-> - **~41-46 TRADES/DAY**: Adaptive threshold targets frequent signals while maintaining accuracy
-> - **97-98% HISTORICAL WIN RATE**: Backtested on 2,546 unique cycles (deduped from 4,037 raw)
+> **v107 ULTRA-STRICT ORACLE**: Maximum accuracy mode - designed for $1 manual trading.
+> - **95% WIN RATE TARGET**: Cannot afford losses with micro-bankroll (raised from 90%)
+> - **$1 MANUAL TRADING**: Website market orders support $1 minimum (not CLOB's 5-share min)
+> - **NO_AUTH MODE**: Set `NO_AUTH=true` for easy access (no login prompts)
+> - **START_PAUSED=false**: Paper auto-trading enabled by default on deploy
+> - **80% pWin THRESHOLD**: Conservative start (raised from 75%)
 > - **HOLD-TO-RESOLUTION**: Once you BUY, default is HOLD until cycle ends
 > - **EMERGENCY SELL ONLY**: Exit only under sustained deterioration (30s hysteresis)
-> - **2-3 MIN PREWARNING**: PREPARE signals give you time to open Polymarket
-> - **STREAK DETECTION**: Informational only - detection, not prophecy
-> - **DRIFT ALERTS**: Telegram notification when accuracy drops and thresholds tighten
+> - **BACKTEST $1 FIX**: Use `orderMode=MANUAL` for realistic $1-start backtests
 
 ---
 
-## 🎯 v106: ADAPTIVE FREQUENCY SYSTEM
+## 🎯 v107: ULTRA-STRICT ACCURACY MODE
 
-The old ULTRA-only mode was **too strict** (0 trades in backtests). v106 introduces an **adaptive threshold** that:
+v107 raises all thresholds for **maximum prediction accuracy** - designed for manual trading from $1:
 
-- **Targets ≤1 loss per 10 trades** (~90% win rate floor)
-- **Maximizes trade frequency** by automatically relaxing thresholds when accuracy is high
-- **Self-tightens** when accuracy drops below target
+- **Targets ≤1 loss per 20 trades** (~95% win rate floor, raised from 90%)
+- **75% minimum pWin** threshold (raised from 65%)
+- **80% starting pWin** threshold (raised from 75%)
+- **92% maximum pWin** cap (raised from 88%)
+- **85% vote stability** required (raised from 80%)
+- **75% model consensus** required (raised from 70%)
+- **82% confidence** entry threshold (raised from 80%)
 
 ### Backtest Results (2,546 unique cycles, deduped from Dec 2025 debug exports)
 
@@ -59,29 +63,47 @@ Focus on **win rate** and **trades/day** as the reliable metrics.
 
 ### How It Works
 
-1. **Timing Windows** (v106):
-   - **PREPARE**: 3-1.5 minutes before cycle end (get ready)
+1. **Timing Windows**:
+   - **PREPARE**: 3-1.5 minutes before cycle end (get ready, pWin ≥ 72%)
    - **BUY**: 1.5-1 minute before end (execute now)
    - **AVOID**: <60 seconds (blackout, too late)
 
-2. **Adaptive Threshold**:
-   - Starts at 75% pWin threshold
-   - Relaxes to 65% if recent WR > 95%
-   - Tightens to 88% if recent WR < 80%
+2. **Ultra-Strict Adaptive Threshold** (v107):
+   - Starts at **80%** pWin threshold (conservative)
+   - Relaxes to **75%** if recent WR > 95%
+   - Tightens to **92%** if recent WR < 85%
+   - **Never drops below 75%** (safety floor)
 
 3. **Tier Bonus**:
    - CONVICTION tier gets -3% threshold reduction
    - ADVISORY tier uses standard threshold
 
+4. **$1 Manual Trading Mode** (v107):
+   - Use `orderMode=MANUAL` in backtests for website market orders ($1 min)
+   - CLOB mode (default) uses 5-share minimum (price-dependent)
+
 ---
 
-## 🔒 v106: PAPER-ONLY SAFETY
+## 🔒 v107: PAPER AUTO-TRADING + NO AUTH
 
-By default, POLYPROPHET operates in **PAPER mode** (simulated trading). This is intentional:
+By default, POLYPROPHET operates in **PAPER mode** with auto-trading enabled:
 
+- **START_PAUSED=false**: Paper trading starts automatically (no manual unpause needed)
+- **NO_AUTH=true**: Easy access - no login prompts for your personal deployment
 - **ENABLE_LIVE_TRADING**: Must be set to `1` explicitly for any LIVE trading
 - **LIVE without opt-in**: Forced to PAPER with warning in logs and `/api/version`
 - **Drift Alerts**: Telegram notification when win rate drops below target (auto-tightens thresholds)
+
+### Environment Variables (v107)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NO_AUTH` | `true` | Disable auth for easy access |
+| `START_PAUSED` | `false` | Paper auto-trading enabled by default |
+| `TRADE_MODE` | `PAPER` | Trading mode (PAPER/LIVE) |
+| `PAPER_BALANCE` | `5.00` | Starting paper balance |
+| `TELEGRAM_BOT_TOKEN` | - | Your Telegram bot token |
+| `TELEGRAM_CHAT_ID` | - | Your Telegram chat ID |
 
 ### Why Paper-Only Default?
 

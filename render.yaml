@@ -22,6 +22,12 @@ services:
       # 🏆 v80 SWEET SPOT: 32% max stake cap (max profit with lower ruin risk)
       - key: MAX_POSITION_SIZE
         value: "0.32"
+      # 🏆 v107: Start unpaused by default (paper auto-trading enabled)
+      - key: START_PAUSED
+        value: "false"
+      # 🏆 v107: No auth for easy access (user's personal deployment)
+      - key: NO_AUTH
+        value: "true"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"

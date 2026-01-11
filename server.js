@@ -260,6 +260,11 @@ const API_KEY_SOURCE = process.env.API_KEY ? 'ENV' : 'GENERATED';
 console.log(`🔑 API Key source: ${API_KEY_SOURCE}${API_KEY_SOURCE === 'GENERATED' ? ' (set API_KEY env var to pin a stable token)' : ''}`);
 
 app.use((req, res, next) => {
+    // 🏆 v107: NO_AUTH mode - Disables auth for personal/private deployments
+    // User requested "no auth, just want it as easy as possible"
+    const noAuthEnabled = process.env.NO_AUTH === '1' || process.env.NO_AUTH === 'true';
+    if (noAuthEnabled) return next();
+    
     // Public endpoints (no auth) for uptime checks / deploy verification only.
     const isPublicApi =
         req.path === '/api/health' ||
@@ -797,6 +802,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // For safety/backtests we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.01;
+        
+        // 🏆 v107: Order mode - CLOB (5 shares × entry price) vs MANUAL (flat $1 min on website)
+        // For manual trading on the Polymarket website, minimum order is $1 at ANY price.
+        // For CLOB API orders, minimum is 5 shares × entry price (price-dependent).
+        const orderMode = String(req.query.orderMode || 'CLOB').toUpperCase(); // CLOB | MANUAL
+        const manualMinOrder = parseFloat(req.query.manualMin) || 1.00; // $1 default for MANUAL mode
+        
         // CLOB-native min order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
         // Minimum USDC therefore depends on entry price.
         const MIN_ORDER_SHARES = (() => {
@@ -806,9 +818,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             return (Number.isFinite(env) && env > 0) ? env : 5;
         })();
         // Reference min cost at the configured entry window's minimum (used for "can we keep trading?" survivability checks).
-        const REFERENCE_MIN_ORDER_COST = MIN_ORDER_SHARES * minOddsEntry;
-        // Per-trade min cost to satisfy `min_order_size` shares at the chosen entry price.
+        const REFERENCE_MIN_ORDER_COST = orderMode === 'MANUAL' ? manualMinOrder : MIN_ORDER_SHARES * minOddsEntry;
+        // Per-trade min cost to satisfy minimum order constraint.
         const minOrderCostForPrice = (entryPrice) => {
+            if (orderMode === 'MANUAL') return manualMinOrder; // $1 flat for website manual orders
             const p = Number(entryPrice);
             if (!Number.isFinite(p) || p <= 0) return REFERENCE_MIN_ORDER_COST;
             return MIN_ORDER_SHARES * p;
@@ -2093,11 +2106,11 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 losses: primarySim.losses,
                 winRate: primarySim.winRate.toFixed(2) + '%',
                 maxDrawdown: (primarySim.maxDrawdown * 100).toFixed(2) + '%',
-                avgEntryPrice: primarySim.avgEntryPrice.toFixed(3),
-                avgEffectiveEntry: primarySim.avgEffectiveEntry.toFixed(3),
-                avgPnlPerTrade: primarySim.avgPnlPerTrade.toFixed(4),
-                avgWinRoiNet: primarySim.avgWinRoiNet.toFixed(4) + ' per $1 stake (wins only)',
-                expectedEV: primarySim.expectedEV.toFixed(4) + ' per $1 stake',
+                avgEntryPrice: Number.isFinite(primarySim.avgEntryPrice) ? primarySim.avgEntryPrice.toFixed(3) : 'N/A',
+                avgEffectiveEntry: Number.isFinite(primarySim.avgEffectiveEntry) ? primarySim.avgEffectiveEntry.toFixed(3) : 'N/A',
+                avgPnlPerTrade: Number.isFinite(primarySim.avgPnlPerTrade) ? primarySim.avgPnlPerTrade.toFixed(4) : 'N/A',
+                avgWinRoiNet: Number.isFinite(primarySim.avgWinRoiNet) ? primarySim.avgWinRoiNet.toFixed(4) + ' per $1 stake (wins only)' : 'N/A',
+                expectedEV: Number.isFinite(primarySim.expectedEV) ? primarySim.expectedEV.toFixed(4) + ' per $1 stake' : 'N/A',
                 isProfitable: primarySim.totalProfit > 0,
                 maxTradesPerCycle,
                 selection,
@@ -2194,7 +2207,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 autoProfileEnabled,
                 autoProfilePolicyAtStart: policyAtStart,
                 kellyMaxProvided,
-                riskEnvelopeProvided
+                riskEnvelopeProvided,
+                // 🏆 v107: Order mode - CLOB (API) vs MANUAL (website $1 min)
+                orderMode,
+                manualMinOrder: orderMode === 'MANUAL' ? manualMinOrder : null,
+                minOrderShares: orderMode === 'CLOB' ? MIN_ORDER_SHARES : null,
+                effectiveMinOrderCost: REFERENCE_MIN_ORDER_COST
             },
             proof: {
                 slugHash,
@@ -2223,12 +2241,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             })),
             trades: compactMode ? `[${primarySim.trades.length} trades omitted - use compact=0 for full data]` : primarySim.trades.slice(-30),
             interpretation: {
-                winRateNeededForEV: primarySim.winRateNeededForEV !== null ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
-                currentWinRate: primarySim.winRate.toFixed(1) + '%',
-                verdict: primarySim.totalTrades === 0 ? 'ℹ️ No resolved cycles/trades found for these filters' :
+                winRateNeededForEV: Number.isFinite(primarySim.winRateNeededForEV) ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
+                currentWinRate: Number.isFinite(primarySim.winRate) ? primarySim.winRate.toFixed(1) + '%' : 'N/A',
+                verdict: primarySim.totalTrades === 0 ? 'ℹ️ No resolved cycles/trades found for these filters (balance may be below min order cost)' :
                          primarySim.totalProfit > 0 ? '✅ PROFITABLE (simulated compounding P&L)' :
-                         primarySim.expectedEV > 0 ? '⚠️ POSITIVE EDGE BUT LOST IN THIS SAMPLE (variance / sequencing risk) — consider lower stake' :
-                         primarySim.expectedEV > -0.05 ? '⚠️ MARGINAL / CLOSE TO BREAKEVEN — need better entries or higher WR' :
+                         (Number.isFinite(primarySim.expectedEV) && primarySim.expectedEV > 0) ? '⚠️ POSITIVE EDGE BUT LOST IN THIS SAMPLE (variance / sequencing risk) — consider lower stake' :
+                         (Number.isFinite(primarySim.expectedEV) && primarySim.expectedEV > -0.05) ? '⚠️ MARGINAL / CLOSE TO BREAKEVEN — need better entries or higher WR' :
                          '❌ NEGATIVE — entry prices too high for current win rate'
             }
         });
@@ -5998,6 +6016,13 @@ app.get('/api/risk-controls', (req, res) => {
                 belowFloor,
                 tradingBlocked: belowFloor
             },
+            // 🏆 v107: Order mode settings for manual vs CLOB trading
+            orderMode: {
+                clobMinShares: Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5),
+                manualMinOrder: 1.00, // Flat $1 minimum for website manual orders
+                currentMode: 'CLOB', // Runtime always uses CLOB; MANUAL is for backtest simulation only
+                note: 'Use orderMode=MANUAL in backtest for $1-start manual trading simulation'
+            },
             circuitBreaker: tradeExecutor.circuitBreaker || null,
             // 🏆 v92: Peak-DD brake status (20% from lifetime peak => size cap)
             peakDrawdownBrake,
@@ -8494,7 +8519,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 106;  // v106: Paper-only guard (ENABLE_LIVE_TRADING opt-in), conservative streak, drift alerts
+const CONFIG_VERSION = 107;  // v107: Ultra-strict oracle (95% WR target, 80% pWin start, 75% min), NO_AUTH, MANUAL order mode, START_PAUSED
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8592,8 +8617,9 @@ const CONFIG = {
         enabled: true,
         aggression: 50,          // 🔮 0-100 scale
         minElapsedSeconds: 60,   // 1 min - catch VERY early
-        minConsensus: 0.70,      // 70% model agreement
-        minConfidence: 0.80,     // 80% entry threshold
+        // 🏆 v107: ULTRA-STRICT - Raised consensus for maximum accuracy
+        minConsensus: 0.75,      // 🏆 v107: 75% model agreement (was 70%)
+        minConfidence: 0.82,     // 🏆 v107: 82% entry threshold (was 80%)
         minEdge: 0,              // DISABLED - broken
         // 🏆 v58 TRUE OPTIMAL: pWin-gated entries allow profitable <50¢ trades
         // Raw calibration shows <50¢ = 28% WR, BUT high-pWin <50¢ trades WIN
@@ -8606,9 +8632,10 @@ const CONFIG = {
         // NOTE: voteTrendScore is a 0..1 metric (based on leader flip rate), not "ticks".
         // This threshold is used ONLY by the oracle advisory signal layer (PREPARE/BUY/SELL),
         // not by the core prediction debounce logic.
+        // 🏆 v107: Raised minVoteStability for maximum signal certainty
         minVoteStability: Number.isFinite(parseFloat(process.env.ORACLE_MIN_VOTE_STABILITY))
             ? Math.max(0, Math.min(1, parseFloat(process.env.ORACLE_MIN_VOTE_STABILITY)))
-            : 0.80,
+            : 0.85,  // Was 0.80
 
         // 🏆 v39 ADAPTIVE CONFIGURATION
         // The bot automatically switches regimes based on Confidence Volatility (StdDev)
@@ -9403,15 +9430,16 @@ let primaryBuyState = {
 // Replaces the old ULTRA-only mode with a dynamic threshold system.
 // ═══════════════════════════════════════════════════════════════════════════════
 let adaptiveGateState = {
-    // Target: ≤1 loss per 10 trades = 90% min WR
-    targetWinRate: 0.90,
+    // 🏆 v107: ULTRA-STRICT TARGET - Cannot afford losses with $1 bankroll
+    // Target: ≤1 loss per 20 trades = 95% min WR (was 90%)
+    targetWinRate: 0.95,
     // Rolling window for adaptive threshold (last N oracle signals with known outcomes)
     recentOracleSignals: [],  // [{ asset, direction, pWin, tier, isWin, timestamp }]
     maxRecentSignals: 50,
-    // Dynamic threshold (starts conservative, relaxes if accuracy is high)
-    currentPWinThreshold: 0.75,  // Start at 75%, adapts based on performance
-    minPWinThreshold: 0.65,      // Never go below this (too risky)
-    maxPWinThreshold: 0.88,      // Cap (ULTRA territory)
+    // 🏆 v107: CONSERVATIVE START - Start at 80% threshold (was 75%)
+    currentPWinThreshold: 0.80,  // Start at 80%, adapts based on performance
+    minPWinThreshold: 0.75,      // 🏆 v107: Never go below 75% (was 65%)
+    maxPWinThreshold: 0.92,      // 🏆 v107: Cap at 92% (was 88%)
     // Threshold adjustment rate
     lastThresholdAdjustAt: 0,
     adjustIntervalMs: 300000,    // Adjust every 5 minutes
@@ -20326,10 +20354,27 @@ async function loadState() {
                         tradeExecutor.baselineBankrollInitialized = te.baselineBankrollInitialized ?? true;
                         tradeExecutor.baselineBankrollSource = te.baselineBankrollSource ?? 'redis_restore';
                     }
-                    // Restore manual pause state
-                    if (te.tradingPaused !== undefined) tradeExecutor.tradingPaused = !!te.tradingPaused;
-                    if (te.tradingPausedReason !== undefined) tradeExecutor.tradingPausedReason = te.tradingPausedReason;
-                    if (te.tradingPausedAt !== undefined) tradeExecutor.tradingPausedAt = te.tradingPausedAt;
+                    // Restore manual pause state (with env override)
+                    // 🏆 v107: START_PAUSED env override - allows fresh starts to override persisted pause
+                    const startPausedEnv = process.env.START_PAUSED;
+                    if (startPausedEnv === '0' || startPausedEnv === 'false') {
+                        // Force unpause on startup (user wants auto-trading)
+                        tradeExecutor.tradingPaused = false;
+                        tradeExecutor.tradingPausedReason = null;
+                        tradeExecutor.tradingPausedAt = 0;
+                        log(`🚀 START_PAUSED=false: Forced unpause on startup (ignoring persisted pause state)`);
+                    } else if (startPausedEnv === '1' || startPausedEnv === 'true') {
+                        // Force pause on startup
+                        tradeExecutor.tradingPaused = true;
+                        tradeExecutor.tradingPausedReason = 'START_PAUSED_ENV';
+                        tradeExecutor.tradingPausedAt = Date.now();
+                        log(`⏸️ START_PAUSED=true: Forced pause on startup`);
+                    } else {
+                        // No override - restore from saved state
+                        if (te.tradingPaused !== undefined) tradeExecutor.tradingPaused = !!te.tradingPaused;
+                        if (te.tradingPausedReason !== undefined) tradeExecutor.tradingPausedReason = te.tradingPausedReason;
+                        if (te.tradingPausedAt !== undefined) tradeExecutor.tradingPausedAt = te.tradingPausedAt;
+                    }
                     if (te.tradeHistory && Array.isArray(te.tradeHistory)) tradeExecutor.tradeHistory = te.tradeHistory;
                     // One-time cleanup for legacy hedge records left OPEN by older code
                     try { tradeExecutor.reconcileLegacyOpenHedgeTrades(); } catch { }
@@ -23655,8 +23700,8 @@ function updateOracleSignalForAsset(asset) {
                     signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
                 }
                 if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
-            } else if (inPrepareWindow && Number.isFinite(pWin) && pWin >= 0.65) {
-                // PREPARE window: warn user to get ready if signal looks promising
+            } else if (inPrepareWindow && Number.isFinite(pWin) && pWin >= 0.72) {
+                // 🏆 v107: PREPARE window raised to 72% (was 65%) for higher quality alerts
                 signal.action = 'PREPARE';
                 const gateStatus = adaptiveGate.passes 
                     ? '✅ Gate passes - BUY coming soon'
