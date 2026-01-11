@@ -7814,7 +7814,10 @@ app.get('/api/version', (req, res) => {
         ...CODE_FINGERPRINT,
         nodeVersion: process.version,
         uptime: process.uptime(),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        // 🔒 v105: Show if LIVE was requested but forced to PAPER
+        tradeMode: CONFIG.TRADE_MODE,
+        liveModeForced: CONFIG.LIVE_MODE_FORCED_TO_PAPER || false
     });
 });
 
@@ -8491,7 +8494,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 105;  // v105: Adaptive frequency ladder, no flip-flop commitment, streak detection, prewarning timing
+const CONFIG_VERSION = 106;  // v106: Paper-only guard (ENABLE_LIVE_TRADING opt-in), conservative streak, drift alerts
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8540,7 +8543,29 @@ const CONFIG = {
     POLYMARKET_AUTO_DERIVE_CREDS: String(process.env.POLYMARKET_AUTO_DERIVE_CREDS || 'true').toLowerCase() !== 'false',
 
     // Core Trading Settings
-    TRADE_MODE: process.env.TRADE_MODE || 'PAPER',
+    // 🔒 v105 PAPER-ONLY SAFETY: LIVE mode requires ENABLE_LIVE_TRADING=1 explicitly.
+    // Without it, TRADE_MODE=LIVE is forced to PAPER with a warning.
+    ENABLE_LIVE_TRADING: (() => {
+        const raw = String(process.env.ENABLE_LIVE_TRADING || '').trim().toLowerCase();
+        return raw === 'true' || raw === '1';
+    })(),
+    TRADE_MODE: (() => {
+        const requested = (process.env.TRADE_MODE || 'PAPER').toUpperCase();
+        const liveEnabled = String(process.env.ENABLE_LIVE_TRADING || '').trim().toLowerCase();
+        const liveExplicitlyEnabled = liveEnabled === 'true' || liveEnabled === '1';
+        
+        if (requested === 'LIVE' && !liveExplicitlyEnabled) {
+            console.log('⚠️ TRADE_MODE=LIVE requested but ENABLE_LIVE_TRADING≠1 → forcing PAPER mode');
+            console.log('   Set ENABLE_LIVE_TRADING=1 in environment to enable LIVE trading.');
+            return 'PAPER';
+        }
+        return requested;
+    })(),
+    LIVE_MODE_FORCED_TO_PAPER: (() => {
+        const requested = (process.env.TRADE_MODE || 'PAPER').toUpperCase();
+        const liveEnabled = String(process.env.ENABLE_LIVE_TRADING || '').trim().toLowerCase();
+        return requested === 'LIVE' && !(liveEnabled === 'true' || liveEnabled === '1');
+    })(),
     // 🔒 ORACLE MODE SAFETY: Disable automatic LIVE order placement unless explicitly enabled.
     // - PAPER auto-trading remains enabled for evaluation/backtests
     // - LIVE manual endpoints remain available only if ENABLE_MANUAL_TRADING=true (separate safety gate)
@@ -22834,6 +22859,7 @@ function maybeSendUltraProphetTelegram(asset, signal) {
  * Compute adaptive pWin threshold based on recent performance.
  * If recent WR is above target, relax threshold to get more trades.
  * If recent WR is below target, tighten threshold to improve accuracy.
+ * v106: Added drift alerts with cooldown.
  */
 function computeAdaptiveThreshold() {
     const state = adaptiveGateState;
@@ -22859,24 +22885,75 @@ function computeAdaptiveThreshold() {
     state.globalRollingWins = wins;
     state.globalRollingTotal = total;
     
+    const oldThreshold = state.currentPWinThreshold;
     let newThreshold = state.currentPWinThreshold;
+    let driftDirection = null;  // 'tightening' or 'relaxing' or null
     
     if (currentWR >= state.targetWinRate + 0.05) {
         // Doing very well (95%+): relax threshold to get more trades
         newThreshold = Math.max(state.minPWinThreshold, state.currentPWinThreshold - 0.02);
+        driftDirection = 'relaxing';
     } else if (currentWR >= state.targetWinRate) {
         // Meeting target (90-95%): slightly relax
         newThreshold = Math.max(state.minPWinThreshold, state.currentPWinThreshold - 0.01);
+        driftDirection = 'relaxing';
     } else if (currentWR < state.targetWinRate - 0.10) {
         // Way below target (<80%): tighten significantly
         newThreshold = Math.min(state.maxPWinThreshold, state.currentPWinThreshold + 0.03);
+        driftDirection = 'tightening';
     } else if (currentWR < state.targetWinRate) {
         // Below target (80-90%): tighten slightly
         newThreshold = Math.min(state.maxPWinThreshold, state.currentPWinThreshold + 0.01);
+        driftDirection = 'tightening';
     }
     
     state.currentPWinThreshold = newThreshold;
+    
+    // 🚨 v106: Send DRIFT ALERT if threshold is tightening due to accuracy issues
+    if (driftDirection === 'tightening' && newThreshold > oldThreshold) {
+        sendDriftAlert(currentWR, oldThreshold, newThreshold, total);
+    }
+    
     return newThreshold;
+}
+
+// v106: Drift state for cooldown
+let lastDriftAlertAt = 0;
+
+/**
+ * Send drift alert when adaptive threshold tightens.
+ * Cooldown: 30 minutes between drift alerts to avoid spam.
+ */
+function sendDriftAlert(currentWR, oldThreshold, newThreshold, sampleSize) {
+    try {
+        if (!CONFIG?.TELEGRAM?.enabled) return;
+        
+        const now = Date.now();
+        const cooldownMs = 30 * 60 * 1000;  // 30 minutes
+        
+        if (now - lastDriftAlertAt < cooldownMs) return;
+        lastDriftAlertAt = now;
+        
+        const wrPct = (currentWR * 100).toFixed(0);
+        const oldPct = (oldThreshold * 100).toFixed(0);
+        const newPct = (newThreshold * 100).toFixed(0);
+        const targetPct = (adaptiveGateState.targetWinRate * 100).toFixed(0);
+        
+        let msg = `⚠️ <b>DRIFT ALERT</b>\n`;
+        msg += `━━━━━━━━━━━━━━━━━\n`;
+        msg += `📉 Win rate below target\n`;
+        msg += `\n`;
+        msg += `🎯 Current WR: <b>${wrPct}%</b> (target: ${targetPct}%)\n`;
+        msg += `📊 Sample: ${sampleSize} trades\n`;
+        msg += `🔒 Threshold: ${oldPct}% → <b>${newPct}%</b>\n`;
+        msg += `━━━━━━━━━━━━━━━━━\n`;
+        msg += `<i>Oracle auto-tightening to restore accuracy.\nSignals will be less frequent but more selective.</i>`;
+        
+        sendTelegramNotification(msg, false);
+        log(`⚠️ DRIFT ALERT: WR=${wrPct}%, threshold ${oldPct}%→${newPct}%`);
+    } catch {
+        // never crash on telegram
+    }
 }
 
 /**
@@ -22968,26 +23045,22 @@ function recordOracleSignalOutcome(asset, direction, pWin, tier, isWin) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🔥 v105: STREAK DETECTION FUNCTIONS
+// 🔥 v106: CONSERVATIVE STREAK DETECTION (detection only, not prophecy)
+// Global across all assets, higher bar for ON mode, informational only
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Update streak state based on latest outcome.
+ * Update streak state based on latest outcome (GLOBAL across all assets).
+ * v106: Removed per-asset tracking - streaks count globally for realistic assessment.
  */
 function updateStreakState(isWin, asset) {
     const state = streakState;
     const now = Date.now();
     
+    // v106: GLOBAL streak tracking (any asset counts)
     if (isWin) {
-        // Continue or start streak
-        if (state.currentStreakAsset === asset || state.currentStreakAsset === null) {
-            state.currentStreakLength++;
-            state.currentStreakAsset = asset;
-        } else {
-            // Different asset, reset streak (we track per-asset streaks)
-            state.currentStreakLength = 1;
-            state.currentStreakAsset = asset;
-        }
+        state.currentStreakLength++;
+        state.currentStreakAsset = asset;  // Track last winning asset for info only
         state.deteriorationCount = 0;
         
         // Update max streak seen
@@ -23001,27 +23074,27 @@ function updateStreakState(isWin, asset) {
         state.deteriorationCount++;
     }
     
-    // Calculate recent win rate (last 10 signals)
-    const recent = adaptiveGateState.recentOracleSignals.slice(-10).filter(s => typeof s.isWin === 'boolean');
-    if (recent.length >= 3) {
+    // Calculate recent win rate (last 15 signals for more conservative estimate)
+    const recent = adaptiveGateState.recentOracleSignals.slice(-15).filter(s => typeof s.isWin === 'boolean');
+    if (recent.length >= 5) {  // v106: Require 5+ samples, not 3
         const wins = recent.filter(s => s.isWin).length;
         state.recentWinRate = wins / recent.length;
     }
     
-    // Determine streak mode
+    // Determine streak mode (v106: CONSERVATIVE thresholds)
     const prevMode = state.mode;
     
-    if (state.currentStreakLength >= 3 && state.recentWinRate >= 0.85) {
-        // Hot streak: 3+ consecutive wins AND 85%+ recent WR
+    // v106: Require 5+ consecutive wins AND 90%+ recent WR for ON mode (high bar)
+    if (state.currentStreakLength >= 5 && state.recentWinRate >= 0.90 && recent.length >= 8) {
         state.mode = 'ON';
-    } else if (state.mode === 'ON' && (state.deteriorationCount >= 2 || state.recentWinRate < 0.70)) {
-        // Was in streak but deteriorating
+    } else if (state.mode === 'ON' && (state.deteriorationCount >= 1 || state.recentWinRate < 0.80)) {
+        // v106: Single loss or drop below 80% WR → immediate RISK
         state.mode = 'RISK';
-    } else if (state.mode === 'RISK' && state.deteriorationCount >= 3) {
-        // Streak is over
+    } else if (state.mode === 'RISK' && state.deteriorationCount >= 2) {
+        // Two losses → streak is over
         state.mode = 'OFF';
-    } else if (state.mode === 'OFF' && state.recentWinRate >= 0.90 && state.currentStreakLength >= 2) {
-        // Entering hot regime
+    } else if (state.mode === 'OFF' && state.recentWinRate >= 0.93 && state.currentStreakLength >= 4 && recent.length >= 10) {
+        // v106: Very high bar to re-enter ON from OFF (93% WR, 4+ streak, 10+ samples)
         state.mode = 'ON';
     }
     
@@ -23050,6 +23123,7 @@ function computeStreakState() {
 
 /**
  * Send telegram notification for streak mode change.
+ * v106: Informational only - no position sizing suggestions.
  */
 function sendStreakModeNotification(prevMode, newMode) {
     try {
@@ -23058,33 +23132,33 @@ function sendStreakModeNotification(prevMode, newMode) {
         const state = streakState;
         const now = Date.now();
         
-        // Cooldown: don't spam (at least 5 min between streak messages)
-        if (now - state.lastTelegramAt < 300000) return;
+        // Cooldown: don't spam (at least 10 min between streak messages)
+        if (now - state.lastTelegramAt < 600000) return;  // v106: 10 min cooldown
         state.lastTelegramAt = now;
         
         let msg = '';
         
         if (newMode === 'ON') {
-            msg = `🔥 <b>STREAK MODE: ON</b>\n`;
+            msg = `📊 <b>STREAK STATUS: ON</b>\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
-            msg += `📈 Current streak: <b>${state.currentStreakLength}</b> wins\n`;
-            msg += `🎯 Recent WR: <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
+            msg += `📈 Consecutive wins: <b>${state.currentStreakLength}</b>\n`;
+            msg += `🎯 Recent WR (15 trades): <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
-            msg += `<i>Hot regime detected - consider larger positions</i>`;
+            msg += `<i>Detection only - past performance does not predict future results</i>`;
         } else if (newMode === 'RISK') {
-            msg = `⚠️ <b>STREAK MODE: RISK</b>\n`;
+            msg = `📊 <b>STREAK STATUS: RISK</b>\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
-            msg += `📉 Streak deteriorating\n`;
-            msg += `🎯 Recent WR: <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
+            msg += `📉 Recent loss detected\n`;
+            msg += `🎯 Recent WR (15 trades): <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
-            msg += `<i>Consider reducing position sizes</i>`;
+            msg += `<i>Streak may be ending - for information only</i>`;
         } else if (newMode === 'OFF' && prevMode !== 'OFF') {
-            msg = `❄️ <b>STREAK MODE: OFF</b>\n`;
+            msg = `📊 <b>STREAK STATUS: OFF</b>\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
-            msg += `📊 Streak ended at ${state.maxStreakSeen} wins\n`;
-            msg += `🎯 Recent WR: <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
+            msg += `📊 Peak streak was ${state.maxStreakSeen} wins\n`;
+            msg += `🎯 Recent WR (15 trades): <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
-            msg += `<i>Back to conservative mode</i>`;
+            msg += `<i>Normal variance - for information only</i>`;
         }
         
         if (msg) {

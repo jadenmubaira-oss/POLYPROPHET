@@ -402,6 +402,59 @@ function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
     };
 }
 
+// ==================== PER-ASSET & PER-TIER BREAKDOWN ====================
+function analyzeBreakdown(cycles, pWinThreshold, tierRequired = ['CONVICTION', 'ADVISORY']) {
+    const byAsset = {};
+    const byTier = {};
+    
+    for (const cycle of cycles) {
+        const gate = checkAdaptiveGate(cycle, pWinThreshold, tierRequired);
+        if (!gate.passes) continue;
+        
+        const asset = cycle.asset || 'UNKNOWN';
+        const tier = cycle.tier || 'UNKNOWN';
+        const isWin = cycle.wasCorrect;
+        
+        // By asset
+        if (!byAsset[asset]) byAsset[asset] = { trades: 0, wins: 0, losses: 0 };
+        byAsset[asset].trades++;
+        if (isWin) byAsset[asset].wins++;
+        else byAsset[asset].losses++;
+        
+        // By tier
+        if (!byTier[tier]) byTier[tier] = { trades: 0, wins: 0, losses: 0 };
+        byTier[tier].trades++;
+        if (isWin) byTier[tier].wins++;
+        else byTier[tier].losses++;
+    }
+    
+    return { byAsset, byTier };
+}
+
+function printBreakdown(breakdown) {
+    console.log('\n📊 PER-ASSET BREAKDOWN');
+    console.log('═'.repeat(50));
+    console.log('   Asset    │ Trades │  Wins  │ Losses │ Win Rate');
+    console.log('   ─────────┼────────┼────────┼────────┼─────────');
+    
+    for (const [asset, stats] of Object.entries(breakdown.byAsset)) {
+        const wr = stats.trades > 0 ? (stats.wins / stats.trades * 100).toFixed(1) : 'N/A';
+        console.log(`   ${asset.padEnd(8)} │ ${String(stats.trades).padStart(6)} │ ${String(stats.wins).padStart(6)} │ ${String(stats.losses).padStart(6)} │ ${wr}%`);
+    }
+    console.log('   ─────────┴────────┴────────┴────────┴─────────');
+    
+    console.log('\n📊 PER-TIER BREAKDOWN');
+    console.log('═'.repeat(50));
+    console.log('   Tier       │ Trades │  Wins  │ Losses │ Win Rate');
+    console.log('   ───────────┼────────┼────────┼────────┼─────────');
+    
+    for (const [tier, stats] of Object.entries(breakdown.byTier)) {
+        const wr = stats.trades > 0 ? (stats.wins / stats.trades * 100).toFixed(1) : 'N/A';
+        console.log(`   ${tier.padEnd(10)} │ ${String(stats.trades).padStart(6)} │ ${String(stats.wins).padStart(6)} │ ${String(stats.losses).padStart(6)} │ ${wr}%`);
+    }
+    console.log('   ───────────┴────────┴────────┴────────┴─────────');
+}
+
 // ==================== CLI ENTRY ====================
 function main() {
     const args = process.argv.slice(2);
@@ -419,7 +472,7 @@ function main() {
         }
     }
     
-    console.log('🔮 POLYPROPHET v105 - ADAPTIVE FREQUENCY BACKTEST');
+    console.log('🔮 POLYPROPHET v106 - ADAPTIVE FREQUENCY BACKTEST');
     console.log('━'.repeat(50));
 
     if (!dataPath) {
@@ -497,6 +550,10 @@ function main() {
             console.log('   - Past performance does not guarantee future results');
             console.log('   - FOCUS ON: Win rate and trades/day metrics');
             console.log('─'.repeat(80));
+            
+            // Per-asset and per-tier breakdown
+            const breakdown = analyzeBreakdown(cycles, sweep.optimal.threshold);
+            printBreakdown(breakdown);
             
             // Save results
             const outputPath = path.join(__dirname, '..', 'backtest_results.json');

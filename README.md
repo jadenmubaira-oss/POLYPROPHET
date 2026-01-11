@@ -1,22 +1,24 @@
-# POLYPROPHET — THE SUPREME ORACLE 🔮
+# POLYPROPHET — THE ORACLE 🔮
 
-## $1 → $1,000,000 Fully Automatic Manual Trading Journey
+## Adaptive Manual Trading Oracle for Polymarket 15-Min Crypto Markets
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v105 ADAPTIVE FREQUENCY ORACLE**: Maximum trade frequency at 90%+ win rate.
+> **v106 ADAPTIVE ORACLE**: Paper-only by default, explicit opt-in for live trading.
+> - **PAPER-ONLY SAFETY**: LIVE mode requires `ENABLE_LIVE_TRADING=1` explicitly
 > - **~41-46 TRADES/DAY**: Adaptive threshold targets frequent signals while maintaining accuracy
 > - **97-98% HISTORICAL WIN RATE**: Backtested on 2,546 unique cycles (deduped from 4,037 raw)
 > - **HOLD-TO-RESOLUTION**: Once you BUY, default is HOLD until cycle ends
 > - **EMERGENCY SELL ONLY**: Exit only under sustained deterioration (30s hysteresis)
 > - **2-3 MIN PREWARNING**: PREPARE signals give you time to open Polymarket
-> - **STREAK DETECTION**: Know when you're in a "hot" regime (detection, not prophecy)
+> - **STREAK DETECTION**: Informational only - detection, not prophecy
+> - **DRIFT ALERTS**: Telegram notification when accuracy drops and thresholds tighten
 
 ---
 
-## 🎯 v105: ADAPTIVE FREQUENCY SYSTEM
+## 🎯 v106: ADAPTIVE FREQUENCY SYSTEM
 
-The old ULTRA-only mode was **too strict** (0 trades in backtests). v105 introduces an **adaptive threshold** that:
+The old ULTRA-only mode was **too strict** (0 trades in backtests). v106 introduces an **adaptive threshold** that:
 
 - **Targets ≤1 loss per 10 trades** (~90% win rate floor)
 - **Maximizes trade frequency** by automatically relaxing thresholds when accuracy is high
@@ -39,12 +41,28 @@ The old ULTRA-only mode was **too strict** (0 trades in backtests). v105 introdu
 **DISCLAIMER**: Bankroll simulations are illustrative only (fixed 50¢ entry assumption).
 Focus on **win rate** and **trades/day** as the reliable metrics.
 
+### Per-Asset Breakdown (v106 backtest)
+
+| Asset | Trades | Wins | Losses | Win Rate |
+|-------|--------|------|--------|----------|
+| BTC | 268 | 264 | 4 | 98.5% |
+| ETH | 281 | 276 | 5 | 98.2% |
+| SOL | 273 | 270 | 3 | 98.9% |
+| XRP | 270 | 262 | 8 | 97.0% |
+
+### Per-Tier Breakdown (v106 backtest)
+
+| Tier | Trades | Wins | Losses | Win Rate |
+|------|--------|------|--------|----------|
+| CONVICTION | 613 | 600 | 13 | 97.9% |
+| ADVISORY | 479 | 472 | 7 | 98.5% |
+
 ### How It Works
 
-1. **Timing Windows** (v105):
-   - **PREPARE**: 3-2 minutes before cycle end (get ready)
+1. **Timing Windows** (v106):
+   - **PREPARE**: 3-1.5 minutes before cycle end (get ready)
    - **BUY**: 1.5-1 minute before end (execute now)
-   - **AVOID**: <60 seconds (too late)
+   - **AVOID**: <60 seconds (blackout, too late)
 
 2. **Adaptive Threshold**:
    - Starts at 75% pWin threshold
@@ -57,9 +75,24 @@ Focus on **win rate** and **trades/day** as the reliable metrics.
 
 ---
 
+## 🔒 v106: PAPER-ONLY SAFETY
+
+By default, POLYPROPHET operates in **PAPER mode** (simulated trading). This is intentional:
+
+- **ENABLE_LIVE_TRADING**: Must be set to `1` explicitly for any LIVE trading
+- **LIVE without opt-in**: Forced to PAPER with warning in logs and `/api/version`
+- **Drift Alerts**: Telegram notification when win rate drops below target (auto-tightens thresholds)
+
+### Why Paper-Only Default?
+
+You trade manually based on Telegram signals. The bot is an **oracle**, not an automated trader.
+LIVE mode exists for advanced users but requires explicit acknowledgment of risk.
+
+---
+
 ## 🔮 ULTRA-PROPHET: THE DIAMOND TIER (Bonus)
 
-ULTRA-PROPHET is **still tracked** as the highest certainty tier, but v105 doesn't require it to trade.
+ULTRA-PROPHET is **still tracked** as the highest certainty tier, but v106 doesn't require it to trade.
 
 ### 10 Gates (ALL Must Pass for ULTRA Badge)
 
