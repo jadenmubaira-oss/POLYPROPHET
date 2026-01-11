@@ -105,11 +105,32 @@ function extractCyclesFromDebugExport(json, sourceLabel = 'unknown') {
     return out;
 }
 
+// ==================== DEDUPLICATION ====================
+// Debug exports are rolling snapshots with overlapping cycle histories.
+// We must deduplicate by (asset, cycleEndTime) to avoid inflating stats.
+function deduplicateCycles(cycles) {
+    const seen = new Set();
+    const unique = [];
+    let dupes = 0;
+    
+    for (const c of cycles) {
+        const key = `${c.asset}|${c.cycleEndTime}`;
+        if (seen.has(key)) {
+            dupes++;
+            continue;
+        }
+        seen.add(key);
+        unique.push(c);
+    }
+    
+    return { unique, duplicatesRemoved: dupes };
+}
+
 function loadPerCycleCorpus(dataPath) {
     if (!dataPath) return { cycles: [], sources: [] };
     const p = dataPath;
     const sources = [];
-    const cycles = [];
+    let rawCycles = [];
 
     if (!fs.existsSync(p)) return { cycles: [], sources: [] };
 
@@ -126,21 +147,30 @@ function loadPerCycleCorpus(dataPath) {
                 const extracted = extractCyclesFromDebugExport(json, fp);
                 if (extracted.length > 0) {
                     sources.push(fp);
-                    cycles.push(...extracted);
+                    rawCycles.push(...extracted);
                 }
             } catch { /* skip */ }
         }
-        return { cycles, sources };
+    } else {
+        try {
+            const raw = fs.readFileSync(p, 'utf8');
+            const json = JSON.parse(raw);
+            rawCycles = extractCyclesFromDebugExport(json, p);
+            sources.push(p);
+        } catch (e) {
+            return { cycles: [], sources: [p], error: e.message };
+        }
     }
-
-    try {
-        const raw = fs.readFileSync(p, 'utf8');
-        const json = JSON.parse(raw);
-        const extracted = extractCyclesFromDebugExport(json, p);
-        return { cycles: extracted, sources: [p] };
-    } catch (e) {
-        return { cycles: [], sources: [p], error: e.message };
-    }
+    
+    // CRITICAL: Deduplicate overlapping cycles
+    const { unique, duplicatesRemoved } = deduplicateCycles(rawCycles);
+    
+    return { 
+        cycles: unique, 
+        sources, 
+        rawCount: rawCycles.length,
+        duplicatesRemoved 
+    };
 }
 
 // ==================== ADAPTIVE GATE CHECK ====================
@@ -408,7 +438,10 @@ function main() {
         process.exit(1);
     }
 
-    console.log(`📂 Loaded ${loaded.cycles.length} cycles from ${loaded.sources.length} source(s).`);
+    console.log(`📂 Loaded from ${loaded.sources.length} source(s):`);
+    console.log(`   Raw cycles: ${loaded.rawCount || loaded.cycles.length}`);
+    console.log(`   Duplicates removed: ${loaded.duplicatesRemoved || 0}`);
+    console.log(`   Unique cycles: ${loaded.cycles.length}`);
     
     // Sort by time
     const cycles = loaded.cycles.sort((a, b) => {
@@ -422,7 +455,10 @@ function main() {
     const trainCycles = cycles.slice(0, splitIdx);
     const testCycles = cycles.slice(splitIdx);
     
-    if (doSweep || true) {  // Always do sweep for v105
+    console.log(`\n⚠️ NOTE: Bankroll simulation uses simplified assumptions (fixed 50¢ entry).`);
+    console.log(`   Real results will vary. Focus on FREQUENCY and WIN RATE metrics.`);
+    
+    if (true) {  // Always do sweep for v105
         const sweep = runThresholdSweep(trainCycles, testCycles, targetWR);
         
         if (sweep.optimal) {
@@ -453,6 +489,14 @@ function main() {
             } else if (sim.finalBankroll < 0.01) {
                 console.log('\n   💀 BUSTED');
             }
+            
+            console.log('\n' + '─'.repeat(80));
+            console.log('⚠️ DISCLAIMER: Bankroll simulation is ILLUSTRATIVE ONLY.');
+            console.log('   - Assumes fixed 50¢ entry price (real prices vary)');
+            console.log('   - Ignores slippage, fees, and execution timing');
+            console.log('   - Past performance does not guarantee future results');
+            console.log('   - FOCUS ON: Win rate and trades/day metrics');
+            console.log('─'.repeat(80));
             
             // Save results
             const outputPath = path.join(__dirname, '..', 'backtest_results.json');

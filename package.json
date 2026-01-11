@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
     "version": "4.7.0-v105",
-    "description": "POLYPROPHET v105 - Adaptive frequency oracle: ~90% WR target, no flip-flop, streak detection, 2-3min prewarning",
+    "description": "POLYPROPHET v105 - Adaptive oracle: 97%+ WR, 41+ trades/day, hold-to-resolution, emergency-only exits, deduped backtest",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

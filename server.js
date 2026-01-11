@@ -9931,12 +9931,20 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     manualTradingJourney.lastUpdated = Date.now();
     shadowBook.totalPnl += pnl;
     
+    // ═══════════════════════════════════════════════════════════════════════════════
     // 🎯 v105: Record outcome for adaptive frequency learning
-    // This feeds the adaptive threshold controller
+    // CRITICAL: For CYCLE_END, use actual prediction correctness (isWin param).
+    // For EMERGENCY exits (SELL_SIGNAL), treat conservatively as LOSS to tighten
+    // thresholds - we exited early because we were uncertain.
+    // ═══════════════════════════════════════════════════════════════════════════════
     const brain = Brains[pos.asset];
     const pWinAtEntry = pos.pWinAtEntry || (brain?.confidence || 0.5);
     const tier = pos.tierAtEntry || (brain?.tier || 'ADVISORY');
-    recordOracleSignalOutcome(pos.asset, pos.direction, pWinAtEntry, tier, isWinResolved);
+    
+    // For adaptive learning: use actual correctness for resolution, treat early exits as losses
+    const isEmergencyExit = reason === 'SELL_SIGNAL' || reason === 'EMERGENCY';
+    const correctnessForLearning = isEmergencyExit ? false : isWin;  // Emergency = conservative loss
+    recordOracleSignalOutcome(pos.asset, pos.direction, pWinAtEntry, tier, correctnessForLearning);
     
     // Record closed trade
     const closedTrade = {
@@ -23404,9 +23412,13 @@ function updateOracleSignalForAsset(asset) {
             ? Math.max(0, Math.min(1, Number(CONFIG.ORACLE.minVoteStability)))
             : 0.80;
         const minElapsedSeconds = Number.isFinite(Number(CONFIG?.ORACLE?.minElapsedSeconds)) ? Number(CONFIG.ORACLE.minElapsedSeconds) : 60;
-        const inBlackout = (typeof brain.isInBlackout === 'function') ? brain.isInBlackout(elapsedSec) : (elapsedSec >= 840);
+        // v105: inBlackout is computed per timing-window block below (avoid redeclaration)
 
-        // Position-aware SELL/HOLD (paper eval + optional manual endpoints)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🔒 v105: POSITION-AWARE HOLD-TO-RESOLUTION
+        // Default: HOLD until cycle ends. Emergency SELL only with hysteresis.
+        // No flip-flopping: once you're in, you stay in unless truly wrong.
+        // ═══════════════════════════════════════════════════════════════════════════════
         const pos = getMostRecentPositionForAsset(asset);
         if (pos && pos.side && Number.isFinite(pos.entry)) {
             const currentOdds = pos.side === 'UP' ? market.yesPrice : market.noPrice;
@@ -23421,21 +23433,7 @@ function updateOracleSignalForAsset(asset) {
                 pnlPercent
             };
 
-            // SELL rules (advisory)
-            const flipAgainstPosition = (brain.prediction === 'UP' || brain.prediction === 'DOWN')
-                ? (brain.prediction !== pos.side)
-                : false;
-            const flipHighConviction = flipAgainstPosition && voteStability >= minVoteStability && Number.isFinite(pWin) && pWin >= 0.70;
-
-            // ═══════════════════════════════════════════════════════════════════════════════
-            // 🚨 DISSENT-BASED EARLY EXIT: Detect deterioration even when direction is locked
-            // These triggers work when oracleLocked/cycleCommitted prevent prediction flips
-            // ═══════════════════════════════════════════════════════════════════════════════
-            const modelVotesNow = brain.lastSignal?.modelVotes || {};
-            const genesisVote = modelVotesNow.genesis;
-            const genesisDisagrees = genesisVote && genesisVote !== pos.side;
-            
-            // Consensus collapse: check if current consensus dropped below 60%
+            // Compute current consensus for emergency check
             const voteHistoryArr = brain.voteHistory || [];
             const latestVotes = voteHistoryArr.length > 0 ? voteHistoryArr[voteHistoryArr.length - 1] : null;
             let currentConsensus = 0;
@@ -23444,45 +23442,25 @@ function updateOracleSignalForAsset(asset) {
                 const maxV = Math.max(latestVotes.up, latestVotes.down);
                 currentConsensus = totalV > 0 ? maxV / totalV : 0;
             }
-            const consensusCollapsed = currentConsensus < 0.60 && voteHistoryArr.length >= 3;
-            
-            // Certainty collapse: certainty dropped >30 points from lock
-            const certaintyCurrent = brain.certaintyScore || 0;
-            const certaintyAtLock = brain.lockCertainty || 0;
-            const certaintyCollapsed = brain.oracleLocked && certaintyAtLock > 0 && (certaintyAtLock - certaintyCurrent) > 30;
-            
-            // Edge deterioration: our pWin vs entry has collapsed (edge now negative or very small)
-            const currentEdge = Number.isFinite(pWin) && pos.entry > 0 ? (pWin - pos.entry) : null;
-            const edgeCollapsed = Number.isFinite(currentEdge) && currentEdge < 0.02; // Edge < 2%
 
-            if (flipHighConviction) {
+            // 🔒 v105: Use hysteresis-based emergency exit (30s sustained deterioration required)
+            // This prevents flip-flopping on temporary market swings
+            const emergencyCheck = checkEmergencyExit(asset, brain, market, pWin, currentConsensus, voteStability);
+            
+            if (emergencyCheck.shouldEmergencyExit && timeLeftSec > 60) {
+                // Emergency SELL: sustained deterioration confirmed
                 signal.action = 'SELL';
-                signal.reasons.push(`Prediction flipped against position (voteStability=${voteStability.toFixed(2)})`);
-            } else if (genesisDisagrees && timeLeftSec > 120) {
-                // Genesis (94% accurate) now disagrees with our position
-                signal.action = 'SELL';
-                signal.reasons.push(`⚠️ GENESIS DISSENT: Genesis says ${genesisVote}, position is ${pos.side}`);
-            } else if (consensusCollapsed && timeLeftSec > 120) {
-                // Model consensus collapsed below 60%
-                signal.action = 'SELL';
-                signal.reasons.push(`⚠️ CONSENSUS COLLAPSED: ${(currentConsensus * 100).toFixed(0)}% < 60%`);
-            } else if (certaintyCollapsed && timeLeftSec > 120) {
-                // Certainty dropped significantly from lock
-                signal.action = 'SELL';
-                signal.reasons.push(`⚠️ CERTAINTY COLLAPSED: ${certaintyCurrent.toFixed(0)} vs ${certaintyAtLock.toFixed(0)} at lock (-${(certaintyAtLock - certaintyCurrent).toFixed(0)})`);
-            } else if (edgeCollapsed && Number.isFinite(pnlPercent) && pnlPercent < 0 && timeLeftSec > 120) {
-                // Edge collapsed AND we're in the red - cut early
-                signal.action = 'SELL';
-                signal.reasons.push(`⚠️ EDGE COLLAPSED: edge=${((currentEdge || 0) * 100).toFixed(1)}% < 2%, P/L=${pnlPercent.toFixed(1)}%`);
-            } else if (Number.isFinite(pnlPercent) && pnlPercent >= 25 && timeLeftSec > 60) {
-                signal.action = 'SELL';
-                signal.reasons.push(`Take profit (+${pnlPercent.toFixed(1)}%)`);
-            } else if (Number.isFinite(pnlPercent) && pnlPercent <= -25 && timeLeftSec > 60) {
-                signal.action = 'SELL';
-                signal.reasons.push(`Cut loss (${pnlPercent.toFixed(1)}%)`);
+                signal.reasons.push(emergencyCheck.reason);
+                clearCycleCommitment(asset);
+            } else if (emergencyCheck.prewarning && timeLeftSec > 90) {
+                // PRESELL warning: deterioration detected but not sustained yet
+                signal.action = 'HOLD';
+                signal.reasons.push(`⚠️ PRESELL WARNING: ${emergencyCheck.prewarningReasons?.join(', ') || 'Deterioration detected'}`);
+                signal.reasons.push(`🔒 Holding to resolution (emergency not yet confirmed)`);
             } else {
-                signal.action = inBlackout ? 'HOLD' : 'HOLD';
-                if (Number.isFinite(pnlPercent)) signal.reasons.push(`Hold (P/L ${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)`);
+                // Default: HOLD to resolution
+                signal.action = 'HOLD';
+                signal.reasons.push(`🔒 Hold to resolution (P/L ${pnlPercent >= 0 ? '+' : ''}${(pnlPercent || 0).toFixed(1)}%)`);
             }
 
             // Throttle SELL notify per cycle (for telegram layer)

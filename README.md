@@ -5,12 +5,12 @@
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
 > **v105 ADAPTIVE FREQUENCY ORACLE**: Maximum trade frequency at 90%+ win rate.
-> - **~41 TRADES/DAY**: Adaptive threshold targets frequent signals while maintaining accuracy
-> - **97-98% HISTORICAL WIN RATE**: Backtested on 4000+ cycles with $1→$166k result
-> - **NO FLIP-FLOP**: Once you BUY, direction is locked until cycle end or emergency exit
+> - **~41-46 TRADES/DAY**: Adaptive threshold targets frequent signals while maintaining accuracy
+> - **97-98% HISTORICAL WIN RATE**: Backtested on 2,546 unique cycles (deduped from 4,037 raw)
+> - **HOLD-TO-RESOLUTION**: Once you BUY, default is HOLD until cycle ends
+> - **EMERGENCY SELL ONLY**: Exit only under sustained deterioration (30s hysteresis)
 > - **2-3 MIN PREWARNING**: PREPARE signals give you time to open Polymarket
-> - **STREAK DETECTION**: Know when you're in a "hot" regime and when it's deteriorating
-> - **SHADOW-BOOK**: Position tracking and P/L calculated automatically
+> - **STREAK DETECTION**: Know when you're in a "hot" regime (detection, not prophecy)
 
 ---
 
@@ -22,16 +22,22 @@ The old ULTRA-only mode was **too strict** (0 trades in backtests). v105 introdu
 - **Maximizes trade frequency** by automatically relaxing thresholds when accuracy is high
 - **Self-tightens** when accuracy drops below target
 
-### Backtest Results (4,037 cycles from Dec 2025)
+### Backtest Results (2,546 unique cycles, deduped from Dec 2025 debug exports)
 
 | Metric | Value |
 |--------|-------|
-| **Optimal Threshold** | 60% pWin (65% with tier confidence adjustments) |
-| **Win Rate** | 98.3% (test set: 97.7%) |
-| **Trades/Day** | ~41 (almost 3 per hour) |
-| **Max Win Streak** | 342 consecutive wins |
-| **Max Drawdown** | 3.2% |
-| **$1 → Final** | $166,178 |
+| **Raw cycles loaded** | 4,037 (from 142 debug exports) |
+| **Duplicates removed** | 1,491 (overlapping rolling snapshots) |
+| **Unique cycles tested** | 2,546 |
+| **Optimal Threshold** | 60% pWin (57% for CONVICTION tier) |
+| **Test Set Win Rate** | 97.5% |
+| **Full Sim Win Rate** | 98.2% (1,072 wins / 1,092 trades) |
+| **Trades/Day** | ~41-46 (depends on market conditions) |
+| **Max Win Streak** | 92 (test set) / 201 (full sim) |
+| **Losses per 10 trades** | ~0.2 |
+
+**DISCLAIMER**: Bankroll simulations are illustrative only (fixed 50¢ entry assumption).
+Focus on **win rate** and **trades/day** as the reliable metrics.
 
 ### How It Works
 
