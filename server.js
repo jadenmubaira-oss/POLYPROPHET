@@ -8094,6 +8094,14 @@ let lastUpdateTimestamp = Date.now();
 let fearGreedIndex = 50;
 let fundingRates = {};
 
+// 🏆 v110: Oracle blind alert tracker - detect when market data unavailable
+let oracleBlindState = {
+    consecutiveFailures: {},  // { asset: count }
+    lastAlertAt: {},          // { asset: timestamp }
+    alertThreshold: 5,        // Number of consecutive failures before alert
+    alertCooldownMs: 300000   // 5 minutes between alerts per asset
+};
+
 // ==================== POLYMARKET PROFILE TRADE SYNC (Data API) ====================
 // Optional: ingest YOUR real fills from Polymarket so the bot can learn from your actual actions.
 // Uses: https://data-api.polymarket.com/trades?user=<profileAddress>
@@ -8546,7 +8554,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 109;  // v109: Force-reset adaptive gate to 85% floor on startup, hard-enforce floor for ALL tiers (ADVISORY+CONVICTION)
+const CONFIG_VERSION = 110;  // v110: Fix Gamma field parsing (outcomes/clobTokenIds come as JSON strings), add market fetch diagnostics
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9415,6 +9423,33 @@ async function sendTelegramNotification(message, silent = false) {
         log(`📱 Telegram notification sent`);
     } catch (e) {
         log(`⚠️ Telegram notification failed: ${e.message}`);
+    }
+}
+
+// 🏆 v110: Alert when oracle is blind (no market data) for an asset
+async function maybeAlertOracleBlind(asset, error, slug) {
+    const failures = oracleBlindState.consecutiveFailures[asset] || 0;
+    const lastAlert = oracleBlindState.lastAlertAt[asset] || 0;
+    const now = Date.now();
+    
+    // Only alert if: (1) threshold exceeded and (2) cooldown elapsed
+    if (failures >= oracleBlindState.alertThreshold && (now - lastAlert) > oracleBlindState.alertCooldownMs) {
+        oracleBlindState.lastAlertAt[asset] = now;
+        
+        const tgEscape = (s) => String(s || '').replace(/[<>&]/g, '');
+        const msg = `⚠️ <b>ORACLE BLIND: ${asset}</b>\n\n` +
+            `<b>Market data unavailable for ${failures} consecutive refreshes</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `📊 <b>Slug:</b> <code>${tgEscape(slug)}</code>\n` +
+            `❌ <b>Error:</b> <code>${tgEscape(error)}</code>\n` +
+            `⏱️ <b>Since:</b> ${Math.round(failures * 2)}s ago\n` +
+            `━━━━━━━━━━━━━━━━━━━━━\n` +
+            `<i>Oracle cannot issue signals without market prices.</i>\n` +
+            `<i>Check Gamma API + CLOB availability.</i>\n\n` +
+            `🔗 <a href="${DASHBOARD_URL}">Dashboard</a>`;
+        
+        await sendTelegramNotification(msg, false);
+        log(`⚠️ ORACLE_BLIND alert sent for ${asset} (${failures} failures)`, asset);
     }
 }
 
@@ -19803,21 +19838,38 @@ async function fetchCurrentMarkets() {
                 continue;
             }
 
-            const tokenIds = JSON.parse(market.clobTokenIds);
+            // 🏆 v110: Safely parse Gamma fields - they come as JSON strings OR arrays
+            // Handle both cases without throwing
+            const safeParseJsonArray = (val) => {
+                if (Array.isArray(val)) return val;
+                if (typeof val === 'string') {
+                    try { return JSON.parse(val); } catch { return []; }
+                }
+                return [];
+            };
+
+            const tokenIds = safeParseJsonArray(market.clobTokenIds);
+            if (tokenIds.length < 2) {
+                log(`⚠️ Invalid clobTokenIds for ${slug}: ${JSON.stringify(market.clobTokenIds)}`, asset);
+                currentMarkets[asset] = null;
+                continue;
+            }
             
-            // 🏆 v109: Map tokenIds to outcomes using market.outcomes
+            // 🏆 v110: Map tokenIds to outcomes using market.outcomes (also a JSON string)
             // Polymarket convention: outcomes[i] corresponds to clobTokenIds[i]
             let yesTokenId = tokenIds[0];
             let noTokenId = tokenIds[1];
+            let tokenMappingSource = 'DEFAULT_ORDER';
             
             // Try to determine token mapping from market outcomes
-            const outcomes = market.outcomes || [];
-            if (outcomes.length >= 2) {
+            const outcomes = safeParseJsonArray(market.outcomes);
+            if (Array.isArray(outcomes) && outcomes.length >= 2) {
                 const yesIdx = outcomes.findIndex(o => /^(yes|up)$/i.test(String(o).trim()));
                 const noIdx = outcomes.findIndex(o => /^(no|down)$/i.test(String(o).trim()));
                 if (yesIdx >= 0 && noIdx >= 0 && tokenIds[yesIdx] && tokenIds[noIdx]) {
                     yesTokenId = tokenIds[yesIdx];
                     noTokenId = tokenIds[noIdx];
+                    tokenMappingSource = 'OUTCOMES_MAPPED';
                 }
             }
             
@@ -19892,30 +19944,58 @@ async function fetchCurrentMarkets() {
                 marketUrl: `https://polymarket.com/event/${eventData.slug}`,
                 volume: market.volume24hr || 0,
                 lastUpdated: Date.now(),
-                tokenIds: { yes: yesTokenId, no: noTokenId }, // 🏆 v109: Corrected token mapping
-                // 🏆 v109: Diagnostics for price verification
+                tokenIds: { yes: yesTokenId, no: noTokenId },
+                // 🏆 v110: Enhanced diagnostics for price verification
                 pricingDiagnostics: {
                     yesBestAsk,
                     noBestAsk,
                     pricingFallback,
                     spread: (yesBestAsk !== null && noBestAsk !== null) ? Math.abs((yesBestAsk + noBestAsk) - 1) : null,
+                    tokenMappingSource,
                     outcomesFromGamma: outcomes
-                }
+                },
+                fetchOk: true,
+                fetchAt: Date.now(),
+                fetchError: null
             };
+
+            // 🏆 v110: Reset oracle blind counter on successful fetch
+            oracleBlindState.consecutiveFailures[asset] = 0;
 
             const fallbackNote = pricingFallback ? ` [${pricingFallback}]` : '';
             log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}¢ | NO ${(noPrice * 100).toFixed(1)}¢${fallbackNote}`, asset);
         } catch (e) {
             log(`❌ Market fetch error: ${e.message}`, asset);
 
+            // 🏆 v110: Track fetch errors for diagnostics
+            const fetchErrorInfo = {
+                fetchOk: false,
+                fetchAt: Date.now(),
+                fetchError: e?.message || String(e),
+                slug: slug
+            };
+
             // FINAL SEVEN: MARKET DATA FALLBACK
             // If fetch fails, use last known data if < 30 seconds old
             if (currentMarkets[asset] && (Date.now() - currentMarkets[asset].lastUpdated) < 30000) {
                 log(`⚠️ Using cached market data for ${asset} (Grace Period)`);
-                // Keep existing currentMarkets[asset]
+                // Keep existing currentMarkets[asset] but update fetch status
+                currentMarkets[asset].fetchOk = false;
+                currentMarkets[asset].fetchError = fetchErrorInfo.fetchError;
             } else {
-                currentMarkets[asset] = null;
+                // Store a minimal object with error info so /api/state can show what went wrong
+                currentMarkets[asset] = {
+                    ...fetchErrorInfo,
+                    yesPrice: null,
+                    noPrice: null,
+                    marketUrl: null,
+                    lastUpdated: Date.now()
+                };
             }
+            
+            // 🏆 v110: Track consecutive failures for oracle blind alert
+            oracleBlindState.consecutiveFailures[asset] = (oracleBlindState.consecutiveFailures[asset] || 0) + 1;
+            maybeAlertOracleBlind(asset, fetchErrorInfo.fetchError, slug);
         }
         await new Promise(r => setTimeout(r, 300));
     }
@@ -23579,7 +23659,21 @@ function updateOracleSignalForAsset(asset) {
 
         // Preconditions
         if (!market || !Number.isFinite(market.yesPrice) || !Number.isFinite(market.noPrice)) {
-            signal.reasons.push('No active market/odds yet');
+            // 🏆 v110: Include fetch error details when market data unavailable
+            let reason = 'No active market/odds yet';
+            if (market?.fetchError) {
+                reason += ` (fetchError: ${market.fetchError})`;
+            } else if (market?.fetchOk === false) {
+                reason += ' (fetch failed - no error detail)';
+            }
+            signal.reasons.push(reason);
+            // Include fetch status in signal for visibility
+            signal.fetchStatus = {
+                fetchOk: market?.fetchOk ?? false,
+                fetchAt: market?.fetchAt || null,
+                fetchError: market?.fetchError || null,
+                slug: market?.slug || null
+            };
             oracleSignals[asset] = signal;
             return signal;
         }
