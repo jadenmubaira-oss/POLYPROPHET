@@ -41,6 +41,7 @@ Thumbs.db
 
 # Debug exports (keep locally, don't commit)
 debug/
+debg/
 debug_backtest/
 backtest-data/
 

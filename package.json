@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.7.0-v103",
-    "description": "POLYPROPHET v103 - Hands-off oracle mode: stability mismatch fix, correct early-exit P/L, persist shadow-book/manual bankroll, hardened auth tokens",
+    "version": "4.7.0-v104",
+    "description": "POLYPROPHET v104 - Hands-off oracle mode: removed auth blocker, user-managed credentials, stability fix, shadow-book persistence",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

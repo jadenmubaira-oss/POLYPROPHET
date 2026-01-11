@@ -25,16 +25,14 @@ services:
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"
-      # Auth - CHANGE THESE in Render dashboard!
-      # IMPORTANT:
-      # - Do NOT hardcode credentials in git.
-      # - Render will generate secure values and keep them stable across deploys.
+      # Auth - Set your own credentials in Render dashboard
+      # These are just defaults - override in dashboard with your values
       - key: AUTH_USERNAME
-        value: polyprophet
+        value: admin
       - key: AUTH_PASSWORD
-        generateValue: true
+        value: changeme
       - key: API_KEY
-        generateValue: true
+        value: changeme
       # 🏆 v70: REQUIRED FOR LIVE MODE - Set in Render dashboard
       # Without Redis, LIVE mode will be downgraded to PAPER for safety
       # - key: REDIS_URL

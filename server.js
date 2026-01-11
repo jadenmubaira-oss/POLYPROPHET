@@ -8490,7 +8490,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 103;  // v103: Fix oracle stability mismatch, persist shadow-book/manual bankroll, correct early-exit P/L, harden auth tokens
+const CONFIG_VERSION = 104;  // v104: Remove production auth blocker, user manages own credentials
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -25427,25 +25427,7 @@ async function startup() {
     log('🚀 SUPREME DEITY: CLOUD EDITION');
     log('🔧 Initializing...');
 
-    // SECURITY (production): refuse to run with default credentials.
-    // Prevents accidentally deploying an internet-facing instance with admin/changeme or known placeholders.
-    try {
-        const isProd = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
-        if (isProd) {
-            const u = String(process.env.AUTH_USERNAME || 'admin').trim();
-            const p = String(process.env.AUTH_PASSWORD || 'changeme').trim();
-            const defaultCreds =
-                (u === 'admin' && p === 'changeme') ||
-                (u === 'bandito' && p === 'bandito') ||
-                (u.length < 3 || p.length < 8);
-            if (defaultCreds) {
-                log(`🔴 FATAL: Insecure AUTH credentials detected for production deployment.`);
-                log(`   Fix: Set AUTH_USERNAME and AUTH_PASSWORD in Render dashboard (strong values), then redeploy.`);
-                log(`   Tip: Also set API_KEY for stable token auth (required for ?apiKey=... dashboard cookie flow).`);
-                process.exit(1);
-            }
-        }
-    } catch { /* never crash here */ }
+    // Auth credentials from environment - user manages their own security
 
     // Wait for Redis connection if configured
     if (process.env.REDIS_URL && redis) {

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * 🔮 POLYPROPHET MANUAL STRATEGY BACKTEST (v103)
+ * 🔮 POLYPROPHET MANUAL STRATEGY BACKTEST (v104)
  *
  * IMPORTANT (Honest proof boundary):
  * - This backtester requires per-cycle historical records (e.g. `assets[ASSET].cycleHistory[]`)
- *   from `debug/polyprophet_debug_*.json` exports.
+ *   from `debg/polyprophet_debug_*.json` exports.
  * - `docs/forensics/DEBUG_CORPUS_REPORT_v96.json` is a SUMMARY report (no per-cycle rows),
  *   so it cannot be used for trade-by-trade simulation.
  *
@@ -18,8 +18,9 @@
  *   node scripts/backtest-manual-strategy.js --data=<fileOrDir> [--cycles=N] [--start=1]
  *
  * Examples:
- *   node scripts/backtest-manual-strategy.js --data=debug/polyprophet_debug_2025-12-18T10-59-02-670Z.json
- *   node scripts/backtest-manual-strategy.js --data=debug --cycles=500
+ *   node scripts/backtest-manual-strategy.js --data=debg
+ *   node scripts/backtest-manual-strategy.js --data=debg/polyprophet_debug_2025-12-27T06-29-34-638Z.json
+ *   node scripts/backtest-manual-strategy.js --data=debg --cycles=500
  *
  * Output:
  * - Trade-by-trade ledger (best-effort fields)
@@ -517,8 +518,8 @@ function main() {
     if (!dataPath) {
         console.log('\n❌ Missing required --data.');
         console.log('   This backtest needs per-cycle debug exports (polyprophet_debug_*.json).');
-        console.log('   Example (archive branch):');
-        console.log('   node scripts/backtest-manual-strategy.js --data=debug/polyprophet_debug_2025-12-18T10-59-02-670Z.json');
+        console.log('   Example:');
+        console.log('   node scripts/backtest-manual-strategy.js --data=debg');
         process.exit(1);
     }
 
