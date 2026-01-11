@@ -4,31 +4,42 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v108 USER-TUNED ORACLE**: Balanced accuracy + frequency for manual trading from $1.
+> **v109 HARD-FLOOR ORACLE**: Maximum accuracy enforcement for manual trading from $1.
+> - **85% pWin FLOOR**: **HARD-ENFORCED for ALL tiers** (startup-reset, no legacy state)
 > - **85% WIN RATE TARGET**: 1-2 losses per 10 trades (user-specified)
-> - **85% pWin FLOOR**: Never issues BUY below this threshold
 > - **~1 BUY/HOUR TARGET**: When market conditions allow
 > - **$1 MANUAL TRADING**: Website market orders support $1 minimum
+> - **ACTUAL ENTRY PRICES**: Backtest uses recorded entryOdds (not fixed 50¢)
 > - **NO_AUTH=true**: Easy access, no login prompts
 > - **START_PAUSED=false**: Paper auto-trading enabled on deploy
 > - **CALIBRATION DIAGNOSTICS**: Signals show "LOCKED vs MOVABLE" status
 
 ---
 
-## 🎯 v108: USER-TUNED ORACLE MODE
+## 🎯 v109: HARD-FLOOR ORACLE MODE
 
-v108 is tuned to the user's explicit constraints for manual trading from $1:
+v109 **hard-enforces** the 85% pWin floor for ALL tiers and uses actual entry prices:
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | **Win Rate Target** | 85% | 1-2 losses per 10 trades |
-| **pWin Floor** | 85% | Hard minimum for BUY signals |
+| **pWin Floor** | **85% HARD-ENFORCED** | Reset on every startup, never bypassed |
 | **pWin Start** | 85% | Conservative starting threshold |
 | **pWin Max** | 90% | Cap for tightening |
 | **PREPARE Threshold** | 75% | Early warning (below BUY floor) |
 | **Model Consensus** | 72% | Balanced for frequency |
 | **Vote Stability** | 80% | Balanced for frequency |
 | **Frequency Target** | ~1/hour | When conditions allow |
+
+### v109 Critical Fixes
+
+1. **Adaptive Gate Force-Reset**: On every startup, `adaptiveGateState` is reset to v109 defaults (85% floor) regardless of persisted state. This ensures legacy thresholds don't leak through.
+
+2. **Floor Enforced for ALL Tiers**: Both ADVISORY and CONVICTION tiers now enforce the 85% hard floor. Previously only CONVICTION enforced it.
+
+3. **Improved TokenId Mapping**: CLOB orderbook fetch now correctly maps YES/NO tokenIds from Gamma market outcomes, fixing price mismatches.
+
+4. **Backtest Actual Entry Prices**: `/api/backtest-polymarket?fullTrades=1` now includes trade-by-trade output with actual recorded entry prices (not fixed 50¢).
 
 ### Backtest Results (2,546 unique cycles, deduped from Dec 2025 debug exports)
 
@@ -44,8 +55,8 @@ v108 is tuned to the user's explicit constraints for manual trading from $1:
 | **Max Win Streak** | 92 (test set) / 201 (full sim) |
 | **Losses per 10 trades** | ~0.2 |
 
-**DISCLAIMER**: Bankroll simulations are illustrative only (fixed 50¢ entry assumption).
-Focus on **win rate** and **trades/day** as the reliable metrics.
+**NOTE**: v109 backtest uses **actual entry prices** from recorded `entryOdds` when available.
+Falls back to 50¢ only when cycle lacks price data. Check `entryStats` in results.
 
 ### Per-Asset Breakdown (v106 backtest)
 
@@ -70,13 +81,14 @@ Focus on **win rate** and **trades/day** as the reliable metrics.
    - **BUY**: 1.5-1 minute before end (execute now, pWin ≥ 85%)
    - **AVOID**: <60 seconds (blackout, too late)
 
-2. **Adaptive Threshold** (v108):
+2. **Adaptive Threshold** (v109 - HARD-ENFORCED):
    - Starts at **85%** pWin threshold (user's hard floor)
-   - **Never drops below 85%** (hard constraint)
+   - **Force-reset on every startup** (no legacy state leakage)
+   - **Enforced for ALL tiers** (ADVISORY + CONVICTION)
    - Tightens to **90%** if recent WR drops below 85%
    - Adjusts every 5 minutes based on rolling performance
 
-3. **Calibration Diagnostics** (v108):
+3. **Calibration Diagnostics** (v109):
    - Signals include `calibration.isLocked` (true = direction committed)
    - `calibration.couldFlip` warns if direction might still change
    - `calibration.pWinConfidence` shows VERY_HIGH/HIGH/MODERATE/LOW
@@ -84,11 +96,12 @@ Focus on **win rate** and **trades/day** as the reliable metrics.
 
 4. **$1 Manual Trading Mode**:
    - Use `orderMode=MANUAL` in backtests for website market orders ($1 min)
+   - Use `fullTrades=1` to get trade-by-trade output with entry prices
    - CLOB mode (default) uses 5-share minimum (price-dependent)
 
 ---
 
-## 🔒 v108: NO_AUTH + PAPER AUTO-TRADING
+## 🔒 v109: NO_AUTH + PAPER AUTO-TRADING
 
 By default, POLYPROPHET operates in **PAPER mode** with auto-trading enabled:
 
@@ -97,7 +110,7 @@ By default, POLYPROPHET operates in **PAPER mode** with auto-trading enabled:
 - **ENABLE_LIVE_TRADING**: Must be set to `1` explicitly for any LIVE trading
 - **Drift Alerts**: Telegram notification when win rate drops below target
 
-### Environment Variables (v108)
+### Environment Variables (v109)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
