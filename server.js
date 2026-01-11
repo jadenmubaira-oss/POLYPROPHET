@@ -8083,6 +8083,7 @@ ASSETS.forEach(asset => {
         telegramPrepareSentAt: 0,
         telegramBuySentAt: 0,
         telegramSellSentAt: 0,
+        telegramPresellSentAt: 0,  // 🔒 v105: PRESELL warning tracking
         telegramUltraSentAt: 0  // 🔮 ULTRA-PROPHET tracking
     };
 });
@@ -8490,7 +8491,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 104;  // v104: Remove production auth blocker, user manages own credentials
+const CONFIG_VERSION = 105;  // v105: Adaptive frequency ladder, no flip-flop commitment, streak detection, prewarning timing
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9371,6 +9372,61 @@ let primaryBuyState = {
     otherCandidates: []  // [{ asset, direction, price, pWin, evRoi, ultraGates, marketUrl }]
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎯 v105: ADAPTIVE FREQUENCY CONTROLLER
+// Targets ≤1 loss per 10 trades (~90% WR) while maximizing signal frequency.
+// Replaces the old ULTRA-only mode with a dynamic threshold system.
+// ═══════════════════════════════════════════════════════════════════════════════
+let adaptiveGateState = {
+    // Target: ≤1 loss per 10 trades = 90% min WR
+    targetWinRate: 0.90,
+    // Rolling window for adaptive threshold (last N oracle signals with known outcomes)
+    recentOracleSignals: [],  // [{ asset, direction, pWin, tier, isWin, timestamp }]
+    maxRecentSignals: 50,
+    // Dynamic threshold (starts conservative, relaxes if accuracy is high)
+    currentPWinThreshold: 0.75,  // Start at 75%, adapts based on performance
+    minPWinThreshold: 0.65,      // Never go below this (too risky)
+    maxPWinThreshold: 0.88,      // Cap (ULTRA territory)
+    // Threshold adjustment rate
+    lastThresholdAdjustAt: 0,
+    adjustIntervalMs: 300000,    // Adjust every 5 minutes
+    // Global rolling stats (all assets combined)
+    globalRollingWins: 0,
+    globalRollingTotal: 0
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔥 v105: STREAK STATE DETECTION
+// Detects "hot" regimes and warns when they're deteriorating.
+// ═══════════════════════════════════════════════════════════════════════════════
+let streakState = {
+    mode: 'OFF',  // OFF | ON | RISK
+    lastModeChangeAt: 0,
+    lastTelegramAt: 0,
+    currentStreakLength: 0,
+    currentStreakAsset: null,
+    maxStreakSeen: 0,
+    // Indicators for hot regime detection
+    recentWinRate: 0,      // Rolling 10-trade WR
+    consensusAvg: 0,       // Average consensus over recent trades
+    stabilityAvg: 0,       // Average vote stability
+    // Risk indicators
+    deteriorationCount: 0  // How many deterioration signals in a row
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔒 v105: CYCLE COMMITMENT STATE (No flip-flop)
+// Once a BUY is issued for a cycle, lock direction until cycle end.
+// Emergency SELL only under sustained evidence with hysteresis.
+// ═══════════════════════════════════════════════════════════════════════════════
+let cycleCommitState = {
+    // Per-asset commitment for current cycle
+    commitments: {},  // { [asset]: { cycleEpoch, direction, committedAt, buyPrice, emergencyTriggerCount, emergencyFirstAt } }
+    // Hysteresis: require N seconds of sustained deterioration before emergency
+    emergencyHysteresisMs: 30000,  // 30 seconds of bad signals before emergency
+    emergencyTriggerThreshold: 3   // Need 3+ consecutive bad checks
+};
+
 function tgEscape(s) {
     return String(s ?? '')
         .replace(/&/g, '&amp;')
@@ -9617,6 +9673,44 @@ function telegramOracleSell(signal) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// ⚠️ v105: PRESELL WARNING - Deterioration detected but hysteresis not complete
+// ═══════════════════════════════════════════════════════════════════════════════
+function telegramOraclePresell(signal) {
+    const asset = tgEscape(signal?.asset || '?');
+    const tLeft = formatMmSs(signal?.timeLeftSec);
+    
+    // Extract warning reasons from signal
+    const warningReasons = (signal?.reasons || [])
+        .filter(r => r.includes('PRESELL WARNING'))
+        .map(r => r.replace('⚠️ PRESELL WARNING: ', ''));
+    
+    const pos = shadowBook.position || null;
+    const posSide = pos?.direction || '?';
+    const entry = Number.isFinite(pos?.entry) ? `${(pos.entry * 100).toFixed(1)}¢` : 'n/a';
+    
+    let msg = `⚠️ <b>PRESELL WARNING</b> ⚠️\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `📍 <b>${asset}</b> • Position: ${posSide}\n`;
+    msg += `\n`;
+    msg += `🔍 <b>Deterioration detected</b>\n`;
+    msg += `<i>Not yet severe enough for emergency exit</i>\n`;
+    msg += `\n`;
+    msg += `📊 Entry: <code>${entry}</code>\n`;
+    msg += `⏳ Time left: <code>${tLeft}</code>\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    if (warningReasons.length > 0) {
+        msg += `<b>Warning signs:</b>\n`;
+        for (const r of warningReasons) {
+            msg += `• ${tgEscape(r)}\n`;
+        }
+        msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    }
+    msg += `<i>Watch closely - Emergency SELL may follow if this continues</i>\n`;
+    if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>MONITOR MARKET</b></a>\n`;
+    return msg;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 🔮 GLOBAL ORACLE ORCHESTRATION: Single Primary BUY + Other Candidates
 // Prevents multiple concurrent BUYs (all-in compounding requires ONE trade at a time)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -9655,31 +9749,61 @@ function orchestrateOracleNotifications() {
         
         const now = Date.now();
         
-        // Don't send another BUY if shadow-book has an open position
-        if (shadowBook.position) return;
-        
-        // Cooldown: don't spam BUYs (at least 30s between primary BUYs)
-        if (now - primaryBuyState.lastPrimaryBuyAt < 30000) return;
-        
         // Gather all current signals
         const allSignals = ASSETS.map(a => oracleSignals[a]).filter(Boolean);
         
-        // Find all BUY signals
-        const buySignals = allSignals.filter(s => s.action === 'BUY');
-        
-        // Find all SELL signals (process these first)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🚨 v105: PRIORITY 1 - Process Emergency SELL signals FIRST
+        // These have hysteresis applied already - if we're here, it's serious
+        // ═══════════════════════════════════════════════════════════════════════════════
         const sellSignals = allSignals.filter(s => s.action === 'SELL');
-        
-        // Process SELL signals (for shadow-book position)
         for (const sellSig of sellSignals) {
             if (shadowBook.position && shadowBook.position.asset === sellSig.asset) {
                 maybeSendOracleSignalTelegram(sellSig.asset, sellSig);
             }
         }
         
-        // If no BUY signals, nothing to orchestrate
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // ⚠️ v105: PRIORITY 2 - Process PRESELL warnings (HOLD with deterioration)
+        // Send warning but don't exit yet (hysteresis not complete)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        const holdWithWarning = allSignals.filter(s => 
+            s.action === 'HOLD' && 
+            s.reasons.some(r => r.includes('PRESELL WARNING'))
+        );
+        for (const holdSig of holdWithWarning) {
+            if (shadowBook.position && shadowBook.position.asset === holdSig.asset) {
+                // Send PRESELL warning (only once per deterioration event)
+                const rt = oracleSignalRuntime?.[holdSig.asset];
+                if (rt && !rt.telegramPresellSentAt) {
+                    rt.telegramPresellSentAt = now;
+                    sendTelegramNotification(telegramOraclePresell(holdSig), false);
+                }
+            }
+        }
+        
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🛒 v105: PRIORITY 3 - Process BUY signals
+        // Don't send another BUY if shadow-book has an open position
+        // ═══════════════════════════════════════════════════════════════════════════════
+        if (shadowBook.position) {
+            // Already have position - don't send BUYs, just PREPARE for info
+            for (const sig of allSignals) {
+                if (sig.action === 'PREPARE' && sig.asset !== shadowBook.position.asset) {
+                    maybeSendOracleSignalTelegram(sig.asset, sig);
+                }
+            }
+            return;
+        }
+        
+        // Cooldown: don't spam BUYs (at least 30s between primary BUYs)
+        if (now - primaryBuyState.lastPrimaryBuyAt < 30000) return;
+        
+        // Find all BUY signals
+        const buySignals = allSignals.filter(s => s.action === 'BUY');
+        
+        // If no BUY signals, send PREPARE signals normally
         if (buySignals.length === 0) {
-            // Still send PREPARE signals normally
             for (const sig of allSignals) {
                 if (sig.action === 'PREPARE') {
                     maybeSendOracleSignalTelegram(sig.asset, sig);
@@ -9707,6 +9831,7 @@ function orchestrateOracleNotifications() {
             ultraGates: s.ultraProphet?.passedGates || 0,
             totalGates: s.ultraProphet?.totalGates || 10,
             isUltra: s.ultraProphet?.isUltra || false,
+            adaptiveGate: s.adaptiveGate?.passes || false,
             marketUrl: s.marketUrl
         }));
         
@@ -9726,6 +9851,16 @@ function orchestrateOracleNotifications() {
         primaryBuyState.lastPrimaryBuyAt = now;
         
         sendTelegramNotification(telegramOracleBuy(primaryBuy.signal), false);
+        
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🔒 v105: Set cycle commitment (no flip-flop)
+        // Lock this direction until cycle end or emergency exit
+        // ═══════════════════════════════════════════════════════════════════════════════
+        setCycleCommitment(
+            primaryBuy.signal.asset, 
+            primaryBuy.signal.direction, 
+            primaryBuy.signal.implied || 0.5
+        );
         
         // Open shadow-book position (assume user will execute)
         openShadowPosition(primaryBuy.signal);
@@ -9768,7 +9903,10 @@ function openShadowPosition(signal) {
         shares,
         stake: stake.recommendedStake,
         openedAt: Date.now(),
-        cycleStartEpoch: cycleStart
+        cycleStartEpoch: cycleStart,
+        // 🎯 v105: Store pWin and tier at entry for adaptive learning
+        pWinAtEntry: signal.pWin || 0.5,
+        tierAtEntry: signal.tier || 'ADVISORY'
     };
     
     log(`📖 SHADOW-BOOK OPENED: ${signal.asset} ${signal.direction} @ ${(entryPrice * 100).toFixed(1)}¢ | Stake: $${stake.recommendedStake.toFixed(2)} | Shares: ${shares.toFixed(2)}`);
@@ -9792,6 +9930,13 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     manualTradingJourney.currentBalance += pnl;
     manualTradingJourney.lastUpdated = Date.now();
     shadowBook.totalPnl += pnl;
+    
+    // 🎯 v105: Record outcome for adaptive frequency learning
+    // This feeds the adaptive threshold controller
+    const brain = Brains[pos.asset];
+    const pWinAtEntry = pos.pWinAtEntry || (brain?.confidence || 0.5);
+    const tier = pos.tierAtEntry || (brain?.tier || 'ADVISORY');
+    recordOracleSignalOutcome(pos.asset, pos.direction, pWinAtEntry, tier, isWinResolved);
     
     // Record closed trade
     const closedTrade = {
@@ -19801,6 +19946,25 @@ async function saveState() {
             currentPrimaryAsset: primaryBuyState?.currentPrimaryAsset || null,
             lastPrimaryBuyAt: Number(primaryBuyState?.lastPrimaryBuyAt) || 0,
             otherCandidates: Array.isArray(primaryBuyState?.otherCandidates) ? primaryBuyState.otherCandidates.slice(0, 10) : []
+        },
+        // 🎯 v105: Adaptive frequency controller state
+        adaptiveGateState: {
+            targetWinRate: adaptiveGateState?.targetWinRate || 0.90,
+            recentOracleSignals: Array.isArray(adaptiveGateState?.recentOracleSignals) 
+                ? adaptiveGateState.recentOracleSignals.slice(-50) : [],
+            currentPWinThreshold: Number(adaptiveGateState?.currentPWinThreshold) || 0.75,
+            globalRollingWins: Number(adaptiveGateState?.globalRollingWins) || 0,
+            globalRollingTotal: Number(adaptiveGateState?.globalRollingTotal) || 0
+        },
+        // 🔥 v105: Streak detection state
+        streakState: {
+            mode: streakState?.mode || 'OFF',
+            lastModeChangeAt: Number(streakState?.lastModeChangeAt) || 0,
+            currentStreakLength: Number(streakState?.currentStreakLength) || 0,
+            currentStreakAsset: streakState?.currentStreakAsset || null,
+            maxStreakSeen: Number(streakState?.maxStreakSeen) || 0,
+            recentWinRate: Number(streakState?.recentWinRate) || 0,
+            deteriorationCount: Number(streakState?.deteriorationCount) || 0
         }
     };
 
@@ -20253,6 +20417,26 @@ async function loadState() {
                     primaryBuyState.lastPrimaryBuyAt = Number(pbs.lastPrimaryBuyAt) || 0;
                     primaryBuyState.otherCandidates = Array.isArray(pbs.otherCandidates) ? pbs.otherCandidates.slice(0, 10) : [];
                 }
+                // 🎯 v105: Restore adaptive gate state
+                if (state.adaptiveGateState && typeof state.adaptiveGateState === 'object') {
+                    const ags = state.adaptiveGateState;
+                    adaptiveGateState.targetWinRate = Number(ags.targetWinRate) || 0.90;
+                    adaptiveGateState.recentOracleSignals = Array.isArray(ags.recentOracleSignals) ? ags.recentOracleSignals.slice(-50) : [];
+                    adaptiveGateState.currentPWinThreshold = Number(ags.currentPWinThreshold) || 0.75;
+                    adaptiveGateState.globalRollingWins = Number(ags.globalRollingWins) || 0;
+                    adaptiveGateState.globalRollingTotal = Number(ags.globalRollingTotal) || 0;
+                }
+                // 🔥 v105: Restore streak state
+                if (state.streakState && typeof state.streakState === 'object') {
+                    const ss = state.streakState;
+                    streakState.mode = ss.mode || 'OFF';
+                    streakState.lastModeChangeAt = Number(ss.lastModeChangeAt) || 0;
+                    streakState.currentStreakLength = Number(ss.currentStreakLength) || 0;
+                    streakState.currentStreakAsset = ss.currentStreakAsset || null;
+                    streakState.maxStreakSeen = Number(ss.maxStreakSeen) || 0;
+                    streakState.recentWinRate = Number(ss.recentWinRate) || 0;
+                    streakState.deteriorationCount = Number(ss.deteriorationCount) || 0;
+                }
 
                 log('💾 State Restored from Redis (including model learning!)');
                 return;
@@ -20310,6 +20494,26 @@ async function loadState() {
                 primaryBuyState.currentPrimaryAsset = pbs.currentPrimaryAsset || null;
                 primaryBuyState.lastPrimaryBuyAt = Number(pbs.lastPrimaryBuyAt) || 0;
                 primaryBuyState.otherCandidates = Array.isArray(pbs.otherCandidates) ? pbs.otherCandidates.slice(0, 10) : [];
+            }
+            // 🎯 v105: Restore adaptive gate state (local file)
+            if (state.adaptiveGateState && typeof state.adaptiveGateState === 'object') {
+                const ags = state.adaptiveGateState;
+                adaptiveGateState.targetWinRate = Number(ags.targetWinRate) || 0.90;
+                adaptiveGateState.recentOracleSignals = Array.isArray(ags.recentOracleSignals) ? ags.recentOracleSignals.slice(-50) : [];
+                adaptiveGateState.currentPWinThreshold = Number(ags.currentPWinThreshold) || 0.75;
+                adaptiveGateState.globalRollingWins = Number(ags.globalRollingWins) || 0;
+                adaptiveGateState.globalRollingTotal = Number(ags.globalRollingTotal) || 0;
+            }
+            // 🔥 v105: Restore streak state (local file)
+            if (state.streakState && typeof state.streakState === 'object') {
+                const ss = state.streakState;
+                streakState.mode = ss.mode || 'OFF';
+                streakState.lastModeChangeAt = Number(ss.lastModeChangeAt) || 0;
+                streakState.currentStreakLength = Number(ss.currentStreakLength) || 0;
+                streakState.currentStreakAsset = ss.currentStreakAsset || null;
+                streakState.maxStreakSeen = Number(ss.maxStreakSeen) || 0;
+                streakState.recentWinRate = Number(ss.recentWinRate) || 0;
+                streakState.deteriorationCount = Number(ss.deteriorationCount) || 0;
             }
 
             log(`💾 State Restored from local file (${DB_FILE})`);
@@ -22614,6 +22818,408 @@ function maybeSendUltraProphetTelegram(asset, signal) {
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🎯 v105: ADAPTIVE FREQUENCY CONTROLLER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Compute adaptive pWin threshold based on recent performance.
+ * If recent WR is above target, relax threshold to get more trades.
+ * If recent WR is below target, tighten threshold to improve accuracy.
+ */
+function computeAdaptiveThreshold() {
+    const state = adaptiveGateState;
+    const now = Date.now();
+    
+    // Only adjust every N minutes
+    if (now - state.lastThresholdAdjustAt < state.adjustIntervalMs) {
+        return state.currentPWinThreshold;
+    }
+    state.lastThresholdAdjustAt = now;
+    
+    // Calculate global rolling win rate from recent oracle signals
+    const recentWithOutcome = state.recentOracleSignals.filter(s => typeof s.isWin === 'boolean');
+    if (recentWithOutcome.length < 5) {
+        // Not enough data, stay conservative
+        return state.currentPWinThreshold;
+    }
+    
+    const wins = recentWithOutcome.filter(s => s.isWin).length;
+    const total = recentWithOutcome.length;
+    const currentWR = wins / total;
+    
+    state.globalRollingWins = wins;
+    state.globalRollingTotal = total;
+    
+    let newThreshold = state.currentPWinThreshold;
+    
+    if (currentWR >= state.targetWinRate + 0.05) {
+        // Doing very well (95%+): relax threshold to get more trades
+        newThreshold = Math.max(state.minPWinThreshold, state.currentPWinThreshold - 0.02);
+    } else if (currentWR >= state.targetWinRate) {
+        // Meeting target (90-95%): slightly relax
+        newThreshold = Math.max(state.minPWinThreshold, state.currentPWinThreshold - 0.01);
+    } else if (currentWR < state.targetWinRate - 0.10) {
+        // Way below target (<80%): tighten significantly
+        newThreshold = Math.min(state.maxPWinThreshold, state.currentPWinThreshold + 0.03);
+    } else if (currentWR < state.targetWinRate) {
+        // Below target (80-90%): tighten slightly
+        newThreshold = Math.min(state.maxPWinThreshold, state.currentPWinThreshold + 0.01);
+    }
+    
+    state.currentPWinThreshold = newThreshold;
+    return newThreshold;
+}
+
+/**
+ * Check if a signal passes the adaptive gate (replaces ULTRA-only mode).
+ * Returns { passes, reason, threshold, pWin, isUltra }
+ */
+function checkAdaptiveGate(pWin, tier, ultraProphet) {
+    const threshold = computeAdaptiveThreshold();
+    const isUltra = ultraProphet?.isUltra === true;
+    
+    // ULTRA always passes (it's the diamond tier)
+    if (isUltra) {
+        return {
+            passes: true,
+            reason: '🔮 ULTRA-PROPHET: Maximum certainty signal',
+            threshold,
+            pWin,
+            isUltra: true
+        };
+    }
+    
+    // Check adaptive pWin threshold
+    if (!Number.isFinite(pWin)) {
+        return {
+            passes: false,
+            reason: 'No pWin estimate available',
+            threshold,
+            pWin: null,
+            isUltra: false
+        };
+    }
+    
+    // Tier requirement: must be at least ADVISORY for any BUY
+    if (tier !== 'CONVICTION' && tier !== 'ADVISORY') {
+        return {
+            passes: false,
+            reason: `Tier=${tier} (need CONVICTION or ADVISORY)`,
+            threshold,
+            pWin,
+            isUltra: false
+        };
+    }
+    
+    // CONVICTION tier gets slight threshold reduction
+    const effectiveThreshold = tier === 'CONVICTION' 
+        ? Math.max(threshold - 0.03, adaptiveGateState.minPWinThreshold)
+        : threshold;
+    
+    if (pWin >= effectiveThreshold) {
+        return {
+            passes: true,
+            reason: `pWin=${(pWin * 100).toFixed(1)}% >= ${(effectiveThreshold * 100).toFixed(1)}% threshold (${tier})`,
+            threshold: effectiveThreshold,
+            pWin,
+            isUltra: false
+        };
+    }
+    
+    return {
+        passes: false,
+        reason: `pWin=${(pWin * 100).toFixed(1)}% < ${(effectiveThreshold * 100).toFixed(1)}% threshold`,
+        threshold: effectiveThreshold,
+        pWin,
+        isUltra: false
+    };
+}
+
+/**
+ * Record an oracle signal outcome for adaptive threshold learning.
+ */
+function recordOracleSignalOutcome(asset, direction, pWin, tier, isWin) {
+    const state = adaptiveGateState;
+    state.recentOracleSignals.push({
+        asset,
+        direction,
+        pWin,
+        tier,
+        isWin,
+        timestamp: Date.now()
+    });
+    
+    // Trim to max size
+    while (state.recentOracleSignals.length > state.maxRecentSignals) {
+        state.recentOracleSignals.shift();
+    }
+    
+    // Update streak state
+    updateStreakState(isWin, asset);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔥 v105: STREAK DETECTION FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Update streak state based on latest outcome.
+ */
+function updateStreakState(isWin, asset) {
+    const state = streakState;
+    const now = Date.now();
+    
+    if (isWin) {
+        // Continue or start streak
+        if (state.currentStreakAsset === asset || state.currentStreakAsset === null) {
+            state.currentStreakLength++;
+            state.currentStreakAsset = asset;
+        } else {
+            // Different asset, reset streak (we track per-asset streaks)
+            state.currentStreakLength = 1;
+            state.currentStreakAsset = asset;
+        }
+        state.deteriorationCount = 0;
+        
+        // Update max streak seen
+        if (state.currentStreakLength > state.maxStreakSeen) {
+            state.maxStreakSeen = state.currentStreakLength;
+        }
+    } else {
+        // Loss: reset streak
+        state.currentStreakLength = 0;
+        state.currentStreakAsset = null;
+        state.deteriorationCount++;
+    }
+    
+    // Calculate recent win rate (last 10 signals)
+    const recent = adaptiveGateState.recentOracleSignals.slice(-10).filter(s => typeof s.isWin === 'boolean');
+    if (recent.length >= 3) {
+        const wins = recent.filter(s => s.isWin).length;
+        state.recentWinRate = wins / recent.length;
+    }
+    
+    // Determine streak mode
+    const prevMode = state.mode;
+    
+    if (state.currentStreakLength >= 3 && state.recentWinRate >= 0.85) {
+        // Hot streak: 3+ consecutive wins AND 85%+ recent WR
+        state.mode = 'ON';
+    } else if (state.mode === 'ON' && (state.deteriorationCount >= 2 || state.recentWinRate < 0.70)) {
+        // Was in streak but deteriorating
+        state.mode = 'RISK';
+    } else if (state.mode === 'RISK' && state.deteriorationCount >= 3) {
+        // Streak is over
+        state.mode = 'OFF';
+    } else if (state.mode === 'OFF' && state.recentWinRate >= 0.90 && state.currentStreakLength >= 2) {
+        // Entering hot regime
+        state.mode = 'ON';
+    }
+    
+    // Send telegram only on mode change (avoid spam)
+    if (state.mode !== prevMode) {
+        state.lastModeChangeAt = now;
+        sendStreakModeNotification(prevMode, state.mode);
+    }
+}
+
+/**
+ * Compute current streak state without updating (for display).
+ */
+function computeStreakState() {
+    const state = streakState;
+    return {
+        mode: state.mode,
+        streakLength: state.currentStreakLength,
+        streakAsset: state.currentStreakAsset,
+        maxStreak: state.maxStreakSeen,
+        recentWinRate: state.recentWinRate,
+        deteriorationCount: state.deteriorationCount,
+        lastModeChange: state.lastModeChangeAt
+    };
+}
+
+/**
+ * Send telegram notification for streak mode change.
+ */
+function sendStreakModeNotification(prevMode, newMode) {
+    try {
+        if (!CONFIG?.TELEGRAM?.enabled) return;
+        
+        const state = streakState;
+        const now = Date.now();
+        
+        // Cooldown: don't spam (at least 5 min between streak messages)
+        if (now - state.lastTelegramAt < 300000) return;
+        state.lastTelegramAt = now;
+        
+        let msg = '';
+        
+        if (newMode === 'ON') {
+            msg = `🔥 <b>STREAK MODE: ON</b>\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `📈 Current streak: <b>${state.currentStreakLength}</b> wins\n`;
+            msg += `🎯 Recent WR: <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `<i>Hot regime detected - consider larger positions</i>`;
+        } else if (newMode === 'RISK') {
+            msg = `⚠️ <b>STREAK MODE: RISK</b>\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `📉 Streak deteriorating\n`;
+            msg += `🎯 Recent WR: <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `<i>Consider reducing position sizes</i>`;
+        } else if (newMode === 'OFF' && prevMode !== 'OFF') {
+            msg = `❄️ <b>STREAK MODE: OFF</b>\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `📊 Streak ended at ${state.maxStreakSeen} wins\n`;
+            msg += `🎯 Recent WR: <b>${(state.recentWinRate * 100).toFixed(0)}%</b>\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `<i>Back to conservative mode</i>`;
+        }
+        
+        if (msg) {
+            sendTelegramNotification(msg, false);
+        }
+    } catch {
+        // never crash
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔒 v105: CYCLE COMMITMENT (NO FLIP-FLOP) FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Check if we're committed to a direction for this cycle.
+ */
+function getCycleCommitment(asset) {
+    const cycleEpoch = getCurrentCheckpoint();
+    const commit = cycleCommitState.commitments[asset];
+    
+    if (!commit || commit.cycleEpoch !== cycleEpoch) {
+        return null;  // No commitment for this cycle
+    }
+    
+    return commit;
+}
+
+/**
+ * Commit to a direction for this cycle (called on BUY).
+ */
+function setCycleCommitment(asset, direction, buyPrice) {
+    const cycleEpoch = getCurrentCheckpoint();
+    
+    cycleCommitState.commitments[asset] = {
+        cycleEpoch,
+        direction,
+        committedAt: Date.now(),
+        buyPrice,
+        emergencyTriggerCount: 0,
+        emergencyFirstAt: 0
+    };
+    
+    log(`🔒 CYCLE COMMITMENT: ${asset} → ${direction} @ ${(buyPrice * 100).toFixed(1)}¢ (no flip-flop until cycle end)`, asset);
+}
+
+/**
+ * Check if emergency exit conditions are met (with hysteresis).
+ * Returns { shouldEmergencyExit, reason, prewarning }
+ */
+function checkEmergencyExit(asset, brain, market, currentPWin, currentConsensus, voteStability) {
+    const commit = getCycleCommitment(asset);
+    if (!commit) {
+        return { shouldEmergencyExit: false, reason: null, prewarning: false };
+    }
+    
+    const now = Date.now();
+    const pos = commit.direction;
+    
+    // Check for severe deterioration signals
+    let deteriorationSignals = 0;
+    let reasons = [];
+    
+    // 1. Genesis disagrees with our committed position
+    const modelVotes = brain.lastSignal?.modelVotes || {};
+    const genesisVote = modelVotes.genesis;
+    if (genesisVote && genesisVote !== pos) {
+        deteriorationSignals++;
+        reasons.push(`Genesis=${genesisVote} vs position=${pos}`);
+    }
+    
+    // 2. pWin collapsed below 55%
+    if (Number.isFinite(currentPWin) && currentPWin < 0.55) {
+        deteriorationSignals++;
+        reasons.push(`pWin=${(currentPWin * 100).toFixed(0)}% < 55%`);
+    }
+    
+    // 3. Consensus collapsed below 55%
+    if (Number.isFinite(currentConsensus) && currentConsensus < 0.55) {
+        deteriorationSignals++;
+        reasons.push(`Consensus=${(currentConsensus * 100).toFixed(0)}% < 55%`);
+    }
+    
+    // 4. Vote stability collapsed below 50%
+    if (Number.isFinite(voteStability) && voteStability < 0.50) {
+        deteriorationSignals++;
+        reasons.push(`Stability=${(voteStability * 100).toFixed(0)}% < 50%`);
+    }
+    
+    // 5. Price moved severely against us (entry vs current)
+    const currentOdds = pos === 'UP' ? market?.yesPrice : market?.noPrice;
+    if (Number.isFinite(currentOdds) && Number.isFinite(commit.buyPrice)) {
+        const priceDrop = commit.buyPrice - currentOdds;
+        if (priceDrop > 0.20) {  // Dropped 20¢ or more
+            deteriorationSignals++;
+            reasons.push(`Price dropped ${(priceDrop * 100).toFixed(0)}¢`);
+        }
+    }
+    
+    // Hysteresis: need sustained deterioration
+    if (deteriorationSignals >= cycleCommitState.emergencyTriggerThreshold) {
+        // Track emergency trigger timing
+        if (commit.emergencyTriggerCount === 0) {
+            commit.emergencyFirstAt = now;
+        }
+        commit.emergencyTriggerCount++;
+        
+        const sustainedMs = now - commit.emergencyFirstAt;
+        
+        // Prewarning: 15-30 seconds before emergency
+        if (sustainedMs >= cycleCommitState.emergencyHysteresisMs / 2 && sustainedMs < cycleCommitState.emergencyHysteresisMs) {
+            return {
+                shouldEmergencyExit: false,
+                reason: null,
+                prewarning: true,
+                prewarningReasons: reasons
+            };
+        }
+        
+        // Full emergency: sustained for hysteresis period
+        if (sustainedMs >= cycleCommitState.emergencyHysteresisMs) {
+            return {
+                shouldEmergencyExit: true,
+                reason: `🚨 EMERGENCY EXIT: ${reasons.join(', ')} (sustained ${Math.floor(sustainedMs / 1000)}s)`,
+                prewarning: false
+            };
+        }
+    } else {
+        // Conditions improved, reset emergency tracking
+        commit.emergencyTriggerCount = 0;
+        commit.emergencyFirstAt = 0;
+    }
+    
+    return { shouldEmergencyExit: false, reason: null, prewarning: false };
+}
+
+/**
+ * Clear cycle commitment for an asset (called on cycle end or emergency exit).
+ */
+function clearCycleCommitment(asset) {
+    delete cycleCommitState.commitments[asset];
+}
+
 function computeTierConditionedPWin(brain, entryPrice) {
     if (!brain) return null;
     const s = brain.stats || {};
@@ -22710,6 +23316,7 @@ function updateOracleSignalForAsset(asset) {
                 telegramPrepareSentAt: 0,
                 telegramBuySentAt: 0,
                 telegramSellSentAt: 0,
+                telegramPresellSentAt: 0,  // 🔒 v105: PRESELL warning tracking
                 telegramUltraSentAt: 0  // 🔮 ULTRA-PROPHET tracking
             };
         }
@@ -22723,7 +23330,11 @@ function updateOracleSignalForAsset(asset) {
             rt.telegramPrepareSentAt = 0;
             rt.telegramBuySentAt = 0;
             rt.telegramSellSentAt = 0;
+            rt.telegramPresellSentAt = 0;  // 🔒 v105: PRESELL warning reset
             rt.telegramUltraSentAt = 0;  // 🔮 ULTRA-PROPHET reset
+            
+            // 🔒 v105: Clear cycle commitment for new cycle
+            clearCycleCommitment(asset);
         }
 
         const brain = Brains[asset];
@@ -22882,30 +23493,41 @@ function updateOracleSignalForAsset(asset) {
             return signal;
         }
 
-        // No position: PREPARE / BUY
-        const advisoryPWinThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.tradeFrequencyFloor?.advisoryPWinThreshold))
-            ? Number(CONFIG.ORACLE.tradeFrequencyFloor.advisoryPWinThreshold)
-            : 0.65;
-        const advisoryEvRoiThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.tradeFrequencyFloor?.advisoryEvRoiThreshold))
-            ? Number(CONFIG.ORACLE.tradeFrequencyFloor.advisoryEvRoiThreshold)
-            : 0.08;
-
-        const buyPWinThreshold = Math.max(
-            Number.isFinite(Number(CONFIG?.ORACLE?.minConfidence)) ? Number(CONFIG.ORACLE.minConfidence) : 0.80,
-            advisoryPWinThreshold
-        );
-        const buyEvRoiThreshold = Math.max(0.10, advisoryEvRoiThreshold);
-        const buyEdgeThreshold = 0.05;
-        const severeMispricing = Number.isFinite(signal.mispricingEdge) && signal.mispricingEdge >= 0.15 && Number.isFinite(pWin) && pWin >= 0.70;
-
-        const inTradeWindow = elapsedSec >= minElapsedSeconds && timeLeftSec > 60 && !inBlackout;
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🎯 v105: ADAPTIVE FREQUENCY ORACLE - No position: PREPARE / BUY
+        // Timing windows:
+        //   - PREPARE: 180s-150s before cycle end (2-3 min warning)
+        //   - BUY: 90s-60s before cycle end (1-1.5 min before resolution)
+        //   - AVOID: <60s (blackout - too late)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        
         const stable = voteStability >= minVoteStability;
+        
+        // v105: Adaptive timing windows
+        const prepareWindowStart = 180;  // Start PREPARE at 180s before end
+        const prepareWindowEnd = 90;     // End PREPARE at 90s before end
+        const buyWindowStart = 90;       // Start BUY at 90s before end  
+        const buyWindowEnd = 60;         // End BUY at 60s before end (blackout)
+        
+        const inPrepareWindow = timeLeftSec <= prepareWindowStart && timeLeftSec > prepareWindowEnd;
+        const inBuyWindow = timeLeftSec <= buyWindowStart && timeLeftSec > buyWindowEnd;
+        const inBlackout = timeLeftSec <= buyWindowEnd;
+        
+        // Compute consensus for emergency checks
+        const voteHistoryArr = brain.voteHistory || [];
+        const latestVotes = voteHistoryArr.length > 0 ? voteHistoryArr[voteHistoryArr.length - 1] : null;
+        let currentConsensus = 0;
+        if (latestVotes && Number.isFinite(latestVotes.up) && Number.isFinite(latestVotes.down)) {
+            const totalV = latestVotes.up + latestVotes.down;
+            const maxV = Math.max(latestVotes.up, latestVotes.down);
+            currentConsensus = totalV > 0 ? maxV / totalV : 0;
+        }
 
         if (!Number.isFinite(pWin) || !Number.isFinite(evRoi)) {
             signal.reasons.push('Insufficient calibration samples → no certified signal');
         } else {
             signal.reasons.push(`pWin=${(pWin * 100).toFixed(1)}% vs implied=${(entryPrice * 100).toFixed(1)}% (edge=${((pWin - entryPrice) * 100).toFixed(1)}%)`);
-            signal.reasons.push(`EV=${(evRoi * 100).toFixed(1)}% ROI, voteStability=${voteStability.toFixed(2)}/${minVoteStability.toFixed(2)}, tLeft=${timeLeftSec}s`);
+            signal.reasons.push(`EV=${(evRoi * 100).toFixed(1)}% ROI, stability=${voteStability.toFixed(2)}, tLeft=${timeLeftSec}s`);
             if (Number.isFinite(signal.oddsDelta60s) || Number.isFinite(signal.oddsVelocityPerMin)) {
                 const d = Number.isFinite(signal.oddsDelta60s) ? `${(signal.oddsDelta60s * 100).toFixed(1)}¢` : 'n/a';
                 const v = Number.isFinite(signal.oddsVelocityPerMin) ? `${(signal.oddsVelocityPerMin * 100).toFixed(1)}¢/min` : 'n/a';
@@ -22913,62 +23535,95 @@ function updateOracleSignalForAsset(asset) {
             }
         }
 
-        if (inBlackout) {
-            signal.action = 'AVOID';
-            signal.reasons.push('Final 60s blackout');
-        } else if (!stable) {
-            signal.action = 'WAIT';
-            signal.reasons.push('Signal not stable enough');
-        } else if (!inTradeWindow) {
-            signal.action = 'WAIT';
-            signal.reasons.push(`Waiting for minElapsedSeconds=${minElapsedSeconds}s`);
-        } else if (Number.isFinite(pWin) && Number.isFinite(evRoi) &&
-            ((pWin >= buyPWinThreshold && evRoi >= buyEvRoiThreshold && Number.isFinite(signal.mispricingEdge) && signal.mispricingEdge >= buyEdgeThreshold) || severeMispricing)) {
-            signal.action = 'BUY';
-            if (severeMispricing) signal.reasons.push('Severe mispricing detected');
-            if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
-        } else if (Number.isFinite(pWin) && Number.isFinite(evRoi) &&
-            pWin >= advisoryPWinThreshold && evRoi >= advisoryEvRoiThreshold && timeLeftSec > 180) {
-            signal.action = 'PREPARE';
-            if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
-        } else {
-            signal.action = 'WAIT';
-        }
-
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 🔮 ULTRA-PROPHET DETECTION: The highest certainty signals for $1→$1M journey
-        // These gates are MUCH stricter than normal BUY signals.
-        // When ULTRA fires, you should have >95% confidence in the prediction.
+        // 🔮 ULTRA-PROPHET DETECTION (kept as "diamond tier")
         // ═══════════════════════════════════════════════════════════════════════════════
         const ultraProphet = computeUltraProphetStatus(asset, brain, signal, entryPrice, pWin, evRoi, timeLeftSec, voteStability);
         signal.ultraProphet = ultraProphet;
+
+        // ═══════════════════════════════════════════════════════════════════════════════
+        // 🎯 v105: ADAPTIVE GATE CHECK (replaces ULTRA-only mode)
+        // Uses dynamic pWin threshold that adapts based on recent performance.
+        // Target: ≤1 loss per 10 trades (~90% win rate)
+        // ═══════════════════════════════════════════════════════════════════════════════
+        const adaptiveGate = checkAdaptiveGate(pWin, signal.tier, ultraProphet);
+        signal.adaptiveGate = adaptiveGate;
+
+        // Add adaptive gate info to reasons
+        const adaptiveInfo = `Adaptive: threshold=${(adaptiveGate.threshold * 100).toFixed(0)}%, ` +
+            `rolling WR=${((adaptiveGateState.globalRollingTotal > 0 ? adaptiveGateState.globalRollingWins / adaptiveGateState.globalRollingTotal : 0) * 100).toFixed(0)}% ` +
+            `(${adaptiveGateState.globalRollingTotal} samples)`;
+        signal.reasons.push(adaptiveInfo);
         
-        // If ULTRA-PROPHET fires and action is BUY, upgrade the signal
-        if (ultraProphet.isUltra && signal.action === 'BUY') {
-            signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
+        // Add streak state info
+        const streakInfo = computeStreakState();
+        signal.streakState = streakInfo;
+        if (streakInfo.mode !== 'OFF') {
+            signal.reasons.push(`🔥 Streak: ${streakInfo.mode} (${streakInfo.streakLength} wins, ${(streakInfo.recentWinRate * 100).toFixed(0)}% recent WR)`);
         }
-        
+
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 🚨 ULTRA-ONLY MODE: When bankroll < $20, only allow BUY if ULTRA passes
-        // This protects the $1→$1M journey from early losses that would be catastrophic.
-        // PREPARE signals are still allowed (so you get heads-up), but BUY requires ULTRA.
+        // 🔒 v105: CYCLE COMMITMENT CHECK (No flip-flop)
+        // If we already committed to a direction this cycle, honor it.
+        // Only allow emergency exit under sustained deterioration.
         // ═══════════════════════════════════════════════════════════════════════════════
-        const manualBankroll = manualTradingJourney?.currentBalance || 1;
-        const ultraOnlyThreshold = 20; // $20 threshold for ULTRA-only mode
+        const existingCommit = getCycleCommitment(asset);
         
-        if (signal.action === 'BUY' && manualBankroll < ultraOnlyThreshold && !ultraProphet.isUltra) {
-            // Downgrade BUY to PREPARE - bankroll too low for non-ULTRA trades
-            signal.action = 'PREPARE';
-            signal.reasons.unshift(`⚠️ ULTRA-ONLY MODE: Bankroll $${manualBankroll.toFixed(2)} < $${ultraOnlyThreshold} - need ULTRA (${ultraProphet.passedGates}/${ultraProphet.totalGates} gates)`);
-            // Reset BUY timestamp since we're not actually buying
-            rt.lastBuyAt = 0;
-            if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
+        if (existingCommit) {
+            // We're already committed to a direction this cycle
+            const emergencyCheck = checkEmergencyExit(asset, brain, market, pWin, currentConsensus, voteStability);
+            
+            if (emergencyCheck.shouldEmergencyExit) {
+                // Emergency exit triggered after sustained deterioration
+                signal.action = 'SELL';
+                signal.reasons.unshift(emergencyCheck.reason);
+                clearCycleCommitment(asset);
+            } else if (emergencyCheck.prewarning) {
+                // Prewarning: deterioration detected but not sustained yet
+                signal.action = 'HOLD';
+                signal.reasons.unshift(`⚠️ PRESELL WARNING: ${emergencyCheck.prewarningReasons.join(', ')}`);
+            } else {
+                // All good, hold position
+                signal.action = 'HOLD';
+                signal.reasons.push(`🔒 Committed to ${existingCommit.direction} @ ${(existingCommit.buyPrice * 100).toFixed(1)}¢ (hold to resolution)`);
+            }
+        } else {
+            // No existing commitment - determine action based on timing window
+            if (inBlackout) {
+                signal.action = 'AVOID';
+                signal.reasons.push('Final 60s blackout - too late to enter');
+            } else if (!stable) {
+                signal.action = 'WAIT';
+                signal.reasons.push('Signal not stable enough');
+            } else if (inBuyWindow && adaptiveGate.passes) {
+                // BUY window: issue BUY if adaptive gate passes
+                signal.action = 'BUY';
+                signal.reasons.unshift(adaptiveGate.reason);
+                if (ultraProphet.isUltra) {
+                    signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
+                }
+                if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
+            } else if (inPrepareWindow && Number.isFinite(pWin) && pWin >= 0.65) {
+                // PREPARE window: warn user to get ready if signal looks promising
+                signal.action = 'PREPARE';
+                const gateStatus = adaptiveGate.passes 
+                    ? '✅ Gate passes - BUY coming soon'
+                    : `⏳ Gate: ${adaptiveGate.reason}`;
+                signal.reasons.push(gateStatus);
+                if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
+            } else if (timeLeftSec > prepareWindowStart) {
+                // Too early - still gathering data
+                signal.action = 'WAIT';
+                signal.reasons.push(`Early cycle - BUY window opens at ${prepareWindowEnd}s before end`);
+            } else {
+                signal.action = 'WAIT';
+            }
         }
 
         oracleSignals[asset] = signal;
         rt.lastAction = signal.action;
         
-        // Send special ULTRA notification if this is a new ULTRA signal
+        // Send ULTRA notification if this is a new ULTRA BUY signal
         if (ultraProphet.isUltra && signal.action === 'BUY' && !rt.telegramUltraSentAt) {
             rt.telegramUltraSentAt = nowMs;
             maybeSendUltraProphetTelegram(asset, signal);

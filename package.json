@@ -1,7 +1,7 @@
 {
     "name": "polyprophet",
-    "version": "4.7.0-v104",
-    "description": "POLYPROPHET v104 - Hands-off oracle mode: removed auth blocker, user-managed credentials, stability fix, shadow-book persistence",
+    "version": "4.7.0-v105",
+    "description": "POLYPROPHET v105 - Adaptive frequency oracle: ~90% WR target, no flip-flop, streak detection, 2-3min prewarning",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",

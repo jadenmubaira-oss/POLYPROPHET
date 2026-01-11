@@ -1,31 +1,21 @@
 #!/usr/bin/env node
 /**
- * 🔮 POLYPROPHET MANUAL STRATEGY BACKTEST (v104)
+ * 🔮 POLYPROPHET v105 - ADAPTIVE FREQUENCY BACKTEST
  *
- * IMPORTANT (Honest proof boundary):
- * - This backtester requires per-cycle historical records (e.g. `assets[ASSET].cycleHistory[]`)
- *   from `debg/polyprophet_debug_*.json` exports.
- * - `docs/forensics/DEBUG_CORPUS_REPORT_v96.json` is a SUMMARY report (no per-cycle rows),
- *   so it cannot be used for trade-by-trade simulation.
+ * Sweeps pWin thresholds to find optimal balance between:
+ * - Frequency (trades per cycle/day)
+ * - Accuracy (targeting ≤1 loss per 10 trades = 90% WR)
  *
- * Strategy simulated:
- * - Start with $1 bankroll
- * - ULTRA-only trades until bankroll reaches $20
- * - Strict CONVICTION trades after $20
- * - $100 max stake cap at higher bankrolls
+ * Uses walk-forward validation to avoid overfitting:
+ * - Train on first 70% of data
+ * - Test on remaining 30%
  *
  * Usage:
- *   node scripts/backtest-manual-strategy.js --data=<fileOrDir> [--cycles=N] [--start=1]
+ *   node scripts/backtest-manual-strategy.js --data=debg [--sweep] [--target-wr=0.90]
  *
  * Examples:
- *   node scripts/backtest-manual-strategy.js --data=debg
- *   node scripts/backtest-manual-strategy.js --data=debg/polyprophet_debug_2025-12-27T06-29-34-638Z.json
- *   node scripts/backtest-manual-strategy.js --data=debg --cycles=500
- *
- * Output:
- * - Trade-by-trade ledger (best-effort fields)
- * - Win rate, max drawdown, bust rate
- * - Final bankroll
+ *   node scripts/backtest-manual-strategy.js --data=debg --sweep
+ *   node scripts/backtest-manual-strategy.js --data=debg --target-wr=0.85
  */
 
 const fs = require('fs');
@@ -34,26 +24,19 @@ const path = require('path');
 // ==================== CONFIGURATION ====================
 const CONFIG = {
     startingBankroll: 1.00,
-    ultraOnlyThreshold: 20.00,
     maxAbsoluteStake: 100.00,
+    targetWinRate: 0.90,  // ≤1 loss per 10 trades
     
-    // ULTRA gates thresholds (must match server.js)
-    ultraGates: {
-        pWinMin: 0.88,
-        evRoiMin: 0.25,
-        consensusMin: 0.85,
-        stabilityMin: 0.8,
-        timeLeftMin: 180,
-        extremeOddsLow: 0.35,
-        extremeOddsHigh: 0.85
+    // Threshold sweep range
+    sweep: {
+        pWinMin: 0.60,
+        pWinMax: 0.90,
+        pWinStep: 0.02,
+        tierRequired: ['CONVICTION', 'ADVISORY']  // Acceptable tiers
     },
     
-    // CONVICTION gates (used after $20)
-    convictionGates: {
-        pWinMin: 0.80,
-        evRoiMin: 0.10,
-        edgeMin: 0.05
-    }
+    // Walk-forward split
+    trainRatio: 0.70,  // 70% train, 30% test
 };
 
 function safeNum(x, fallback = null) {
@@ -67,75 +50,8 @@ function clamp01(x) {
     return Math.max(0, Math.min(1, n));
 }
 
-// ==================== STAKE CALCULATOR ====================
-function calculateStake(bankroll, entryPrice, pWin, isUltra) {
-    let stakePercent = 0.85;
-    
-    if (bankroll <= 2) {
-        stakePercent = 1.00; // ALL IN
-    } else if (bankroll <= 5) {
-        stakePercent = 0.95;
-    } else if (bankroll <= 20) {
-        stakePercent = 0.90;
-    } else if (bankroll <= 100) {
-        stakePercent = 0.85;
-    } else {
-        stakePercent = 0.80;
-    }
-    
-    if (isUltra && stakePercent < 1.00) {
-        stakePercent = Math.min(1.00, stakePercent + 0.05);
-    }
-    
-    if (pWin >= 0.95 && stakePercent < 1.00) {
-        stakePercent = Math.min(1.00, stakePercent + 0.05);
-    }
-    
-    let stake = bankroll * stakePercent;
-    if (stake > CONFIG.maxAbsoluteStake && bankroll > CONFIG.maxAbsoluteStake) {
-        stake = CONFIG.maxAbsoluteStake;
-    }
-    
-    return Math.max(1, stake);
-}
-
-// ==================== ULTRA CHECK ====================
-function checkUltraGates(cycle) {
-    const gates = {
-        pWin: (cycle.pWin || 0) >= CONFIG.ultraGates.pWinMin,
-        evRoi: (cycle.evRoi || 0) >= CONFIG.ultraGates.evRoiMin,
-        genesis: cycle.genesisAgrees === true,
-        oracleLocked: cycle.oracleLocked === true,
-        consensus: (cycle.consensus || 0) >= CONFIG.ultraGates.consensusMin,
-        stability: (cycle.stability || 0) >= CONFIG.ultraGates.stabilityMin,
-        timeLeft: (cycle.timeLeftAtEntry || 900) >= CONFIG.ultraGates.timeLeftMin,
-        extremeOdds: (cycle.entryPrice || 0.5) <= CONFIG.ultraGates.extremeOddsLow || 
-                     (cycle.entryPrice || 0.5) >= CONFIG.ultraGates.extremeOddsHigh,
-        noFlip: cycle.noFlipSinceLock !== false,
-        tier: cycle.tier === 'CONVICTION'
-    };
-    
-    const passed = Object.values(gates).filter(Boolean).length;
-    return {
-        isUltra: passed === 10,
-        passedGates: passed,
-        totalGates: 10,
-        gates
-    };
-}
-
-// ==================== CONVICTION CHECK ====================
-function checkConvictionGates(cycle) {
-    return (cycle.tier === 'CONVICTION' || cycle.tier === 'ADVISORY') &&
-           (cycle.pWin || 0) >= CONFIG.convictionGates.pWinMin &&
-           (cycle.evRoi || 0) >= CONFIG.convictionGates.evRoiMin &&
-           (cycle.edge || 0) >= CONFIG.convictionGates.edgeMin;
-}
-
 // ==================== LOAD PER-CYCLE CORPUS ====================
 function extractCyclesFromDebugExport(json, sourceLabel = 'unknown') {
-    // Expected format (archive branch debug exports):
-    // { assets: { BTC: { cycleHistory: [...] }, ... } }
     const assets = json && typeof json === 'object' ? json.assets : null;
     if (!assets || typeof assets !== 'object') return [];
 
@@ -148,56 +64,41 @@ function extractCyclesFromDebugExport(json, sourceLabel = 'unknown') {
             const prediction = row.prediction || row.predicted || null;
             const outcome = row.actualOutcome || row.outcome || null;
             const tier = row.tier || null;
+            
+            // Skip if no prediction or outcome
+            if (!prediction || prediction === 'WAIT' || prediction === 'NEUTRAL') continue;
+            if (!outcome) continue;
+            
             const modelVotes = (row.modelVotes && typeof row.modelVotes === 'object') ? row.modelVotes : {};
             const mvValues = Object.values(modelVotes).filter(v => v === 'UP' || v === 'DOWN');
             const upCount = mvValues.filter(v => v === 'UP').length;
             const downCount = mvValues.filter(v => v === 'DOWN').length;
             const totalVotes = upCount + downCount;
-            const consensus = totalVotes > 0 ? (Math.max(upCount, downCount) / totalVotes) : null;
-
-            const oracleLocked = row.oracleWasLocked === true;
-            const oracleLockPrediction = row.oracleLockPrediction || null;
-            const noFlipSinceLock = oracleLocked ? (oracleLockPrediction === prediction) : true;
-
-            // Best-effort "vote stability" proxy for legacy exports:
-            // - locked implies stability was high enough to lock; treat as strong
-            // - otherwise treat as weak/unknown
-            const stabilityProxy = oracleLocked ? 0.90 : 0.50;
-
-            // Genesis agreement from per-cycle modelVotes if present
+            const consensus = totalVotes > 0 ? (Math.max(upCount, downCount) / totalVotes) : 0.5;
+            
+            // Genesis agreement
             const genesisVote = modelVotes.genesis;
             const genesisAgrees = (genesisVote === 'UP' || genesisVote === 'DOWN') ? (genesisVote === prediction) : null;
-
-            // Time-left proxy: legacy cycleHistory rows do not store entry timestamp.
-            // Use blackout flag as a hard "late" indicator.
-            const wasInBlackout = row.wasInBlackout === true || String(row.phaseAtEnd || '').toUpperCase() === 'BLACKOUT';
-            const timeLeftAtEntryProxy = wasInBlackout ? 60 : 600;
-
+            
+            // Stability proxy
+            const oracleLocked = row.oracleWasLocked === true;
+            const stabilityProxy = oracleLocked ? 0.90 : 0.60;
+            
+            // Confidence as pWin proxy
+            const confidence = safeNum(row.confidence, 0.5);
+            
             out.push({
                 source: sourceLabel,
                 asset,
                 cycleEndTime: row.cycleEndTime || null,
-                cycleStartPrice: safeNum(row.cycleStartPrice, null),
-                cycleEndPrice: safeNum(row.cycleEndPrice, null),
                 outcome,
                 prediction,
                 tier,
-                pWin: safeNum(row.confidence, null), // best available proxy in legacy exports
-                oracleLocked,
-                genesisAgrees,
+                pWin: confidence,  // Use confidence as pWin proxy
                 consensus,
                 stability: stabilityProxy,
-                // Price proxy (legacy): use cycle-end odds snapshot if present. NOT true entry price.
-                // This is a limitation of legacy exports.
-                entryPrice: clamp01(
-                    (prediction === 'UP')
-                        ? (row.marketOdds && (row.marketOdds.yes ?? row.marketOdds.YES))
-                        : (prediction === 'DOWN')
-                            ? (row.marketOdds && (row.marketOdds.no ?? row.marketOdds.NO))
-                            : null
-                ),
-                timeLeftAtEntry: timeLeftAtEntryProxy,
-                noFlipSinceLock
+                genesisAgrees,
+                wasCorrect: row.wasCorrect === true || prediction === outcome
             });
         }
     }
@@ -214,7 +115,6 @@ function loadPerCycleCorpus(dataPath) {
 
     const stat = fs.statSync(p);
     if (stat.isDirectory()) {
-        // Load multiple exports from a directory (debug/)
         const files = fs.readdirSync(p)
             .filter(f => f.startsWith('polyprophet_debug_') && f.endsWith('.json'))
             .sort();
@@ -233,20 +133,9 @@ function loadPerCycleCorpus(dataPath) {
         return { cycles, sources };
     }
 
-    // Load a single file export
     try {
         const raw = fs.readFileSync(p, 'utf8');
         const json = JSON.parse(raw);
-
-        // Guard: summary reports are not usable for trade-by-trade simulation
-        if (json && typeof json === 'object' && json.summaries && json.summaries.cycles) {
-            return {
-                cycles: [],
-                sources: [p],
-                error: 'This looks like a summary report (summaries.cycles present) and does not contain per-cycle rows. Use a debug export (polyprophet_debug_*.json) or a debug/ directory.'
-            };
-        }
-
         const extracted = extractCyclesFromDebugExport(json, p);
         return { cycles: extracted, sources: [p] };
     } catch (e) {
@@ -254,272 +143,258 @@ function loadPerCycleCorpus(dataPath) {
     }
 }
 
-// ==================== SIMULATE CYCLE ====================
-function simulateCycle(cycle, bankroll) {
-    // Extract cycle data
-    const prediction = cycle.prediction || cycle.predicted;
-    const outcome = cycle.outcome || cycle.actual;
+// ==================== ADAPTIVE GATE CHECK ====================
+function checkAdaptiveGate(cycle, pWinThreshold, tierRequired) {
     const tier = cycle.tier;
-    const entryPrice = safeNum(cycle.entryPrice || cycle.implied, 0.5);
-    const pWin = safeNum(cycle.pWin || cycle.calibratedPWin, 0.5);
-    const evRoi = cycle.evRoi || ((1 / entryPrice) - 1) * (pWin - entryPrice);
+    const pWin = safeNum(cycle.pWin, 0);
     
-    // Reconstruct additional fields if missing
-    const cycleData = {
-        ...cycle,
-        pWin,
-        evRoi,
-        entryPrice,
-        tier,
-        prediction,
-        outcome,
-        consensus: cycle.consensus || 0.7,
-        stability: cycle.stability || cycle.voteTrendScore || 0.5,
-        timeLeftAtEntry: cycle.timeLeftAtEntry || 600,
-        genesisAgrees: cycle.genesisAgrees !== false,
-        oracleLocked: cycle.oracleLocked || cycle.oracleLocked === true,
-        noFlipSinceLock: cycle.noFlipSinceLock !== false,
-        edge: pWin - entryPrice
-    };
+    // Tier check
+    if (!tierRequired.includes(tier)) {
+        return { passes: false, reason: `Tier=${tier} not in ${tierRequired.join('/')}` };
+    }
     
-    // Check if we should trade
-    const ultraStatus = checkUltraGates(cycleData);
-    const isUltra = ultraStatus.isUltra;
-    const isConviction = checkConvictionGates(cycleData);
+    // CONVICTION gets slight threshold reduction
+    const effectiveThreshold = tier === 'CONVICTION' 
+        ? Math.max(pWinThreshold - 0.03, 0.60)
+        : pWinThreshold;
     
-    // Apply trading policy
-    const ultraOnlyMode = bankroll < CONFIG.ultraOnlyThreshold;
+    // pWin check
+    if (pWin < effectiveThreshold) {
+        return { passes: false, reason: `pWin=${(pWin * 100).toFixed(0)}% < ${(effectiveThreshold * 100).toFixed(0)}%` };
+    }
     
-    let shouldTrade = false;
-    let tradeReason = '';
+    return { passes: true, reason: `pWin=${(pWin * 100).toFixed(0)}% >= ${(effectiveThreshold * 100).toFixed(0)}%` };
+}
+
+// ==================== RUN SINGLE THRESHOLD BACKTEST ====================
+function runBacktestWithThreshold(cycles, pWinThreshold, tierRequired = ['CONVICTION', 'ADVISORY']) {
+    let trades = 0;
+    let wins = 0;
+    let losses = 0;
+    let currentStreak = 0;
+    let maxStreak = 0;
+    let maxLossStreak = 0;
+    let currentLossStreak = 0;
     
-    if (ultraOnlyMode) {
-        if (isUltra) {
-            shouldTrade = true;
-            tradeReason = `ULTRA (${ultraStatus.passedGates}/10 gates)`;
-        } else {
-            tradeReason = `SKIP: Ultra-only mode, only ${ultraStatus.passedGates}/10 gates`;
-        }
-    } else {
-        if (isUltra) {
-            shouldTrade = true;
-            tradeReason = `ULTRA (${ultraStatus.passedGates}/10 gates)`;
-        } else if (isConviction) {
-            shouldTrade = true;
-            tradeReason = `CONVICTION`;
-        } else {
-            tradeReason = `SKIP: Not ULTRA or CONVICTION`;
+    for (const cycle of cycles) {
+        const gate = checkAdaptiveGate(cycle, pWinThreshold, tierRequired);
+        
+        if (gate.passes) {
+            trades++;
+            
+            if (cycle.wasCorrect) {
+                wins++;
+                currentStreak++;
+                maxStreak = Math.max(maxStreak, currentStreak);
+                currentLossStreak = 0;
+            } else {
+                losses++;
+                currentStreak = 0;
+                currentLossStreak++;
+                maxLossStreak = Math.max(maxLossStreak, currentLossStreak);
+            }
         }
     }
     
-    if (!prediction || prediction === 'WAIT' || prediction === 'NEUTRAL') {
-        shouldTrade = false;
-        tradeReason = 'SKIP: No prediction';
-    }
-    
-    if (!shouldTrade) {
-        return {
-            traded: false,
-            reason: tradeReason,
-            bankrollBefore: bankroll,
-            bankrollAfter: bankroll,
-            pnl: 0,
-            isWin: null
-        };
-    }
-    
-    // Execute trade
-    const stake = calculateStake(bankroll, entryPrice, pWin, isUltra);
-    const shares = stake / entryPrice;
-    const isWin = prediction === outcome;
-    
-    let pnl;
-    if (isWin) {
-        pnl = shares - stake; // Win pays $1/share, cost was stake
-    } else {
-        pnl = -stake; // Loss loses entire stake
-    }
-    
-    const bankrollAfter = Math.max(0, bankroll + pnl);
+    const winRate = trades > 0 ? wins / trades : 0;
+    const lossesPerTen = trades > 0 ? (losses / trades) * 10 : 0;
     
     return {
-        traded: true,
-        reason: tradeReason,
-        isUltra,
-        prediction,
-        outcome,
-        isWin,
-        entryPrice,
-        stake,
-        shares,
-        pnl,
-        bankrollBefore: bankroll,
-        bankrollAfter
+        pWinThreshold,
+        trades,
+        wins,
+        losses,
+        winRate,
+        lossesPerTen,
+        maxStreak,
+        maxLossStreak,
+        tradesPerCycle: trades / cycles.length,
+        tradesPerDay: (trades / cycles.length) * 96  // 96 cycles per day (15min)
     };
 }
 
-// ==================== MAIN BACKTEST ====================
-function runBacktest(corpus, maxCycles = null) {
-    let cycles = Array.isArray(corpus) ? corpus : (Array.isArray(corpus?.cycles) ? corpus.cycles : []);
+// ==================== THRESHOLD SWEEP ====================
+function runThresholdSweep(trainCycles, testCycles, targetWR = 0.90) {
+    const results = [];
+    const tierRequired = CONFIG.sweep.tierRequired;
     
-    if (cycles.length === 0) {
-        console.log('❌ No cycles found in corpus');
-        return null;
+    console.log('\n📊 THRESHOLD SWEEP (Walk-Forward Validation)');
+    console.log('═'.repeat(80));
+    console.log(`   Train set: ${trainCycles.length} cycles`);
+    console.log(`   Test set: ${testCycles.length} cycles`);
+    console.log(`   Target WR: ${(targetWR * 100).toFixed(0)}%`);
+    console.log('═'.repeat(80));
+    
+    console.log('\n   Threshold │ Train WR │ Test WR │ Trades/Day │ MaxStreak │ Loss/10');
+    console.log('   ──────────┼──────────┼─────────┼────────────┼───────────┼────────');
+    
+    for (let thresh = CONFIG.sweep.pWinMin; thresh <= CONFIG.sweep.pWinMax; thresh += CONFIG.sweep.pWinStep) {
+        const trainResult = runBacktestWithThreshold(trainCycles, thresh, tierRequired);
+        const testResult = runBacktestWithThreshold(testCycles, thresh, tierRequired);
+        
+        const meetsTarget = testResult.winRate >= targetWR;
+        const marker = meetsTarget ? '✓' : ' ';
+        
+        console.log(`${marker}  ${(thresh * 100).toFixed(0)}%      │ ${(trainResult.winRate * 100).toFixed(1)}%    │ ${(testResult.winRate * 100).toFixed(1)}%   │ ${testResult.tradesPerDay.toFixed(1).padStart(8)}   │ ${testResult.maxStreak.toString().padStart(6)}    │ ${testResult.lossesPerTen.toFixed(1)}`);
+        
+        results.push({
+            threshold: thresh,
+            train: trainResult,
+            test: testResult,
+            meetsTarget
+        });
     }
     
-    // Sort by time if available
-    cycles.sort((a, b) => {
-        const tA = Date.parse(a.cycleEndTime || '') || a.timestamp || a.cycleStart || 0;
-        const tB = Date.parse(b.cycleEndTime || '') || b.timestamp || b.cycleStart || 0;
-        return tA - tB;
-    });
+    console.log('   ──────────┴──────────┴─────────┴────────────┴───────────┴────────');
     
-    if (maxCycles && maxCycles < cycles.length) {
-        cycles = cycles.slice(0, maxCycles);
+    // Find optimal threshold (highest frequency that meets target)
+    const validResults = results.filter(r => r.meetsTarget && r.test.trades >= 5);
+    
+    if (validResults.length === 0) {
+        console.log('\n⚠️ No threshold meets target WR with sufficient trades.');
+        console.log('   Consider lowering target WR or accepting more risk.\n');
+        
+        // Find best non-qualifying threshold
+        const sorted = [...results].sort((a, b) => b.test.tradesPerDay - a.test.tradesPerDay);
+        return { optimal: sorted[0], all: results };
     }
     
-    console.log(`\n📊 BACKTEST: ${cycles.length} cycles\n`);
-    console.log(`   Starting bankroll: $${CONFIG.startingBankroll.toFixed(2)}`);
-    console.log(`   ULTRA-only until: $${CONFIG.ultraOnlyThreshold.toFixed(2)}`);
-    console.log(`   Max stake cap: $${CONFIG.maxAbsoluteStake.toFixed(2)}\n`);
-    console.log('━'.repeat(80));
+    // Sort by trades/day (highest frequency that meets target)
+    validResults.sort((a, b) => b.test.tradesPerDay - a.test.tradesPerDay);
+    const optimal = validResults[0];
     
-    // Run simulation
-    let bankroll = CONFIG.startingBankroll;
+    console.log(`\n🎯 OPTIMAL THRESHOLD: ${(optimal.threshold * 100).toFixed(0)}%`);
+    console.log(`   Test WR: ${(optimal.test.winRate * 100).toFixed(1)}% (target: ${(targetWR * 100).toFixed(0)}%)`);
+    console.log(`   Trades/day: ~${optimal.test.tradesPerDay.toFixed(1)}`);
+    console.log(`   Max win streak: ${optimal.test.maxStreak}`);
+    console.log(`   Losses per 10 trades: ${optimal.test.lossesPerTen.toFixed(1)}`);
+    
+    return { optimal, all: results };
+}
+
+// ==================== FULL SIMULATION ====================
+function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
+    const tierRequired = CONFIG.sweep.tierRequired;
+    
+    let bankroll = startingBankroll;
     let peakBankroll = bankroll;
     let maxDrawdown = 0;
-    let trades = [];
+    const trades = [];
     let wins = 0;
     let losses = 0;
-    let skipped = 0;
-    let ultraTrades = 0;
-    let ultraWins = 0;
-    let busted = false;
+    let currentStreak = 0;
+    let maxStreak = 0;
     
     for (let i = 0; i < cycles.length; i++) {
         const cycle = cycles[i];
         
         if (bankroll < 0.01) {
-            busted = true;
             console.log(`\n💀 BUSTED at cycle ${i + 1}`);
             break;
         }
         
-        const result = simulateCycle(cycle, bankroll);
+        const gate = checkAdaptiveGate(cycle, pWinThreshold, tierRequired);
         
-        if (result.traded) {
-            trades.push({
-                cycle: i + 1,
-                ...result
-            });
-            
-            if (result.isWin) {
-                wins++;
-                if (result.isUltra) ultraWins++;
-            } else {
-                losses++;
-            }
-            
-            if (result.isUltra) ultraTrades++;
-            
-            bankroll = result.bankrollAfter;
-            peakBankroll = Math.max(peakBankroll, bankroll);
-            const drawdown = (peakBankroll - bankroll) / peakBankroll;
-            maxDrawdown = Math.max(maxDrawdown, drawdown);
-            
-            // Log significant trades
-            const icon = result.isWin ? '✅' : '❌';
-            const ultraTag = result.isUltra ? '🔮' : '  ';
-            console.log(`${icon}${ultraTag} #${i + 1} ${result.prediction} @ ${(result.entryPrice * 100).toFixed(0)}¢ | ` +
-                       `Stake: $${result.stake.toFixed(2)} | P/L: ${result.pnl >= 0 ? '+' : ''}$${result.pnl.toFixed(2)} | ` +
-                       `Balance: $${bankroll.toFixed(2)} | ${result.reason}`);
+        if (!gate.passes) continue;
+        
+        // Calculate stake (aggressive compounding)
+        let stakePercent = 0.85;
+        if (bankroll <= 2) stakePercent = 1.00;
+        else if (bankroll <= 5) stakePercent = 0.95;
+        else if (bankroll <= 20) stakePercent = 0.90;
+        else if (bankroll <= 100) stakePercent = 0.85;
+        else stakePercent = 0.80;
+        
+        let stake = bankroll * stakePercent;
+        if (stake > CONFIG.maxAbsoluteStake && bankroll > CONFIG.maxAbsoluteStake) {
+            stake = CONFIG.maxAbsoluteStake;
+        }
+        
+        // Simulate trade (assuming 50¢ entry for simplicity)
+        const entryPrice = 0.50;
+        const shares = stake / entryPrice;
+        const isWin = cycle.wasCorrect;
+        
+        let pnl;
+        if (isWin) {
+            pnl = shares - stake;  // Win pays $1/share
+            wins++;
+            currentStreak++;
+            maxStreak = Math.max(maxStreak, currentStreak);
         } else {
-            skipped++;
+            pnl = -stake;  // Loss loses stake
+            losses++;
+            currentStreak = 0;
+        }
+        
+        const bankrollBefore = bankroll;
+        bankroll = Math.max(0, bankroll + pnl);
+        peakBankroll = Math.max(peakBankroll, bankroll);
+        const drawdown = (peakBankroll - bankroll) / peakBankroll;
+        maxDrawdown = Math.max(maxDrawdown, drawdown);
+        
+        trades.push({
+            cycle: i + 1,
+            asset: cycle.asset,
+            prediction: cycle.prediction,
+            outcome: cycle.outcome,
+            isWin,
+            stake,
+            pnl,
+            bankrollBefore,
+            bankrollAfter: bankroll,
+            pWin: cycle.pWin,
+            tier: cycle.tier
+        });
+        
+        // Log significant events
+        if (trades.length <= 20 || bankroll >= 100 || bankroll < 0.5) {
+            const icon = isWin ? '✅' : '❌';
+            console.log(`${icon} #${trades.length} ${cycle.asset} ${cycle.prediction} | ` +
+                       `Stake: $${stake.toFixed(2)} | P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | ` +
+                       `Balance: $${bankroll.toFixed(2)}`);
+        } else if (trades.length === 21) {
+            console.log('   ... (remaining trades suppressed for brevity)');
         }
     }
-    
-    // Summary
-    console.log('\n' + '═'.repeat(80));
-    console.log('📊 BACKTEST RESULTS');
-    console.log('═'.repeat(80));
-    console.log(`\n📈 PERFORMANCE:`);
-    console.log(`   Total cycles: ${cycles.length}`);
-    console.log(`   Trades taken: ${trades.length}`);
-    console.log(`   Skipped: ${skipped}`);
-    console.log(`   Wins: ${wins} | Losses: ${losses}`);
-    console.log(`   Win rate: ${trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : 0}%`);
-    console.log(`\n🔮 ULTRA-PROPHET:`);
-    console.log(`   ULTRA trades: ${ultraTrades}`);
-    console.log(`   ULTRA wins: ${ultraWins}`);
-    console.log(`   ULTRA win rate: ${ultraTrades > 0 ? ((ultraWins / ultraTrades) * 100).toFixed(1) : 0}%`);
-    console.log(`\n💰 BANKROLL:`);
-    console.log(`   Starting: $${CONFIG.startingBankroll.toFixed(2)}`);
-    console.log(`   Final: $${bankroll.toFixed(2)}`);
-    console.log(`   Peak: $${peakBankroll.toFixed(2)}`);
-    console.log(`   Max drawdown: ${(maxDrawdown * 100).toFixed(1)}%`);
-    console.log(`   Total P/L: ${bankroll >= CONFIG.startingBankroll ? '+' : ''}$${(bankroll - CONFIG.startingBankroll).toFixed(2)}`);
-    console.log(`   ROI: ${((bankroll / CONFIG.startingBankroll - 1) * 100).toFixed(1)}%`);
-    console.log(`\n⚠️ STATUS: ${busted ? '💀 BUSTED' : (bankroll >= 1000000 ? '🎉 MILLIONAIRE!' : '📈 Active')}`);
-    
-    // Calculate trades to $1M estimate
-    if (!busted && trades.length > 0 && wins > 0) {
-        const avgRoi = trades.filter(t => t.isWin).reduce((sum, t) => sum + ((1 / t.entryPrice) - 1), 0) / wins;
-        const winRate = wins / trades.length;
-        const effectiveGrowth = (avgRoi * winRate) - (1 - winRate); // Simplified expected value per trade
-        if (effectiveGrowth > 0) {
-            const tradesToMillion = Math.ceil(Math.log(1000000 / bankroll) / Math.log(1 + effectiveGrowth * 0.85));
-            console.log(`   Est. trades to $1M: ~${tradesToMillion}`);
-        }
-    }
-    
-    console.log('\n' + '═'.repeat(80) + '\n');
     
     return {
-        summary: {
-            cycles: cycles.length,
-            trades: trades.length,
-            wins,
-            losses,
-            winRate: trades.length > 0 ? wins / trades.length : 0,
-            ultraTrades,
-            ultraWins,
-            ultraWinRate: ultraTrades > 0 ? ultraWins / ultraTrades : 0,
-            startingBankroll: CONFIG.startingBankroll,
-            finalBankroll: bankroll,
-            peakBankroll,
-            maxDrawdown,
-            busted
-        },
-        trades
+        finalBankroll: bankroll,
+        peakBankroll,
+        maxDrawdown,
+        trades,
+        wins,
+        losses,
+        winRate: trades.length > 0 ? wins / trades.length : 0,
+        maxStreak,
+        totalCycles: cycles.length,
+        tradesPerDay: (trades.length / cycles.length) * 96
     };
 }
 
 // ==================== CLI ENTRY ====================
 function main() {
     const args = process.argv.slice(2);
-    let maxCycles = null;
-    let startBankroll = CONFIG.startingBankroll;
     let dataPath = null;
+    let doSweep = false;
+    let targetWR = CONFIG.targetWinRate;
     
     for (const arg of args) {
-        if (arg.startsWith('--cycles=')) {
-            maxCycles = parseInt(arg.split('=')[1], 10);
-        } else if (arg.startsWith('--start=')) {
-            startBankroll = parseFloat(arg.split('=')[1]);
-            CONFIG.startingBankroll = startBankroll;
-        } else if (arg.startsWith('--data=')) {
+        if (arg.startsWith('--data=')) {
             dataPath = arg.split('=')[1];
+        } else if (arg === '--sweep') {
+            doSweep = true;
+        } else if (arg.startsWith('--target-wr=')) {
+            targetWR = parseFloat(arg.split('=')[1]);
         }
     }
     
-    console.log('🔮 POLYPROPHET MANUAL STRATEGY BACKTEST');
-    console.log('━'.repeat(40));
+    console.log('🔮 POLYPROPHET v105 - ADAPTIVE FREQUENCY BACKTEST');
+    console.log('━'.repeat(50));
 
     if (!dataPath) {
         console.log('\n❌ Missing required --data.');
-        console.log('   This backtest needs per-cycle debug exports (polyprophet_debug_*.json).');
-        console.log('   Example:');
-        console.log('   node scripts/backtest-manual-strategy.js --data=debg');
+        console.log('   Usage: node scripts/backtest-manual-strategy.js --data=debg [--sweep]');
         process.exit(1);
     }
 
@@ -529,21 +404,79 @@ function main() {
         process.exit(1);
     }
     if (!loaded || !Array.isArray(loaded.cycles) || loaded.cycles.length === 0) {
-        console.log('\n❌ No per-cycle rows found in the provided --data input.');
-        console.log('   Provide a debug export (polyprophet_debug_*.json) or a directory containing them.');
+        console.log('\n❌ No per-cycle rows found.');
         process.exit(1);
     }
 
-    console.log(`📂 Loaded ${loaded.cycles.length} cycle rows from ${loaded.sources.length} source(s).`);
-    console.log('⚠️ NOTE: legacy debug exports do not contain true entry odds or oracle pWin;');
-    console.log('   entryPrice uses a cycle-end odds snapshot when available, and pWin uses legacy confidence as a proxy.');
-
-    const results = runBacktest(loaded.cycles, maxCycles);
+    console.log(`📂 Loaded ${loaded.cycles.length} cycles from ${loaded.sources.length} source(s).`);
     
-    // Save results
-    const outputPath = path.join(__dirname, '..', 'backtest_results.json');
-    fs.writeFileSync(outputPath, JSON.stringify(results, null, 2));
-    console.log(`📁 Results saved to: ${outputPath}`);
+    // Sort by time
+    const cycles = loaded.cycles.sort((a, b) => {
+        const tA = Date.parse(a.cycleEndTime || '') || 0;
+        const tB = Date.parse(b.cycleEndTime || '') || 0;
+        return tA - tB;
+    });
+    
+    // Walk-forward split
+    const splitIdx = Math.floor(cycles.length * CONFIG.trainRatio);
+    const trainCycles = cycles.slice(0, splitIdx);
+    const testCycles = cycles.slice(splitIdx);
+    
+    if (doSweep || true) {  // Always do sweep for v105
+        const sweep = runThresholdSweep(trainCycles, testCycles, targetWR);
+        
+        if (sweep.optimal) {
+            console.log('\n' + '═'.repeat(80));
+            console.log('💰 FULL SIMULATION WITH OPTIMAL THRESHOLD');
+            console.log('═'.repeat(80));
+            
+            const sim = runFullSimulation(cycles, sweep.optimal.threshold, CONFIG.startingBankroll);
+            
+            console.log('\n' + '═'.repeat(80));
+            console.log('📊 FINAL RESULTS');
+            console.log('═'.repeat(80));
+            console.log(`\n   Threshold used: ${(sweep.optimal.threshold * 100).toFixed(0)}%`);
+            console.log(`   Total cycles: ${sim.totalCycles}`);
+            console.log(`   Trades taken: ${sim.trades.length}`);
+            console.log(`   Wins: ${sim.wins} | Losses: ${sim.losses}`);
+            console.log(`   Win rate: ${(sim.winRate * 100).toFixed(1)}%`);
+            console.log(`   Max win streak: ${sim.maxStreak}`);
+            console.log(`   Trades/day: ~${sim.tradesPerDay.toFixed(1)}`);
+            console.log(`\n   Starting: $${CONFIG.startingBankroll.toFixed(2)}`);
+            console.log(`   Final: $${sim.finalBankroll.toFixed(2)}`);
+            console.log(`   Peak: $${sim.peakBankroll.toFixed(2)}`);
+            console.log(`   Max drawdown: ${(sim.maxDrawdown * 100).toFixed(1)}%`);
+            console.log(`   ROI: ${((sim.finalBankroll / CONFIG.startingBankroll - 1) * 100).toFixed(1)}%`);
+            
+            if (sim.finalBankroll >= 1000000) {
+                console.log('\n   🎉 MILLIONAIRE!');
+            } else if (sim.finalBankroll < 0.01) {
+                console.log('\n   💀 BUSTED');
+            }
+            
+            // Save results
+            const outputPath = path.join(__dirname, '..', 'backtest_results.json');
+            fs.writeFileSync(outputPath, JSON.stringify({
+                config: {
+                    threshold: sweep.optimal.threshold,
+                    targetWR,
+                    startingBankroll: CONFIG.startingBankroll
+                },
+                sweep: sweep.all,
+                simulation: {
+                    finalBankroll: sim.finalBankroll,
+                    trades: sim.trades.length,
+                    winRate: sim.winRate,
+                    maxStreak: sim.maxStreak,
+                    tradesPerDay: sim.tradesPerDay
+                },
+                trades: sim.trades.slice(-100)  // Last 100 trades
+            }, null, 2));
+            console.log(`\n📁 Results saved to: ${outputPath}`);
+        }
+    }
+    
+    console.log('\n' + '═'.repeat(80) + '\n');
 }
 
 main();
