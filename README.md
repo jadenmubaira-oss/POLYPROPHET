@@ -4,6 +4,11 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
+> **v117 FINAL PATCH**: Shadow-book settlement fix + CALL panel correctness.
+> - **🔧 SHADOW-BOOK FIX**: Cycle-end settlement now computes outcome from Chainlink checkpoint/live prices (was broken: `brain.lastOutcome` never set → phantom HOLDs)
+> - **🎯 CALL PANEL FIX**: Dashboard CALL now shows `oracleSignal.pWin` (LCB-adjusted, actual BUY gating value) + `mispricingEdge` (pp)—not forecast pWin which differs
+> - **📊 EDGE DISPLAY FIX**: Stats grid "Edge" now shows oracle mispricingEdge (pp) for consistency with CALL panel
+>
 > **v116 TWO-TIER ORACLE**: Forecast vs CALL separation, confirm-gated trades, streak alerts.
 > - **🎯 TWO-TIER MODEL**: Dashboard shows FORECAST (continuous) vs CALL (actionable BUY/PREPARE/WAIT)
 > - **📊 DUAL LAST-10 METRICS**: Forecast accuracy (all cycles) + CALL accuracy (BUY calls only)

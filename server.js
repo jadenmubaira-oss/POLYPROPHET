@@ -8728,7 +8728,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 116;  // v116: Two-tier Forecast vs CALL, confirm-gated trades, streak-forming alerts, call accuracy tracking
+const CONFIG_VERSION = 117;  // v117: Fixed shadow-book cycle-end settlement, CALL panel now shows oracle pWin/edge (LCB-adjusted)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -22497,12 +22497,19 @@ app.get('/', (req, res) => {
                         const yesOdds = d.market && d.market.yesPrice ? (d.market.yesPrice * 100).toFixed(1) : '--';
                         const noOdds = d.market && d.market.noPrice ? (d.market.noPrice * 100).toFixed(1) : '--';
                         
-                        // 🏆 v116: TWO-TIER DISPLAY: Forecast vs CALL
+                        // 🏆 v117: TWO-TIER DISPLAY: Forecast vs CALL
+                        // CRITICAL FIX: Use oracleSignal.pWin for CALL (LCB-adjusted), not forecast pWin
                         const oracleAction = d.oracleSignal?.action || 'WAIT';
                         const callBadgeColor = oracleAction === 'BUY' ? '#00ff88' : (oracleAction === 'PREPARE' ? '#ffd700' : '#666');
                         const callBadgeBg = oracleAction === 'BUY' ? 'rgba(0,255,136,0.2)' : (oracleAction === 'PREPARE' ? 'rgba(255,215,0,0.15)' : 'rgba(100,100,100,0.1)');
                         const isLocked = d.oracleSignal?.calibration?.isLocked === true;
-                        const pWinDisplay = d.pWin ? (d.pWin * 100).toFixed(0) + '%' : '--';
+                        // 🏆 v117 FIX: CALL pWin = oracleSignal.pWin (LCB-adjusted, used for BUY gating)
+                        // NOT d.pWin which is the raw forecast pWin (different calculation, can mislead)
+                        const oraclePWin = d.oracleSignal?.pWin;
+                        const pWinDisplay = Number.isFinite(oraclePWin) ? (oraclePWin * 100).toFixed(0) + '%' : '--';
+                        // 🏆 v117 FIX: Show oracle mispricingEdge (pp) instead of forecast relative edge
+                        const oracleEdgePp = d.oracleSignal?.mispricingEdge;
+                        const callEdgeDisplay = Number.isFinite(oracleEdgePp) ? (oracleEdgePp * 100).toFixed(1) + 'pp' : '--';
                         
                         html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
                             '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
@@ -22515,17 +22522,19 @@ app.get('/', (req, res) => {
                             '<div class="prediction-value ' + (d.prediction || 'WAIT') + '" style="font-size:1.4em;margin:4px 0;">' + (d.prediction || 'WAIT') + '</div>' +
                             '<div style="font-size:0.75em;color:#888;">' + conf + '% • ' + (d.tier || 'NONE') + '</div>' +
                             '</div>' +
-                            // CALL (right)
+                            // CALL (right) - 🏆 v117: Shows oracle pWin + edge (LCB-adjusted, used for gating)
                             '<div style="background:' + callBadgeBg + ';border:2px solid ' + callBadgeColor + ';border-radius:6px;padding:8px;text-align:center;">' +
                             '<div style="font-size:0.65em;color:#888;text-transform:uppercase;letter-spacing:1px;">CALL</div>' +
                             '<div style="font-size:1.4em;font-weight:bold;color:' + callBadgeColor + ';margin:4px 0;">' + oracleAction + '</div>' +
-                            '<div style="font-size:0.75em;color:#888;">pWin ' + pWinDisplay + (isLocked ? ' 🔒' : '') + '</div>' +
+                            '<div style="font-size:0.70em;color:#888;">pWin ' + pWinDisplay + (isLocked ? ' 🔒' : '') + '</div>' +
+                            '<div style="font-size:0.65em;color:#666;">Edge ' + callEdgeDisplay + '</div>' +
                             '</div>' +
                             '</div>' +
                             
                             '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
+                            // 🏆 v117: Stats grid now shows oracle Edge (mispricingEdge pp) for consistency with CALL
                             '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
-                            '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
+                            '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + callEdgeDisplay + '</div></div>' +
                             '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + yesOdds + '¢</div></div>' +
                             '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + noOdds + '¢</div></div></div>' +
                             
@@ -27956,6 +27965,7 @@ async function startup() {
             }
             
             // Step 4: Settle shadow-book position on cycle end
+            // 🏆 v117: Fixed to compute outcome directly from Chainlink prices instead of brain.lastOutcome
             const nowSec = Math.floor(Date.now() / 1000);
             const elapsed = nowSec % INTERVAL_SECONDS;
             if (shadowBook.position && elapsed < 5) {
@@ -27965,8 +27975,21 @@ async function startup() {
                     // Cycle ended - settle position based on outcome
                     const posAsset = shadowBook.position.asset;
                     const brain = Brains[posAsset];
-                    if (brain?.lastOutcome) {
-                        settleShadowPositionOnCycleEnd(posAsset, brain.lastOutcome);
+                    
+                    // 🏆 v117 FIX: Compute outcome directly from checkpoint/live prices
+                    // The old code relied on brain.lastOutcome which was NEVER SET → phantom positions
+                    const checkpointPrice = brain?.checkpoint;
+                    const livePrice = livePrices[posAsset];
+                    
+                    if (Number.isFinite(checkpointPrice) && Number.isFinite(livePrice)) {
+                        // Tie = UP wins (matches Polymarket resolution)
+                        const actualOutcome = livePrice >= checkpointPrice ? 'UP' : 'DOWN';
+                        log(`📖 SHADOW-BOOK CYCLE END: ${posAsset} checkpoint=$${checkpointPrice.toFixed(2)} live=$${livePrice.toFixed(2)} → ${actualOutcome}`, posAsset);
+                        settleShadowPositionOnCycleEnd(posAsset, actualOutcome);
+                    } else {
+                        // Can't determine outcome - close as loss conservatively
+                        log(`⚠️ SHADOW-BOOK CYCLE END: ${posAsset} missing prices (checkpoint=${checkpointPrice}, live=${livePrice}) - closing as LOSS`, posAsset);
+                        closeShadowPosition(0, false, 'CYCLE_END_NO_DATA');
                     }
                 }
             }
