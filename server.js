@@ -8118,6 +8118,89 @@ let clockDriftState = {
 let webPushSubscriptions = [];      // Array of { endpoint, keys, deviceId, createdAt }
 let webPushEnabled = false;         // Set true if web-push package is installed
 
+// 🏆 v112: CONVICTION notification deduplication state
+// Prevents duplicate notifications for the same (asset, slug, action, direction) within a cooldown
+let convictionNotifyState = {
+    sentKeys: new Map(),          // Map<dedupKey, timestamp> - tracks recently sent notifications
+    cooldownMs: 180000,           // 3 minute cooldown per unique event
+    lastCleanupAt: 0,
+    cleanupIntervalMs: 60000      // Cleanup stale keys every minute
+};
+
+// 🏆 v112: Generate dedup key for conviction notifications
+function getConvictionDedupKey(asset, slug, action, direction) {
+    return `${asset}:${slug}:${action}:${direction}`;
+}
+
+// 🏆 v112: Check if conviction notification can be sent (dedup check)
+function canSendConvictionNotify(asset, slug, action, direction) {
+    const key = getConvictionDedupKey(asset, slug, action, direction);
+    const now = Date.now();
+    
+    // Cleanup old entries periodically
+    if (now - convictionNotifyState.lastCleanupAt > convictionNotifyState.cleanupIntervalMs) {
+        convictionNotifyState.lastCleanupAt = now;
+        for (const [k, timestamp] of convictionNotifyState.sentKeys.entries()) {
+            if (now - timestamp > convictionNotifyState.cooldownMs) {
+                convictionNotifyState.sentKeys.delete(k);
+            }
+        }
+    }
+    
+    const lastSent = convictionNotifyState.sentKeys.get(key);
+    if (lastSent && (now - lastSent) < convictionNotifyState.cooldownMs) {
+        return false; // Still in cooldown
+    }
+    return true;
+}
+
+// 🏆 v112: Mark conviction notification as sent
+function markConvictionNotifySent(asset, slug, action, direction) {
+    const key = getConvictionDedupKey(asset, slug, action, direction);
+    convictionNotifyState.sentKeys.set(key, Date.now());
+}
+
+// 🏆 v112: Send conviction notification (Telegram primary, Web Push optional)
+async function sendConvictionNotification(message, eventType = 'CONVICTION', asset = null, slug = null, direction = null) {
+    // Dedup check
+    if (asset && slug && direction) {
+        if (!canSendConvictionNotify(asset, slug, eventType, direction)) {
+            return { sent: false, reason: 'DEDUP_BLOCKED' };
+        }
+        markConvictionNotifySent(asset, slug, eventType, direction);
+    }
+    
+    let telegramSent = false;
+    let webPushSent = 0;
+    
+    // 1. Telegram (primary)
+    try {
+        if (CONFIG?.TELEGRAM?.enabled) {
+            await sendTelegramNotification(message, false);
+            telegramSent = true;
+        }
+    } catch (e) {
+        // Non-fatal
+    }
+    
+    // 2. Web Push (optional, best-effort)
+    try {
+        if (webPushEnabled && webPushSubscriptions.length > 0 && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+            // Build simple push payload
+            const title = eventType === 'CONVICTION_BUY' ? '🎯 CONVICTION BUY' :
+                         eventType === 'LOCKED' ? '🔒 SIGNAL LOCKED' :
+                         eventType === 'EMERGENCY_EXIT' ? '🚨 EMERGENCY EXIT' : '🔮 ORACLE';
+            const body = asset ? `${asset} ${direction || ''}` : 'New signal available';
+            const payload = { title, body, timestamp: Date.now() };
+            webPushSent = await sendWebPushToAll(payload);
+        }
+    } catch (e) {
+        // Non-fatal
+    }
+    
+    return { sent: true, telegramSent, webPushSent };
+}
+
 // ==================== POLYMARKET PROFILE TRADE SYNC (Data API) ====================
 // Optional: ingest YOUR real fills from Polymarket so the bot can learn from your actual actions.
 // Uses: https://data-api.polymarket.com/trades?user=<profileAddress>
@@ -8231,6 +8314,81 @@ const TRADE_HISTORY_PAPER_ZSET = 'polyprophet:trades:paper:zset';
 const TRADE_HISTORY_LIVE_HASH = 'polyprophet:trades:live:hash';
 const TRADE_HISTORY_LIVE_ZSET = 'polyprophet:trades:live:zset';
 const TRADE_HISTORY_MAX = 10000; // Keep last 10,000 trades per mode
+
+// 🏆 v112: Manual Trading Journey Redis persistence (cross-device sync)
+const MANUAL_JOURNEY_REDIS_KEY = 'polyprophet:manualJourney:v1';
+const MANUAL_JOURNEY_IDEMPOTENCY_KEY = 'polyprophet:manualJourney:seenTradeIds';
+const MANUAL_JOURNEY_IDEMPOTENCY_TTL = 3600; // 1 hour TTL for seen trade IDs
+
+// 🏆 v112: Load manual trading journey from Redis on startup
+async function loadManualJourney() {
+    if (!redisAvailable || !redis) return;
+    try {
+        const raw = await redis.get(MANUAL_JOURNEY_REDIS_KEY);
+        if (!raw) return;
+        
+        const stored = JSON.parse(raw);
+        if (stored && typeof stored === 'object') {
+            // Merge stored values into manualTradingJourney (declared earlier)
+            if (typeof manualTradingJourney === 'object') {
+                manualTradingJourney.startingBalance = Number(stored.startingBalance) || manualTradingJourney.startingBalance;
+                manualTradingJourney.currentBalance = Number(stored.currentBalance);
+                if (!Number.isFinite(manualTradingJourney.currentBalance) || manualTradingJourney.currentBalance < 0) {
+                    manualTradingJourney.currentBalance = manualTradingJourney.startingBalance;
+                }
+                manualTradingJourney.targetBalance = Number(stored.targetBalance) || manualTradingJourney.targetBalance;
+                manualTradingJourney.startedAt = Number(stored.startedAt) || manualTradingJourney.startedAt;
+                manualTradingJourney.lastUpdated = Number(stored.lastUpdated) || manualTradingJourney.lastUpdated;
+                manualTradingJourney.trades = Array.isArray(stored.trades) ? stored.trades.slice(-100) : (manualTradingJourney.trades || []);
+                log(`📖 MANUAL JOURNEY: Restored from Redis (balance=$${manualTradingJourney.currentBalance.toFixed(2)}, trades=${manualTradingJourney.trades.length})`);
+            }
+        }
+    } catch (e) {
+        log(`⚠️ MANUAL JOURNEY: Failed to load from Redis: ${e.message}`);
+    }
+}
+
+// 🏆 v112: Persist manual trading journey to Redis immediately
+async function persistManualJourney() {
+    if (!redisAvailable || !redis) return;
+    try {
+        const data = {
+            startingBalance: manualTradingJourney.startingBalance,
+            currentBalance: manualTradingJourney.currentBalance,
+            targetBalance: manualTradingJourney.targetBalance,
+            startedAt: manualTradingJourney.startedAt,
+            lastUpdated: manualTradingJourney.lastUpdated,
+            trades: Array.isArray(manualTradingJourney.trades) ? manualTradingJourney.trades.slice(-100) : [],
+            persistedAt: Date.now()
+        };
+        await redis.set(MANUAL_JOURNEY_REDIS_KEY, JSON.stringify(data));
+    } catch (e) {
+        log(`⚠️ MANUAL JOURNEY: Failed to persist to Redis: ${e.message}`);
+    }
+}
+
+// 🏆 v112: Check idempotency for manual trade (prevent duplicate submissions)
+async function checkManualTradeIdempotency(clientTradeId) {
+    if (!clientTradeId || !redisAvailable || !redis) return { seen: false };
+    try {
+        const isMember = await redis.sismember(MANUAL_JOURNEY_IDEMPOTENCY_KEY, clientTradeId);
+        return { seen: !!isMember };
+    } catch (e) {
+        return { seen: false, error: e.message };
+    }
+}
+
+// 🏆 v112: Mark manual trade ID as seen (for idempotency)
+async function markManualTradeIdSeen(clientTradeId) {
+    if (!clientTradeId || !redisAvailable || !redis) return;
+    try {
+        await redis.sadd(MANUAL_JOURNEY_IDEMPOTENCY_KEY, clientTradeId);
+        // Set TTL on the set (refresh each time we add)
+        await redis.expire(MANUAL_JOURNEY_IDEMPOTENCY_KEY, MANUAL_JOURNEY_IDEMPOTENCY_TTL);
+    } catch (e) {
+        // Non-fatal - idempotency is best-effort
+    }
+}
 
 // 🎯 GOAT v4: Persist a trade idempotently (no duplicates by ID)
 async function persistTrade(trade, mode = 'PAPER') {
@@ -10006,7 +10164,19 @@ function orchestrateOracleNotifications() {
         if (rt) rt.telegramBuySentAt = now;
         primaryBuyState.lastPrimaryBuyAt = now;
         
-        sendTelegramNotification(telegramOracleBuy(primaryBuy.signal), false);
+        // 🏆 v112: Enhanced conviction notification with dedup + optional Web Push
+        const tier = String(primaryBuy.signal?.tier || '').toUpperCase();
+        const isConviction = tier === 'CONVICTION';
+        const isLocked = primaryBuy.signal?.calibration?.isLocked === true;
+        const slug = currentMarkets?.[primaryBuy.signal.asset]?.slug || '';
+        const direction = primaryBuy.signal?.direction || '';
+        
+        if (isConviction) {
+            const eventType = isLocked ? 'LOCKED' : 'CONVICTION_BUY';
+            sendConvictionNotification(telegramOracleBuy(primaryBuy.signal), eventType, primaryBuy.signal.asset, slug, direction);
+        } else {
+            sendTelegramNotification(telegramOracleBuy(primaryBuy.signal), false);
+        }
         
         // ═══════════════════════════════════════════════════════════════════════════════
         // 🔒 v105: Set cycle commitment (no flip-flop)
@@ -10087,6 +10257,9 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     manualTradingJourney.lastUpdated = Date.now();
     shadowBook.totalPnl += pnl;
     
+    // 🏆 v112: Persist immediately to Redis for cross-device sync
+    persistManualJourney().catch(() => {}); // Fire-and-forget (non-blocking)
+    
     // ═══════════════════════════════════════════════════════════════════════════════
     // 🎯 v105: Record outcome for adaptive frequency learning
     // CRITICAL: For CYCLE_END, use actual prediction correctness (isWin param).
@@ -10141,6 +10314,13 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         const now = Date.now();
         const action = String(signal.action || '').toUpperCase();
         if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return;
+        
+        // 🏆 v112: Get slug for dedup
+        const slug = currentMarkets?.[asset]?.slug || '';
+        const direction = signal?.direction || '';
+        const tier = String(signal?.tier || '').toUpperCase();
+        const isConviction = tier === 'CONVICTION';
+        const isLocked = signal?.calibration?.isLocked === true;
 
         if (action === 'PREPARE') {
             if (rt.telegramBuySentAt) return; // don't prewarn after we already sent BUY
@@ -10153,7 +10333,14 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         if (action === 'BUY') {
             if (rt.telegramBuySentAt) return;
             rt.telegramBuySentAt = now;
-            sendTelegramNotification(telegramOracleBuy(signal), false);
+            
+            // 🏆 v112: Enhanced conviction notification with dedup + optional Web Push
+            if (isConviction) {
+                const eventType = isLocked ? 'LOCKED' : 'CONVICTION_BUY';
+                sendConvictionNotification(telegramOracleBuy(signal), eventType, asset, slug, direction);
+            } else {
+                sendTelegramNotification(telegramOracleBuy(signal), false);
+            }
             return;
         }
 
@@ -10161,7 +10348,9 @@ function maybeSendOracleSignalTelegram(asset, signal) {
             // Throttle SELL spam (at most once per 2 minutes per asset, per cycle)
             if (rt.telegramSellSentAt && (now - rt.telegramSellSentAt) < 120000) return;
             rt.telegramSellSentAt = now;
-            sendTelegramNotification(telegramOracleSell(signal), false);
+            
+            // 🏆 v112: Emergency exit notification with dedup + optional Web Push
+            sendConvictionNotification(telegramOracleSell(signal), 'EMERGENCY_EXIT', asset, slug, direction);
             
             // 🔮 SHADOW-BOOK: Close position on SELL signal
             if (shadowBook.position && shadowBook.position.asset === asset) {
@@ -19614,6 +19803,20 @@ async function fetchJSON(url, retries = 3, baseDelay = 1000) {
                         lastErr = new Error(`HTTP ${res.status}`);
                         continue;
                     }
+                    // 🏆 v112: Capture Gamma server time via HTTP Date header for clock skew diagnostics
+                    try {
+                        const isGamma = typeof url === 'string' && url.includes('gamma-api.polymarket.com');
+                        const dateHeader = res.headers?.date || res.headers?.Date || null;
+                        if (isGamma && dateHeader && typeof clockDriftState === 'object' && clockDriftState) {
+                            const gammaMs = Date.parse(String(dateHeader));
+                            if (Number.isFinite(gammaMs) && gammaMs > 0) {
+                                const gammaSec = Math.floor(gammaMs / 1000);
+                                clockDriftState.gammaNowEpochSec = gammaSec;
+                                const serverSec = Math.floor(Date.now() / 1000);
+                                clockDriftState.clockSkewSec = gammaSec - serverSec;
+                            }
+                        }
+                    } catch { }
                     return res.data;
                 } catch (e) {
                     lastErr = e;
@@ -19631,6 +19834,102 @@ async function fetchJSON(url, retries = 3, baseDelay = 1000) {
         }
     }
     return null;
+}
+
+// ==================== GAMMA-FIRST ACTIVE MARKET RESOLVER (Updown-15m) ====================
+function parseUpdown15mEpochFromSlug(slug) {
+    const m = String(slug || '').match(/-updown-15m-(\d+)$/i);
+    if (!m) return null;
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : null;
+}
+
+function classifyGammaMarketStatus(market) {
+    if (!market) return { status: 'MISSING', reason: 'No market object' };
+    const closed = market.closed === true;
+    const acceptingOrders = market.acceptingOrders !== false;
+    const active = market.active === true;
+    if (closed) return { status: 'CLOSED', reason: 'Gamma: closed=true' };
+    if (!acceptingOrders) return { status: 'CLOSED', reason: 'Gamma: acceptingOrders=false' };
+    if (!active) return { status: 'INACTIVE', reason: 'Gamma: active=false' };
+    return { status: 'ACTIVE', reason: 'Gamma: active && !closed && acceptingOrders' };
+}
+
+async function resolveUpdown15mActiveFromGamma(asset, baseCheckpoint, opts = {}) {
+    const maxBack = Number.isFinite(Number(opts.maxBack)) ? Math.max(0, Math.min(8, Number(opts.maxBack))) : 2;
+    const maxForward = Number.isFinite(Number(opts.maxForward)) ? Math.max(0, Math.min(12, Number(opts.maxForward))) : 6;
+
+    const computedSlug = `${asset.toLowerCase()}-updown-15m-${baseCheckpoint}`;
+    const order = [];
+    // Prefer current, then forward, then backward (handles servers that are behind)
+    order.push(0);
+    for (let k = 1; k <= maxForward; k++) order.push(k);
+    for (let k = 1; k <= maxBack; k++) order.push(-k);
+
+    const seen = new Set();
+    const candidates = [];
+    for (const k of order) {
+        const epoch = baseCheckpoint + (k * INTERVAL_SECONDS);
+        if (!Number.isFinite(epoch) || epoch <= 0) continue;
+        if (seen.has(epoch)) continue;
+        seen.add(epoch);
+        candidates.push({ epoch, slug: `${asset.toLowerCase()}-updown-15m-${epoch}`, driftCycles: k });
+    }
+
+    const observations = [];
+    for (const c of candidates) {
+        const url = `${GAMMA_API}/markets?slug=${encodeURIComponent(c.slug)}`;
+        const data = await fetchJSON(url, 2, 250);
+        const market = Array.isArray(data) && data.length ? data[0] : null;
+        if (!market) {
+            observations.push({ ...c, found: false, status: 'MISSING' });
+            continue;
+        }
+        const cls = classifyGammaMarketStatus(market);
+        observations.push({ ...c, found: true, status: cls.status, reason: cls.reason });
+        if (cls.status === 'ACTIVE') {
+            return {
+                ok: true,
+                computedSlug,
+                slug: c.slug,
+                driftCycles: c.driftCycles,
+                market,
+                status: cls.status,
+                reason: cls.reason,
+                source: 'GAMMA_MARKETS_SCAN',
+                observations
+            };
+        }
+    }
+
+    // No ACTIVE found — if we saw any CLOSED, return the closest-forward CLOSED as the best explanation
+    const closed = observations.filter(o => o.status === 'CLOSED');
+    if (closed.length) {
+        const best = closed.sort((a, b) => Math.abs(a.driftCycles) - Math.abs(b.driftCycles))[0];
+        return {
+            ok: false,
+            computedSlug,
+            slug: best.slug,
+            driftCycles: best.driftCycles,
+            market: null,
+            status: 'CLOSED',
+            reason: best.reason || 'No ACTIVE market found; closest candidate is CLOSED',
+            source: 'GAMMA_MARKETS_SCAN',
+            observations
+        };
+    }
+
+    return {
+        ok: false,
+        computedSlug,
+        slug: computedSlug,
+        driftCycles: 0,
+        market: null,
+        status: 'UNKNOWN',
+        reason: 'No ACTIVE market found in scan window (Gamma returned empty or errors)',
+        source: 'GAMMA_MARKETS_SCAN',
+        observations
+    };
 }
 
 // ==================== PROFILE TRADE SYNC (POLYMARKET DATA API) ====================
@@ -19862,7 +20161,6 @@ async function fetchCurrentMarkets() {
     
     for (const asset of ASSETS) {
         const computedSlug = `${asset.toLowerCase()}-updown-15m-${computedCheckpoint}`;
-        const nextSlug = `${asset.toLowerCase()}-updown-15m-${computedCheckpoint + INTERVAL_SECONDS}`;
         
         // 🏆 v111: Initialize per-asset drift tracking
         if (!clockDriftState.perAsset[asset]) {
@@ -19871,56 +20169,21 @@ async function fetchCurrentMarkets() {
         clockDriftState.perAsset[asset].computedSlug = computedSlug;
         
         let activeSlug = null;
-        let eventData = null;
         let market = null;
         let marketStatus = 'UNKNOWN';
         let driftDetected = false;
-        let slugSource = 'COMPUTED';
+        let slugSource = 'COMPUTED_FALLBACK';
+        let driftCycles = 0;
         
         try {
-            // 🏆 v111: Try computed slug first
-            const eventUrl = `${GAMMA_API}/events/slug/${computedSlug}`;
-            eventData = await fetchJSON(eventUrl);
-            
-            if (eventData?.markets?.length) {
-                // Find active market in this event
-                market = eventData.markets.find(m => m.active && !m.closed);
-                
-                if (market) {
-                    activeSlug = computedSlug;
-                    marketStatus = 'ACTIVE';
-                } else {
-                    // Market exists but is closed - check if we should try next cycle
-                    const closedMarket = eventData.markets[0];
-                    const acceptingOrders = closedMarket?.acceptingOrders !== false;
-                    
-                    if (closedMarket?.closed || !acceptingOrders) {
-                        log(`⚠️ ${asset} computed slug ${computedSlug} is CLOSED (closed=${closedMarket?.closed}, acceptingOrders=${acceptingOrders})`, asset);
-                        marketStatus = 'CLOSED';
-                        
-                        // 🏆 v111: Try next cycle slug (server clock may be behind)
-                        try {
-                            const nextEventUrl = `${GAMMA_API}/events/slug/${nextSlug}`;
-                            const nextEventData = await fetchJSON(nextEventUrl);
-                            
-                            if (nextEventData?.markets?.length) {
-                                const nextMarket = nextEventData.markets.find(m => m.active && !m.closed);
-                                if (nextMarket) {
-                                    log(`🔄 ${asset} clock drift detected: using next slug ${nextSlug}`, asset);
-                                    eventData = nextEventData;
-                                    market = nextMarket;
-                                    activeSlug = nextSlug;
-                                    marketStatus = 'ACTIVE';
-                                    driftDetected = true;
-                                    slugSource = 'NEXT_CYCLE';
-                                }
-                            }
-                        } catch (nextErr) {
-                            log(`⚠️ ${asset} next slug fetch failed: ${nextErr.message}`, asset);
-                        }
-                    }
-                }
-            }
+            // 🏆 v112: Gamma-first resolver (scan window around computed checkpoint)
+            const resolved = await resolveUpdown15mActiveFromGamma(asset, computedCheckpoint, { maxBack: 2, maxForward: 6 });
+            activeSlug = resolved?.slug || computedSlug;
+            market = resolved?.market || null;
+            driftCycles = Number(resolved?.driftCycles || 0);
+            marketStatus = market ? 'ACTIVE' : (resolved?.status || 'UNKNOWN');
+            driftDetected = !!(resolved && resolved.ok && activeSlug !== computedSlug);
+            slugSource = resolved?.source || 'COMPUTED_FALLBACK';
             
             // 🏆 v111: Update drift diagnostics
             clockDriftState.perAsset[asset] = {
@@ -19929,22 +20192,26 @@ async function fetchCurrentMarkets() {
                 driftDetected,
                 marketStatus,
                 slugSource,
+                driftCycles,
                 checkedAt: Date.now()
             };
             
             // 🏆 v111: CLOSED MARKET HARD STOP - Never trade on closed markets
             if (marketStatus === 'CLOSED' || !market) {
-                log(`🛑 ${asset} market CLOSED or unavailable - blocking oracle signals`, asset);
+                const reason = marketStatus === 'CLOSED'
+                    ? 'Gamma reports market closed / not accepting orders / no active market found'
+                    : 'No active market found (Gamma scan window returned none)';
+                log(`🛑 ${asset} market not ACTIVE (${marketStatus}) - blocking oracle signals`, asset);
                 currentMarkets[asset] = {
-                    slug: computedSlug,
-                    marketStatus: 'CLOSED',
+                    slug: activeSlug || computedSlug,
+                    marketStatus: marketStatus === 'CLOSED' ? 'CLOSED' : marketStatus,
                     yesPrice: null,
                     noPrice: null,
-                    marketUrl: `https://polymarket.com/event/${computedSlug}`,
+                    marketUrl: `https://polymarket.com/event/${activeSlug || computedSlug}`,
                     lastUpdated: Date.now(),
                     fetchOk: true,
                     fetchError: null,
-                    closedReason: 'Gamma reports market closed or no active market found',
+                    closedReason: reason,
                     driftDiagnostics: clockDriftState.perAsset[asset]
                 };
                 oracleBlindState.consecutiveFailures[asset] = 0; // Reset - not a fetch error, just closed
@@ -20068,13 +20335,13 @@ async function fetchCurrentMarkets() {
 
             currentMarkets[asset] = {
                 slug: activeSlug,
-                title: eventData.title,
+                title: market.question || market.title || `${asset} Up/Down 15m`,
                 yesPrice,
                 noPrice,
                 minOrderShares,
                 tickSize,
                 marketUrl: `https://polymarket.com/event/${activeSlug}`,
-                volume: market.volume24hr || 0,
+                volume: market.volume24hr || market.volumeNum || market.volume || 0,
                 lastUpdated: Date.now(),
                 tokenIds: { yes: yesTokenId, no: noTokenId },
                 // 🏆 v111: Market status for oracle gating
@@ -20097,7 +20364,7 @@ async function fetchCurrentMarkets() {
             oracleBlindState.consecutiveFailures[asset] = 0;
 
             const fallbackNote = pricingFallback ? ` [${pricingFallback}]` : '';
-            const driftNote = driftDetected ? ` [DRIFT→${slugSource}]` : '';
+            const driftNote = driftDetected ? ` [DRIFT cycles=${driftCycles}]` : '';
             log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}¢ | NO ${(noPrice * 100).toFixed(1)}¢${fallbackNote}${driftNote}`, asset);
         } catch (e) {
             log(`❌ Market fetch error: ${e.message}`, asset);
@@ -20106,14 +20373,20 @@ async function fetchCurrentMarkets() {
                 fetchOk: false,
                 fetchAt: Date.now(),
                 fetchError: e?.message || String(e),
-                slug: computedSlug
+                slug: activeSlug || computedSlug
             };
 
-            // Use cached data if < 30 seconds old
-            if (currentMarkets[asset] && (Date.now() - currentMarkets[asset].lastUpdated) < 30000) {
-                log(`⚠️ Using cached market data for ${asset} (Grace Period)`);
-                currentMarkets[asset].fetchOk = false;
-                currentMarkets[asset].fetchError = fetchErrorInfo.fetchError;
+            // 🏆 v112: Use cached odds ONLY if they are from a plausibly-current ACTIVE market (never for CLOSED/ERROR)
+            const cached = currentMarkets[asset];
+            const cachedAgeMs = cached?.lastUpdated ? (Date.now() - cached.lastUpdated) : Infinity;
+            const cachedEpoch = parseUpdown15mEpochFromSlug(cached?.slug);
+            const epochWindowOk = Number.isFinite(cachedEpoch)
+                ? (cachedEpoch >= (computedCheckpoint - INTERVAL_SECONDS) && cachedEpoch <= (computedCheckpoint + (2 * INTERVAL_SECONDS)))
+                : false;
+            if (cached && cachedAgeMs < 30000 && cached.marketStatus === 'ACTIVE' && epochWindowOk) {
+                log(`⚠️ Using cached ACTIVE market data for ${asset} (Grace Period, age=${Math.floor(cachedAgeMs/1000)}s)`);
+                cached.fetchOk = false;
+                cached.fetchError = fetchErrorInfo.fetchError;
             } else {
                 currentMarkets[asset] = {
                     ...fetchErrorInfo,
@@ -24326,12 +24599,28 @@ app.get('/api/manual-journey', (req, res) => {
 });
 
 // Record a manual trade result
-app.post('/api/manual-journey/trade', (req, res) => {
+// 🏆 v112: Now persists immediately to Redis and supports idempotency via clientTradeId
+app.post('/api/manual-journey/trade', async (req, res) => {
     try {
-        const { asset, direction, entryPrice, exitPrice, stake, won, notes } = req.body;
+        const { asset, direction, entryPrice, exitPrice, stake, won, notes, clientTradeId } = req.body;
         
         if (typeof won !== 'boolean') {
             return res.status(400).json({ error: 'Missing required field: won (boolean)' });
+        }
+        
+        // 🏆 v112: Idempotency check - prevent duplicate submissions from multiple devices
+        if (clientTradeId) {
+            const { seen } = await checkManualTradeIdempotency(clientTradeId);
+            if (seen) {
+                log(`⚠️ MANUAL TRADE: Duplicate clientTradeId=${clientTradeId} ignored`);
+                return res.json({
+                    success: true,
+                    duplicate: true,
+                    message: 'Trade already recorded (idempotent)',
+                    currentBalance: manualTradingJourney.currentBalance,
+                    totalTrades: manualTradingJourney.trades.length
+                });
+            }
         }
         
         const entry = Number(entryPrice) || 0.5;
@@ -24348,6 +24637,7 @@ app.post('/api/manual-journey/trade', (req, res) => {
         
         const trade = {
             id: Date.now(),
+            clientTradeId: clientTradeId || null,
             timestamp: new Date().toISOString(),
             asset: asset || 'UNKNOWN',
             direction: direction || 'UNKNOWN',
@@ -24371,6 +24661,14 @@ app.post('/api/manual-journey/trade', (req, res) => {
         // Keep only last 100 trades in memory
         if (manualTradingJourney.trades.length > 100) {
             manualTradingJourney.trades = manualTradingJourney.trades.slice(-100);
+        }
+        
+        // 🏆 v112: Persist immediately to Redis for cross-device sync
+        await persistManualJourney();
+        
+        // 🏆 v112: Mark clientTradeId as seen (idempotency)
+        if (clientTradeId) {
+            await markManualTradeIdSeen(clientTradeId);
         }
         
         const emoji = won ? '✅' : '❌';
@@ -24397,7 +24695,8 @@ app.post('/api/manual-journey/trade', (req, res) => {
 });
 
 // Update manual bankroll (for stake calculations)
-app.post('/api/manual-journey/balance', (req, res) => {
+// 🏆 v112: Now persists immediately to Redis for cross-device sync
+app.post('/api/manual-journey/balance', async (req, res) => {
     try {
         const { balance, reset } = req.body;
         const newBalance = Number(balance);
@@ -24418,6 +24717,9 @@ app.post('/api/manual-journey/balance', (req, res) => {
         }
         
         manualTradingJourney.lastUpdated = Date.now();
+        
+        // 🏆 v112: Persist immediately to Redis for cross-device sync
+        await persistManualJourney();
         
         // Also update paper balance for stake calculations
         if (tradeExecutor) {
@@ -26720,6 +27022,9 @@ async function startup() {
     
     // 🎯 GOAT v4: Load persisted settings from Redis
     await loadCollectorEnabled();
+    
+    // 🏆 v112: Load manual trading journey from Redis (cross-device sync)
+    await loadManualJourney();
     
     // 🏆 v80: Wire enableCircuitBreaker setting to runtime
     if (CONFIG.RISK && typeof CONFIG.RISK.enableCircuitBreaker === 'boolean') {

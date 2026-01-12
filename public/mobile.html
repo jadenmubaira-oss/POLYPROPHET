@@ -826,6 +826,27 @@
                       </div>`
                     : '';
                 
+                // 🏆 v112: Calibration diagnostics (lock/flip/pWinSource)
+                const cal = sig?.calibration || pred?.calibration || null;
+                const isLocked = cal?.isLocked === true;
+                const couldFlip = cal?.couldFlip === true;
+                const lockReason = cal?.lockReason || '';
+                const pWinSource = cal?.pWinSource || cal?.trustReason || '';
+                const pWinConfidence = cal?.pWinConfidence || '';
+                
+                let lockDiagHtml = '';
+                if (cal) {
+                    const lockIcon = isLocked ? '🔒' : (couldFlip ? '⚠️' : '🔓');
+                    const lockLabel = isLocked ? 'LOCKED' : (couldFlip ? 'MOVABLE' : 'OPEN');
+                    const lockColor = isLocked ? '#22c55e' : (couldFlip ? '#ffd700' : '#888');
+                    const confBadge = pWinConfidence === 'VERY_HIGH' ? '💎' : 
+                                     pWinConfidence === 'HIGH' ? '✨' : 
+                                     pWinConfidence === 'MODERATE' ? '📊' : '';
+                    lockDiagHtml = `<div style="margin-top:4px;font-size:10px;color:${lockColor};">
+                        ${lockIcon} ${lockLabel} ${confBadge} ${pWinSource ? `(${escapeHtml(pWinSource)})` : ''}
+                    </div>`;
+                }
+                
                 const marketUrl = (sig && sig.marketUrl) ? sig.marketUrl : (pred.market && pred.market.marketUrl ? pred.market.marketUrl : null);
                 const marketLinkHtml = marketUrl
                     ? `<div style="text-align:center;margin-top:10px;">
@@ -845,6 +866,7 @@
                     <div style="margin-top:10px;padding:10px;border-radius:8px;background:${actionBg};border:1px solid ${actionBorder};text-align:center;font-size:12px;">
                         <div style="font-weight:bold;color:${actionColor};">NEXT: ${escapeHtml(action)} ${escapeHtml(actionSide)}</div>
                         ${actionOdds ? `<div style="margin-top:4px;color:#ddd;">@ <strong>${escapeHtml(actionOdds)}</strong> | Cal.Win <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>` : `<div style="margin-top:4px;color:#ddd;">Cal.Win <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>`}
+                        ${lockDiagHtml}
                         <div style="margin-top:4px;color:#888;">TTC(last) <strong>${escapeHtml(ttcLast)}</strong> | TTC(avg10) <strong>${escapeHtml(ttcAvg)}</strong></div>
                         ${reasonsHtml}
                         ${marketLinkHtml}

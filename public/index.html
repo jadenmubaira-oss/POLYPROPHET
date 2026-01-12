@@ -179,11 +179,17 @@
             const mm = tLeft !== null ? Math.floor(tLeft / 60) : null;
             const ss = tLeft !== null ? String(tLeft % 60).padStart(2, '0') : null;
             const tl = (mm !== null && ss !== null) ? `${mm}:${ss}` : null;
+            
+            // 🏆 v112: Lock diagnostics
+            const cal = sig?.calibration;
+            const isLocked = cal?.isLocked === true;
+            const lockIcon = isLocked ? '🔒' : '';
 
             let line = `Next: ${action} ${dir}`;
             if (odds) line += ` @ ${odds}`;
             if (pWin) line += ` | Cal.Win ${pWin}`;  // "Cal.Win" = Calibrated Win probability
             if (ev) line += ` | EV ${ev}`;
+            if (isLocked) line += ` ${lockIcon}`;
             if (tl) line += ` | tLeft ${tl}`;
             return line;
         }
