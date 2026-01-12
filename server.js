@@ -8728,7 +8728,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 111;  // v111: Gamma-driven active market selection, closed-market hard stop, clock/slug drift diagnostics
+const CONFIG_VERSION = 112;  // v112: Hard ≥80¢ BUY block, bankroll-sensitive pWin floors, strict reliability gate
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8830,13 +8830,12 @@ const CONFIG = {
         minConsensus: 0.72,      // 72% model agreement (balanced for ~1/hour)
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        // 🏆 v58 TRUE OPTIMAL: pWin-gated entries allow profitable <50¢ trades
-        // Raw calibration shows <50¢ = 28% WR, BUT high-pWin <50¢ trades WIN
-        // Key: The system gates by pWin (calibrated win prob), not just entry price
+        // 🏆 v112: HARD 80¢ CAP - Block BUY signals at entry price ≥ 80¢
+        // At high entry prices, even high-pWin trades have thin margins that can't survive slippage/fees.
+        // Key: pWin gating still applies, but we ALSO hard-block expensive entries.
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
-        // Wider window yields more opportunities, EV-gated by calibrated pWin.
         minOdds: 0.35,
-        maxOdds: 0.95,
+        maxOdds: 0.80,  // 🚫 v112: Hard cap at 80¢ - no BUY signals above this
         minStability: 2,         // 2 ticks - fast lock
         // NOTE: voteTrendScore is a 0..1 metric (based on leader flip rate), not "ticks".
         // This threshold is used ONLY by the oracle advisory signal layer (PREPARE/BUY/SELL),
@@ -23570,21 +23569,59 @@ function sendDriftAlert(currentWR, oldThreshold, newThreshold, sampleSize) {
 }
 
 /**
- * Check if a signal passes the adaptive gate (replaces ULTRA-only mode).
- * Returns { passes, reason, threshold, pWin, isUltra }
+ * 🏆 v112: Get required pWin floor based on bankroll size.
+ * Micro bankrolls require higher certainty to avoid wipeout.
+ * Returns the minimum pWin required for a BUY signal.
  */
-function checkAdaptiveGate(pWin, tier, ultraProphet) {
+function getRequiredPWinFloor(bankroll) {
+    if (!Number.isFinite(bankroll) || bankroll <= 0) bankroll = 1;
+    
+    // Micro bankroll: extremely strict (cannot afford losses)
+    if (bankroll <= 5) return 0.92;
+    
+    // Small bankroll: still cautious
+    if (bankroll <= 20) return 0.90;
+    
+    // Moderate bankroll: standard floor
+    if (bankroll <= 100) return 0.87;
+    
+    // Larger bankroll: can use adaptive floor
+    return 0.85;
+}
+
+/**
+ * Check if a signal passes the adaptive gate (replaces ULTRA-only mode).
+ * 🏆 v112: Enhanced with entry price cap, bankroll-sensitive floors, and reliability gate.
+ * Returns { passes, reason, threshold, pWin, isUltra, blockedReason }
+ */
+function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
+    const { entryPrice = null, bankroll = null, calibrationSampleSize = 0 } = options;
     const threshold = computeAdaptiveThreshold();
     const isUltra = ultraProphet?.isUltra === true;
     
-    // ULTRA always passes (it's the diamond tier)
+    // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 80¢
+    // This applies to ALL signals including ULTRA (expensive entries are risky even with high confidence)
+    const HARD_ENTRY_CAP = 0.80;
+    if (Number.isFinite(entryPrice) && entryPrice >= HARD_ENTRY_CAP) {
+        return {
+            passes: false,
+            reason: `🚫 Entry ${(entryPrice * 100).toFixed(0)}¢ >= 80¢ cap (too expensive)`,
+            threshold,
+            pWin,
+            isUltra,
+            blockedReason: 'ENTRY_PRICE_CAP'
+        };
+    }
+    
+    // ULTRA always passes (it's the diamond tier) - but only after entry price check
     if (isUltra) {
         return {
             passes: true,
             reason: '🔮 ULTRA-PROPHET: Maximum certainty signal',
             threshold,
             pWin,
-            isUltra: true
+            isUltra: true,
+            blockedReason: null
         };
     }
     
@@ -23595,7 +23632,8 @@ function checkAdaptiveGate(pWin, tier, ultraProphet) {
             reason: 'No pWin estimate available',
             threshold,
             pWin: null,
-            isUltra: false
+            isUltra: false,
+            blockedReason: 'NO_PWIN'
         };
     }
     
@@ -23606,24 +23644,50 @@ function checkAdaptiveGate(pWin, tier, ultraProphet) {
             reason: `Tier=${tier} (need CONVICTION or ADVISORY)`,
             threshold,
             pWin,
-            isUltra: false
+            isUltra: false,
+            blockedReason: 'LOW_TIER'
         };
     }
     
-    // 🏆 v108.1: Hard-enforce floor for ALL tiers (ADVISORY and CONVICTION)
-    // CONVICTION tier gets slight threshold reduction (-3pp) but never below floor
-    // ADVISORY tier uses standard threshold but never below floor
+    // 🏆 v112: BANKROLL-SENSITIVE pWin FLOOR
+    // Get the manual journey bankroll (user's actual trading balance)
+    const effectiveBankroll = bankroll || manualTradingJourney?.currentBalance || 1;
+    const bankrollFloor = getRequiredPWinFloor(effectiveBankroll);
+    
+    // 🏆 v108.1 + v112: Hard-enforce floor for ALL tiers
+    // CONVICTION tier gets slight threshold reduction (-3pp) but never below bankroll floor
+    // ADVISORY tier uses standard threshold but never below bankroll floor
+    const baseFloor = Math.max(adaptiveGateState.minPWinThreshold, bankrollFloor);
     const effectiveThreshold = tier === 'CONVICTION' 
-        ? Math.max(threshold - 0.03, adaptiveGateState.minPWinThreshold)
-        : Math.max(threshold, adaptiveGateState.minPWinThreshold);
+        ? Math.max(threshold - 0.03, baseFloor)
+        : Math.max(threshold, baseFloor);
+    
+    // 🏆 v112: STRICT RELIABILITY GATE - Block BUY when pWin isn't statistically reliable
+    // For micro bankrolls, require meaningful sample sizes before trusting pWin
+    const MIN_SAMPLES_FOR_BUY = effectiveBankroll <= 20 ? 10 : 5;  // Stricter for micro bankrolls
+    if (calibrationSampleSize < MIN_SAMPLES_FOR_BUY) {
+        return {
+            passes: false,
+            reason: `⚠️ Insufficient calibration (${calibrationSampleSize} < ${MIN_SAMPLES_FOR_BUY} samples)`,
+            threshold: effectiveThreshold,
+            pWin,
+            isUltra: false,
+            blockedReason: 'LOW_SAMPLES',
+            bankrollFloor,
+            effectiveBankroll
+        };
+    }
     
     if (pWin >= effectiveThreshold) {
         return {
             passes: true,
-            reason: `pWin=${(pWin * 100).toFixed(1)}% >= ${(effectiveThreshold * 100).toFixed(1)}% threshold (${tier})`,
+            reason: `pWin=${(pWin * 100).toFixed(1)}% >= ${(effectiveThreshold * 100).toFixed(1)}% threshold (${tier}, bankroll=$${effectiveBankroll.toFixed(0)})`,
             threshold: effectiveThreshold,
             pWin,
-            isUltra: false
+            isUltra: false,
+            blockedReason: null,
+            bankrollFloor,
+            effectiveBankroll
         };
     }
     
@@ -23632,7 +23696,10 @@ function checkAdaptiveGate(pWin, tier, ultraProphet) {
         reason: `pWin=${(pWin * 100).toFixed(1)}% < ${(effectiveThreshold * 100).toFixed(1)}% threshold`,
         threshold: effectiveThreshold,
         pWin,
-        isUltra: false
+        isUltra: false,
+        blockedReason: 'PWIN_BELOW_THRESHOLD',
+        bankrollFloor,
+        effectiveBankroll
     };
 }
 
@@ -24240,13 +24307,19 @@ function updateOracleSignalForAsset(asset) {
         // Uses dynamic pWin threshold that adapts based on recent performance.
         // Target: ≤1 loss per 10 trades (~90% win rate)
         // ═══════════════════════════════════════════════════════════════════════════════
-        const adaptiveGate = checkAdaptiveGate(pWin, signal.tier, ultraProphet);
+        // 🏆 v112: Pass entry price, bankroll, and sample size for enhanced gating
+        const adaptiveGate = checkAdaptiveGate(pWin, signal.tier, ultraProphet, {
+            entryPrice,
+            bankroll: manualTradingJourney?.currentBalance || 1,
+            calibrationSampleSize: adaptiveGateState.globalRollingTotal || 0
+        });
         signal.adaptiveGate = adaptiveGate;
 
         // Add adaptive gate info to reasons
+        const bankrollInfo = adaptiveGate.effectiveBankroll ? `, bankroll=$${adaptiveGate.effectiveBankroll.toFixed(0)}` : '';
         const adaptiveInfo = `Adaptive: threshold=${(adaptiveGate.threshold * 100).toFixed(0)}%, ` +
             `rolling WR=${((adaptiveGateState.globalRollingTotal > 0 ? adaptiveGateState.globalRollingWins / adaptiveGateState.globalRollingTotal : 0) * 100).toFixed(0)}% ` +
-            `(${adaptiveGateState.globalRollingTotal} samples)`;
+            `(${adaptiveGateState.globalRollingTotal} samples)${bankrollInfo}`;
         signal.reasons.push(adaptiveInfo);
         
         // Add streak state info
@@ -27233,8 +27306,8 @@ function runStartupSelfTests() {
     if (!CONFIG || !CONFIG.ORACLE) {
         failures.push('CONFIG or CONFIG.ORACLE is undefined');
     }
-    if (CONFIG.ORACLE.maxOdds > 0.98) {
-        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) is dangerously high (>98¢)`);
+    if (CONFIG.ORACLE.maxOdds > 0.80) {
+        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) exceeds 80¢ hard cap (v112 rule)`);
     }
     if (CONFIG.ORACLE.minOdds < 0.10) {
         failures.push(`CONFIG.ORACLE.minOdds (${CONFIG.ORACLE.minOdds}) is too low - allows tail bets`);

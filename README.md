@@ -4,22 +4,41 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v111 FINAL ORACLE**: Gamma-driven market selection, clock drift diagnostics, conviction notifications.
-> - **85% pWin FLOOR**: **HARD-ENFORCED for ALL tiers** (startup-reset, no legacy state)
+> **v112 HARDENED ORACLE**: Micro-bankroll protection, entry price caps, reliability gates.
+> - **🚫 NO BUY AT ≥80¢**: Hard block on expensive entries (too thin margins for micro bankrolls)
+> - **💰 BANKROLL-SENSITIVE pWin FLOORS**: 
+>   - ≤$5: 92% pWin required (cannot afford losses)
+>   - ≤$20: 90% pWin required (cautious)
+>   - ≤$100: 87% pWin required (moderate)
+>   - >$100: 85% pWin required (standard)
+> - **📊 RELIABILITY GATE**: BUY blocked unless pWin backed by adequate sample size
 > - **GAMMA-DRIVEN MARKET SELECTION**: No more local clock drift issues
 > - **CLOSED-MARKET HARD STOP**: Never trade on stale/closed market data
 > - **CLOCK/SLUG DRIFT DIAGNOSTICS**: Visible in `/api/state._clockDrift`
 > - **ENHANCED CONVICTION ALERTS**: Telegram notifications for CONVICTION LOCKED trades
-> - **WEB PUSH SUPPORT**: Browser notification infrastructure (requires npm install web-push)
-> - **BANKROLL CALCULATOR**: Mobile UI has 5→1M / 10→1M scenario calculator
-> - **UI CLARITY**: "Model Conf" vs "Cal.Win" labels to avoid confusion
-> - **pWinSource**: Shows whether pWin is TIER_CONDITIONED or BUCKET_CALIBRATED
 
 ---
 
-## 🎯 v111: FINAL ORACLE MODE (Gamma-Driven)
+## 🎯 v112: HARDENED ORACLE MODE
 
-v111 eliminates clock/slug drift by deriving active markets from Gamma API instead of local timestamps.
+v112 adds critical micro-bankroll protection on top of v111's Gamma-driven market selection.
+
+### v112 Critical Fixes
+
+1. **Hard ≥80¢ Entry Price Cap**: BUY signals are now blocked when entry price ≥ 80¢. At high prices, even high-pWin trades have thin margins that can't survive slippage/fees. PREPARE signals still fire (for awareness), and SELL signals work normally.
+
+2. **Bankroll-Sensitive pWin Floors**: The minimum pWin required for a BUY signal now adapts to your current bankroll:
+   - ≤$5 bankroll: **92% pWin floor** (micro bankroll cannot afford losses)
+   - ≤$20 bankroll: **90% pWin floor** (small bankroll stays cautious)
+   - ≤$100 bankroll: **87% pWin floor** (moderate growth phase)
+   - >$100 bankroll: **85% pWin floor** (standard floor)
+
+3. **Strict Reliability Gate**: BUY signals require statistically reliable pWin estimates:
+   - For bankrolls ≤$20: Minimum 10 calibration samples required
+   - For bankrolls >$20: Minimum 5 calibration samples required
+   - If samples insufficient, BUY is blocked with clear reason
+
+4. **CONFIG.ORACLE.maxOdds**: Changed from 0.95 to **0.80** to align with the hard entry cap.
 
 ### v111 Critical Fixes
 
@@ -81,26 +100,45 @@ If oracle shows `"market": null` or `"reasons": ["No active market/odds yet"]`:
 
 ---
 
-## 🎯 v109 Foundation: HARD-FLOOR ORACLE MODE
+## 🎯 v112 Parameters: BANKROLL-SENSITIVE ORACLE
 
-v109 **hard-enforces** the 85% pWin floor for ALL tiers and uses actual entry prices:
+v112 adds bankroll-sensitive floors on top of the hard-enforced baseline:
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | **Win Rate Target** | 85% | 1-2 losses per 10 trades |
-| **pWin Floor** | **85% HARD-ENFORCED** | Reset on every startup, never bypassed |
-| **pWin Start** | 85% | Conservative starting threshold |
-| **pWin Max** | 90% | Cap for tightening |
+| **pWin Floor (≤$5)** | **92%** | Micro bankroll cannot afford losses |
+| **pWin Floor (≤$20)** | **90%** | Small bankroll stays cautious |
+| **pWin Floor (≤$100)** | **87%** | Moderate growth phase |
+| **pWin Floor (>$100)** | **85%** | Standard floor |
+| **Entry Price Cap** | **80¢** | No BUY at expensive prices |
 | **PREPARE Threshold** | 75% | Early warning (below BUY floor) |
 | **Model Consensus** | 72% | Balanced for frequency |
 | **Vote Stability** | 80% | Balanced for frequency |
-| **Frequency Target** | ~1/hour | When conditions allow |
+| **Frequency Target** | ~1/hour | When conditions allow (may be less at micro bankrolls) |
+| **Min Samples (≤$20)** | 10 | Stricter reliability for micro bankrolls |
+| **Min Samples (>$20)** | 5 | Standard reliability requirement |
 
-### v109 Critical Fixes
+### v112 Philosophy: What This Bot WILL and WON'T Do
+
+**WILL DO:**
+- Block BUY signals at entry price ≥ 80¢ (protects thin-margin trades)
+- Require higher certainty for smaller bankrolls (92% for ≤$5)
+- Require statistical reliability before allowing BUY signals
+- Send PREPARE signals even when BUY is blocked (for awareness)
+- Allow SELL/HOLD signals regardless of price
+
+**WON'T DO:**
+- Guarantee 100% accuracy (impossible in real markets)
+- Force trades when conditions aren't right
+- Allow bypassing the hard gates (they're in code, not config)
+- Trade automatically (oracle mode = signals for manual execution)
+
+### v109 Foundation Fixes
 
 1. **Adaptive Gate Force-Reset**: On every startup, `adaptiveGateState` is reset to v109 defaults (85% floor) regardless of persisted state. This ensures legacy thresholds don't leak through.
 
-2. **Floor Enforced for ALL Tiers**: Both ADVISORY and CONVICTION tiers now enforce the 85% hard floor. Previously only CONVICTION enforced it.
+2. **Floor Enforced for ALL Tiers**: Both ADVISORY and CONVICTION tiers now enforce the baseline floor. Previously only CONVICTION enforced it.
 
 3. **Improved TokenId Mapping**: CLOB orderbook fetch now correctly maps YES/NO tokenIds from Gamma market outcomes, fixing price mismatches.
 
@@ -143,11 +181,19 @@ Falls back to 50¢ only when cycle lacks price data. Check `entryStats` in resul
 
 1. **Timing Windows**:
    - **PREPARE**: 3-1.5 minutes before cycle end (get ready, pWin ≥ 75%)
-   - **BUY**: 1.5-1 minute before end (execute now, pWin ≥ 85%)
+   - **BUY**: 1.5-1 minute before end (execute now, pWin ≥ bankroll floor)
    - **AVOID**: <60 seconds (blackout, too late)
 
-2. **Adaptive Threshold** (v109 - HARD-ENFORCED):
-   - Starts at **85%** pWin threshold (user's hard floor)
+2. **v112 Gate Stack** (all must pass for BUY):
+   - ✅ Entry price < 80¢ (hard cap)
+   - ✅ Tier = CONVICTION or ADVISORY
+   - ✅ pWin ≥ bankroll-sensitive floor (92%/90%/87%/85%)
+   - ✅ Calibration samples ≥ minimum (10 for micro, 5 for larger)
+   - ✅ In BUY timing window (1.5-1 minutes before end)
+   - ✅ Prediction is stable (not flip-flopping)
+
+3. **Adaptive Threshold** (v109+ - HARD-ENFORCED):
+   - Starts at bankroll-appropriate floor
    - **Force-reset on every startup** (no legacy state leakage)
    - **Enforced for ALL tiers** (ADVISORY + CONVICTION)
    - Tightens to **90%** if recent WR drops below 85%

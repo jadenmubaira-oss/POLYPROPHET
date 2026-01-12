@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 /**
- * 🔮 POLYPROPHET v109 - ADAPTIVE FREQUENCY BACKTEST
+ * 🔮 POLYPROPHET v112 - ADAPTIVE FREQUENCY BACKTEST
  *
  * Sweeps pWin thresholds to find optimal balance between:
  * - Frequency (trades per cycle/day)
  * - Accuracy (targeting ≤1-2 loss per 10 trades = 85% WR)
  *
- * 🏆 v109 IMPROVEMENTS:
+ * 🏆 v112 IMPROVEMENTS:
+ * - Hard ≥80¢ entry price cap (blocks trades at expensive prices)
+ * - Bankroll-sensitive pWin floors (micro bankrolls require higher certainty)
  * - Uses ACTUAL entry prices (entryOdds/entryPrice/yesPrice) when available
  * - Falls back to 50¢ only when no actual price recorded
  * - Reports entry price statistics (actual vs fallback usage)
@@ -183,31 +185,59 @@ function loadPerCycleCorpus(dataPath) {
 }
 
 // ==================== ADAPTIVE GATE CHECK ====================
-// 🏆 v109: Hard-enforce 85% floor for ALL tiers (matches server.js v109)
+// 🏆 v112: Hard ≥80¢ entry cap, bankroll-sensitive pWin floors
 const PWIN_HARD_FLOOR = 0.85;
+const HARD_ENTRY_CAP = 0.80;  // 🚫 v112: No trades at entry price ≥ 80¢
 
-function checkAdaptiveGate(cycle, pWinThreshold, tierRequired) {
+/**
+ * 🏆 v112: Get required pWin floor based on bankroll size.
+ */
+function getRequiredPWinFloor(bankroll) {
+    if (!Number.isFinite(bankroll) || bankroll <= 0) bankroll = 1;
+    if (bankroll <= 5) return 0.92;
+    if (bankroll <= 20) return 0.90;
+    if (bankroll <= 100) return 0.87;
+    return 0.85;
+}
+
+function checkAdaptiveGate(cycle, pWinThreshold, tierRequired, options = {}) {
+    const { bankroll = 1 } = options;
     const tier = cycle.tier;
     const pWin = safeNum(cycle.pWin, 0);
     
-    // Tier check
-    if (!tierRequired.includes(tier)) {
-        return { passes: false, reason: `Tier=${tier} not in ${tierRequired.join('/')}` };
+    // Get actual entry price from cycle data
+    const entryOdds = safeNum(cycle.entryOdds, null);
+    const cycleEntryPrice = safeNum(cycle.entryPrice, null);
+    const yesPrice = safeNum(cycle.yesPrice, null);
+    const entryPrice = entryOdds || cycleEntryPrice || yesPrice || 0.50;
+    
+    // 🚫 v112: Hard entry price cap - no trades at ≥80¢
+    if (entryPrice >= HARD_ENTRY_CAP) {
+        return { passes: false, reason: `Entry ${(entryPrice * 100).toFixed(0)}¢ >= 80¢ cap`, blockedReason: 'ENTRY_PRICE_CAP' };
     }
     
-    // 🏆 v109: Hard-enforce floor for ALL tiers
+    // Tier check
+    if (!tierRequired.includes(tier)) {
+        return { passes: false, reason: `Tier=${tier} not in ${tierRequired.join('/')}`, blockedReason: 'LOW_TIER' };
+    }
+    
+    // 🏆 v112: Bankroll-sensitive pWin floor
+    const bankrollFloor = getRequiredPWinFloor(bankroll);
+    const baseFloor = Math.max(PWIN_HARD_FLOOR, bankrollFloor);
+    
+    // 🏆 v112: Hard-enforce floor for ALL tiers
     // CONVICTION gets slight threshold reduction (-3pp) but never below floor
     // ADVISORY uses standard threshold but never below floor
     const effectiveThreshold = tier === 'CONVICTION' 
-        ? Math.max(pWinThreshold - 0.03, PWIN_HARD_FLOOR)
-        : Math.max(pWinThreshold, PWIN_HARD_FLOOR);
+        ? Math.max(pWinThreshold - 0.03, baseFloor)
+        : Math.max(pWinThreshold, baseFloor);
     
     // pWin check
     if (pWin < effectiveThreshold) {
-        return { passes: false, reason: `pWin=${(pWin * 100).toFixed(0)}% < ${(effectiveThreshold * 100).toFixed(0)}%` };
+        return { passes: false, reason: `pWin=${(pWin * 100).toFixed(0)}% < ${(effectiveThreshold * 100).toFixed(0)}%`, blockedReason: 'PWIN_BELOW_THRESHOLD' };
     }
     
-    return { passes: true, reason: `pWin=${(pWin * 100).toFixed(0)}% >= ${(effectiveThreshold * 100).toFixed(0)}%` };
+    return { passes: true, reason: `pWin=${(pWin * 100).toFixed(0)}% >= ${(effectiveThreshold * 100).toFixed(0)}%`, blockedReason: null };
 }
 
 // ==================== RUN SINGLE THRESHOLD BACKTEST ====================
@@ -340,7 +370,8 @@ function runFullSimulation(cycles, pWinThreshold, startingBankroll = 1.00) {
             break;
         }
         
-        const gate = checkAdaptiveGate(cycle, pWinThreshold, tierRequired);
+        // 🏆 v112: Pass current bankroll for bankroll-sensitive pWin floor
+        const gate = checkAdaptiveGate(cycle, pWinThreshold, tierRequired, { bankroll });
         
         if (!gate.passes) continue;
         
@@ -518,7 +549,7 @@ function main() {
         }
     }
     
-    console.log('🔮 POLYPROPHET v109 - ADAPTIVE FREQUENCY BACKTEST');
+    console.log('🔮 POLYPROPHET v112 - ADAPTIVE FREQUENCY BACKTEST');
     console.log('━'.repeat(50));
 
     if (!dataPath) {
@@ -590,7 +621,9 @@ function main() {
             }
             
             console.log('\n' + '─'.repeat(80));
-            console.log('⚠️ DISCLAIMER: Bankroll simulation uses ACTUAL entry prices when available.');
+            console.log('⚠️ DISCLAIMER (v112):');
+            console.log('   - Hard blocks trades at entry price >= 80¢');
+            console.log('   - Bankroll-sensitive pWin floors (92% for ≤$5, 90% for ≤$20)');
             console.log(`   - Entry stats: ${sim.entryStats.actualEntryPct} actual prices, ${sim.entryStats.usedFallbackEntry} fallbacks`);
             console.log('   - Does not include slippage or taker fees');
             console.log('   - Past performance does not guarantee future results');
