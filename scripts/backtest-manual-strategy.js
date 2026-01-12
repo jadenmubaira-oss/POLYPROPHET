@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 /**
- * 🔮 POLYPROPHET v112 - ADAPTIVE FREQUENCY BACKTEST
+ * 🔮 POLYPROPHET v114 - ADAPTIVE FREQUENCY BACKTEST
  *
  * Sweeps pWin thresholds to find optimal balance between:
  * - Frequency (trades per cycle/day)
  * - Accuracy (targeting ≤1-2 loss per 10 trades = 85% WR)
+ *
+ * 🏆 v114 IMPROVEMENTS:
+ * - Tail-BUY gate: Blocks entry < 35¢ unless LOCKED+CONVICTION+pWin≥95%+EV≥30%
+ * - Prevents gambling on tail bets (market strongly disagrees)
  *
  * 🏆 v112 IMPROVEMENTS:
  * - Hard ≥80¢ entry price cap (blocks trades at expensive prices)
@@ -186,8 +190,22 @@ function loadPerCycleCorpus(dataPath) {
 
 // ==================== ADAPTIVE GATE CHECK ====================
 // 🏆 v112: Hard ≥80¢ entry cap, bankroll-sensitive pWin floors
+// 🏆 v114: Tail-BUY gate - blocks entry < minOdds unless strict conditions met
 const PWIN_HARD_FLOOR = 0.85;
 const HARD_ENTRY_CAP = 0.80;  // 🚫 v112: No trades at entry price ≥ 80¢
+const MIN_ODDS_ENTRY = 0.35;  // 🚫 v114: Tail-bet threshold (entry < 35¢)
+
+/**
+ * 🏆 v114: Simple EV ROI calculation for backtest (without slippage/fees for simplicity)
+ */
+function calcSimpleEvRoi(pWin, entryPrice) {
+    if (!Number.isFinite(pWin) || !Number.isFinite(entryPrice) || entryPrice <= 0 || entryPrice >= 1) {
+        return null;
+    }
+    // EV = pWin * (1/entryPrice) - 1
+    // Simplified: (pWin / entryPrice) - 1
+    return (pWin / entryPrice) - 1;
+}
 
 /**
  * 🏆 v112: Get required pWin floor based on bankroll size.
@@ -216,6 +234,37 @@ function checkAdaptiveGate(cycle, pWinThreshold, tierRequired, options = {}) {
         return { passes: false, reason: `Entry ${(entryPrice * 100).toFixed(0)}¢ >= 80¢ cap`, blockedReason: 'ENTRY_PRICE_CAP' };
     }
     
+    // 🏆 v114: TAIL-BUY GATE - Entry price below minOdds threshold
+    const isTailBet = entryPrice < MIN_ODDS_ENTRY;
+    if (isTailBet) {
+        // Calculate EV for tail gate check
+        const evRoi = calcSimpleEvRoi(pWin, entryPrice);
+        const isLocked = cycle.oracleWasLocked === true || cycle.stabilityProxy >= 0.85;
+        
+        // 🏆 v114: Allow tail BUY only if ALL strict conditions are met:
+        // - LOCKED=true
+        // - tier=CONVICTION
+        // - pWin >= 95%
+        // - EV >= 30%
+        // - (sampleSize >= 25 - we don't have this in backtest, skip)
+        const tailBuyAllowed = (
+            isLocked === true &&
+            tier === 'CONVICTION' &&
+            pWin >= 0.95 &&
+            Number.isFinite(evRoi) && evRoi >= 0.30
+        );
+        
+        if (!tailBuyAllowed) {
+            return { 
+                passes: false, 
+                reason: `🚫 TAIL BUY BLOCKED: Entry ${(entryPrice * 100).toFixed(1)}¢ < ${(MIN_ODDS_ENTRY * 100).toFixed(0)}¢ requires LOCKED+CONVICTION+pWin≥95%+EV≥30%`, 
+                blockedReason: 'TAIL_BUY_BLOCKED',
+                isTailBet: true
+            };
+        }
+        // If tail conditions met, continue with normal checks
+    }
+    
     // Tier check
     if (!tierRequired.includes(tier)) {
         return { passes: false, reason: `Tier=${tier} not in ${tierRequired.join('/')}`, blockedReason: 'LOW_TIER' };
@@ -237,7 +286,7 @@ function checkAdaptiveGate(cycle, pWinThreshold, tierRequired, options = {}) {
         return { passes: false, reason: `pWin=${(pWin * 100).toFixed(0)}% < ${(effectiveThreshold * 100).toFixed(0)}%`, blockedReason: 'PWIN_BELOW_THRESHOLD' };
     }
     
-    return { passes: true, reason: `pWin=${(pWin * 100).toFixed(0)}% >= ${(effectiveThreshold * 100).toFixed(0)}%`, blockedReason: null };
+    return { passes: true, reason: `pWin=${(pWin * 100).toFixed(0)}% >= ${(effectiveThreshold * 100).toFixed(0)}%`, blockedReason: null, isTailBet };
 }
 
 // ==================== RUN SINGLE THRESHOLD BACKTEST ====================

@@ -4,7 +4,11 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v113 FINAL ORACLE**: GOAT alignment, calibration fixes, Telegram confirm links.
+> **v114 STALE-SAFE ORACLE**: Stale-cycle suppression, tail-BUY gating, Telegram proof fields.
+> - **🚫 STALE-CYCLE SUPPRESSION**: Telegram PREPARE/BUY blocked if market slug rolled or status != ACTIVE
+> - **🚫 TAIL-BUY GATE**: Entry < 35¢ blocked UNLESS LOCKED+CONVICTION+pWin≥95%+EV≥30%+samples≥25
+> - **📋 TELEGRAM PROOF FIELDS**: Every message shows: Slug, CycleStart, PriceSource, Spread, LCB, Samples
+> - **🔒 DETERMINISTIC CONFIRM IDs**: Trade confirmation links are now stable per signal (no Date.now randomness)
 > - **🚫 NO BUY AT ≥80¢**: Hard block - even GOAT preset cannot override (server clamps)
 > - **💰 BANKROLL-SENSITIVE pWin FLOORS**: 
 >   - ≤$5: 92% pWin required (cannot afford losses)
@@ -15,6 +19,45 @@
 > - **📱 TELEGRAM CONFIRM LINKS**: "I TOOK IT" / "SKIPPED" buttons in BUY signals - records to manual ledger
 > - **GAMMA-DRIVEN MARKET SELECTION**: No more local clock drift issues
 > - **CLOSED-MARKET HARD STOP**: Never trade on stale/closed market data
+
+---
+
+## 🎯 v114: STALE-SAFE, NON-GAMBLING ORACLE
+
+v114 adds critical safety layers to prevent stale-cycle alerts and tail-bet gambling.
+
+### v114 New Features
+
+1. **Stale-Cycle Suppression**: Telegram PREPARE/BUY signals are now blocked if ANY of these are true:
+   - `timeLeftSec <= 0` (cycle has ended)
+   - Signal's `cycleStartEpochSec` doesn't match runtime's current cycle
+   - Signal's slug doesn't match the current Gamma-active slug
+   - Market status is not `ACTIVE` (e.g., CLOSED, ERROR, NO_LIQUIDITY)
+   - No active slug available (market data missing)
+   - This prevents delayed/queued sends from firing after the market rolled
+
+2. **Tail-BUY Gate**: When entry price is below `CONFIG.ORACLE.minOdds` (default 35¢):
+   - **BUY is BLOCKED** unless ALL strict conditions are met:
+     - Prediction is LOCKED (stable + oracleLocked)
+     - Tier is CONVICTION
+     - pWin >= 95%
+     - EV ROI >= 30%
+     - Calibration sample size >= 25
+   - **PREPARE is still allowed** but clearly labeled as "TAIL (FYI)" with a warning
+   - This prevents gambling on tail bets where the market strongly disagrees
+
+3. **Telegram Proof Fields**: Every PREPARE/BUY message now includes verification data:
+   - `Slug:` The exact Polymarket slug (e.g., `btc-updown-15m-1768191300`)
+   - `Cycle:` The cycle start epoch (for cross-referencing)
+   - `Price:` Source of entry price (yesBestAsk, noBestAsk, or fallback)
+   - `Spread:` Current bid-ask spread
+   - `LCB:` Whether Lower Confidence Bound was used (ON/OFF)
+   - `Samples:` Number of calibration samples backing the pWin estimate
+
+4. **Deterministic Confirm IDs**: The "I TOOK IT" / "SKIPPED" confirm links now use a stable ID:
+   - Format: `asset_cycleStartEpochSec_direction_entryPriceRounded`
+   - No more `Date.now()` randomness that made dedupe weaker
+   - Better idempotency for manual trade tracking
 
 ---
 

@@ -8728,7 +8728,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 113;  // v113: GOAT preset alignment, reliability sample fix, Telegram confirm links
+const CONFIG_VERSION = 114;  // v114: Stale-cycle suppression, tail-BUY gating, Telegram proof fields, deterministic confirm IDs
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9825,7 +9825,22 @@ function telegramOraclePrepare(signal) {
     const potRoi = stake.potentialRoi > 0 ? `${stake.potentialRoi.toFixed(0)}%` : 'n/a';
 
     const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
-    let msg = `🟡 <b>PREPARE TO TRADE</b> 🔮\n`;
+    
+    // 🏆 v114: Extract proof fields
+    const marketSlug = signal?.marketSlug || signal?.marketUrl?.split('/').pop() || '?';
+    const cycleStart = signal?.cycleStartEpochSec || '?';
+    const priceDiag = signal?.pricingDiagnostics || {};
+    const priceSource = priceDiag.pricingFallback || (dir === 'UP' ? 'yesBestAsk' : 'noBestAsk');
+    const spread = Number.isFinite(priceDiag.spread) ? `${(priceDiag.spread * 100).toFixed(1)}¢` : 'n/a';
+    const cal = signal?.calibration || {};
+    const lcbUsed = cal.lcbUsed === true || signal?.pWinSource === 'TIER_CONDITIONED';
+    const sampleSize = cal.sampleSize || 0;
+    
+    // 🏆 v114: Tail-bet indicator
+    const isTail = signal?.isTailBet === true;
+    const tailLabel = isTail ? ' ⚠️ TAIL' : '';
+    
+    let msg = `🟡 <b>PREPARE TO TRADE${tailLabel}</b> 🔮\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📍 <b>${asset}</b> — Buy <b>${buyWhat}</b>\n`;
     msg += `💰 Current odds: <code>${price}</code>\n`;
@@ -9833,10 +9848,21 @@ function telegramOraclePrepare(signal) {
     msg += `🎯 pWin: <code>${pWin}</code> | Edge: <code>${edgePp}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `⚠️ <b>Get ready!</b> BUY signal coming soon.\n`;
+    if (isTail && signal?.tailBuyBlocked) {
+        msg += `⚠️ <b>TAIL (FYI only)</b> — BUY conditions not met\n`;
+    } else {
+        msg += `⚠️ <b>Get ready!</b> BUY signal coming soon.\n`;
+    }
     if (reasons.length) {
         for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
     }
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    // 🏆 v114: PROOF FIELDS
+    msg += `📋 <b>PROOF:</b>\n`;
+    msg += `Slug: <code>${tgEscape(marketSlug)}</code>\n`;
+    msg += `Cycle: <code>${cycleStart}</code>\n`;
+    msg += `Price: <code>${priceSource}</code> | Spread: <code>${spread}</code>\n`;
+    msg += `LCB: <code>${lcbUsed ? 'ON' : 'OFF'}</code> | Samples: <code>${sampleSize}</code>\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}">Open Market NOW</a>\n`;
     msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>`;
@@ -9935,16 +9961,34 @@ function telegramOracleBuy(signal) {
         msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     }
     
+    // 🏆 v114: PROOF FIELDS - Always show verification data
+    const marketSlug = signal?.marketSlug || signal?.marketUrl?.split('/').pop() || '?';
+    const cycleStart = signal?.cycleStartEpochSec || '?';
+    const priceDiag = signal?.pricingDiagnostics || {};
+    const priceSource = priceDiag.pricingFallback || (dir === 'UP' ? 'yesBestAsk' : 'noBestAsk');
+    const spread = Number.isFinite(priceDiag.spread) ? `${(priceDiag.spread * 100).toFixed(1)}¢` : 'n/a';
+    const calProof = signal?.calibration || {};
+    const lcbUsed = calProof.lcbUsed === true || signal?.pWinSource === 'TIER_CONDITIONED';
+    const sampleSize = calProof.sampleSize || 0;
+    
+    msg += `📋 <b>PROOF:</b>\n`;
+    msg += `Slug: <code>${tgEscape(marketSlug)}</code>\n`;
+    msg += `Cycle: <code>${cycleStart}</code>\n`;
+    msg += `Price: <code>${priceSource}</code> | Spread: <code>${spread}</code>\n`;
+    msg += `LCB: <code>${lcbUsed ? 'ON' : 'OFF'}</code> | Samples: <code>${sampleSize}</code>\n`;
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    
     if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET</b></a>\n`;
     msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>\n`;
     
-    // 🏆 v113: Add one-click confirm/skip links for manual trade tracking
-    const clientTradeId = `${signal?.asset || 'X'}_${signal?.cycleStartEpochSec || Date.now()}_${Date.now()}`;
+    // 🏆 v114: Deterministic confirm/skip ID (no Date.now() randomness)
+    const entryPriceRounded = Math.round((signal?.implied || 0.50) * 100);
+    const clientTradeId = `${signal?.asset || 'X'}_${signal?.cycleStartEpochSec || 0}_${signal?.direction || 'X'}_${entryPriceRounded}`;
     const confirmBaseUrl = `${DASHBOARD_URL}/api/oracle/confirm`;
     const confirmParams = new URLSearchParams({
         clientTradeId,
         asset: signal?.asset || 'BTC',
-        slug: signal?.marketUrl?.split('/').pop() || '',
+        slug: marketSlug,
         direction: signal?.direction || 'UP',
         price: String(signal?.implied || 0.50),
         pWin: String(signal?.pWin || 0.50),
@@ -10333,8 +10377,45 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         const action = String(signal.action || '').toUpperCase();
         if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return;
         
+        // 🏆 v114: STALE-CYCLE SUPPRESSION - Never send PREPARE/BUY for ended/stale cycles
+        // This prevents delayed/queued Telegram sends from firing after the market rolled
+        const market = currentMarkets?.[asset];
+        const signalSlug = signal?.marketUrl?.split('/').pop() || '';
+        const activeSlug = market?.slug || '';
+        const marketStatus = market?.marketStatus || '';
+        
+        // Check 1: Time left must be positive (cycle not ended)
+        if (signal.timeLeftSec !== undefined && signal.timeLeftSec <= 0) {
+            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (timeLeftSec=${signal.timeLeftSec} <= 0)`, asset);
+            return;
+        }
+        
+        // Check 2: Signal's cycle must match runtime's current cycle
+        if (signal.cycleStartEpochSec && rt.cycleStartEpochSec && signal.cycleStartEpochSec !== rt.cycleStartEpochSec) {
+            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal cycle ${signal.cycleStartEpochSec} != runtime ${rt.cycleStartEpochSec})`, asset);
+            return;
+        }
+        
+        // Check 3: Signal's slug must match the current Gamma-active slug
+        if (signalSlug && activeSlug && signalSlug !== activeSlug) {
+            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal slug ${signalSlug} != active ${activeSlug})`, asset);
+            return;
+        }
+        
+        // Check 4: Market must be ACTIVE (not CLOSED/ERROR/NO_LIQUIDITY)
+        if (marketStatus && marketStatus !== 'ACTIVE') {
+            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (marketStatus=${marketStatus})`, asset);
+            return;
+        }
+        
+        // Check 5: Active slug must exist (market data must be available)
+        if (!activeSlug) {
+            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (no active slug available)`, asset);
+            return;
+        }
+        
         // 🏆 v112: Get slug for dedup
-        const slug = currentMarkets?.[asset]?.slug || '';
+        const slug = activeSlug;
         const direction = signal?.direction || '';
         const tier = String(signal?.tier || '').toUpperCase();
         const isConviction = tier === 'CONVICTION';
@@ -24129,6 +24210,10 @@ function updateOracleSignalForAsset(asset) {
             cycleEndEpochSec: cycleStartEpochSec + INTERVAL_SECONDS,
             timestampMs: nowMs,
             elapsedSec,
+            // 🏆 v114: Proof fields for Telegram verification
+            marketSlug: market?.slug || null,
+            pricingDiagnostics: market?.pricingDiagnostics || null,
+            pWinSource: null, // Set later based on calculation method
             timeLeftSec,
             marketUrl: market?.marketUrl || null,
 
@@ -24197,6 +24282,12 @@ function updateOracleSignalForAsset(asset) {
 
         const pWin = computeTierConditionedPWin(brain, entryPrice);
         signal.pWin = pWin;
+        // 🏆 v114: Track pWin source for proof fields
+        if (typeof brain.getTierConditionedPWin === 'function' && brain.getTierConditionedPWin(brain.tier, entryPrice, { fallback: null, minSamples: 5 }) !== null) {
+            signal.pWinSource = 'TIER_CONDITIONED';
+        } else if (pWin !== null) {
+            signal.pWinSource = 'BUCKET_CALIBRATED';
+        }
 
         const evRoi = computeEvRoi(pWin, entryPrice);
         signal.evRoi = evRoi;
@@ -24400,6 +24491,8 @@ function updateOracleSignalForAsset(asset) {
             // Sample size for calibration
             sampleSize: calibrationSampleSize,
             sampleSizeAdequate: calibrationSampleSize >= 20,
+            // 🏆 v114: LCB (Lower Confidence Bound) usage indicator for proof
+            lcbUsed: signal.pWinSource === 'TIER_CONDITIONED' || signal.pWinSource === 'BUCKET_CALIBRATED',
             // Why this pWin should be trusted (or not)
             trustReason: calibrationSampleSize < 10 
                 ? '⚠️ Low sample size - pWin estimate less reliable'
@@ -24441,6 +24534,25 @@ function updateOracleSignalForAsset(asset) {
             }
         } else {
             // No existing commitment - determine action based on timing window
+            
+            // 🏆 v114: TAIL-BET DETECTION - Entry price below minOdds threshold
+            const minOdds = CONFIG?.ORACLE?.minOdds || 0.35;
+            const isTailBet = Number.isFinite(entryPrice) && entryPrice < minOdds;
+            
+            // 🏆 v114: TAIL-BUY GATE - Allow tail BUY only if ALL strict conditions are met
+            // Otherwise, tail entry is blocked (PREPARE is still allowed as FYI)
+            const tailBuyAllowed = isTailBet ? (
+                signal.calibration?.isLocked === true &&
+                signal.tier === 'CONVICTION' &&
+                Number.isFinite(pWin) && pWin >= 0.95 &&
+                Number.isFinite(evRoi) && evRoi >= 0.30 &&
+                calibrationSampleSize >= 25
+            ) : true; // Non-tail bets don't need this gate
+            
+            const tailBuyBlockReason = isTailBet && !tailBuyAllowed
+                ? `🚫 TAIL BUY BLOCKED: Entry ${(entryPrice * 100).toFixed(1)}¢ < ${(minOdds * 100).toFixed(0)}¢ requires LOCKED+CONVICTION+pWin≥95%+EV≥30%+samples≥25`
+                : null;
+            
             if (inBlackout) {
                 signal.action = 'AVOID';
                 signal.reasons.push('Final 60s blackout - too late to enter');
@@ -24448,18 +24560,37 @@ function updateOracleSignalForAsset(asset) {
                 signal.action = 'WAIT';
                 signal.reasons.push('Signal not stable enough');
             } else if (inBuyWindow && adaptiveGate.passes) {
-                // BUY window: issue BUY if adaptive gate passes
-                signal.action = 'BUY';
-                signal.reasons.unshift(adaptiveGate.reason);
-                if (ultraProphet.isUltra) {
-                    signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
+                // 🏆 v114: Check tail-buy gate before issuing BUY
+                if (isTailBet && !tailBuyAllowed) {
+                    // Tail bet blocked - downgrade to PREPARE with explicit label
+                    signal.action = 'PREPARE';
+                    signal.isTailBet = true;
+                    signal.tailBuyBlocked = true;
+                    signal.reasons.unshift(tailBuyBlockReason);
+                    signal.reasons.push('⚠️ TAIL (FYI) - Not a BUY signal');
+                    if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
+                } else {
+                    // BUY window: issue BUY if adaptive gate passes (and tail-buy allowed if applicable)
+                    signal.action = 'BUY';
+                    signal.reasons.unshift(adaptiveGate.reason);
+                    if (isTailBet && tailBuyAllowed) {
+                        signal.isTailBet = true;
+                        signal.reasons.unshift('✅ TAIL BUY APPROVED: All strict conditions met');
+                    }
+                    if (ultraProphet.isUltra) {
+                        signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
+                    }
+                    if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
                 }
-                if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
             } else if (inPrepareWindow && Number.isFinite(pWin) && pWin >= 0.75) {
                 // 🏆 v107.1: PREPARE threshold 75% (below BUY floor of 85%) for early warning
                 signal.action = 'PREPARE';
+                if (isTailBet) {
+                    signal.isTailBet = true;
+                    signal.reasons.push(`⚠️ TAIL PRICE (${(entryPrice * 100).toFixed(1)}¢ < ${(minOdds * 100).toFixed(0)}¢): BUY requires LOCKED+95%+EV+samples`);
+                }
                 const gateStatus = adaptiveGate.passes 
-                    ? '✅ Gate passes - BUY coming soon'
+                    ? (tailBuyAllowed ? '✅ Gate passes - BUY coming soon' : '⏳ Gate passes but tail conditions not met')
                     : `⏳ Gate: ${adaptiveGate.reason}`;
                 signal.reasons.push(gateStatus);
                 if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
