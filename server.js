@@ -5831,7 +5831,14 @@ app.get('/api/health', (req, res) => {
     const hasAutoDisabled = autoDisabledAssetsForHealth.length > 0;
     const hasManualPause = !!tradeExecutor?.tradingPaused;
     const cbDegraded = !!(cbStatus && cbStatus.state && cbStatus.state !== 'NORMAL');
-    const isDataDegraded = anyFeedStale || anyTradingHalted || hasStalePending || hasAutoDisabled || hasManualPause || cbDegraded;
+    
+    // 🏆 v119: Telegram configuration check
+    const telegramConfigured = !!(CONFIG.TELEGRAM.enabled && CONFIG.TELEGRAM.botToken && CONFIG.TELEGRAM.chatId);
+    const telegramMissingReason = !CONFIG.TELEGRAM.botToken ? 'TELEGRAM_BOT_TOKEN not set' 
+        : !CONFIG.TELEGRAM.chatId ? 'TELEGRAM_CHAT_ID not set'
+        : !CONFIG.TELEGRAM.enabled ? 'TELEGRAM_ENABLED=false' : null;
+    
+    const isDataDegraded = anyFeedStale || anyTradingHalted || hasStalePending || hasAutoDisabled || hasManualPause || cbDegraded || !telegramConfigured;
     
     res.json({
         status: isDataDegraded ? 'degraded' : 'ok',
@@ -5914,7 +5921,16 @@ app.get('/api/health', (req, res) => {
             };
         })(),
         // 🎯 v52: Drift detection per asset
-        rollingAccuracy
+        rollingAccuracy,
+        // 🏆 v119: Telegram notification status (warn-only)
+        telegram: {
+            configured: telegramConfigured,
+            enabled: CONFIG.TELEGRAM.enabled,
+            hasToken: !!CONFIG.TELEGRAM.botToken,
+            hasChatId: !!CONFIG.TELEGRAM.chatId,
+            reason: telegramMissingReason,
+            warning: !telegramConfigured ? 'Telegram is OFF - you will NOT receive trade alerts' : null
+        }
     });
 });
 
@@ -8728,7 +8744,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 118;  // v118: Fix shadow-book settlement checkpoint capture + Gamma fallback; fix manual-journey win/loss accounting
+const CONFIG_VERSION = 119;  // v119: Higher-frequency BUY window (300s default), Telegram warn-only, manual-journey sanity
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8836,6 +8852,12 @@ const CONFIG = {
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
         minOdds: 0.35,
         maxOdds: 0.80,  // 🚫 v112: Hard cap at 80¢ - no BUY signals above this
+        // 🏆 v119: Configurable timing windows (higher frequency)
+        // BUY window: last 5 minutes down to final 60s blackout
+        // PREPARE window: starts before BUY to give advance warning
+        buyWindowStartSec: 300,    // BUY window opens at 5 min before end (was 90s)
+        buyWindowEndSec: 60,       // Blackout: final 60s before resolution (unchanged)
+        prepareWindowStartSec: 420, // PREPARE window: 7 min before end (gives 2 min warning before BUY)
         minStability: 2,         // 2 ticks - fast lock
         // NOTE: voteTrendScore is a 0..1 metric (based on leader flip rate), not "ticks".
         // This threshold is used ONLY by the oracle advisory signal layer (PREPARE/BUY/SELL),
@@ -21737,6 +21759,12 @@ app.get('/', (req, res) => {
             🛑 <span id="haltReason">TRADING HALTED</span>
         </div>
     </div>
+    <!-- 🏆 v119: Telegram warning banner (warn-only) -->
+    ${!CONFIG.TELEGRAM.enabled || !CONFIG.TELEGRAM.botToken || !CONFIG.TELEGRAM.chatId ? `
+    <div style="background:linear-gradient(90deg,rgba(255,100,0,0.3),rgba(255,50,0,0.2));border-bottom:2px solid #ff6600;padding:12px 25px;text-align:center;">
+        <span style="font-size:1.1em;font-weight:bold;color:#ff8800;">⚠️ TELEGRAM NOT CONFIGURED</span>
+        <span style="color:#ffaa66;margin-left:10px;">You will NOT receive trade alerts. Set TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID in env vars.</span>
+    </div>` : ''}
     <div class="main-container">
         <div class="predictions-grid" id="predictionsGrid"><div style="text-align:center;padding:40px;color:#666;">Loading predictions...</div></div>
         <div class="trading-panel">
@@ -22879,6 +22907,10 @@ app.get('/', (req, res) => {
                         // 🚫 v113: Hard cap at 80¢ - no BUY signals above this (matches oracle gate)
                         minOdds: 0.35,
                         maxOdds: 0.80,           // 🚫 v113: Changed from 0.95 to 0.80 (hard entry cap)
+                        // 🏆 v119: Higher-frequency timing windows
+                        buyWindowStartSec: 300,   // BUY window: last 5 min (was 90s)
+                        buyWindowEndSec: 60,      // Final 60s blackout
+                        prepareWindowStartSec: 420, // PREPARE: 7 min before end
                         minStability: 2,
                         requireTrending: false,
                         // Ensure GOAT resets ALL critical runtime behavior (deep-merge safe)
@@ -24872,11 +24904,12 @@ function updateOracleSignalForAsset(asset) {
         
         const stable = voteStability >= minVoteStability;
         
-        // v105: Adaptive timing windows
-        const prepareWindowStart = 180;  // Start PREPARE at 180s before end
-        const prepareWindowEnd = 90;     // End PREPARE at 90s before end
-        const buyWindowStart = 90;       // Start BUY at 90s before end  
-        const buyWindowEnd = 60;         // End BUY at 60s before end (blackout)
+        // v119: Configurable timing windows (from CONFIG.ORACLE)
+        // Default: BUY at 300s-60s (last 5 min), PREPARE at 420s-300s (7-5 min)
+        const buyWindowStart = CONFIG.ORACLE.buyWindowStartSec || 300;
+        const buyWindowEnd = CONFIG.ORACLE.buyWindowEndSec || 60;
+        const prepareWindowStart = CONFIG.ORACLE.prepareWindowStartSec || 420;
+        const prepareWindowEnd = buyWindowStart; // PREPARE ends when BUY starts
         
         const inPrepareWindow = timeLeftSec <= prepareWindowStart && timeLeftSec > prepareWindowEnd;
         const inBuyWindow = timeLeftSec <= buyWindowStart && timeLeftSec > buyWindowEnd;
@@ -25095,7 +25128,7 @@ function updateOracleSignalForAsset(asset) {
             } else if (timeLeftSec > prepareWindowStart) {
                 // Too early - still gathering data
                 signal.action = 'WAIT';
-                signal.reasons.push(`Early cycle - BUY window opens at ${prepareWindowEnd}s before end`);
+                signal.reasons.push(`Early cycle - PREPARE window opens at ${prepareWindowStart}s, BUY at ${buyWindowStart}s before end`);
             } else {
                 signal.action = 'WAIT';
             }
@@ -25347,7 +25380,18 @@ app.get('/api/manual-journey', (req, res) => {
         ? ((Math.log(j.currentBalance) / Math.log(1000000)) * 100)
         : 0;
     
+    // 🏆 v119: Detect uninitialized state to avoid misleading "wiped" appearance
+    const isInitialized = j.startingBalance > 0 || allTrades.length > 0;
+    const guidance = !isInitialized 
+        ? 'Manual journey not started. POST /api/manual-journey/balance with {"balance": <starting_amount>} to begin.'
+        : j.currentBalance === 0 && resolvedTrades.length > 0 
+            ? 'Bankroll depleted. Reset via POST /api/manual-journey/balance with {"balance": <new_amount>, "reset": true}.'
+            : null;
+    
     res.json({
+        // 🏆 v119: Sanity flags to avoid confusion
+        initialized: isInitialized,
+        guidance,
         startingBalance: j.startingBalance,
         currentBalance: j.currentBalance,
         targetBalance: j.targetBalance,

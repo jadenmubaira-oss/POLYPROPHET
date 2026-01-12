@@ -4,6 +4,12 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
+> **v119 HIGHER-FREQUENCY ORACLE**: Timing windows + Telegram clarity + manual-journey sanity.
+> - **⏱️ HIGHER-FREQUENCY BUY WINDOW**: Now starts at **300s** (5 minutes) before cycle end, not 90s. PREPARE starts at 420s. Final 60s blackout unchanged.
+> - **📡 TELEGRAM WARNINGS**: Dashboard + `/api/health` now warn when Telegram is OFF/not configured. Status = `degraded` if no `botToken`/`chatId`.
+> - **📊 MANUAL-JOURNEY SANITY**: `/api/manual-journey` now includes `initialized` flag + `guidance` string to avoid "balance=0, trades=0" confusion.
+> - **🔧 CONFIGURABLE WINDOWS**: `CONFIG.ORACLE.buyWindowStartSec`, `prepareWindowStartSec`, `buyWindowEndSec` are now settable via GOAT preset or settings API.
+>
 > **v118 FINAL PATCH**: Shadow-book settlement correctness + manual-ledger accuracy.
 > - **🔧 SHADOW-BOOK SETTLEMENT FIX**: Settlement now uses the **cycle checkpoint captured at confirmation/open** (`cycleStartCheckpointPrice`) instead of a non-existent `brain.checkpoint`.
 > - **🛟 GAMMA FALLBACK**: If prices are missing at the cycle boundary, the bot resolves the cycle via **Gamma** (never force-loss due to missing data).
@@ -30,6 +36,62 @@
 > - **📱 TELEGRAM CONFIRM LINKS**: "I TOOK IT" / "SKIPPED" buttons in BUY signals - records to manual ledger
 > - **GAMMA-DRIVEN MARKET SELECTION**: No more local clock drift issues
 > - **CLOSED-MARKET HARD STOP**: Never trade on stale/closed market data
+
+---
+
+## 🎯 v119: HIGHER-FREQUENCY ORACLE + TELEGRAM CLARITY
+
+v119 increases trade frequency by extending the BUY window earlier (from 90s to 300s before cycle end), adds loud warnings when Telegram is not configured, and improves manual-journey API clarity.
+
+### Timing Windows (NEW in v119)
+
+| Window | Start | End | Purpose |
+|--------|-------|-----|---------|
+| **PREPARE** | 420s (7 min) | 300s (5 min) | Early warning: "Get ready, signal is forming" |
+| **BUY** | 300s (5 min) | 60s (1 min) | Trade window: BUY signals can fire here |
+| **BLACKOUT** | 60s | 0s | No trading: too close to resolution |
+
+**Why extend the BUY window?**
+- At 90s, prices often hit 95-99¢ (too expensive due to ≥80¢ cap)
+- At 300s, prices are more often in the 35-80¢ range
+- More opportunities to catch trades within hard price limits
+
+**Configurable via:**
+```javascript
+CONFIG.ORACLE.buyWindowStartSec = 300;    // Default: 300s (5 min before end)
+CONFIG.ORACLE.buyWindowEndSec = 60;       // Default: 60s (blackout)
+CONFIG.ORACLE.prepareWindowStartSec = 420; // Default: 420s (7 min)
+```
+
+### Telegram Warnings (NEW in v119)
+
+**Dashboard**: Big orange banner at top if `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID` missing.
+
+**`/api/health`**: Now includes `telegram` object:
+```json
+{
+  "telegram": {
+    "configured": false,
+    "enabled": false,
+    "hasToken": false,
+    "hasChatId": false,
+    "reason": "TELEGRAM_BOT_TOKEN not set",
+    "warning": "Telegram is OFF - you will NOT receive trade alerts"
+  }
+}
+```
+Status is `degraded` (not `ok`) when Telegram is missing.
+
+### Manual Journey Sanity (NEW in v119)
+
+`/api/manual-journey` now includes:
+```json
+{
+  "initialized": false,
+  "guidance": "Manual journey not started. POST /api/manual-journey/balance with {\"balance\": <starting_amount>} to begin."
+}
+```
+This prevents confusion when balance=0 and trades=0 (looks like "wiped" but is actually "never started").
 
 ---
 

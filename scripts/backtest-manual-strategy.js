@@ -1,10 +1,16 @@
 #!/usr/bin/env node
 /**
- * 🔮 POLYPROPHET v114 - ADAPTIVE FREQUENCY BACKTEST
+ * 🔮 POLYPROPHET v119 - ADAPTIVE FREQUENCY BACKTEST
  *
  * Sweeps pWin thresholds to find optimal balance between:
  * - Frequency (trades per cycle/day)
  * - Accuracy (targeting ≤1-2 loss per 10 trades = 85% WR)
+ *
+ * 🏆 v119 IMPROVEMENTS:
+ * - Higher-frequency timing windows: BUY at 300s-60s (last 5 min), PREPARE at 420s-300s
+ * - £1 journey path visualization (simulated from starting balance)
+ * - Entry price distribution stats
+ * - Dedupe summary at load time
  *
  * 🏆 v114 IMPROVEMENTS:
  * - Tail-BUY gate: Blocks entry < 35¢ unless LOCKED+CONVICTION+pWin≥95%+EV≥30%
@@ -20,6 +26,11 @@
  * Uses walk-forward validation to avoid overfitting:
  * - Train on first 70% of data
  * - Test on remaining 30%
+ *
+ * NOTE: This backtest uses historical cycle data. The timing windows in live mode are:
+ * - PREPARE window: 420s-300s before cycle end (early warning)
+ * - BUY window: 300s-60s before cycle end (last 5 minutes)
+ * - Blackout: final 60s (no trading)
  *
  * Usage:
  *   node scripts/backtest-manual-strategy.js --data=debg [--sweep] [--target-wr=0.85]
@@ -598,7 +609,7 @@ function main() {
         }
     }
     
-    console.log('🔮 POLYPROPHET v112 - ADAPTIVE FREQUENCY BACKTEST');
+    console.log('🔮 POLYPROPHET v119 - ADAPTIVE FREQUENCY BACKTEST');
     console.log('━'.repeat(50));
 
     if (!dataPath) {
@@ -669,11 +680,59 @@ function main() {
                 console.log('\n   💀 BUSTED');
             }
             
+            // 🏆 v119: £1 Journey Path Visualization
+            console.log('\n' + '═'.repeat(80));
+            console.log('💷 £1 JOURNEY PATH');
+            console.log('═'.repeat(80));
+            const milestones = [1, 5, 10, 50, 100, 500, 1000, 10000, 100000, 1000000];
+            let journeyPath = '   £1';
+            let lastMilestone = 1;
+            let tradeToMilestone = {};
+            for (let i = 0; i < sim.trades.length; i++) {
+                const t = sim.trades[i];
+                for (const m of milestones) {
+                    if (t.bankrollBefore < m && t.bankrollAfter >= m && !tradeToMilestone[m]) {
+                        tradeToMilestone[m] = { trade: i + 1, balance: t.bankrollAfter };
+                    }
+                }
+            }
+            console.log('   Milestone progress:');
+            for (const m of milestones) {
+                const hit = tradeToMilestone[m];
+                if (hit) {
+                    console.log(`   ✅ £${m.toLocaleString()} reached at trade #${hit.trade} (balance: £${hit.balance.toFixed(2)})`);
+                } else if (sim.finalBankroll < m) {
+                    console.log(`   ⏸️ £${m.toLocaleString()} not reached (final: £${sim.finalBankroll.toFixed(2)})`);
+                    break;
+                }
+            }
+            
+            // 🏆 v119: Entry Price Distribution
+            console.log('\n' + '═'.repeat(80));
+            console.log('📊 ENTRY PRICE DISTRIBUTION');
+            console.log('═'.repeat(80));
+            const priceRanges = { '0-20¢': 0, '20-40¢': 0, '40-60¢': 0, '60-80¢': 0, '80-100¢': 0 };
+            for (const t of sim.trades) {
+                const p = t.entryPrice * 100;
+                if (p < 20) priceRanges['0-20¢']++;
+                else if (p < 40) priceRanges['20-40¢']++;
+                else if (p < 60) priceRanges['40-60¢']++;
+                else if (p < 80) priceRanges['60-80¢']++;
+                else priceRanges['80-100¢']++;
+            }
+            console.log('   Range    │ Trades │ Percentage');
+            console.log('   ─────────┼────────┼───────────');
+            for (const [range, count] of Object.entries(priceRanges)) {
+                const pct = sim.trades.length > 0 ? (count / sim.trades.length * 100).toFixed(1) : 0;
+                console.log(`   ${range.padEnd(8)} │ ${String(count).padStart(6)} │ ${pct}%`);
+            }
+            
             console.log('\n' + '─'.repeat(80));
-            console.log('⚠️ DISCLAIMER (v112):');
+            console.log('⚠️ DISCLAIMER (v119):');
             console.log('   - Hard blocks trades at entry price >= 80¢');
             console.log('   - Bankroll-sensitive pWin floors (92% for ≤$5, 90% for ≤$20)');
             console.log(`   - Entry stats: ${sim.entryStats.actualEntryPct} actual prices, ${sim.entryStats.usedFallbackEntry} fallbacks`);
+            console.log('   - Live BUY window: 300s-60s before cycle end (higher frequency)');
             console.log('   - Does not include slippage or taker fees');
             console.log('   - Past performance does not guarantee future results');
             console.log('─'.repeat(80));
