@@ -4,21 +4,58 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v110 ROBUST ORACLE**: Market fetch hardened + oracle blind alerts.
+> **v111 FINAL ORACLE**: Gamma-driven market selection, clock drift diagnostics, conviction notifications.
 > - **85% pWin FLOOR**: **HARD-ENFORCED for ALL tiers** (startup-reset, no legacy state)
-> - **85% WIN RATE TARGET**: 1-2 losses per 10 trades (user-specified)
-> - **~1 BUY/HOUR TARGET**: When market conditions allow
-> - **$1 MANUAL TRADING**: Website market orders support $1 minimum
-> - **ACTUAL ENTRY PRICES**: Backtest uses recorded entryOdds (not fixed 50¢)
-> - **GAMMA PARSING FIX**: Handles JSON-string arrays (outcomes/clobTokenIds)
-> - **ORACLE BLIND ALERTS**: Telegram notification when market data unavailable
-> - **FETCH DIAGNOSTICS**: Per-asset `fetchOk`, `fetchError`, `tokenMappingSource` in /api/state
+> - **GAMMA-DRIVEN MARKET SELECTION**: No more local clock drift issues
+> - **CLOSED-MARKET HARD STOP**: Never trade on stale/closed market data
+> - **CLOCK/SLUG DRIFT DIAGNOSTICS**: Visible in `/api/state._clockDrift`
+> - **ENHANCED CONVICTION ALERTS**: Telegram notifications for CONVICTION LOCKED trades
+> - **WEB PUSH SUPPORT**: Browser notification infrastructure (requires npm install web-push)
+> - **BANKROLL CALCULATOR**: Mobile UI has 5→1M / 10→1M scenario calculator
+> - **UI CLARITY**: "Model Conf" vs "Cal.Win" labels to avoid confusion
+> - **pWinSource**: Shows whether pWin is TIER_CONDITIONED or BUCKET_CALIBRATED
 
 ---
 
-## 🎯 v110: ROBUST ORACLE MODE
+## 🎯 v111: FINAL ORACLE MODE (Gamma-Driven)
 
-v110 fixes market data fetch (Gamma API returns JSON strings) + adds oracle blind alerts.
+v111 eliminates clock/slug drift by deriving active markets from Gamma API instead of local timestamps.
+
+### v111 Critical Fixes
+
+1. **Gamma-Driven Active Market Selection**: The bot no longer relies solely on `getCurrentCheckpoint()` (server clock). It queries Gamma for the computed slug, checks if it's actually active, and falls back to the next cycle slug if the computed one is closed. This prevents "stale market" issues when server clock drifts.
+
+2. **Closed-Market Hard Stop**: If Gamma reports a market as `closed: true`, `acceptingOrders: false`, or CLOB returns "No orderbook exists", the oracle immediately marks that market as `CLOSED` and blocks all tradable signals. No more cached odds on dead markets.
+
+3. **Clock/Slug Drift Diagnostics**: `/api/state._clockDrift` now shows:
+   - `serverNowEpochSec`: Server's current timestamp
+   - `perAsset[X].computedSlug`: What the server clock calculated
+   - `perAsset[X].activeSlugFromGamma`: What Gamma says is active
+   - `perAsset[X].driftDetected`: `true` if they differ
+   - `perAsset[X].marketStatus`: `ACTIVE`, `CLOSED`, `NO_LIQUIDITY`, or `ERROR`
+
+4. **Enhanced CONVICTION Notifications**: Telegram BUY alerts now show:
+   - "CONVICTION LOCKED" header when tier=CONVICTION and calibration is locked
+   - "CONVICTION BUY" header when tier=CONVICTION
+   - Regular "BUY NOW" for ADVISORY tier
+
+5. **Web Push Infrastructure**: Endpoints added for browser push notifications:
+   - `GET /api/push/vapid-key`: Get VAPID public key (for subscription)
+   - `POST /api/push/subscribe`: Register a device for push
+   - `POST /api/push/unsubscribe`: Remove a device
+   - `POST /api/push/test`: Send test notification
+   - Requires: `npm install web-push` and VAPID env vars
+
+6. **Bankroll Path Calculator**: Mobile UI (`/mobile.html`) now has a "Calc" tab with:
+   - Starting balance, target, win rate, ROI, stake fraction inputs
+   - Calculates trades needed and estimated time
+   - Shows bust risk warning
+   - Quick scenario buttons for $5→$1M, $10→$1M, etc.
+
+7. **UI Clarity**: Changed labels to avoid confusion:
+   - "pWin" → "Cal.Win" (Calibrated Win probability)
+   - Added "Conf:" prefix to confidence display
+   - Added `pWinSource` field to `/api/state` (TIER_CONDITIONED or BUCKET_CALIBRATED)
 
 ### v110 Critical Fixes
 
