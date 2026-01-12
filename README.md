@@ -4,6 +4,11 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
+> **v121 STAKE-LESS TELEGRAM**: Messages omit sizing; confirm page prompts for stake.
+> - **📱 NO STAKE IN TELEGRAM**: BUY/PREPARE messages no longer include stake/shares/bankroll-path — you control sizing.
+> - **✏️ STAKE-ENTRY ON CONFIRM**: Clicking "I TOOK IT" now opens a stake-entry page (quick % buttons if bankroll set) — P/L tracking remains accurate.
+> - **🔐 IDEMPOTENCY FIX**: Trade is only marked "seen" AFTER recording (not on stake-entry page render).
+>
 > **v120 HOTFIX**: Fix Telegram confirm/skip link crash.
 > - **🔧 CONFIRM LINK FIX**: `/api/oracle/confirm` was calling undefined `isManualTradeIdSeen` — fixed to use `checkManualTradeIdempotency`.
 >
@@ -95,6 +100,46 @@ Status is `degraded` (not `ok`) when Telegram is missing.
 }
 ```
 This prevents confusion when balance=0 and trades=0 (looks like "wiped" but is actually "never started").
+
+---
+
+## 🎯 v121: STAKE-LESS TELEGRAM + CONFIRM STAKE ENTRY
+
+v121 removes stake/sizing from Telegram messages entirely—you decide how much to bet. When you confirm a trade, a simple stake-entry page appears so P/L tracking remains accurate.
+
+### Telegram Message Changes
+
+**Before v121 (BUY message included):**
+```
+💵 Stake: $10.00 (25% of bankroll)
+📊 Shares: 50 shares
+📈 If WIN: +$40.00 (+400%)
+🚀 ~4 trades to $1M
+```
+
+**After v121 (removed):**
+None of the above. Messages only show decision-critical info:
+- Asset, tier, direction, entry price
+- pWin, EV, Edge, time left
+- LOCKED/MOVABLE status, confidence
+- Proof fields (slug, cycle, LCB, samples)
+- Confirm/skip links
+
+### Stake Entry Page (on "I TOOK IT")
+
+When you click "I TOOK IT" from a BUY message:
+1. If stake was not provided in the URL → **stake-entry page renders**
+2. Enter your actual stake (or click quick % buttons: 10%, 25%, 50%, 100%)
+3. Submit → trade recorded to manual ledger with correct stake
+4. Idempotency is only marked **after** recording (not when page loads)
+
+If you click "SKIPPED", no stake prompt—immediately recorded as declined.
+
+### Why This Change
+
+- **You control sizing** — the bot shouldn't dictate how much to bet
+- **Accurate P/L** — trades recorded with your real stake, not bot's guess
+- **Cleaner messages** — Telegram alerts stay concise and decision-focused
 
 ---
 

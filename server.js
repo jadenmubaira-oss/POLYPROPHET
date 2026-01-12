@@ -8744,7 +8744,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 120;  // v120: Fix Telegram confirm/skip crash (isManualTradeIdSeen → checkManualTradeIdempotency)
+const CONFIG_VERSION = 121;  // v121: Remove stake from Telegram messages; stake-entry page on confirm
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9862,10 +9862,8 @@ function telegramOraclePrepare(signal) {
     const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
     const tLeft = formatMmSs(signal?.timeLeftSec);
     
-    // Calculate stake recommendation
-    const stake = getManualStakeRecommendation(entryPrice, signal?.pWin);
+    // 🏆 v121: No stake/sizing in messages - user decides sizing
     const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
-    const potRoi = stake.potentialRoi > 0 ? `${stake.potentialRoi.toFixed(0)}%` : 'n/a';
 
     const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
     
@@ -9885,10 +9883,9 @@ function telegramOraclePrepare(signal) {
     
     let msg = `🟡 <b>PREPARE TO TRADE${tailLabel}</b> 🔮\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `📍 <b>${asset}</b> — Buy <b>${buyWhat}</b>\n`;
-    msg += `💰 Current odds: <code>${price}</code>\n`;
-    msg += `📈 Potential ROI: <code>${potRoi}</code> if correct\n`;
-    msg += `🎯 pWin: <code>${pWin}</code> | Edge: <code>${edgePp}</code>\n`;
+    msg += `📍 <b>${asset}</b> • <code>${tier}</code> — Buy <b>${buyWhat}</b>\n`;
+    msg += `💰 Entry: <code>${price}</code>\n`;
+    msg += `🎯 pWin: <code>${pWin}</code> | Edge: <code>${edgePp}</code> | EV: <code>${ev}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (isTail && signal?.tailBuyBlocked) {
@@ -9931,13 +9928,8 @@ function telegramOracleBuy(signal) {
     const isConviction = tier === 'CONVICTION';
     const isLocked = signal?.calibration?.isLocked === true;
     
-    // Calculate stake recommendation for manual trading
-    const stake = getManualStakeRecommendation(entryPrice, signal?.pWin, null, isUltra);
+    // 🏆 v121: No stake/sizing in messages - user decides sizing
     const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
-    const potRoi = stake.potentialRoi > 0 ? `${stake.potentialRoi.toFixed(0)}%` : 'n/a';
-    const stakeUsd = stake.recommendedStake > 0 ? `$${stake.recommendedStake.toFixed(2)}` : 'n/a';
-    const sharesNum = stake.shares > 0 ? stake.shares : 'n/a';
-    const profitUsd = stake.potentialProfit > 0 ? `$${stake.potentialProfit.toFixed(2)}` : 'n/a';
 
     const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
     
@@ -9961,10 +9953,7 @@ function telegramOracleBuy(signal) {
     msg += `\n`;
     msg += `🎯 <b>ACTION: Buy ${buyWhat} @ ${price}</b>\n`;
     msg += `\n`;
-    msg += `💵 Stake: <code>${stakeUsd}</code> (${(stake.stakePercent * 100).toFixed(0)}% of bankroll)\n`;
-    msg += `📊 Shares: <code>${sharesNum}</code> shares\n`;
-    msg += `📈 If WIN: <code>+${profitUsd}</code> (+${potRoi})\n`;
-    msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code>\n`;
+    msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code> | Edge: <code>${edgePp}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
     
     // 🏆 v108: Add calibration confidence indicator
@@ -9977,9 +9966,6 @@ function telegramOracleBuy(signal) {
         msg += `${lockIcon} ${cal.isLocked ? 'LOCKED' : 'MOVABLE'} | ${confIcon} Conf: <code>${cal.pWinConfidence}</code>\n`;
     }
     
-    if (stake.tradesToMillion < 100) {
-        msg += `🚀 ~${stake.tradesToMillion} trades to $1M\n`;
-    }
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (reasons.length) {
         for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
@@ -10024,7 +10010,7 @@ function telegramOracleBuy(signal) {
     if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET</b></a>\n`;
     msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>\n`;
     
-    // 🏆 v114: Deterministic confirm/skip ID (no Date.now() randomness)
+    // 🏆 v121: Confirm links - stake entered on confirm page (not in message)
     const entryPriceRounded = Math.round((signal?.implied || 0.50) * 100);
     const clientTradeId = `${signal?.asset || 'X'}_${signal?.cycleStartEpochSec || 0}_${signal?.direction || 'X'}_${entryPriceRounded}`;
     const confirmBaseUrl = `${DASHBOARD_URL}/api/oracle/confirm`;
@@ -10034,8 +10020,8 @@ function telegramOracleBuy(signal) {
         slug: marketSlug,
         direction: signal?.direction || 'UP',
         price: String(signal?.implied || 0.50),
-        pWin: String(signal?.pWin || 0.50),
-        stake: String(stake.recommendedStake || 1.00)
+        pWin: String(signal?.pWin || 0.50)
+        // 🏆 v121: stake omitted - user enters on confirm page
     });
     
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
@@ -25579,16 +25565,80 @@ app.get('/api/oracle/confirm', async (req, res) => {
             `);
         }
         
-        // Mark as seen to prevent duplicate processing
-        await markManualTradeIdSeen(clientTradeId);
-        
         const decisionLower = (decision || '').toLowerCase();
         const isTook = decisionLower === 'took' || decisionLower === 'yes' || decisionLower === 'buy';
         const isSkipped = decisionLower === 'skipped' || decisionLower === 'no' || decisionLower === 'skip';
         
         const entryPriceNum = Number(price) || 0.50;
-        const stakeNum = Number(stake) || 1.00;
         const pWinNum = Number(pWin) || null;
+        const stakeNum = Number(stake);
+        const stakeValid = Number.isFinite(stakeNum) && stakeNum > 0;
+        
+        // 🏆 v121: If TOOK but no stake provided, show stake entry page
+        if (isTook && !stakeValid) {
+            const currentBalance = manualTradingJourney?.currentBalance || 0;
+            const balanceDisplay = currentBalance > 0 ? `$${currentBalance.toFixed(2)}` : 'Not set';
+            const buyWhat = String(direction || 'UP').toUpperCase() === 'UP' ? 'YES' : 'NO';
+            
+            return res.send(`
+                <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:white;text-align:center;}
+                    .card{background:linear-gradient(145deg,#1f2937,#111827);border-radius:16px;padding:24px;margin:20px auto;max-width:420px;border:1px solid #374151;}
+                    .label{color:#9ca3af;font-size:0.85em;margin-bottom:6px;text-align:left;}
+                    .value{font-size:1.3em;font-weight:bold;margin-bottom:16px;color:#fbbf24;}
+                    input[type="number"]{width:100%;padding:14px;font-size:1.2em;border-radius:8px;border:2px solid #4b5563;background:#111827;color:#fff;margin-bottom:12px;text-align:center;}
+                    input[type="number"]:focus{outline:none;border-color:#10b981;}
+                    .quick-btns{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;justify-content:center;}
+                    .quick-btn{padding:10px 16px;border-radius:8px;border:1px solid #4b5563;background:#1f2937;color:#d1d5db;cursor:pointer;font-size:0.9em;transition:all 0.2s;}
+                    .quick-btn:hover{background:#374151;border-color:#10b981;color:#10b981;}
+                    .submit-btn{width:100%;padding:16px;font-size:1.1em;font-weight:bold;border-radius:10px;border:none;background:linear-gradient(135deg,#10b981,#059669);color:#fff;cursor:pointer;margin-top:8px;}
+                    .submit-btn:hover{background:linear-gradient(135deg,#059669,#047857);}
+                    .info{color:#6b7280;font-size:0.8em;margin-top:16px;}
+                </style></head>
+                <body>
+                    <div class="card">
+                        <h2 style="color:#10b981;margin-top:0;">✅ Confirm Trade</h2>
+                        <div class="label">Asset</div>
+                        <div class="value">${asset} • Buy ${buyWhat}</div>
+                        <div class="label">Entry Price</div>
+                        <div class="value">${(entryPriceNum * 100).toFixed(1)}¢</div>
+                        <div class="label">Your Bankroll</div>
+                        <div class="value" style="color:#60a5fa;">${balanceDisplay}</div>
+                        
+                        <form method="GET" action="${DASHBOARD_URL}/api/oracle/confirm">
+                            <input type="hidden" name="decision" value="took">
+                            <input type="hidden" name="clientTradeId" value="${clientTradeId}">
+                            <input type="hidden" name="asset" value="${asset}">
+                            <input type="hidden" name="slug" value="${slug || ''}">
+                            <input type="hidden" name="direction" value="${direction || 'UP'}">
+                            <input type="hidden" name="price" value="${price || '0.50'}">
+                            <input type="hidden" name="pWin" value="${pWin || '0.50'}">
+                            
+                            <div class="label" style="margin-top:8px;">Stake Amount ($)</div>
+                            <input type="number" name="stake" id="stakeInput" step="0.01" min="0.01" placeholder="Enter stake..." required>
+                            
+                            ${currentBalance > 0 ? `
+                            <div class="quick-btns">
+                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 0.10).toFixed(2)}'">10%</button>
+                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 0.25).toFixed(2)}'">25%</button>
+                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 0.50).toFixed(2)}'">50%</button>
+                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 1.00).toFixed(2)}'">100%</button>
+                            </div>
+                            ` : ''}
+                            
+                            <button type="submit" class="submit-btn">📝 Record Trade</button>
+                        </form>
+                        
+                        <p class="info">This records the trade in your manual ledger for P/L tracking.</p>
+                    </div>
+                    <a href="${DASHBOARD_URL}" style="color:#6b7280;text-decoration:none;font-size:0.9em;">← Back to Dashboard</a>
+                </body></html>
+            `);
+        }
+        
+        // 🏆 v121: Only mark idempotency AFTER we're actually recording (not on stake page)
+        await markManualTradeIdSeen(clientTradeId);
         
         const tradeRecord = {
             id: clientTradeId,
@@ -25597,7 +25647,7 @@ app.get('/api/oracle/confirm', async (req, res) => {
             direction: String(direction || 'UP').toUpperCase(),
             decision: isTook ? 'TOOK' : (isSkipped ? 'SKIPPED' : 'UNKNOWN'),
             entryPrice: entryPriceNum,
-            stake: stakeNum,
+            stake: isTook && stakeValid ? stakeNum : null,
             pWin: pWinNum,
             recordedAt: Date.now(),
             // If TOOK, this is pending resolution. If SKIPPED, it's informational.
@@ -25632,7 +25682,7 @@ app.get('/api/oracle/confirm', async (req, res) => {
         }
         
         // Log
-        log(`📱 TELEGRAM CONFIRM: ${tradeRecord.decision} ${asset} ${direction} @ ${(entryPriceNum * 100).toFixed(0)}¢ (ID: ${clientTradeId}) | CallResult: ${callResult.reason}`);
+        log(`📱 TELEGRAM CONFIRM: ${tradeRecord.decision} ${asset} ${direction} @ ${(entryPriceNum * 100).toFixed(0)}¢ stake=$${stakeValid ? stakeNum.toFixed(2) : 'n/a'} (ID: ${clientTradeId}) | CallResult: ${callResult.reason}`);
         
         // Return nice HTML confirmation
         const emoji = isTook ? '✅' : (isSkipped ? '⏭️' : '❓');
@@ -25655,7 +25705,7 @@ app.get('/api/oracle/confirm', async (req, res) => {
                     <div class="value">${asset} ${direction}</div>
                     <div class="label">Entry Price</div>
                     <div class="value">${(entryPriceNum * 100).toFixed(0)}¢</div>
-                    ${isTook ? `<div class="label">Stake</div><div class="value">$${stakeNum.toFixed(2)}</div>` : ''}
+                    ${isTook && stakeValid ? `<div class="label">Stake</div><div class="value">$${stakeNum.toFixed(2)}</div>` : ''}
                     <p style="color:#888;font-size:0.8em;margin-top:20px;">Synced to your manual ledger</p>
                 </div>
                 <a href="${DASHBOARD_URL}" style="color:#00ff88;text-decoration:none;">← Back to Dashboard</a>
