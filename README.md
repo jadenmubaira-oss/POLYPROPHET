@@ -4,6 +4,9 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
+> **v120 HOTFIX**: Fix Telegram confirm/skip link crash.
+> - **🔧 CONFIRM LINK FIX**: `/api/oracle/confirm` was calling undefined `isManualTradeIdSeen` — fixed to use `checkManualTradeIdempotency`.
+>
 > **v119 HIGHER-FREQUENCY ORACLE**: Timing windows + Telegram clarity + manual-journey sanity.
 > - **⏱️ HIGHER-FREQUENCY BUY WINDOW**: Now starts at **300s** (5 minutes) before cycle end, not 90s. PREPARE starts at 420s. Final 60s blackout unchanged.
 > - **📡 TELEGRAM WARNINGS**: Dashboard + `/api/health` now warn when Telegram is OFF/not configured. Status = `degraded` if no `botToken`/`chatId`.

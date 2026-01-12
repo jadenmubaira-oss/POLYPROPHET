@@ -8744,7 +8744,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 119;  // v119: Higher-frequency BUY window (300s default), Telegram warn-only, manual-journey sanity
+const CONFIG_VERSION = 120;  // v120: Fix Telegram confirm/skip crash (isManualTradeIdSeen → checkManualTradeIdempotency)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -25569,7 +25569,7 @@ app.get('/api/oracle/confirm', async (req, res) => {
         }
         
         // Check idempotency - have we already processed this trade?
-        const seenCheck = await isManualTradeIdSeen(clientTradeId);
+        const seenCheck = await checkManualTradeIdempotency(clientTradeId);
         if (seenCheck.seen) {
             return res.send(`
                 <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
