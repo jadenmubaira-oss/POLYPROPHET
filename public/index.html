@@ -172,6 +172,7 @@
             if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return 'Next: WAIT';
             const dir = sig.direction || asset.prediction || 'WAIT';
             const odds = Number.isFinite(sig.implied) ? fmtCents01(sig.implied, 1) : null;
+            // 🏆 v111: Clarify pWin is calibrated win probability (historical), not model confidence
             const pWin = Number.isFinite(sig.pWin) ? fmtPct01(sig.pWin, 1) : null;
             const ev = Number.isFinite(sig.evRoi) ? (sig.evRoi >= 0 ? '+' : '') + (sig.evRoi * 100).toFixed(1) + '%' : null;
             const tLeft = Number.isFinite(sig.timeLeftSec) ? sig.timeLeftSec : null;
@@ -181,7 +182,7 @@
 
             let line = `Next: ${action} ${dir}`;
             if (odds) line += ` @ ${odds}`;
-            if (pWin) line += ` | pWin ${pWin}`;
+            if (pWin) line += ` | Cal.Win ${pWin}`;  // "Cal.Win" = Calibrated Win probability
             if (ev) line += ` | EV ${ev}`;
             if (tl) line += ` | tLeft ${tl}`;
             return line;
@@ -235,7 +236,7 @@
                         <div>
                             <div style="font-weight: bold;">${label}</div>
                             <div style="font-size: 12px; color: var(--dim);">
-                                ${asset.prediction || 'WAIT'} | ${asset.tier || 'NONE'} | ${fmtPct01(asset.confidence, 0)}
+                                ${asset.prediction || 'WAIT'} | ${asset.tier || 'NONE'} | Conf: ${fmtPct01(asset.confidence, 0)}
                             </div>
                             <div style="font-size: 12px; color: var(--dim); margin-top: 2px;">
                                 ${renderOracleLine(asset)}

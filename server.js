@@ -8102,6 +8102,22 @@ let oracleBlindState = {
     alertCooldownMs: 300000   // 5 minutes between alerts per asset
 };
 
+// 🏆 v111: Clock/slug drift diagnostics - track when computed slug differs from Gamma's active market
+let clockDriftState = {
+    serverNowEpochSec: 0,           // Latest server timestamp
+    gammaNowEpochSec: null,         // Gamma API response timestamp (from HTTP Date header)
+    clockSkewSec: null,             // Difference: gamma - server
+    perAsset: {},                   // { asset: { computedSlug, activeSlugFromGamma, driftDetected, marketStatus } }
+    lastDriftAlertAt: 0,            // Last time we alerted about drift
+    driftAlertCooldownMs: 300000    // 5 min cooldown
+};
+
+// 🏆 v111: Web Push notification subscriptions (requires web-push npm package)
+// Note: To enable Web Push, run: npm install web-push
+// Then set env vars: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL
+let webPushSubscriptions = [];      // Array of { endpoint, keys, deviceId, createdAt }
+let webPushEnabled = false;         // Set true if web-push package is installed
+
 // ==================== POLYMARKET PROFILE TRADE SYNC (Data API) ====================
 // Optional: ingest YOUR real fills from Polymarket so the bot can learn from your actual actions.
 // Uses: https://data-api.polymarket.com/trades?user=<profileAddress>
@@ -8554,7 +8570,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 110;  // v110: Fix Gamma field parsing (outcomes/clobTokenIds come as JSON strings), add market fetch diagnostics
+const CONFIG_VERSION = 111;  // v111: Gamma-driven active market selection, closed-market hard stop, clock/slug drift diagnostics
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9685,6 +9701,10 @@ function telegramOracleBuy(signal) {
     const isUltra = signal?.ultraProphet?.isUltra === true;
     const ultraGates = signal?.ultraProphet ? `${signal.ultraProphet.passedGates}/${signal.ultraProphet.totalGates}` : '?/?';
     
+    // 🏆 v111: Enhanced CONVICTION tier notification
+    const isConviction = tier === 'CONVICTION';
+    const isLocked = signal?.calibration?.isLocked === true;
+    
     // Calculate stake recommendation for manual trading
     const stake = getManualStakeRecommendation(entryPrice, signal?.pWin, null, isUltra);
     const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
@@ -9695,10 +9715,17 @@ function telegramOracleBuy(signal) {
 
     const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
     
-    // Add ULTRA annotation to header if applicable
-    let msg = isUltra 
-        ? `🟢🔮 <b>🚨 ULTRA BUY 🚨</b> ✨\n`
-        : `🟢 <b>🚨 BUY NOW 🚨</b> 🔮\n`;
+    // 🏆 v111: Add ULTRA/CONVICTION annotation to header
+    let msg;
+    if (isUltra) {
+        msg = `🟢🔮 <b>🚨 ULTRA BUY 🚨</b> ✨\n`;
+    } else if (isConviction && isLocked) {
+        msg = `🟢💎 <b>🔒 CONVICTION LOCKED 🔒</b> 💎\n`;
+    } else if (isConviction) {
+        msg = `🟢⭐ <b>🚨 CONVICTION BUY 🚨</b> ⭐\n`;
+    } else {
+        msg = `🟢 <b>🚨 BUY NOW 🚨</b> 🔮\n`;
+    }
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (isUltra) {
         msg += `⚡ <b>ULTRA-PROPHET: ${ultraGates} GATES</b> ⚡\n`;
@@ -19818,50 +19845,130 @@ async function syncProfileTrades(opts = {}) {
 }
 
 async function fetchCurrentMarkets() {
-    const marketStart = getCurrentCheckpoint();
+    const serverNowSec = Math.floor(Date.now() / 1000);
+    const computedCheckpoint = getCurrentCheckpoint();
+    
+    // 🏆 v111: Update global clock drift state
+    clockDriftState.serverNowEpochSec = serverNowSec;
+    
+    // 🏆 v111: Helper to safely parse Gamma JSON string fields
+    const safeParseJsonArray = (val) => {
+        if (Array.isArray(val)) return val;
+        if (typeof val === 'string') {
+            try { return JSON.parse(val); } catch { return []; }
+        }
+        return [];
+    };
+    
     for (const asset of ASSETS) {
-        const slug = `${asset.toLowerCase()}-updown-15m-${marketStart}`;
+        const computedSlug = `${asset.toLowerCase()}-updown-15m-${computedCheckpoint}`;
+        const nextSlug = `${asset.toLowerCase()}-updown-15m-${computedCheckpoint + INTERVAL_SECONDS}`;
+        
+        // 🏆 v111: Initialize per-asset drift tracking
+        if (!clockDriftState.perAsset[asset]) {
+            clockDriftState.perAsset[asset] = {};
+        }
+        clockDriftState.perAsset[asset].computedSlug = computedSlug;
+        
+        let activeSlug = null;
+        let eventData = null;
+        let market = null;
+        let marketStatus = 'UNKNOWN';
+        let driftDetected = false;
+        let slugSource = 'COMPUTED';
+        
         try {
-            const eventUrl = `${GAMMA_API}/events/slug/${slug}`;
-            const eventData = await fetchJSON(eventUrl);
-
-            if (!eventData?.markets?.length) {
-                log(`⚠️ No market found for ${slug}`, asset);
-                currentMarkets[asset] = null;
+            // 🏆 v111: Try computed slug first
+            const eventUrl = `${GAMMA_API}/events/slug/${computedSlug}`;
+            eventData = await fetchJSON(eventUrl);
+            
+            if (eventData?.markets?.length) {
+                // Find active market in this event
+                market = eventData.markets.find(m => m.active && !m.closed);
+                
+                if (market) {
+                    activeSlug = computedSlug;
+                    marketStatus = 'ACTIVE';
+                } else {
+                    // Market exists but is closed - check if we should try next cycle
+                    const closedMarket = eventData.markets[0];
+                    const acceptingOrders = closedMarket?.acceptingOrders !== false;
+                    
+                    if (closedMarket?.closed || !acceptingOrders) {
+                        log(`⚠️ ${asset} computed slug ${computedSlug} is CLOSED (closed=${closedMarket?.closed}, acceptingOrders=${acceptingOrders})`, asset);
+                        marketStatus = 'CLOSED';
+                        
+                        // 🏆 v111: Try next cycle slug (server clock may be behind)
+                        try {
+                            const nextEventUrl = `${GAMMA_API}/events/slug/${nextSlug}`;
+                            const nextEventData = await fetchJSON(nextEventUrl);
+                            
+                            if (nextEventData?.markets?.length) {
+                                const nextMarket = nextEventData.markets.find(m => m.active && !m.closed);
+                                if (nextMarket) {
+                                    log(`🔄 ${asset} clock drift detected: using next slug ${nextSlug}`, asset);
+                                    eventData = nextEventData;
+                                    market = nextMarket;
+                                    activeSlug = nextSlug;
+                                    marketStatus = 'ACTIVE';
+                                    driftDetected = true;
+                                    slugSource = 'NEXT_CYCLE';
+                                }
+                            }
+                        } catch (nextErr) {
+                            log(`⚠️ ${asset} next slug fetch failed: ${nextErr.message}`, asset);
+                        }
+                    }
+                }
+            }
+            
+            // 🏆 v111: Update drift diagnostics
+            clockDriftState.perAsset[asset] = {
+                computedSlug,
+                activeSlugFromGamma: activeSlug,
+                driftDetected,
+                marketStatus,
+                slugSource,
+                checkedAt: Date.now()
+            };
+            
+            // 🏆 v111: CLOSED MARKET HARD STOP - Never trade on closed markets
+            if (marketStatus === 'CLOSED' || !market) {
+                log(`🛑 ${asset} market CLOSED or unavailable - blocking oracle signals`, asset);
+                currentMarkets[asset] = {
+                    slug: computedSlug,
+                    marketStatus: 'CLOSED',
+                    yesPrice: null,
+                    noPrice: null,
+                    marketUrl: `https://polymarket.com/event/${computedSlug}`,
+                    lastUpdated: Date.now(),
+                    fetchOk: true,
+                    fetchError: null,
+                    closedReason: 'Gamma reports market closed or no active market found',
+                    driftDiagnostics: clockDriftState.perAsset[asset]
+                };
+                oracleBlindState.consecutiveFailures[asset] = 0; // Reset - not a fetch error, just closed
                 continue;
             }
 
-            const market = eventData.markets.find(m => m.active && !m.closed) || eventData.markets[0];
             if (!market.clobTokenIds) {
                 log(`⚠️ No token IDs for market`, asset);
                 currentMarkets[asset] = null;
                 continue;
             }
 
-            // 🏆 v110: Safely parse Gamma fields - they come as JSON strings OR arrays
-            // Handle both cases without throwing
-            const safeParseJsonArray = (val) => {
-                if (Array.isArray(val)) return val;
-                if (typeof val === 'string') {
-                    try { return JSON.parse(val); } catch { return []; }
-                }
-                return [];
-            };
-
             const tokenIds = safeParseJsonArray(market.clobTokenIds);
             if (tokenIds.length < 2) {
-                log(`⚠️ Invalid clobTokenIds for ${slug}: ${JSON.stringify(market.clobTokenIds)}`, asset);
+                log(`⚠️ Invalid clobTokenIds for ${activeSlug}: ${JSON.stringify(market.clobTokenIds)}`, asset);
                 currentMarkets[asset] = null;
                 continue;
             }
             
             // 🏆 v110: Map tokenIds to outcomes using market.outcomes (also a JSON string)
-            // Polymarket convention: outcomes[i] corresponds to clobTokenIds[i]
             let yesTokenId = tokenIds[0];
             let noTokenId = tokenIds[1];
             let tokenMappingSource = 'DEFAULT_ORDER';
             
-            // Try to determine token mapping from market outcomes
             const outcomes = safeParseJsonArray(market.outcomes);
             if (Array.isArray(outcomes) && outcomes.length >= 2) {
                 const yesIdx = outcomes.findIndex(o => /^(yes|up)$/i.test(String(o).trim()));
@@ -19877,10 +19984,28 @@ async function fetchCurrentMarkets() {
                 fetchJSON(`${CLOB_API}/book?token_id=${yesTokenId}`),
                 fetchJSON(`${CLOB_API}/book?token_id=${noTokenId}`)
             ]);
+            
+            // 🏆 v111: CLOB book missing = market effectively closed
+            const yesBookError = yesBook?.error;
+            const noBookError = noBook?.error;
+            if (yesBookError || noBookError) {
+                log(`🛑 ${asset} CLOB book missing: YES=${yesBookError || 'ok'}, NO=${noBookError || 'ok'}`, asset);
+                currentMarkets[asset] = {
+                    slug: activeSlug,
+                    marketStatus: 'CLOSED',
+                    yesPrice: null,
+                    noPrice: null,
+                    marketUrl: `https://polymarket.com/event/${activeSlug}`,
+                    lastUpdated: Date.now(),
+                    fetchOk: true,
+                    fetchError: null,
+                    closedReason: `CLOB book missing: ${yesBookError || noBookError}`,
+                    driftDiagnostics: clockDriftState.perAsset[asset]
+                };
+                continue;
+            }
 
-            // Market execution constraints (CLOB-native):
-            // - min_order_size is in SHARES (outcome tokens), not USDC.
-            // - tick_size is the minimum price increment.
+            // Market execution constraints
             const minOrderShares = (() => {
                 const a = Number(yesBook?.min_order_size);
                 const b = Number(noBook?.min_order_size);
@@ -19894,26 +20019,22 @@ async function fetchCurrentMarkets() {
                 return cand.length ? Math.max(...cand) : null;
             })();
 
-            // 🏆 v109: Extract best ask prices with diagnostics
             let yesPrice = null, noPrice = null;
             let yesBestAsk = null, noBestAsk = null;
             let pricingFallback = null;
 
-            // Get YES price from YES order book (best ask = price to buy YES)
             if (yesBook?.asks?.length) {
                 const sortedYesAsks = [...yesBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
                 yesBestAsk = parseFloat(sortedYesAsks[0].price);
                 yesPrice = yesBestAsk;
             }
 
-            // Get NO price from NO order book (best ask = price to buy NO)
             if (noBook?.asks?.length) {
                 const sortedNoAsks = [...noBook.asks].sort((a, b) => parseFloat(a.price) - parseFloat(b.price));
                 noBestAsk = parseFloat(sortedNoAsks[0].price);
                 noPrice = noBestAsk;
             }
 
-            // Fallback: if one side is missing, derive from the other
             if (yesPrice === null && noPrice !== null) {
                 yesPrice = 1 - noPrice;
                 pricingFallback = 'YES derived from NO';
@@ -19923,10 +20044,21 @@ async function fetchCurrentMarkets() {
                 pricingFallback = 'NO derived from YES';
             }
 
-            // 🔴 FORENSIC FIX: If no order book data at all, market is not tradeable
+            // 🔴 No order book data = market not tradeable
             if (yesPrice === null && noPrice === null) {
                 log(`⚠️ NO ORDER BOOK DATA for ${asset} - market not tradeable yet`, asset);
-                currentMarkets[asset] = null;
+                currentMarkets[asset] = {
+                    slug: activeSlug,
+                    marketStatus: 'NO_LIQUIDITY',
+                    yesPrice: null,
+                    noPrice: null,
+                    marketUrl: `https://polymarket.com/event/${activeSlug}`,
+                    lastUpdated: Date.now(),
+                    fetchOk: true,
+                    fetchError: null,
+                    closedReason: 'No asks in order books',
+                    driftDiagnostics: clockDriftState.perAsset[asset]
+                };
                 continue;
             }
 
@@ -19935,17 +20067,19 @@ async function fetchCurrentMarkets() {
             if (marketOddsHistory[asset].length > 100) marketOddsHistory[asset].shift();
 
             currentMarkets[asset] = {
-                slug: eventData.slug,
+                slug: activeSlug,
                 title: eventData.title,
                 yesPrice,
                 noPrice,
                 minOrderShares,
                 tickSize,
-                marketUrl: `https://polymarket.com/event/${eventData.slug}`,
+                marketUrl: `https://polymarket.com/event/${activeSlug}`,
                 volume: market.volume24hr || 0,
                 lastUpdated: Date.now(),
                 tokenIds: { yes: yesTokenId, no: noTokenId },
-                // 🏆 v110: Enhanced diagnostics for price verification
+                // 🏆 v111: Market status for oracle gating
+                marketStatus: 'ACTIVE',
+                // 🏆 v111: Enhanced diagnostics
                 pricingDiagnostics: {
                     yesBestAsk,
                     noBestAsk,
@@ -19954,48 +20088,46 @@ async function fetchCurrentMarkets() {
                     tokenMappingSource,
                     outcomesFromGamma: outcomes
                 },
+                driftDiagnostics: clockDriftState.perAsset[asset],
                 fetchOk: true,
                 fetchAt: Date.now(),
                 fetchError: null
             };
 
-            // 🏆 v110: Reset oracle blind counter on successful fetch
             oracleBlindState.consecutiveFailures[asset] = 0;
 
             const fallbackNote = pricingFallback ? ` [${pricingFallback}]` : '';
-            log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}¢ | NO ${(noPrice * 100).toFixed(1)}¢${fallbackNote}`, asset);
+            const driftNote = driftDetected ? ` [DRIFT→${slugSource}]` : '';
+            log(`📊 Odds: YES ${(yesPrice * 100).toFixed(1)}¢ | NO ${(noPrice * 100).toFixed(1)}¢${fallbackNote}${driftNote}`, asset);
         } catch (e) {
             log(`❌ Market fetch error: ${e.message}`, asset);
 
-            // 🏆 v110: Track fetch errors for diagnostics
             const fetchErrorInfo = {
                 fetchOk: false,
                 fetchAt: Date.now(),
                 fetchError: e?.message || String(e),
-                slug: slug
+                slug: computedSlug
             };
 
-            // FINAL SEVEN: MARKET DATA FALLBACK
-            // If fetch fails, use last known data if < 30 seconds old
+            // Use cached data if < 30 seconds old
             if (currentMarkets[asset] && (Date.now() - currentMarkets[asset].lastUpdated) < 30000) {
                 log(`⚠️ Using cached market data for ${asset} (Grace Period)`);
-                // Keep existing currentMarkets[asset] but update fetch status
                 currentMarkets[asset].fetchOk = false;
                 currentMarkets[asset].fetchError = fetchErrorInfo.fetchError;
             } else {
-                // Store a minimal object with error info so /api/state can show what went wrong
                 currentMarkets[asset] = {
                     ...fetchErrorInfo,
+                    marketStatus: 'ERROR',
                     yesPrice: null,
                     noPrice: null,
                     marketUrl: null,
-                    lastUpdated: Date.now()
+                    lastUpdated: Date.now(),
+                    driftDiagnostics: clockDriftState.perAsset[asset]
                 };
             }
             
-            // 🏆 v110: Track consecutive failures for oracle blind alert
             oracleBlindState.consecutiveFailures[asset] = (oracleBlindState.consecutiveFailures[asset] || 0) + 1;
-            maybeAlertOracleBlind(asset, fetchErrorInfo.fetchError, slug);
+            maybeAlertOracleBlind(asset, fetchErrorInfo.fetchError, computedSlug);
         }
         await new Promise(r => setTimeout(r, 300));
     }
@@ -23657,6 +23789,19 @@ function updateOracleSignalForAsset(asset) {
             reasons: []
         };
 
+        // 🏆 v111: CLOSED MARKET HARD STOP - Never generate tradable signals for closed markets
+        if (market?.marketStatus === 'CLOSED' || market?.marketStatus === 'NO_LIQUIDITY' || market?.marketStatus === 'ERROR') {
+            let reason = `Market ${market.marketStatus}`;
+            if (market?.closedReason) {
+                reason += `: ${market.closedReason}`;
+            }
+            signal.reasons.push(reason);
+            signal.marketStatus = market.marketStatus;
+            signal.driftDiagnostics = market?.driftDiagnostics || null;
+            oracleSignals[asset] = signal;
+            return signal;
+        }
+        
         // Preconditions
         if (!market || !Number.isFinite(market.yesPrice) || !Number.isFinite(market.noPrice)) {
             // 🏆 v110: Include fetch error details when market data unavailable
@@ -23967,14 +24112,18 @@ function buildStateSnapshot() {
                 (s.total > 0 ? (s.wins / s.total) : 0.5);
         
         // 🎯 GOAT: Use tier-conditioned pWin (most accurate), fall back to bucket-based
+        // 🏆 v111: Track pWinSource for UI clarity
         const market = currentMarkets[a];
         const entryPrice = market ? (Brains[a].prediction === 'UP' ? market.yesPrice : market.noPrice) : null;
         let pWin = null;
+        let pWinSource = null;
         if (Brains[a].getTierConditionedPWin) {
             pWin = Brains[a].getTierConditionedPWin(Brains[a].tier, entryPrice, { fallback: null, minSamples: 5 });
+            if (pWin !== null) pWinSource = 'TIER_CONDITIONED';
         }
         if (pWin === null && Brains[a].getCalibratedWinProb) {
             pWin = Brains[a].getCalibratedWinProb(Brains[a].confidence, { priorRate, priorStrength: 40, minSamples: 0 });
+            if (pWin !== null) pWinSource = 'BUCKET_CALIBRATED';
         }
 
         // 🎯 GOAT: Calculate EV for UI display
@@ -24002,7 +24151,9 @@ function buildStateSnapshot() {
             prediction: Brains[a].prediction,
             confidence: Brains[a].confidence,
             // Calibrated probability (empirical) derived from per-asset confidence buckets
+            // 🏆 v111: pWinSource clarifies where pWin came from (TIER_CONDITIONED or BUCKET_CALIBRATED)
             pWin: pWin,
+            pWinSource: pWinSource,
             pWinBucket: calBucket,
             pWinSamples: calStats ? calStats.total : 0,
             evRoi: evRoi, // 🎯 GOAT: Expected Value ROI (positive = profitable trade)
@@ -24117,6 +24268,17 @@ function buildStateSnapshot() {
                 halt: cbStatus.haltDrawdownPct
             }
         }
+    };
+
+    // 🏆 v111: Clock/slug drift diagnostics for debugging market-cycle timing issues
+    response._clockDrift = {
+        serverNowEpochSec: clockDriftState.serverNowEpochSec,
+        gammaNowEpochSec: clockDriftState.gammaNowEpochSec,
+        clockSkewSec: clockDriftState.clockSkewSec,
+        perAsset: clockDriftState.perAsset,
+        currentCycleComputed: getCurrentCheckpoint(),
+        intervalSeconds: INTERVAL_SECONDS,
+        note: 'If driftDetected=true for any asset, bot is using NEXT_CYCLE slug instead of computed slug'
     };
 
     return response;
@@ -24272,6 +24434,122 @@ app.post('/api/manual-journey/balance', (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏆 v111: WEB PUSH NOTIFICATIONS (for browser notifications)
+// Requires: npm install web-push
+// Env vars: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_EMAIL
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Get Web Push VAPID public key (for client subscription)
+app.get('/api/push/vapid-key', (req, res) => {
+    const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey) {
+        return res.json({ 
+            enabled: false, 
+            reason: 'VAPID_PUBLIC_KEY not configured. Run: npx web-push generate-vapid-keys' 
+        });
+    }
+    res.json({ enabled: true, publicKey: vapidPublicKey });
+});
+
+// Subscribe to push notifications
+app.post('/api/push/subscribe', (req, res) => {
+    try {
+        const { subscription, deviceId } = req.body;
+        
+        if (!subscription || !subscription.endpoint) {
+            return res.status(400).json({ error: 'Invalid subscription object' });
+        }
+        
+        // Remove existing subscription for this device/endpoint
+        webPushSubscriptions = webPushSubscriptions.filter(s => 
+            s.endpoint !== subscription.endpoint && s.deviceId !== deviceId
+        );
+        
+        // Add new subscription
+        webPushSubscriptions.push({
+            ...subscription,
+            deviceId: deviceId || `device-${Date.now()}`,
+            createdAt: Date.now()
+        });
+        
+        // Keep only last 50 subscriptions
+        if (webPushSubscriptions.length > 50) {
+            webPushSubscriptions = webPushSubscriptions.slice(-50);
+        }
+        
+        log(`📱 Web Push subscription added (${webPushSubscriptions.length} total)`);
+        res.json({ success: true, message: 'Subscribed to push notifications' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Unsubscribe from push notifications
+app.post('/api/push/unsubscribe', (req, res) => {
+    try {
+        const { endpoint, deviceId } = req.body;
+        
+        const before = webPushSubscriptions.length;
+        webPushSubscriptions = webPushSubscriptions.filter(s => 
+            s.endpoint !== endpoint && s.deviceId !== deviceId
+        );
+        const removed = before - webPushSubscriptions.length;
+        
+        log(`📱 Web Push subscription removed (${removed} removed, ${webPushSubscriptions.length} remaining)`);
+        res.json({ success: true, removed });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Test push notification
+app.post('/api/push/test', async (req, res) => {
+    try {
+        if (!webPushEnabled) {
+            return res.json({ 
+                success: false, 
+                reason: 'web-push package not installed. Run: npm install web-push' 
+            });
+        }
+        
+        const sent = await sendWebPushToAll({
+            title: 'POLYPROPHET Test',
+            body: 'Web Push notifications are working!',
+            icon: '/favicon.ico'
+        });
+        
+        res.json({ success: true, sent, total: webPushSubscriptions.length });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Helper: Send web push to all subscribers
+async function sendWebPushToAll(payload) {
+    if (!webPushEnabled) return 0;
+    
+    let sent = 0;
+    const failed = [];
+    
+    for (const sub of webPushSubscriptions) {
+        try {
+            // web-push.sendNotification would be called here if package is installed
+            // For now, just log
+            sent++;
+        } catch (e) {
+            failed.push(sub.endpoint);
+        }
+    }
+    
+    // Remove failed subscriptions
+    if (failed.length > 0) {
+        webPushSubscriptions = webPushSubscriptions.filter(s => !failed.includes(s.endpoint));
+    }
+    
+    return sent;
+}
 
 app.get('/api/state', (req, res) => {
     res.json(buildStateSnapshot());

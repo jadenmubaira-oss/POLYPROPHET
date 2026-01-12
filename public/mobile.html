@@ -443,6 +443,7 @@
         <button class="tab" onclick="switchTab('trades')">Trades</button>
         <button class="tab" onclick="switchTab('trade')">Trade</button>
         <button class="tab" onclick="switchTab('positions')">Positions</button>
+        <button class="tab" onclick="switchTab('calculator')">Calc</button>
     </div>
     
     <div id="dashboard-tab" class="tab-content active">
@@ -497,6 +498,67 @@
             <button onclick="executeManualTrade()" style="width: 100%; padding: 16px; background: linear-gradient(135deg, #9933ff 0%, #7a1fa2 100%); border: none; border-radius: 8px; color: #fff; font-size: 18px; font-weight: bold; cursor: pointer; margin-bottom: 10px;">Place Trade</button>
             
             <div id="trade-result" style="margin-top: 20px; padding: 12px; border-radius: 8px; display: none;"></div>
+        </div>
+    </div>
+    
+    <!-- 🏆 v111: Bankroll Path Calculator -->
+    <div id="calculator-tab" class="tab-content">
+        <div style="padding: 20px;">
+            <h2 style="margin-bottom: 10px; color: #9933ff;">🚀 Bankroll Calculator</h2>
+            <p style="font-size: 12px; color: #888; margin-bottom: 20px;">Estimate trades needed to reach $1M. <b>No guarantees</b> - these are theoretical projections.</p>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Starting Balance ($)</label>
+                <input type="number" id="calc-start" min="1" step="0.01" value="5" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 16px;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Target Balance ($)</label>
+                <input type="number" id="calc-target" min="100" step="100" value="1000000" style="width: 100%; padding: 12px; background: rgba(0, 0, 0, 0.5); border: 1px solid #333; border-radius: 8px; color: #fff; font-size: 16px;">
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Assumed Win Rate (%)</label>
+                <input type="range" id="calc-winrate" min="50" max="95" value="85" style="width: 100%;" oninput="updateCalcWinRateLabel()">
+                <div id="calc-winrate-label" style="text-align: center; color: #ffd700; font-weight: bold;">85%</div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Average ROI per Win (%)</label>
+                <input type="range" id="calc-roi" min="20" max="150" value="70" style="width: 100%;" oninput="updateCalcRoiLabel()">
+                <div id="calc-roi-label" style="text-align: center; color: #ffd700; font-weight: bold;">70%</div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #aaa;">Stake Fraction (%)</label>
+                <input type="range" id="calc-stake" min="10" max="100" value="85" style="width: 100%;" oninput="updateCalcStakeLabel()">
+                <div id="calc-stake-label" style="text-align: center; color: #ffd700; font-weight: bold;">85%</div>
+            </div>
+            
+            <button onclick="calculateBankrollPath()" style="width: 100%; padding: 15px; background: linear-gradient(135deg, #9933ff, #6600cc); border: none; border-radius: 10px; color: white; font-size: 16px; font-weight: bold; cursor: pointer;">📊 Calculate</button>
+            
+            <div id="calc-result" style="margin-top: 20px; padding: 15px; background: rgba(153, 51, 255, 0.1); border: 1px solid #9933ff; border-radius: 10px; display: none;">
+                <div style="text-align: center;">
+                    <div style="font-size: 28px; font-weight: bold; color: #ffd700;" id="calc-trades">--</div>
+                    <div style="color: #aaa; font-size: 12px;">Trades to Target</div>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.1); margin: 15px 0;">
+                <div id="calc-details" style="font-size: 12px; color: #ccc;"></div>
+                <div style="margin-top: 15px; padding: 10px; background: rgba(255, 68, 102, 0.15); border-radius: 8px; font-size: 11px; color: #ff4466;">
+                    ⚠️ <b>BUST RISK:</b> <span id="calc-bust-risk">--</span>
+                    <div style="margin-top: 5px; color: #999;">These are projections only. Actual results depend on market conditions, timing, and luck. Never trade with money you can't afford to lose.</div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.3); border-radius: 10px;">
+                <h3 style="color: #9933ff; font-size: 14px; margin-bottom: 10px;">Quick Scenarios</h3>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <button onclick="setCalcScenario(5, 85, 70, 85)" style="padding: 10px; background: rgba(0,255,136,0.15); border: 1px solid #00ff88; border-radius: 8px; color: #00ff88; font-size: 11px; cursor: pointer;">$5 → $1M<br><small>85% WR</small></button>
+                    <button onclick="setCalcScenario(10, 90, 80, 90)" style="padding: 10px; background: rgba(0,255,136,0.15); border: 1px solid #00ff88; border-radius: 8px; color: #00ff88; font-size: 11px; cursor: pointer;">$10 → $1M<br><small>90% WR</small></button>
+                    <button onclick="setCalcScenario(100, 80, 50, 50)" style="padding: 10px; background: rgba(255,215,0,0.15); border: 1px solid #ffd700; border-radius: 8px; color: #ffd700; font-size: 11px; cursor: pointer;">$100 → $1M<br><small>Conservative</small></button>
+                    <button onclick="setCalcScenario(1000, 75, 40, 30)" style="padding: 10px; background: rgba(255,68,102,0.15); border: 1px solid #ff4466; border-radius: 8px; color: #ff4466; font-size: 11px; cursor: pointer;">$1K → $1M<br><small>Safe Mode</small></button>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -777,12 +839,12 @@
                     <div class="confidence-bar">
                         <div class="confidence-fill ${confClass}" style="width: ${conf}%"></div>
                     </div>
-                    <div class="confidence-text">${conf}% Confidence</div>
+                    <div class="confidence-text">${conf}% Model Conf</div>
                     <div class="tier-badge ${pred.tier || 'NONE'}">${pred.tier || 'NONE'}</div>
                     ${pred.market ? `<div class="market-odds">YES: ${(pred.market.yesPrice * 100).toFixed(1)}¢ | NO: ${(pred.market.noPrice * 100).toFixed(1)}¢</div>` : ''}
                     <div style="margin-top:10px;padding:10px;border-radius:8px;background:${actionBg};border:1px solid ${actionBorder};text-align:center;font-size:12px;">
                         <div style="font-weight:bold;color:${actionColor};">NEXT: ${escapeHtml(action)} ${escapeHtml(actionSide)}</div>
-                        ${actionOdds ? `<div style="margin-top:4px;color:#ddd;">@ <strong>${escapeHtml(actionOdds)}</strong> | pWin <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>` : `<div style="margin-top:4px;color:#ddd;">pWin <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>`}
+                        ${actionOdds ? `<div style="margin-top:4px;color:#ddd;">@ <strong>${escapeHtml(actionOdds)}</strong> | Cal.Win <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>` : `<div style="margin-top:4px;color:#ddd;">Cal.Win <strong>${escapeHtml(pWin)}</strong> | EV <strong>${escapeHtml(ev)}</strong> | Edge <strong>${escapeHtml(edgePp)}</strong></div>`}
                         <div style="margin-top:4px;color:#888;">TTC(last) <strong>${escapeHtml(ttcLast)}</strong> | TTC(avg10) <strong>${escapeHtml(ttcAvg)}</strong></div>
                         ${reasonsHtml}
                         ${marketLinkHtml}
@@ -885,6 +947,104 @@
             
             if (tabName === 'trade') {
                 updateTradePreview();
+            }
+        }
+        
+        // 🏆 v111: Bankroll Path Calculator
+        function updateCalcWinRateLabel() {
+            const val = document.getElementById('calc-winrate').value;
+            document.getElementById('calc-winrate-label').textContent = val + '%';
+        }
+        
+        function updateCalcRoiLabel() {
+            const val = document.getElementById('calc-roi').value;
+            document.getElementById('calc-roi-label').textContent = val + '%';
+        }
+        
+        function updateCalcStakeLabel() {
+            const val = document.getElementById('calc-stake').value;
+            document.getElementById('calc-stake-label').textContent = val + '%';
+        }
+        
+        function setCalcScenario(start, winRate, roi, stake) {
+            document.getElementById('calc-start').value = start;
+            document.getElementById('calc-target').value = 1000000;
+            document.getElementById('calc-winrate').value = winRate;
+            document.getElementById('calc-roi').value = roi;
+            document.getElementById('calc-stake').value = stake;
+            updateCalcWinRateLabel();
+            updateCalcRoiLabel();
+            updateCalcStakeLabel();
+            calculateBankrollPath();
+        }
+        
+        function calculateBankrollPath() {
+            const startBalance = parseFloat(document.getElementById('calc-start').value) || 5;
+            const targetBalance = parseFloat(document.getElementById('calc-target').value) || 1000000;
+            const winRate = parseFloat(document.getElementById('calc-winrate').value) / 100 || 0.85;
+            const avgRoi = parseFloat(document.getElementById('calc-roi').value) / 100 || 0.70;
+            const stakeFraction = parseFloat(document.getElementById('calc-stake').value) / 100 || 0.85;
+            
+            // Calculate expected growth per trade
+            // Win: balance * (1 + stakeFraction * avgRoi)
+            // Loss: balance * (1 - stakeFraction)
+            const expectedMultiplier = winRate * (1 + stakeFraction * avgRoi) + (1 - winRate) * (1 - stakeFraction);
+            
+            // If expected multiplier <= 1, we're losing money on average
+            if (expectedMultiplier <= 1) {
+                document.getElementById('calc-result').style.display = 'block';
+                document.getElementById('calc-trades').textContent = '∞';
+                document.getElementById('calc-details').innerHTML = `<span style="color:#ff4466;">❌ Negative expected value! With ${(winRate*100).toFixed(0)}% win rate and ${(avgRoi*100).toFixed(0)}% ROI, you're expected to LOSE money over time.</span>`;
+                document.getElementById('calc-bust-risk').textContent = '100% - guaranteed ruin';
+                return;
+            }
+            
+            // Calculate trades needed: startBalance * multiplier^n = targetBalance
+            // n = log(target/start) / log(multiplier)
+            const tradesNeeded = Math.ceil(Math.log(targetBalance / startBalance) / Math.log(expectedMultiplier));
+            
+            // Calculate bust probability (simplified Gambler's Ruin approximation)
+            // P(ruin) ≈ ((1-p)/p)^(startBalance/avgBet) for p > 0.5
+            // Simplified: higher stake = higher bust risk
+            const bustRisk = Math.min(99, Math.max(1, 
+                (1 - winRate) * stakeFraction * 100 * (1 + (1 - winRate) * 2)
+            ));
+            
+            // Calculate time estimate (assuming 1 trade/hour on average)
+            const hoursNeeded = tradesNeeded;
+            const daysNeeded = (hoursNeeded / 8).toFixed(1); // 8 trading hours/day
+            
+            // Show results
+            document.getElementById('calc-result').style.display = 'block';
+            document.getElementById('calc-trades').textContent = tradesNeeded.toLocaleString();
+            
+            const finalBalanceAfterN = startBalance * Math.pow(expectedMultiplier, tradesNeeded);
+            
+            document.getElementById('calc-details').innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
+                    <div>
+                        <div style="font-weight: bold; color: #00ff88;">$${startBalance.toFixed(2)}</div>
+                        <div style="color: #888;">Start</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: bold; color: #ffd700;">$${targetBalance.toLocaleString()}</div>
+                        <div style="color: #888;">Target</div>
+                    </div>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
+                <div><b>Expected multiplier per trade:</b> ${expectedMultiplier.toFixed(4)}x</div>
+                <div><b>Est. time (1 trade/hr, 8hr/day):</b> ~${daysNeeded} days</div>
+                <div><b>Parameters:</b> ${(winRate*100).toFixed(0)}% WR, ${(avgRoi*100).toFixed(0)}% ROI, ${(stakeFraction*100).toFixed(0)}% stake</div>
+            `;
+            
+            // Bust risk styling
+            const bustEl = document.getElementById('calc-bust-risk');
+            if (bustRisk < 15) {
+                bustEl.innerHTML = `<span style="color:#00ff88;">${bustRisk.toFixed(0)}% - Low risk</span>`;
+            } else if (bustRisk < 35) {
+                bustEl.innerHTML = `<span style="color:#ffd700;">${bustRisk.toFixed(0)}% - Moderate risk</span>`;
+            } else {
+                bustEl.innerHTML = `<span style="color:#ff4466;">${bustRisk.toFixed(0)}% - HIGH RISK</span>`;
             }
         }
         
