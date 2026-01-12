@@ -4,12 +4,16 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v115 STALE-SAFE ORACLE (v114.1 patch)**: Stale-cycle suppression, tail-BUY gating, Telegram proof fields, and **exact LCB proof**.
+> **v116 TWO-TIER ORACLE**: Forecast vs CALL separation, confirm-gated trades, streak alerts.
+> - **🎯 TWO-TIER MODEL**: Dashboard shows FORECAST (continuous) vs CALL (actionable BUY/PREPARE/WAIT)
+> - **📊 DUAL LAST-10 METRICS**: Forecast accuracy (all cycles) + CALL accuracy (BUY calls only)
+> - **✅ CONFIRM-GATED TRADES**: NO CONFIRM = SKIPPED - shadow position only opens on Telegram confirmation
+> - **📈 STREAK ALERTS**: "Streak forming" (early warning) + "Streak ON" (confirmed) Telegram notifications
 > - **🚫 STALE-CYCLE SUPPRESSION**: Telegram PREPARE/BUY blocked if market slug rolled or status != ACTIVE
 > - **🚫 TAIL-BUY GATE**: Entry < 35¢ blocked UNLESS LOCKED+CONVICTION+pWin≥95%+EV≥30%+samples≥25
 > - **📋 TELEGRAM PROOF FIELDS**: Every message shows: Slug, CycleStart, PriceSource, Spread, LCB, Samples
-> - **✅ LCB PROOF IS EXACT**: `LCB: ON` means the oracle actually used Wilson LCB in pWin computation (not a label guess)
-> - **🔒 DETERMINISTIC CONFIRM IDs**: Trade confirmation links are now stable per signal (no Date.now randomness)
+> - **✅ LCB PROOF IS EXACT**: `LCB: ON` means the oracle actually used Wilson LCB in pWin computation
+> - **🔒 DETERMINISTIC CONFIRM IDs**: Trade confirmation links are stable per signal
 > - **🚫 NO BUY AT ≥80¢**: Hard block - even GOAT preset cannot override (server clamps)
 > - **💰 BANKROLL-SENSITIVE pWin FLOORS**: 
 >   - ≤$5: 92% pWin required (cannot afford losses)
@@ -20,6 +24,40 @@
 > - **📱 TELEGRAM CONFIRM LINKS**: "I TOOK IT" / "SKIPPED" buttons in BUY signals - records to manual ledger
 > - **GAMMA-DRIVEN MARKET SELECTION**: No more local clock drift issues
 > - **CLOSED-MARKET HARD STOP**: Never trade on stale/closed market data
+
+---
+
+## 🎯 v116: TWO-TIER ORACLE (Forecast vs CALL)
+
+v116 introduces a fundamental separation between **Forecast** (what the model thinks) and **CALL** (actionable trade signals). This addresses the confusion between continuous predictions and trade-grade instructions.
+
+### Why 10/10 Accuracy Is Unrealistic
+
+15-minute crypto up/down markets are **inherently noisy**. In many cycles, the true expected outcome is close to 50/50—no model can reliably predict these. If you demand 10/10 accuracy on every cycle, the bot would need to **abstain most of the time** (showing WAIT on ~80%+ of cycles).
+
+**What v116 does instead:**
+- **Forecast**: Shown on every cycle—the model's current best guess (can be wrong ~40-50% of the time)
+- **CALL**: Only BUY/PREPARE when strict gates pass (pWin ≥ 85-92%, tier = CONVICTION/ADVISORY, etc.)
+- **CALL accuracy** tracks only the BUY calls you received—this is what matters for trading
+- **Forecast accuracy** tracks all cycles—this shows overall model calibration
+
+### Confirm-Gated Trading (NO CONFIRM = SKIPPED)
+
+v116 changes shadow-book behavior:
+- **Before v116**: BUY signal → shadow position opens automatically (assumes you traded)
+- **After v116**: BUY signal → pending call created → shadow position only opens if you click "✅ I TOOK IT"
+- If you don't confirm, the bot **assumes you skipped**
+- No P/L updates, no SELL automation, no streak updates for unconfirmed calls
+- This gives you accurate tracking only for trades you actually took
+
+### Streak Alerts
+
+The bot now sends two types of streak alerts:
+1. **Streak Forming** (early warning): 3+ consecutive BUY call wins, explicitly labeled as **non-predictive**
+2. **Streak ON** (confirmed): 5+ consecutive wins + 90%+ recent WR
+3. **Streak RISK/OFF**: Mode change alerts (existing behavior)
+
+Streaks are based on **CALL outcomes** (confirmed BUY calls only), not continuous forecasts.
 
 ---
 

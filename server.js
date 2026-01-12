@@ -8728,7 +8728,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 115;  // v115 (v114.1 patch): Oracle pWin uses LCB-aware engine path; Telegram LCB proof is exact
+const CONFIG_VERSION = 116;  // v116: Two-tier Forecast vs CALL, confirm-gated trades, streak-forming alerts, call accuracy tracking
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9706,6 +9706,27 @@ let streakState = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// 🏆 v116: PENDING CALLS & CALL OUTCOMES (Two-tier system)
+// BUY calls are now confirm-gated: no shadow position until user confirms.
+// We track call outcomes separately from forecast outcomes.
+// ═══════════════════════════════════════════════════════════════════════════════
+let pendingCalls = {};  // { [clientTradeId]: { asset, direction, entry, pWin, tier, cycleStartEpoch, sentAt, expiresAt, lcbUsed, samples } }
+
+// Per-asset call outcomes (last 10 BUY calls only)
+let callRecentOutcomes = {
+    BTC: [],  // Array of { clientTradeId, direction, entry, pWin, isWin, resolvedAt, confirmed }
+    ETH: [],
+    XRP: [],
+    SOL: []
+};
+
+// Streak-forming alert tracking (to avoid spam)
+let streakFormingState = {
+    lastAlertAt: 0,
+    lastAlertWinCount: 0
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // 🔒 v105: CYCLE COMMITMENT STATE (No flip-flop)
 // Once a BUY is issued for a cycle, lock direction until cycle end.
 // Emergency SELL only under sustained evidence with hysteresis.
@@ -10250,8 +10271,9 @@ function orchestrateOracleNotifications() {
             primaryBuy.signal.implied || 0.5
         );
         
-        // Open shadow-book position (assume user will execute)
-        openShadowPosition(primaryBuy.signal);
+        // 🏆 v116: Create pending call (no auto-open shadow position)
+        // Shadow position only opens when user confirms via Telegram link
+        createPendingCall(primaryBuy.signal);
         
         // Send ULTRA notification too if applicable
         if (primaryBuy.signal.ultraProphet?.isUltra) {
@@ -10273,7 +10295,201 @@ function orchestrateOracleNotifications() {
     }
 }
 
-// Shadow-book position management
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏆 v116: PENDING CALL MANAGEMENT (Confirm-gated trading)
+// BUY calls are stored as pending; shadow position opens ONLY on user confirmation.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Create a pending call record when BUY is issued.
+ * Shadow position does NOT open until user confirms via Telegram link.
+ */
+function createPendingCall(signal) {
+    if (!signal) return null;
+    
+    const entryPrice = signal.implied || 0.5;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cycleStart = signal.cycleStartEpochSec || (nowSec - (nowSec % 900));
+    const cycleEnd = cycleStart + 900;
+    
+    // Deterministic client trade ID (same as Telegram uses)
+    const entryPriceRounded = Math.round(entryPrice * 100);
+    const clientTradeId = `${signal.asset}_${cycleStart}_${signal.direction}_${entryPriceRounded}`;
+    
+    // Check for duplicate
+    if (pendingCalls[clientTradeId]) {
+        log(`📋 PENDING CALL: Already exists for ${clientTradeId}`, signal.asset);
+        return clientTradeId;
+    }
+    
+    pendingCalls[clientTradeId] = {
+        clientTradeId,
+        asset: signal.asset,
+        direction: signal.direction,
+        entry: entryPrice,
+        pWin: signal.pWin || 0.5,
+        tier: signal.tier || 'ADVISORY',
+        cycleStartEpoch: cycleStart,
+        cycleEndEpoch: cycleEnd,
+        sentAt: Date.now(),
+        expiresAt: cycleEnd * 1000,  // Expire at cycle end (ms)
+        lcbUsed: signal.lcbUsed === true,
+        samples: signal.calibration?.sampleSize || 0,
+        confirmed: false,
+        skipped: false,
+        resolvedAt: null,
+        isWin: null
+    };
+    
+    log(`📋 PENDING CALL CREATED: ${clientTradeId} | ${signal.asset} ${signal.direction} @ ${(entryPrice * 100).toFixed(1)}¢ | Awaiting confirmation`, signal.asset);
+    return clientTradeId;
+}
+
+/**
+ * Confirm a pending call: open shadow position and mark confirmed.
+ * Returns true if successful, false if call not found or already resolved.
+ */
+function confirmPendingCall(clientTradeId) {
+    const call = pendingCalls[clientTradeId];
+    if (!call) {
+        log(`⚠️ CONFIRM: Call ${clientTradeId} not found`);
+        return { success: false, reason: 'Call not found' };
+    }
+    if (call.confirmed) {
+        log(`⚠️ CONFIRM: Call ${clientTradeId} already confirmed`);
+        return { success: false, reason: 'Already confirmed' };
+    }
+    if (call.skipped) {
+        log(`⚠️ CONFIRM: Call ${clientTradeId} was skipped`);
+        return { success: false, reason: 'Already skipped' };
+    }
+    
+    // Check if cycle has ended
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (nowSec >= call.cycleEndEpoch) {
+        log(`⚠️ CONFIRM: Call ${clientTradeId} expired (cycle ended)`);
+        return { success: false, reason: 'Cycle ended - too late to confirm' };
+    }
+    
+    // Mark as confirmed
+    call.confirmed = true;
+    call.confirmedAt = Date.now();
+    
+    // Now open the shadow position
+    if (!shadowBook.position) {
+        const stake = getManualStakeRecommendation(call.entry, call.pWin, null, false);
+        const shares = stake.recommendedStake / call.entry;
+        
+        shadowBook.position = {
+            asset: call.asset,
+            direction: call.direction,
+            entry: call.entry,
+            shares,
+            stake: stake.recommendedStake,
+            openedAt: Date.now(),
+            cycleStartEpoch: call.cycleStartEpoch,
+            pWinAtEntry: call.pWin,
+            tierAtEntry: call.tier,
+            clientTradeId  // Link to pending call
+        };
+        
+        log(`📖 SHADOW-BOOK OPENED (CONFIRMED): ${call.asset} ${call.direction} @ ${(call.entry * 100).toFixed(1)}¢ | Stake: $${stake.recommendedStake.toFixed(2)}`);
+    }
+    
+    return { success: true, reason: 'Trade confirmed', call };
+}
+
+/**
+ * Skip a pending call: mark as skipped, no shadow position opens.
+ */
+function skipPendingCall(clientTradeId) {
+    const call = pendingCalls[clientTradeId];
+    if (!call) {
+        return { success: false, reason: 'Call not found' };
+    }
+    if (call.confirmed) {
+        return { success: false, reason: 'Already confirmed' };
+    }
+    if (call.skipped) {
+        return { success: false, reason: 'Already skipped' };
+    }
+    
+    call.skipped = true;
+    call.skippedAt = Date.now();
+    
+    log(`📋 PENDING CALL SKIPPED: ${clientTradeId} | ${call.asset} ${call.direction}`);
+    return { success: true, reason: 'Trade skipped' };
+}
+
+/**
+ * Resolve all pending calls for a cycle (called at cycle end).
+ * Unconfirmed calls are treated as skipped (NO TRADE).
+ * Confirmed calls are resolved with outcome and added to callRecentOutcomes.
+ */
+function resolvePendingCallsForCycle(cycleStartEpoch, outcomes) {
+    // outcomes = { [asset]: { isWin: boolean, actualDirection: 'UP'|'DOWN' } }
+    const resolved = [];
+    
+    for (const [clientTradeId, call] of Object.entries(pendingCalls)) {
+        if (call.cycleStartEpoch !== cycleStartEpoch) continue;
+        if (call.resolvedAt) continue;  // Already resolved
+        
+        const outcome = outcomes?.[call.asset];
+        const actualDirection = outcome?.actualDirection;
+        const isWin = call.confirmed && call.direction === actualDirection;
+        
+        call.resolvedAt = Date.now();
+        call.isWin = call.confirmed ? isWin : null;  // null if skipped (no trade)
+        
+        // Add to callRecentOutcomes (only for non-skipped calls)
+        if (call.confirmed && callRecentOutcomes[call.asset]) {
+            callRecentOutcomes[call.asset].push({
+                clientTradeId,
+                direction: call.direction,
+                entry: call.entry,
+                pWin: call.pWin,
+                tier: call.tier,
+                isWin,
+                resolvedAt: call.resolvedAt,
+                confirmed: true
+            });
+            // Keep last 10
+            if (callRecentOutcomes[call.asset].length > 10) {
+                callRecentOutcomes[call.asset].shift();
+            }
+        }
+        
+        resolved.push({ clientTradeId, confirmed: call.confirmed, isWin: call.isWin });
+        log(`📋 PENDING CALL RESOLVED: ${clientTradeId} | Confirmed=${call.confirmed} | Win=${call.isWin}`, call.asset);
+    }
+    
+    // Cleanup old pending calls (older than 2 cycles)
+    const cutoff = (cycleStartEpoch - 1800) * 1000;  // 2 cycles ago
+    for (const [id, call] of Object.entries(pendingCalls)) {
+        if (call.expiresAt < cutoff) {
+            delete pendingCalls[id];
+        }
+    }
+    
+    return resolved;
+}
+
+/**
+ * Get call accuracy for an asset (last 10 BUY calls).
+ */
+function getCallAccuracy(asset) {
+    const calls = callRecentOutcomes[asset] || [];
+    if (calls.length === 0) return { wins: 0, total: 0, accuracy: null };
+    const wins = calls.filter(c => c.isWin === true).length;
+    return { 
+        wins, 
+        total: calls.length, 
+        accuracy: (wins / calls.length * 100).toFixed(0),
+        outcomes: calls.map(c => c.isWin)
+    };
+}
+
+// Shadow-book position management (now only called from confirmPendingCall or legacy paths)
 function openShadowPosition(signal) {
     if (!signal || shadowBook.position) return;
     
@@ -20681,6 +20897,20 @@ async function saveState() {
             maxStreakSeen: Number(streakState?.maxStreakSeen) || 0,
             recentWinRate: Number(streakState?.recentWinRate) || 0,
             deteriorationCount: Number(streakState?.deteriorationCount) || 0
+        },
+        // 🏆 v116: Pending calls & call outcomes for confirm-gated trading
+        pendingCalls: Object.fromEntries(
+            Object.entries(pendingCalls || {}).filter(([, c]) => c && !c.resolvedAt).slice(0, 50)
+        ),
+        callRecentOutcomes: {
+            BTC: (callRecentOutcomes?.BTC || []).slice(-10),
+            ETH: (callRecentOutcomes?.ETH || []).slice(-10),
+            XRP: (callRecentOutcomes?.XRP || []).slice(-10),
+            SOL: (callRecentOutcomes?.SOL || []).slice(-10)
+        },
+        streakFormingState: {
+            lastAlertAt: Number(streakFormingState?.lastAlertAt) || 0,
+            lastAlertWinCount: Number(streakFormingState?.lastAlertWinCount) || 0
         }
     };
 
@@ -21177,6 +21407,26 @@ async function loadState() {
                     streakState.recentWinRate = Number(ss.recentWinRate) || 0;
                     streakState.deteriorationCount = Number(ss.deteriorationCount) || 0;
                 }
+                
+                // 🏆 v116: Restore pending calls and call outcomes
+                if (state.pendingCalls && typeof state.pendingCalls === 'object') {
+                    for (const [id, call] of Object.entries(state.pendingCalls)) {
+                        if (call && !call.resolvedAt) {
+                            pendingCalls[id] = call;
+                        }
+                    }
+                }
+                if (state.callRecentOutcomes && typeof state.callRecentOutcomes === 'object') {
+                    for (const asset of ASSETS) {
+                        if (Array.isArray(state.callRecentOutcomes[asset])) {
+                            callRecentOutcomes[asset] = state.callRecentOutcomes[asset].slice(-10);
+                        }
+                    }
+                }
+                if (state.streakFormingState && typeof state.streakFormingState === 'object') {
+                    streakFormingState.lastAlertAt = Number(state.streakFormingState.lastAlertAt) || 0;
+                    streakFormingState.lastAlertWinCount = Number(state.streakFormingState.lastAlertWinCount) || 0;
+                }
 
                 log('💾 State Restored from Redis (including model learning!)');
                 return;
@@ -21259,6 +21509,26 @@ async function loadState() {
                 streakState.maxStreakSeen = Number(ss.maxStreakSeen) || 0;
                 streakState.recentWinRate = Number(ss.recentWinRate) || 0;
                 streakState.deteriorationCount = Number(ss.deteriorationCount) || 0;
+            }
+            
+            // 🏆 v116: Restore pending calls and call outcomes (local file)
+            if (state.pendingCalls && typeof state.pendingCalls === 'object') {
+                for (const [id, call] of Object.entries(state.pendingCalls)) {
+                    if (call && !call.resolvedAt) {
+                        pendingCalls[id] = call;
+                    }
+                }
+            }
+            if (state.callRecentOutcomes && typeof state.callRecentOutcomes === 'object') {
+                for (const asset of ASSETS) {
+                    if (Array.isArray(state.callRecentOutcomes[asset])) {
+                        callRecentOutcomes[asset] = state.callRecentOutcomes[asset].slice(-10);
+                    }
+                }
+            }
+            if (state.streakFormingState && typeof state.streakFormingState === 'object') {
+                streakFormingState.lastAlertAt = Number(state.streakFormingState.lastAlertAt) || 0;
+                streakFormingState.lastAlertWinCount = Number(state.streakFormingState.lastAlertWinCount) || 0;
             }
 
             log(`💾 State Restored from local file (${DB_FILE})`);
@@ -22198,30 +22468,79 @@ app.get('/', (req, res) => {
                         const winRate = stats.total > 0 ? ((stats.wins / stats.total) * 100).toFixed(0) : '--';
                         const marketUrl = d.market?.marketUrl || '#';
                         const cpPrice = d.checkpoint ? '$' + d.checkpoint.toLocaleString('en-US', {minimumFractionDigits: priceDecimals, maximumFractionDigits: priceDecimals}) : '--';
-                        const recentOutcomes = d.recentOutcomes || [];
-                        let wlTracker = '';
+                        // 🏆 v116: FORECAST outcomes (continuous predictions)
+                        const forecastOutcomes = d.forecastOutcomes || d.recentOutcomes || [];
+                        let forecastTracker = '';
                         for (let i = 0; i < 10; i++) {
-                            if (i < recentOutcomes.length) {
-                                wlTracker += recentOutcomes[i] ? '<span style="color:#00ff88;">✓</span>' : '<span style="color:#ff4466;">✗</span>';
+                            if (i < forecastOutcomes.length) {
+                                forecastTracker += forecastOutcomes[i] ? '<span style="color:#00ff88;">✓</span>' : '<span style="color:#ff4466;">✗</span>';
                             } else {
-                                wlTracker += '<span style="color:#444;">○</span>';
+                                forecastTracker += '<span style="color:#444;">○</span>';
                             }
                         }
-                        const recentWins = recentOutcomes.filter(Boolean).length;
-                        const recentTotal = recentOutcomes.length;
+                        const forecastWins = forecastOutcomes.filter(Boolean).length;
+                        const forecastTotal = forecastOutcomes.length;
+                        
+                        // 🏆 v116: CALL outcomes (BUY calls only)
+                        const callOutcomes = d.callOutcomes || [];
+                        let callTracker = '';
+                        for (let i = 0; i < 10; i++) {
+                            if (i < callOutcomes.length) {
+                                callTracker += callOutcomes[i] ? '<span style="color:#00ff88;">✓</span>' : '<span style="color:#ff4466;">✗</span>';
+                            } else {
+                                callTracker += '<span style="color:#444;">○</span>';
+                            }
+                        }
+                        const callWins = callOutcomes.filter(Boolean).length;
+                        const callTotal = callOutcomes.length;
+                        
                         const yesOdds = d.market && d.market.yesPrice ? (d.market.yesPrice * 100).toFixed(1) : '--';
                         const noOdds = d.market && d.market.noPrice ? (d.market.noPrice * 100).toFixed(1) : '--';
+                        
+                        // 🏆 v116: TWO-TIER DISPLAY: Forecast vs CALL
+                        const oracleAction = d.oracleSignal?.action || 'WAIT';
+                        const callBadgeColor = oracleAction === 'BUY' ? '#00ff88' : (oracleAction === 'PREPARE' ? '#ffd700' : '#666');
+                        const callBadgeBg = oracleAction === 'BUY' ? 'rgba(0,255,136,0.2)' : (oracleAction === 'PREPARE' ? 'rgba(255,215,0,0.15)' : 'rgba(100,100,100,0.1)');
+                        const isLocked = d.oracleSignal?.calibration?.isLocked === true;
+                        const pWinDisplay = d.pWin ? (d.pWin * 100).toFixed(0) + '%' : '--';
+                        
                         html += '<div class="asset-card ' + (d.locked ? 'locked' : '') + '">' +
                             '<div class="asset-header"><span class="asset-name">' + asset + '</span><span class="asset-price">$' + price + ' <span style="color:' + (change >= 0 ? '#00ff88' : '#ff4466') + '">(' + (change >= 0 ? '+' : '') + change + '%)</span></span></div>' +
-                            '<div class="prediction"><div class="prediction-value ' + (d.prediction || 'WAIT') + '">' + (d.prediction || 'WAIT') + '</div></div>' +
-                            '<div class="confidence-bar"><div class="confidence-fill ' + confClass + '" style="width:' + conf + '%"></div></div>' +
-                            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;"><span>' + conf + '% Confidence</span><span class="tier ' + (d.tier || 'NONE') + '">' + (d.tier || 'NONE') + (d.locked ? ' 🔒' : '') + '</span></div>' +
-                            '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;margin-top:8px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
+                            
+                            // 🏆 v116: TWO-TIER SECTION
+                            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;">' +
+                            // FORECAST (left)
+                            '<div style="background:rgba(100,100,100,0.1);border-radius:6px;padding:8px;text-align:center;">' +
+                            '<div style="font-size:0.65em;color:#888;text-transform:uppercase;letter-spacing:1px;">Forecast</div>' +
+                            '<div class="prediction-value ' + (d.prediction || 'WAIT') + '" style="font-size:1.4em;margin:4px 0;">' + (d.prediction || 'WAIT') + '</div>' +
+                            '<div style="font-size:0.75em;color:#888;">' + conf + '% • ' + (d.tier || 'NONE') + '</div>' +
+                            '</div>' +
+                            // CALL (right)
+                            '<div style="background:' + callBadgeBg + ';border:2px solid ' + callBadgeColor + ';border-radius:6px;padding:8px;text-align:center;">' +
+                            '<div style="font-size:0.65em;color:#888;text-transform:uppercase;letter-spacing:1px;">CALL</div>' +
+                            '<div style="font-size:1.4em;font-weight:bold;color:' + callBadgeColor + ';margin:4px 0;">' + oracleAction + '</div>' +
+                            '<div style="font-size:0.75em;color:#888;">pWin ' + pWinDisplay + (isLocked ? ' 🔒' : '') + '</div>' +
+                            '</div>' +
+                            '</div>' +
+                            
+                            '<div style="text-align:center;padding:6px;background:rgba(255,215,0,0.1);border-radius:4px;"><span style="color:#888;font-size:0.8em;">Checkpoint: </span><span style="color:#ffd700;font-weight:bold;">' + cpPrice + '</span></div>' +
                             '<div class="stats-grid"><div class="stat"><div class="stat-label">Win</div><div class="stat-value">' + winRate + '%</div></div>' +
                             '<div class="stat"><div class="stat-label">Edge</div><div class="stat-value">' + (d.edge ? d.edge.toFixed(2) : '0') + '%</div></div>' +
                             '<div class="stat"><div class="stat-label">YES</div><div class="stat-value">' + yesOdds + '¢</div></div>' +
                             '<div class="stat"><div class="stat-label">NO</div><div class="stat-value">' + noOdds + '¢</div></div></div>' +
-                            '<div style="text-align:center;padding:6px;background:rgba(0,0,0,0.2);border-radius:4px;margin-top:8px;font-size:1.1em;letter-spacing:2px;"><span style="color:#888;font-size:0.7em;display:block;margin-bottom:2px;">Last 10: ' + recentWins + '/' + recentTotal + '</span>' + wlTracker + '</div>' +
+                            
+                            // 🏆 v116: DUAL LAST-10 TRACKERS
+                            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px;">' +
+                            '<div style="text-align:center;padding:6px;background:rgba(100,100,100,0.1);border-radius:4px;">' +
+                            '<span style="color:#888;font-size:0.65em;display:block;">Forecast ' + forecastWins + '/' + forecastTotal + '</span>' +
+                            '<div style="font-size:0.9em;letter-spacing:1px;">' + forecastTracker + '</div>' +
+                            '</div>' +
+                            '<div style="text-align:center;padding:6px;background:rgba(0,255,136,0.05);border-radius:4px;border:1px solid rgba(0,255,136,0.2);">' +
+                            '<span style="color:#00ff88;font-size:0.65em;display:block;">CALL ' + callWins + '/' + callTotal + '</span>' +
+                            '<div style="font-size:0.9em;letter-spacing:1px;">' + callTracker + '</div>' +
+                            '</div>' +
+                            '</div>' +
+                            
                             '<div style="display:flex;gap:8px;margin-top:10px;">' +
                             '<button onclick="manualBuy(' + "'" + asset + "'" + ', ' + "'" + 'UP' + "'" + ')" style="flex:1;padding:8px;background:linear-gradient(135deg,#00ff88,#00cc66);border:none;border-radius:6px;color:#000;font-weight:bold;cursor:pointer;font-size:0.85em;">📈 BUY UP<br><small>' + yesOdds + '¢</small></button>' +
                             '<button onclick="manualBuy(' + "'" + asset + "'" + ', ' + "'" + 'DOWN' + "'" + ')" style="flex:1;padding:8px;background:linear-gradient(135deg,#ff4466,#cc2244);border:none;border-radius:6px;color:#fff;font-weight:bold;cursor:pointer;font-size:0.85em;">📉 BUY DOWN<br><small>' + noOdds + '¢</small></button>' +
@@ -23951,6 +24270,69 @@ function sendStreakModeNotification(prevMode, newMode) {
     }
 }
 
+/**
+ * 🏆 v116: Check for streak-forming alert (early warning, non-predictive).
+ * Sent when 3+ consecutive BUY call wins across all assets.
+ * Explicitly labeled as non-predictive information only.
+ */
+function checkStreakFormingAlert() {
+    try {
+        if (!CONFIG?.TELEGRAM?.enabled) return;
+        
+        const now = Date.now();
+        
+        // Cooldown: at least 15 min between streak-forming alerts
+        if (now - streakFormingState.lastAlertAt < 900000) return;
+        
+        // Count consecutive wins across all assets (most recent first)
+        const allCalls = [];
+        for (const asset of ASSETS) {
+            for (const call of (callRecentOutcomes[asset] || [])) {
+                if (call.confirmed && call.resolvedAt && typeof call.isWin === 'boolean') {
+                    allCalls.push({ ...call, asset });
+                }
+            }
+        }
+        
+        // Sort by resolved time (most recent first)
+        allCalls.sort((a, b) => b.resolvedAt - a.resolvedAt);
+        
+        // Count consecutive wins from most recent
+        let consecutiveWins = 0;
+        for (const call of allCalls) {
+            if (call.isWin) {
+                consecutiveWins++;
+            } else {
+                break;  // Streak broken
+            }
+        }
+        
+        // Only alert if 3+ wins AND different from last alert
+        if (consecutiveWins >= 3 && consecutiveWins !== streakFormingState.lastAlertWinCount) {
+            streakFormingState.lastAlertAt = now;
+            streakFormingState.lastAlertWinCount = consecutiveWins;
+            
+            // Calculate recent WR from call outcomes
+            const recentCalls = allCalls.slice(0, 10);
+            const wins = recentCalls.filter(c => c.isWin).length;
+            const recentWR = recentCalls.length > 0 ? (wins / recentCalls.length * 100).toFixed(0) : '--';
+            
+            let msg = `📊 <b>STREAK FORMING</b> ⚡\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `📈 ${consecutiveWins} consecutive BUY wins\n`;
+            msg += `🎯 Recent call WR: <b>${recentWR}%</b>\n`;
+            msg += `━━━━━━━━━━━━━━━━━\n`;
+            msg += `<i>⚠️ NON-PREDICTIVE: Past wins do not guarantee future results.</i>\n`;
+            msg += `<i>This is an observation, not a trading signal.</i>`;
+            
+            sendTelegramNotification(msg, false);
+            log(`📊 STREAK FORMING ALERT: ${consecutiveWins} consecutive BUY wins`);
+        }
+    } catch {
+        // never crash
+    }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🔒 v105: CYCLE COMMITMENT (NO FLIP-FLOP) FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -24755,9 +25137,18 @@ function buildStateSnapshot() {
             market: currentMarkets[a],
             locked: Brains[a].convictionLocked,
             voteStability: Brains[a].voteTrendScore,
+            // 🏆 v116: FORECAST accuracy (continuous predictions, all cycles)
+            forecastAccuracy: recentAccuracy.toFixed(1),
+            forecastTotal: recentTotal,
+            forecastOutcomes: Brains[a].recentOutcomes, // Rolling W/L for UI display (forecasts)
+            // 🏆 v116: CALL accuracy (BUY calls only, confirmed trades)
+            callAccuracy: getCallAccuracy(a).accuracy || '--',
+            callTotal: getCallAccuracy(a).total,
+            callOutcomes: getCallAccuracy(a).outcomes || [],
+            // Legacy fields for backwards compatibility
             recentAccuracy: recentAccuracy.toFixed(1),
             recentTotal: recentTotal,
-            recentOutcomes: Brains[a].recentOutcomes, // Rolling W/L for UI display
+            recentOutcomes: Brains[a].recentOutcomes,
             kellySize: Brains[a].getKellySize(),
             calibration: Brains[a].calibrationBuckets,
             tierCalibration: Brains[a].tierCalibration, // 🎯 GOAT: Tier+price conditioned calibration
@@ -25122,8 +25513,16 @@ app.get('/api/oracle/confirm', async (req, res) => {
         // Persist to Redis
         await persistManualJourney();
         
+        // 🏆 v116: Also process pending call (opens shadow position only on confirm)
+        let callResult = { success: false, reason: 'No pending call' };
+        if (isTook) {
+            callResult = confirmPendingCall(clientTradeId);
+        } else if (isSkipped) {
+            callResult = skipPendingCall(clientTradeId);
+        }
+        
         // Log
-        log(`📱 TELEGRAM CONFIRM: ${tradeRecord.decision} ${asset} ${direction} @ ${(entryPriceNum * 100).toFixed(0)}¢ (ID: ${clientTradeId})`);
+        log(`📱 TELEGRAM CONFIRM: ${tradeRecord.decision} ${asset} ${direction} @ ${(entryPriceNum * 100).toFixed(0)}¢ (ID: ${clientTradeId}) | CallResult: ${callResult.reason}`);
         
         // Return nice HTML confirmation
         const emoji = isTook ? '✅' : (isSkipped ? '⏭️' : '❓');
@@ -27398,7 +27797,44 @@ setInterval(() => {
             }
         }
     });
+    
+    // 🏆 v116: RESOLVE PENDING CALLS FOR THE JUST-FINISHED CYCLE
+    // Check if we need to resolve pending calls (only once per cycle transition)
+    const previousCycleStart = cp - INTERVAL_SECONDS;
+    if (!pendingCallsCycleResolved[previousCycleStart]) {
+        // Collect outcomes for all assets
+        const outcomes = {};
+        for (const a of ASSETS) {
+            if (checkpointPrices[a] && previousCheckpointPrices[a]) {
+                outcomes[a] = {
+                    actualDirection: livePrices[a] >= previousCheckpointPrices[a] ? 'UP' : 'DOWN',
+                    startPrice: previousCheckpointPrices[a],
+                    endPrice: livePrices[a]
+                };
+            }
+        }
+        
+        // Resolve all pending calls for this cycle
+        const resolved = resolvePendingCallsForCycle(previousCycleStart, outcomes);
+        if (resolved.length > 0) {
+            log(`📋 PENDING CALLS RESOLVED: ${resolved.length} calls for cycle ${previousCycleStart}`);
+            
+            // 🏆 v116: Check for streak-forming alert (3+ wins in a row across all assets)
+            checkStreakFormingAlert();
+        }
+        
+        pendingCallsCycleResolved[previousCycleStart] = true;
+        
+        // Cleanup old entries (keep only last 10 cycles)
+        const cycleKeys = Object.keys(pendingCallsCycleResolved).map(Number).sort((a, b) => b - a);
+        for (const key of cycleKeys.slice(10)) {
+            delete pendingCallsCycleResolved[key];
+        }
+    }
 }, 1000);
+
+// Track which cycles have been resolved (to avoid duplicate resolution)
+const pendingCallsCycleResolved = {};
 
 // ==================== STARTUP ====================
 function getCurrentCheckpoint() { return Math.floor(Date.now() / 1000) - (Math.floor(Date.now() / 1000) % INTERVAL_SECONDS); }
