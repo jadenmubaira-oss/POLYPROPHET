@@ -8728,7 +8728,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 117;  // v117: Fixed shadow-book cycle-end settlement, CALL panel now shows oracle pWin/edge (LCB-adjusted)
+const CONFIG_VERSION = 118;  // v118: Fix shadow-book settlement checkpoint capture + Gamma fallback; fix manual-journey win/loss accounting
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -10388,6 +10388,9 @@ function confirmPendingCall(clientTradeId) {
             stake: stake.recommendedStake,
             openedAt: Date.now(),
             cycleStartEpoch: call.cycleStartEpoch,
+            // 🏆 v118: Capture the cycle-start checkpoint price at confirmation time
+            // This is required for correct cycle-end settlement (do NOT rely on non-existent brain.checkpoint).
+            cycleStartCheckpointPrice: (Number.isFinite(checkpointPrices?.[call.asset]) ? checkpointPrices[call.asset] : null),
             pWinAtEntry: call.pWin,
             tierAtEntry: call.tier,
             clientTradeId  // Link to pending call
@@ -10508,6 +10511,8 @@ function openShadowPosition(signal) {
         stake: stake.recommendedStake,
         openedAt: Date.now(),
         cycleStartEpoch: cycleStart,
+        // 🏆 v118: Capture cycle-start checkpoint for correct settlement (best-effort)
+        cycleStartCheckpointPrice: (Number.isFinite(checkpointPrices?.[signal.asset]) ? checkpointPrices[signal.asset] : null),
         // 🎯 v105: Store pWin and tier at entry for adaptive learning
         pWinAtEntry: signal.pWin || 0.5,
         tierAtEntry: signal.tier || 'ADVISORY'
@@ -10534,6 +10539,47 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     manualTradingJourney.currentBalance += pnl;
     manualTradingJourney.lastUpdated = Date.now();
     shadowBook.totalPnl += pnl;
+    
+    // 🏆 v118: Reconcile the manual ledger entry when this shadow position came from a confirm-gated call.
+    // This fixes the historical issue where balance could change without any trade record.
+    try {
+        const ctId = pos?.clientTradeId ? String(pos.clientTradeId) : null;
+        if (ctId) {
+            if (!Array.isArray(manualTradingJourney.trades)) manualTradingJourney.trades = [];
+            const idx = manualTradingJourney.trades.findIndex(t => t && String(t.id) === ctId);
+            if (idx >= 0) {
+                manualTradingJourney.trades[idx] = {
+                    ...manualTradingJourney.trades[idx],
+                    exitPrice: exit,
+                    pnl,
+                    won: isWinResolved,
+                    status: 'RESOLVED',
+                    resolvedAt: Date.now()
+                };
+            } else {
+                // Backfill record if missing (legacy state)
+                manualTradingJourney.trades.push({
+                    id: ctId,
+                    asset: pos.asset,
+                    slug: null,
+                    direction: pos.direction,
+                    decision: 'TOOK',
+                    entryPrice: pos.entry,
+                    stake: Number(pos.stake || 0),
+                    pWin: Number(pos.pWinAtEntry) || null,
+                    recordedAt: pos.openedAt || Date.now(),
+                    status: 'RESOLVED',
+                    exitPrice: exit,
+                    pnl,
+                    won: isWinResolved,
+                    resolvedAt: Date.now()
+                });
+            }
+            if (manualTradingJourney.trades.length > 100) {
+                manualTradingJourney.trades = manualTradingJourney.trades.slice(-100);
+            }
+        }
+    } catch { /* ignore */ }
     
     // 🏆 v112: Persist immediately to Redis for cross-device sync
     persistManualJourney().catch(() => {}); // Fire-and-forget (non-blocking)
@@ -25280,17 +25326,26 @@ app.get('/api/manual-journey', (req, res) => {
     const j = manualTradingJourney;
     const totalProfit = j.currentBalance - j.startingBalance;
     const profitPct = j.startingBalance > 0 ? ((j.currentBalance / j.startingBalance) - 1) * 100 : 0;
-    const tradesWon = j.trades.filter(t => t.won).length;
-    const tradesLost = j.trades.filter(t => !t.won).length;
-    const winRate = j.trades.length > 0 ? (tradesWon / j.trades.length * 100) : 0;
+    const allTrades = Array.isArray(j.trades) ? j.trades : [];
+    // Only count RESOLVED trades as wins/losses (won must be boolean).
+    // Older versions recorded pending trades with won=null; those must not be counted as losses.
+    const resolvedTrades = allTrades.filter(t => t && typeof t.won === 'boolean');
+    const pendingTrades = allTrades.length - resolvedTrades.length;
+    const tradesWon = resolvedTrades.filter(t => t.won === true).length;
+    const tradesLost = resolvedTrades.filter(t => t.won === false).length;
+    const winRate = resolvedTrades.length > 0 ? (tradesWon / resolvedTrades.length * 100) : 0;
     
     // Estimate trades to $1M
-    const avgRoi = j.trades.length > 0 
-        ? j.trades.filter(t => t.won).reduce((sum, t) => sum + (t.roi || 0), 0) / Math.max(1, tradesWon)
+    const avgRoi = resolvedTrades.length > 0 
+        ? resolvedTrades.filter(t => t.won === true).reduce((sum, t) => sum + (t.roi || 0), 0) / Math.max(1, tradesWon)
         : 0.5; // assume 50% avg ROI if no data
     const tradesToMillion = avgRoi > 0 && j.currentBalance > 0
         ? Math.ceil(Math.log(1000000 / j.currentBalance) / Math.log(1 + avgRoi * 0.85))
         : 999;
+    
+    const progressPctNum = (j.currentBalance > 0)
+        ? ((Math.log(j.currentBalance) / Math.log(1000000)) * 100)
+        : 0;
     
     res.json({
         startingBalance: j.startingBalance,
@@ -25298,13 +25353,15 @@ app.get('/api/manual-journey', (req, res) => {
         targetBalance: j.targetBalance,
         totalProfit,
         profitPct: profitPct.toFixed(1) + '%',
-        trades: j.trades.length,
+        trades: allTrades.length,
+        resolvedTrades: resolvedTrades.length,
+        pendingTrades,
         tradesWon,
         tradesLost,
         winRate: winRate.toFixed(1) + '%',
         tradesToMillion,
-        progressPct: (Math.log(j.currentBalance) / Math.log(1000000) * 100).toFixed(2) + '%',
-        recentTrades: j.trades.slice(-10),
+        progressPct: progressPctNum.toFixed(2) + '%',
+        recentTrades: allTrades.slice(-10),
         startedAt: new Date(j.startedAt).toISOString(),
         lastUpdated: new Date(j.lastUpdated).toISOString()
     });
@@ -27965,31 +28022,49 @@ async function startup() {
             }
             
             // Step 4: Settle shadow-book position on cycle end
-            // 🏆 v117: Fixed to compute outcome directly from Chainlink prices instead of brain.lastOutcome
+            // 🏆 v118: Use the checkpoint captured at confirmation/open for correct settlement.
+            // If price-based settlement is not possible at the boundary, fall back to Gamma resolution (never force-loss).
             const nowSec = Math.floor(Date.now() / 1000);
             const elapsed = nowSec % INTERVAL_SECONDS;
-            if (shadowBook.position && elapsed < 5) {
-                // Near cycle start - check if previous cycle ended
-                const posCycleEnd = shadowBook.position.cycleStartEpoch + INTERVAL_SECONDS;
-                if (nowSec >= posCycleEnd) {
-                    // Cycle ended - settle position based on outcome
-                    const posAsset = shadowBook.position.asset;
-                    const brain = Brains[posAsset];
-                    
-                    // 🏆 v117 FIX: Compute outcome directly from checkpoint/live prices
-                    // The old code relied on brain.lastOutcome which was NEVER SET → phantom positions
-                    const checkpointPrice = brain?.checkpoint;
+            if (shadowBook.position) {
+                const pos = shadowBook.position;
+                const posAsset = pos.asset;
+                const posCycleEnd = Number(pos.cycleStartEpoch) + INTERVAL_SECONDS;
+
+                // Price-based settlement (only valid in the boundary window)
+                if (elapsed < 5 && nowSec >= posCycleEnd) {
+                    const checkpointPrice = Number.isFinite(Number(pos.cycleStartCheckpointPrice))
+                        ? Number(pos.cycleStartCheckpointPrice)
+                        : null;
                     const livePrice = livePrices[posAsset];
-                    
+
                     if (Number.isFinite(checkpointPrice) && Number.isFinite(livePrice)) {
                         // Tie = UP wins (matches Polymarket resolution)
                         const actualOutcome = livePrice >= checkpointPrice ? 'UP' : 'DOWN';
                         log(`📖 SHADOW-BOOK CYCLE END: ${posAsset} checkpoint=$${checkpointPrice.toFixed(2)} live=$${livePrice.toFixed(2)} → ${actualOutcome}`, posAsset);
                         settleShadowPositionOnCycleEnd(posAsset, actualOutcome);
                     } else {
-                        // Can't determine outcome - close as loss conservatively
-                        log(`⚠️ SHADOW-BOOK CYCLE END: ${posAsset} missing prices (checkpoint=${checkpointPrice}, live=${livePrice}) - closing as LOSS`, posAsset);
-                        closeShadowPosition(0, false, 'CYCLE_END_NO_DATA');
+                        pos.needsGammaResolution = true;
+                        pos.needsGammaResolutionAt = pos.needsGammaResolutionAt || Date.now();
+                        log(`⚠️ SHADOW-BOOK CYCLE END: ${posAsset} missing prices (checkpoint=${checkpointPrice}, live=${livePrice}) - will resolve via Gamma`, posAsset);
+                    }
+                }
+
+                // Gamma fallback: keep trying after cycle end until resolved
+                if (pos.needsGammaResolution && nowSec >= posCycleEnd) {
+                    const nowMs = Date.now();
+                    const lastAttemptAt = Number(pos.lastGammaAttemptAt) || 0;
+                    if (nowMs - lastAttemptAt > 15000 &&
+                        tradeExecutor &&
+                        typeof tradeExecutor.fetchPolymarketResolvedOutcome === 'function') {
+                        pos.lastGammaAttemptAt = nowMs;
+                        const slug = `${String(posAsset || '').toLowerCase()}-updown-15m-${pos.cycleStartEpoch}`;
+                        tradeExecutor.fetchPolymarketResolvedOutcome(slug).then(outcome => {
+                            if (outcome === 'UP' || outcome === 'DOWN') {
+                                log(`🏁 SHADOW-BOOK RESOLVED (Gamma): ${posAsset} ${slug} -> ${outcome}`, posAsset);
+                                settleShadowPositionOnCycleEnd(posAsset, outcome);
+                            }
+                        }).catch(() => { });
                     }
                 }
             }

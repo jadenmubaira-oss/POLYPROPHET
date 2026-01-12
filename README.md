@@ -4,10 +4,11 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v117 FINAL PATCH**: Shadow-book settlement fix + CALL panel correctness.
-> - **🔧 SHADOW-BOOK FIX**: Cycle-end settlement now computes outcome from Chainlink checkpoint/live prices (was broken: `brain.lastOutcome` never set → phantom HOLDs)
-> - **🎯 CALL PANEL FIX**: Dashboard CALL now shows `oracleSignal.pWin` (LCB-adjusted, actual BUY gating value) + `mispricingEdge` (pp)—not forecast pWin which differs
-> - **📊 EDGE DISPLAY FIX**: Stats grid "Edge" now shows oracle mispricingEdge (pp) for consistency with CALL panel
+> **v118 FINAL PATCH**: Shadow-book settlement correctness + manual-ledger accuracy.
+> - **🔧 SHADOW-BOOK SETTLEMENT FIX**: Settlement now uses the **cycle checkpoint captured at confirmation/open** (`cycleStartCheckpointPrice`) instead of a non-existent `brain.checkpoint`.
+> - **🛟 GAMMA FALLBACK**: If prices are missing at the cycle boundary, the bot resolves the cycle via **Gamma** (never force-loss due to missing data).
+> - **📖 LEDGER RECONCILIATION**: When a confirmed shadow position closes, the corresponding manual-ledger entry is updated with `exitPrice/pnl/won`.
+> - **✅ MANUAL-JOURNEY STATS FIX**: Pending trades (`won=null`) are **not** counted as losses in `/api/manual-journey`.
 >
 > **v116 TWO-TIER ORACLE**: Forecast vs CALL separation, confirm-gated trades, streak alerts.
 > - **🎯 TWO-TIER MODEL**: Dashboard shows FORECAST (continuous) vs CALL (actionable BUY/PREPARE/WAIT)
