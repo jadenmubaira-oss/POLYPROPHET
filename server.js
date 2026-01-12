@@ -8728,7 +8728,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 114;  // v114: Stale-cycle suppression, tail-BUY gating, Telegram proof fields, deterministic confirm IDs
+const CONFIG_VERSION = 115;  // v115 (v114.1 patch): Oracle pWin uses LCB-aware engine path; Telegram LCB proof is exact
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9833,7 +9833,7 @@ function telegramOraclePrepare(signal) {
     const priceSource = priceDiag.pricingFallback || (dir === 'UP' ? 'yesBestAsk' : 'noBestAsk');
     const spread = Number.isFinite(priceDiag.spread) ? `${(priceDiag.spread * 100).toFixed(1)}¢` : 'n/a';
     const cal = signal?.calibration || {};
-    const lcbUsed = cal.lcbUsed === true || signal?.pWinSource === 'TIER_CONDITIONED';
+    const lcbUsed = cal.lcbUsed === true;
     const sampleSize = cal.sampleSize || 0;
     
     // 🏆 v114: Tail-bet indicator
@@ -9968,7 +9968,7 @@ function telegramOracleBuy(signal) {
     const priceSource = priceDiag.pricingFallback || (dir === 'UP' ? 'yesBestAsk' : 'noBestAsk');
     const spread = Number.isFinite(priceDiag.spread) ? `${(priceDiag.spread * 100).toFixed(1)}¢` : 'n/a';
     const calProof = signal?.calibration || {};
-    const lcbUsed = calProof.lcbUsed === true || signal?.pWinSource === 'TIER_CONDITIONED';
+    const lcbUsed = calProof.lcbUsed === true;
     const sampleSize = calProof.sampleSize || 0;
     
     msg += `📋 <b>PROOF:</b>\n`;
@@ -24280,20 +24280,81 @@ function updateOracleSignalForAsset(asset) {
         const entryPrice = signal.direction === 'UP' ? market.yesPrice : market.noPrice;
         signal.implied = entryPrice;
 
-        const pWin = computeTierConditionedPWin(brain, entryPrice);
-        signal.pWin = pWin;
-        // 🏆 v114: Track pWin source for proof fields
-        if (typeof brain.getTierConditionedPWin === 'function' && brain.getTierConditionedPWin(brain.tier, entryPrice, { fallback: null, minSamples: 5 }) !== null) {
-            signal.pWinSource = 'TIER_CONDITIONED';
-        } else if (pWin !== null) {
-            signal.pWinSource = 'BUCKET_CALIBRATED';
+        // 🏆 v115 (v114.1 patch): Use the SAME LCB-aware pWin logic the engine uses (no misleading Telegram proof)
+        // This also produces a truthful `signal.lcbUsed` for Telegram "LCB: ON/OFF".
+        const tierNow = String(signal?.tier || '').toUpperCase();
+        const confNow = Number.isFinite(Number(signal?.confidence)) ? Number(signal.confidence) : null;
+
+        const s = brain?.stats || {};
+        const priorRate =
+            (tierNow === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
+                (s.total > 0 ? (s.wins / s.total) : 0.5);
+
+        let pWinRaw = null;
+        let lcbUsed = false;
+        let pWinSource = null;
+
+        const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false); // default ON
+        const convictionLcbZ = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBZ))
+            ? Number(CONFIG.RISK.convictionPWinLCBZ)
+            : 1.96;
+        const convictionLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBMinSamples))
+            ? Number(CONFIG.RISK.convictionPWinLCBMinSamples)
+            : 25;
+        const convictionTierMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionTierPWinMinSamples))
+            ? Number(CONFIG.RISK.convictionTierPWinMinSamples)
+            : 20;
+        const advisoryLcbZ = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBZ))
+            ? Number(CONFIG.RISK.advisoryPWinLCBZ)
+            : 1.645;
+        const advisoryLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBMinSamples))
+            ? Number(CONFIG.RISK.advisoryPWinLCBMinSamples)
+            : 8;
+
+        // 1) Prefer Wilson LCB when available (CONVICTION + ADVISORY)
+        if (tierNow === 'CONVICTION' && convictionLcbEnabled && typeof brain?.getTierConditionedPWinWithLCB === 'function') {
+            pWinRaw = brain.getTierConditionedPWinWithLCB('CONVICTION', entryPrice, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
+            if (pWinRaw !== null) {
+                lcbUsed = true;
+                pWinSource = 'TIER_LCB';
+            }
+        }
+        if (pWinRaw === null && tierNow === 'ADVISORY' && typeof brain?.getCalibratedPWinWithLCB === 'function') {
+            pWinRaw = brain.getCalibratedPWinWithLCB(confNow, { z: advisoryLcbZ, minSamples: advisoryLcbMinSamples, fallback: null });
+            if (pWinRaw !== null) {
+                lcbUsed = true;
+                pWinSource = 'BUCKET_LCB';
+            }
         }
 
-        const evRoi = computeEvRoi(pWin, entryPrice);
+        // 2) Fallback chain: tier-conditioned → calibrated bucket → prior-based
+        if (pWinRaw === null && typeof brain?.getTierConditionedPWin === 'function') {
+            const minSamplesTier = (tierNow === 'CONVICTION' && convictionLcbEnabled) ? convictionTierMinSamples : 5;
+            pWinRaw = brain.getTierConditionedPWin(tierNow, entryPrice, { fallback: null, minSamples: minSamplesTier });
+            if (pWinRaw !== null) pWinSource = 'TIER_CONDITIONED';
+        }
+        if (pWinRaw === null && typeof brain?.getCalibratedWinProb === 'function') {
+            pWinRaw = brain.getCalibratedWinProb(confNow, { priorRate, priorStrength: 40, minSamples: 0 });
+            if (pWinRaw !== null) pWinSource = 'BUCKET_CALIBRATED';
+        }
+
+        // 3) Conservative weighting (matches engine): pull toward 0.5 when confidence is weak
+        const minConfRef = Math.max(0.0001, CONFIG?.ORACLE?.minConfidence || 0.8);
+        const weight = Number.isFinite(confNow) ? Math.max(0, Math.min(1, confNow / minConfRef)) : 0;
+        const pWinEff = Number.isFinite(pWinRaw) ? (0.5 + ((pWinRaw - 0.5) * weight)) : null;
+
+        signal.pWin = pWinEff;
+        signal.pWinSource = pWinSource;
+        signal.lcbUsed = lcbUsed;
+
+        // Maintain legacy local var for downstream logic in this function
+        const pWin = pWinEff;
+
+        const evRoi = computeEvRoi(pWinEff, entryPrice);
         signal.evRoi = evRoi;
 
-        if (Number.isFinite(pWin)) {
-            signal.mispricingEdge = pWin - entryPrice;
+        if (Number.isFinite(pWinEff)) {
+            signal.mispricingEdge = pWinEff - entryPrice;
         }
 
         const trend = computeOddsTrend(asset, signal.direction, 60000);
@@ -24491,8 +24552,8 @@ function updateOracleSignalForAsset(asset) {
             // Sample size for calibration
             sampleSize: calibrationSampleSize,
             sampleSizeAdequate: calibrationSampleSize >= 20,
-            // 🏆 v114: LCB (Lower Confidence Bound) usage indicator for proof
-            lcbUsed: signal.pWinSource === 'TIER_CONDITIONED' || signal.pWinSource === 'BUCKET_CALIBRATED',
+            // 🏆 v115 (v114.1 patch): True if Wilson LCB was actually used to compute pWin
+            lcbUsed: signal.lcbUsed === true,
             // Why this pWin should be trusted (or not)
             trustReason: calibrationSampleSize < 10 
                 ? '⚠️ Low sample size - pWin estimate less reliable'

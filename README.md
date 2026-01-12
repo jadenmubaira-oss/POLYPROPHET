@@ -4,10 +4,11 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v114 STALE-SAFE ORACLE**: Stale-cycle suppression, tail-BUY gating, Telegram proof fields.
+> **v115 STALE-SAFE ORACLE (v114.1 patch)**: Stale-cycle suppression, tail-BUY gating, Telegram proof fields, and **exact LCB proof**.
 > - **🚫 STALE-CYCLE SUPPRESSION**: Telegram PREPARE/BUY blocked if market slug rolled or status != ACTIVE
 > - **🚫 TAIL-BUY GATE**: Entry < 35¢ blocked UNLESS LOCKED+CONVICTION+pWin≥95%+EV≥30%+samples≥25
 > - **📋 TELEGRAM PROOF FIELDS**: Every message shows: Slug, CycleStart, PriceSource, Spread, LCB, Samples
+> - **✅ LCB PROOF IS EXACT**: `LCB: ON` means the oracle actually used Wilson LCB in pWin computation (not a label guess)
 > - **🔒 DETERMINISTIC CONFIRM IDs**: Trade confirmation links are now stable per signal (no Date.now randomness)
 > - **🚫 NO BUY AT ≥80¢**: Hard block - even GOAT preset cannot override (server clamps)
 > - **💰 BANKROLL-SENSITIVE pWin FLOORS**: 
@@ -22,9 +23,9 @@
 
 ---
 
-## 🎯 v114: STALE-SAFE, NON-GAMBLING ORACLE
+## 🎯 v115: STALE-SAFE, NON-GAMBLING ORACLE (v114.1 patch)
 
-v114 adds critical safety layers to prevent stale-cycle alerts and tail-bet gambling.
+v115 adds critical safety layers to prevent stale-cycle alerts and tail-bet gambling, and ensures Telegram proof fields are fully truthful (LCB is wired to actual Wilson LCB usage).
 
 ### v114 New Features
 
