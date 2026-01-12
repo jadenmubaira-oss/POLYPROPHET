@@ -4,41 +4,47 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 > 
-> **v112 HARDENED ORACLE**: Micro-bankroll protection, entry price caps, reliability gates.
-> - **🚫 NO BUY AT ≥80¢**: Hard block on expensive entries (too thin margins for micro bankrolls)
+> **v113 FINAL ORACLE**: GOAT alignment, calibration fixes, Telegram confirm links.
+> - **🚫 NO BUY AT ≥80¢**: Hard block - even GOAT preset cannot override (server clamps)
 > - **💰 BANKROLL-SENSITIVE pWin FLOORS**: 
 >   - ≤$5: 92% pWin required (cannot afford losses)
 >   - ≤$20: 90% pWin required (cautious)
 >   - ≤$100: 87% pWin required (moderate)
 >   - >$100: 85% pWin required (standard)
-> - **📊 RELIABILITY GATE**: BUY blocked unless pWin backed by adequate sample size
+> - **📊 RELIABILITY GATE**: Uses REAL calibration samples (bucket/tier), not just rolling trades
+> - **📱 TELEGRAM CONFIRM LINKS**: "I TOOK IT" / "SKIPPED" buttons in BUY signals - records to manual ledger
 > - **GAMMA-DRIVEN MARKET SELECTION**: No more local clock drift issues
 > - **CLOSED-MARKET HARD STOP**: Never trade on stale/closed market data
-> - **CLOCK/SLUG DRIFT DIAGNOSTICS**: Visible in `/api/state._clockDrift`
-> - **ENHANCED CONVICTION ALERTS**: Telegram notifications for CONVICTION LOCKED trades
 
 ---
 
-## 🎯 v112: HARDENED ORACLE MODE
+## 🎯 v113: FINAL ORACLE MODE
 
-v112 adds critical micro-bankroll protection on top of v111's Gamma-driven market selection.
+v113 fixes critical issues discovered in v112 and adds Telegram trade confirmation.
 
-### v112 Critical Fixes
+### v113 Critical Fixes
 
-1. **Hard ≥80¢ Entry Price Cap**: BUY signals are now blocked when entry price ≥ 80¢. At high prices, even high-pWin trades have thin margins that can't survive slippage/fees. PREPARE signals still fire (for awareness), and SELL signals work normally.
+1. **GOAT Preset Aligned**: The GOAT preset now sets `ORACLE.maxOdds: 0.80` (was 0.95). Additionally, `/api/settings` **clamps** any incoming maxOdds to ≤0.80 so no UI preset or API call can bypass the hard entry cap.
 
-2. **Bankroll-Sensitive pWin Floors**: The minimum pWin required for a BUY signal now adapts to your current bankroll:
-   - ≤$5 bankroll: **92% pWin floor** (micro bankroll cannot afford losses)
-   - ≤$20 bankroll: **90% pWin floor** (small bankroll stays cautious)
-   - ≤$100 bankroll: **87% pWin floor** (moderate growth phase)
-   - >$100 bankroll: **85% pWin floor** (standard floor)
+2. **Calibration Sample Fix**: The reliability gate was incorrectly using `adaptiveGateState.globalRollingTotal` (executed oracle trade count, often 0). Now uses **actual calibration samples**:
+   - Confidence bucket samples (`calibrationBuckets[bucket].total`)
+   - Tier calibration samples (`tierCalibration[tier].total`)
+   - Falls back to overall stats if needed
+   - Result: BUY signals are no longer blocked when you have hundreds of calibration samples
 
-3. **Strict Reliability Gate**: BUY signals require statistically reliable pWin estimates:
-   - For bankrolls ≤$20: Minimum 10 calibration samples required
-   - For bankrolls >$20: Minimum 5 calibration samples required
-   - If samples insufficient, BUY is blocked with clear reason
+3. **Telegram Confirm Links**: Every BUY notification now includes:
+   - **✅ I TOOK IT** - Records trade to manual ledger
+   - **❌ SKIPPED** - Records that you declined
+   - Links are idempotent (clicking twice won't duplicate)
+   - Syncs across devices via Redis
 
-4. **CONFIG.ORACLE.maxOdds**: Changed from 0.95 to **0.80** to align with the hard entry cap.
+4. **Hard ≥80¢ Entry Price Cap**: BUY signals blocked when entry price ≥ 80¢ (unchanged from v112).
+
+5. **Bankroll-Sensitive pWin Floors** (unchanged from v112):
+   - ≤$5 bankroll: **92% pWin floor**
+   - ≤$20 bankroll: **90% pWin floor**
+   - ≤$100 bankroll: **87% pWin floor**
+   - >$100 bankroll: **85% pWin floor**
 
 ### v111 Critical Fixes
 

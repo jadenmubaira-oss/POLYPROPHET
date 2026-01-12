@@ -8728,7 +8728,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 112;  // v112: Hard ≥80¢ BUY block, bankroll-sensitive pWin floors, strict reliability gate
+const CONFIG_VERSION = 113;  // v113: GOAT preset alignment, reliability sample fix, Telegram confirm links
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9936,7 +9936,26 @@ function telegramOracleBuy(signal) {
     }
     
     if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET</b></a>\n`;
-    msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>`;
+    msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>\n`;
+    
+    // 🏆 v113: Add one-click confirm/skip links for manual trade tracking
+    const clientTradeId = `${signal?.asset || 'X'}_${signal?.cycleStartEpochSec || Date.now()}_${Date.now()}`;
+    const confirmBaseUrl = `${DASHBOARD_URL}/api/oracle/confirm`;
+    const confirmParams = new URLSearchParams({
+        clientTradeId,
+        asset: signal?.asset || 'BTC',
+        slug: signal?.marketUrl?.split('/').pop() || '',
+        direction: signal?.direction || 'UP',
+        price: String(signal?.implied || 0.50),
+        pWin: String(signal?.pWin || 0.50),
+        stake: String(stake.recommendedStake || 1.00)
+    });
+    
+    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
+    msg += `📱 <b>Did you take this trade?</b>\n`;
+    msg += `<a href="${confirmBaseUrl}?decision=took&${confirmParams.toString()}">✅ I TOOK IT</a>  `;
+    msg += `<a href="${confirmBaseUrl}?decision=skipped&${confirmParams.toString()}">❌ SKIPPED</a>`;
+    
     return msg;
 }
 
@@ -22402,9 +22421,9 @@ app.get('/', (req, res) => {
                         minConsensus: 0.70,      // 70% model agreement
                         minConfidence: 0.80,     // v79 LOCKED: 80% confidence ref (controls pWin weighting)
                         minEdge: 0,              // Not used for hard edge floor (engine enforces >=5% edge)
-                        // v79 LOCKED: Match backtest defaults for entry price window
+                        // 🚫 v113: Hard cap at 80¢ - no BUY signals above this (matches oracle gate)
                         minOdds: 0.35,
-                        maxOdds: 0.95,
+                        maxOdds: 0.80,           // 🚫 v113: Changed from 0.95 to 0.80 (hard entry cap)
                         minStability: 2,
                         requireTrending: false,
                         // Ensure GOAT resets ALL critical runtime behavior (deep-merge safe)
@@ -24307,11 +24326,40 @@ function updateOracleSignalForAsset(asset) {
         // Uses dynamic pWin threshold that adapts based on recent performance.
         // Target: ≤1 loss per 10 trades (~90% win rate)
         // ═══════════════════════════════════════════════════════════════════════════════
+        
+        // 🏆 v113: Compute REAL calibration sample size from actual calibration data
+        // Use the MAX of: confidence bucket samples, tier calibration samples, and rolling samples
+        // This fixes the issue where globalRollingTotal stays 0 when we have hundreds of calibration samples
+        let calibrationSampleSize = 0;
+        
+        // 1) Confidence bucket samples (from the current pWin bucket)
+        const calBucket = brain?.getCalibrationBucket ? brain.getCalibrationBucket(brain.confidence) : null;
+        const calStats = calBucket && brain?.calibrationBuckets ? brain.calibrationBuckets[calBucket] : null;
+        if (calStats && Number.isFinite(calStats.total)) {
+            calibrationSampleSize = Math.max(calibrationSampleSize, calStats.total);
+        }
+        
+        // 2) Tier calibration samples (CONVICTION/ADVISORY have their own sample counts)
+        const tierCal = brain?.tierCalibration?.[signal.tier];
+        if (tierCal && Number.isFinite(tierCal.total)) {
+            calibrationSampleSize = Math.max(calibrationSampleSize, tierCal.total);
+        }
+        
+        // 3) Global rolling samples (recent executed oracle outcomes) - usually lower
+        if (Number.isFinite(adaptiveGateState.globalRollingTotal)) {
+            calibrationSampleSize = Math.max(calibrationSampleSize, adaptiveGateState.globalRollingTotal);
+        }
+        
+        // 4) If all else fails, use overall stats (wins + total from all time)
+        if (calibrationSampleSize === 0 && brain?.stats?.total > 0) {
+            calibrationSampleSize = Math.min(brain.stats.total, 100); // Cap at 100 to not over-trust ancient data
+        }
+        
         // 🏆 v112: Pass entry price, bankroll, and sample size for enhanced gating
         const adaptiveGate = checkAdaptiveGate(pWin, signal.tier, ultraProphet, {
             entryPrice,
             bankroll: manualTradingJourney?.currentBalance || 1,
-            calibrationSampleSize: adaptiveGateState.globalRollingTotal || 0
+            calibrationSampleSize
         });
         signal.adaptiveGate = adaptiveGate;
 
@@ -24319,7 +24367,7 @@ function updateOracleSignalForAsset(asset) {
         const bankrollInfo = adaptiveGate.effectiveBankroll ? `, bankroll=$${adaptiveGate.effectiveBankroll.toFixed(0)}` : '';
         const adaptiveInfo = `Adaptive: threshold=${(adaptiveGate.threshold * 100).toFixed(0)}%, ` +
             `rolling WR=${((adaptiveGateState.globalRollingTotal > 0 ? adaptiveGateState.globalRollingWins / adaptiveGateState.globalRollingTotal : 0) * 100).toFixed(0)}% ` +
-            `(${adaptiveGateState.globalRollingTotal} samples)${bankrollInfo}`;
+            `(${calibrationSampleSize} samples)${bankrollInfo}`;
         signal.reasons.push(adaptiveInfo);
         
         // Add streak state info
@@ -24333,7 +24381,6 @@ function updateOracleSignalForAsset(asset) {
         // 🏆 v108: CALIBRATION DIAGNOSTICS - "Locked vs Movable" reasoning
         // Expose why the prediction is trustworthy (or not) for manual trading decisions.
         // ═══════════════════════════════════════════════════════════════════════════════
-        const calibrationSampleSize = adaptiveGateState.globalRollingTotal || 0;
         const predictionLocked = stable && brain?.oracleLocked === true;
         const couldFlip = !predictionLocked && timeLeftSec > 120;  // Still movable if >2min left and not locked
         
@@ -24807,6 +24854,119 @@ app.post('/api/manual-journey/balance', async (req, res) => {
         });
     } catch (e) {
         res.status(500).json({ error: e.message });
+    }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏆 v113: TELEGRAM TRADE CONFIRMATION LINKS
+// One-click links in Telegram to confirm/skip suggested trades.
+// Records decisions to manualTradingJourney with idempotency.
+// ═══════════════════════════════════════════════════════════════════════════════
+app.get('/api/oracle/confirm', async (req, res) => {
+    try {
+        const { decision, clientTradeId, asset, slug, direction, price, pWin, stake } = req.query;
+        
+        // Validate required params
+        if (!decision || !clientTradeId || !asset) {
+            return res.status(400).send(`
+                <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:white;text-align:center;}</style></head>
+                <body><h2>❌ Missing parameters</h2><p>decision, clientTradeId, and asset are required.</p></body></html>
+            `);
+        }
+        
+        // Check idempotency - have we already processed this trade?
+        const seenCheck = await isManualTradeIdSeen(clientTradeId);
+        if (seenCheck.seen) {
+            return res.send(`
+                <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:#ffd700;text-align:center;}</style></head>
+                <body><h2>⚠️ Already recorded</h2><p>This trade decision was already logged.</p>
+                <p style="color:#888;font-size:0.9em;">ID: ${clientTradeId}</p></body></html>
+            `);
+        }
+        
+        // Mark as seen to prevent duplicate processing
+        await markManualTradeIdSeen(clientTradeId);
+        
+        const decisionLower = (decision || '').toLowerCase();
+        const isTook = decisionLower === 'took' || decisionLower === 'yes' || decisionLower === 'buy';
+        const isSkipped = decisionLower === 'skipped' || decisionLower === 'no' || decisionLower === 'skip';
+        
+        const entryPriceNum = Number(price) || 0.50;
+        const stakeNum = Number(stake) || 1.00;
+        const pWinNum = Number(pWin) || null;
+        
+        const tradeRecord = {
+            id: clientTradeId,
+            asset: String(asset).toUpperCase(),
+            slug: slug || null,
+            direction: String(direction || 'UP').toUpperCase(),
+            decision: isTook ? 'TOOK' : (isSkipped ? 'SKIPPED' : 'UNKNOWN'),
+            entryPrice: entryPriceNum,
+            stake: stakeNum,
+            pWin: pWinNum,
+            recordedAt: Date.now(),
+            // If TOOK, this is pending resolution. If SKIPPED, it's informational.
+            status: isTook ? 'PENDING_RESOLUTION' : 'DECLINED',
+            // Will be updated later if outcome is known
+            exitPrice: null,
+            pnl: null,
+            won: null
+        };
+        
+        // Add to manual journey trades
+        if (!Array.isArray(manualTradingJourney.trades)) {
+            manualTradingJourney.trades = [];
+        }
+        manualTradingJourney.trades.push(tradeRecord);
+        manualTradingJourney.lastUpdated = Date.now();
+        
+        // Trim to last 100 trades
+        if (manualTradingJourney.trades.length > 100) {
+            manualTradingJourney.trades = manualTradingJourney.trades.slice(-100);
+        }
+        
+        // Persist to Redis
+        await persistManualJourney();
+        
+        // Log
+        log(`📱 TELEGRAM CONFIRM: ${tradeRecord.decision} ${asset} ${direction} @ ${(entryPriceNum * 100).toFixed(0)}¢ (ID: ${clientTradeId})`);
+        
+        // Return nice HTML confirmation
+        const emoji = isTook ? '✅' : (isSkipped ? '⏭️' : '❓');
+        const actionText = isTook ? 'Trade Recorded' : (isSkipped ? 'Skipped' : 'Unknown Decision');
+        const bgColor = isTook ? '#0f5132' : (isSkipped ? '#664d03' : '#495057');
+        
+        res.send(`
+            <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:white;text-align:center;}
+                .card{background:${bgColor};border-radius:12px;padding:20px;margin:20px auto;max-width:400px;}
+                .label{color:#888;font-size:0.8em;margin-bottom:4px;}
+                .value{font-size:1.2em;font-weight:bold;margin-bottom:12px;}
+            </style></head>
+            <body>
+                <div class="card">
+                    <h1 style="font-size:3em;margin:0;">${emoji}</h1>
+                    <h2>${actionText}</h2>
+                    <div class="label">Asset</div>
+                    <div class="value">${asset} ${direction}</div>
+                    <div class="label">Entry Price</div>
+                    <div class="value">${(entryPriceNum * 100).toFixed(0)}¢</div>
+                    ${isTook ? `<div class="label">Stake</div><div class="value">$${stakeNum.toFixed(2)}</div>` : ''}
+                    <p style="color:#888;font-size:0.8em;margin-top:20px;">Synced to your manual ledger</p>
+                </div>
+                <a href="${DASHBOARD_URL}" style="color:#00ff88;text-decoration:none;">← Back to Dashboard</a>
+            </body></html>
+        `);
+        
+    } catch (e) {
+        res.status(500).send(`
+            <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:#ff4466;text-align:center;}</style></head>
+            <body><h2>❌ Error</h2><p>${e.message}</p></body></html>
+        `);
     }
 });
 
@@ -26052,6 +26212,16 @@ app.post('/api/settings', async (req, res) => {
             // New client updated vaultTriggerBalance only - sync to stage1Threshold
             CONFIG.RISK.stage1Threshold = CONFIG.RISK.vaultTriggerBalance;
             log(`⚙️ Synced stage1Threshold = vaultTriggerBalance = $${CONFIG.RISK.vaultTriggerBalance} (alias sync)`);
+        }
+    }
+    
+    // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥80¢
+    // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.80
+    if (CONFIG.ORACLE && typeof CONFIG.ORACLE.maxOdds === 'number') {
+        const MAX_ODDS_HARD_CAP = 0.80;
+        if (CONFIG.ORACLE.maxOdds > MAX_ODDS_HARD_CAP) {
+            log(`🚫 v113: Clamping ORACLE.maxOdds from ${CONFIG.ORACLE.maxOdds} to ${MAX_ODDS_HARD_CAP} (hard cap)`);
+            CONFIG.ORACLE.maxOdds = MAX_ODDS_HARD_CAP;
         }
     }
 
