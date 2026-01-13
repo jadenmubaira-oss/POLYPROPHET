@@ -3,28 +3,47 @@
 ## Adaptive Manual Trading Oracle for Polymarket 15-Min Crypto Markets
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
-> 
+>
+> **v123 PRACTICALLY CERTAIN ADVISORY**:
+>
+> - **🎯 ADVISORY = CONVICTION-LEVEL**: ADVISORY tier now requires pWin≥90% + EV≥25% (was 65%/8%) - essentially CONVICTION-grade certainty.
+> - **🔢 QUALITY OVER QUANTITY**: Max ADVISORY signals reduced from 2/hour to 1/hour - fewer but better signals.
+> - **💎 GOAT PRESET ALIGNMENT**: GOAT settings now enforce the absolute best configuration for accurate, non-flipping signals.
+>
+> **v122 CONVICTION PERFECTION + ANTI-FLIP + DASHBOARD SIGNALS + BACKUP**:
+>
+> - **💎 CONVICTION = PRACTICALLY CERTAIN**: Now requires pWin≥95% + locked calibration + high confidence (≥90%) + all necessary factors. No more false CONVICTION signals.
+> - **🛡️ ANTI-FLIP LOGIC**: Strengthened hysteresis (5% drop for CONVICTION), early commitment (60s), direction lock (15% confidence delta required), extended blackout (120s).
+> - **📊 DASHBOARD SIGNALS**: Prominent signal badges on asset cards + dedicated "Active Signals" section. Signals visible on dashboard, not just Telegram.
+> - **💾 BACKUP/RESTORE SYSTEM**: Full Redis backup/restore for nuclear option recovery. Run `node scripts/migrate-redis.js backup` to export all data. USB-ready.
+> - **🎯 ACCURACY FOCUS**: Increased smoothing (80/20), stricter CONVICTION requirements, multi-model agreement required.
+>
 > **v121 STAKE-LESS TELEGRAM**: Messages omit sizing; confirm page prompts for stake.
+>
 > - **📱 NO STAKE IN TELEGRAM**: BUY/PREPARE messages no longer include stake/shares/bankroll-path — you control sizing.
 > - **✏️ STAKE-ENTRY ON CONFIRM**: Clicking "I TOOK IT" now opens a stake-entry page (quick % buttons if bankroll set) — P/L tracking remains accurate.
 > - **🔐 IDEMPOTENCY FIX**: Trade is only marked "seen" AFTER recording (not on stake-entry page render).
 >
 > **v120 HOTFIX**: Fix Telegram confirm/skip link crash.
+>
 > - **🔧 CONFIRM LINK FIX**: `/api/oracle/confirm` was calling undefined `isManualTradeIdSeen` — fixed to use `checkManualTradeIdempotency`.
 >
 > **v119 HIGHER-FREQUENCY ORACLE**: Timing windows + Telegram clarity + manual-journey sanity.
+>
 > - **⏱️ HIGHER-FREQUENCY BUY WINDOW**: Now starts at **300s** (5 minutes) before cycle end, not 90s. PREPARE starts at 420s. Final 60s blackout unchanged.
 > - **📡 TELEGRAM WARNINGS**: Dashboard + `/api/health` now warn when Telegram is OFF/not configured. Status = `degraded` if no `botToken`/`chatId`.
 > - **📊 MANUAL-JOURNEY SANITY**: `/api/manual-journey` now includes `initialized` flag + `guidance` string to avoid "balance=0, trades=0" confusion.
 > - **🔧 CONFIGURABLE WINDOWS**: `CONFIG.ORACLE.buyWindowStartSec`, `prepareWindowStartSec`, `buyWindowEndSec` are now settable via GOAT preset or settings API.
 >
 > **v118 FINAL PATCH**: Shadow-book settlement correctness + manual-ledger accuracy.
+>
 > - **🔧 SHADOW-BOOK SETTLEMENT FIX**: Settlement now uses the **cycle checkpoint captured at confirmation/open** (`cycleStartCheckpointPrice`) instead of a non-existent `brain.checkpoint`.
 > - **🛟 GAMMA FALLBACK**: If prices are missing at the cycle boundary, the bot resolves the cycle via **Gamma** (never force-loss due to missing data).
 > - **📖 LEDGER RECONCILIATION**: When a confirmed shadow position closes, the corresponding manual-ledger entry is updated with `exitPrice/pnl/won`.
 > - **✅ MANUAL-JOURNEY STATS FIX**: Pending trades (`won=null`) are **not** counted as losses in `/api/manual-journey`.
 >
 > **v116 TWO-TIER ORACLE**: Forecast vs CALL separation, confirm-gated trades, streak alerts.
+>
 > - **🎯 TWO-TIER MODEL**: Dashboard shows FORECAST (continuous) vs CALL (actionable BUY/PREPARE/WAIT)
 > - **📊 DUAL LAST-10 METRICS**: Forecast accuracy (all cycles) + CALL accuracy (BUY calls only)
 > - **✅ CONFIRM-GATED TRADES**: NO CONFIRM = SKIPPED - shadow position only opens on Telegram confirmation
@@ -35,7 +54,7 @@
 > - **✅ LCB PROOF IS EXACT**: `LCB: ON` means the oracle actually used Wilson LCB in pWin computation
 > - **🔒 DETERMINISTIC CONFIRM IDs**: Trade confirmation links are stable per signal
 > - **🚫 NO BUY AT ≥80¢**: Hard block - even GOAT preset cannot override (server clamps)
-> - **💰 BANKROLL-SENSITIVE pWin FLOORS**: 
+> - **💰 BANKROLL-SENSITIVE pWin FLOORS**:
 >   - ≤$5: 92% pWin required (cannot afford losses)
 >   - ≤$20: 90% pWin required (cautious)
 >   - ≤$100: 87% pWin required (moderate)
@@ -60,11 +79,13 @@ v119 increases trade frequency by extending the BUY window earlier (from 90s to 
 | **BLACKOUT** | 60s | 0s | No trading: too close to resolution |
 
 **Why extend the BUY window?**
+
 - At 90s, prices often hit 95-99¢ (too expensive due to ≥80¢ cap)
 - At 300s, prices are more often in the 35-80¢ range
 - More opportunities to catch trades within hard price limits
 
 **Configurable via:**
+
 ```javascript
 CONFIG.ORACLE.buyWindowStartSec = 300;    // Default: 300s (5 min before end)
 CONFIG.ORACLE.buyWindowEndSec = 60;       // Default: 60s (blackout)
@@ -76,6 +97,7 @@ CONFIG.ORACLE.prepareWindowStartSec = 420; // Default: 420s (7 min)
 **Dashboard**: Big orange banner at top if `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHAT_ID` missing.
 
 **`/api/health`**: Now includes `telegram` object:
+
 ```json
 {
   "telegram": {
@@ -88,17 +110,20 @@ CONFIG.ORACLE.prepareWindowStartSec = 420; // Default: 420s (7 min)
   }
 }
 ```
+
 Status is `degraded` (not `ok`) when Telegram is missing.
 
 ### Manual Journey Sanity (NEW in v119)
 
 `/api/manual-journey` now includes:
+
 ```json
 {
   "initialized": false,
   "guidance": "Manual journey not started. POST /api/manual-journey/balance with {\"balance\": <starting_amount>} to begin."
 }
 ```
+
 This prevents confusion when balance=0 and trades=0 (looks like "wiped" but is actually "never started").
 
 ---
@@ -110,6 +135,7 @@ v121 removes stake/sizing from Telegram messages entirely—you decide how much 
 ### Telegram Message Changes
 
 **Before v121 (BUY message included):**
+
 ```
 💵 Stake: $10.00 (25% of bankroll)
 📊 Shares: 50 shares
@@ -119,6 +145,7 @@ v121 removes stake/sizing from Telegram messages entirely—you decide how much 
 
 **After v121 (removed):**
 None of the above. Messages only show decision-critical info:
+
 - Asset, tier, direction, entry price
 - pWin, EV, Edge, time left
 - LOCKED/MOVABLE status, confidence
@@ -128,6 +155,7 @@ None of the above. Messages only show decision-critical info:
 ### Stake Entry Page (on "I TOOK IT")
 
 When you click "I TOOK IT" from a BUY message:
+
 1. If stake was not provided in the URL → **stake-entry page renders**
 2. Enter your actual stake (or click quick % buttons: 10%, 25%, 50%, 100%)
 3. Submit → trade recorded to manual ledger with correct stake
@@ -143,6 +171,97 @@ If you click "SKIPPED", no stake prompt—immediately recorded as declined.
 
 ---
 
+## 🎯 v122: CONVICTION PERFECTION + ANTI-FLIP + DASHBOARD SIGNALS + BACKUP
+
+v122 makes CONVICTION tier truly mean "practically certain" by requiring all necessary factors, prevents flip-flopping with stronger logic, adds prominent signal display to dashboard, and provides full backup/restore for nuclear option recovery.
+
+### CONVICTION = Practically Certain
+
+**Before v122**: CONVICTION tier required only 70% confidence threshold.
+
+**After v122**: CONVICTION requires ALL factors:
+
+- **pWin ≥ 95%** (calibrated win probability)
+- **Locked calibration** (oracle locked or conviction locked)
+- **High confidence ≥ 90%** (model confidence)
+- **High pWin confidence** (VERY_HIGH or HIGH)
+- **Sufficient samples ≥ 20** (calibration data)
+
+This ensures CONVICTION signals are rare but extremely accurate.
+
+### Anti-Flip Logic
+
+**Strengthened Hysteresis**:
+
+- CONVICTION tier requires 5% drop (not 3%) to lose tier
+- Once CONVICTION, holds unless ALL requirements fail
+
+**Early Cycle Commitment**:
+
+- Commits to direction at 60s elapsed (not 300s)
+- Once committed, NEVER flips
+
+**Direction Lock**:
+
+- Prevents flip if prediction changed but confidence still high
+- Only flips if new direction has 15%+ more confidence
+
+**Extended Blackout**:
+
+- Blackout extended to final 120s (not 60s) before resolution
+- Prevents last-second flip-flopping
+
+### Dashboard Signals
+
+**Signal Badges on Asset Cards**:
+
+- Green badge for BUY signals
+- Yellow badge for PREPARE signals
+- Pink gradient badge for CONVICTION tier
+
+**Dedicated "Active Signals" Section**:
+
+- Shows all active BUY/PREPARE signals
+- Displays asset, action, direction, odds, pWin, tier, lock status
+- Updates in real-time via WebSocket
+
+### Backup/Restore System
+
+**Full Redis Backup**:
+
+```bash
+# Export all Redis data
+node scripts/migrate-redis.js backup
+# Or use helper script
+./scripts/backup.sh  # Linux/Mac
+scripts/backup.bat   # Windows
+```
+
+**Restore from Backup**:
+
+```bash
+# Import redis-export.json
+node scripts/migrate-redis.js restore
+```
+
+**What Gets Backed Up**:
+
+- All calibration data (`deity:calibration:*`)
+- All brain state (`deity:brains:*`)
+- Manual journey (`polyprophet:manualJourney:*`)
+- Settings (`deity:settings`)
+- Trade history (`deity:trades`)
+- Patterns (`patterns:*`)
+- All datasets (`deity:enhanced-dataset:*`, `deity:longterm-dataset:*`)
+
+**Nuclear Option Recovery**:
+
+1. Download GitHub repo
+2. Run `node scripts/migrate-redis.js restore` with your `redis-export.json`
+3. Restart server — continues exactly where it left off
+
+---
+
 ## 🎯 v116: TWO-TIER ORACLE (Forecast vs CALL)
 
 v116 introduces a fundamental separation between **Forecast** (what the model thinks) and **CALL** (actionable trade signals). This addresses the confusion between continuous predictions and trade-grade instructions.
@@ -152,6 +271,7 @@ v116 introduces a fundamental separation between **Forecast** (what the model th
 15-minute crypto up/down markets are **inherently noisy**. In many cycles, the true expected outcome is close to 50/50—no model can reliably predict these. If you demand 10/10 accuracy on every cycle, the bot would need to **abstain most of the time** (showing WAIT on ~80%+ of cycles).
 
 **What v116 does instead:**
+
 - **Forecast**: Shown on every cycle—the model's current best guess (can be wrong ~40-50% of the time)
 - **CALL**: Only BUY/PREPARE when strict gates pass (pWin ≥ 85-92%, tier = CONVICTION/ADVISORY, etc.)
 - **CALL accuracy** tracks only the BUY calls you received—this is what matters for trading
@@ -160,6 +280,7 @@ v116 introduces a fundamental separation between **Forecast** (what the model th
 ### Confirm-Gated Trading (NO CONFIRM = SKIPPED)
 
 v116 changes shadow-book behavior:
+
 - **Before v116**: BUY signal → shadow position opens automatically (assumes you traded)
 - **After v116**: BUY signal → pending call created → shadow position only opens if you click "✅ I TOOK IT"
 - If you don't confirm, the bot **assumes you skipped**
@@ -169,6 +290,7 @@ v116 changes shadow-book behavior:
 ### Streak Alerts
 
 The bot now sends two types of streak alerts:
+
 1. **Streak Forming** (early warning): 3+ consecutive BUY call wins, explicitly labeled as **non-predictive**
 2. **Streak ON** (confirmed): 5+ consecutive wins + 90%+ recent WR
 3. **Streak RISK/OFF**: Mode change alerts (existing behavior)
@@ -326,6 +448,7 @@ v112 adds bankroll-sensitive floors on top of the hard-enforced baseline:
 ### v112 Philosophy: What This Bot WILL and WON'T Do
 
 **WILL DO:**
+
 - Block BUY signals at entry price ≥ 80¢ (protects thin-margin trades)
 - Require higher certainty for smaller bankrolls (92% for ≤$5)
 - Require statistical reliability before allowing BUY signals
@@ -333,6 +456,7 @@ v112 adds bankroll-sensitive floors on top of the hard-enforced baseline:
 - Allow SELL/HOLD signals regardless of price
 
 **WON'T DO:**
+
 - Guarantee 100% accuracy (impossible in real markets)
 - Force trades when conditions aren't right
 - Allow bypassing the hard gates (they're in code, not config)
@@ -403,13 +527,13 @@ Falls back to 50¢ only when cycle lacks price data. Check `entryStats` in resul
    - Tightens to **90%** if recent WR drops below 85%
    - Adjusts every 5 minutes based on rolling performance
 
-3. **Calibration Diagnostics** (v109):
+4. **Calibration Diagnostics** (v109):
    - Signals include `calibration.isLocked` (true = direction committed)
    - `calibration.couldFlip` warns if direction might still change
    - `calibration.pWinConfidence` shows VERY_HIGH/HIGH/MODERATE/LOW
    - Telegram messages show 🔒 LOCKED or 🔓 MOVABLE status
 
-4. **$1 Manual Trading Mode**:
+5. **$1 Manual Trading Mode**:
    - Use `orderMode=MANUAL` in backtests for website market orders ($1 min)
    - Use `fullTrades=1` to get trade-by-trade output with entry prices
    - CLOB mode (default) uses 5-share minimum (price-dependent)
@@ -439,11 +563,13 @@ By default, POLYPROPHET operates in **PAPER mode** with auto-trading enabled:
 ### ⚠️ NO_AUTH Risk Acknowledgment
 
 With `NO_AUTH=true` and **no write protection**:
+
 - Anyone with the URL can access the dashboard and all GET endpoints
 - Anyone can hit POST endpoints (settings, reset-balance, manual-buy, etc.)
 - This is the user's explicit choice for ease of access
 
 **This is documented, not a bug.** If you deploy publicly and want protection, set:
+
 - `NO_AUTH=false` to re-enable Basic Auth
 - Or add firewall rules to restrict access
 
@@ -517,6 +643,7 @@ This is the HIGHEST confidence signal.
 ### The Math (From Your Tables)
 
 At 90% win rate with 50% ROI average:
+
 - **321 winning trades** from $5 → $1M
 - **47 winning trades** from $1 → $1M (at 28¢ entry = 257% ROI)
 
@@ -525,6 +652,7 @@ At 90% win rate with 50% ROI average:
 ### 🔒 No Flip-Flop Commitment (v105)
 
 Once a BUY is issued:
+
 - **Direction is LOCKED** until cycle end
 - No temporary market swings will change the signal
 - Only **Emergency SELL** can override (see below)
@@ -579,10 +707,12 @@ Hot regime detected - consider larger positions
 ### Fully Automatic Operation (v105)
 
 **You do nothing except:**
+
 1. Receive Telegram notifications (PREPARE → BUY → HOLD/SELL)
 2. Execute the trades on Polymarket website when you see BUY
 
 **You do nothing except:**
+
 1. Receive Telegram notifications
 2. Execute the trades on Polymarket website
 
@@ -598,6 +728,7 @@ Hot regime detected - consider larger positions
 | **Cycle Settlement** | Positions auto-settle at cycle resolution |
 
 **BUY Scoring Priority:**
+
 1. ULTRA signals (+1000 points)
 2. EV ROI (higher = better)
 3. pWin (higher = better)
@@ -606,6 +737,7 @@ Hot regime detected - consider larger positions
 6. ULTRA gate count (tiebreaker)
 
 **Example BUY message with Other Candidates:**
+
 ```
 🟢🔮 🚨 ULTRA BUY 🚨 ✨
 ━━━━━━━━━━━━━━━━━━━━━
@@ -658,10 +790,12 @@ TELEGRAM_SIGNALS_ONLY=true
 ```
 
 **Get credentials:**
+
 1. BotFather on Telegram - /newbot - copy token
 2. userinfobot - copy chat ID
 
 **Signals you receive:**
+
 - PREPARE: Opportunity forming
 - BUY NOW: Stake, shares, profit, market link
 - SELL NOW: P/L and exit reason  
@@ -670,6 +804,7 @@ TELEGRAM_SIGNALS_ONLY=true
 Run: `npm start`
 
 Dashboards:
+
 - `/mobile.html` - Mobile
 - `/index.html` - Simple
 - `/tools.html` - Tools
@@ -699,12 +834,14 @@ node scripts/backtest-manual-strategy.js --data=debg --target-wr=0.85
 ```
 
 **What it does:**
+
 1. Splits data 70/30 (train/test) for walk-forward validation
 2. Sweeps pWin thresholds from 60% to 90%
 3. Finds optimal threshold that meets target WR with max frequency
 4. Runs full simulation showing trade-by-trade results
 
 **Output includes:**
+
 - Threshold sweep table with train/test WRs
 - Optimal threshold recommendation
 - Full simulation: $1 starting → final balance
@@ -758,12 +895,14 @@ Results are saved to `backtest_results.json`.
 ### Can I Lose Money? (Honest Answer)
 
 **YES.** There is **NO 0% LOSS GUARANTEE**. Here's why:
+
 - Binary outcomes are inherently random
 - Smart contract/wallet/infrastructure risks exist
 - Slippage, fees, and fills are non-deterministic
 - Market conditions can change faster than the bot adapts
 
 **What we CAN guarantee:**
+
 - The bot will never take a trade that can breach the **survival floor** (effective floor + `MIN_ORDER`) on a worst‑case loss
 - The bot will auto-halt on critical failures (LIVE mode)
 - Deposits/withdrawals won't permanently break the peak-DD brake
@@ -816,6 +955,7 @@ Results are saved to `backtest_results.json`.
   - **Bankroll ≥ $1,000**: `MAX_POSITION_SIZE=0.07`, `kellyMax=0.12`, `riskEnvelope=ON` (**LARGE_BANKROLL**)
 
 To switch modes:
+
 - **Env**: set `AUTO_BANKROLL_MODE=SAFE` or `AUTO_BANKROLL_MODE=SPRINT`
 - **API**: `POST /api/settings` with `{ "RISK": { "autoBankrollMode": "SAFE" } }` (or `"SPRINT"`)
 
@@ -844,6 +984,7 @@ We only count a horizon if `summary.timeSpan.hours ≥ 0.9 × requestedHours`. R
 ### The Winning Setup (your $5 start — SPRINT auto-mode)
 
 With `autoProfile=1` (default):
+
 - **Default `AUTO_BANKROLL_MODE=SPRINT`**: `kelly=ON (k=0.25, cap 0.32)`, **`riskEnvelope=ON`**, `profitProtection=OFF` (until $1k+). **Exceptional sizing booster** can temporarily raise max stake (up to 45%) only on elite CONVICTION trades (pWin≥84% AND EV≥30%), and is **auto-disabled** in `LARGE_BANKROLL` (≥$1k).
 
 #### 72h offset sweep methodology (non‑cherry‑picked, reproducible)
@@ -870,6 +1011,7 @@ To compare configurations honestly (and avoid time‑drift artifacts):
 #### Speed Score distribution ($40, GROWTH profile, env=OFF)
 
 Coverage‑gated 24h+72h speed score across offsets **0/12/24/48/60/72**:
+
 - **p50**: **209.53%**
 - **p05**: **72.12%**
 - **min (worst)**: **50.30%**
@@ -1018,6 +1160,7 @@ curl "http://localhost:3000/api/vault-projection?vaultTriggerBalance=11&sims=200
 ```
 
 **⚠️ Important**:
+
 - Monte Carlo projections may differ significantly from real Polymarket results.
 - `/api/vault-optimize-polymarket` is authoritative for P($100 by day 7).
 - To compute **P($1000 by day 30)** from real outcomes, run it with `hours=720` (otherwise `p1000_day30` will be `N/A`).
@@ -1130,6 +1273,7 @@ ASSET_CONTROLS: {
 ### Kelly Sizing Explained
 
 Kelly formula: `f* = (b × p - (1-p)) / b`
+
 - `b` = gross payout odds = `(1/entryPrice - 1)`
 - **Fees (15m crypto)**: Polymarket charges a **taker fee** (makers pay 0). For safety/backtests we assume taker by default. The fee is shares-based:
   - `feeUsd = shares × feeRate × (p × (1-p))^exponent`, default `feeRate=0.25`, `exponent=2` (see Polymarket “Maker Rebates Program” docs)
@@ -1138,11 +1282,13 @@ Kelly formula: `f* = (b × p - (1-p)) / b`
 - `f*` = optimal fraction of bankroll to risk
 
 **Fractional Kelly (k=0.25)**: We bet `0.25 × f*` instead of full `f*` because:
+
 1. Full Kelly is too volatile for most humans
 2. Fractional Kelly is more robust to estimation error (true edge < estimated edge)
 3. Model uncertainty means true edge is less than estimated
 
 **When Kelly Helps Most**:
+
 - High entry prices (60-70¢) with moderate pWin → Kelly reduces stake
 - Low pWin trades → Kelly reduces stake or blocks entirely
 - Prevents over-betting on marginal edges
@@ -1158,6 +1304,7 @@ This replaces older “projection” tables: **we only treat runtime‑parity Po
 - **No‑ruin**: ruin windows (<$1.60) = **0**
 
 Final balance after 72h:
+
 - **Worst**: $2.56
 - **Median**: $6.71
 - **Avg**: $6.51
@@ -1205,6 +1352,7 @@ Every 15-minute Polymarket cycle:
 ### Trade Selection (HIGHEST_CONF)
 
 When multiple assets have CONVICTION signals in the same cycle:
+
 - Bot picks the ONE with highest confidence
 - Only 1 trade per 15-min cycle (maxTradesPerCycle=1)
 - This prevents correlation risk and ensures quality
@@ -1361,6 +1509,7 @@ if (maxTradeSize < minOrderCost) {
 **Problem**: Static risk parameters don't fit both $5 bootstrap AND $100+ protection.
 
 **v77 Solution**: Three stages with dynamic parameters:
+
 - **Bootstrap ($5-$11)**: Aggressive - 50% intraday loss, 40% trailing DD, min-order override allowed
 - **Transition ($11-$20)**: Moderate - 35% intraday, 20% trailing DD
 - **Lock-in ($20+)**: Conservative - 25% intraday, 10% trailing DD (strict protection)
@@ -1370,6 +1519,7 @@ if (maxTradeSize < minOrderCost) {
 **Problem**: CONVICTION-only mode was "too frigid" - sometimes hours without trades.
 
 **v77 Solution**: When below target trades/hour, allow ADVISORY trades IF:
+
 - pWin ≥ 65% (stricter than CONVICTION's 55%)
 - EV ≥ 8% (stricter than CONVICTION's 5%)
 - Max 2 ADVISORY per hour
@@ -1426,6 +1576,7 @@ Before enabling LIVE mode, verify ALL:
 ```
 
 **NO-GO if ANY of these are true:**
+
 - `dataFeed.anyStale: true`
 - `tradingHalted: true`
 - `balanceFloor.belowFloor: true`
@@ -1580,6 +1731,7 @@ These goals are in tension, so we implement them as a **constrained optimizer**:
 - **Objective (soft)**: within that constraint, we size as aggressively as allowed (SPRINT behavior).
 
 This means:
+
 - In “bad windows”, the bot may **stop trading early** (capital preserved) rather than “hero trade” into non‑autonomous territory.
 - In “good windows”, it remains **fully aggressive** up to the configured caps.
 
@@ -1751,6 +1903,7 @@ URL: http://localhost:3000/tools.html
 ### Links to Tools from Other Pages
 
 Tools links are wired into all UI locations:
+
 - **Main Dashboard** (`/`): "🛠️ Tools" button in navigation bar
 - **Settings Page** (`/settings`): "🛠️ Tools" link next to Dashboard link
 - **Simple UI** (`/index.html`): "🛠️ Tools" link in header
@@ -1768,6 +1921,7 @@ Tools links are wired into all UI locations:
 | **One-Click Apply** | Apply winner to CONFIG with confirmation prompt |
 
 **Usage**:
+
 1. Set your sweep parameters (range, step, simulations)
 2. Click "🔍 Find Optimal Trigger"
 3. Review the Winner Card results
@@ -1784,6 +1938,7 @@ Tools links are wired into all UI locations:
 | **One-Click Apply** | Apply winner to CONFIG with confirmation prompt |
 
 **Usage**:
+
 1. Set sweep parameters (range, step, window hours, offsets)
 2. Click "📈 Run Polymarket Optimizer" (can take minutes if `hours=720`)
 3. Review the Winner Card showing empirical results
@@ -1801,6 +1956,7 @@ Tools links are wired into all UI locations:
 | **Full JSON Output** | Complete response for debugging |
 
 **Usage**:
+
 1. Click "✅ Run Perfection Check"
 2. Review the pass/fail summary
 3. Investigate any failed checks in the detail list
@@ -1818,6 +1974,7 @@ Tools links are wired into all UI locations:
 | **Quick Reference** | One-click cards for common endpoints |
 
 **Safe Endpoints** (no confirmation required):
+
 - `/api/vault-projection`
 - `/api/vault-optimize`
 - `/api/vault-optimize-polymarket` (🏆 v84: ground truth optimizer)
@@ -1828,6 +1985,7 @@ Tools links are wired into all UI locations:
 - `/api/health`
 
 **Dangerous Endpoints** (require checkbox confirmation):
+
 - `/api/settings` (POST) - Modifies configuration
 - `/api/manual-buy` - Executes trades
 - `/api/manual-sell` - Executes trades
@@ -1842,6 +2000,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>"
 ```
 
 The check verifies:
+
 - `public/tools.html` file exists
 - Contains `POLYPROPHET_TOOLS_UI_MARKER_v84` marker
 - Has Monte Carlo Optimizer panel (`vault-projection`, `vault-optimize`)
@@ -1939,11 +2098,13 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>"
 **There is NO trading system that guarantees profit.**
 
 This bot has:
+
 - Positive expected value based on empirical backtests
 - Safety guards to limit worst-case losses
 - 78% win rate on CONVICTION trades (verified)
 
 But it does NOT guarantee:
+
 - Any specific profit in any specific timeframe
 - Zero drawdown or losses
 - That past performance will repeat
@@ -2130,6 +2291,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - "Relative mode threshold support (v96)" — validates `getVaultThresholds()` handles relative multipliers correctly
 
 **Evidence**:
+
 - `baselineBankroll` property at ~line 7983
 - `refreshLiveBalance()` initializes baseline at ~line 9303
 - Transfer detection resets baseline at ~line 13020
@@ -2165,6 +2327,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - Configurable via `autoBankrollKellyLarge` / `autoBankrollMaxPosLarge`
 
 **Evidence**:
+
 - `resumeConditions` at ~line 8078 in `circuitBreaker` object
 - `wilsonLCB()` function at ~line 15768
 - `getCalibratedPWinWithLCB()` at ~line 15784
@@ -2203,6 +2366,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - New perfection-check validates auto-optimizer auth configuration
 
 **Evidence**:
+
 - `getBankrollAdaptivePolicy()` returns `LARGE_BANKROLL` profile at ~line 7640
 - `getTieredMaxAbsoluteStake()` at ~line 7785
 - Transfer detection uses `currentCashBalance` at ~line 12813
@@ -2238,6 +2402,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - AI runbook now prioritizes Polymarket optimizer
 
 **Evidence**:
+
 - `/api/vault-optimize-polymarket` endpoint at server.js ~line 2576
 - `objectiveMetrics` returned from `/api/backtest-polymarket` at ~line 1515
 - Tools UI contains `POLYPROPHET_TOOLS_UI_MARKER_v84` marker
@@ -2279,6 +2444,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - Links wired into all UI locations (dashboard, settings, index.html, mobile.html)
 
 **Evidence**:
+
 - `getVaultThresholds()` function at server.js ~line 6082
 - `/api/perfection-check` verifies all wiring is correct (including Tools UI)
 - `getDynamicRiskProfile()` returns `thresholds` object for audit
@@ -2364,10 +2530,12 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
 - **VERIFY**: All backtest defaults now match runtime CONFIG for accurate simulations
 
 **Backtest Parity Fixes**:
+
 - Before v78: `adaptiveMode=false` and `kellyEnabled=false` were defaults (diverged from runtime)
 - After v78: Both default to TRUE, matching runtime request defaults; policy may still disable them (e.g. SPRINT mode).
 
 **Risk Envelope Min-Order Fix**:
+
 - Before v78: Trades blocked when `maxTradeSize = effectiveBudget * perTradeCap < minOrderCost`
 - After v78: Only blocks when `effectiveBudget < minOrderCost` (truly exhausted); allows min-order override if bankroll is available
 
