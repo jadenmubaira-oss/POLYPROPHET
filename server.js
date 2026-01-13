@@ -8744,7 +8744,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 126;  // v126: LOCKED-ONLY for ≤$20 bankrolls - MOVABLE signals blocked to prevent flip losses
+const CONFIG_VERSION = 127;  // v127: TRUE PROPHET LOCK - uses convictionLocked (fixed property name) + enforces no-flip when locked
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -18525,6 +18525,21 @@ class SupremeBrain {
             const voteStability = this.voteHistory.length > 1 ? 1 - (voteFlips / (this.voteHistory.length - 1)) : 0;
             this.voteTrendScore = voteStability;
 
+            // ═══════════════════════════════════════════════════════════════════════════════
+            // 🔒 v127: TRUE PROPHET LOCK - Once locked, prediction CANNOT flip
+            // This ensures that when a signal says "LOCKED", it truly means the direction
+            // is fixed until cycle end. No more cosmetic locks that silently flip.
+            // ═══════════════════════════════════════════════════════════════════════════════
+            if (this.convictionLocked && this.lockedDirection) {
+                // FORCE the signal to match the locked direction
+                if (finalSignal !== this.lockedDirection) {
+                    log(`🔒 TRUE PROPHET LOCK: Forcing ${finalSignal} → ${this.lockedDirection} (locked at ${(this.lockConfidence * 100).toFixed(0)}%)`, this.asset);
+                    finalSignal = this.lockedDirection;
+                    // Keep confidence from dropping too much (maintain lock stability)
+                    finalConfidence = Math.max(finalConfidence, this.lockConfidence * 0.85);
+                }
+            }
+
             // === DEBOUNCE & STABILITY ===
             if (finalSignal !== this.prediction) {
                 if (finalSignal === this.pendingSignal) this.stabilityCounter++;
@@ -25059,7 +25074,7 @@ function updateOracleSignalForAsset(asset) {
             entryPrice,
             bankroll: manualTradingJourney?.currentBalance || 1,
             calibrationSampleSize,
-            oracleLocked: brain?.oracleLocked === true
+            oracleLocked: brain?.convictionLocked === true
         });
         signal.adaptiveGate = adaptiveGate;
 
@@ -25081,7 +25096,7 @@ function updateOracleSignalForAsset(asset) {
         // 🏆 v108: CALIBRATION DIAGNOSTICS - "Locked vs Movable" reasoning
         // Expose why the prediction is trustworthy (or not) for manual trading decisions.
         // ═══════════════════════════════════════════════════════════════════════════════
-        const predictionLocked = stable && brain?.oracleLocked === true;
+        const predictionLocked = stable && brain?.convictionLocked === true;
         const couldFlip = !predictionLocked && timeLeftSec > 120;  // Still movable if >2min left and not locked
 
         signal.calibration = {
@@ -25089,7 +25104,7 @@ function updateOracleSignalForAsset(asset) {
             isLocked: predictionLocked,
             couldFlip,
             lockReason: predictionLocked
-                ? `Direction locked (stability=${voteStability.toFixed(2)}, oracleLocked=${brain?.oracleLocked})`
+                ? `Direction locked (stability=${voteStability.toFixed(2)}, convictionLocked=${brain?.convictionLocked})`
                 : (couldFlip ? `Still early - direction could change (${timeLeftSec}s left, stability=${voteStability.toFixed(2)})` : 'Near end but not locked'),
             // pWin confidence level
             pWinConfidence: !Number.isFinite(pWin) ? 'UNKNOWN' :
