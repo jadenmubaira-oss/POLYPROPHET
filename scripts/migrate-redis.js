@@ -19,7 +19,7 @@ const path = require('path');
 
 const EXPORT_FILE = path.join(__dirname, '..', 'redis-export.json');
 
-// Keys that POLYPROPHET uses
+// 🏆 v122: All Redis keys for complete backup/restore (nuclear option recovery)
 const POLYPROPHET_KEYS = [
     'deity:settings',
     'deity:state',
@@ -28,7 +28,13 @@ const POLYPROPHET_KEYS = [
     'deity:positions',
     'deity:calibration:*',
     'deity:brains:*',
-    'deity:collector:*'
+    'deity:collector:*',
+    'deity:enhanced-dataset:*',
+    'deity:longterm-dataset:*',
+    'polyprophet:manualJourney:*',
+    'polyprophet:manualTradeIdempotency:*',
+    'patterns:*',
+    'polyprophet:collector:*'
 ];
 
 async function exportFromRedis() {
@@ -210,20 +216,36 @@ const command = process.argv[2];
 
 switch (command) {
     case 'export':
-        exportFromRedis();
+    case 'backup':
+        exportFromRedis().then(() => {
+            console.log('\n✅ Backup complete!');
+            console.log(`📦 File: ${EXPORT_FILE}`);
+            console.log(`💾 Save this file to USB/external drive for nuclear option recovery.`);
+        }).catch(e => {
+            console.error('❌ Backup failed:', e.message);
+            process.exit(1);
+        });
         break;
     case 'import':
-        importToRedis();
+    case 'restore':
+        importToRedis().then(() => {
+            console.log('\n✅ Restore complete!');
+            console.log('🔄 Restart server to load restored data.');
+        }).catch(e => {
+            console.error('❌ Restore failed:', e.message);
+            process.exit(1);
+        });
         break;
     default:
-        console.log('POLYPROPHET Redis Migration Tool');
+        console.log('POLYPROPHET Redis Backup/Restore Tool');
         console.log('');
         console.log('Usage:');
-        console.log('  node scripts/migrate-redis.js export   Export from Render Redis');
-        console.log('  node scripts/migrate-redis.js import   Import to Upstash Redis');
+        console.log('  node scripts/migrate-redis.js export|backup   Export all Redis data to redis-export.json');
+        console.log('  node scripts/migrate-redis.js import|restore  Import redis-export.json to Redis');
         console.log('');
         console.log('Environment Variables:');
-        console.log('  SOURCE_REDIS_URL   Source Redis (Render) - used for export');
-        console.log('  TARGET_REDIS_URL   Target Redis (Upstash) - used for import');
+        console.log('  SOURCE_REDIS_URL   Source Redis - used for export/backup');
+        console.log('  TARGET_REDIS_URL   Target Redis - used for import/restore');
         console.log('  REDIS_URL          Fallback for SOURCE_REDIS_URL');
+        process.exit(1);
 }
