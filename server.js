@@ -8744,7 +8744,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 123;  // v123: PRACTICALLY CERTAIN ADVISORY - pWin≥90% + EV≥25% for ADVISORY tier (user request)
+const CONFIG_VERSION = 124;  // v124: $1→$1M OPTIMIZATION - pWin floor 92%→88% for micro bankrolls, enables compounding
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -24137,17 +24137,21 @@ function sendDriftAlert(currentWR, oldThreshold, newThreshold, sampleSize) {
 function getRequiredPWinFloor(bankroll) {
     if (!Number.isFinite(bankroll) || bankroll <= 0) bankroll = 1;
 
-    // Micro bankroll: extremely strict (cannot afford losses)
-    if (bankroll <= 5) return 0.92;
+    // 🏆 v124: RETUNED FOR $1→$1M COMPOUNDING
+    // Tables show 90% WR + 30% ROI = 205 trades to $1M
+    // 88% pWin floor achieves ~90% actual WR with calibration margin
 
-    // Small bankroll: still cautious
-    if (bankroll <= 20) return 0.90;
+    // Micro bankroll ($1-5): 88% floor (was 92% - too restrictive)
+    if (bankroll <= 5) return 0.88;
 
-    // Moderate bankroll: standard floor
-    if (bankroll <= 100) return 0.87;
+    // Small bankroll ($5-20): 87% floor (was 90%)
+    if (bankroll <= 20) return 0.87;
 
-    // Larger bankroll: can use adaptive floor
-    return 0.85;
+    // Moderate bankroll ($20-100): 85% floor (was 87%)
+    if (bankroll <= 100) return 0.85;
+
+    // Larger bankroll: standard adaptive floor
+    return 0.83;
 }
 
 /**
