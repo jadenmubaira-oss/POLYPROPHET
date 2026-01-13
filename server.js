@@ -18278,8 +18278,8 @@ class SupremeBrain {
                 : (s.total > 0 ? (s.wins / s.total) : 0.5);
 
             // Get market odds for pWin calculation (use market price, not currentPrice)
-            const market = currentMarkets[this.asset];
-            const marketOdds = market ? (finalSignal === 'UP' ? market.yesPrice : market.noPrice) : currentPrice;
+            const mktForPWin = currentMarkets[this.asset];
+            const marketOdds = mktForPWin ? (finalSignal === 'UP' ? mktForPWin.yesPrice : mktForPWin.noPrice) : currentPrice;
 
             // Get tier-conditioned pWin if available
             let preliminaryPWin = null;
