@@ -15,8 +15,8 @@ const dotenv = require('dotenv');
 const _envFileCandidate = (process.env.ENV_FILE || '').trim();
 const _envFile =
     (_envFileCandidate && fs.existsSync(path.join(__dirname, _envFileCandidate))) ? _envFileCandidate :
-    (fs.existsSync(path.join(__dirname, '.env')) ? '.env' :
-        (fs.existsSync(path.join(__dirname, 'POLYPROPHET.env')) ? 'POLYPROPHET.env' : null));
+        (fs.existsSync(path.join(__dirname, '.env')) ? '.env' :
+            (fs.existsSync(path.join(__dirname, 'POLYPROPHET.env')) ? 'POLYPROPHET.env' : null));
 dotenv.config(_envFile ? { path: path.join(__dirname, _envFile) } : undefined);
 const { ethers } = require('ethers');
 const axios = require('axios');
@@ -264,7 +264,7 @@ app.use((req, res, next) => {
     // User requested "no auth, just want it as easy as possible"
     const noAuthEnabled = process.env.NO_AUTH === '1' || process.env.NO_AUTH === 'true';
     if (noAuthEnabled) return next();
-    
+
     // Public endpoints (no auth) for uptime checks / deploy verification only.
     const isPublicApi =
         req.path === '/api/health' ||
@@ -369,72 +369,72 @@ app.get('/api/backtest-proof', async (req, res) => {
     try {
         const fs = require('fs');
         const path = require('path');
-        
+
         // Parse query params
         const minConfigVersion = parseInt(req.query.minConfigVersion) || 0;
         const filterCommit = req.query.commit || null;
         const startingBalance = parseFloat(req.query.balance) || 5.0;
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, or ALL
         const priceFilter = req.query.prices || 'EXTREME'; // EXTREME (<20¢ or >95¢), ALL
-        
+
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/backtests we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.01;
         const MAX_POSITION_PCT = 0.60; // Max 60% of balance per trade
-        
+
         const debugDir = getDebugCorpusDir();
         if (!fs.existsSync(debugDir)) {
             return res.json({ error: 'No debug directory found', cycles: 0 });
         }
-        
+
         const debugFiles = fs.readdirSync(debugDir)
             .filter(f => f.startsWith('polyprophet_debug_') && f.endsWith('.json'))
             .sort(); // chronological order
-        
+
         // Collect all cycles from all matching debug files
         const allCycles = [];
         const seenCycleEnds = new Set(); // Dedup by cycle end time
-        
+
         for (const file of debugFiles) {
             try {
                 const content = fs.readFileSync(path.join(debugDir, file), 'utf8');
                 const data = JSON.parse(content);
-                
+
                 // Filter by config version
                 const configVer = data.code?.configVersion || 0;
                 if (configVer < minConfigVersion) continue;
-                
+
                 // Filter by commit
                 if (filterCommit && data.code?.gitCommit && !data.code.gitCommit.startsWith(filterCommit)) continue;
-                
+
                 // Extract cycles from each asset
                 const assets = data.assets || {};
                 for (const [asset, assetData] of Object.entries(assets)) {
                     const cycleHistory = assetData.cycleHistory || [];
                     for (const cycle of cycleHistory) {
                         if (!cycle.cycleEndTime) continue;
-                        
+
                         // Dedup
                         const key = `${asset}_${cycle.cycleEndTime}`;
                         if (seenCycleEnds.has(key)) continue;
                         seenCycleEnds.add(key);
-                        
+
                         // Apply tier filter
                         const tier = cycle.tier || 'NONE';
                         if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
-                        
+
                         // Apply price filter
                         const odds = cycle.marketOdds || {};
                         const yesPrice = odds.yesPrice || 0.5;
                         const noPrice = odds.noPrice || 0.5;
                         const prediction = cycle.prediction;
                         const entryPrice = prediction === 'UP' ? yesPrice : noPrice;
-                        
+
                         if (priceFilter === 'EXTREME') {
                             if (entryPrice >= 0.20 && entryPrice <= 0.95) continue; // Skip mid-range
                         }
-                        
+
                         allCycles.push({
                             asset,
                             cycleEndTime: cycle.cycleEndTime,
@@ -452,10 +452,10 @@ app.get('/api/backtest-proof', async (req, res) => {
                 // Skip malformed files
             }
         }
-        
+
         // Sort by cycle end time
         allCycles.sort((a, b) => new Date(a.cycleEndTime) - new Date(b.cycleEndTime));
-        
+
         // Simulate trading
         let balance = startingBalance;
         let peakBalance = startingBalance;
@@ -464,17 +464,17 @@ app.get('/api/backtest-proof', async (req, res) => {
         let losses = 0;
         const trades = [];
         const balanceHistory = [{ time: 'start', balance: startingBalance }];
-        
+
         for (const cycle of allCycles) {
             if (balance <= 1.0) break; // Stop if balance too low
-            
+
             // Position sizing: realistic caps to prevent astronomical compounding
             // Cap at $100 max per trade even with large balances (simulates real-world liquidity limits)
             const MAX_ABSOLUTE_SIZE = 100.0;
             const percentSize = balance * MAX_POSITION_PCT;
             const positionSize = Math.min(percentSize, balance - 1.0, MAX_ABSOLUTE_SIZE);
             if (positionSize <= 0) break;
-            
+
             const settled = calcBinaryTradeDeltaUsdAfterFees(positionSize, cycle.entryPrice, cycle.wasCorrect, {
                 slippagePct: SLIPPAGE_PCT,
                 feeModel
@@ -484,12 +484,12 @@ app.get('/api/backtest-proof', async (req, res) => {
             const pnl = Number(settled.deltaUsd || 0);
             const feeUsd = Number(settled.feeUsd || 0);
             if (cycle.wasCorrect) wins++; else losses++;
-            
+
             balance += pnl;
             peakBalance = Math.max(peakBalance, balance);
             const drawdown = (peakBalance - balance) / peakBalance;
             maxDrawdown = Math.max(maxDrawdown, drawdown);
-            
+
             trades.push({
                 time: cycle.cycleEndTime,
                 asset: cycle.asset,
@@ -503,23 +503,23 @@ app.get('/api/backtest-proof', async (req, res) => {
                 pnl: pnl,
                 balance: balance
             });
-            
+
             balanceHistory.push({ time: cycle.cycleEndTime, balance });
         }
-        
+
         // Calculate statistics
         const totalTrades = wins + losses;
         const winRate = totalTrades > 0 ? (wins / totalTrades * 100) : 0;
         const totalProfit = balance - startingBalance;
         const profitPct = (totalProfit / startingBalance * 100);
-        
+
         // Time to £100 projection
-        const tradesPerDay = totalTrades > 0 ? (totalTrades / (allCycles.length > 0 ? 
+        const tradesPerDay = totalTrades > 0 ? (totalTrades / (allCycles.length > 0 ?
             ((new Date(allCycles[allCycles.length - 1].cycleEndTime) - new Date(allCycles[0].cycleEndTime)) / (1000 * 60 * 60 * 24)) : 1)) : 0;
         const avgProfitPerTrade = totalTrades > 0 ? totalProfit / totalTrades : 0;
         const tradesToReach100 = avgProfitPerTrade > 0 ? (100 - startingBalance) / avgProfitPerTrade : Infinity;
         const daysToReach100 = tradesPerDay > 0 ? tradesToReach100 / tradesPerDay : Infinity;
-        
+
         // 🎯 GOAT v44.1: Time-to-target distributions
         const targets = [20, 50, 100, 200, 500];
         const timeToTarget = {};
@@ -552,7 +552,7 @@ app.get('/api/backtest-proof', async (req, res) => {
                 }
             }
         }
-        
+
         // 🎯 GOAT v44.1: Stress test scenarios (fee/slippage sensitivity)
         const stressTests = {};
 
@@ -582,7 +582,7 @@ app.get('/api/backtest-proof', async (req, res) => {
             finalBalance: stressBalance.toFixed(2),
             profit: (stressBalance - startingBalance).toFixed(2)
         };
-        
+
         // Scenario 3: 10% missed fills (random trades skipped)
         stressBalance = startingBalance;
         let skipped = 0;
@@ -599,7 +599,7 @@ app.get('/api/backtest-proof', async (req, res) => {
             profit: (stressBalance - startingBalance).toFixed(2),
             fillsSkipped: skipped
         };
-        
+
         // 🎯 GOAT v44.1: Gate failure analysis (if gateTrace available)
         let gateAnalysis = null;
         if (typeof gateTrace !== 'undefined' && gateTrace) {
@@ -611,7 +611,7 @@ app.get('/api/backtest-proof', async (req, res) => {
                 topBlockers: Object.entries(summary.gateFailures || {}).sort((a, b) => b[1] - a[1]).slice(0, 5)
             };
         }
-        
+
         res.json({
             summary: {
                 startingBalance,
@@ -706,18 +706,18 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const scanStakes = (typeof req.query.stakes === 'string' && req.query.stakes.length > 0)
             ? req.query.stakes.split(',').map(s => parseFloat(String(s).trim())).filter(x => Number.isFinite(x) && x > 0 && x < 1).slice(0, 10)
             : [0.25, 0.28, 0.30, 0.32, 0.35, 0.38, 0.40]; // 🚀 v61.1: AGGRO scan centered on 30%+
-        
+
         // 🏆 v60 FINAL: Liquidity cap for realistic backtests (matches LIVE sizing)
         const maxAbsRaw = parseFloat(req.query.maxAbs);
         const maxAbsoluteStake = Number.isFinite(maxAbsRaw) && maxAbsRaw > 0
             ? maxAbsRaw
             : parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 default
-        
+
         // 🏆 v78: Adaptive mode - apply v68 profit lock-in schedule (matches runtime applyVarianceControls)
         // DEFAULT TO TRUE (matches runtime behavior) - use adaptive=0 to disable
         const adaptiveDisabled = req.query.adaptive === '0' || String(req.query.adaptive || '').toLowerCase() === 'false';
         const adaptiveRequested = !adaptiveDisabled;
-        
+
         // 🏆 v78: Kelly sizing mode - apply mathematically optimal position sizing
         // DEFAULT TO TRUE (matches runtime CONFIG.RISK.kellyEnabled = true)
         // Query param can override: kelly=0 to disable
@@ -746,7 +746,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const profitProtectionEnabledAtStart =
             adaptiveRequested &&
             !(policyAtStart && policyAtStart.profitProtectionEnabled === false);
-        
+
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
         // Oracle mode defaults to all enabled assets (BTC/ETH/XRP/SOL).
         const defaultAssetsCsv = (() => {
@@ -765,7 +765,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         if (allowedAssets.size === 0) {
             defaultAssetsCsv.split(',').map(s => s.trim()).filter(Boolean).forEach(a => allowedAssets.add(a));
         }
-        
+
         // 🏆 v76: Risk envelope simulation (matches runtime applyRiskEnvelope)
         const riskEnvelopeProvided = (req.query.riskEnvelope !== undefined);
         // 🏆 v89 FIX: If query param is omitted, default to runtime CONFIG (parity).
@@ -782,13 +782,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const intradayLossBudgetPct = parseFloat(req.query.intradayBudget) || 0.35;
         const trailingDrawdownPct = parseFloat(req.query.trailingDD) || 0.15;
         const perTradeLossCap = parseFloat(req.query.perTradeCap) || 0.10;
-        
+
         // 🏆 v93: Compact mode - omit large arrays to prevent OOM in UI/IDE
         const compactMode = req.query.compact === '1' || String(req.query.compact || '').toLowerCase() === 'true';
-        
+
         // 🏆 v109: Full trades output - returns ALL trades (not just last 30) for $1 MANUAL analysis
         const fullTradesMode = req.query.fullTrades === '1' || String(req.query.fullTrades || '').toLowerCase() === 'true';
-        
+
         // 🏆 v83: Vault thresholds (use threshold contract for parity with runtime)
         // Query overrides: vaultTriggerBalance, stage2Threshold
         // 🏆 v96: Pass startingBalance for relative-mode support
@@ -805,13 +805,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // For safety/backtests we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.01;
-        
+
         // 🏆 v107: Order mode - CLOB (5 shares × entry price) vs MANUAL (flat $1 min on website)
         // For manual trading on the Polymarket website, minimum order is $1 at ANY price.
         // For CLOB API orders, minimum is 5 shares × entry price (price-dependent).
         const orderMode = String(req.query.orderMode || 'CLOB').toUpperCase(); // CLOB | MANUAL
         const manualMinOrder = parseFloat(req.query.manualMin) || 1.00; // $1 default for MANUAL mode
-        
+
         // CLOB-native min order is shares-based (`min_order_size`, typically 5 shares on 15m crypto markets).
         // Minimum USDC therefore depends on entry price.
         const MIN_ORDER_SHARES = (() => {
@@ -876,12 +876,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         function calcEvRoi(pWin, entryPrice) {
             return calcBinaryEvRoiAfterFees(pWin, entryPrice, { slippagePct: SLIPPAGE_PCT, feeModel });
         }
-        
+
         // Helper to fetch Gamma market outcome + token ids (Polymarket-native)
         async function fetchGammaResolvedMarket(slug) {
             try {
                 const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
-                const response = await fetch(url, { 
+                const response = await fetch(url, {
                     headers: { 'User-Agent': 'polyprophet-backtest/1.0' },
                     signal: AbortSignal.timeout(10000)
                 });
@@ -889,24 +889,24 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 const data = await response.json();
                 const market = Array.isArray(data) ? data[0] : data;
                 if (!market || !market.outcomePrices || !market.outcomes) return null;
-                
+
                 const prices = parseMaybeJsonArray(market.outcomePrices);
                 const outcomes = parseMaybeJsonArray(market.outcomes);
                 if (!Array.isArray(prices) || prices.length < 2) return null;
                 if (!Array.isArray(outcomes) || outcomes.length < 2) return null;
-                
+
                 const p0 = Number(prices[0]);
                 const p1 = Number(prices[1]);
                 if (!Number.isFinite(p0) || !Number.isFinite(p1)) return null;
-                
+
                 // Check if resolved (1/0 or 0/1)
                 const idx0Win = p0 >= 0.99 && p1 <= 0.01;
                 const idx1Win = p0 <= 0.01 && p1 >= 0.99;
                 if (!idx0Win && !idx1Win) return null; // Not yet resolved
-                
+
                 const o0 = String(outcomes[0]).toLowerCase();
                 const o1 = String(outcomes[1]).toLowerCase();
-                
+
                 let outcome = idx0Win ? 'UP' : 'DOWN';
                 if (o0 === 'up' && o1 === 'down') outcome = idx0Win ? 'UP' : 'DOWN';
                 else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
@@ -961,7 +961,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             if (s === 'down' || s === 'no') return 'DOWN';
             return null;
         }
-        
+
         // Helper to build slug from cycle time (debug exports fallback)
         function buildSlug(asset, cycleEndTime) {
             const endSec = Math.floor(Date.parse(cycleEndTime) / 1000);
@@ -970,22 +970,22 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             const startEpoch = boundary - 900;
             return `${String(asset).toLowerCase()}-updown-15m-${startEpoch}`;
         }
-        
+
         // Get cycles from collector snapshots (Redis/file)
         const snapshotData = await getCollectorSnapshots(1000);
         const snapshots = snapshotData.snapshots || [];
-        
+
         // Also try debug files if available
         const fs = require('fs');
         const path = require('path');
         const debugDir = getDebugCorpusDir();
         let debugCycles = [];
-        
+
         if (fs.existsSync(debugDir)) {
             const debugFiles = fs.readdirSync(debugDir)
                 .filter(f => f.startsWith('polyprophet_debug_') && f.endsWith('.json'))
                 .sort();
-            
+
             const seen = new Set();
             const debugFilesLimit = Math.min(debugFilesParam, 500); // Default: last 200 files
             for (const file of debugFiles.slice(-debugFilesLimit)) {
@@ -993,46 +993,46 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     const content = fs.readFileSync(path.join(debugDir, file), 'utf8');
                     const data = JSON.parse(content);
                     const assets = data.assets || {};
-                    
+
                     for (const [asset, assetData] of Object.entries(assets)) {
                         // 🏆 v76: Use allowedAssets filter (default BTC+ETH)
                         if (!allowedAssets.has(asset)) continue;
                         const cycleHistory = assetData.cycleHistory || [];
-                        
+
                         for (const cycle of cycleHistory) {
                             if (!cycle.cycleEndTime) continue;
                             const key = `${asset}_${cycle.cycleEndTime}`;
                             if (seen.has(key)) continue;
                             seen.add(key);
-                            
+
                             const tier = String(cycle.tier || 'NONE').toUpperCase();
                             // 🏆 v78: HYBRID tier mode - CONVICTION always, ADVISORY with quality gates
                             if (tierFilter === 'HYBRID') {
                                 if (tier === 'NONE') continue; // Block NONE tier
                                 // CONVICTION passes, ADVISORY passes (frequency floor simulation)
                             } else if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
-                            
+
                             const pred = String(cycle.prediction || 'NEUTRAL').toUpperCase();
                             if (pred !== 'UP' && pred !== 'DOWN') continue;
-                            
+
                             // 🎯 v53: Use entryOdds if available, otherwise marketOdds
                             const entryOdds = cycle.entryOdds || cycle.marketOdds;
                             if (!entryOdds) continue;
-                            
+
                             const yesPrice = entryOdds.yesPrice;
                             const noPrice = entryOdds.noPrice;
                             const entryPrice = pred === 'UP' ? yesPrice : noPrice;
-                            
+
                             if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
                             if (entryPrice < minOddsEntry) continue; // 🎯 v53: Reject tail bets (Oracle vs market)
                             if (entryPrice > maxOddsEntry) continue; // Filter by max entry odds
-                            
+
                             const slug = buildSlug(asset, cycle.cycleEndTime);
                             if (!slug) continue;
                             const times = normalizeCycleTimesFromSlug(slug);
                             if (!times) continue;
                             const observedAtMs = Date.parse(cycle.cycleEndTime);
-                            
+
                             debugCycles.push({
                                 asset,
                                 cycleEndTime: times.cycleEndTime,
@@ -1052,7 +1052,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 } catch { /* skip malformed */ }
             }
         }
-        
+
         // Also extract from collector snapshots
         const snapshotCycles = [];
         for (const snap of snapshots) {
@@ -1060,29 +1060,29 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             for (const [asset, signal] of Object.entries(snap.signals || {})) {
                 // 🏆 v76: Use allowedAssets filter (default BTC+ETH)
                 if (!allowedAssets.has(asset)) continue;
-                
+
                 const tier = String(signal.tier || 'NONE').toUpperCase();
                 // 🏆 v78: HYBRID tier mode - allow CONVICTION + ADVISORY (blocks NONE)
                 if (tierFilter === 'HYBRID') {
                     if (tier === 'NONE') continue;
                 } else if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
-                
+
                 const pred = String(signal.prediction || 'NEUTRAL').toUpperCase();
                 if (pred !== 'UP' && pred !== 'DOWN') continue;
-                
+
                 const market = snap.markets?.[asset];
                 if (!market || !market.slug) continue;
                 const times = normalizeCycleTimesFromSlug(market.slug);
                 if (!times) continue;
-                
+
                 const yesPrice = market.yesPrice;
                 const noPrice = market.noPrice;
                 const entryPrice = pred === 'UP' ? yesPrice : noPrice;
-                
+
                 if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
                 if (entryPrice < minOddsEntry) continue; // 🎯 v53: Reject tail bets
                 if (entryPrice > maxOddsEntry) continue;
-                
+
                 snapshotCycles.push({
                     asset,
                     cycleEndTime: times.cycleEndTime,
@@ -1099,7 +1099,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 });
             }
         }
-        
+
         // Combine and dedupe by slug, selecting the "best" candidate deterministically.
         // This prevents duplicates across debug/collector sources and across repeated collector snapshots.
         const allCycles = [...debugCycles, ...snapshotCycles];
@@ -1174,8 +1174,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             // windowEnd: explicit end timestamp (epoch seconds)
             // offsetHours: shift the window backwards by this many hours
             const nowSec = Math.floor(Date.now() / 1000);
-            const effectiveEndSec = windowEndEpochSec !== null 
-                ? windowEndEpochSec 
+            const effectiveEndSec = windowEndEpochSec !== null
+                ? windowEndEpochSec
                 : (nowSec - Math.floor(offsetHours * 3600));
             const cutoff = effectiveEndSec - Math.floor(lookbackHours * 3600);
             eligibleWindowKeys = windowKeys.filter(k => Number(k) >= cutoff && Number(k) <= effectiveEndSec);
@@ -1415,7 +1415,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             if (profitMultiple >= 1.1) return 0.65;
             return 1.0;
         }
-        
+
         // 🏆 v74: Kelly optimal fraction calculation
         // f* = (b*p - (1-p)) / b where b = payout odds after fees, p = win probability
         function calcKellyFraction(pWin, entryPrice) {
@@ -1440,7 +1440,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let wins = 0;
             let losses = 0;
             const trades = [];
-            
+
             // 🏆 v76: Risk envelope tracking for simulation
             let dayStartBalance = startingBalance;
             let dayStartEpochSec = null;
@@ -1449,12 +1449,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             let envelopeBlocks = 0;
             // ⚡ v97+: Exceptional sizing booster counters (for forensic audit)
             let exceptionalBoosts = 0;
-            
+
             // 🏆 v76: Day-by-day tracking for 1-7 day projections
             const dayByDay = []; // { day, date, startBalance, endBalance, trades, wins, losses, pnl, maxDD }
             let currentDayNum = 0;
             let currentDayStats = null;
-            
+
             // 🏆 v84: Objective metrics tracking for optimizer aggregation
             let hit100 = null; // { day, tradeIndex, balance } when first hit $100
             let hit1000 = null; // { day, tradeIndex, balance } when first hit $1000
@@ -1504,17 +1504,17 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         currentDayStats.pnl = balance - currentDayStats.startBalance;
                         dayByDay.push(currentDayStats);
                     }
-                    
+
                     // New day - reset day tracking
                     currentDayNum++;
                     dayStartBalance = balance;
                     dayStartEpochSec = w;
                     peakBalance = balance; // Reset peak on new day
                     intradayLoss = 0;
-                    
+
                     // 🏆 v88: Reset global stop on new day (runtime parity)
                     globalStopTriggeredToday = false;
-                    
+
                     // Initialize new day stats
                     currentDayStats = {
                         day: currentDayNum,
@@ -1597,7 +1597,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         stakes = windowCycles.map(cycle => {
                             const pWin = clamp01(cycle.pWinUsed);
                             const kellyF = calcKellyFraction(pWin, cycle.entryPrice);
-                            
+
                             if (kellyF !== null) {
                                 // Apply fractional Kelly with max cap
                                 let kellyStake = windowBalanceStart * Math.min(kellyF * effectiveKellyFraction, effectiveKellyMaxFraction);
@@ -1645,7 +1645,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             haltedTrades++;
                             continue;
                         }
-                        
+
                         // Check 2: Loss cooldown (pause after maxConsecutiveLosses)
                         const cycleEpoch = cycle.cycleStartEpochSec || w;
                         if (consecutiveLosses >= maxConsecutiveLosses) {
@@ -1789,7 +1789,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             }
                         }
                     }
-                    
+
                     // 🏆 v78/v83: Risk envelope simulation with DYNAMIC PROFILE (matches runtime applyRiskEnvelope)
                     // 🏆 v83: Uses threshold contract for parity with runtime + vault optimizer
                     if (effectiveRiskEnvelopeEnabled) {
@@ -1798,7 +1798,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         const STAGE1_THRESHOLD = backtestThresholds.vaultTriggerBalance;
                         const STAGE2_THRESHOLD = backtestThresholds.stage2Threshold;
                         let dynIntradayBudgetPct, dynTrailingDDPct, dynPerTradeCap;
-                        
+
                         if (balance < STAGE1_THRESHOLD) {
                             // Stage 0: Bootstrap - aggressive
                             dynIntradayBudgetPct = 0.50;
@@ -1815,7 +1815,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                             dynTrailingDDPct = 0.10;
                             dynPerTradeCap = 0.10;
                         }
-                        
+
                         // Calculate remaining budgets with dynamic profile
                         const intradayBudget = dayStartBalance * dynIntradayBudgetPct - intradayLoss;
                         const trailingDDFromPeak = peakBalance > 0 ? peakBalance - balance : 0;
@@ -1827,17 +1827,17 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                         if (effectiveBudget >= MIN_ORDER_COST) {
                             maxTradeSize = Math.max(MIN_ORDER_COST, maxTradeSize);
                         }
-                        
+
                         // 🏆 v78/v86 FIX: Match runtime applyRiskEnvelope logic (including min-order override rules)
                         // The TRUE constraint is effectiveBudget, not maxTradeSize.
                         // Only allow min-order overrides when they do NOT violate the survival floor.
-                        
+
                         // 🏆 v84: Bootstrap min-order override (parity with runtime TradeExecutor.applyRiskEnvelope)
                         // In Bootstrap stage (balance < stage1 threshold), minOrderRiskOverride=true.
                         // This allows MIN_ORDER_COST even when budget is exhausted, as long as balance can cover it.
                         const isBootstrapStage = balance < STAGE1_THRESHOLD;
                         const minOrderOverride = isBootstrapStage; // runtime dynamic profile: true only in BOOTSTRAP
-                        
+
                         // Case 1: Budget truly exhausted
                         if (effectiveBudget < MIN_ORDER_COST) {
                             // 🏆 v84: Check Bootstrap min-order override before blocking
@@ -1851,7 +1851,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                                 continue;
                             }
                         }
-                        
+
                         // Case 2: Per-trade cap < MIN_ORDER_COST but budget available
                         // Allow min order only if override is enabled; otherwise block (can't satisfy per-trade risk cap).
                         if (maxTradeSize < MIN_ORDER_COST) {
@@ -1945,7 +1945,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 lifetimePeakBalance = Math.max(lifetimePeakBalance, balance);
                 const dd = peakBalance > 0 ? ((peakBalance - balance) / peakBalance) : 0;
                 maxDrawdown = Math.max(maxDrawdown, dd);
-                
+
                 // 🏆 v84: Track objective milestones
                 tradeIndex += windowCycles.length;
                 minBalance = Math.min(minBalance, balance);
@@ -1955,13 +1955,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 if (hit1000 === null && balance >= 1000) {
                     hit1000 = { day: currentDayNum, tradeIndex, balance: parseFloat(balance.toFixed(2)) };
                 }
-                
+
                 // 🏆 v76: Update day stats after each window
                 if (currentDayStats) {
                     currentDayStats.endBalance = balance;
                     currentDayStats.peakBalance = Math.max(currentDayStats.peakBalance, balance);
-                    const dayDD = currentDayStats.peakBalance > 0 
-                        ? (currentDayStats.peakBalance - balance) / currentDayStats.peakBalance 
+                    const dayDD = currentDayStats.peakBalance > 0
+                        ? (currentDayStats.peakBalance - balance) / currentDayStats.peakBalance
                         : 0;
                     currentDayStats.maxDD = Math.max(currentDayStats.maxDD, dayDD);
                 }
@@ -1976,7 +1976,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
 
                 if (balance <= 0) break;
             }
-            
+
             // 🏆 v76: Finalize last day's stats
             if (currentDayStats !== null) {
                 currentDayStats.endBalance = balance;
@@ -2027,8 +2027,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 // 🏆 v76: Risk envelope stats
                 envelopeCaps,
                 envelopeBlocks,
-                    // ⚡ v97+: Exceptional sizing booster stats
-                    exceptionalBoosts,
+                // ⚡ v97+: Exceptional sizing booster stats
+                exceptionalBoosts,
                 // 🏆 v76: Day-by-day breakdown
                 dayByDay,
                 // 🏆 v84: Objective metrics for optimizer
@@ -2052,7 +2052,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             profitPct: Number.isFinite(r.totalProfit) ? ((r.totalProfit / startingBalance) * 100).toFixed(2) + '%' : 'N/A',
             maxDrawdown: Number.isFinite(r.maxDrawdown) ? (r.maxDrawdown * 100).toFixed(2) + '%' : 'N/A'
         })) : null;
-        
+
         // 🏆 v69: Knee analysis - find optimal stake based on profit/drawdown ratio
         let kneeAnalysis = null;
         if (scanResults && scanResults.length >= 2) {
@@ -2062,7 +2062,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 const ratio = ddNum > 0 ? profitNum / ddNum : 0;
                 return { ...r, profitDDRatio: Number(ratio.toFixed(2)) };
             });
-            const bestRatioIdx = analyzed.reduce((best, curr, idx) => 
+            const bestRatioIdx = analyzed.reduce((best, curr, idx) =>
                 curr.profitDDRatio > analyzed[best].profitDDRatio ? idx : best, 0);
             const conservative = analyzed.find(a => parseFloat(a.maxDrawdown) <= 50) || analyzed[0];
             kneeAnalysis = {
@@ -2078,7 +2078,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             const k = t.entrySource || 'unknown';
             entrySources[k] = (entrySources[k] || 0) + 1;
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
         const selectedSlugsSorted = selectedCycles.map(c => c.slug).slice().sort();
         const slugHash = crypto.createHash('sha256').update(selectedSlugsSorted.join('\n')).digest('hex');
@@ -2094,7 +2094,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 days: Number.isFinite(hours) ? Number((hours / 24).toFixed(2)) : null
             };
         })();
-        
+
         res.json({
             summary: {
                 method: 'Polymarket Gamma API (ground truth)',
@@ -2246,9 +2246,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             // - compactMode: omit all trades
             // - fullTradesMode: return ALL trades (for $1 MANUAL backtest analysis)
             // - default: return last 30 trades
-            trades: compactMode 
-                ? `[${(primarySim.trades || []).length} trades omitted - use compact=0 for full data]` 
-                : fullTradesMode 
+            trades: compactMode
+                ? `[${(primarySim.trades || []).length} trades omitted - use compact=0 for full data]`
+                : fullTradesMode
                     ? (primarySim.trades || []).map((t, idx) => ({
                         tradeIndex: idx + 1,
                         asset: t.asset,
@@ -2271,10 +2271,10 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 winRateNeededForEV: Number.isFinite(primarySim.winRateNeededForEV) ? primarySim.winRateNeededForEV.toFixed(1) + '%' : 'N/A',
                 currentWinRate: Number.isFinite(primarySim.winRate) ? primarySim.winRate.toFixed(1) + '%' : 'N/A',
                 verdict: primarySim.totalTrades === 0 ? 'ℹ️ No resolved cycles/trades found for these filters (balance may be below min order cost)' :
-                         primarySim.totalProfit > 0 ? '✅ PROFITABLE (simulated compounding P&L)' :
-                         (Number.isFinite(primarySim.expectedEV) && primarySim.expectedEV > 0) ? '⚠️ POSITIVE EDGE BUT LOST IN THIS SAMPLE (variance / sequencing risk) — consider lower stake' :
-                         (Number.isFinite(primarySim.expectedEV) && primarySim.expectedEV > -0.05) ? '⚠️ MARGINAL / CLOSE TO BREAKEVEN — need better entries or higher WR' :
-                         '❌ NEGATIVE — entry prices too high for current win rate'
+                    primarySim.totalProfit > 0 ? '✅ PROFITABLE (simulated compounding P&L)' :
+                        (Number.isFinite(primarySim.expectedEV) && primarySim.expectedEV > 0) ? '⚠️ POSITIVE EDGE BUT LOST IN THIS SAMPLE (variance / sequencing risk) — consider lower stake' :
+                            (Number.isFinite(primarySim.expectedEV) && primarySim.expectedEV > -0.05) ? '⚠️ MARGINAL / CLOSE TO BREAKEVEN — need better entries or higher WR' :
+                                '❌ NEGATIVE — entry prices too high for current win rate'
             }
         });
     } catch (e) {
@@ -2300,7 +2300,7 @@ async function getCachedDatasetEntry(slug) {
         if (fs.existsSync(filePath)) {
             return JSON.parse(fs.readFileSync(filePath, 'utf8'));
         }
-    } catch {}
+    } catch { }
     return null;
 }
 
@@ -2314,7 +2314,7 @@ async function setCachedDatasetEntry(slug, entry) {
         const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
         if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
         fs.writeFileSync(path.join(dataDir, `${slug}.json`), jsonData);
-    } catch {}
+    } catch { }
 }
 
 app.get('/api/build-dataset', async (req, res) => {
@@ -2323,11 +2323,11 @@ app.get('/api/build-dataset', async (req, res) => {
         const lookbackDays = Math.min(parseInt(req.query.days) || 90, 365);
         const asset = req.query.asset ? String(req.query.asset).toUpperCase() : null; // BTC, ETH, XRP, SOL or null for all
         const forceRefresh = req.query.refresh === '1';
-        
+
         const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP', 'SOL'];
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
-        
+
         // Generate all possible slug epochs (15-min intervals)
         const allSlugs = [];
         for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
@@ -2335,14 +2335,14 @@ app.get('/api/build-dataset', async (req, res) => {
                 allSlugs.push(`${a.toLowerCase()}-updown-15m-${epochSec}`);
             }
         }
-        
+
         let cached = 0;
         let fetched = 0;
         let errors = 0;
         let resolved = 0;
         let unresolved = 0;
         const entries = [];
-        
+
         for (const slug of allSlugs) {
             // Check cache first
             if (!forceRefresh) {
@@ -2353,7 +2353,7 @@ app.get('/api/build-dataset', async (req, res) => {
                     continue;
                 }
             }
-            
+
             // Fetch from Gamma API
             await new Promise(r => setTimeout(r, 50)); // Rate limit
             try {
@@ -2362,41 +2362,41 @@ app.get('/api/build-dataset', async (req, res) => {
                     headers: { 'User-Agent': 'polyprophet-dataset-builder/1.0' },
                     signal: AbortSignal.timeout(10000)
                 });
-                
+
                 if (!response.ok) {
                     errors++;
                     continue;
                 }
-                
+
                 const data = await response.json();
                 const market = Array.isArray(data) ? data[0] : data;
                 if (!market) {
                     unresolved++;
                     continue;
                 }
-                
+
                 const prices = JSON.parse(market.outcomePrices || '[]');
                 const outcomes = JSON.parse(market.outcomes || '[]');
                 const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
-                
+
                 if (!Array.isArray(prices) || prices.length < 2) {
                     unresolved++;
                     continue;
                 }
-                
+
                 const p0 = Number(prices[0]);
                 const p1 = Number(prices[1]);
                 const idx0Win = p0 >= 0.99 && p1 <= 0.01;
                 const idx1Win = p0 <= 0.01 && p1 >= 0.99;
-                
+
                 if (!idx0Win && !idx1Win) {
                     unresolved++;
                     continue;
                 }
-                
+
                 resolved++;
                 fetched++;
-                
+
                 // Determine outcome
                 const o0 = String(outcomes[0] || '').toLowerCase();
                 const o1 = String(outcomes[1] || '').toLowerCase();
@@ -2405,12 +2405,12 @@ app.get('/api/build-dataset', async (req, res) => {
                 else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
                 else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
                 else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
-                
+
                 // Extract cycle timing from slug
                 const slugMatch = slug.match(/(btc|eth|xrp|sol)-updown-15m-(\d+)$/);
                 const assetFromSlug = slugMatch ? slugMatch[1].toUpperCase() : null;
                 const cycleStartEpochSec = slugMatch ? parseInt(slugMatch[2]) : null;
-                
+
                 const entry = {
                     slug,
                     asset: assetFromSlug,
@@ -2423,17 +2423,17 @@ app.get('/api/build-dataset', async (req, res) => {
                     volume: Number(market.volume || 0),
                     cachedAt: Date.now()
                 };
-                
+
                 await setCachedDatasetEntry(slug, entry);
                 entries.push(entry);
-                
+
             } catch (e) {
                 errors++;
             }
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         res.json({
             success: true,
             summary: {
@@ -2465,15 +2465,15 @@ function generateJobId() {
 async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
     const job = datasetJobs.get(jobId);
     if (!job) return;
-    
+
     try {
         job.status = 'running';
         job.startedAt = Date.now();
-        
+
         const ASSETS_TO_BUILD = assets;
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
-        
+
         // Generate all possible slug epochs (15-min intervals)
         const allSlugs = [];
         for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
@@ -2481,7 +2481,7 @@ async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
                 allSlugs.push(`${a.toLowerCase()}-updown-15m-${epochSec}`);
             }
         }
-        
+
         job.totalSlugs = allSlugs.length;
         job.cached = 0;
         job.fetched = 0;
@@ -2489,10 +2489,10 @@ async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
         job.unresolved = 0;
         job.errors = 0;
         job.processed = 0;
-        
+
         for (const slug of allSlugs) {
             if (job.status === 'cancelled') break;
-            
+
             // Check cache first
             if (!forceRefresh) {
                 const existing = await getCachedDatasetEntry(slug);
@@ -2502,23 +2502,23 @@ async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
                     continue;
                 }
             }
-            
+
             // Rate limit: 50-100ms between requests
             await new Promise(r => setTimeout(r, 75));
-            
+
             try {
                 const url = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
                 const response = await fetch(url, {
                     headers: { 'User-Agent': 'polyprophet-dataset-builder/1.0' },
                     signal: AbortSignal.timeout(10000)
                 });
-                
+
                 if (!response.ok) {
                     job.errors++;
                     job.processed++;
                     continue;
                 }
-                
+
                 const data = await response.json();
                 const market = Array.isArray(data) ? data[0] : data;
                 if (!market) {
@@ -2526,31 +2526,31 @@ async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
                     job.processed++;
                     continue;
                 }
-                
+
                 const prices = JSON.parse(market.outcomePrices || '[]');
                 const outcomes = JSON.parse(market.outcomes || '[]');
                 const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
-                
+
                 if (!Array.isArray(prices) || prices.length < 2) {
                     job.unresolved++;
                     job.processed++;
                     continue;
                 }
-                
+
                 const p0 = Number(prices[0]);
                 const p1 = Number(prices[1]);
                 const idx0Win = p0 >= 0.99 && p1 <= 0.01;
                 const idx1Win = p0 <= 0.01 && p1 >= 0.99;
-                
+
                 if (!idx0Win && !idx1Win) {
                     job.unresolved++;
                     job.processed++;
                     continue;
                 }
-                
+
                 job.resolved++;
                 job.fetched++;
-                
+
                 // Determine outcome
                 const o0 = String(outcomes[0] || '').toLowerCase();
                 const o1 = String(outcomes[1] || '').toLowerCase();
@@ -2559,12 +2559,12 @@ async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
                 else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
                 else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
                 else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
-                
+
                 // Extract cycle timing from slug
                 const slugMatch = slug.match(/(btc|eth|xrp|sol)-updown-15m-(\d+)$/);
                 const assetFromSlug = slugMatch ? slugMatch[1].toUpperCase() : null;
                 const cycleStartEpochSec = slugMatch ? parseInt(slugMatch[2]) : null;
-                
+
                 const entry = {
                     slug,
                     asset: assetFromSlug,
@@ -2577,20 +2577,20 @@ async function runDatasetBuildJob(jobId, lookbackDays, assets, forceRefresh) {
                     volume: Number(market.volume || 0),
                     cachedAt: Date.now()
                 };
-                
+
                 await setCachedDatasetEntry(slug, entry);
                 job.processed++;
-                
+
             } catch (e) {
                 job.errors++;
                 job.processed++;
             }
         }
-        
+
         job.status = job.status === 'cancelled' ? 'cancelled' : 'completed';
         job.completedAt = Date.now();
         job.runtime = ((job.completedAt - job.startedAt) / 1000).toFixed(2) + 's';
-        
+
     } catch (e) {
         job.status = 'failed';
         job.error = e.message;
@@ -2604,9 +2604,9 @@ app.post('/api/dataset/build', express.json(), async (req, res) => {
         const assetParam = req.body?.asset || req.query.asset;
         const asset = assetParam ? String(assetParam).toUpperCase() : null;
         const forceRefresh = req.body?.refresh === true || req.query.refresh === '1';
-        
+
         const ASSETS_TO_BUILD = asset ? [asset] : ['BTC', 'ETH', 'XRP', 'SOL'];
-        
+
         const jobId = generateJobId();
         const job = {
             id: jobId,
@@ -2623,12 +2623,12 @@ app.post('/api/dataset/build', express.json(), async (req, res) => {
             unresolved: 0,
             errors: 0
         };
-        
+
         datasetJobs.set(jobId, job);
-        
+
         // Start job in background (don't await)
         runDatasetBuildJob(jobId, lookbackDays, ASSETS_TO_BUILD, forceRefresh);
-        
+
         res.json({
             success: true,
             jobId,
@@ -2643,7 +2643,7 @@ app.post('/api/dataset/build', express.json(), async (req, res) => {
 app.get('/api/dataset/status', async (req, res) => {
     try {
         const jobId = req.query.id;
-        
+
         if (!jobId) {
             // Return all active jobs
             const jobs = Array.from(datasetJobs.values())
@@ -2651,17 +2651,17 @@ app.get('/api/dataset/status', async (req, res) => {
                 .slice(0, 20);
             return res.json({ jobs });
         }
-        
+
         const job = datasetJobs.get(jobId);
         if (!job) {
             return res.status(404).json({ error: 'Job not found', jobId });
         }
-        
+
         const progress = job.totalSlugs > 0 ? ((job.processed / job.totalSlugs) * 100).toFixed(1) : 0;
         const eta = job.status === 'running' && job.processed > 0
             ? Math.round(((Date.now() - job.startedAt) / job.processed) * (job.totalSlugs - job.processed) / 1000)
             : null;
-        
+
         res.json({
             ...job,
             progress: progress + '%',
@@ -2677,16 +2677,16 @@ app.post('/api/dataset/cancel', express.json(), async (req, res) => {
     try {
         const jobId = req.body?.id || req.query.id;
         const job = datasetJobs.get(jobId);
-        
+
         if (!job) {
             return res.status(404).json({ error: 'Job not found', jobId });
         }
-        
+
         if (job.status === 'running') {
             job.status = 'cancelled';
             return res.json({ success: true, message: 'Job cancellation requested' });
         }
-        
+
         res.json({ success: false, message: `Job already ${job.status}` });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -2700,18 +2700,18 @@ app.post('/api/dataset/cancel', express.json(), async (req, res) => {
 app.get('/api/vault-projection', async (req, res) => {
     try {
         const startTime = Date.now();
-        
+
         // Core simulation parameters
         const startingBalance = parseFloat(req.query.balance) || 5.0;
         const simulations = Math.min(parseInt(req.query.sims) || 10000, 50000);
         const winRateOverride = parseFloat(req.query.winRate);
         const historicalWinRate = Number.isFinite(winRateOverride) ? winRateOverride : 0.77; // Validated 77% from corpus
-        
+
         // 🏆 v83: Seedable RNG for reproducibility
         const seedParam = parseInt(req.query.seed);
         const rng = createSeededRng(Number.isFinite(seedParam) ? seedParam : undefined);
         const usedSeed = rng.seed;
-        
+
         // 🏆 v83: Vault thresholds via threshold contract
         // 🏆 v96: Pass startingBalance for relative-mode support
         const vaultTriggerBalanceParam = parseFloat(req.query.vaultTriggerBalance);
@@ -2724,7 +2724,7 @@ app.get('/api/vault-projection', async (req, res) => {
         const thresholds = getVaultThresholds(thresholdOverrides);
         const STAGE1_THRESHOLD = thresholds.vaultTriggerBalance;
         const STAGE2_THRESHOLD = thresholds.stage2Threshold;
-        
+
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/projections we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
@@ -2747,7 +2747,7 @@ app.get('/api/vault-projection', async (req, res) => {
         const adaptiveRequested = req.query.adaptive !== '0';
         const policyAtStart = (typeof getBankrollAdaptivePolicy === 'function') ? getBankrollAdaptivePolicy(startingBalance) : null;
         const adaptiveMode = adaptiveRequested && !(policyAtStart && policyAtStart.profitProtectionEnabled === false);
-        
+
         // 🏆 v83: Profit lock-in schedule (mirrors runtime applyVarianceControls)
         function getProfitLockMult(profitMultiple) {
             if (profitMultiple >= 10) return 0.25;
@@ -2756,7 +2756,7 @@ app.get('/api/vault-projection', async (req, res) => {
             if (profitMultiple >= 1.1) return 0.65;
             return 1.0;
         }
-        
+
         // 🏆 v83: Dynamic risk profile (vault-aware)
         function getDynProfile(balance) {
             if (balance < STAGE1_THRESHOLD) {
@@ -2767,18 +2767,18 @@ app.get('/api/vault-projection', async (req, res) => {
                 return { stage: 2, name: 'LOCK_IN', intradayPct: 0.25, trailingPct: 0.10, perTradeCap: 0.10, minOrderOverride: false };
             }
         }
-        
+
         // Simulation targets
         const DAY7_TRADES = 7 * TRADES_PER_DAY;
         const DAY30_TRADES = 30 * TRADES_PER_DAY;
-        
+
         // Accumulators
         let ruinFloorCount = 0, ruinMinOrderCount = 0;
         let reach100_day7 = 0, reach1000_day30 = 0;
         let reach20_day7 = 0, reach50_day7 = 0;
         const finalBalances = [];
         const maxDrawdowns = [];
-        
+
         for (let sim = 0; sim < simulations; sim++) {
             let balance = startingBalance;
             let peakBalance = startingBalance;
@@ -2789,7 +2789,7 @@ app.get('/api/vault-projection', async (req, res) => {
             let hit100_d7 = false, hit1000_d30 = false;
             let hit20_d7 = false, hit50_d7 = false;
             let currentDay = 0;
-            
+
             for (let t = 0; t < DAY30_TRADES; t++) {
                 // Day tracking
                 const tradeDay = Math.floor(t / TRADES_PER_DAY);
@@ -2798,34 +2798,34 @@ app.get('/api/vault-projection', async (req, res) => {
                     dayStartBalance = balance;
                     intradayLoss = 0;
                 }
-                
+
                 // Balance floor check
                 if (balance < BALANCE_FLOOR) {
                     hitFloor = true;
                     break;
                 }
-                
+
                 // 🏆 v83: Dynamic risk profile based on vault threshold
                 const profile = getDynProfile(balance);
-                
+
                 // Calculate effective stake with Kelly + profit lock-in
                 let effectiveKellyMax = kellyMax;
                 if (adaptiveMode) {
                     const profitMult = balance / startingBalance;
                     effectiveKellyMax = kellyMax * getProfitLockMult(profitMult);
                 }
-                
+
                 // Calculate stake size
                 let size = balance * effectiveKellyMax;
                 size = Math.min(size, MAX_ABSOLUTE_STAKE);
-                
+
                 // 🏆 v83: Risk envelope simulation
                 const intradayBudget = dayStartBalance * profile.intradayPct - intradayLoss;
                 const trailingDDFromPeak = peakBalance > 0 ? peakBalance - balance : 0;
                 const trailingBudget = peakBalance * profile.trailingPct - trailingDDFromPeak;
                 const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
                 const maxTradeSize = effectiveBudget * profile.perTradeCap;
-                
+
                 // Apply envelope constraints (min order is shares-based; use MIN_ORDER_COST at AVG_ENTRY_PRICE)
                 if (effectiveBudget < MIN_ORDER_COST) {
                     if (profile.minOrderOverride && balance >= MIN_ORDER_COST) {
@@ -2839,7 +2839,7 @@ app.get('/api/vault-projection', async (req, res) => {
                 } else if (size > maxTradeSize) {
                     size = maxTradeSize;
                 }
-                
+
                 // Min-order override for bootstrap
                 if (size < MIN_ORDER_COST && balance >= MIN_ORDER_COST) {
                     if (profile.minOrderOverride) {
@@ -2849,24 +2849,24 @@ app.get('/api/vault-projection', async (req, res) => {
                         break;
                     }
                 }
-                
+
                 if (size < MIN_ORDER_COST) {
                     hitMinOrder = true;
                     break;
                 }
-                
+
                 // Simulate trade outcome (uses seeded RNG for reproducibility)
                 const won = rng.next() < historicalWinRate;
                 const settled = calcBinaryTradeDeltaUsdAfterFees(size, AVG_ENTRY_PRICE, won, { slippagePct: 0, feeModel });
                 balance += Number(settled.deltaUsd || 0);
                 // Intraday loss tracks worst-case depletion of cash. Fees always reduce bankroll.
                 intradayLoss += won ? Number(settled.feeUsd || 0) : (size + Number(settled.feeUsd || 0));
-                
+
                 // Update peak and drawdown
                 peakBalance = Math.max(peakBalance, balance);
                 const dd = peakBalance > 0 ? (peakBalance - balance) / peakBalance : 0;
                 maxDD = Math.max(maxDD, dd);
-                
+
                 // Track targets
                 if (t < DAY7_TRADES) {
                     if (balance >= 20) hit20_d7 = true;
@@ -2875,7 +2875,7 @@ app.get('/api/vault-projection', async (req, res) => {
                 }
                 if (balance >= 1000) hit1000_d30 = true;
             }
-            
+
             finalBalances.push(balance);
             maxDrawdowns.push(maxDD);
             if (hitFloor || balance < BALANCE_FLOOR) ruinFloorCount++;
@@ -2885,22 +2885,22 @@ app.get('/api/vault-projection', async (req, res) => {
             if (hit100_d7) reach100_day7++;
             if (hit1000_d30) reach1000_day30++;
         }
-        
+
         // Calculate statistics
         finalBalances.sort((a, b) => a - b);
         maxDrawdowns.sort((a, b) => a - b);
-        
+
         const pct = (x) => ((x / simulations) * 100).toFixed(2) + '%';
         const pctNum = (x) => (x / simulations) * 100;
         const q = (p) => finalBalances[Math.floor(simulations * p)];
         const avgMaxDD = maxDrawdowns.reduce((a, b) => a + b, 0) / simulations;
         const medianMaxDD = maxDrawdowns[Math.floor(simulations * 0.5)];
-        
+
         // 🏆 v83: Drawdown label (matches stress-test endpoint)
         const drawdownLabel = avgMaxDD < 0.40 ? 'conservative' : avgMaxDD < 0.55 ? 'balanced' : 'aggressive';
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         res.json({
             summary: {
                 method: 'Vault-Aware Monte Carlo (v83)',
@@ -2980,13 +2980,13 @@ app.get('/api/vault-projection', async (req, res) => {
 app.get('/api/vault-optimize', async (req, res) => {
     try {
         const startTime = Date.now();
-        
+
         // Sweep parameters (v83: step 0.10 for precision, 6.10-15.00 range)
         const minTrigger = parseFloat(req.query.min) || 6.10;
         const maxTrigger = parseFloat(req.query.max) || 15.00;
         const step = parseFloat(req.query.step) || 0.10; // 🏆 v83: Fine-grained default for precision
         const simulations = Math.min(parseInt(req.query.sims) || 5000, 20000); // 5k-20k sims per threshold
-        
+
         // Other simulation parameters (passed through to projection)
         const startingBalance = parseFloat(req.query.balance) || 5.0;
         const winRateOverride = parseFloat(req.query.winRate);
@@ -3002,11 +3002,11 @@ app.get('/api/vault-optimize', async (req, res) => {
         const TRADES_PER_DAY = parseInt(req.query.tradesPerDay) || 16;
         const stage2ThresholdParam = parseFloat(req.query.stage2Threshold);
         const stage2Threshold = Number.isFinite(stage2ThresholdParam) ? stage2ThresholdParam : 20;
-        
+
         // Near-tie epsilon for objective ordering
         const epsilon = parseFloat(req.query.epsilon) || 0.5; // 0.5 percentage points
 
-        
+
         // 🏆 v83: Seedable RNG for reproducibility (same seed = same rankings)
         const seedParam = parseInt(req.query.seed);
         const seedRng = createSeededRng(Number.isFinite(seedParam) ? seedParam : undefined);
@@ -3017,7 +3017,7 @@ app.get('/api/vault-optimize', async (req, res) => {
             const k = Math.round(Number(vaultTriggerBalance) * 100) >>> 0; // cents precision
             return (usedSeed ^ Math.imul(k, 0x9E3779B1)) >>> 0;
         };
-        
+
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/optimization we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
@@ -3032,7 +3032,7 @@ app.get('/api/vault-optimize', async (req, res) => {
         const MAX_ABSOLUTE_STAKE = 100;
         const DAY7_TRADES = 7 * TRADES_PER_DAY;
         const DAY30_TRADES = 30 * TRADES_PER_DAY;
-        
+
         // Helper functions (same as vault-projection)
         function getProfitLockMult(profitMultiple) {
             if (profitMultiple >= 10) return 0.25;
@@ -3041,7 +3041,7 @@ app.get('/api/vault-optimize', async (req, res) => {
             if (profitMultiple >= 1.1) return 0.65;
             return 1.0;
         }
-        
+
         function getDynProfile(balance, stage1Threshold) {
             if (balance < stage1Threshold) {
                 return { stage: 0, intradayPct: 0.50, trailingPct: 0.40, perTradeCap: 0.75, minOrderOverride: true };
@@ -3051,14 +3051,14 @@ app.get('/api/vault-optimize', async (req, res) => {
                 return { stage: 2, intradayPct: 0.25, trailingPct: 0.10, perTradeCap: 0.10, minOrderOverride: false };
             }
         }
-        
+
         // Run simulation for a single vaultTriggerBalance value
         function runSimulation(vaultTriggerBalance) {
             const rngLocal = createSeededRng(seedForTrigger(vaultTriggerBalance));
             let ruinFloorCount = 0, ruinMinOrderCount = 0;
             let reach100_day7 = 0, reach1000_day30 = 0;
             const maxDrawdowns = [];
-            
+
             for (let sim = 0; sim < simulations; sim++) {
                 let balance = startingBalance;
                 let peakBalance = startingBalance;
@@ -3068,7 +3068,7 @@ app.get('/api/vault-optimize', async (req, res) => {
                 let hitFloor = false, hitMinOrder = false;
                 let hit100_d7 = false, hit1000_d30 = false;
                 let currentDay = 0;
-                
+
                 for (let t = 0; t < DAY30_TRADES; t++) {
                     const tradeDay = Math.floor(t / TRADES_PER_DAY);
                     if (tradeDay > currentDay) {
@@ -3076,29 +3076,29 @@ app.get('/api/vault-optimize', async (req, res) => {
                         dayStartBalance = balance;
                         intradayLoss = 0;
                     }
-                    
+
                     if (balance < BALANCE_FLOOR) {
                         hitFloor = true;
                         break;
                     }
-                    
+
                     const profile = getDynProfile(balance, vaultTriggerBalance);
-                    
+
                     let effectiveKellyMax = kellyMax;
                     if (adaptiveMode) {
                         const profitMult = balance / startingBalance;
                         effectiveKellyMax = kellyMax * getProfitLockMult(profitMult);
                     }
-                    
+
                     let size = balance * effectiveKellyMax;
                     size = Math.min(size, MAX_ABSOLUTE_STAKE);
-                    
+
                     const intradayBudget = dayStartBalance * profile.intradayPct - intradayLoss;
                     const trailingDDFromPeak = peakBalance > 0 ? peakBalance - balance : 0;
                     const trailingBudget = peakBalance * profile.trailingPct - trailingDDFromPeak;
                     const effectiveBudget = Math.max(0, Math.min(intradayBudget, trailingBudget));
                     const maxTradeSize = effectiveBudget * profile.perTradeCap;
-                    
+
                     if (effectiveBudget < MIN_ORDER_COST) {
                         if (profile.minOrderOverride && balance >= MIN_ORDER_COST) {
                             size = MIN_ORDER_COST;
@@ -3111,7 +3111,7 @@ app.get('/api/vault-optimize', async (req, res) => {
                     } else if (size > maxTradeSize) {
                         size = maxTradeSize;
                     }
-                    
+
                     if (size < MIN_ORDER_COST && balance >= MIN_ORDER_COST) {
                         if (profile.minOrderOverride) {
                             size = MIN_ORDER_COST;
@@ -3120,39 +3120,39 @@ app.get('/api/vault-optimize', async (req, res) => {
                             break;
                         }
                     }
-                    
+
                     if (size < MIN_ORDER_COST) {
                         hitMinOrder = true;
                         break;
                     }
-                    
+
                     // 🏆 v83: Uses seeded RNG for reproducibility
                     const won = rngLocal.next() < historicalWinRate;
                     const settled = calcBinaryTradeDeltaUsdAfterFees(size, AVG_ENTRY_PRICE, won, { slippagePct: 0, feeModel });
                     balance += Number(settled.deltaUsd || 0);
                     // Intraday loss tracks worst-case depletion of cash. Fees always reduce bankroll.
                     intradayLoss += won ? Number(settled.feeUsd || 0) : (size + Number(settled.feeUsd || 0));
-                    
+
                     peakBalance = Math.max(peakBalance, balance);
                     const dd = peakBalance > 0 ? (peakBalance - balance) / peakBalance : 0;
                     maxDD = Math.max(maxDD, dd);
-                    
+
                     if (t < DAY7_TRADES && balance >= 100) hit100_d7 = true;
                     if (balance >= 1000) hit1000_d30 = true;
                 }
-                
+
                 maxDrawdowns.push(maxDD);
                 if (hitFloor || balance < BALANCE_FLOOR) ruinFloorCount++;
                 if (hitMinOrder || balance < MIN_ORDER_COST) ruinMinOrderCount++;
                 if (hit100_d7) reach100_day7++;
                 if (hit1000_d30) reach1000_day30++;
             }
-            
+
             const avgMaxDD = maxDrawdowns.reduce((a, b) => a + b, 0) / simulations;
             const p100_d7 = (reach100_day7 / simulations) * 100;
             const p1000_d30 = (reach1000_day30 / simulations) * 100;
             const pRuinFloor = (ruinFloorCount / simulations) * 100;
-            
+
             return {
                 vaultTriggerBalance,
                 p100_day7: p100_d7,
@@ -3162,14 +3162,14 @@ app.get('/api/vault-optimize', async (req, res) => {
                 drawdownLabel: avgMaxDD < 0.40 ? 'conservative' : avgMaxDD < 0.55 ? 'balanced' : 'aggressive'
             };
         }
-        
+
         // Sweep across the range
         const results = [];
         for (let trigger = minTrigger; trigger <= maxTrigger + 0.001; trigger += step) {
             const roundedTrigger = Math.round(trigger * 100) / 100; // Round to 2 decimal places
             results.push(runSimulation(roundedTrigger));
         }
-        
+
         // 🏆 v83: Rank by objective ordering
         // Primary: highest P($100 by day 7)
         // Secondary (within epsilon): highest P($1000 by day 30)
@@ -3191,14 +3191,14 @@ app.get('/api/vault-optimize', async (req, res) => {
             // Tie-breaker 2: Drawdown (lower is better)
             return a.avgMaxDD - b.avgMaxDD;
         });
-        
+
         const winner = ranked[0];
-        const nearTies = ranked.filter(r => 
+        const nearTies = ranked.filter(r =>
             Math.abs(r.p100_day7 - winner.p100_day7) <= epsilon
         );
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         res.json({
             summary: {
                 method: 'Vault Trigger Optimizer (v83)',
@@ -3232,9 +3232,9 @@ app.get('/api/vault-optimize', async (req, res) => {
                 avgMaxDD: winner.avgMaxDD.toFixed(2) + '%',
                 drawdownLabel: winner.drawdownLabel,
                 explanation: `vaultTriggerBalance=$${winner.vaultTriggerBalance.toFixed(2)} maximizes P($100 by day 7) at ${winner.p100_day7.toFixed(2)}%, ` +
-                            `with P($1000 by day 30) at ${winner.p1000_day30.toFixed(2)}%, ` +
-                            `ruin risk ${winner.ruinPct.toFixed(2)}%, ` +
-                            `and ${winner.drawdownLabel} drawdown profile.`
+                    `with P($1000 by day 30) at ${winner.p1000_day30.toFixed(2)}%, ` +
+                    `ruin risk ${winner.ruinPct.toFixed(2)}%, ` +
+                    `and ${winner.drawdownLabel} drawdown profile.`
             },
             // Near-ties (within epsilon of winner on primary objective)
             nearTies: nearTies.map(r => ({
@@ -3273,19 +3273,19 @@ app.get('/api/vault-optimize', async (req, res) => {
 app.get('/api/vault-optimize-polymarket', async (req, res) => {
     try {
         const startTime = Date.now();
-        
+
         // Sweep parameters
         const minTrigger = parseFloat(req.query.min) || 6.10;
         const maxTrigger = parseFloat(req.query.max) || 15.00;
         const step = parseFloat(req.query.step) || 1.0; // Coarser step for real backtests (slower)
         const epsilon = parseFloat(req.query.epsilon) || 0.5; // Tie-breaker threshold
-        
+
         // Window parameters - run multiple non-cherry-picked windows
         const windowHours = parseInt(req.query.hours) || 168; // 7 days (set 720 to measure 30-day goals)
         const windowOffsets = (req.query.offsets || '0,24,48,72').split(',').map(x => parseInt(x.trim())).filter(x => Number.isFinite(x));
         const startingBalance = parseFloat(req.query.balance) || 5.0;
         const supports30d = windowHours >= 720;
-        
+
         // Backtest parameters (passed through)
         const tier = req.query.tier || 'CONVICTION';
         const assets = (() => {
@@ -3329,7 +3329,7 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         const limitRaw = parseInt(req.query.limit);
         const defaultLimit = Math.min(20000, Math.ceil(windowHours * 4) + 50); // 15m cycles => ~4 windows/hour
         const backtestLimit = Number.isFinite(limitRaw) ? Math.max(50, Math.min(20000, limitRaw)) : defaultLimit;
-        
+
         // Generate trigger candidates
         const triggers = [];
         const minT = Number(minTrigger.toFixed(2));
@@ -3341,7 +3341,7 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
         }
         // Ensure inclusive max (so ranges like 6.10→15.00 step=1 don't silently drop 15.00)
         if (triggers.length === 0 || triggers[triggers.length - 1] !== maxT) triggers.push(maxT);
-        
+
         const results = [];
 
         const parsePct = (v) => {
@@ -3353,11 +3353,11 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
             return Number.isFinite(n) ? n : 0;
         };
         const fmtPct = (n) => Number.isFinite(n) ? (n.toFixed(2) + '%') : 'N/A';
-        
+
         // For each trigger value, run backtests across all offset windows
         for (const vaultTriggerBalance of triggers) {
             let windowResults = [];
-            
+
             for (const offset of windowOffsets) {
                 try {
                     // Build backtest URL (internal call simulation)
@@ -3375,16 +3375,16 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                     if (riskEnvelopeProvided) backtestParams.set('riskEnvelope', riskEnvelopeParam);
                     if (autoProfileProvided) backtestParams.set('autoProfile', autoProfileParam);
                     if (apiKey) backtestParams.set('apiKey', apiKey);
-                    
+
                     // Make internal request to backtest endpoint
                     const backtestUrl = `${baseUrl}/api/backtest-polymarket?${backtestParams.toString()}`;
                     const headers = {};
                     if (req.headers.authorization) headers['Authorization'] = req.headers.authorization;
                     const backtestResp = await fetch(backtestUrl, { headers, signal: AbortSignal.timeout(120000) });
-                    
+
                     if (!backtestResp.ok) continue;
                     const backtestData = await backtestResp.json();
-                    
+
                     // Extract objective metrics
                     const metrics = backtestData.objectiveMetrics || {};
                     const summary = backtestData.summary || {};
@@ -3407,9 +3407,9 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                     // Skip failed windows
                 }
             }
-            
+
             if (windowResults.length === 0) continue;
-            
+
             // Aggregate across windows
             const windowCount = windowResults.length;
             const hit100Count = windowResults.filter(w => w.hit100By7d).length;
@@ -3418,7 +3418,7 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
             const avgMaxDD_pct = windowResults.reduce((sum, w) => sum + (w.maxDrawdownPct || 0), 0) / windowCount;
             const avgFinalBalance = windowResults.reduce((sum, w) => sum + w.finalBalance, 0) / windowCount;
             const avgWinRate_pct = windowResults.reduce((sum, w) => sum + (w.winRatePct || 0), 0) / windowCount;
-            
+
             results.push({
                 vaultTriggerBalance,
                 windowCount,
@@ -3431,14 +3431,14 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                 windowResults
             });
         }
-        
+
         if (results.length === 0) {
             return res.json({
                 error: 'No valid backtest results. Check that you have collector data/debug exports.',
                 suggestion: 'Run the bot in PAPER mode for at least 24h to accumulate backtest data.'
             });
         }
-        
+
         // Rank by objective ordering:
         // 1. Primary: maximize P($100 by day 7)
         // 2. Secondary (within epsilon): maximize P($1000 by day 30)
@@ -3462,11 +3462,11 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
             // Tie-breaker 2: Drawdown (lower is better)
             return a.avgMaxDD_pct - b.avgMaxDD_pct;
         });
-        
+
         const winner = ranked[0];
         const nearTies = ranked.filter(r => Math.abs(r.p100_day7 - winner.p100_day7) <= epsilon);
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         res.json({
             summary: {
                 method: 'Polymarket-Native Vault Optimizer (v84)',
@@ -3506,9 +3506,9 @@ app.get('/api/vault-optimize-polymarket', async (req, res) => {
                 avgWinRate: winner.avgWinRate_pct.toFixed(1) + '%',
                 windowCount: winner.windowCount,
                 explanation: `vaultTriggerBalance=$${winner.vaultTriggerBalance.toFixed(2)} achieved ${winner.p100_day7.toFixed(1)}% P($100 by day 7) ` +
-                            `across ${winner.windowCount} non-cherry-picked windows, ` +
-                            `with ${winner.ruinPct.toFixed(1)}% ruin risk and ${winner.avgMaxDD_pct.toFixed(1)}% avg max drawdown.` +
-                            (supports30d ? '' : ' (NOTE: 30-day goal NOT evaluated; run with hours=720)')
+                    `across ${winner.windowCount} non-cherry-picked windows, ` +
+                    `with ${winner.ruinPct.toFixed(1)}% ruin risk and ${winner.avgMaxDD_pct.toFixed(1)}% avg max drawdown.` +
+                    (supports30d ? '' : ' (NOTE: 30-day goal NOT evaluated; run with hours=720)')
             },
             nearTies: nearTies.slice(0, 5).map(r => ({
                 vaultTriggerBalance: r.vaultTriggerBalance,
@@ -3544,7 +3544,7 @@ app.get('/api/backtest-dataset', async (req, res) => {
         const startTime = Date.now();
         const lookbackDays = Math.min(parseInt(req.query.days) || 30, 365);
         const startingBalance = parseFloat(req.query.balance) || 5.0;
-        
+
         // 🏆 v82: Match runtime defaults - Kelly enabled with 0.32 cap
         const kellyMaxParam = parseFloat(req.query.kellyMax);
         const kellyMax = Number.isFinite(kellyMaxParam) ? kellyMaxParam : 0.32; // Match runtime CONFIG.RISK.kellyMaxFraction
@@ -3555,7 +3555,7 @@ app.get('/api/backtest-dataset', async (req, res) => {
         const winRateOverride = parseFloat(req.query.winRate);
         const asset = req.query.asset ? String(req.query.asset).toUpperCase() : null;
         const simulations = Math.min(parseInt(req.query.sims) || 5000, 20000); // 🏆 v82: More sims for accuracy
-        
+
         // 🏆 v82: Runtime-matching constants
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/backtests we assume taker by default (configurable via env).
@@ -3572,11 +3572,11 @@ app.get('/api/backtest-dataset', async (req, res) => {
             return (Number.isFinite(env) && env > 0) ? env : 5;
         })();
         const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
-        
+
         // Load cached dataset (unchanged)
         const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
         let allEntries = [];
-        
+
         if (fs.existsSync(dataDir)) {
             const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.json'));
             for (const file of files) {
@@ -3587,10 +3587,10 @@ app.get('/api/backtest-dataset', async (req, res) => {
                             allEntries.push(entry);
                         }
                     }
-                } catch {}
+                } catch { }
             }
         }
-        
+
         if (redisAvailable && allEntries.length < 1000) {
             try {
                 const keys = await redis.keys(`${DATASET_CACHE_KEY_PREFIX}*`);
@@ -3605,9 +3605,9 @@ app.get('/api/backtest-dataset', async (req, res) => {
                         }
                     }
                 }
-            } catch {}
+            } catch { }
         }
-        
+
         // Deduplicate by slug
         const seenSlugs = new Set();
         const uniqueEntries = [];
@@ -3619,13 +3619,13 @@ app.get('/api/backtest-dataset', async (req, res) => {
         }
         allEntries = uniqueEntries;
         allEntries.sort((a, b) => a.cycleStartEpochSec - b.cycleStartEpochSec);
-        
+
         const historicalWinRate = Number.isFinite(winRateOverride) ? winRateOverride : 0.77;
         const entriesCount = allEntries.length;
-        const timeSpanDays = entriesCount > 0 
+        const timeSpanDays = entriesCount > 0
             ? (allEntries[entriesCount - 1].cycleStartEpochSec - allEntries[0].cycleStartEpochSec) / 86400
             : 0;
-        
+
         // 🏆 v82: Profit lock-in schedule (mirrors runtime applyVarianceControls)
         function getProfitLockMult(profitMultiple) {
             if (profitMultiple >= 10) return 0.25;
@@ -3634,7 +3634,7 @@ app.get('/api/backtest-dataset', async (req, res) => {
             if (profitMultiple >= 1.1) return 0.65;
             return 1.0;
         }
-        
+
         // 🏆 v82: Monte Carlo with runtime-matching behavior
         const dayResults = {};
         for (let day = 1; day <= Math.min(7, lookbackDays); day++) {
@@ -3643,53 +3643,53 @@ app.get('/api/backtest-dataset', async (req, res) => {
             let ruinFloorCount = 0;      // Balance dropped below BALANCE_FLOOR
             let ruinMinOrderCount = 0;    // Can't place minimum-size trades
             let reach20 = 0, reach50 = 0, reach100 = 0;
-            
+
             for (let sim = 0; sim < simulations; sim++) {
                 let balance = startingBalance;
                 let hitFloor = false, hitMinOrder = false;
                 let hit20 = false, hit50 = false, hit100 = false;
-                
+
                 for (let t = 0; t < tradesForDay; t++) {
                     // 🏆 v82: Check balance floor (matches runtime minBalanceFloorEnabled)
                     if (balance < BALANCE_FLOOR) {
                         hitFloor = true;
                         break;
                     }
-                    
+
                     // 🏆 v82: Apply Kelly cap with profit lock-in (matches runtime)
                     let effectiveKellyMax = kellyMax;
                     if (adaptiveMode) {
                         const profitMult = balance / startingBalance;
                         effectiveKellyMax = kellyMax * getProfitLockMult(profitMult);
                     }
-                    
+
                     // Calculate stake size
                     let size = balance * effectiveKellyMax;
                     size = Math.min(size, MAX_ABSOLUTE_STAKE);
-                    
+
                     // 🏆 v82: Bootstrap min-order override (matches runtime stage 0 behavior)
                     // If balance is small but above MIN_ORDER_COST, allow MIN_ORDER_COST trade
                     if (size < MIN_ORDER_COST && balance >= MIN_ORDER_COST) {
                         size = MIN_ORDER_COST;
                     }
-                    
+
                     // Can't trade if stake < MIN_ORDER_COST
                     if (size < MIN_ORDER_COST) {
                         hitMinOrder = true;
                         break;
                     }
-                    
+
                     // Simulate trade outcome
                     const won = Math.random() < historicalWinRate;
                     const settled = calcBinaryTradeDeltaUsdAfterFees(size, AVG_ENTRY_PRICE, won, { slippagePct: 0, feeModel });
                     balance += Number(settled.deltaUsd || 0);
-                    
+
                     // Track target hits
                     if (balance >= 20) hit20 = true;
                     if (balance >= 50) hit50 = true;
                     if (balance >= 100) hit100 = true;
                 }
-                
+
                 balances.push(balance);
                 if (hitFloor || balance < BALANCE_FLOOR) ruinFloorCount++;
                 if (hitMinOrder || balance < MIN_ORDER_COST) ruinMinOrderCount++;
@@ -3697,12 +3697,12 @@ app.get('/api/backtest-dataset', async (req, res) => {
                 if (hit50) reach50++;
                 if (hit100) reach100++;
             }
-            
+
             // Calculate percentiles
             balances.sort((a, b) => a - b);
             const pct = (x) => ((x / simulations) * 100).toFixed(1) + '%';
             const q = (p) => balances[Math.floor(simulations * p)].toFixed(2);
-            
+
             dayResults[day] = {
                 day,
                 trades: tradesForDay,
@@ -3727,10 +3727,10 @@ app.get('/api/backtest-dataset', async (req, res) => {
                 }
             };
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
         const day7 = dayResults[7] || {};
-        
+
         res.json({
             summary: {
                 method: 'Dataset-backed Monte Carlo (v82 runtime-parity)',
@@ -3779,10 +3779,10 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
         const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH'];
         const forceRefresh = req.query.refresh === '1';
         const clobFidelity = parseInt(req.query.fidelity) || 60; // seconds between CLOB samples
-        
+
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
-        
+
         // Generate all possible slug epochs (15-min intervals)
         const allSlugs = [];
         for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
@@ -3790,11 +3790,11 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
                 allSlugs.push({ slug: `${a.toLowerCase()}-updown-15m-${epochSec}`, asset: a, epochSec });
             }
         }
-        
+
         let cached = 0, fetched = 0, errors = 0, resolved = 0, unresolved = 0;
         const entries = [];
         const ENHANCED_CACHE_KEY = 'deity:enhanced-dataset:';
-        
+
         for (const { slug, asset, epochSec } of allSlugs.slice(0, 500)) { // Limit to prevent timeout
             // Check cache first
             if (!forceRefresh && redisAvailable) {
@@ -3805,12 +3805,12 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
                         entries.push(JSON.parse(existing));
                         continue;
                     }
-                } catch {}
+                } catch { }
             }
-            
+
             // Rate limit
             await new Promise(r => setTimeout(r, 100));
-            
+
             try {
                 // 1. Fetch outcome from Gamma API
                 const gammaUrl = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
@@ -3818,26 +3818,26 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
                     headers: { 'User-Agent': 'polyprophet-enhanced-builder/1.0' },
                     signal: AbortSignal.timeout(10000)
                 });
-                
+
                 if (!gammaResp.ok) { errors++; continue; }
-                
+
                 const gammaData = await gammaResp.json();
                 const market = Array.isArray(gammaData) ? gammaData[0] : gammaData;
                 if (!market) { unresolved++; continue; }
-                
+
                 const prices = JSON.parse(market.outcomePrices || '[]');
                 const outcomes = JSON.parse(market.outcomes || '[]');
                 const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
-                
+
                 if (!Array.isArray(prices) || prices.length < 2) { unresolved++; continue; }
-                
+
                 const p0 = Number(prices[0]);
                 const p1 = Number(prices[1]);
                 const idx0Win = p0 >= 0.99 && p1 <= 0.01;
                 const idx1Win = p0 <= 0.01 && p1 >= 0.99;
-                
+
                 if (!idx0Win && !idx1Win) { unresolved++; continue; }
-                
+
                 // Determine outcome
                 const o0 = String(outcomes[0] || '').toLowerCase();
                 const o1 = String(outcomes[1] || '').toLowerCase();
@@ -3846,9 +3846,9 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
                 else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
                 else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
                 else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
-                
+
                 resolved++;
-                
+
                 // 2. Fetch CLOB price history for entry price analysis
                 let clobHistory = [];
                 if (clobTokenIds.length >= 2) {
@@ -3867,35 +3867,35 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
                                 }));
                             }
                         }
-                    } catch {}
+                    } catch { }
                 }
-                
+
                 // Calculate entry prices at various points
                 const entryPrices = {};
                 if (clobHistory.length > 0) {
                     // Early (first 60s)
                     const early = clobHistory.find(h => h.t >= epochSec && h.t < epochSec + 60);
                     if (early) entryPrices.early = early.p;
-                    
+
                     // Mid (around 5 minutes)
                     const mid = clobHistory.find(h => h.t >= epochSec + 240 && h.t < epochSec + 360);
                     if (mid) entryPrices.mid = mid.p;
-                    
+
                     // Late (around 10 minutes)
                     const late = clobHistory.find(h => h.t >= epochSec + 540 && h.t < epochSec + 660);
                     if (late) entryPrices.late = late.p;
-                    
+
                     // Final (last 60s)
                     const final = clobHistory.slice(-1)[0];
                     if (final) entryPrices.final = final.p;
-                    
+
                     // Spread (max - min)
                     const allPrices = clobHistory.map(h => h.p);
                     entryPrices.high = Math.max(...allPrices);
                     entryPrices.low = Math.min(...allPrices);
                     entryPrices.spread = entryPrices.high - entryPrices.low;
                 }
-                
+
                 const entry = {
                     slug,
                     asset,
@@ -3909,24 +3909,24 @@ app.get('/api/dataset/build-enhanced', async (req, res) => {
                     volume: Number(market.volume || 0),
                     cachedAt: Date.now()
                 };
-                
+
                 // Cache the entry
                 if (redisAvailable) {
                     try {
                         await redis.setex(ENHANCED_CACHE_KEY + slug, 86400 * 30, JSON.stringify(entry));
-                    } catch {}
+                    } catch { }
                 }
-                
+
                 entries.push(entry);
                 fetched++;
-                
+
             } catch (e) {
                 errors++;
             }
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         res.json({
             success: true,
             summary: {
@@ -3958,7 +3958,7 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
         const fs = require('fs');
         const path = require('path');
         const crypto = require('crypto');
-        
+
         const startTime = Date.now();
         const lookbackDays = Math.min(parseInt(req.query.days) || 30, 365); // Up to 1 year
         const assetParam = req.query.asset;
@@ -3967,10 +3967,10 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
         const offsetBatch = parseInt(req.query.offset) || 0; // For pagination
         const saveToFile = req.query.save === '1';
         const forceRefresh = req.query.refresh === '1';
-        
+
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
-        
+
         // Generate all possible slug epochs (15-min intervals)
         const allSlugs = [];
         for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
@@ -3978,16 +3978,16 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
                 allSlugs.push({ slug: `${a.toLowerCase()}-updown-15m-${epochSec}`, asset: a, epochSec });
             }
         }
-        
+
         // Pagination
         const startIdx = offsetBatch * batchSize;
         const endIdx = Math.min(startIdx + batchSize, allSlugs.length);
         const batchSlugs = allSlugs.slice(startIdx, endIdx);
-        
+
         let cached = 0, fetched = 0, errors = 0, resolved = 0, unresolved = 0;
         const entries = [];
         const CACHE_KEY = 'deity:longterm-dataset:';
-        
+
         for (const { slug, asset, epochSec } of batchSlugs) {
             // Check Redis cache first
             if (!forceRefresh && redisAvailable) {
@@ -3998,12 +3998,12 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
                         entries.push(JSON.parse(existing));
                         continue;
                     }
-                } catch {}
+                } catch { }
             }
-            
+
             // Rate limit (be gentle to Gamma API)
             await new Promise(r => setTimeout(r, 150));
-            
+
             try {
                 // Fetch outcome from Gamma API
                 const gammaUrl = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(slug)}`;
@@ -4011,26 +4011,26 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
                     headers: { 'User-Agent': 'polyprophet-longterm-builder/1.0' },
                     signal: AbortSignal.timeout(15000)
                 });
-                
+
                 if (!gammaResp.ok) { errors++; continue; }
-                
+
                 const gammaData = await gammaResp.json();
                 const market = Array.isArray(gammaData) ? gammaData[0] : gammaData;
                 if (!market) { unresolved++; continue; }
-                
+
                 const prices = JSON.parse(market.outcomePrices || '[]');
                 const outcomes = JSON.parse(market.outcomes || '[]');
                 const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
-                
+
                 if (!Array.isArray(prices) || prices.length < 2) { unresolved++; continue; }
-                
+
                 const p0 = Number(prices[0]);
                 const p1 = Number(prices[1]);
                 const idx0Win = p0 >= 0.99 && p1 <= 0.01;
                 const idx1Win = p0 <= 0.01 && p1 >= 0.99;
-                
+
                 if (!idx0Win && !idx1Win) { unresolved++; continue; }
-                
+
                 // Determine outcome
                 const o0 = String(outcomes[0] || '').toLowerCase();
                 const o1 = String(outcomes[1] || '').toLowerCase();
@@ -4039,9 +4039,9 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
                 else if (o0 === 'down' && o1 === 'up') outcome = idx0Win ? 'DOWN' : 'UP';
                 else if (o0 === 'yes' && o1 === 'no') outcome = idx0Win ? 'UP' : 'DOWN';
                 else if (o0 === 'no' && o1 === 'yes') outcome = idx0Win ? 'DOWN' : 'UP';
-                
+
                 resolved++;
-                
+
                 const entry = {
                     slug,
                     asset,
@@ -4051,22 +4051,22 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
                     volume: Number(market.volume || 0),
                     cachedAt: Date.now()
                 };
-                
+
                 // Cache the entry (90 days TTL for long-term data)
                 if (redisAvailable) {
                     try {
                         await redis.setex(CACHE_KEY + slug, 86400 * 90, JSON.stringify(entry));
-                    } catch {}
+                    } catch { }
                 }
-                
+
                 entries.push(entry);
                 fetched++;
-                
+
             } catch (e) {
                 errors++;
             }
         }
-        
+
         // Save to file if requested
         let filePath = null;
         if (saveToFile && entries.length > 0) {
@@ -4074,11 +4074,11 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
             if (!fs.existsSync(dataDir)) {
                 fs.mkdirSync(dataDir, { recursive: true });
             }
-            
+
             const dateStr = new Date().toISOString().split('T')[0];
             const hash = crypto.createHash('sha256').update(JSON.stringify(entries.map(e => e.slug))).digest('hex').substring(0, 8);
             filePath = path.join(dataDir, `polymarket_${ASSETS.join('-')}_${lookbackDays}d_batch${offsetBatch}_${dateStr}_${hash}.json`);
-            
+
             const fileContent = {
                 provenance: {
                     generatedAt: new Date().toISOString(),
@@ -4091,13 +4091,13 @@ app.get('/api/dataset/build-longterm', async (req, res) => {
                 },
                 entries
             };
-            
+
             fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
         const hasMore = endIdx < allSlugs.length;
-        
+
         res.json({
             success: true,
             summary: {
@@ -4139,40 +4139,40 @@ app.get('/api/dataset/stats', async (req, res) => {
     try {
         const fs = require('fs');
         const path = require('path');
-        
+
         const dataDir = path.join(__dirname, 'local_archive', 'datasets');
-        const files = fs.existsSync(dataDir) 
+        const files = fs.existsSync(dataDir)
             ? fs.readdirSync(dataDir).filter(f => f.endsWith('.json'))
             : [];
-        
+
         let totalEntries = 0;
         let oldestEntry = null;
         let newestEntry = null;
         const assetCounts = {};
-        
+
         for (const file of files.slice(-20)) { // Last 20 files
             try {
                 const content = JSON.parse(fs.readFileSync(path.join(dataDir, file), 'utf8'));
                 const entries = content.entries || [];
                 totalEntries += entries.length;
-                
+
                 for (const e of entries) {
                     assetCounts[e.asset] = (assetCounts[e.asset] || 0) + 1;
                     if (!oldestEntry || e.cycleStartEpochSec < oldestEntry) oldestEntry = e.cycleStartEpochSec;
                     if (!newestEntry || e.cycleStartEpochSec > newestEntry) newestEntry = e.cycleStartEpochSec;
                 }
-            } catch {}
+            } catch { }
         }
-        
+
         // Redis cache stats
         let redisCacheCount = 0;
         if (redisAvailable) {
             try {
                 const keys = await redis.keys('deity:longterm-dataset:*');
                 redisCacheCount = keys.length;
-            } catch {}
+            } catch { }
         }
-        
+
         res.json({
             files: files.length,
             totalEntries,
@@ -4198,25 +4198,25 @@ app.get('/api/prices/build-historical', async (req, res) => {
         const fs = require('fs');
         const path = require('path');
         const crypto = require('crypto');
-        
+
         const startTime = Date.now();
         const lookbackDays = Math.min(parseInt(req.query.days) || 7, 365);
         const assetParam = req.query.asset;
         const ASSETS = assetParam ? [String(assetParam).toUpperCase()] : ['BTC', 'ETH', 'XRP', 'SOL'];
         const resampleMinutes = Math.max(1, Math.min(15, parseInt(req.query.resample) || 1)); // 1-15 min
         const saveToFile = req.query.save === '1';
-        
+
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
-        
+
         const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP', SOL: 'SOL' };
         const priceDataByAsset = {};
         const fetchStats = { fetched: 0, errors: 0 };
-        
+
         for (const asset of ASSETS) {
             const symbol = CRYPTO_SYMBOLS[asset];
             if (!symbol) continue;
-            
+
             try {
                 // CryptoCompare histominute API - max 2000 data points per request
                 // For longer periods, we need multiple requests
@@ -4224,15 +4224,15 @@ app.get('/api/prices/build-historical', async (req, res) => {
                 let toTs = nowSec;
                 const limit = 2000;
                 const requestsNeeded = Math.ceil((lookbackDays * 24 * 60) / limit);
-                
+
                 for (let i = 0; i < Math.min(requestsNeeded, 10); i++) { // Max 10 requests per asset
                     const url = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=${symbol}&tsym=USD&limit=${limit}&toTs=${toTs}`;
-                    
+
                     const resp = await fetch(url, {
                         headers: { 'User-Agent': 'polyprophet-price-builder/1.0' },
                         signal: AbortSignal.timeout(30000)
                     });
-                    
+
                     if (resp.ok) {
                         const data = await resp.json();
                         if (data.Response === 'Success' && Array.isArray(data.Data?.Data)) {
@@ -4244,26 +4244,26 @@ app.get('/api/prices/build-historical', async (req, res) => {
                                 c: d.close,
                                 v: d.volumeto
                             })).filter(p => p.t >= startSec);
-                            
+
                             allData.push(...points);
                             fetchStats.fetched += points.length;
-                            
+
                             // Move toTs back for next request
                             if (points.length > 0) {
                                 toTs = points[0].t - 60;
                             }
-                            
+
                             // Stop if we've gone past our start time
                             if (toTs < startSec) break;
                         }
                     } else {
                         fetchStats.errors++;
                     }
-                    
+
                     // Rate limit between requests
                     await new Promise(r => setTimeout(r, 200));
                 }
-                
+
                 // Sort by time and dedupe
                 allData.sort((a, b) => a.t - b.t);
                 const seen = new Set();
@@ -4272,7 +4272,7 @@ app.get('/api/prices/build-historical', async (req, res) => {
                     seen.add(p.t);
                     return true;
                 });
-                
+
                 // Resample if requested
                 if (resampleMinutes > 1) {
                     const resampled = [];
@@ -4294,12 +4294,12 @@ app.get('/api/prices/build-historical', async (req, res) => {
                 } else {
                     priceDataByAsset[asset] = deduped;
                 }
-                
+
             } catch (e) {
                 fetchStats.errors++;
             }
         }
-        
+
         // Save to file if requested
         let filePath = null;
         if (saveToFile) {
@@ -4307,13 +4307,13 @@ app.get('/api/prices/build-historical', async (req, res) => {
             if (!fs.existsSync(dataDir)) {
                 fs.mkdirSync(dataDir, { recursive: true });
             }
-            
+
             const dateStr = new Date().toISOString().split('T')[0];
             const hash = crypto.createHash('sha256')
                 .update(JSON.stringify(Object.values(priceDataByAsset).flat().map(p => p.t)))
                 .digest('hex').substring(0, 8);
             filePath = path.join(dataDir, `prices_${ASSETS.join('-')}_${lookbackDays}d_${resampleMinutes}m_${dateStr}_${hash}.json`);
-            
+
             const fileContent = {
                 provenance: {
                     generatedAt: new Date().toISOString(),
@@ -4326,12 +4326,12 @@ app.get('/api/prices/build-historical', async (req, res) => {
                 },
                 data: priceDataByAsset
             };
-            
+
             fs.writeFileSync(filePath, JSON.stringify(fileContent, null, 2));
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         // Summary stats
         const assetStats = {};
         for (const [asset, data] of Object.entries(priceDataByAsset)) {
@@ -4347,7 +4347,7 @@ app.get('/api/prices/build-historical', async (req, res) => {
                 };
             }
         }
-        
+
         res.json({
             success: true,
             summary: {
@@ -4390,30 +4390,30 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/backtests we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
-        
+
         const nowSec = Math.floor(Date.now() / 1000);
         const startSec = nowSec - (lookbackDays * 86400);
-        
+
         // Asset to CryptoCompare symbol mapping
         const CRYPTO_SYMBOLS = { BTC: 'BTC', ETH: 'ETH', XRP: 'XRP', SOL: 'SOL' };
-        
+
         // 1. Fetch historical minute-level price data from CryptoCompare
         const priceDataByAsset = {};
         for (const asset of ASSETS) {
             const symbol = CRYPTO_SYMBOLS[asset];
             if (!symbol) continue;
-            
+
             try {
                 // CryptoCompare histominute API (up to 2000 data points)
                 // For longer periods, we need to make multiple requests
                 const limit = Math.min(2000, lookbackDays * 24 * 60);
                 const url = `https://min-api.cryptocompare.com/data/v2/histominute?fsym=${symbol}&tsym=USD&limit=${limit}&toTs=${nowSec}`;
-                
+
                 const resp = await fetch(url, {
                     headers: { 'User-Agent': 'polyprophet-signal-replay/1.0' },
                     signal: AbortSignal.timeout(30000)
                 });
-                
+
                 if (resp.ok) {
                     const data = await resp.json();
                     if (data.Response === 'Success' && Array.isArray(data.Data?.Data)) {
@@ -4426,22 +4426,22 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
                         }));
                     }
                 }
-            } catch {}
+            } catch { }
         }
-        
+
         if (Object.keys(priceDataByAsset).length === 0) {
             return res.status(500).json({ error: 'Failed to fetch historical price data' });
         }
-        
+
         // 2. Load Polymarket outcomes for comparison
         const ENHANCED_CACHE_KEY = 'deity:enhanced-dataset:';
         const outcomeMap = new Map(); // slug -> outcome
-        
+
         // Generate slugs for the lookback period
         for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
             for (const asset of ASSETS) {
                 const slug = `${asset.toLowerCase()}-updown-15m-${epochSec}`;
-                
+
                 // Try to get from cache
                 if (redisAvailable) {
                     try {
@@ -4455,9 +4455,9 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
                                 });
                             }
                         }
-                    } catch {}
+                    } catch { }
                 }
-                
+
                 // Also try regular dataset cache
                 if (!outcomeMap.has(slug)) {
                     try {
@@ -4468,49 +4468,49 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
                                 outcomeMap.set(slug, { outcome: entry.resolvedOutcome, entryPrices: {} });
                             }
                         }
-                    } catch {}
+                    } catch { }
                 }
             }
         }
-        
+
         // 3. Simulate brain signals for each cycle
         // Simple signal generation based on price movement (approximating the real brain)
         function generateSignal(priceHistory, cycleStartSec, cycleEndSec) {
             // Filter prices for this cycle
             const cyclePrices = priceHistory.filter(p => p.t >= cycleStartSec && p.t <= cycleEndSec);
             if (cyclePrices.length < 5) return null;
-            
+
             const startPrice = cyclePrices[0].p;
             const currentPrice = cyclePrices[cyclePrices.length - 1].p;
             const midIndex = Math.floor(cyclePrices.length / 2);
             const midPrice = cyclePrices[midIndex]?.p || currentPrice;
-            
+
             // Calculate momentum and volatility
             const priceChange = currentPrice - startPrice;
             const percentChange = (priceChange / startPrice) * 100;
-            
+
             // Calculate ATR-like volatility
             let totalRange = 0;
             for (let i = 1; i < cyclePrices.length; i++) {
-                totalRange += Math.abs(cyclePrices[i].p - cyclePrices[i-1].p);
+                totalRange += Math.abs(cyclePrices[i].p - cyclePrices[i - 1].p);
             }
             const avgRange = totalRange / (cyclePrices.length - 1);
             const volatility = avgRange / startPrice * 100;
-            
+
             // Trend consistency (are we moving in same direction?)
             const firstHalf = midPrice - startPrice;
             const secondHalf = currentPrice - midPrice;
             const trendConsistent = (firstHalf > 0 && secondHalf > 0) || (firstHalf < 0 && secondHalf < 0);
-            
+
             // Generate prediction
             let prediction = 'NEUTRAL';
             let confidence = 0.5;
             let tier = 'NONE';
-            
+
             // Strong signal thresholds (tuned to approximate real brain)
             const strongThreshold = volatility * 1.5; // ATR multiplier
             const moderateThreshold = volatility * 0.8;
-            
+
             if (Math.abs(percentChange) > strongThreshold && trendConsistent) {
                 prediction = priceChange > 0 ? 'UP' : 'DOWN';
                 confidence = Math.min(0.95, 0.80 + Math.abs(percentChange) / 10);
@@ -4524,10 +4524,10 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
                 confidence = 0.55 + Math.abs(percentChange) / 20;
                 tier = 'ADVISORY';
             }
-            
+
             return { prediction, confidence, tier, percentChange, volatility };
         }
-        
+
         // 4. Run simulation
         let balance = startingBalance;
         let peakBalance = startingBalance;
@@ -4535,28 +4535,28 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
         let wins = 0, losses = 0, skipped = 0;
         const trades = [];
         const dailyResults = {};
-        
+
         // Process each 15-minute cycle
         for (let epochSec = startSec - (startSec % 900); epochSec < nowSec - 900; epochSec += 900) {
             for (const asset of ASSETS) {
                 const priceHistory = priceDataByAsset[asset];
                 if (!priceHistory) continue;
-                
+
                 const slug = `${asset.toLowerCase()}-updown-15m-${epochSec}`;
                 const outcomeData = outcomeMap.get(slug);
                 if (!outcomeData) { skipped++; continue; }
-                
+
                 // Generate signal
                 const signal = generateSignal(priceHistory, epochSec, epochSec + 600); // Use first 10 min
                 if (!signal || signal.prediction === 'NEUTRAL') { skipped++; continue; }
-                
+
                 // Filter by tier
                 if (tierFilter === 'CONVICTION' && signal.tier !== 'CONVICTION') { skipped++; continue; }
                 if (tierFilter === 'ADVISORY' && signal.tier === 'NONE') { skipped++; continue; }
-                
+
                 // Determine entry price (use mid if available, else assume 0.50)
                 const entryPrice = outcomeData.entryPrices?.mid || outcomeData.entryPrices?.early || 0.50;
-                
+
                 // Calculate stake with profit lock-in
                 const profitMult = balance / startingBalance;
                 let lockMult = 1.0;
@@ -4564,31 +4564,31 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
                 else if (profitMult >= 5) lockMult = 0.30;
                 else if (profitMult >= 2) lockMult = 0.40;
                 else if (profitMult >= 1.1) lockMult = 0.65;
-                
+
                 const minOrderCost = MIN_ORDER_SHARES * entryPrice;
                 const stake = Math.max(minOrderCost, Math.min(balance * stakeFrac * lockMult, balance * 0.5));
                 if (stake > balance) { skipped++; continue; }
-                
+
                 // Determine if won
                 const won = signal.prediction === outcomeData.outcome;
                 const settled = calcBinaryTradeDeltaUsdAfterFees(stake, entryPrice, won, { slippagePct: 0, feeModel });
                 const pnl = Number(settled.deltaUsd || 0);
-                
+
                 balance += pnl;
                 if (balance > peakBalance) peakBalance = balance;
                 const dd = (peakBalance - balance) / peakBalance;
                 if (dd > maxDrawdown) maxDrawdown = dd;
-                
+
                 if (won) wins++;
                 else losses++;
-                
+
                 // Track daily
                 const day = Math.floor(epochSec / 86400);
                 if (!dailyResults[day]) dailyResults[day] = { trades: 0, wins: 0, pnl: 0 };
                 dailyResults[day].trades++;
                 if (won) dailyResults[day].wins++;
                 dailyResults[day].pnl += pnl;
-                
+
                 trades.push({
                     slug,
                     asset,
@@ -4603,10 +4603,10 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
                 });
             }
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
         const winRate = (wins + losses) > 0 ? (wins / (wins + losses) * 100).toFixed(1) : 'N/A';
-        
+
         res.json({
             success: true,
             summary: {
@@ -4659,28 +4659,28 @@ app.get('/api/optimize-polymarket', async (req, res) => {
         const lookbackDays = Math.min(parseInt(req.query.days) || 90, 365);
         const startingBalance = parseFloat(req.query.balance) || 5.0;
         const simulations = parseInt(req.query.sims) || 1000; // Monte Carlo simulations per strategy
-        
+
         // Search space parameters
         const minOddsRange = [0.35, 0.38, 0.40, 0.42, 0.45, 0.48, 0.50, 0.55];
         const maxOddsRange = [0.85, 0.88, 0.90, 0.92, 0.94, 0.95, 0.97];
         const stakeRange = [0.12, 0.15, 0.18, 0.20, 0.22, 0.24, 0.26, 0.28, 0.30, 0.32, 0.35]; // 🏆 v61: VARIANCE-MIN focused
         const exitPolicies = ['HOLD_RESOLUTION']; // For now, only hold-to-resolution
-        
+
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/optimization we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.01;
-        
+
         // 🏆 v60 FINAL: Liquidity cap for realistic optimizer (matches LIVE sizing)
         const maxAbsRaw = parseFloat(req.query.maxAbs);
         const maxAbsoluteStake = Number.isFinite(maxAbsRaw) && maxAbsRaw > 0
             ? maxAbsRaw
             : parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100'); // $100 default
-        
+
         // Load cached dataset
         const dataDir = path.join(__dirname, 'backtest-data', 'polymarket-datasets');
         let allEntries = [];
-        
+
         if (fs.existsSync(dataDir)) {
             const files = fs.readdirSync(dataDir).filter(f => f.endsWith('.json'));
             for (const file of files) {
@@ -4689,10 +4689,10 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                     if (entry && entry.resolvedOutcome && entry.cycleStartEpochSec) {
                         allEntries.push(entry);
                     }
-                } catch {}
+                } catch { }
             }
         }
-        
+
         // Also try Redis
         if (redisAvailable && allEntries.length < 1000) {
             try {
@@ -4706,28 +4706,28 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                         }
                     }
                 }
-            } catch {}
+            } catch { }
         }
-        
+
         if (allEntries.length < 100) {
             return res.status(400).json({
                 error: 'Not enough cached data. Run /api/build-dataset first.',
                 entriesFound: allEntries.length
             });
         }
-        
+
         // Filter by lookback period
         const nowSec = Math.floor(Date.now() / 1000);
         const cutoffSec = nowSec - (lookbackDays * 86400);
         allEntries = allEntries.filter(e => e.cycleStartEpochSec >= cutoffSec);
-        
+
         // Sort by time
         allEntries.sort((a, b) => a.cycleStartEpochSec - b.cycleStartEpochSec);
-        
+
         // Load collector snapshots for entry prices and predictions
         const snapshotData = await getCollectorSnapshots(5000);
         const snapshots = snapshotData.snapshots || [];
-        
+
         // Build prediction map: slug -> { prediction, entryPrice, confidence, pWin }
         const predictionMap = new Map();
         for (const snap of snapshots) {
@@ -4740,7 +4740,7 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                 const noPrice = market.noPrice;
                 const entryPrice = pred === 'UP' ? yesPrice : noPrice;
                 if (!Number.isFinite(entryPrice) || entryPrice <= 0) continue;
-                
+
                 // Store (prefer earliest snapshot for same slug)
                 if (!predictionMap.has(market.slug)) {
                     predictionMap.set(market.slug, {
@@ -4753,7 +4753,7 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                 }
             }
         }
-        
+
         // Simulation function
         function simulateStrategy(minOdds, maxOdds, stakeFrac, exitPolicy) {
             let balance = startingBalance;
@@ -4763,7 +4763,7 @@ app.get('/api/optimize-polymarket', async (req, res) => {
             const dailyReturns = [];
             let currentDayStart = null;
             let currentDayBalance = startingBalance;
-            
+
             // Group by day for daily return calculation
             const byDay = new Map();
             for (const entry of allEntries) {
@@ -4771,59 +4771,59 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                 if (!byDay.has(day)) byDay.set(day, []);
                 byDay.get(day).push(entry);
             }
-            
+
             const days = Array.from(byDay.keys()).sort((a, b) => a - b);
-            
+
             for (const day of days) {
                 const dayEntries = byDay.get(day);
                 const dayStartBalance = balance;
-                
+
                 // Process each cycle in the day (max 1 trade per cycle)
                 const byWindow = new Map();
                 for (const entry of dayEntries) {
                     const w = entry.cycleStartEpochSec;
                     if (!byWindow.has(w)) byWindow.set(w, entry);
                 }
-                
+
                 for (const entry of byWindow.values()) {
                     if (balance <= 0) break;
-                    
+
                     const pred = predictionMap.get(entry.slug);
                     if (!pred) continue;
-                    
+
                     // Apply filters
                     if (pred.entryPrice < minOdds) continue;
                     if (pred.entryPrice > maxOdds) continue;
-                    
+
                     // Calculate EV and filter negative EV
                     const pWin = Number(pred.pWin) || 0.5;
                     const evRoi = calcBinaryEvRoiAfterFees(pWin, pred.entryPrice, { slippagePct: SLIPPAGE_PCT, feeModel });
                     if (!Number.isFinite(evRoi) || evRoi <= 0) continue;
-                    
+
                     // Execute trade
                     // 🏆 v60 FINAL: Apply absolute liquidity cap (LIVE-realistic)
                     const stake = Math.min(balance * stakeFrac, maxAbsoluteStake);
                     const isWin = pred.prediction === entry.resolvedOutcome;
-                    
+
                     const settled = calcBinaryTradeDeltaUsdAfterFees(stake, pred.entryPrice, isWin, { slippagePct: SLIPPAGE_PCT, feeModel });
                     const pnl = Number(settled.deltaUsd || 0);
                     if (isWin) wins++; else losses++;
-                    
+
                     balance += pnl;
                     peakBalance = Math.max(peakBalance, balance);
                     const dd = peakBalance > 0 ? (peakBalance - balance) / peakBalance : 0;
                     maxDrawdown = Math.max(maxDrawdown, dd);
                 }
-                
+
                 // Record daily return
                 if (dayStartBalance > 0) {
                     dailyReturns.push((balance - dayStartBalance) / dayStartBalance);
                 }
             }
-            
+
             const totalTrades = wins + losses;
             const winRate = totalTrades > 0 ? wins / totalTrades : 0;
-            
+
             // Calculate statistics
             dailyReturns.sort((a, b) => a - b);
             const median24hReturn = dailyReturns.length > 0 ? dailyReturns[Math.floor(dailyReturns.length / 2)] : 0;
@@ -4831,7 +4831,7 @@ app.get('/api/optimize-polymarket', async (req, res) => {
             const p1Return = dailyReturns.length >= 100 ? dailyReturns[Math.floor(dailyReturns.length * 0.01)] : p10Return;
             const worstReturn = dailyReturns[0] || 0;
             const meanReturn = dailyReturns.length > 0 ? dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length : 0;
-            
+
             return {
                 minOdds, maxOdds, stakeFrac, exitPolicy,
                 finalBalance: balance,
@@ -4848,12 +4848,12 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                 daysSimulated: days.length
             };
         }
-        
+
         // Run optimization grid search
         const results = [];
         let processed = 0;
         const totalCombinations = minOddsRange.length * maxOddsRange.length * stakeRange.length * exitPolicies.length;
-        
+
         for (const minOdds of minOddsRange) {
             for (const maxOdds of maxOddsRange) {
                 if (maxOdds <= minOdds) continue;
@@ -4866,34 +4866,34 @@ app.get('/api/optimize-polymarket', async (req, res) => {
                 }
             }
         }
-        
+
         // Sort by different criteria to find Pareto frontier
         const byMedian = [...results].sort((a, b) => b.median24hReturn - a.median24hReturn);
         const byP10 = [...results].sort((a, b) => b.p10Return - a.p10Return);
         const byMinDD = [...results].sort((a, b) => a.maxDrawdown - b.maxDrawdown);
         const byProfit = [...results].sort((a, b) => b.profitPct - a.profitPct);
-        
+
         // Find Pareto-optimal strategies (not dominated on both median return and max drawdown)
         const paretoFrontier = [];
         for (const r of results) {
-            const dominated = results.some(other => 
+            const dominated = results.some(other =>
                 other.median24hReturn > r.median24hReturn && other.maxDrawdown < r.maxDrawdown
             );
             if (!dominated) paretoFrontier.push(r);
         }
         paretoFrontier.sort((a, b) => b.median24hReturn - a.median24hReturn);
-        
+
         // Select "best overall" - highest median return with max DD < 70%
         const bestOverall = byMedian.find(r => r.maxDrawdown < 70) || byMedian[0];
-        
+
         // Select "min variance" - best 10th percentile return
         const minVariance = byP10[0];
-        
+
         // Select "max profit" - highest total profit
         const maxProfit = byProfit[0];
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         res.json({
             success: true,
             summary: {
@@ -4977,11 +4977,11 @@ app.get('/api/optimize-polymarket', async (req, res) => {
 app.get('/api/reconcile-pending', async (req, res) => {
     try {
         const positions = tradeExecutor?.positions || {};
-        
-        const pendingPositions = Object.entries(positions).filter(([id, pos]) => 
+
+        const pendingPositions = Object.entries(positions).filter(([id, pos]) =>
             pos && pos.status === 'PENDING_RESOLUTION'
         );
-        
+
         if (pendingPositions.length === 0) {
             return res.json({
                 success: true,
@@ -4991,7 +4991,7 @@ app.get('/api/reconcile-pending', async (req, res) => {
                 action: 'Use POST /api/reconcile-pending to execute reconciliation'
             });
         }
-        
+
         const preview = pendingPositions.map(([id, pos]) => ({
             id,
             slug: pos.pendingSlug || pos.slug,
@@ -5000,7 +5000,7 @@ app.get('/api/reconcile-pending', async (req, res) => {
             openTime: pos.time,
             status: 'PENDING_RESOLUTION'
         }));
-        
+
         res.json({
             success: true,
             message: 'Preview of pending positions (use POST to reconcile)',
@@ -5018,11 +5018,11 @@ app.post('/api/reconcile-pending', async (req, res) => {
     try {
         const startTime = Date.now();
         const positions = tradeExecutor?.positions || {};
-        
-        const pendingPositions = Object.entries(positions).filter(([id, pos]) => 
+
+        const pendingPositions = Object.entries(positions).filter(([id, pos]) =>
             pos && pos.status === 'PENDING_RESOLUTION'
         );
-        
+
         if (pendingPositions.length === 0) {
             return res.json({
                 success: true,
@@ -5031,22 +5031,22 @@ app.post('/api/reconcile-pending', async (req, res) => {
                 resolved: 0
             });
         }
-        
+
         let resolved = 0;
         let stillPending = 0;
         const results = [];
-        
+
         for (const [id, pos] of pendingPositions) {
             const slug = pos.pendingSlug || pos.slug;
             if (!slug) {
                 stillPending++;
                 continue;
             }
-            
+
             // Try to fetch outcome from Gamma
             await new Promise(r => setTimeout(r, 100)); // Rate limit
             const outcome = await tradeExecutor.fetchPolymarketResolvedOutcome(slug);
-            
+
             if (outcome === 'UP' || outcome === 'DOWN') {
                 const won = pos.side === outcome;
                 const exitPrice = won ? 1.0 : 0.0;
@@ -5059,9 +5059,9 @@ app.post('/api/reconcile-pending', async (req, res) => {
                 results.push({ id, slug, outcome: null, status: 'STILL_PENDING' });
             }
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
-        
+
         res.json({
             success: true,
             runtime: runtime + 's',
@@ -5082,10 +5082,10 @@ app.get('/api/intracycle-analysis', async (req, res) => {
         const startTime = Date.now();
         const lookbackHours = Math.min(parseInt(req.query.hours) || 24, 168);
         const asset = req.query.asset ? String(req.query.asset).toUpperCase() : 'XRP';
-        
+
         const nowSec = Math.floor(Date.now() / 1000);
         const cutoffSec = nowSec - (lookbackHours * 3600);
-        
+
         // Find recent cycles
         const cycles = [];
         for (let epochSec = cutoffSec - (cutoffSec % 900); epochSec < nowSec - 900; epochSec += 900) {
@@ -5095,16 +5095,16 @@ app.get('/api/intracycle-analysis', async (req, res) => {
                 endEpochSec: epochSec + 900
             });
         }
-        
+
         const results = [];
         let flatAtStart = 0;
         let movedEarly = 0;
         let earlyTPWouldTrigger = 0;
         let holdWasBetter = 0;
-        
+
         for (const cycle of cycles.slice(-50)) { // Limit to avoid rate limits
             await new Promise(r => setTimeout(r, 100));
-            
+
             try {
                 // Fetch Gamma market data
                 const gammaUrl = `https://gamma-api.polymarket.com/markets?slug=${encodeURIComponent(cycle.slug)}`;
@@ -5112,50 +5112,50 @@ app.get('/api/intracycle-analysis', async (req, res) => {
                     headers: { 'User-Agent': 'polyprophet-intracycle/1.0' },
                     signal: AbortSignal.timeout(10000)
                 });
-                
+
                 if (!gammaResp.ok) continue;
                 const gammaData = await gammaResp.json();
                 const market = Array.isArray(gammaData) ? gammaData[0] : gammaData;
                 if (!market) continue;
-                
+
                 const clobTokenIds = JSON.parse(market.clobTokenIds || '[]');
                 if (!clobTokenIds[0]) continue;
-                
+
                 // Fetch CLOB price history
                 const clobUrl = `https://clob.polymarket.com/prices-history?market=${clobTokenIds[0]}&startTs=${cycle.startEpochSec}&endTs=${cycle.endEpochSec}&fidelity=1`;
                 const clobResp = await fetch(clobUrl, {
                     headers: { 'User-Agent': 'polyprophet-intracycle/1.0' },
                     signal: AbortSignal.timeout(10000)
                 });
-                
+
                 if (!clobResp.ok) continue;
                 const clobData = await clobResp.json();
                 const history = clobData?.history || [];
-                
+
                 if (history.length < 2) continue;
-                
+
                 // Analyze price movement
                 const prices = history.map(h => ({ t: h.t, p: Number(h.p) })).filter(h => Number.isFinite(h.p));
                 if (prices.length < 2) continue;
-                
+
                 const startPrice = prices[0].p;
                 const endPrice = prices[prices.length - 1].p;
                 const maxPrice = Math.max(...prices.map(p => p.p));
                 const minPrice = Math.min(...prices.map(p => p.p));
-                
+
                 // Check if flat at start (within 5¢ of 50¢)
                 const isFlatAtStart = Math.abs(startPrice - 0.5) < 0.05;
                 if (isFlatAtStart) flatAtStart++;
                 else movedEarly++;
-                
+
                 // Check if early TP at 70% would have triggered
                 const hitTP = maxPrice >= 0.70;
                 if (hitTP) earlyTPWouldTrigger++;
-                
+
                 // Check if holding to resolution was better
                 const resolvedToEnd = endPrice >= 0.95 || endPrice <= 0.05;
                 if (resolvedToEnd && maxPrice < 0.90) holdWasBetter++;
-                
+
                 results.push({
                     slug: cycle.slug,
                     startPrice: startPrice.toFixed(3),
@@ -5167,12 +5167,12 @@ app.get('/api/intracycle-analysis', async (req, res) => {
                     hitTP70: hitTP,
                     resolved: resolvedToEnd
                 });
-            } catch {}
+            } catch { }
         }
-        
+
         const runtime = ((Date.now() - startTime) / 1000).toFixed(2);
         const total = results.length;
-        
+
         res.json({
             success: true,
             runtime: runtime + 's',
@@ -5184,7 +5184,7 @@ app.get('/api/intracycle-analysis', async (req, res) => {
                 holdWasBetterPct: total > 0 ? ((holdWasBetter / total) * 100).toFixed(1) + '%' : 'N/A'
             },
             interpretation: {
-                recommendation: flatAtStart > movedEarly ? 
+                recommendation: flatAtStart > movedEarly ?
                     'HOLD_TO_RESOLUTION: Most cycles start flat at 50¢, no early exit opportunity' :
                     'EVALUATE_EARLY_EXIT: Significant early price movement detected',
                 evidence: `${flatAtStart}/${total} cycles flat at start, ${earlyTPWouldTrigger}/${total} would hit 70% TP`
@@ -5450,14 +5450,14 @@ app.get('/api/forward-test', async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 100;
         const snapshotData = await getCollectorSnapshots(limit);
-        
+
         if (snapshotData.count === 0) {
             return res.json({
                 error: 'No snapshots available. Enable the collector first.',
                 howToEnable: 'POST /api/collector/toggle'
             });
         }
-        
+
         const snapshots = snapshotData.snapshots;
         const results = {
             source: snapshotData.source,
@@ -5470,44 +5470,44 @@ app.get('/api/forward-test', async (req, res) => {
             tradingStates: {},
             assets: {}
         };
-        
+
         let totalConf = 0;
         let totalEdge = 0;
         let confCount = 0;
         let edgeCount = 0;
-        
+
         for (const snapshot of snapshots) {
             // Track trading state distribution
             const state = snapshot.tradingState || 'UNKNOWN';
             results.tradingStates[state] = (results.tradingStates[state] || 0) + 1;
-            
+
             // Analyze signals
             for (const [asset, signal] of Object.entries(snapshot.signals || {})) {
                 if (!results.assets[asset]) {
                     results.assets[asset] = { signals: [], avgConf: 0, avgEdge: 0, tierCounts: { CONVICTION: 0, ADVISORY: 0, NONE: 0 } };
                 }
-                
+
                 // Signal distribution
                 const pred = signal.prediction || 'WAIT';
                 results.signalDistribution[pred] = (results.signalDistribution[pred] || 0) + 1;
-                
+
                 // Tier distribution
                 const tier = signal.tier || 'NONE';
                 results.tierDistribution[tier] = (results.tierDistribution[tier] || 0) + 1;
                 results.assets[asset].tierCounts[tier] = (results.assets[asset].tierCounts[tier] || 0) + 1;
-                
+
                 // Confidence
                 if (typeof signal.confidence === 'number') {
                     totalConf += signal.confidence;
                     confCount++;
                 }
-                
+
                 // Edge
                 if (typeof signal.edge === 'number' && Number.isFinite(signal.edge)) {
                     totalEdge += signal.edge;
                     edgeCount++;
                 }
-                
+
                 // pWin distribution
                 const pWin = signal.pWin;
                 if (pWin === null || pWin === undefined) {
@@ -5521,10 +5521,10 @@ app.get('/api/forward-test', async (req, res) => {
                 }
             }
         }
-        
+
         results.avgConfidence = confCount > 0 ? (totalConf / confCount * 100).toFixed(1) + '%' : 'N/A';
         results.avgEdge = edgeCount > 0 ? (totalEdge / edgeCount).toFixed(2) + '%' : 'N/A';
-        
+
         // Summary insights
         results.insights = [];
         const convictionPct = (results.tierDistribution.CONVICTION / Math.max(1, Object.values(results.tierDistribution).reduce((a, b) => a + b, 0))) * 100;
@@ -5534,7 +5534,7 @@ app.get('/api/forward-test', async (req, res) => {
         if (results.pWinDistribution.na > results.pWinDistribution.high + results.pWinDistribution.medium) {
             results.insights.push('Many signals missing pWin - calibration data may be insufficient');
         }
-        
+
         res.json(results);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -5761,10 +5761,10 @@ app.get('/api/health', (req, res) => {
     const now = Date.now();
     const lastTrade = tradeExecutor && tradeExecutor.tradeHistory && tradeExecutor.tradeHistory.length > 0
         ? (tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].closeTime ||
-           tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].time ||
-           tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp)
+            tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].time ||
+            tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1].timestamp)
         : null;
-    
+
     // Update CircuitBreaker to get current state
     let cbStatus = null;
     if (tradeExecutor && tradeExecutor.circuitBreaker) {
@@ -5774,7 +5774,7 @@ app.get('/api/health', (req, res) => {
             ? tradeExecutor.getBankrollForRisk()
             : (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance);
         const drawdownPct = dayStart > 0 ? (dayStart - currentBal) / dayStart : 0;
-        
+
         cbStatus = {
             enabled: tradeExecutor.circuitBreaker.enabled,
             state: tradeExecutor.circuitBreaker.state,
@@ -5785,7 +5785,7 @@ app.get('/api/health', (req, res) => {
             streakSizeMultiplier: tradeExecutor.getStreakSizeMultiplier()
         };
     }
-    
+
     // 🎯 v52: Rolling accuracy per asset (drift detection)
     // 🏆 v69: Include trading halt status
     const rollingAccuracy = {};
@@ -5809,7 +5809,7 @@ app.get('/api/health', (req, res) => {
 
     // 🏆 v60: Pending settlements count (not blocking exposure)
     const pendingSettlements = tradeExecutor?.getPendingSettlements?.() || [];
-    
+
     // 🏆 v77: Identify stale pending positions (exceeded TTL but not resolved)
     const stalePendingPositions = Object.entries(tradeExecutor?.positions || {})
         .filter(([id, pos]) => pos && pos.stalePending)
@@ -5821,7 +5821,7 @@ app.get('/api/health', (req, res) => {
             staleSince: pos.staleSince,
             staleDurationMin: Math.round((Date.now() - (pos.staleSince || pos.pendingSince || pos.time)) / 60000)
         }));
-    
+
     // 🏆 v70: Determine overall status including feed staleness
     const staleAssetsList = ASSETS.filter(a => feedStaleAssets[a]);
     const hasStalePending = stalePendingPositions.length > 0;
@@ -5831,15 +5831,15 @@ app.get('/api/health', (req, res) => {
     const hasAutoDisabled = autoDisabledAssetsForHealth.length > 0;
     const hasManualPause = !!tradeExecutor?.tradingPaused;
     const cbDegraded = !!(cbStatus && cbStatus.state && cbStatus.state !== 'NORMAL');
-    
+
     // 🏆 v119: Telegram configuration check
     const telegramConfigured = !!(CONFIG.TELEGRAM.enabled && CONFIG.TELEGRAM.botToken && CONFIG.TELEGRAM.chatId);
-    const telegramMissingReason = !CONFIG.TELEGRAM.botToken ? 'TELEGRAM_BOT_TOKEN not set' 
+    const telegramMissingReason = !CONFIG.TELEGRAM.botToken ? 'TELEGRAM_BOT_TOKEN not set'
         : !CONFIG.TELEGRAM.chatId ? 'TELEGRAM_CHAT_ID not set'
-        : !CONFIG.TELEGRAM.enabled ? 'TELEGRAM_ENABLED=false' : null;
-    
+            : !CONFIG.TELEGRAM.enabled ? 'TELEGRAM_ENABLED=false' : null;
+
     const isDataDegraded = anyFeedStale || anyTradingHalted || hasStalePending || hasAutoDisabled || hasManualPause || cbDegraded || !telegramConfigured;
-    
+
     res.json({
         status: isDataDegraded ? 'degraded' : 'ok',
         uptime: process.uptime(),
@@ -5904,19 +5904,19 @@ app.get('/api/health', (req, res) => {
         },
         // 🏆 v80: Crash recovery status
         crashRecovery: (() => {
-            const unreconciled = (tradeExecutor?.tradeHistory || []).filter(t => 
+            const unreconciled = (tradeExecutor?.tradeHistory || []).filter(t =>
                 t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
             );
             const recoveryQueue = tradeExecutor?.recoveryQueue || [];
-            const missingPrincipal = unreconciled.reduce((sum, t) => sum + (t.size || 0), 0) + 
-                                    recoveryQueue.reduce((sum, item) => sum + (item.size || 0), 0);
+            const missingPrincipal = unreconciled.reduce((sum, t) => sum + (t.size || 0), 0) +
+                recoveryQueue.reduce((sum, item) => sum + (item.size || 0), 0);
             return {
                 unreconciledCount: unreconciled.length,
                 recoveryQueueCount: recoveryQueue.length,
                 totalMissingPrincipal: missingPrincipal,
                 needsReconcile: unreconciled.length > 0 || recoveryQueue.length > 0,
-                action: (unreconciled.length > 0 || recoveryQueue.length > 0) 
-                    ? 'POST /api/reconcile-crash-trades to settle crashed positions' 
+                action: (unreconciled.length > 0 || recoveryQueue.length > 0)
+                    ? 'POST /api/reconcile-crash-trades to settle crashed positions'
                     : null
             };
         })(),
@@ -6019,7 +6019,7 @@ app.get('/api/risk-controls', (req, res) => {
         // 🏆 v96: LCB usage status
         const lcbAvailable = ASSETS.some(a => typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function');
         const wilsonLCBAvailable = typeof wilsonLCB === 'function';
-        
+
         res.json({
             code: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
             configVersion: typeof CONFIG_VERSION !== 'undefined' ? CONFIG_VERSION : null,
@@ -6035,8 +6035,8 @@ app.get('/api/risk-controls', (req, res) => {
                 value: tradeExecutor?.baselineBankroll || 0,
                 initialized: tradeExecutor?.baselineBankrollInitialized || false,
                 source: tradeExecutor?.baselineBankrollSource || 'unknown',
-                profitMultiple: tradeExecutor?.baselineBankroll > 0 
-                    ? (bankrollForRisk / tradeExecutor.baselineBankroll).toFixed(2) + 'x' 
+                profitMultiple: tradeExecutor?.baselineBankroll > 0
+                    ? (bankrollForRisk / tradeExecutor.baselineBankroll).toFixed(2) + 'x'
                     : 'N/A'
             },
             // 🏆 v96: LCB gating status
@@ -6120,24 +6120,24 @@ app.get('/api/circuit-breaker', (req, res) => {
     if (!tradeExecutor || !tradeExecutor.circuitBreaker) {
         return res.json({ error: 'TradeExecutor not initialized' });
     }
-    
+
     tradeExecutor.updateCircuitBreaker();
     const cb = tradeExecutor.circuitBreaker;
     const dayStart = cb.dayStartBalance || tradeExecutor.paperBalance;
     const currentBal = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : tradeExecutor.cachedLiveBalance;
     const drawdownPct = dayStart > 0 ? (dayStart - currentBal) / dayStart : 0;
-    
+
     res.json({
         state: cb.state,
         enabled: cb.enabled,
-        
+
         // Current situation
         dayStartBalance: dayStart,
         currentBalance: currentBal,
         drawdownPct: (drawdownPct * 100).toFixed(2) + '%',
         consecutiveLosses: tradeExecutor.consecutiveLosses || 0,
         recentWinStreak: tradeExecutor.recentWinStreak || 0,
-        
+
         // Thresholds
         thresholds: {
             softDrawdownPct: (cb.softDrawdownPct * 100) + '%',
@@ -6147,18 +6147,18 @@ app.get('/api/circuit-breaker', (req, res) => {
             probeOnlyAfterLosses: cb.probeOnlyAfterLosses,
             haltAfterLosses: cb.haltAfterLosses
         },
-        
+
         // Streak sizing
         streakSizing: {
             enabled: tradeExecutor.streakSizing.enabled,
             currentMultiplier: tradeExecutor.getStreakSizeMultiplier(),
             maxLossBudget: tradeExecutor.getMaxLossBudget().toFixed(2)
         },
-        
+
         // Trigger history
         triggerTime: cb.triggerTime ? new Date(cb.triggerTime).toISOString() : null,
         dayStartTime: cb.dayStartTime ? new Date(cb.dayStartTime).toISOString() : null,
-        
+
         // What would happen to a trade right now
         wouldAllow: tradeExecutor.isCircuitBreakerAllowed('NORMAL')
     });
@@ -6169,9 +6169,9 @@ app.post('/api/circuit-breaker/override', (req, res) => {
     if (!tradeExecutor || !tradeExecutor.circuitBreaker) {
         return res.status(400).json({ error: 'TradeExecutor not initialized' });
     }
-    
+
     const { action } = req.body;
-    
+
     switch (action) {
         case 'reset':
             tradeExecutor.circuitBreaker.state = 'NORMAL';
@@ -6193,14 +6193,14 @@ app.post('/api/circuit-breaker/override', (req, res) => {
             log('🔌 CircuitBreaker manually set to HALTED');
             break;
         default:
-            return res.status(400).json({ 
-                error: 'Invalid action', 
-                validActions: ['reset', 'disable', 'enable', 'halt'] 
+            return res.status(400).json({
+                error: 'Invalid action',
+                validActions: ['reset', 'disable', 'enable', 'halt']
             });
     }
-    
-    res.json({ 
-        success: true, 
+
+    res.json({
+        success: true,
         action: action,
         newState: tradeExecutor.circuitBreaker.state,
         enabled: tradeExecutor.circuitBreaker.enabled
@@ -6212,11 +6212,11 @@ app.get('/api/halts', (req, res) => {
     if (!tradeExecutor) {
         return res.status(500).json({ error: 'TradeExecutor not initialized' });
     }
-    
+
     const cb = tradeExecutor.circuitBreaker || {};
     const inCooldown = tradeExecutor.isInCooldown();
     const cooldownRemaining = inCooldown ? Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - tradeExecutor.lastLossTime)) / 1000) : 0;
-    
+
     // 🏆 v75 FIX: Use dayStartBalance (not current balance) for stable global stop threshold
     const dayStart = cb.dayStartBalance || tradeExecutor.paperBalance;
     const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > dayStart * CONFIG.RISK.globalStopLoss;
@@ -6224,21 +6224,21 @@ app.get('/api/halts', (req, res) => {
     const now = Date.now();
     const currentBalance = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || tradeExecutor.paperBalance);
     const drawdownPct = dayStart > 0 ? ((dayStart - currentBalance) / dayStart) : 0;
-    
+
     res.json({
         // Current status
         currentState: {
             isHalted: inCooldown || globalStopTriggered || cb.state === 'HALTED',
             isThrottled: cb.state === 'SAFE_ONLY' || cb.state === 'PROBE_ONLY',
             isManuallyPaused: !!tradeExecutor.tradingPaused,
-            effectiveState: cb.state === 'HALTED' ? 'HALTED' : 
-                           (globalStopTriggered ? 'GLOBAL_STOP' : 
-                           (inCooldown ? 'COOLDOWN' : cb.state)),
-            sizeMultiplier: cb.state === 'HALTED' ? 0 : 
-                           (cb.state === 'PROBE_ONLY' ? 0.25 : 
-                           (cb.state === 'SAFE_ONLY' ? 0.5 : 1.0))
+            effectiveState: cb.state === 'HALTED' ? 'HALTED' :
+                (globalStopTriggered ? 'GLOBAL_STOP' :
+                    (inCooldown ? 'COOLDOWN' : cb.state)),
+            sizeMultiplier: cb.state === 'HALTED' ? 0 :
+                (cb.state === 'PROBE_ONLY' ? 0.25 :
+                    (cb.state === 'SAFE_ONLY' ? 0.5 : 1.0))
         },
-        
+
         // Active triggers
         activeTriggers: {
             manualPause: tradeExecutor.tradingPaused ? {
@@ -6253,14 +6253,14 @@ app.get('/api/halts', (req, res) => {
                 reason: `${tradeExecutor.consecutiveLosses || 0} consecutive losses`,
                 resume: 'Wait for cooldown to expire or win a trade'
             } : { active: false },
-            
+
             globalStopLoss: globalStopTriggered ? {
                 active: true,
                 todayPnL: tradeExecutor.todayPnL,
                 threshold: CONFIG.RISK.globalStopLoss,
                 resume: 'New day or toggle override via POST /api/toggle-stop-loss-override'
             } : { active: false },
-            
+
             circuitBreaker: cb.state !== 'NORMAL' ? {
                 active: true,
                 state: cb.state,
@@ -6269,7 +6269,7 @@ app.get('/api/halts', (req, res) => {
                 resume: cb.state === 'HALTED' ? 'New day or POST /api/circuit-breaker/override action=reset' : 'Win a trade or wait'
             } : { active: false }
         },
-        
+
         // Configuration (for reference)
         thresholds: {
             cooldown: {
@@ -6290,7 +6290,7 @@ app.get('/api/halts', (req, res) => {
                 resumeOnNewDay: cb.resumeOnNewDay
             }
         },
-        
+
         // Balance context
         balance: {
             dayStartBalance: dayStart,
@@ -6301,7 +6301,7 @@ app.get('/api/halts', (req, res) => {
             drawdownPct: (drawdownPct * 100).toFixed(1) + '%',
             todayPnL: tradeExecutor.todayPnL
         },
-        
+
         // Override endpoints
         overrides: {
             circuitBreaker: 'POST /api/circuit-breaker/override with action=reset|disable|enable|halt',
@@ -6356,7 +6356,7 @@ app.get('/api/portfolio', (req, res) => {
     if (!tradeExecutor) {
         return res.status(500).json({ error: 'TradeExecutor not initialized' });
     }
-    
+
     res.json(tradeExecutor.getPortfolioSummary());
 });
 
@@ -6372,13 +6372,13 @@ app.get('/api/calibration', (req, res) => {
             explanation: 'Lower Confidence Bound (LCB) is used to gate trades - we only trade when the LCB of pWin is above threshold'
         }
     };
-    
+
     // Collect calibration data from all brains
     ASSETS.forEach(asset => {
         if (typeof Brains !== 'undefined' && Brains[asset]) {
             const brain = Brains[asset];
             const buckets = brain.calibrationBuckets || {};
-            
+
             for (const [key, bucket] of Object.entries(buckets)) {
                 if (!calibrationData.buckets[key]) {
                     calibrationData.buckets[key] = { wins: 0, total: 0, assets: [] };
@@ -6387,23 +6387,23 @@ app.get('/api/calibration', (req, res) => {
                 calibrationData.buckets[key].total += bucket.total || 0;
                 calibrationData.buckets[key].assets.push(asset);
             }
-            
+
             // Also include brain stats
             if (brain.stats) {
                 calibrationData.summary.totalCycles += brain.stats.total || 0;
             }
         }
     });
-    
+
     // Calculate accuracy and LCB for each bucket
     let totalAcc = 0;
     let bucketCount = 0;
-    
+
     for (const [key, bucket] of Object.entries(calibrationData.buckets)) {
         if (bucket.total > 0) {
             bucket.accuracy = bucket.wins / bucket.total;
             bucket.accuracyPct = (bucket.accuracy * 100).toFixed(1) + '%';
-            
+
             // Calculate Wilson score interval for LCB (conservative)
             // LCB = (p + z²/2n - z*sqrt(p(1-p)/n + z²/4n²)) / (1 + z²/n)
             // Using z = 1.96 for 95% confidence
@@ -6411,7 +6411,7 @@ app.get('/api/calibration', (req, res) => {
             const n = bucket.total;
             const z = 1.96;
             const z2 = z * z;
-            
+
             if (n > 0) {
                 const denominator = 1 + z2 / n;
                 const center = p + z2 / (2 * n);
@@ -6424,16 +6424,16 @@ app.get('/api/calibration', (req, res) => {
                 bucket.ucb = 1;
                 bucket.lcbPct = '0%';
             }
-            
+
             totalAcc += bucket.accuracy;
             bucketCount++;
         }
     }
-    
+
     if (bucketCount > 0) {
         calibrationData.summary.avgAccuracy = (totalAcc / bucketCount * 100).toFixed(1) + '%';
     }
-    
+
     // Plain English explanation
     calibrationData.howToRead = {
         accuracy: 'Historical win rate for this bucket',
@@ -6442,7 +6442,7 @@ app.get('/api/calibration', (req, res) => {
         total: 'Number of trades in this bucket',
         recommendation: 'Only trade when LCB >= configured threshold (typically 55-60%)'
     };
-    
+
     res.json(calibrationData);
 });
 
@@ -6453,12 +6453,12 @@ app.get('/api/projection', async (req, res) => {
         const targetBalance = parseFloat(req.query.target) || 100.0;
         const simulations = Math.min(parseInt(req.query.sims) || 1000, 10000);
         const maxTrades = parseInt(req.query.maxTrades) || 500;
-        
+
         // Get historical win rate from calibration
         let historicalWinRate = 0.65; // Default
         let totalWins = 0;
         let totalTrades = 0;
-        
+
         if (typeof Brains !== 'undefined') {
             ASSETS.forEach(asset => {
                 if (Brains[asset] && Brains[asset].stats) {
@@ -6467,11 +6467,11 @@ app.get('/api/projection', async (req, res) => {
                 }
             });
         }
-        
+
         if (totalTrades > 0) {
             historicalWinRate = totalWins / totalTrades;
         }
-        
+
         // Also check trade history
         if (tradeExecutor && tradeExecutor.tradeHistory) {
             const closedTrades = tradeExecutor.tradeHistory.filter(t => t.status === 'CLOSED');
@@ -6480,14 +6480,14 @@ app.get('/api/projection', async (req, res) => {
                 historicalWinRate = (historicalWinRate + wins / closedTrades.length) / 2; // Average
             }
         }
-        
+
         // Monte Carlo simulation
         const results = [];
         const tradesToTarget = [];
         const finalBalances = [];
         let reachedTargetCount = 0;
         let bustCount = 0;
-        
+
         const positionSizeParam = Number(req.query.stakePct);
         const positionSize = (Number.isFinite(positionSizeParam) && positionSizeParam > 0) ? positionSizeParam : 0.20; // Default: 20%
         const avgEntryPriceParam = Number(req.query.entry);
@@ -6504,12 +6504,12 @@ app.get('/api/projection', async (req, res) => {
         // For safety/projections we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
         const winPayout = 1.0 / avgEntryPrice; // Win pays ~1.54x
-        
+
         for (let sim = 0; sim < simulations; sim++) {
             let balance = startingBalance;
             let trades = 0;
             let reached = false;
-            
+
             while (trades < maxTrades && balance >= MIN_ORDER_COST && !reached) {
                 let size = Math.min(balance * positionSize, balance - 1.0);
                 // Min-order override: if we have enough bankroll, bump to the minimum cost.
@@ -6517,36 +6517,36 @@ app.get('/api/projection', async (req, res) => {
                     size = MIN_ORDER_COST;
                 }
                 if (size < MIN_ORDER_COST) break;
-                
+
                 // Simulate trade outcome
                 const won = Math.random() < historicalWinRate;
                 const settled = calcBinaryTradeDeltaUsdAfterFees(size, avgEntryPrice, won, { slippagePct: 0, feeModel });
                 balance += Number(settled.deltaUsd || 0);
-                
+
                 trades++;
-                
+
                 if (balance >= targetBalance) {
                     reached = true;
                     reachedTargetCount++;
                     tradesToTarget.push(trades);
                 }
             }
-            
+
             if (balance < MIN_ORDER_COST) bustCount++;
             finalBalances.push(balance);
         }
-        
+
         // Calculate percentiles
         finalBalances.sort((a, b) => a - b);
         tradesToTarget.sort((a, b) => a - b);
-        
+
         const p50Balance = finalBalances[Math.floor(simulations * 0.50)];
         const p80Balance = finalBalances[Math.floor(simulations * 0.80)];
         const p95Balance = finalBalances[Math.floor(simulations * 0.95)];
-        
+
         const p50Trades = tradesToTarget.length > 0 ? tradesToTarget[Math.floor(tradesToTarget.length * 0.50)] : null;
         const p80Trades = tradesToTarget.length > 0 ? tradesToTarget[Math.floor(tradesToTarget.length * 0.80)] : null;
-        
+
         res.json({
             inputs: {
                 startingBalance,
@@ -6562,7 +6562,7 @@ app.get('/api/projection', async (req, res) => {
             results: {
                 reachedTargetPct: ((reachedTargetCount / simulations) * 100).toFixed(1) + '%',
                 bustPct: ((bustCount / simulations) * 100).toFixed(1) + '%',
-                
+
                 balanceDistribution: {
                     p50: '$' + p50Balance.toFixed(2),
                     p80: '$' + p80Balance.toFixed(2),
@@ -6570,22 +6570,22 @@ app.get('/api/projection', async (req, res) => {
                     min: '$' + finalBalances[0].toFixed(2),
                     max: '$' + finalBalances[finalBalances.length - 1].toFixed(2)
                 },
-                
+
                 tradesToTarget: tradesToTarget.length > 0 ? {
                     p50: p50Trades + ' trades',
                     p80: p80Trades + ' trades',
                     sampleSize: tradesToTarget.length
                 } : 'Target not reached in enough simulations'
             },
-            
+
             // Plain English summary
             summary: `Based on ${simulations} Monte Carlo simulations with ${(historicalWinRate * 100).toFixed(0)}% win rate: ` +
-                     `There's a ${((reachedTargetCount / simulations) * 100).toFixed(0)}% chance of reaching $${targetBalance} from $${startingBalance}. ` +
-                     `Median ending balance after ${maxTrades} trades: $${p50Balance.toFixed(2)}. ` +
-                     `Risk of bust (balance < minOrderCost ~$${MIN_ORDER_COST.toFixed(2)}): ${((bustCount / simulations) * 100).toFixed(1)}%.`,
-            
+                `There's a ${((reachedTargetCount / simulations) * 100).toFixed(0)}% chance of reaching $${targetBalance} from $${startingBalance}. ` +
+                `Median ending balance after ${maxTrades} trades: $${p50Balance.toFixed(2)}. ` +
+                `Risk of bust (balance < minOrderCost ~$${MIN_ORDER_COST.toFixed(2)}): ${((bustCount / simulations) * 100).toFixed(1)}%.`,
+
             disclaimer: 'These projections are based on historical data and Monte Carlo simulation. ' +
-                        'Past performance does not guarantee future results. Markets can behave unexpectedly.'
+                'Past performance does not guarantee future results. Markets can behave unexpectedly.'
         });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -6601,7 +6601,7 @@ app.get('/api/stress-test', async (req, res) => {
         const stakePct = parseFloat(req.query.stake) || 0.30;
         const maxTrades = parseInt(req.query.maxTrades) || 365;
         const adaptive = req.query.adaptive !== '0'; // Enable adaptive by default
-        
+
         // Regime definitions
         const regimes = {
             BULL: { winRate: 0.75, probability: 0.25, name: 'Bull Market (75% WR)' },
@@ -6610,18 +6610,18 @@ app.get('/api/stress-test', async (req, res) => {
             BEAR: { winRate: 0.45, probability: 0.10, name: 'Bear Market (45% WR)' },
             CHAOS: { winRate: 0.35, probability: 0.05, name: 'Chaos/Black Swan (35% WR)' }
         };
-        
+
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/stress tests we assume taker by default (configurable via env).
         const feeModel = getPolymarketTakerFeeModel();
         const SLIPPAGE_PCT = 0.02;
         const avgEntryPrice = 0.60;
-        
+
         const finalBalances = [];
         const maxDrawdowns = [];
         const bustCount = { total: 0, regimeCounts: {} };
         const survivalStats = { survived: 0, thrived: 0, profit10x: 0, profit100x: 0, profitPositive: 0 };
-        
+
         for (let sim = 0; sim < simulations; sim++) {
             let balance = startingBalance;
             let peakBalance = startingBalance;
@@ -6633,7 +6633,7 @@ app.get('/api/stress-test', async (req, res) => {
             let tradingHalted = false;
             let haltedTrades = 0;
             let busted = false;
-            
+
             for (let trade = 0; trade < maxTrades && balance >= 1.0; trade++) {
                 // Regime switching
                 if (regimeTradesRemaining <= 0) {
@@ -6654,7 +6654,7 @@ app.get('/api/stress-test', async (req, res) => {
                     }
                 }
                 regimeTradesRemaining--;
-                
+
                 // 🏆 v62 ADAPTIVE: Skip trading during bad regimes
                 if (adaptive) {
                     // Halt if 3+ losses in current regime (regime detection)
@@ -6668,16 +6668,16 @@ app.get('/api/stress-test', async (req, res) => {
                         continue;
                     }
                 }
-                
+
                 // 🏆 v62 ADAPTIVE SIZING: Multiple protection layers
                 let sizeMultiplier = 1.0;
-                
+
                 // Layer 1: Loss streak reduction
                 if (consecutiveLosses >= 4) sizeMultiplier *= 0.10;
                 else if (consecutiveLosses >= 3) sizeMultiplier *= 0.20;
                 else if (consecutiveLosses >= 2) sizeMultiplier *= 0.40;
                 else if (consecutiveLosses >= 1) sizeMultiplier *= 0.60;
-                
+
                 // 🏆 v62 Layer 2: PROFIT PROTECTION (lock in gains)
                 if (adaptive) {
                     const profitMultiple = balance / startingBalance;
@@ -6686,20 +6686,20 @@ app.get('/api/stress-test', async (req, res) => {
                     else if (profitMultiple >= 5) sizeMultiplier *= 0.75;
                     else if (profitMultiple >= 2) sizeMultiplier *= 0.90;
                 }
-                
+
                 // 🏆 v62 Layer 3: Regime-based sizing
                 if (adaptive) {
                     if (currentRegime === 'BEAR') sizeMultiplier *= 0.50;
                     else if (currentRegime === 'CHAOS') sizeMultiplier *= 0.25;
                     else if (currentRegime === 'SIDEWAYS') sizeMultiplier *= 0.70;
                 }
-                
+
                 const positionSize = Math.min(balance * stakePct * sizeMultiplier, 100);
                 if (positionSize < 0.50) continue;
-                
+
                 const winRate = regimes[currentRegime].winRate;
                 const won = Math.random() < winRate;
-                
+
                 const settled = calcBinaryTradeDeltaUsdAfterFees(positionSize, avgEntryPrice, won, { slippagePct: SLIPPAGE_PCT, feeModel });
                 const pnl = Number(settled.deltaUsd || 0);
                 if (won) {
@@ -6709,27 +6709,27 @@ app.get('/api/stress-test', async (req, res) => {
                     consecutiveLosses++;
                     regimeLosses++;
                 }
-                
+
                 balance += pnl;
                 peakBalance = Math.max(peakBalance, balance);
                 const dd = peakBalance > 0 ? (peakBalance - balance) / peakBalance : 0;
                 maxDD = Math.max(maxDD, dd);
-                
+
                 // Circuit breaker - halt at 50% DD
                 if (dd >= 0.50) {
                     trade += Math.floor(10 + Math.random() * 15);
                 }
             }
-            
+
             if (balance < 1.0) {
                 bustCount.total++;
                 bustCount.regimeCounts[currentRegime] = (bustCount.regimeCounts[currentRegime] || 0) + 1;
                 busted = true;
             }
-            
+
             finalBalances.push(balance);
             maxDrawdowns.push(maxDD);
-            
+
             if (!busted) {
                 survivalStats.survived++;
                 if (balance > startingBalance) survivalStats.profitPositive++;
@@ -6738,13 +6738,13 @@ app.get('/api/stress-test', async (req, res) => {
                 if (balance >= startingBalance * 100) survivalStats.profit100x++;
             }
         }
-        
+
         // Calculate percentiles
         finalBalances.sort((a, b) => a - b);
         maxDrawdowns.sort((a, b) => a - b);
-        
+
         const getPercentile = (arr, p) => arr[Math.floor(arr.length * p)] || 0;
-        
+
         // Value at Risk calculations
         const worstCase1Pct = getPercentile(finalBalances, 0.01);
         const worstCase5Pct = getPercentile(finalBalances, 0.05);
@@ -6752,14 +6752,14 @@ app.get('/api/stress-test', async (req, res) => {
         const median = getPercentile(finalBalances, 0.50);
         const best10Pct = getPercentile(finalBalances, 0.90);
         const best5Pct = getPercentile(finalBalances, 0.95);
-        
+
         const avgFinalBalance = finalBalances.reduce((a, b) => a + b, 0) / simulations;
         const avgMaxDD = maxDrawdowns.reduce((a, b) => a + b, 0) / simulations;
-        
+
         // 🏆 v62: Calculate profit-positive rate (scenarios that made money)
         const profitPositiveRate = survivalStats.profitPositive / simulations;
         const worst5PctIsProfit = worstCase5Pct > startingBalance;
-        
+
         res.json({
             summary: {
                 description: '🏆 v62 ADAPTIVE STRESS TEST - Simulates 1 year with PROFIT PROTECTION',
@@ -6769,25 +6769,25 @@ app.get('/api/stress-test', async (req, res) => {
                 tradesPerSim: maxTrades,
                 adaptiveMode: adaptive ? 'ENABLED (profit protection + regime detection)' : 'DISABLED'
             },
-            
+
             regimeBreakdown: Object.entries(regimes).map(([name, data]) => ({
                 regime: name,
                 winRate: (data.winRate * 100) + '%',
                 probability: (data.probability * 100) + '%',
                 description: data.name
             })),
-            
+
             worstCaseScenarios: {
                 absolute_worst: '$' + finalBalances[0].toFixed(2),
                 worst_1pct: '$' + worstCase1Pct.toFixed(2),
                 worst_5pct: '$' + worstCase5Pct.toFixed(2),
                 worst_10pct: '$' + worstCase10Pct.toFixed(2),
                 worst_5pct_is_profit: worst5PctIsProfit,
-                interpretation: worst5PctIsProfit 
+                interpretation: worst5PctIsProfit
                     ? `✅ WORST 5% STILL PROFITABLE: Even in bad scenarios, you end with $${worstCase5Pct.toFixed(2)} (from $${startingBalance})`
                     : `In the worst 5% of scenarios, you end with $${worstCase5Pct.toFixed(2)}.`
             },
-            
+
             expectedOutcomes: {
                 median: '$' + median.toFixed(2),
                 average: '$' + avgFinalBalance.toFixed(2),
@@ -6795,7 +6795,7 @@ app.get('/api/stress-test', async (req, res) => {
                 best_5pct: '$' + best5Pct.toFixed(2),
                 best_ever: '$' + finalBalances[finalBalances.length - 1].toFixed(2)
             },
-            
+
             riskMetrics: {
                 bustRate: ((bustCount.total / simulations) * 100).toFixed(2) + '%',
                 survivalRate: ((survivalStats.survived / simulations) * 100).toFixed(2) + '%',
@@ -6806,18 +6806,18 @@ app.get('/api/stress-test', async (req, res) => {
                 medianMaxDrawdown: (getPercentile(maxDrawdowns, 0.50) * 100).toFixed(1) + '%',
                 worst1PctDrawdown: (getPercentile(maxDrawdowns, 0.99) * 100).toFixed(1) + '%'
             },
-            
+
             verdict: {
                 survives_all_markets: bustCount.total / simulations < 0.10,
                 worst_case_is_profit: worst5PctIsProfit,
                 best_worst_case: worstCase5Pct >= startingBalance * 0.3,
                 recommended: avgMaxDD < 0.50 && bustCount.total / simulations < 0.15,
-                summary: bustCount.total / simulations < 0.10 
+                summary: bustCount.total / simulations < 0.10
                     ? `✅ SURVIVES ALL MARKETS: ${((survivalStats.survived / simulations) * 100).toFixed(0)}% survival rate, ` +
-                      `worst 5% scenario: $${worstCase5Pct.toFixed(2)}, avg max DD: ${(avgMaxDD * 100).toFixed(0)}%`
+                    `worst 5% scenario: $${worstCase5Pct.toFixed(2)}, avg max DD: ${(avgMaxDD * 100).toFixed(0)}%`
                     : `⚠️ SURVIVAL RISK: ${((bustCount.total / simulations) * 100).toFixed(0)}% bust rate detected. Consider lower stake.`
             },
-            
+
             recommendations: {
                 if_too_risky: 'Lower stake to 15-18% for even better worst-case survival',
                 if_too_conservative: 'Increase stake to 25-28% for more profit (higher variance)',
@@ -6835,7 +6835,7 @@ app.get('/api/verify', async (req, res) => {
     const checks = [];
     let passCount = 0;
     let failCount = 0;
-    
+
     const addCheck = (name, passed, details = '', severity = 'error') => {
         checks.push({ name, passed, details, severity });
         if (passed) passCount++;
@@ -6847,33 +6847,33 @@ app.get('/api/verify', async (req, res) => {
         const v = String(req.query.deep || '').trim().toLowerCase();
         return v === '1' || v === 'true' || v === 'yes' || v === 'on';
     })();
-    
+
     // ==================== CORE CHECKS ====================
-    
+
     // Check 1: TradeExecutor initialized
-    addCheck('TradeExecutor initialized', 
-        !!tradeExecutor, 
+    addCheck('TradeExecutor initialized',
+        !!tradeExecutor,
         tradeExecutor ? `Mode: ${tradeExecutor.mode}` : 'Not found');
-    
+
     // Check 2: CircuitBreaker with hybrid throttle (HONEST CHECK)
     const cbExists = tradeExecutor?.circuitBreaker;
-    const cbHasThresholds = cbExists && 
-        typeof cbExists.softDrawdownPct === 'number' && 
-        typeof cbExists.hardDrawdownPct === 'number' && 
+    const cbHasThresholds = cbExists &&
+        typeof cbExists.softDrawdownPct === 'number' &&
+        typeof cbExists.hardDrawdownPct === 'number' &&
         typeof cbExists.haltDrawdownPct === 'number';
-    const cbHasResumeConditions = cbExists && cbExists.resumeConditions && 
+    const cbHasResumeConditions = cbExists && cbExists.resumeConditions &&
         typeof cbExists.resumeConditions.probeToSafeMinutes === 'number';
-    addCheck('Hybrid throttle (CircuitBreaker v45)', 
+    addCheck('Hybrid throttle (CircuitBreaker v45)',
         cbExists?.enabled === true && cbHasThresholds && cbHasResumeConditions,
-        cbExists ? `State: ${cbExists.state}, Thresholds: ${cbExists.softDrawdownPct*100}%/${cbExists.hardDrawdownPct*100}%/${cbExists.haltDrawdownPct*100}%` : 'Not configured');
-    
+        cbExists ? `State: ${cbExists.state}, Thresholds: ${cbExists.softDrawdownPct * 100}%/${cbExists.hardDrawdownPct * 100}%/${cbExists.haltDrawdownPct * 100}%` : 'Not configured');
+
     // Check 3: LCB gating (HONEST CHECK - verify function exists on at least one brain)
     // 🏆 v96: LCB is now WIRED into ADVISORY EV/price-cap/Kelly (not just "exists")
-    const hasLcbFunction = ASSETS.some(a => 
+    const hasLcbFunction = ASSETS.some(a =>
         typeof Brains?.[a]?.getCalibratedPWinWithLCB === 'function'
     );
     const wilsonLCBExists = typeof wilsonLCB === 'function';
-    addCheck('LCB gating active (wired into ADVISORY)', 
+    addCheck('LCB gating active (wired into ADVISORY)',
         hasLcbFunction && wilsonLCBExists,
         hasLcbFunction ? 'v96: LCB used for ADVISORY pWin → EV/price-cap/Kelly' : 'LCB functions not found');
 
@@ -7007,7 +7007,7 @@ app.get('/api/verify', async (req, res) => {
         collectorParityDetails = `Error: ${e.message}`;
     }
     addCheck('Collector snapshot entryOdds parity', collectorParityOk, collectorParityDetails, 'warn');
-    
+
     // Check 4: LIVE balance freshness enforcement (HONEST CHECK)
     const hasFreshnessCheck = tradeExecutor?.lastBalanceFetch !== undefined;
     let freshnessOk = false;
@@ -7364,7 +7364,7 @@ app.get('/api/verify', async (req, res) => {
         }
         addCheck('CLOB orderbook fetch works (deep)', bookOk, bookDetails, marketsSeverity);
     }
-    
+
     // Check 5: Redis available (for persistence)
     const redisOk = typeof redisAvailable !== 'undefined' && redisAvailable === true;
     const redisRequired = effectiveMode === 'LIVE';
@@ -7372,10 +7372,10 @@ app.get('/api/verify', async (req, res) => {
         redisOk || !redisRequired,
         redisOk ? 'Connected' : (redisRequired ? 'Not connected (REQUIRED for LIVE)' : 'Not connected (optional in PAPER)'),
         redisRequired ? 'error' : 'warn');
-    
+
     // Check 6: Brains initialized with calibration
     const brainsOk = typeof Brains !== 'undefined' && ASSETS.every(a => Brains[a]);
-    const brainsWithCalibration = ASSETS.filter(a => 
+    const brainsWithCalibration = ASSETS.filter(a =>
         Brains?.[a]?.calibrationBuckets && Object.keys(Brains[a].calibrationBuckets).length > 0
     ).length;
     addCheck('Brains with calibration',
@@ -7393,19 +7393,19 @@ app.get('/api/verify', async (req, res) => {
             ? `Auto-disabled: ${autoDisabledAssets.join(', ')} (probes may still trade at reduced size)`
             : (driftWarningAssets.length > 0 ? `Drift warning: ${driftWarningAssets.join(', ')}` : 'No drift warnings / auto-disable'),
         'warn');
-    
+
     // Check 7: Live data feed
     const now = Date.now();
     const feedAge = typeof lastLiveDataTime !== 'undefined' ? now - lastLiveDataTime : Infinity;
     addCheck('Live data feed active',
         feedAge < 120000,
         feedAge < Infinity ? `Last update: ${Math.round(feedAge / 1000)}s ago` : 'Never received');
-    
+
     // Check 8: Config version matches expected
     addCheck('Config version v45+',
         typeof CONFIG_VERSION !== 'undefined' && CONFIG_VERSION >= 45,
         `v${CONFIG_VERSION || 'UNDEFINED'} (need >=45 for GOAT features)`);
-    
+
     // Check 9: Trade history idempotent (HONEST CHECK - verify structure)
     let historyIdempotent = true;
     let historyDetails = 'Skipped (no Redis)';
@@ -7427,12 +7427,12 @@ app.get('/api/verify', async (req, res) => {
         }
     }
     addCheck('Trade history idempotent', historyIdempotent, historyDetails, historySeverity);
-    
+
     // Check 10: GateTrace available
     addCheck('GateTrace available',
         typeof gateTrace !== 'undefined' && gateTrace !== null,
         gateTrace ? `${gateTrace.getSummary?.()?.totalEvaluations || 0} evaluations` : 'Not found');
-    
+
     // Check 11: Forward collector state persisted
     // Honest check: verify forwardCollectorEnabled matches what's in Redis state
     let collectorStatePersisted = false;
@@ -7443,25 +7443,25 @@ app.get('/api/verify', async (req, res) => {
                 const state = JSON.parse(storedState);
                 collectorStatePersisted = typeof state.forwardCollectorEnabled === 'boolean';
             }
-        } catch {}
+        } catch { }
     }
     addCheck('Collector state persisted',
         typeof forwardCollectorEnabled !== 'undefined' && (collectorStatePersisted || !redisAvailable),
         collectorStatePersisted ? 'State saved in Redis' : (redisAvailable ? 'Not yet saved (will save on next cycle)' : 'No Redis'),
         'warn');
-    
+
     // Check 12: Redemption events persisted
     const redemptionEventsPersisted = Array.isArray(tradeExecutor?.redemptionEvents);
     addCheck('Redemption events tracked',
         redemptionEventsPersisted,
         redemptionEventsPersisted ? `${tradeExecutor.redemptionEvents.length} events tracked` : 'Not initialized',
         'warn');
-    
+
     // Check 13: Streak sizing enabled
     addCheck('Streak sizing enabled',
         tradeExecutor?.streakSizing?.enabled === true,
         `Multiplier: ${tradeExecutor?.getStreakSizeMultiplier?.() || 'N/A'}`);
-    
+
     // Check 14: Auth configured (env set AND not using default credentials)
     const authUser = String(process.env.AUTH_USERNAME || 'admin').trim();
     const authPass = String(process.env.AUTH_PASSWORD || 'changeme').trim();
@@ -7473,7 +7473,7 @@ app.get('/api/verify', async (req, res) => {
             ? (usingDefaults ? 'Using defaults (insecure)' : 'Username and password set')
             : 'AUTH_USERNAME/AUTH_PASSWORD not set (defaults active)',
         'warn');
-    
+
     // Check 15: Baseline bankroll initialized (v96)
     const baselineInitialized = tradeExecutor?.baselineBankrollInitialized === true;
     const baselineValue = tradeExecutor?.baselineBankroll || 0;
@@ -7482,13 +7482,13 @@ app.get('/api/verify', async (req, res) => {
         baselineInitialized && baselineValue > 0,
         baselineInitialized ? `$${baselineValue.toFixed(2)} (source: ${baselineSource})` : 'Awaiting first balance fetch',
         'warn');
-    
+
     // ==================== CALCULATE STATUS ====================
     const criticalFails = checks.filter(c => !c.passed && c.severity === 'error').length;
     const warnFails = checks.filter(c => !c.passed && c.severity === 'warn').length;
-    
+
     const overallStatus = criticalFails === 0 ? (warnFails === 0 ? 'PASS' : 'WARN') : 'FAIL';
-    
+
     res.json({
         status: overallStatus,
         passed: passCount,
@@ -7496,14 +7496,14 @@ app.get('/api/verify', async (req, res) => {
         criticalFailures: criticalFails,
         warnings: warnFails,
         checks,
-        
+
         // Top failures for quick action
         topFailures: checks.filter(c => !c.passed).slice(0, 5).map(c => ({
             issue: c.name,
             severity: c.severity,
             action: getFixAction(c.name)
         })),
-        
+
         // Summary of GOAT v45+ features
         goatFeatures: {
             hybridThrottle: cbHasThresholds && cbHasResumeConditions,
@@ -7515,12 +7515,12 @@ app.get('/api/verify', async (req, res) => {
             baselineBankroll: baselineInitialized && baselineValue > 0,
             lcbWiredToAdvisory: hasLcbFunction && wilsonLCBExists // v96: LCB actually used in ADVISORY path
         },
-        
+
         timestamp: new Date().toISOString(),
         version: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
         configVersion: CONFIG_VERSION
     });
-    
+
     function getFixAction(checkName) {
         const actions = {
             'TradeExecutor initialized': 'Check server startup logs for errors',
@@ -7553,15 +7553,15 @@ app.get('/api/perfection-check', async (req, res) => {
     const checks = [];
     let passCount = 0;
     let failCount = 0;
-    
+
     const addCheck = (name, passed, details = '', severity = 'error') => {
         checks.push({ name, passed, details, severity });
         if (passed) passCount++;
         else failCount++;
     };
-    
+
     // ==================== VAULT SYSTEM CHECKS ====================
-    
+
     // Check 1: getVaultThresholds function exists and returns valid data
     const thresholdsExist = typeof getVaultThresholds === 'function';
     let thresholds = null;
@@ -7569,22 +7569,22 @@ app.get('/api/perfection-check', async (req, res) => {
     if (thresholdsExist) {
         try {
             thresholds = getVaultThresholds();
-            thresholdsValid = Number.isFinite(thresholds.vaultTriggerBalance) && 
-                             Number.isFinite(thresholds.stage2Threshold) &&
-                             thresholds.sources && 
-                             typeof thresholds.sources.vaultTriggerBalance === 'string';
+            thresholdsValid = Number.isFinite(thresholds.vaultTriggerBalance) &&
+                Number.isFinite(thresholds.stage2Threshold) &&
+                thresholds.sources &&
+                typeof thresholds.sources.vaultTriggerBalance === 'string';
         } catch (e) {
             thresholdsValid = false;
         }
     }
     addCheck('Vault threshold contract exists', thresholdsExist && thresholdsValid,
         thresholdsValid ? `vaultTriggerBalance=$${thresholds.vaultTriggerBalance}, stage2=$${thresholds.stage2Threshold}, sources=${JSON.stringify(thresholds.sources)}` : 'getVaultThresholds not found or invalid');
-    
+
     // Check 2: CONFIG.RISK has vaultTriggerBalance
     const configHasVault = CONFIG?.RISK?.vaultTriggerBalance !== undefined && Number.isFinite(CONFIG.RISK.vaultTriggerBalance);
     addCheck('CONFIG.RISK.vaultTriggerBalance defined', configHasVault,
         configHasVault ? `$${CONFIG.RISK.vaultTriggerBalance}` : 'Missing from CONFIG.RISK');
-    
+
     // Check 3: TradeExecutor.getDynamicRiskProfile uses threshold contract
     let profileUsesContract = false;
     let profileThresholds = null;
@@ -7593,11 +7593,11 @@ app.get('/api/perfection-check', async (req, res) => {
             const profile = tradeExecutor.getDynamicRiskProfile(10); // Test with $10 balance
             // 🏆 v89 FIX: Ensure `passed` is a boolean (not an object)
             profileUsesContract = !!profile?.thresholds &&
-                                 Number.isFinite(profile.thresholds.vaultTriggerBalance) &&
-                                 Number.isFinite(profile.thresholds.stage2Threshold) &&
-                                 !!profile.thresholds.sources &&
-                                 typeof profile.thresholds.sources.vaultTriggerBalance === 'string' &&
-                                 typeof profile.thresholds.sources.stage2Threshold === 'string';
+                Number.isFinite(profile.thresholds.vaultTriggerBalance) &&
+                Number.isFinite(profile.thresholds.stage2Threshold) &&
+                !!profile.thresholds.sources &&
+                typeof profile.thresholds.sources.vaultTriggerBalance === 'string' &&
+                typeof profile.thresholds.sources.stage2Threshold === 'string';
             profileThresholds = profile.thresholds;
         } catch (e) {
             profileUsesContract = false;
@@ -7605,13 +7605,13 @@ app.get('/api/perfection-check', async (req, res) => {
     }
     addCheck('Runtime getDynamicRiskProfile uses threshold contract', profileUsesContract,
         profileUsesContract ? `Returns thresholds in profile: vaultTrigger=$${profileThresholds?.vaultTriggerBalance}` : 'Profile missing threshold info');
-    
+
     // Check 4: /api/risk-controls would expose vaultThresholds
     // (We check if the endpoint exists and would include vault info)
     const riskControlsWouldExpose = thresholdsExist; // If contract exists, endpoint would expose it
     addCheck('/api/risk-controls exposes vaultThresholds', riskControlsWouldExpose,
         'Endpoint includes getVaultThresholds() in response');
-    
+
     // Check 5: Runtime and CONFIG thresholds match
     let runtimeConfigMatch = false;
     if (thresholds && configHasVault) {
@@ -7619,15 +7619,15 @@ app.get('/api/perfection-check', async (req, res) => {
     }
     addCheck('Runtime threshold matches CONFIG', runtimeConfigMatch,
         runtimeConfigMatch ? 'Threshold contract resolves to CONFIG value' : 'Mismatch between runtime and CONFIG');
-    
+
     // Check 6: vaultTriggerBalance is in valid range 
     // 🏆 v96: Support relative mode - if relativeMode=true, just check it's positive
     let inRecommendedRange = false;
     if (thresholds) {
         if (thresholds.relativeMode) {
             // Relative mode: just check it's positive and sensible relative to starting balance
-            inRecommendedRange = thresholds.vaultTriggerBalance > 0 && 
-                                 thresholds.vaultTriggerBalance >= thresholds.startingBalance;
+            inRecommendedRange = thresholds.vaultTriggerBalance > 0 &&
+                thresholds.vaultTriggerBalance >= thresholds.startingBalance;
         } else {
             // Absolute mode: old range check
             inRecommendedRange = thresholds.vaultTriggerBalance >= 5 && thresholds.vaultTriggerBalance <= 20;
@@ -7636,33 +7636,33 @@ app.get('/api/perfection-check', async (req, res) => {
     addCheck('vaultTriggerBalance in sensible range', inRecommendedRange,
         thresholds ? `$${thresholds.vaultTriggerBalance.toFixed(2)} (${thresholds.relativeMode ? 'relative mode' : 'absolute mode'})` : 'N/A',
         'warn');
-    
+
     // Check 7: CONFIG_VERSION is v86+
     const versionOk = typeof CONFIG_VERSION !== 'undefined' && CONFIG_VERSION >= 86;
     addCheck('CONFIG_VERSION is v86+ (empirical kelly)', versionOk,
         `v${CONFIG_VERSION || 'UNDEFINED'}`);
-    
+
     // Check 7b: kellyMaxFraction is 0.32 (empirical optimum for $40+ start)
     const kellyOk = CONFIG?.RISK?.kellyMaxFraction === 0.32;
     addCheck('kellyMaxFraction is 0.32 (empirical optimum for $40+)', kellyOk,
         kellyOk ? 'CONFIG.RISK.kellyMaxFraction = 0.32' : `Got ${CONFIG?.RISK?.kellyMaxFraction} (expected 0.32)`);
-    
+
     // Check 8: GOAT preset includes vaultTriggerBalance
     // We check CONFIG since GOAT preset would have been applied
     const goatHasVault = CONFIG?.RISK?.vaultTriggerBalance !== undefined;
     addCheck('GOAT preset includes vaultTriggerBalance', goatHasVault,
         goatHasVault ? 'Persisted via /api/settings' : 'Missing from GOAT preset');
-    
+
     // Check 9: stage1Threshold legacy alias consistency
     let aliasConsistent = false;
     if (CONFIG?.RISK) {
         aliasConsistent = CONFIG.RISK.vaultTriggerBalance === CONFIG.RISK.stage1Threshold ||
-                         CONFIG.RISK.stage1Threshold === undefined;
+            CONFIG.RISK.stage1Threshold === undefined;
     }
     addCheck('Legacy stage1Threshold alias consistent', aliasConsistent,
         aliasConsistent ? 'vaultTriggerBalance and stage1Threshold match or stage1Threshold is undefined' : 'Inconsistent values',
         'warn');
-    
+
     // Check 10: stage2Threshold is defined and > vaultTriggerBalance
     let stage2Valid = false;
     if (thresholds) {
@@ -7670,22 +7670,22 @@ app.get('/api/perfection-check', async (req, res) => {
     }
     addCheck('stage2Threshold > vaultTriggerBalance', stage2Valid,
         thresholds ? `$${thresholds.vaultTriggerBalance} < $${thresholds.stage2Threshold}` : 'N/A');
-    
+
     // ==================== 🏆 v83 HARDENED CHECKS ====================
-    
+
     // Check 11: Vault endpoints are registered (Express route exists)
     const registeredRoutes = app._router?.stack
         ?.filter(r => r.route)
         ?.map(r => ({ path: r.route.path, methods: Object.keys(r.route.methods) })) || [];
     const vaultRoutes = ['/api/vault-projection', '/api/vault-optimize', '/api/vault-optimize-polymarket', '/api/risk-controls'];
-    const missingRoutes = vaultRoutes.filter(route => 
+    const missingRoutes = vaultRoutes.filter(route =>
         !registeredRoutes.some(r => r.path === route && r.methods.includes('get'))
     );
     addCheck('Vault endpoints registered', missingRoutes.length === 0,
-        missingRoutes.length === 0 
-            ? 'All vault endpoints (projection, optimize, optimize-polymarket, risk-controls) are registered' 
+        missingRoutes.length === 0
+            ? 'All vault endpoints (projection, optimize, optimize-polymarket, risk-controls) are registered'
             : `Missing: ${missingRoutes.join(', ')}`);
-    
+
     // Check 12: Static forensic - no hardcoded threshold patterns in backtest simulation
     // We check the server.js source (already loaded in memory via CODE_FINGERPRINT)
     let staticForensicPass = false;
@@ -7697,7 +7697,7 @@ app.get('/api/perfection-check', async (req, res) => {
         // BAD: hardcoded STAGE1/STAGE2 constants in backtest
         // GOOD: uses getVaultThresholds(backtestThresholdOverrides) and outputs vaultThresholds
         const hasHardcodedPattern = /const\s+STAGE1_THRESHOLD\s*=\s*11/.test(serverSource) ||
-                                   /const\s+STAGE2_THRESHOLD\s*=\s*20/.test(serverSource);
+            /const\s+STAGE2_THRESHOLD\s*=\s*20/.test(serverSource);
         const hasBacktestEndpoint = serverSource.includes("app.get('/api/backtest-polymarket'");
         const usesThresholdContract = serverSource.includes('getVaultThresholds(backtestThresholdOverrides)');
         const outputsThresholds = /vaultThresholds\s*:\s*getVaultThresholds\(backtestThresholdOverrides\)/.test(serverSource);
@@ -7709,7 +7709,7 @@ app.get('/api/perfection-check', async (req, res) => {
         const hasSupremeBacktestGate =
             serverSource.includes('Runtime parity — Supreme confidence mode hard-block') ||
             (serverSource.includes('supremeConfidenceMode === true') && serverSource.includes('confFloor = 0.75'));
-        
+
         staticForensicPass =
             hasBacktestEndpoint &&
             !hasHardcodedPattern &&
@@ -7718,29 +7718,29 @@ app.get('/api/perfection-check', async (req, res) => {
             hasPWinWeighting &&
             hasSupremeBacktestGate;
 
-        staticForensicDetails = staticForensicPass 
-            ? 'Backtest uses threshold contract, outputs vaultThresholds, and enforces runtime parity gates (pWin weighting + supremeConfidenceMode)' 
+        staticForensicDetails = staticForensicPass
+            ? 'Backtest uses threshold contract, outputs vaultThresholds, and enforces runtime parity gates (pWin weighting + supremeConfidenceMode)'
             : `Issues: ${!hasBacktestEndpoint ? 'missing backtest endpoint' : ''} ${hasHardcodedPattern ? 'hardcoded thresholds found' : ''} ${!usesThresholdContract ? 'missing getVaultThresholds call' : ''} ${!outputsThresholds ? 'missing vaultThresholds output' : ''} ${!hasPWinWeighting ? 'missing pWin confidence-weighting parity' : ''} ${!hasSupremeBacktestGate ? 'missing supremeConfidenceMode parity gate' : ''}`.trim();
     } catch (e) {
         staticForensicDetails = 'Could not read server.js for static analysis';
     }
     addCheck('Backtest parity (static forensic)', staticForensicPass, staticForensicDetails);
-    
+
     // Check 13: Override resolution works correctly
     let overrideResolutionPass = false;
     let overrideDetails = '';
     try {
         const testOverride = getVaultThresholds({ vaultTriggerBalance: 9.5 });
-        overrideResolutionPass = testOverride.vaultTriggerBalance === 9.5 && 
-                                testOverride.sources.vaultTriggerBalance === 'query_override';
-        overrideDetails = overrideResolutionPass 
-            ? 'getVaultThresholds({ vaultTriggerBalance: 9.5 }) returns 9.5 with source=query_override' 
+        overrideResolutionPass = testOverride.vaultTriggerBalance === 9.5 &&
+            testOverride.sources.vaultTriggerBalance === 'query_override';
+        overrideDetails = overrideResolutionPass
+            ? 'getVaultThresholds({ vaultTriggerBalance: 9.5 }) returns 9.5 with source=query_override'
             : `Expected 9.5/query_override, got ${testOverride.vaultTriggerBalance}/${testOverride.sources.vaultTriggerBalance}`;
     } catch (e) {
         overrideDetails = 'Override test threw error: ' + e.message;
     }
     addCheck('Threshold override resolution', overrideResolutionPass, overrideDetails);
-    
+
     // Check 13b (v96): Relative mode support works correctly
     let relativeModePass = false;
     let relativeModeDetails = '';
@@ -7749,18 +7749,18 @@ app.get('/api/perfection-check', async (req, res) => {
         const expectedStage1 = 20 * 1.5; // 30
         const expectedStage2 = 20 * 2.5; // 50
         relativeModePass = testRelative.relativeMode === true &&
-                          testRelative.startingBalance === 20 &&
-                          testRelative.vaultTriggerBalance === expectedStage1 &&
-                          testRelative.stage2Threshold === expectedStage2 &&
-                          testRelative.sources.vaultTriggerBalance.includes('relative_mode');
-        relativeModeDetails = relativeModePass 
-            ? `relativeMode(20 * 1.5 = $${expectedStage1}, 20 * 2.5 = $${expectedStage2}) ✓` 
+            testRelative.startingBalance === 20 &&
+            testRelative.vaultTriggerBalance === expectedStage1 &&
+            testRelative.stage2Threshold === expectedStage2 &&
+            testRelative.sources.vaultTriggerBalance.includes('relative_mode');
+        relativeModeDetails = relativeModePass
+            ? `relativeMode(20 * 1.5 = $${expectedStage1}, 20 * 2.5 = $${expectedStage2}) ✓`
             : `Expected stage1=$${expectedStage1}/stage2=$${expectedStage2}, got ${testRelative.vaultTriggerBalance}/${testRelative.stage2Threshold}`;
     } catch (e) {
         relativeModeDetails = 'Relative mode test threw error: ' + e.message;
     }
     addCheck('Relative mode threshold support (v96)', relativeModePass, relativeModeDetails);
-    
+
     // Check 14: Seedable RNG available for reproducibility
     const rngAvailable = typeof createSeededRng === 'function';
     let rngWorks = false;
@@ -7775,7 +7775,7 @@ app.get('/api/perfection-check', async (req, res) => {
     }
     addCheck('Seedable RNG for reproducibility', rngAvailable && rngWorks,
         rngAvailable && rngWorks ? 'createSeededRng(seed) produces deterministic sequences' : 'Seedable RNG missing or non-deterministic');
-    
+
     // Check 15: Tools UI exists and contains required markers
     let toolsUiExists = false;
     let toolsUiHasMarker = false;
@@ -7793,7 +7793,7 @@ app.get('/api/perfection-check', async (req, res) => {
             const hasAuditPanel = toolsContent.includes('perfection-check');
             const hasApiExplorer = toolsContent.includes('API Explorer');
             const hasApplyWinner = toolsContent.includes('applyWinner') && toolsContent.includes('applyPolymarketWinner');
-            
+
             if (toolsUiHasMarker && hasVaultPanel && hasPolymarketPanel && hasAuditPanel && hasApiExplorer && hasApplyWinner) {
                 toolsUiDetails = 'Tools UI OK (Monte Carlo, Polymarket optimizer, Audit, API Explorer, Apply Winner)';
             } else {
@@ -7807,7 +7807,7 @@ app.get('/api/perfection-check', async (req, res) => {
     }
     addCheck('Tools UI exists with required features', toolsUiExists && toolsUiHasMarker,
         toolsUiDetails, 'warn');
-    
+
     // Check 16: Auto-optimizer internal backtest calls can authenticate (v93.1)
     let autoOptimizerAuthOk = false;
     let autoOptimizerDetails = '';
@@ -7818,7 +7818,7 @@ app.get('/api/perfection-check', async (req, res) => {
         // Check that the internal fetch would include apiKey (the code fix we just made)
         const serverSource = fs.readFileSync(path.join(__dirname, 'server.js'), 'utf8');
         const hasApiKeyInOptimizerCall = serverSource.includes('apiKey=${encodeURIComponent(API_KEY)}');
-        
+
         if (!enabled) {
             autoOptimizerAuthOk = true; // Not enabled, so no auth issue
             autoOptimizerDetails = 'Auto-optimizer disabled, no auth required';
@@ -7836,11 +7836,11 @@ app.get('/api/perfection-check', async (req, res) => {
         autoOptimizerDetails = 'Could not verify auto-optimizer auth: ' + e.message;
     }
     addCheck('Auto-optimizer internal auth configured', autoOptimizerAuthOk, autoOptimizerDetails, 'warn');
-    
+
     // ==================== SUMMARY ====================
     const allPassed = failCount === 0;
     const criticalFailed = checks.filter(c => !c.passed && c.severity === 'error').length;
-    
+
     res.json({
         summary: {
             allPassed,
@@ -7848,7 +7848,7 @@ app.get('/api/perfection-check', async (req, res) => {
             failCount,
             criticalFailed,
             verdict: allPassed ? '✅ VAULT SYSTEM PERFECT - All checks pass' :
-                    criticalFailed > 0 ? '❌ VAULT SYSTEM INCOMPLETE - Critical checks failed' :
+                criticalFailed > 0 ? '❌ VAULT SYSTEM INCOMPLETE - Critical checks failed' :
                     '⚠️ VAULT SYSTEM OK - Minor warnings only'
         },
         checks,
@@ -7992,22 +7992,22 @@ function broadcastUpdate() {
 function emitUIUpdate() {
     try {
         if (!io || !tradeExecutor || typeof Brains === 'undefined' || !ASSETS) return;
-        
+
         const bankroll = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || 0);
         const assets = {};
-        
+
         ASSETS.forEach(asset => {
             if (Brains[asset]) {
                 const brain = Brains[asset];
                 const stats = brain.stats || { wins: 0, losses: 0 };
                 const streak = stats.wins > 0 ? stats.wins : (stats.losses > 0 ? -stats.losses : 0);
-                
+
                 // Determine state based on tier and prediction
                 let state = 'OBSERVE';
                 if (brain.tier === 'CONVICTION' || brain.tier === 'ADVISORY') {
                     state = brain.prediction === 'UP' ? 'STRIKE' : (brain.prediction === 'DOWN' ? 'HARVEST' : 'OBSERVE');
                 }
-                
+
                 assets[asset] = {
                     streak: streak,
                     state: state,
@@ -8033,7 +8033,7 @@ function emitUIUpdate() {
                 };
             }
         });
-        
+
         io.emit('omega_update', {
             bankroll: bankroll,
             assets: assets,
@@ -8152,7 +8152,7 @@ function getConvictionDedupKey(asset, slug, action, direction) {
 function canSendConvictionNotify(asset, slug, action, direction) {
     const key = getConvictionDedupKey(asset, slug, action, direction);
     const now = Date.now();
-    
+
     // Cleanup old entries periodically
     if (now - convictionNotifyState.lastCleanupAt > convictionNotifyState.cleanupIntervalMs) {
         convictionNotifyState.lastCleanupAt = now;
@@ -8162,7 +8162,7 @@ function canSendConvictionNotify(asset, slug, action, direction) {
             }
         }
     }
-    
+
     const lastSent = convictionNotifyState.sentKeys.get(key);
     if (lastSent && (now - lastSent) < convictionNotifyState.cooldownMs) {
         return false; // Still in cooldown
@@ -8185,10 +8185,10 @@ async function sendConvictionNotification(message, eventType = 'CONVICTION', ass
         }
         markConvictionNotifySent(asset, slug, eventType, direction);
     }
-    
+
     let telegramSent = false;
     let webPushSent = 0;
-    
+
     // 1. Telegram (primary)
     try {
         if (CONFIG?.TELEGRAM?.enabled) {
@@ -8198,14 +8198,14 @@ async function sendConvictionNotification(message, eventType = 'CONVICTION', ass
     } catch (e) {
         // Non-fatal
     }
-    
+
     // 2. Web Push (optional, best-effort)
     try {
         if (webPushEnabled && webPushSubscriptions.length > 0 && process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
             // Build simple push payload
             const title = eventType === 'CONVICTION_BUY' ? '🎯 CONVICTION BUY' :
-                         eventType === 'LOCKED' ? '🔒 SIGNAL LOCKED' :
-                         eventType === 'EMERGENCY_EXIT' ? '🚨 EMERGENCY EXIT' : '🔮 ORACLE';
+                eventType === 'LOCKED' ? '🔒 SIGNAL LOCKED' :
+                    eventType === 'EMERGENCY_EXIT' ? '🚨 EMERGENCY EXIT' : '🔮 ORACLE';
             const body = asset ? `${asset} ${direction || ''}` : 'New signal available';
             const payload = { title, body, timestamp: Date.now() };
             webPushSent = await sendWebPushToAll(payload);
@@ -8213,7 +8213,7 @@ async function sendConvictionNotification(message, eventType = 'CONVICTION', ass
     } catch (e) {
         // Non-fatal
     }
-    
+
     return { sent: true, telegramSent, webPushSent };
 }
 
@@ -8342,7 +8342,7 @@ async function loadManualJourney() {
     try {
         const raw = await redis.get(MANUAL_JOURNEY_REDIS_KEY);
         if (!raw) return;
-        
+
         const stored = JSON.parse(raw);
         if (stored && typeof stored === 'object') {
             // Merge stored values into manualTradingJourney (declared earlier)
@@ -8409,31 +8409,31 @@ async function markManualTradeIdSeen(clientTradeId) {
 // 🎯 GOAT v4: Persist a trade idempotently (no duplicates by ID)
 async function persistTrade(trade, mode = 'PAPER') {
     if (!redisAvailable || !redis) return;
-    
+
     // Ensure trade has an ID
     if (!trade.id) {
         trade.id = `${trade.asset}_${trade.mode}_${trade.time || Date.now()}`;
     }
-    
+
     try {
         const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
         const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
         const tradeTime = trade.time || Date.now();
-        
+
         // Use pipeline for atomicity
         const pipeline = redis.pipeline();
-        
+
         // Store trade in hash (keyed by ID - idempotent)
         pipeline.hset(hashKey, trade.id, JSON.stringify(trade));
-        
+
         // Add to sorted set (score = timestamp for ordering)
         pipeline.zadd(zsetKey, tradeTime, trade.id);
-        
+
         // Trim to max size (remove oldest entries beyond max)
         pipeline.zremrangebyrank(zsetKey, 0, -(TRADE_HISTORY_MAX + 1));
-        
+
         await pipeline.exec();
-        
+
     } catch (e) {
         console.log(`⚠️ Failed to persist trade: ${e.message}`);
     }
@@ -8442,18 +8442,18 @@ async function persistTrade(trade, mode = 'PAPER') {
 // 🎯 GOAT v4: Load trade history from idempotent storage (hash + zset)
 async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
     const result = { trades: [], total: 0, source: 'memory' };
-    
+
     if (redisAvailable && redis) {
         try {
             const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
             const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
-            
+
             // Get total count
             result.total = await redis.zcard(zsetKey);
-            
+
             // Get trade IDs in reverse chronological order (newest first)
             const tradeIds = await redis.zrevrange(zsetKey, offset, offset + limit - 1);
-            
+
             if (tradeIds.length > 0) {
                 // Fetch trade data from hash
                 const tradeData = await redis.hmget(hashKey, ...tradeIds);
@@ -8461,13 +8461,13 @@ async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
                     try { return r ? JSON.parse(r) : null; } catch { return null; }
                 }).filter(Boolean);
             }
-            
+
             result.source = 'redis';
         } catch (e) {
             console.log(`⚠️ Failed to load trade history from Redis: ${e.message}`);
         }
     }
-    
+
     // Fallback to in-memory if Redis failed or unavailable
     if (result.trades.length === 0 && tradeExecutor && tradeExecutor.tradeHistory) {
         const memTrades = tradeExecutor.tradeHistory.filter(t => {
@@ -8484,7 +8484,7 @@ async function loadTradeHistory(mode = 'PAPER', offset = 0, limit = 100) {
         result.trades = memTrades.slice(offset, offset + limit);
         result.source = 'memory';
     }
-    
+
     return result;
 }
 
@@ -8496,14 +8496,14 @@ async function resetTradeHistory(mode = 'PAPER') {
         try {
             const hashKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_HASH : TRADE_HISTORY_PAPER_HASH;
             const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
-            
+
             // Get current count before deletion
             deletedCount = await redis.zcard(zsetKey);
-            
+
             // Delete both hash and sorted set
             await redis.del(hashKey);
             await redis.del(zsetKey);
-            
+
             console.log(`🗑️ Reset ${mode} trade history: ${deletedCount} trades deleted`);
         } catch (e) {
             console.log(`⚠️ Failed to reset trade history in Redis: ${e.message}`);
@@ -8515,7 +8515,7 @@ async function resetTradeHistory(mode = 'PAPER') {
 // 🎯 GOAT v45: Get trade history stats
 async function getTradeHistoryStats(mode = 'PAPER') {
     if (!redisAvailable || !redis) return { total: 0, source: 'unavailable' };
-    
+
     try {
         const zsetKey = mode === 'LIVE' ? TRADE_HISTORY_LIVE_ZSET : TRADE_HISTORY_PAPER_ZSET;
         const total = await redis.zcard(zsetKey);
@@ -8527,11 +8527,11 @@ async function getTradeHistoryStats(mode = 'PAPER') {
 
 async function runForwardDataCollector() {
     if (!forwardCollectorEnabled) return;
-    
+
     const now = Date.now();
     if (now - lastCollectorSave < COLLECTOR_INTERVAL_MS) return;
     lastCollectorSave = now;
-    
+
     try {
         // Collect snapshot
         const snapshot = {
@@ -8543,7 +8543,7 @@ async function runForwardDataCollector() {
             tradingState: tradeExecutor ? tradeExecutor.tradingState : 'UNKNOWN',
             gateTrace: gateTrace ? gateTrace.getSummary() : null
         };
-        
+
         ASSETS.forEach(asset => {
             if (!CONFIG.ASSET_CONTROLS || CONFIG.ASSET_CONTROLS[asset]?.enabled !== false) {
                 snapshot.markets[asset] = currentMarkets[asset] || null;
@@ -8588,7 +8588,7 @@ async function runForwardDataCollector() {
                 }
             }
         });
-        
+
         // 🎯 GOAT v44.1: Primary storage = Redis (persists across Render restarts)
         if (typeof redis !== 'undefined' && redis) {
             try {
@@ -8601,20 +8601,20 @@ async function runForwardDataCollector() {
                 log(`⚠️ FORWARD COLLECTOR: Redis save failed: ${redisErr.message}, falling back to file`);
             }
         }
-        
+
         // Secondary storage = File (for local dev or Redis fallback)
         try {
             const fs = require('fs');
             const path = require('path');
-            
+
             const dataDir = path.join(__dirname, 'backtest-data');
             if (!fs.existsSync(dataDir)) {
                 fs.mkdirSync(dataDir, { recursive: true });
             }
-            
+
             const filename = `snapshot_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
             fs.writeFileSync(path.join(dataDir, filename), JSON.stringify(snapshot, null, 2));
-            
+
             // Cleanup old files (keep last 500 on disk)
             const files = fs.readdirSync(dataDir).filter(f => f.startsWith('snapshot_')).sort();
             if (files.length > 500) {
@@ -8633,7 +8633,7 @@ async function runForwardDataCollector() {
 // 🎯 GOAT v44.1: Retrieve snapshots from Redis
 async function getCollectorSnapshots(limit = 100) {
     const snapshots = [];
-    
+
     // Try Redis first
     if (typeof redis !== 'undefined' && redis) {
         try {
@@ -8652,20 +8652,20 @@ async function getCollectorSnapshots(limit = 100) {
             log(`⚠️ COLLECTOR: Redis read failed: ${e.message}`);
         }
     }
-    
+
     // Fall back to file system
     try {
         const fs = require('fs');
         const path = require('path');
         const dataDir = path.join(__dirname, 'backtest-data');
-        
+
         if (fs.existsSync(dataDir)) {
             const files = fs.readdirSync(dataDir)
                 .filter(f => f.startsWith('snapshot_'))
                 .sort()
                 .reverse()
                 .slice(0, limit);
-            
+
             for (const file of files) {
                 try {
                     const content = fs.readFileSync(path.join(dataDir, file), 'utf8');
@@ -8688,10 +8688,10 @@ setInterval(runForwardDataCollector, 60 * 1000);
 app.post('/api/collector/toggle', async (req, res) => {
     forwardCollectorEnabled = !forwardCollectorEnabled;
     log(`📦 FORWARD COLLECTOR: ${forwardCollectorEnabled ? 'ENABLED' : 'DISABLED'}`);
-    
+
     // 🎯 GOAT v4: Persist state to Redis
     await persistCollectorEnabled();
-    
+
     res.json({ enabled: forwardCollectorEnabled });
 });
 
@@ -8710,24 +8710,24 @@ app.get('/api/collector/snapshots', async (req, res) => {
 app.get('/api/collector/status', async (req, res) => {
     const fs = require('fs');
     const path = require('path');
-    
+
     let fileCount = 0;
     let redisCount = 0;
-    
+
     try {
         const dataDir = path.join(__dirname, 'backtest-data');
         if (fs.existsSync(dataDir)) {
             fileCount = fs.readdirSync(dataDir).filter(f => f.startsWith('snapshot_')).length;
         }
-    } catch (e) {}
-    
+    } catch (e) { }
+
     // 🎯 GOAT v44.1: Also check Redis count
     try {
         if (typeof redis !== 'undefined' && redis) {
             redisCount = await redis.llen(COLLECTOR_REDIS_KEY);
         }
-    } catch (e) {}
-    
+    } catch (e) { }
+
     res.json({
         enabled: forwardCollectorEnabled,
         lastSave: lastCollectorSave > 0 ? new Date(lastCollectorSave).toISOString() : null,
@@ -8744,7 +8744,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 121;  // v121: Remove stake from Telegram messages; stake-entry page on confirm
+const CONFIG_VERSION = 123;  // v123: PRACTICALLY CERTAIN ADVISORY - pWin≥90% + EV≥25% for ADVISORY tier (user request)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8803,7 +8803,7 @@ const CONFIG = {
         const requested = (process.env.TRADE_MODE || 'PAPER').toUpperCase();
         const liveEnabled = String(process.env.ENABLE_LIVE_TRADING || '').trim().toLowerCase();
         const liveExplicitlyEnabled = liveEnabled === 'true' || liveEnabled === '1';
-        
+
         if (requested === 'LIVE' && !liveExplicitlyEnabled) {
             console.log('⚠️ TRADE_MODE=LIVE requested but ENABLE_LIVE_TRADING≠1 → forcing PAPER mode');
             console.log('   Set ENABLE_LIVE_TRADING=1 in environment to enable LIVE trading.');
@@ -9017,16 +9017,16 @@ const CONFIG = {
         firstMoveAdvantage: false,        // 🚀 v61.2: NO - wait for confirmation
         supremeConfidenceMode: true,      // 🚀 v61.2: 75%+ confidence ONLY
         convictionOnlyMode: true,         // 🏆 v73 FINAL: ONLY execute CONVICTION tier trades (block ADVISORY)
-        
+
         // 🏆 v77 TRADE FREQUENCY FLOOR: Allow ADVISORY when we're below target trades/hour
         // This prevents the bot from being too frigid while still prioritizing quality
         tradeFrequencyFloor: {
             enabled: true,                    // Enable frequency floor feature
             targetTradesPerHour: 1,           // Target minimum trades per hour
             lookbackMinutes: 120,             // Look at last 2 hours of trades
-            advisoryPWinThreshold: 0.65,      // Only allow ADVISORY if pWin >= this (higher than CONVICTION's 0.55)
-            advisoryEvRoiThreshold: 0.08,     // Only allow ADVISORY if EV >= this (higher than CONVICTION's 0.05)
-            maxAdvisoryPerHour: 2,            // Max ADVISORY trades allowed per hour even if floor is active
+            advisoryPWinThreshold: 0.90,      // 🏆 v122.1: PRACTICALLY CERTAIN - was 0.65, now 90%
+            advisoryEvRoiThreshold: 0.25,     // 🏆 v122.1: Higher EV required - was 0.08, now 25%
+            maxAdvisoryPerHour: 1,            // 🏆 v122.1: Reduced from 2 to 1 - quality over quantity
             sizeReduction: 0.50               // Size ADVISORY trades at 50% of CONVICTION size
         },
 
@@ -9049,7 +9049,7 @@ const CONFIG = {
         exceptionalSizingMinEvRoi: 0.30,           // EV ROI threshold (after fees/slippage model)
         exceptionalSizingMaxPosFraction: 0.45,     // Temporary max position fraction for exceptional trades (hard-capped elsewhere)
         exceptionalSizingMinBankroll: 5.00,        // Allow from $5 start (still bounded by MIN_ORDER + floor survivability gate below)
-        
+
         // 🏆 v85 KELLY SIZING: Mathematically optimal position sizing based on edge
         // Kelly formula: f* = (b*p - (1-p)) / b where b = payout odds, p = win probability
         // Fractional Kelly: reduces estimation-error blowups while preserving strong geometric growth.
@@ -9107,7 +9107,7 @@ const CONFIG = {
         trailingDrawdownPct: 0.15,        // Max % drawdown from peak balance before size reduction
         perTradeLossCap: 0.10,            // Max % of remaining budget a single trade can risk
         minOrderRiskOverride: true,       // If true, allow minimum-order override even if it exceeds envelope (micro-bankroll bootstrap)
-        
+
         // 🏆 v83 VAULT TRIGGER BALANCE: Stage0→Stage1 (Bootstrap→Transition) threshold
         // This is the "vault trigger" - when balance exceeds this, aggressive bootstrap mode ends.
         // Optimized range: $6.10–$15.00. Default $11 balances P($100@7d) vs variance.
@@ -9140,7 +9140,7 @@ const CONFIG = {
         XRP: { enabled: true, maxTradesPerCycle: 1 },
         SOL: { enabled: true, maxTradesPerCycle: 1 }
     },
-    
+
     // 🏆 v76: ASSET AUTO-ENABLE REMOVED - Static config only
     // Auto-enable was removed because disabled assets produce no trades to evaluate.
     // To enable/disable assets, set ASSET_CONTROLS[asset].enabled in Settings.
@@ -9164,18 +9164,18 @@ const CONFIG = {
 function getVaultThresholds(overrides = {}) {
     // 🏆 v88: Relative mode support
     const relativeMode = overrides.relativeMode === true || CONFIG?.RISK?.relativeThresholds === true;
-    const startingBalance = Number.isFinite(parseFloat(overrides.startingBalance)) 
-        ? parseFloat(overrides.startingBalance) 
+    const startingBalance = Number.isFinite(parseFloat(overrides.startingBalance))
+        ? parseFloat(overrides.startingBalance)
         : (Number.isFinite(CONFIG?.PAPER_BALANCE) ? CONFIG.PAPER_BALANCE : 5);
-    
+
     // Default relative multipliers (optimized for $15 start → $22/$40)
     const DEFAULT_STAGE1_MULT = 1.47;  // e.g., $15 * 1.47 = $22.05
     const DEFAULT_STAGE2_MULT = 2.67;  // e.g., $15 * 2.67 = $40.05
-    
+
     // Stage1 threshold (Bootstrap → Transition) = "vault trigger balance"
     let vaultTriggerBalance = 11; // hardcoded fallback (absolute)
     let stage1Source = 'hardcoded_default';
-    
+
     // Priority 1: Query/explicit override (absolute value)
     if (overrides.vaultTriggerBalance !== undefined && Number.isFinite(parseFloat(overrides.vaultTriggerBalance))) {
         vaultTriggerBalance = parseFloat(overrides.vaultTriggerBalance);
@@ -9183,8 +9183,8 @@ function getVaultThresholds(overrides = {}) {
     }
     // Priority 2: Relative mode with multiplier
     else if (relativeMode) {
-        const mult = Number.isFinite(parseFloat(overrides.stage1Mult)) 
-            ? parseFloat(overrides.stage1Mult) 
+        const mult = Number.isFinite(parseFloat(overrides.stage1Mult))
+            ? parseFloat(overrides.stage1Mult)
             : (Number.isFinite(CONFIG?.RISK?.stage1Mult) ? CONFIG.RISK.stage1Mult : DEFAULT_STAGE1_MULT);
         vaultTriggerBalance = startingBalance * mult;
         stage1Source = `relative_mode(${mult}x of $${startingBalance})`;
@@ -9199,19 +9199,19 @@ function getVaultThresholds(overrides = {}) {
         vaultTriggerBalance = CONFIG.RISK.stage1Threshold;
         stage1Source = 'CONFIG.RISK.stage1Threshold';
     }
-    
+
     // Stage2 threshold (Transition → Lock-in)
     let stage2Threshold = 20; // hardcoded fallback (absolute)
     let stage2Source = 'hardcoded_default';
-    
+
     if (overrides.stage2Threshold !== undefined && Number.isFinite(parseFloat(overrides.stage2Threshold))) {
         stage2Threshold = parseFloat(overrides.stage2Threshold);
         stage2Source = 'query_override';
     }
     // Priority 2: Relative mode with multiplier
     else if (relativeMode) {
-        const mult = Number.isFinite(parseFloat(overrides.stage2Mult)) 
-            ? parseFloat(overrides.stage2Mult) 
+        const mult = Number.isFinite(parseFloat(overrides.stage2Mult))
+            ? parseFloat(overrides.stage2Mult)
             : (Number.isFinite(CONFIG?.RISK?.stage2Mult) ? CONFIG.RISK.stage2Mult : DEFAULT_STAGE2_MULT);
         stage2Threshold = startingBalance * mult;
         stage2Source = `relative_mode(${mult}x of $${startingBalance})`;
@@ -9220,7 +9220,7 @@ function getVaultThresholds(overrides = {}) {
         stage2Threshold = CONFIG.RISK.stage2Threshold;
         stage2Source = 'CONFIG.RISK.stage2Threshold';
     }
-    
+
     return {
         vaultTriggerBalance,
         stage2Threshold,
@@ -9253,7 +9253,7 @@ function getBankrollAdaptivePolicy(bankroll) {
     const cutover = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollCutover))
         ? Number(CONFIG.RISK.autoBankrollCutover)
         : 20;
-    
+
     // v94: Large bankroll cutover (hybrid scaling)
     const largeCutover = Number.isFinite(Number(CONFIG?.RISK?.autoBankrollLargeCutover))
         ? Number(CONFIG.RISK.autoBankrollLargeCutover)
@@ -9533,7 +9533,7 @@ function getPeakDrawdownBrakePolicy(currentBalance, lifetimePeakBalance, bankrol
 function getTieredMaxAbsoluteStake(bankroll) {
     const envDefault = parseFloat(process.env.MAX_ABSOLUTE_POSITION_SIZE || '100');
     const b = Number(bankroll);
-    
+
     if (!Number.isFinite(b) || b < 1000) {
         return envDefault; // Default behavior for small accounts
     } else if (b < 10000) {
@@ -9553,11 +9553,11 @@ function createSeededRng(seed) {
         seed = Date.now() ^ (Math.random() * 0x100000000);
     }
     seed = Math.floor(seed) >>> 0; // Ensure 32-bit unsigned
-    
+
     // Mulberry32 PRNG
     return {
         seed: seed,
-        next: function() {
+        next: function () {
             let t = (this.seed += 0x6D2B79F5);
             t = Math.imul(t ^ (t >>> 15), t | 1);
             t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
@@ -9626,11 +9626,11 @@ async function maybeAlertOracleBlind(asset, error, slug) {
     const failures = oracleBlindState.consecutiveFailures[asset] || 0;
     const lastAlert = oracleBlindState.lastAlertAt[asset] || 0;
     const now = Date.now();
-    
+
     // Only alert if: (1) threshold exceeded and (2) cooldown elapsed
     if (failures >= oracleBlindState.alertThreshold && (now - lastAlert) > oracleBlindState.alertCooldownMs) {
         oracleBlindState.lastAlertAt[asset] = now;
-        
+
         const tgEscape = (s) => String(s || '').replace(/[<>&]/g, '');
         const msg = `⚠️ <b>ORACLE BLIND: ${asset}</b>\n\n` +
             `<b>Market data unavailable for ${failures} consecutive refreshes</b>\n` +
@@ -9642,7 +9642,7 @@ async function maybeAlertOracleBlind(asset, error, slug) {
             `<i>Oracle cannot issue signals without market prices.</i>\n` +
             `<i>Check Gamma API + CLOB availability.</i>\n\n` +
             `🔗 <a href="${DASHBOARD_URL}">Dashboard</a>`;
-        
+
         await sendTelegramNotification(msg, false);
         log(`⚠️ ORACLE_BLIND alert sent for ${asset} (${failures} failures)`, asset);
     }
@@ -9781,10 +9781,10 @@ function formatMmSs(seconds) {
 function getManualStakeRecommendation(entryPrice, pWin, currentBankroll = null, isUltraProphet = false) {
     // Use manual journey balance as primary reference (for accurate stake recommendations)
     const bankroll = currentBankroll || manualTradingJourney?.currentBalance || (tradeExecutor?.paperBalance || 1);
-    
+
     // Calculate potential ROI: buying at X¢ pays $1 if win
     const potentialRoi = Number.isFinite(entryPrice) && entryPrice > 0 ? ((1 / entryPrice) - 1) * 100 : 0;
-    
+
     // 🚀 ULTRA-PROPHET STAKE LOGIC:
     // - $1-$5 bankroll: GO ALL IN (100%) - must compound aggressively
     // - $5-$20 bankroll: 90% stake - still aggressive but buffer
@@ -9792,7 +9792,7 @@ function getManualStakeRecommendation(entryPrice, pWin, currentBankroll = null, 
     // - $100+ bankroll: CAP at $100 max stake (liquidity protection)
     let stakePercent = 0.85; // default 85%
     let maxAbsoluteStake = 100; // Hard cap at $100 for liquidity
-    
+
     if (bankroll <= 2) {
         stakePercent = 1.00; // 100% ALL IN - no choice with $1-2
     } else if (bankroll <= 5) {
@@ -9804,39 +9804,39 @@ function getManualStakeRecommendation(entryPrice, pWin, currentBankroll = null, 
     } else {
         stakePercent = 0.80; // 80% - but capped at $100
     }
-    
+
     // ULTRA-PROPHET gets slightly higher stake (more confident)
     if (isUltraProphet && stakePercent < 1.00) {
         stakePercent = Math.min(1.00, stakePercent + 0.05);
     }
-    
+
     // If pWin is exceptional (>95%), can go higher
     if (Number.isFinite(pWin) && pWin >= 0.95 && stakePercent < 1.00) {
         stakePercent = Math.min(1.00, stakePercent + 0.05);
     }
-    
+
     // Calculate stake (respect $100 cap)
     let recommendedStake = bankroll * stakePercent;
     if (recommendedStake > maxAbsoluteStake && bankroll > maxAbsoluteStake) {
         recommendedStake = maxAbsoluteStake;
         stakePercent = maxAbsoluteStake / bankroll;
     }
-    
+
     // For $1 minimum order on Polymarket website (fractional shares allowed)
     recommendedStake = Math.max(1, recommendedStake);
-    
+
     // Calculate shares (fractional allowed on website market orders)
     const shares = entryPrice > 0 ? (recommendedStake / entryPrice) : 0;
     const actualCost = recommendedStake;
     const potentialPayout = shares * 1; // $1 per share if win
     const potentialProfit = potentialPayout - actualCost;
-    
+
     // Calculate trades to $1M from current bankroll (rough estimate)
     // Using geometric growth: bankroll × (1 + avgRoi × stakePercent)^n = 1,000,000
     const avgRoi = entryPrice > 0 ? (1 / entryPrice) - 1 : 0;
     const growthPerTrade = 1 + (avgRoi * stakePercent);
     const tradesToMillion = growthPerTrade > 1 ? Math.ceil(Math.log(1000000 / bankroll) / Math.log(growthPerTrade)) : 999;
-    
+
     return {
         bankroll,
         stakePercent,
@@ -9861,12 +9861,12 @@ function telegramOraclePrepare(signal) {
     const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
     const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
     const tLeft = formatMmSs(signal?.timeLeftSec);
-    
+
     // 🏆 v121: No stake/sizing in messages - user decides sizing
     const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
 
     const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
-    
+
     // 🏆 v114: Extract proof fields
     const marketSlug = signal?.marketSlug || signal?.marketUrl?.split('/').pop() || '?';
     const cycleStart = signal?.cycleStartEpochSec || '?';
@@ -9876,11 +9876,11 @@ function telegramOraclePrepare(signal) {
     const cal = signal?.calibration || {};
     const lcbUsed = cal.lcbUsed === true;
     const sampleSize = cal.sampleSize || 0;
-    
+
     // 🏆 v114: Tail-bet indicator
     const isTail = signal?.isTailBet === true;
     const tailLabel = isTail ? ' ⚠️ TAIL' : '';
-    
+
     let msg = `🟡 <b>PREPARE TO TRADE${tailLabel}</b> 🔮\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📍 <b>${asset}</b> • <code>${tier}</code> — Buy <b>${buyWhat}</b>\n`;
@@ -9919,20 +9919,20 @@ function telegramOracleBuy(signal) {
     const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
     const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
     const tLeft = formatMmSs(signal?.timeLeftSec);
-    
+
     // Check if ULTRA-PROPHET (for annotation)
     const isUltra = signal?.ultraProphet?.isUltra === true;
     const ultraGates = signal?.ultraProphet ? `${signal.ultraProphet.passedGates}/${signal.ultraProphet.totalGates}` : '?/?';
-    
+
     // 🏆 v111: Enhanced CONVICTION tier notification
     const isConviction = tier === 'CONVICTION';
     const isLocked = signal?.calibration?.isLocked === true;
-    
+
     // 🏆 v121: No stake/sizing in messages - user decides sizing
     const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
 
     const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 3) : [];
-    
+
     // 🏆 v111: Add ULTRA/CONVICTION annotation to header
     let msg;
     if (isUltra) {
@@ -9955,23 +9955,23 @@ function telegramOracleBuy(signal) {
     msg += `\n`;
     msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code> | Edge: <code>${edgePp}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
-    
+
     // 🏆 v108: Add calibration confidence indicator
     const cal = signal?.calibration;
     if (cal) {
         const lockIcon = cal.isLocked ? '🔒' : '🔓';
-        const confIcon = cal.pWinConfidence === 'VERY_HIGH' ? '💎' : 
-                        cal.pWinConfidence === 'HIGH' ? '✨' : 
-                        cal.pWinConfidence === 'MODERATE' ? '📊' : '⚠️';
+        const confIcon = cal.pWinConfidence === 'VERY_HIGH' ? '💎' :
+            cal.pWinConfidence === 'HIGH' ? '✨' :
+                cal.pWinConfidence === 'MODERATE' ? '📊' : '⚠️';
         msg += `${lockIcon} ${cal.isLocked ? 'LOCKED' : 'MOVABLE'} | ${confIcon} Conf: <code>${cal.pWinConfidence}</code>\n`;
     }
-    
+
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (reasons.length) {
         for (const r of reasons) msg += `• ${tgEscape(r)}\n`;
         msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     }
-    
+
     // 🔮 OTHER CANDIDATES: Show other qualifying assets (suppressed by single-primary-BUY policy)
     const otherCandidates = signal?.otherCandidates || [];
     if (otherCandidates.length > 0) {
@@ -9989,7 +9989,7 @@ function telegramOracleBuy(signal) {
         }
         msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     }
-    
+
     // 🏆 v114: PROOF FIELDS - Always show verification data
     const marketSlug = signal?.marketSlug || signal?.marketUrl?.split('/').pop() || '?';
     const cycleStart = signal?.cycleStartEpochSec || '?';
@@ -9999,17 +9999,17 @@ function telegramOracleBuy(signal) {
     const calProof = signal?.calibration || {};
     const lcbUsed = calProof.lcbUsed === true;
     const sampleSize = calProof.sampleSize || 0;
-    
+
     msg += `📋 <b>PROOF:</b>\n`;
     msg += `Slug: <code>${tgEscape(marketSlug)}</code>\n`;
     msg += `Cycle: <code>${cycleStart}</code>\n`;
     msg += `Price: <code>${priceSource}</code> | Spread: <code>${spread}</code>\n`;
     msg += `LCB: <code>${lcbUsed ? 'ON' : 'OFF'}</code> | Samples: <code>${sampleSize}</code>\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    
+
     if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET</b></a>\n`;
     msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>\n`;
-    
+
     // 🏆 v121: Confirm links - stake entered on confirm page (not in message)
     const entryPriceRounded = Math.round((signal?.implied || 0.50) * 100);
     const clientTradeId = `${signal?.asset || 'X'}_${signal?.cycleStartEpochSec || 0}_${signal?.direction || 'X'}_${entryPriceRounded}`;
@@ -10023,12 +10023,12 @@ function telegramOracleBuy(signal) {
         pWin: String(signal?.pWin || 0.50)
         // 🏆 v121: stake omitted - user enters on confirm page
     });
-    
+
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📱 <b>Did you take this trade?</b>\n`;
     msg += `<a href="${confirmBaseUrl}?decision=took&${confirmParams.toString()}">✅ I TOOK IT</a>  `;
     msg += `<a href="${confirmBaseUrl}?decision=skipped&${confirmParams.toString()}">❌ SKIPPED</a>`;
-    
+
     return msg;
 }
 
@@ -10047,12 +10047,12 @@ function telegramOracleSell(signal) {
     const pnlPct = Number.isFinite(pos?.pnlPercent) ? `${pos.pnlPercent >= 0 ? '+' : ''}${pos.pnlPercent.toFixed(1)}%` : 'n/a';
     const pnlUsd = Number.isFinite(pos?.pnl) ? `${pos.pnl >= 0 ? '+' : ''}$${pos.pnl.toFixed(2)}` : 'n/a';
     const reasons = Array.isArray(signal?.reasons) ? signal.reasons.slice(0, 4) : [];
-    
+
     // Determine exit type
     const isProfit = Number.isFinite(pos?.pnlPercent) && pos.pnlPercent > 0;
     const isFlip = prediction && posSide && prediction !== '?' && posSide !== '?' && prediction !== posSide;
     const sellWhat = posSide === 'UP' ? 'YES' : (posSide === 'DOWN' ? 'NO' : '?');
-    
+
     let urgency = isFlip ? '⚠️ PREDICTION FLIPPED' : (isProfit ? '💰 TAKE PROFIT' : '🛑 CUT LOSS');
 
     let msg = `🔴 <b>🚨 SELL NOW 🚨</b> 🔮\n`;
@@ -10083,16 +10083,16 @@ function telegramOracleSell(signal) {
 function telegramOraclePresell(signal) {
     const asset = tgEscape(signal?.asset || '?');
     const tLeft = formatMmSs(signal?.timeLeftSec);
-    
+
     // Extract warning reasons from signal
     const warningReasons = (signal?.reasons || [])
         .filter(r => r.includes('PRESELL WARNING'))
         .map(r => r.replace('⚠️ PRESELL WARNING: ', ''));
-    
+
     const pos = shadowBook.position || null;
     const posSide = pos?.direction || '?';
     const entry = Number.isFinite(pos?.entry) ? `${(pos.entry * 100).toFixed(1)}¢` : 'n/a';
-    
+
     let msg = `⚠️ <b>PRESELL WARNING</b> ⚠️\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📍 <b>${asset}</b> • Position: ${posSide}\n`;
@@ -10124,39 +10124,39 @@ function computeBuyScore(signal) {
     // Score function to select best BUY when multiple assets qualify
     // Priority: ULTRA > highest EV with time-left/stability guards
     if (!signal || signal.action !== 'BUY') return -Infinity;
-    
+
     let score = 0;
-    
+
     // ULTRA bonus: +1000 points (always prefer ULTRA)
     if (signal.ultraProphet?.isUltra) score += 1000;
-    
+
     // EV ROI: +0-100 points (scale 0-100% EV to 0-100 points)
     if (Number.isFinite(signal.evRoi)) score += signal.evRoi * 100;
-    
+
     // pWin: +0-50 points (scale 50-100% to 0-50 points)
     if (Number.isFinite(signal.pWin)) score += (signal.pWin - 0.5) * 100;
-    
+
     // Edge: +0-50 points (scale 0-50% edge to 0-50 points)
     if (Number.isFinite(signal.mispricingEdge)) score += signal.mispricingEdge * 100;
-    
+
     // Time left bonus: more time = better (can exit if wrong)
     if (Number.isFinite(signal.timeLeftSec)) score += Math.min(30, signal.timeLeftSec / 30);
-    
+
     // ULTRA gates count: +1 point per gate passed (tiebreaker)
     if (signal.ultraProphet?.passedGates) score += signal.ultraProphet.passedGates;
-    
+
     return score;
 }
 
 function orchestrateOracleNotifications() {
     try {
         if (!CONFIG?.TELEGRAM?.enabled) return;
-        
+
         const now = Date.now();
-        
+
         // Gather all current signals
         const allSignals = ASSETS.map(a => oracleSignals[a]).filter(Boolean);
-        
+
         // ═══════════════════════════════════════════════════════════════════════════════
         // 🚨 v105: PRIORITY 1 - Process Emergency SELL signals FIRST
         // These have hysteresis applied already - if we're here, it's serious
@@ -10167,13 +10167,13 @@ function orchestrateOracleNotifications() {
                 maybeSendOracleSignalTelegram(sellSig.asset, sellSig);
             }
         }
-        
+
         // ═══════════════════════════════════════════════════════════════════════════════
         // ⚠️ v105: PRIORITY 2 - Process PRESELL warnings (HOLD with deterioration)
         // Send warning but don't exit yet (hysteresis not complete)
         // ═══════════════════════════════════════════════════════════════════════════════
-        const holdWithWarning = allSignals.filter(s => 
-            s.action === 'HOLD' && 
+        const holdWithWarning = allSignals.filter(s =>
+            s.action === 'HOLD' &&
             s.reasons.some(r => r.includes('PRESELL WARNING'))
         );
         for (const holdSig of holdWithWarning) {
@@ -10186,7 +10186,7 @@ function orchestrateOracleNotifications() {
                 }
             }
         }
-        
+
         // ═══════════════════════════════════════════════════════════════════════════════
         // 🛒 v105: PRIORITY 3 - Process BUY signals
         // Don't send another BUY if shadow-book has an open position
@@ -10200,13 +10200,13 @@ function orchestrateOracleNotifications() {
             }
             return;
         }
-        
+
         // Cooldown: don't spam BUYs (at least 30s between primary BUYs)
         if (now - primaryBuyState.lastPrimaryBuyAt < 30000) return;
-        
+
         // Find all BUY signals
         const buySignals = allSignals.filter(s => s.action === 'BUY');
-        
+
         // If no BUY signals, send PREPARE signals normally
         if (buySignals.length === 0) {
             for (const sig of allSignals) {
@@ -10216,16 +10216,16 @@ function orchestrateOracleNotifications() {
             }
             return;
         }
-        
+
         // Score all BUY signals and find the best one
         const scoredBuys = buySignals.map(sig => ({
             signal: sig,
             score: computeBuyScore(sig)
         })).sort((a, b) => b.score - a.score);
-        
+
         const primaryBuy = scoredBuys[0];
         const otherBuys = scoredBuys.slice(1);
-        
+
         // Build other candidates list
         const otherCandidates = otherBuys.map(({ signal: s }) => ({
             asset: s.asset,
@@ -10239,50 +10239,50 @@ function orchestrateOracleNotifications() {
             adaptiveGate: s.adaptiveGate?.passes || false,
             marketUrl: s.marketUrl
         }));
-        
+
         // Attach other candidates to primary signal
         primaryBuy.signal.otherCandidates = otherCandidates;
-        
+
         // Update global state
         primaryBuyState.currentPrimaryAsset = primaryBuy.signal.asset;
         primaryBuyState.otherCandidates = otherCandidates;
-        
+
         // Check if we already sent this BUY
         const rt = oracleSignalRuntime?.[primaryBuy.signal.asset];
         if (rt?.telegramBuySentAt) return;
-        
+
         // Send the primary BUY notification
         if (rt) rt.telegramBuySentAt = now;
         primaryBuyState.lastPrimaryBuyAt = now;
-        
+
         // 🏆 v112: Enhanced conviction notification with dedup + optional Web Push
         const tier = String(primaryBuy.signal?.tier || '').toUpperCase();
         const isConviction = tier === 'CONVICTION';
         const isLocked = primaryBuy.signal?.calibration?.isLocked === true;
         const slug = currentMarkets?.[primaryBuy.signal.asset]?.slug || '';
         const direction = primaryBuy.signal?.direction || '';
-        
+
         if (isConviction) {
             const eventType = isLocked ? 'LOCKED' : 'CONVICTION_BUY';
             sendConvictionNotification(telegramOracleBuy(primaryBuy.signal), eventType, primaryBuy.signal.asset, slug, direction);
         } else {
             sendTelegramNotification(telegramOracleBuy(primaryBuy.signal), false);
         }
-        
+
         // ═══════════════════════════════════════════════════════════════════════════════
         // 🔒 v105: Set cycle commitment (no flip-flop)
         // Lock this direction until cycle end or emergency exit
         // ═══════════════════════════════════════════════════════════════════════════════
         setCycleCommitment(
-            primaryBuy.signal.asset, 
-            primaryBuy.signal.direction, 
+            primaryBuy.signal.asset,
+            primaryBuy.signal.direction,
             primaryBuy.signal.implied || 0.5
         );
-        
+
         // 🏆 v116: Create pending call (no auto-open shadow position)
         // Shadow position only opens when user confirms via Telegram link
         createPendingCall(primaryBuy.signal);
-        
+
         // Send ULTRA notification too if applicable
         if (primaryBuy.signal.ultraProphet?.isUltra) {
             const ultraRt = oracleSignalRuntime?.[primaryBuy.signal.asset];
@@ -10291,13 +10291,13 @@ function orchestrateOracleNotifications() {
                 maybeSendUltraProphetTelegram(primaryBuy.signal.asset, primaryBuy.signal);
             }
         }
-        
+
         // Downgrade other BUYs to PREPARE (for logging purposes, not notifications)
         for (const { signal: otherSig } of otherBuys) {
             otherSig.action = 'PREPARE';
             otherSig.reasons.unshift(`⚠️ Suppressed: ${primaryBuy.signal.asset} selected as primary BUY`);
         }
-        
+
     } catch (e) {
         // Never crash on orchestration
     }
@@ -10314,22 +10314,22 @@ function orchestrateOracleNotifications() {
  */
 function createPendingCall(signal) {
     if (!signal) return null;
-    
+
     const entryPrice = signal.implied || 0.5;
     const nowSec = Math.floor(Date.now() / 1000);
     const cycleStart = signal.cycleStartEpochSec || (nowSec - (nowSec % 900));
     const cycleEnd = cycleStart + 900;
-    
+
     // Deterministic client trade ID (same as Telegram uses)
     const entryPriceRounded = Math.round(entryPrice * 100);
     const clientTradeId = `${signal.asset}_${cycleStart}_${signal.direction}_${entryPriceRounded}`;
-    
+
     // Check for duplicate
     if (pendingCalls[clientTradeId]) {
         log(`📋 PENDING CALL: Already exists for ${clientTradeId}`, signal.asset);
         return clientTradeId;
     }
-    
+
     pendingCalls[clientTradeId] = {
         clientTradeId,
         asset: signal.asset,
@@ -10348,7 +10348,7 @@ function createPendingCall(signal) {
         resolvedAt: null,
         isWin: null
     };
-    
+
     log(`📋 PENDING CALL CREATED: ${clientTradeId} | ${signal.asset} ${signal.direction} @ ${(entryPrice * 100).toFixed(1)}¢ | Awaiting confirmation`, signal.asset);
     return clientTradeId;
 }
@@ -10371,23 +10371,23 @@ function confirmPendingCall(clientTradeId) {
         log(`⚠️ CONFIRM: Call ${clientTradeId} was skipped`);
         return { success: false, reason: 'Already skipped' };
     }
-    
+
     // Check if cycle has ended
     const nowSec = Math.floor(Date.now() / 1000);
     if (nowSec >= call.cycleEndEpoch) {
         log(`⚠️ CONFIRM: Call ${clientTradeId} expired (cycle ended)`);
         return { success: false, reason: 'Cycle ended - too late to confirm' };
     }
-    
+
     // Mark as confirmed
     call.confirmed = true;
     call.confirmedAt = Date.now();
-    
+
     // Now open the shadow position
     if (!shadowBook.position) {
         const stake = getManualStakeRecommendation(call.entry, call.pWin, null, false);
         const shares = stake.recommendedStake / call.entry;
-        
+
         shadowBook.position = {
             asset: call.asset,
             direction: call.direction,
@@ -10403,10 +10403,10 @@ function confirmPendingCall(clientTradeId) {
             tierAtEntry: call.tier,
             clientTradeId  // Link to pending call
         };
-        
+
         log(`📖 SHADOW-BOOK OPENED (CONFIRMED): ${call.asset} ${call.direction} @ ${(call.entry * 100).toFixed(1)}¢ | Stake: $${stake.recommendedStake.toFixed(2)}`);
     }
-    
+
     return { success: true, reason: 'Trade confirmed', call };
 }
 
@@ -10424,10 +10424,10 @@ function skipPendingCall(clientTradeId) {
     if (call.skipped) {
         return { success: false, reason: 'Already skipped' };
     }
-    
+
     call.skipped = true;
     call.skippedAt = Date.now();
-    
+
     log(`📋 PENDING CALL SKIPPED: ${clientTradeId} | ${call.asset} ${call.direction}`);
     return { success: true, reason: 'Trade skipped' };
 }
@@ -10440,18 +10440,18 @@ function skipPendingCall(clientTradeId) {
 function resolvePendingCallsForCycle(cycleStartEpoch, outcomes) {
     // outcomes = { [asset]: { isWin: boolean, actualDirection: 'UP'|'DOWN' } }
     const resolved = [];
-    
+
     for (const [clientTradeId, call] of Object.entries(pendingCalls)) {
         if (call.cycleStartEpoch !== cycleStartEpoch) continue;
         if (call.resolvedAt) continue;  // Already resolved
-        
+
         const outcome = outcomes?.[call.asset];
         const actualDirection = outcome?.actualDirection;
         const isWin = call.confirmed && call.direction === actualDirection;
-        
+
         call.resolvedAt = Date.now();
         call.isWin = call.confirmed ? isWin : null;  // null if skipped (no trade)
-        
+
         // Add to callRecentOutcomes (only for non-skipped calls)
         if (call.confirmed && callRecentOutcomes[call.asset]) {
             callRecentOutcomes[call.asset].push({
@@ -10469,11 +10469,11 @@ function resolvePendingCallsForCycle(cycleStartEpoch, outcomes) {
                 callRecentOutcomes[call.asset].shift();
             }
         }
-        
+
         resolved.push({ clientTradeId, confirmed: call.confirmed, isWin: call.isWin });
         log(`📋 PENDING CALL RESOLVED: ${clientTradeId} | Confirmed=${call.confirmed} | Win=${call.isWin}`, call.asset);
     }
-    
+
     // Cleanup old pending calls (older than 2 cycles)
     const cutoff = (cycleStartEpoch - 1800) * 1000;  // 2 cycles ago
     for (const [id, call] of Object.entries(pendingCalls)) {
@@ -10481,7 +10481,7 @@ function resolvePendingCallsForCycle(cycleStartEpoch, outcomes) {
             delete pendingCalls[id];
         }
     }
-    
+
     return resolved;
 }
 
@@ -10492,9 +10492,9 @@ function getCallAccuracy(asset) {
     const calls = callRecentOutcomes[asset] || [];
     if (calls.length === 0) return { wins: 0, total: 0, accuracy: null };
     const wins = calls.filter(c => c.isWin === true).length;
-    return { 
-        wins, 
-        total: calls.length, 
+    return {
+        wins,
+        total: calls.length,
         accuracy: (wins / calls.length * 100).toFixed(0),
         outcomes: calls.map(c => c.isWin)
     };
@@ -10503,14 +10503,14 @@ function getCallAccuracy(asset) {
 // Shadow-book position management (now only called from confirmPendingCall or legacy paths)
 function openShadowPosition(signal) {
     if (!signal || shadowBook.position) return;
-    
+
     const entryPrice = signal.implied || 0.5;
     const stake = getManualStakeRecommendation(entryPrice, signal.pWin, null, signal.ultraProphet?.isUltra);
     const shares = stake.recommendedStake / entryPrice;
-    
+
     const nowSec = Math.floor(Date.now() / 1000);
     const cycleStart = nowSec - (nowSec % 900);
-    
+
     shadowBook.position = {
         asset: signal.asset,
         direction: signal.direction,
@@ -10525,13 +10525,13 @@ function openShadowPosition(signal) {
         pWinAtEntry: signal.pWin || 0.5,
         tierAtEntry: signal.tier || 'ADVISORY'
     };
-    
+
     log(`📖 SHADOW-BOOK OPENED: ${signal.asset} ${signal.direction} @ ${(entryPrice * 100).toFixed(1)}¢ | Stake: $${stake.recommendedStake.toFixed(2)} | Shares: ${shares.toFixed(2)}`);
 }
 
 function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     if (!shadowBook.position) return;
-    
+
     const pos = shadowBook.position;
     // IMPORTANT: Shadow-book must support early exits.
     // Realized value of a binary share position at exit is shares * exitPrice (0..1),
@@ -10542,12 +10542,12 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     const realized = Number(pos.shares || 0) * exit;
     const pnl = realized - Number(pos.stake || 0);
     const isWinResolved = pnl >= 0;
-    
+
     // Update bankroll
     manualTradingJourney.currentBalance += pnl;
     manualTradingJourney.lastUpdated = Date.now();
     shadowBook.totalPnl += pnl;
-    
+
     // 🏆 v118: Reconcile the manual ledger entry when this shadow position came from a confirm-gated call.
     // This fixes the historical issue where balance could change without any trade record.
     try {
@@ -10588,10 +10588,10 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
             }
         }
     } catch { /* ignore */ }
-    
+
     // 🏆 v112: Persist immediately to Redis for cross-device sync
-    persistManualJourney().catch(() => {}); // Fire-and-forget (non-blocking)
-    
+    persistManualJourney().catch(() => { }); // Fire-and-forget (non-blocking)
+
     // ═══════════════════════════════════════════════════════════════════════════════
     // 🎯 v105: Record outcome for adaptive frequency learning
     // CRITICAL: For CYCLE_END, use actual prediction correctness (isWin param).
@@ -10601,12 +10601,12 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     const brain = Brains[pos.asset];
     const pWinAtEntry = pos.pWinAtEntry || (brain?.confidence || 0.5);
     const tier = pos.tierAtEntry || (brain?.tier || 'ADVISORY');
-    
+
     // For adaptive learning: use actual correctness for resolution, treat early exits as losses
     const isEmergencyExit = reason === 'SELL_SIGNAL' || reason === 'EMERGENCY';
     const correctnessForLearning = isEmergencyExit ? false : isWin;  // Emergency = conservative loss
     recordOracleSignalOutcome(pos.asset, pos.direction, pWinAtEntry, tier, correctnessForLearning);
-    
+
     // Record closed trade
     const closedTrade = {
         ...pos,
@@ -10616,23 +10616,23 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
         reason,
         closedAt: Date.now()
     };
-    
+
     shadowBook.closedTrades.push(closedTrade);
     if (shadowBook.closedTrades.length > 10) shadowBook.closedTrades.shift();
-    
+
     log(`📖 SHADOW-BOOK CLOSED: ${pos.asset} ${pos.direction} | ${isWinResolved ? 'WIN' : 'LOSS'} | Exit: ${(exit * 100).toFixed(1)}¢ | P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} | Balance: $${manualTradingJourney.currentBalance.toFixed(2)}`);
-    
+
     shadowBook.position = null;
     shadowBook.lastClosedAt = Date.now();
 }
 
 function settleShadowPositionOnCycleEnd(asset, outcome) {
     if (!shadowBook.position || shadowBook.position.asset !== asset) return;
-    
+
     const pos = shadowBook.position;
     const isWin = pos.direction === outcome;
     const exitPrice = isWin ? 1.0 : 0;
-    
+
     closeShadowPosition(exitPrice, isWin, 'CYCLE_END');
 }
 
@@ -10646,44 +10646,44 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         const now = Date.now();
         const action = String(signal.action || '').toUpperCase();
         if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return;
-        
+
         // 🏆 v114: STALE-CYCLE SUPPRESSION - Never send PREPARE/BUY for ended/stale cycles
         // This prevents delayed/queued Telegram sends from firing after the market rolled
         const market = currentMarkets?.[asset];
         const signalSlug = signal?.marketUrl?.split('/').pop() || '';
         const activeSlug = market?.slug || '';
         const marketStatus = market?.marketStatus || '';
-        
+
         // Check 1: Time left must be positive (cycle not ended)
         if (signal.timeLeftSec !== undefined && signal.timeLeftSec <= 0) {
             log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (timeLeftSec=${signal.timeLeftSec} <= 0)`, asset);
             return;
         }
-        
+
         // Check 2: Signal's cycle must match runtime's current cycle
         if (signal.cycleStartEpochSec && rt.cycleStartEpochSec && signal.cycleStartEpochSec !== rt.cycleStartEpochSec) {
             log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal cycle ${signal.cycleStartEpochSec} != runtime ${rt.cycleStartEpochSec})`, asset);
             return;
         }
-        
+
         // Check 3: Signal's slug must match the current Gamma-active slug
         if (signalSlug && activeSlug && signalSlug !== activeSlug) {
             log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal slug ${signalSlug} != active ${activeSlug})`, asset);
             return;
         }
-        
+
         // Check 4: Market must be ACTIVE (not CLOSED/ERROR/NO_LIQUIDITY)
         if (marketStatus && marketStatus !== 'ACTIVE') {
             log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (marketStatus=${marketStatus})`, asset);
             return;
         }
-        
+
         // Check 5: Active slug must exist (market data must be available)
         if (!activeSlug) {
             log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (no active slug available)`, asset);
             return;
         }
-        
+
         // 🏆 v112: Get slug for dedup
         const slug = activeSlug;
         const direction = signal?.direction || '';
@@ -10702,7 +10702,7 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         if (action === 'BUY') {
             if (rt.telegramBuySentAt) return;
             rt.telegramBuySentAt = now;
-            
+
             // 🏆 v112: Enhanced conviction notification with dedup + optional Web Push
             if (isConviction) {
                 const eventType = isLocked ? 'LOCKED' : 'CONVICTION_BUY';
@@ -10717,10 +10717,10 @@ function maybeSendOracleSignalTelegram(asset, signal) {
             // Throttle SELL spam (at most once per 2 minutes per asset, per cycle)
             if (rt.telegramSellSentAt && (now - rt.telegramSellSentAt) < 120000) return;
             rt.telegramSellSentAt = now;
-            
+
             // 🏆 v112: Emergency exit notification with dedup + optional Web Push
             sendConvictionNotification(telegramOracleSell(signal), 'EMERGENCY_EXIT', asset, slug, direction);
-            
+
             // 🔮 SHADOW-BOOK: Close position on SELL signal
             if (shadowBook.position && shadowBook.position.asset === asset) {
                 const pos = shadowBook.position;
@@ -10796,7 +10796,7 @@ class TradeExecutor {
         this.mode = CONFIG.TRADE_MODE;
         this.paperBalance = CONFIG.PAPER_BALANCE;
         this.startingBalance = CONFIG.PAPER_BALANCE;
-        
+
         // 🏆 v96 BASELINE BANKROLL: Mode-aware baseline for profit lock-in and relative thresholds
         // - PAPER: Uses CONFIG.PAPER_BALANCE (set immediately)
         // - LIVE: Initialized on FIRST successful wallet balance fetch, reset on deposit/withdrawal
@@ -10812,7 +10812,7 @@ class TradeExecutor {
         this.tradingPaused = false;
         this.tradingPausedReason = null;
         this.tradingPausedAt = 0;
-        
+
         this.positions = {};           // { 'BTC_1': { mode, side, size, entry, time, target, stopLoss } }
         this.closedPositions = [];     // 🏆 v77: Track closed positions for frequency floor calculation
         this.wallet = null;
@@ -10833,7 +10833,7 @@ class TradeExecutor {
         this.cachedLiveBalance = 0;    // Cached USDC balance for LIVE mode
         this.lastGoodBalance = 0;      // Last known successful balance (prevents $0 flash)
         this.lastBalanceFetch = 0;     // Timestamp of last balance fetch
-        
+
         // 🎯 GOAT v3: Portfolio accounting for truthful LIVE P/L
         this.portfolioAccounting = {
             cashUSDC: 0,                 // Wallet cash balance
@@ -10899,29 +10899,29 @@ class TradeExecutor {
             harvestMinPWin: 0.55,            // Minimum pWin to trade in HARVEST
             strikeMinPWin: 0.65              // Minimum pWin to trade in STRIKE (higher bar for larger bets)
         }
-        
+
         // 🚀 v61.1 MAX PROFIT CircuitBreaker - AGGRESSIVE but protected
         // Goal: MAXIMIZE PROFIT while preventing total wipeout
         this.circuitBreaker = {
             enabled: true,
             state: 'NORMAL',                 // 'NORMAL' | 'SAFE_ONLY' | 'PROBE_ONLY' | 'HALTED'
             triggerTime: 0,                  // When circuit breaker was triggered
-            
+
             // 🚀 v61.2: MAXIMUM thresholds for TRUE MAX PROFIT
             softDrawdownPct: 0.25,           // 25% drawdown → SAFE_ONLY
             hardDrawdownPct: 0.45,           // 45% drawdown → PROBE_ONLY
             haltDrawdownPct: 0.70,           // 70% drawdown → HALTED (MAX AGGRESSION)
-            
+
             // 🚀 v61.1: More tolerance for loss streaks
             safeOnlyAfterLosses: 3,          // 3 consecutive losses → SAFE_ONLY
             probeOnlyAfterLosses: 5,         // 5 consecutive losses → PROBE_ONLY
             haltAfterLosses: 7,              // 7 consecutive losses → HALTED
-            
+
             // 🚀 v61.1: FASTER recovery
             resumeAfterMinutes: 20,          // 20 min before resuming (faster!)
             resumeAfterWin: true,            // Resume to NORMAL after a win
             resumeOnNewDay: true,            // Auto-resume on new day
-            
+
             // 🏆 v95: Structured resume conditions for /api/verify validation
             resumeConditions: {
                 probeToSafeMinutes: 20,      // PROBE_ONLY → SAFE_ONLY after this many minutes
@@ -10929,18 +10929,18 @@ class TradeExecutor {
                 resumeOnWin: true,           // Any win resets to NORMAL
                 resumeOnNewDay: true         // New trading day resets to NORMAL
             },
-            
+
             // Daily tracking
             dayStartBalance: null,           // Set at start of day or first trade
             dayStartTime: null,              // When the trading day started
-            
+
             // 🏆 v75: Peak balance tracking for trailing drawdown
             peakBalance: null,               // Highest balance reached TODAY (for trailing DD calculation)
 
             // 🏆 v92: All-time peak equity (NOT reset daily) for "peak drawdown size brake"
             lifetimePeakBalance: null
         };
-        
+
         // 🚀 v61.1 MAX PROFIT: Less aggressive loss reduction for more opportunity
         this.streakSizing = {
             enabled: true,
@@ -11300,25 +11300,25 @@ class TradeExecutor {
             })
             .reduce((sum, p) => sum + p.size, 0);
     }
-    
+
     // 🏆 v60 FINAL: Get locked capital (for LIVE-realistic reporting)
     getLockedCapital() {
         return Object.values(this.positions)
             .filter(p => p && (p.status === 'OPEN' || p.status === 'PENDING_RESOLUTION'))
             .reduce((sum, p) => sum + p.size, 0);
     }
-    
+
     // 🏆 v77: Get equity estimate (cash + mark-to-market value of open positions)
     // This provides a more accurate picture of total value for risk calculations in LIVE mode
     // when cash is locked in positions but the tokens have value
     getEquityEstimate() {
         const cash = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
-        
+
         // Calculate mark-to-market value of open positions
         let positionValue = 0;
         for (const pos of Object.values(this.positions)) {
             if (!pos || !pos.shares) continue;
-            
+
             // Get current market price for this position
             const market = typeof currentMarkets !== 'undefined' ? currentMarkets[pos.asset] : null;
             if (!market) {
@@ -11326,13 +11326,13 @@ class TradeExecutor {
                 positionValue += pos.size;
                 continue;
             }
-            
+
             // Mark-to-market: shares * currentPrice
             const currentPrice = pos.side === 'UP' ? (market.yesPrice || 0.5) : (market.noPrice || 0.5);
             const mtmValue = pos.shares * currentPrice;
             positionValue += mtmValue;
         }
-        
+
         return {
             cash,
             positionValue,
@@ -11340,7 +11340,7 @@ class TradeExecutor {
             positionCount: Object.keys(this.positions).length
         };
     }
-    
+
     // 🏆 v77: Get bankroll for risk calculations
     // Uses equity estimate for BOTH LIVE and PAPER (accounts for locked funds / open positions).
     // This prevents false drawdown / false SAFE_ONLY when a position is open (cash decreases but equity remains).
@@ -11456,13 +11456,13 @@ class TradeExecutor {
         const s = Math.max(Number(eff) || 0, Number(ruin) || 0);
         return Number.isFinite(s) ? Math.max(0, s) : 0;
     }
-    
+
     // 🏆 v77 TRADE FREQUENCY FLOOR: Track recent trades for frequency calculation
     getRecentTradesCount(lookbackMinutes = 120) {
         if (!this.closedPositions) return { total: 0, conviction: 0, advisory: 0 };
-        
+
         const cutoffTime = Date.now() - (lookbackMinutes * 60 * 1000);
-        
+
         let total = 0, conviction = 0, advisory = 0;
         for (const pos of this.closedPositions) {
             if (pos.closeTime && pos.closeTime >= cutoffTime) {
@@ -11471,78 +11471,78 @@ class TradeExecutor {
                 else if (pos.tier === 'ADVISORY') advisory++;
             }
         }
-        
+
         return { total, conviction, advisory, lookbackMinutes };
     }
-    
+
     // 🏆 v77 TRADE FREQUENCY FLOOR: Check if ADVISORY should be allowed
     // Returns { allowed, reason, sizeMultiplier }
     shouldAllowAdvisoryTrade(advisoryPWin, advisoryEvRoi) {
         const floorConfig = CONFIG.RISK.tradeFrequencyFloor;
-        
+
         // Feature disabled - use normal convictionOnlyMode behavior
         if (!floorConfig || !floorConfig.enabled) {
-            return { 
-                allowed: false, 
+            return {
+                allowed: false,
                 reason: 'Trade frequency floor disabled',
                 sizeMultiplier: 1.0
             };
         }
-        
+
         const recentTrades = this.getRecentTradesCount(floorConfig.lookbackMinutes || 120);
         const hoursLookedBack = (floorConfig.lookbackMinutes || 120) / 60;
         const targetTotal = floorConfig.targetTradesPerHour * hoursLookedBack;
-        
+
         // Are we below target frequency?
         if (recentTrades.total >= targetTotal) {
-            return { 
-                allowed: false, 
+            return {
+                allowed: false,
                 reason: `Above target (${recentTrades.total}/${targetTotal} trades in ${hoursLookedBack}h)`,
                 sizeMultiplier: 1.0
             };
         }
-        
+
         // Check ADVISORY cap
         const maxAdvisory = (floorConfig.maxAdvisoryPerHour || 2) * hoursLookedBack;
         if (recentTrades.advisory >= maxAdvisory) {
-            return { 
-                allowed: false, 
+            return {
+                allowed: false,
                 reason: `ADVISORY cap reached (${recentTrades.advisory}/${maxAdvisory} in ${hoursLookedBack}h)`,
                 sizeMultiplier: 1.0
             };
         }
-        
+
         // Check quality gates for ADVISORY (stricter than CONVICTION)
         const minPWin = floorConfig.advisoryPWinThreshold || 0.65;
         const minEvRoi = floorConfig.advisoryEvRoiThreshold || 0.08;
-        
+
         if (advisoryPWin < minPWin) {
-            return { 
-                allowed: false, 
+            return {
+                allowed: false,
                 reason: `ADVISORY pWin ${(advisoryPWin * 100).toFixed(1)}% < threshold ${(minPWin * 100).toFixed(0)}%`,
                 sizeMultiplier: 1.0
             };
         }
-        
+
         if (advisoryEvRoi < minEvRoi) {
-            return { 
-                allowed: false, 
+            return {
+                allowed: false,
                 reason: `ADVISORY EV ${(advisoryEvRoi * 100).toFixed(1)}% < threshold ${(minEvRoi * 100).toFixed(0)}%`,
                 sizeMultiplier: 1.0
             };
         }
-        
+
         // All checks passed - allow ADVISORY with size reduction
         const sizeMultiplier = floorConfig.sizeReduction || 0.50;
         log(`📊 FREQUENCY FLOOR: Allowing ADVISORY (${recentTrades.total}/${targetTotal} trades, pWin=${(advisoryPWin * 100).toFixed(1)}%, EV=${(advisoryEvRoi * 100).toFixed(1)}%) @ ${(sizeMultiplier * 100).toFixed(0)}% size`);
-        
-        return { 
-            allowed: true, 
+
+        return {
+            allowed: true,
             reason: `Frequency floor active (${recentTrades.total}/${targetTotal} trades in ${hoursLookedBack}h)`,
             sizeMultiplier
         };
     }
-    
+
     // 🏆 v60: Get pending settlements (for UI/reconciliation)
     getPendingSettlements() {
         return Object.entries(this.positions)
@@ -11557,7 +11557,7 @@ class TradeExecutor {
                 mode: p.mode
             }));
     }
-    
+
     // 🎯 GOAT v3: Initialize day tracking for CircuitBreaker
     initDayTracking() {
         const now = Date.now();
@@ -11571,7 +11571,7 @@ class TradeExecutor {
             new Date(this.circuitBreaker.dayStartTime).toDateString() !== new Date(now).toDateString()) {
             this.circuitBreaker.dayStartBalance = bankroll;
             this.circuitBreaker.dayStartTime = now;
-            
+
             // 🏆 v76 FIX: Reset peak balance on new day so trailing DD starts fresh
             this.circuitBreaker.peakBalance = bankroll;
             log(`🌅 New day: dayStartBalance=$${bankroll.toFixed(2)}, peakBalance reset`);
@@ -11586,11 +11586,11 @@ class TradeExecutor {
 
         return this.circuitBreaker.dayStartBalance;
     }
-    
+
     // 🎯 GOAT v3: Update CircuitBreaker state based on current conditions
     updateCircuitBreaker() {
         if (!this.circuitBreaker.enabled) return;
-        
+
         const dayStart = this.initDayTracking();
         // 🏆 v97: Use equity-aware bankroll for BOTH PAPER and LIVE (prevents false SAFE_ONLY during open positions)
         const currentBalance = (typeof this.getBankrollForRisk === 'function')
@@ -11599,11 +11599,11 @@ class TradeExecutor {
         const drawdownPct = dayStart > 0 ? (dayStart - currentBalance) / dayStart : 0;
         const lossStreak = this.consecutiveLosses || 0;
         const now = Date.now();
-        
+
         // Determine new state based on drawdown and loss streak
         let newState = 'NORMAL';
         let reason = '';
-        
+
         // Check drawdown triggers
         if (drawdownPct >= this.circuitBreaker.haltDrawdownPct) {
             newState = 'HALTED';
@@ -11615,7 +11615,7 @@ class TradeExecutor {
             newState = 'SAFE_ONLY';
             reason = `Drawdown ${(drawdownPct * 100).toFixed(1)}% >= ${(this.circuitBreaker.softDrawdownPct * 100)}%`;
         }
-        
+
         // Check loss streak triggers (can escalate but not de-escalate)
         if (lossStreak >= this.circuitBreaker.haltAfterLosses && newState !== 'HALTED') {
             newState = 'HALTED';
@@ -11627,12 +11627,12 @@ class TradeExecutor {
             newState = 'SAFE_ONLY';
             reason = `Loss streak ${lossStreak} >= ${this.circuitBreaker.safeOnlyAfterLosses}`;
         }
-        
+
         // Check if we should resume (only if currently restricted)
         if (this.circuitBreaker.state !== 'NORMAL' && newState === 'NORMAL') {
             const timeSinceTrigger = now - (this.circuitBreaker.triggerTime || 0);
             const minResumeMs = this.circuitBreaker.resumeAfterMinutes * 60 * 1000;
-            
+
             // Need either: enough time passed, OR a win
             if (timeSinceTrigger < minResumeMs && lossStreak > 0) {
                 // Don't resume yet - maintain current state
@@ -11640,25 +11640,25 @@ class TradeExecutor {
                 reason = `Waiting ${Math.ceil((minResumeMs - timeSinceTrigger) / 60000)}min or a win to resume`;
             }
         }
-        
+
         // Log state changes
         if (newState !== this.circuitBreaker.state) {
             log(`🔌 CircuitBreaker: ${this.circuitBreaker.state} → ${newState} (${reason})`);
             this.circuitBreaker.triggerTime = now;
         }
-        
+
         this.circuitBreaker.state = newState;
         return { state: newState, drawdownPct, lossStreak, reason };
     }
-    
+
     // 🎯 GOAT v3: Check if trading is allowed by CircuitBreaker
     isCircuitBreakerAllowed(tradeType = 'NORMAL') {
         if (!this.circuitBreaker.enabled) return { allowed: true, reason: 'CircuitBreaker disabled' };
-        
+
         this.updateCircuitBreaker();
-        
+
         const state = this.circuitBreaker.state;
-        
+
         switch (state) {
             case 'HALTED':
                 return { allowed: false, reason: 'CircuitBreaker HALTED - no trades until conditions improve or new day' };
@@ -11673,36 +11673,36 @@ class TradeExecutor {
                 return { allowed: true, sizeMultiplier: 1.0, reason: 'CircuitBreaker NORMAL' };
         }
     }
-    
+
     // 🎯 GOAT v3: Get streak-aware size multiplier
     getStreakSizeMultiplier() {
         if (!this.streakSizing.enabled) return 1.0;
-        
+
         const lossStreak = this.consecutiveLosses || 0;
         const winStreak = this.recentWinStreak || 0;
-        
+
         // Apply loss multiplier
         let multiplier = 1.0;
         if (lossStreak > 0) {
             const idx = Math.min(lossStreak, this.streakSizing.lossMultipliers.length - 1);
             multiplier = this.streakSizing.lossMultipliers[idx];
         }
-        
+
         // Apply win bonus if enabled
         if (this.streakSizing.winBonusEnabled && winStreak > 0 && lossStreak === 0) {
             const idx = Math.min(winStreak, this.streakSizing.winMultipliers.length - 1);
             multiplier *= this.streakSizing.winMultipliers[idx];
         }
-        
+
         return multiplier;
     }
-    
+
     // 🎯 GOAT v3: Calculate max loss budget for a trade
     getMaxLossBudget() {
         const dayStart = this.circuitBreaker.dayStartBalance || this.paperBalance;
         return dayStart * this.streakSizing.maxLossBudgetPct;
     }
-    
+
     // 🏆 v77/v83 DYNAMIC RISK PROFILE: Get risk parameters based on bankroll stage
     // This allows aggressive compounding at small bankrolls, then tightens as balance grows
     // 🏆 v83: Now uses threshold contract for consistency with backtests + /api/vault-optimize
@@ -11717,14 +11717,14 @@ class TradeExecutor {
         const thresholds = getVaultThresholds(effectiveOverrides);
         const STAGE1_THRESHOLD = thresholds.vaultTriggerBalance;
         const STAGE2_THRESHOLD = thresholds.stage2Threshold;
-        
+
         // Common threshold info to include in all profiles for forensics
         const thresholdInfo = {
             vaultTriggerBalance: STAGE1_THRESHOLD,
             stage2Threshold: STAGE2_THRESHOLD,
             sources: thresholds.sources
         };
-        
+
         // Stage 0: Bootstrap mode (bankroll < vaultTriggerBalance)
         // Allow aggressive compounding - the $2.00 floor is the safety net
         if (bankroll < STAGE1_THRESHOLD) {
@@ -11739,7 +11739,7 @@ class TradeExecutor {
                 thresholds: thresholdInfo
             };
         }
-        
+
         // Stage 1: Transition mode (vaultTriggerBalance <= bankroll < stage2Threshold)
         // Begin enforcing near-10% behavior
         if (bankroll < STAGE2_THRESHOLD) {
@@ -11754,7 +11754,7 @@ class TradeExecutor {
                 thresholds: thresholdInfo
             };
         }
-        
+
         // Stage 2: Lock-in mode (bankroll >= stage2Threshold)
         // Maximum protection - you've made it, don't blow it
         return {
@@ -11768,7 +11768,7 @@ class TradeExecutor {
             thresholds: thresholdInfo
         };
     }
-    
+
     // 🏆 v77 RISK ENVELOPE: Get remaining risk budget based on intraday + trailing drawdown
     // Now uses dynamic profile based on bankroll stage
     getRiskEnvelopeBudget(minOrderCostUsd = null) {
@@ -11787,33 +11787,33 @@ class TradeExecutor {
             return { maxTradeSize: Infinity, reason: 'Risk envelope disabled', bankrollPolicy };
         }
         const dayStart = this.circuitBreaker.dayStartBalance || currentBalance;
-        
+
         // Update peak balance tracking
         if (!this.circuitBreaker.peakBalance || currentBalance > this.circuitBreaker.peakBalance) {
             this.circuitBreaker.peakBalance = currentBalance;
         }
         const peakBalance = this.circuitBreaker.peakBalance;
-        
+
         // 🏆 v77: Get dynamic risk profile based on current bankroll stage
         const profile = this.getDynamicRiskProfile(currentBalance);
-        
+
         // Calculate remaining intraday loss budget
         // How much more can we lose today before hitting the daily stop?
         const intradayBudgetPct = profile.intradayLossBudgetPct;
         const maxIntradayLoss = dayStart * intradayBudgetPct;
         const usedIntradayLoss = Math.max(0, dayStart - currentBalance);
         const remainingIntradayBudget = Math.max(0, maxIntradayLoss - usedIntradayLoss);
-        
+
         // Calculate trailing drawdown budget
         // How much can we lose from peak before hitting trailing DD limit?
         const trailingDDPct = profile.trailingDrawdownPct;
         const maxTrailingDD = peakBalance * trailingDDPct;
         const usedTrailingDD = Math.max(0, peakBalance - currentBalance);
         const remainingTrailingBudget = Math.max(0, maxTrailingDD - usedTrailingDD);
-        
+
         // The effective remaining budget is the SMALLER of the two
         const effectiveBudget = Math.min(remainingIntradayBudget, remainingTrailingBudget);
-        
+
         // Per-trade cap: no single trade should risk more than X% of remaining budget.
         // Min-order is share-based; we treat `minOrderCostUsd` as the minimum viable USDC for THIS trade,
         // and fall back to a conservative reference cost when unknown.
@@ -11839,11 +11839,11 @@ class TradeExecutor {
         if (effectiveBudget >= MIN_ORDER_COST) {
             maxTradeSize = Math.max(MIN_ORDER_COST, maxTradeSize);
         }
-        
+
         const reason = remainingTrailingBudget < remainingIntradayBudget
             ? `Trailing DD (${(trailingDDPct * 100).toFixed(0)}% from peak $${peakBalance.toFixed(2)})`
             : `Intraday budget (${(intradayBudgetPct * 100).toFixed(0)}% of dayStart $${dayStart.toFixed(2)})`;
-        
+
         return {
             maxTradeSize,
             effectiveBudget,
@@ -11865,17 +11865,17 @@ class TradeExecutor {
             }
         };
     }
-    
+
     // 🏆 v78: Apply risk envelope to proposed trade size
     // REDESIGNED: Avoids min-order freeze by using effectiveBudget as the true limit
     // Only blocks when effectiveBudget < MIN_ORDER (truly exhausted)
     applyRiskEnvelope(proposedSize, bankroll, minOrderCostUsd = null) {
         const envelope = this.getRiskEnvelopeBudget(minOrderCostUsd);
-        
+
         if (envelope.maxTradeSize === Infinity) {
             return { size: proposedSize, capped: false, envelope };
         }
-        
+
         const MIN_ORDER_COST = Number(envelope?.minOrderCostUsd);
         const effectiveBudget = envelope.effectiveBudget || 0;
         const stageName = envelope.profile?.stageName || 'UNKNOWN';
@@ -11900,11 +11900,11 @@ class TradeExecutor {
 
         const canLose = (loss) => !floorEnabled || (actualBalance - Number(loss) >= Number(survivalFloor));
         const maxSafeStake = floorEnabled ? Math.max(0, actualBalance - Number(survivalFloor)) : Infinity;
-        
+
         // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
         // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
         // If effectiveBudget >= MIN_ORDER_COST, we should ALWAYS allow at least MIN_ORDER_COST
-        
+
         // Case 1: Budget truly exhausted - block trade
         // 🏆 v80 FIX: Respect minOrderRiskOverride from dynamic profile
         // In Bootstrap mode (Stage 0), minOrderRiskOverride=true allows MIN_ORDER even when budget is tight
@@ -11913,23 +11913,23 @@ class TradeExecutor {
             // BUT never allow a trade that can cross the survival floor on a loss.
             if (minOrderRiskOverride && actualBalance >= MIN_ORDER_COST && canLose(MIN_ORDER_COST)) {
                 log(`🛡️ RISK ENVELOPE [${stageName}]: Budget exhausted ($${effectiveBudget.toFixed(2)}) but min-order override active - allowing $${MIN_ORDER_COST.toFixed(2)}`);
-                return { 
-                    size: MIN_ORDER_COST, 
+                return {
+                    size: MIN_ORDER_COST,
                     capped: proposedSize > MIN_ORDER_COST,
                     overrideUsed: true,
                     envelope,
                     reason: `Bootstrap min-order override (stage: ${stageName}, balance $${actualBalance.toFixed(2)})`
                 };
             }
-            
-            return { 
-                size: 0, 
-                blocked: true, 
+
+            return {
+                size: 0,
+                blocked: true,
                 envelope,
                 reason: `Risk budget exhausted: $${effectiveBudget.toFixed(2)} < minOrderCost $${(Number.isFinite(MIN_ORDER_COST) ? MIN_ORDER_COST.toFixed(2) : 'N/A')} (${envelope.reason}, stage: ${stageName})`
             };
         }
-        
+
         // Case 2: Budget available but per-trade cap would be < MIN_ORDER_COST
         // Allow MIN_ORDER_COST ONLY when minOrderRiskOverride is enabled AND it does not violate the survival floor.
         if (Number.isFinite(MIN_ORDER_COST) && envelope.maxTradeSize < MIN_ORDER_COST) {
@@ -11937,22 +11937,22 @@ class TradeExecutor {
                 if (proposedSize > MIN_ORDER_COST) {
                     log(`🛡️ RISK ENVELOPE [${stageName}]: $${proposedSize.toFixed(2)} → $${MIN_ORDER_COST.toFixed(2)} (per-trade cap $${envelope.maxTradeSize.toFixed(2)} < min, budget $${effectiveBudget.toFixed(2)})`);
                 }
-                return { 
-                    size: MIN_ORDER_COST, 
+                return {
+                    size: MIN_ORDER_COST,
                     capped: proposedSize > MIN_ORDER_COST,
                     capRelaxed: true,
                     envelope,
                     reason: `Per-trade cap relaxed to MIN_ORDER (override enabled, stage: ${stageName})`
                 };
             }
-            return { 
-                size: 0, 
-                blocked: true, 
+            return {
+                size: 0,
+                blocked: true,
                 envelope,
                 reason: `Per-trade cap too small for minOrderCost ($${envelope.maxTradeSize.toFixed(2)} < $${(Number.isFinite(MIN_ORDER_COST) ? MIN_ORDER_COST.toFixed(2) : 'N/A')}) and override disabled (stage: ${stageName})`
             };
         }
-        
+
         // Case 3/4: Cap to envelope, then enforce floor safety.
         let size = proposedSize;
         let capped = false;
@@ -11978,7 +11978,7 @@ class TradeExecutor {
         }
         return { size, capped, envelope, reason: reason || 'Within envelope' };
     }
-    
+
     // 🏆 v62 ADAPTIVE GOAT: Apply all variance controls with PROFIT PROTECTION
     applyVarianceControls(proposedSize, tradeType = 'NORMAL') {
         const cbResult = this.isCircuitBreakerAllowed(tradeType);
@@ -12002,7 +12002,7 @@ class TradeExecutor {
         const profitProtectionEnabled = (bankrollPolicy && typeof bankrollPolicy.profitProtectionEnabled === 'boolean')
             ? bankrollPolicy.profitProtectionEnabled
             : true;
-        
+
         // 🏆 v67 ABSOLUTE OPTIMAL: Exhaustive Monte Carlo search found this is THE BEST
         // Tested all combinations of stake (40-60%) and lock-in thresholds (1.1-2.5x)
         // This configuration maximizes: (Median Profit) x (Profit Probability)
@@ -12045,7 +12045,7 @@ class TradeExecutor {
 
             const disabledCount = enabledAssets.filter(a => Brains[a]?.autoDisabled).length;
             const warningCount = enabledAssets.filter(a => Brains[a]?.driftWarning).length;
-            
+
             if (disabledCount > 0) {
                 // At least one asset is disabled - reduce all stakes significantly
                 globalRegimeMultiplier = 0.40;
@@ -12092,74 +12092,74 @@ class TradeExecutor {
             globalRegimeMultiplier
         };
     }
-    
+
     // 🎯 GOAT v3: Calculate mark-to-market value of open positions
     calculatePositionsMTM() {
         let mtm = 0;
-        
+
         for (const [posId, pos] of Object.entries(this.positions)) {
             if (pos.status !== 'OPEN' && pos.status !== 'LIVE_OPEN') continue;
-            
+
             // Get current market price for this position
             const asset = pos.asset;
             const market = typeof currentMarkets !== 'undefined' ? currentMarkets[asset] : null;
-            
+
             if (!market) {
                 // Use entry price as fallback (conservative)
                 mtm += pos.size;
                 continue;
             }
-            
+
             // Calculate current value based on position direction
             const currentPrice = pos.side === 'UP' ? market.yesPrice : market.noPrice;
             const shares = pos.shares || (pos.size / pos.entry);
             const currentValue = shares * currentPrice;
-            
+
             mtm += currentValue;
         }
-        
+
         return mtm;
     }
-    
+
     // 🎯 GOAT v3: Update portfolio accounting (call periodically)
     updatePortfolioAccounting() {
         const now = Date.now();
         const pa = this.portfolioAccounting;
-        
+
         // Get cash balance
         if (this.mode === 'PAPER') {
             pa.cashUSDC = this.paperBalance;
         } else {
             pa.cashUSDC = this.cachedLiveBalance || 0;
         }
-        
+
         // Calculate MTM for open positions
         pa.positionsMTM = this.calculatePositionsMTM();
-        
+
         // Total portfolio value
         pa.portfolioValue = pa.cashUSDC + pa.positionsMTM;
-        
+
         // Initialize day start if needed
         if (!pa.dayStartTime || new Date(pa.dayStartTime).toDateString() !== new Date(now).toDateString()) {
             pa.dayStartPortfolioValue = pa.portfolioValue;
             pa.dayStartTime = now;
         }
-        
+
         // Calculate today's P/L
         if (pa.dayStartPortfolioValue !== null) {
             pa.todayPnL = pa.portfolioValue - pa.dayStartPortfolioValue;
         }
-        
+
         pa.lastUpdate = now;
-        
+
         return pa;
     }
-    
+
     // 🎯 GOAT v3: Get portfolio summary for API/UI
     getPortfolioSummary() {
         this.updatePortfolioAccounting();
         const pa = this.portfolioAccounting;
-        
+
         return {
             mode: this.mode,
             cashUSDC: pa.cashUSDC,
@@ -12167,12 +12167,12 @@ class TradeExecutor {
             portfolioValue: pa.portfolioValue,
             dayStartPortfolioValue: pa.dayStartPortfolioValue,
             todayPnL: pa.todayPnL,
-            todayPnLPercent: pa.dayStartPortfolioValue > 0 ? 
+            todayPnLPercent: pa.dayStartPortfolioValue > 0 ?
                 (pa.todayPnL / pa.dayStartPortfolioValue * 100) : 0,
             openPositions: Object.keys(this.positions).length,
             lastUpdate: new Date(pa.lastUpdate).toISOString(),
             // Simple explanation for UI
-            explanation: this.mode === 'PAPER' 
+            explanation: this.mode === 'PAPER'
                 ? `Paper trading with $${pa.portfolioValue.toFixed(2)} total value`
                 : `LIVE portfolio: $${pa.cashUSDC.toFixed(2)} cash + $${pa.positionsMTM.toFixed(2)} in positions = $${pa.portfolioValue.toFixed(2)}`
         };
@@ -12263,27 +12263,27 @@ class TradeExecutor {
     // This function may slightly relax/tighten around that baseline, but MUST NOT hard-cap to 50¢ (old behavior).
     getEffectiveMaxOdds() {
         let baseMaxOdds = CONFIG.ORACLE.maxOdds;
-        
+
         // Mode-based adjustment
         if (this.aggressionMode === 'HUNTER') {
             baseMaxOdds = Math.min(baseMaxOdds + 0.02, 0.98); // slight relax, keep hard ceiling
         }
-        
+
         // 🎯 ADAPTIVE THRESHOLD EXPANSION: Expand by 10¢ if no trades in 2+ hours
         const timeSinceLastTrade = Date.now() - this.lastTradeTime;
         const hoursSinceLastTrade = timeSinceLastTrade / (1000 * 60 * 60);
         const MAX_EXPANSION = 0.98; // Hard ceiling (above this is near-breakeven even at very high WR)
-        
+
         if (hoursSinceLastTrade >= 2) {
             // Expand by 10¢ (0.10) for every 2 hours of dormancy
             const expansionHours = Math.floor(hoursSinceLastTrade / 2);
             const expansion = Math.min(expansionHours * 0.10, MAX_EXPANSION - baseMaxOdds);
             const expandedOdds = baseMaxOdds + expansion;
-            
+
             if (expansion > 0) {
                 log(`🎯 ADAPTIVE THRESHOLD: Expanded maxOdds from ${(baseMaxOdds * 100).toFixed(1)}¢ to ${(expandedOdds * 100).toFixed(1)}¢ (no trades in ${hoursSinceLastTrade.toFixed(1)} hours)`);
             }
-            
+
             return Math.min(expandedOdds, MAX_EXPANSION);
         }
 
@@ -12309,14 +12309,14 @@ class TradeExecutor {
         }
         return CONFIG.ORACLE.minStability; // Default in SNIPER
     }
-    
+
     // 🎯 GOAT v44.1: Frequency Governor - replaces time-of-day filtering
     // Dynamically adjusts trading based on recent trade frequency and outcomes
     getFrequencyGovernorDecision() {
         const now = Date.now();
         const ONE_HOUR = 60 * 60 * 1000;
         const TWO_HOURS = 2 * ONE_HOUR;
-        
+
         // Count CLOSED ORACLE trades in last hour and last 2 hours
         // (use the actual stored trade fields: time/closeTime + pnl)
         const oracleClosedTrades = (this.tradeHistory || []).filter(t => {
@@ -12344,21 +12344,21 @@ class TradeExecutor {
             const ts = tradeTs(t);
             return ts > 0 && (now - ts) < TWO_HOURS;
         }).length;
-        
+
         // Count wins in recent trades
         const recentWins = recentTrades.filter(t => tradePnl(t) > 0).length;
         const recentWinRate = tradesLastHour > 0 ? recentWins / tradesLastHour : 0.5;
-        
+
         // Target: 2-4 trades per hour (enough activity without overtrading)
         const targetTradesPerHour = 3;
         const minTradesPerHour = 1;
         const maxTradesPerHour = 6;
-        
+
         // Calculate threshold adjustments based on frequency
         let thresholdMultiplier = 1.0;
         let reason = 'NORMAL';
         let allowTrade = true;
-        
+
         // If trading too frequently, tighten thresholds
         if (tradesLastHour >= maxTradesPerHour) {
             thresholdMultiplier = 1.3; // 30% higher thresholds
@@ -12382,7 +12382,7 @@ class TradeExecutor {
             reason = 'NORMAL_BELOW_TARGET';
             allowTrade = true;
         }
-        
+
         // Integrate with OBSERVE/HARVEST/STRIKE state machine
         if (this.tradingState === 'OBSERVE') {
             thresholdMultiplier *= 1.2; // More conservative in OBSERVE
@@ -12394,7 +12394,7 @@ class TradeExecutor {
         } else if (this.tradingState === 'STRIKE') {
             thresholdMultiplier *= 0.9; // More aggressive in STRIKE
         }
-        
+
         return {
             allowTrade,
             reason,
@@ -12427,11 +12427,11 @@ class TradeExecutor {
     // Updates trading state based on trade outcomes
     updateTradingState(outcome) {
         const prevState = this.tradingState;
-        
+
         if (outcome === 'WIN') {
             this.recentWinStreak++;
             this.recentLossStreak = 0;
-            
+
             // Check for STRIKE upgrade
             if (this.tradingState === 'HARVEST' && this.recentWinStreak >= this.STATE_THRESHOLDS.harvestToStrike) {
                 this.tradingState = 'STRIKE';
@@ -12451,7 +12451,7 @@ class TradeExecutor {
         } else if (outcome === 'LOSS') {
             this.recentLossStreak++;
             this.recentWinStreak = 0;
-            
+
             // STRIKE → HARVEST on any loss
             if (this.tradingState === 'STRIKE' && this.recentLossStreak >= this.STATE_THRESHOLDS.strikeToHarvest) {
                 this.tradingState = 'HARVEST';
@@ -12465,12 +12465,12 @@ class TradeExecutor {
                 log(`🎯 STATE: HARVEST → OBSERVE (${this.recentLossStreak} consecutive losses)`);
             }
         }
-        
+
         if (prevState !== this.tradingState) {
             log(`🎯 GOLDEN MEAN: State changed ${prevState} → ${this.tradingState}`);
         }
     }
-    
+
     // 🎯 v47 SIZING DOCTRINE (from $1M trade tables):
     // Base sizing: 20% of bankroll (CONFIG.MAX_POSITION_SIZE)
     // 
@@ -12499,7 +12499,7 @@ class TradeExecutor {
                 return 1.0;
         }
     }
-    
+
     // Check if trading is allowed in current state (optionally pass pWin for threshold check)
     canTradeInCurrentState(pWin = null) {
         if (this.tradingState === 'OBSERVE') {
@@ -12514,17 +12514,17 @@ class TradeExecutor {
             }
             return { allowed: true, sizeMultiplier: 0.25, reason: 'OBSERVE: probe trades only' };
         }
-        
+
         // 🎯 GOAT: pWin threshold checks for HARVEST/STRIKE
         if (Number.isFinite(pWin)) {
-            const minPWin = this.tradingState === 'STRIKE' 
-                ? this.STATE_THRESHOLDS.strikeMinPWin 
+            const minPWin = this.tradingState === 'STRIKE'
+                ? this.STATE_THRESHOLDS.strikeMinPWin
                 : this.STATE_THRESHOLDS.harvestMinPWin;
             if (pWin < minPWin) {
                 return { allowed: false, reason: `${this.tradingState}: pWin ${(pWin * 100).toFixed(1)}% < ${(minPWin * 100).toFixed(0)}% threshold` };
             }
         }
-        
+
         return { allowed: true, sizeMultiplier: this.getStateSizeMultiplier() };
     }
 
@@ -12548,7 +12548,7 @@ class TradeExecutor {
                 this.lastGoodBalance = result.balance; // Store as known good
                 this.lastBalanceFetch = Date.now();
                 log(`💰 Live balance updated: $${this.cachedLiveBalance.toFixed(2)}`);
-                
+
                 // 🏆 v96 BASELINE BANKROLL: Initialize on first successful LIVE fetch
                 // This ensures profit-lock and relative thresholds use real LIVE start, not paper default
                 if (this.mode === 'LIVE' && !this.baselineBankrollInitialized && result.balance > 0) {
@@ -12558,7 +12558,7 @@ class TradeExecutor {
                     // Also sync startingBalance for backward compat
                     this.startingBalance = result.balance;
                     log(`🏦 BASELINE BANKROLL: Initialized to $${result.balance.toFixed(2)} (first LIVE fetch)`);
-                    
+
                     // Initialize circuit breaker baselines too
                     if (this.circuitBreaker) {
                         this.circuitBreaker.dayStartBalance = result.balance;
@@ -12759,17 +12759,17 @@ class TradeExecutor {
         const tradeTierCheck = options.tier || 'ADVISORY';
         if (CONFIG.RISK.convictionOnlyMode && tradeTierCheck === 'ADVISORY') {
             const pWinForFloor = options.pWin || confidence; // Use pWin if available, else raw confidence
-            
+
             // Calculate EV for frequency floor gate
             const evRoiForFloor = calcBinaryEvRoiAfterFees(pWinForFloor, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
-            
+
             const floorResult = this.shouldAllowAdvisoryTrade(pWinForFloor, Number.isFinite(evRoiForFloor) ? evRoiForFloor : -Infinity);
-            
+
             if (!floorResult.allowed) {
                 log(`💎 CONVICTION-ONLY BLOCK: ADVISORY tier blocked (${floorResult.reason}) - waiting for CONVICTION`, asset);
                 return { success: false, error: `CONVICTION-ONLY mode: ADVISORY blocked (${floorResult.reason})` };
             }
-            
+
             // ADVISORY passed frequency floor - store size multiplier for sizing logic
             options.frequencyFloorMultiplier = floorResult.sizeMultiplier;
             log(`📊 FREQUENCY FLOOR PASS: ADVISORY allowed @ ${(floorResult.sizeMultiplier * 100).toFixed(0)}% size (${floorResult.reason})`, asset);
@@ -12791,10 +12791,10 @@ class TradeExecutor {
         // ==================== 🎯 GOLDEN MEAN: EV + LIQUIDITY GUARDS ====================
         // These checks ensure we only trade when Expected Value is positive after fees
         // and liquidity is sufficient to execute without excessive slippage.
-        
+
         // 💰 EV CALCULATION (ORACLE-only): Use calibrated pWin, not raw signal score
         // Fee model: Polymarket taker fee (shares-based). We assume taker by default.
-        
+
         if (mode === 'ORACLE' && direction !== 'BOTH' && entryPrice > 0) {
             // Resolve pWin (prefer caller-provided, else derive from current brain calibration + priors)
             let pWin = Number.isFinite(options.pWin) ? options.pWin : null;
@@ -12806,10 +12806,10 @@ class TradeExecutor {
                         (s.total > 0 ? (s.wins / s.total) : 0.5);
                 pWin = Brains[asset].getCalibratedWinProb(confidence, { priorRate, priorStrength: 40, minSamples: 0 });
             }
-            
+
             if (Number.isFinite(pWin)) {
                 const evRoi = calcBinaryEvRoiAfterFees(pWin, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
-                
+
                 if (!Number.isFinite(evRoi) || evRoi <= 0) {
                     const evTxt = Number.isFinite(evRoi) ? `${(evRoi * 100).toFixed(2)}%` : 'N/A';
                     log(`📉 EV GUARD: EV=${evTxt} (pWin ${(pWin * 100).toFixed(1)}%, price ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
@@ -12820,7 +12820,7 @@ class TradeExecutor {
                 log(`⚠️ EV GUARD: Missing calibrated pWin - skipping EV check`, asset);
             }
         }
-        
+
         // 📊 SPREAD/LIQUIDITY GUARD: Reject if bid-ask spread is too wide
         const MAX_SPREAD_PCT = 0.15; // 15% max spread (YES + NO should sum to ~100%)
         if (market && market.yesPrice && market.noPrice) {
@@ -12828,7 +12828,7 @@ class TradeExecutor {
             // A "deficit" > 0 means illiquidity gap (YES 40 + NO 50 = 90, gap = 10)
             // A "surplus" < 0 means spread (YES 55 + NO 55 = 110, spread = 10)
             const effectiveSpread = Math.abs(spreadDeficit);
-            
+
             if (effectiveSpread > MAX_SPREAD_PCT && mode !== 'ILLIQUIDITY') {
                 log(`💧 LIQUIDITY GUARD: Spread ${(effectiveSpread * 100).toFixed(1)}% > max ${(MAX_SPREAD_PCT * 100).toFixed(0)}% - BLOCKED`, asset);
                 return { success: false, error: `Spread too wide: ${(effectiveSpread * 100).toFixed(1)}%` };
@@ -12920,7 +12920,7 @@ class TradeExecutor {
                 }
             }
             const effectiveMaxExec = Math.min(evDerivedMaxExec, hardMaxOddsExec);
-            
+
             if (mode === 'ORACLE' && entryPrice > effectiveMaxExec) {
                 log(`🚫 HARD BLOCK: Entry price ${(entryPrice * 100).toFixed(1)}¢ > EV-max ${(effectiveMaxExec * 100).toFixed(1)}¢ (pWin=${pWinProvided ? (pWinProvided * 100).toFixed(1) + '%' : 'N/A'}) - NO VALUE BETTING`, asset);
                 return { success: false, error: `Entry price ${(entryPrice * 100).toFixed(1)}¢ exceeds EV-derived max ${(effectiveMaxExec * 100).toFixed(1)}¢` };
@@ -12931,13 +12931,13 @@ class TradeExecutor {
             // Instead, use pWin/EV-based gating for all tiers
             const tradeTier = options.tier || 'ADVISORY';
             const isPWinGated = pWinProvided !== null && pWinProvided !== undefined && Number.isFinite(pWinProvided);
-            
+
             // For non-CONVICTION, still check raw confidence as fallback when no pWin
             if (mode === 'ORACLE' && tradeTier !== 'CONVICTION' && !isPWinGated && confidence < CONFIG.ORACLE.minConfidence) {
                 log(`🚫 CONFIDENCE BLOCK: Trade confidence ${(confidence * 100).toFixed(1)}% < minConfidence ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% (tier=${tradeTier}, no pWin)`, asset);
                 return { success: false, error: `Confidence ${(confidence * 100).toFixed(1)}% below ${(CONFIG.ORACLE.minConfidence * 100).toFixed(1)}% threshold` };
             }
-            
+
             // For CONVICTION, log but do not block on raw confidence (pWin/EV already gated earlier)
             if (mode === 'ORACLE' && tradeTier === 'CONVICTION' && confidence < CONFIG.ORACLE.minConfidence) {
                 log(`📊 CONVICTION PASS: Raw confidence ${(confidence * 100).toFixed(1)}% < minConfidence, but CONVICTION tier bypasses this gate`, asset);
@@ -13150,7 +13150,7 @@ class TradeExecutor {
                 } catch (e) {
                     log(`⚠️ Exceptional sizing check failed: ${e.message}`, asset);
                 }
-                
+
                 // 🏆 v92 PEAK-DD BRAKE: If down >= 20% from ALL-TIME peak, cap size hard
                 const lifetimePeak = this.circuitBreaker?.lifetimePeakBalance || bankroll;
                 const peakBrake = getPeakDrawdownBrakePolicy(bankroll, lifetimePeak, bankrollPolicy);
@@ -13165,7 +13165,7 @@ class TradeExecutor {
                         effectiveKellyMaxFrac = brakeCap;
                     }
                 }
-                
+
                 // Cap position size by configured max fraction of bankroll (safety)
                 // NOTE: even with high accuracy, binary outcomes can produce large drawdowns.
                 const MAX_FRACTION = Math.max(0.01, Math.min(effectiveMaxPosFrac, 0.50)); // hard-cap at 50%
@@ -13183,7 +13183,7 @@ class TradeExecutor {
                         if (tradeTier === 'CONVICTION') {
                             basePct = MAX_FRACTION; // full allocation up to configured max
                             log(`💎 CONVICTION sizing: ${(basePct * 100).toFixed(0)}% of bankroll cap`, asset);
-                            } else {
+                        } else {
                             basePct = Math.max(0.01, MAX_FRACTION * 0.8);
                             log(`📊 ADVISORY sizing: ${(basePct * 100).toFixed(0)}% of bankroll cap`, asset);
                         }
@@ -13204,7 +13204,7 @@ class TradeExecutor {
 
                 // Calculate size based on actual bankroll
                 size = bankroll * basePct;
-                
+
                 // 🏆 v77: Apply frequency floor size reduction for ADVISORY trades
                 if (options.frequencyFloorMultiplier && options.frequencyFloorMultiplier < 1.0) {
                     const originalSize = size;
@@ -13236,14 +13236,14 @@ class TradeExecutor {
                     if (pWinKelly === null && typeof Brains !== 'undefined' && Brains[asset] && typeof Brains[asset].getCalibratedWinProb === 'function') {
                         const s = Brains[asset].stats || {};
                         const tier = options.tier || Brains[asset].tier || 'UNKNOWN';
-                        const priorRate = (tier === 'CONVICTION' && s.convictionTotal > 0) 
-                            ? (s.convictionWins / s.convictionTotal) 
+                        const priorRate = (tier === 'CONVICTION' && s.convictionTotal > 0)
+                            ? (s.convictionWins / s.convictionTotal)
                             : (s.total > 0 ? (s.wins / s.total) : 0.5);
                         pWinKelly = Brains[asset].getCalibratedWinProb(confidence, { priorRate, priorStrength: 40, minSamples: 0 });
                     }
-                    
+
                     const KELLY_SLIPPAGE_PCT = 0.01;
-                    
+
                     if (Number.isFinite(pWinKelly) && pWinKelly >= CONFIG.RISK.kellyMinPWin) {
                         // Kelly formula: f* = (b*p - (1-p)) / b
                         // b = payout odds (gross win ROI) = (1/price - 1)
@@ -13251,18 +13251,18 @@ class TradeExecutor {
                         const effectiveEntry = Math.min(0.99, entryPrice * (1 + KELLY_SLIPPAGE_PCT));
                         const b = (1 / effectiveEntry - 1);
                         const feeFrac = calcPolymarketTakerFeeFrac(effectiveEntry, feeModelExec);
-                        
+
                         if (b > 0) {
                             const denom = (1 + feeFrac) * (b - feeFrac);
                             const fullKelly = (Number.isFinite(denom) && denom > 0)
                                 ? ((b * pWinKelly - (1 - pWinKelly) - feeFrac) / denom)
                                 : -1;
-                            
+
                             if (fullKelly > 0) {
                                 // Apply fractional Kelly (e.g., half-Kelly with k=0.5)
                                 const kellyFraction = effectiveKellyFraction;
                                 let kellySize = bankroll * Math.min(fullKelly * kellyFraction, effectiveKellyMaxFrac);
-                                
+
                                 // Kelly should REDUCE size in unfavorable conditions, not increase it
                                 // If Kelly suggests smaller size than base, use Kelly
                                 // If Kelly suggests larger (very high edge), cap at base or kellyMaxFraction
@@ -13296,7 +13296,7 @@ class TradeExecutor {
                     size = size * options.stateMultiplier;
                     log(`🎯 STATE SIZING: ${this.tradingState} mode - ${(options.stateMultiplier * 100).toFixed(0)}% (${originalSize.toFixed(2)} → ${size.toFixed(2)})`, asset);
                 }
-                
+
                 // 🎯 GOAT v3: Apply variance controls (CircuitBreaker + streak sizing + loss budget)
                 const varianceResult = this.applyVarianceControls(size, mode);
                 if (varianceResult.blocked) {
@@ -13314,13 +13314,13 @@ class TradeExecutor {
                 // v94: Use tiered absolute cap based on bankroll
                 const MAX_ABSOLUTE_SIZE = getTieredMaxAbsoluteStake(bankroll);
                 let maxSize = bankroll * MAX_FRACTION;
-                
+
                 // Apply absolute cap (liquidity protection at scale)
                 if (maxSize > MAX_ABSOLUTE_SIZE) {
                     log(`🔒 LIQUIDITY CAP: $${maxSize.toFixed(2)} → $${MAX_ABSOLUTE_SIZE} (tiered absolute max)`, asset);
                     maxSize = MAX_ABSOLUTE_SIZE;
                 }
-                
+
                 // Cap size at maximum
                 if (size > maxSize) {
                     size = maxSize;
@@ -13347,7 +13347,7 @@ class TradeExecutor {
                         return { success: false, error: `Need at least $${minCashForMinOrder.toFixed(2)} cash to place min-order (~$${minOrderCost.toFixed(2)} at ${(Number(entryPrice) * 100).toFixed(1)}¢) without crossing survival floor` };
                     }
                 }
-                
+
                 // 🏆 v76 RISK ENVELOPE: Apply as FINAL sizing step (after min/max)
                 // This ensures no subsequent code can increase size above envelope
                 const envelopeResult = this.applyRiskEnvelope(size, bankroll, (Number.isFinite(minOrderCost) ? minOrderCost : null));
@@ -13700,7 +13700,7 @@ class TradeExecutor {
                         if (actualShares !== shares) {
                             log(`📊 PARTIAL FILL: Requested ${shares.toFixed(4)} shares, got ${actualShares.toFixed(4)} (size: ${actualSize.toFixed(2)} vs ${size.toFixed(2)})`, asset);
                         }
-                        
+
                         // Store position with order details (using ACTUAL filled values)
                         this.positions[positionId] = {
                             asset,
@@ -13943,7 +13943,7 @@ class TradeExecutor {
             let effectiveMaxPosFrac = Number.isFinite(bankrollPolicy?.maxPositionFraction)
                 ? bankrollPolicy.maxPositionFraction
                 : (CONFIG.MAX_POSITION_SIZE || 0.20);
-            
+
             // 🏆 v92 PEAK-DD BRAKE: If down >= 20% from ALL-TIME peak, cap size hard
             const lifetimePeak = this.circuitBreaker?.lifetimePeakBalance || bankroll;
             const peakBrake = getPeakDrawdownBrakePolicy(bankroll, lifetimePeak, bankrollPolicy);
@@ -13954,7 +13954,7 @@ class TradeExecutor {
                     effectiveMaxPosFrac = brakeCap;
                 }
             }
-            
+
             const maxFraction = Math.max(0.01, Math.min(effectiveMaxPosFrac, 0.50)); // UI caps at 50%
             let totalBudget = bankroll * maxFraction;
             if (totalBudget < minTotalForMinOrders) totalBudget = minTotalForMinOrders;
@@ -14468,8 +14468,8 @@ class TradeExecutor {
                     const avg = Number.isFinite(Number(res.avgExitPrice)) ? Number(res.avgExitPrice) : null;
                     const px =
                         avg !== null ? avg :
-                        (Number.isFinite(Number(res.sellPrice)) ? Number(res.sellPrice) :
-                            (Number.isFinite(Number(exitPrice)) ? Number(exitPrice) : 0.5));
+                            (Number.isFinite(Number(res.sellPrice)) ? Number(res.sellPrice) :
+                                (Number.isFinite(Number(exitPrice)) ? Number(exitPrice) : 0.5));
                     // Finalize close (skipLiveSell prevents recursion)
                     this.closePosition(positionId, px, `LIVE SELL CONFIRMED: ${reason}`, { skipLiveSell: true });
                     return;
@@ -14624,7 +14624,7 @@ class TradeExecutor {
         // 🔴 FIX v46: HEDGE and ILLIQUIDITY legs should NOT trigger loss-streak logic
         // Only main ORACLE positions affect streak/cooldown/state machine
         const isAuxiliaryLeg = pos.mode === 'HEDGE' || pos.isHedge || pos.mode === 'ILLIQUIDITY';
-        
+
         // 🎯 v52: Rolling CONVICTION accuracy tracker (EXECUTED trades only)
         // Prevents false drift warnings/auto-disable from "signal-only" cycle correctness.
         if (!isAuxiliaryLeg && pos.mode === 'ORACLE' && pos.tier === 'CONVICTION') {
@@ -14709,13 +14709,13 @@ class TradeExecutor {
                 closeTime: Date.now(),
                 reason
             });
-            
+
             // Keep only last 200 closed positions (about 8+ hours of history at 1/hour)
             if (this.closedPositions.length > 200) {
                 this.closedPositions = this.closedPositions.slice(-200);
             }
         }
-        
+
         delete this.positions[positionId];
         return pnl;
     }
@@ -14797,7 +14797,7 @@ class TradeExecutor {
 
         try {
             // Find all CRASH_RECOVERED trades in history
-            const crashRecovered = (this.tradeHistory || []).filter(t => 
+            const crashRecovered = (this.tradeHistory || []).filter(t =>
                 t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
             );
 
@@ -14841,8 +14841,8 @@ class TradeExecutor {
                     // Parse outcome prices
                     let prices;
                     try {
-                        prices = typeof market.outcomePrices === 'string' 
-                            ? JSON.parse(market.outcomePrices) 
+                        prices = typeof market.outcomePrices === 'string'
+                            ? JSON.parse(market.outcomePrices)
                             : market.outcomePrices;
                     } catch {
                         results.errors++;
@@ -14872,8 +14872,8 @@ class TradeExecutor {
                     // Determine outcome direction
                     let outcomes;
                     try {
-                        outcomes = typeof market.outcomes === 'string' 
-                            ? JSON.parse(market.outcomes) 
+                        outcomes = typeof market.outcomes === 'string'
+                            ? JSON.parse(market.outcomes)
                             : market.outcomes;
                     } catch {
                         outcomes = ['Yes', 'No'];
@@ -14900,7 +14900,7 @@ class TradeExecutor {
                     // For a win: we get back stake + profit = size + pnl
                     // For a loss: we get back 0 (stake already deducted, exit at 0)
                     const creditAmount = trade.size + pnl;
-                    
+
                     // 🏆 v80 FIX: Only credit PAPER balance for non-LIVE trades
                     // LIVE trades have isLive:true and should NOT inflate paperBalance
                     if (this.mode === 'PAPER' && !trade.isLive) {
@@ -14955,7 +14955,7 @@ class TradeExecutor {
             for (let i = recoveryItems.length - 1; i >= 0; i--) {
                 const item = recoveryItems[i];
                 if (item.crashReconciled) continue;
-                
+
                 // 🔒 IDEMPOTENCY: Check if this trade was already settled via tradeHistory loop above
                 const matchingTrade = this.tradeHistory.find(t => t.id === item.id);
                 if (matchingTrade && matchingTrade.crashReconciled) {
@@ -15002,7 +15002,7 @@ class TradeExecutor {
 
                     const o0 = String(outcomes[0] || '').toLowerCase();
                     const o1 = String(outcomes[1] || '').toLowerCase();
-                    
+
                     // 🏆 v80 FIX: Handle all outcome variants (up/down AND yes/no)
                     // Markets can return ['Up','Down'], ['Down','Up'], ['Yes','No'], or ['No','Yes']
                     let resolvedOutcome = idx0Win ? 'UP' : 'DOWN';
@@ -15277,11 +15277,11 @@ class TradeExecutor {
                 // This was causing CONVICTION trades to be stopped incorrectly
                 const isConvictionTrade = pos.tier === 'CONVICTION';
                 const isGenesisAgreeTrade = pos.genesisAgree === true;
-                
+
                 // Check if stop-loss is triggered
                 if (currentOdds <= pos.stopLoss) {
                     const lossPct = ((pos.entry - currentOdds) / pos.entry * 100).toFixed(0);
-                    
+
                     // 🎯 v51: CONVICTION trades NEVER stop-loss (94.8% WR)
                     if (isConvictionTrade) {
                         log(`💎 CONVICTION BYPASS: ${regime} stop at ${(pos.stopLoss * 100).toFixed(0)}¢ IGNORED - holding to resolution`, pos.asset);
@@ -15316,7 +15316,7 @@ class TradeExecutor {
                     this.closePosition(id, currentOdds, `💎 ${regime} DIAMOND EXIT +${profitPercent}% (${(params.diamondTarget * 100).toFixed(0)}¢ Target)`);
                     return;
                 }
-                
+
                 // 🎯 v47: CONVICTION/GENESIS rides to resolution for max payout
                 if (holdToResolution && currentOdds >= params.diamondTarget) {
                     log(`💎 CONVICTION HOLD: At ${(currentOdds * 100).toFixed(0)}¢ - holding to resolution for max payout ($1)`, pos.asset);
@@ -15349,11 +15349,11 @@ class TradeExecutor {
             // - ORACLE other entries: Allow stop-loss in early cycle only (first 5 mins)
             // - Mid/Late cycle (after 5 mins): Hold to resolution (selling locks in loss, no time to recover)
             if (pos.mode !== 'MANUAL' && pos.stopLoss && currentOdds <= pos.stopLoss) {
-                
+
                 const lossPercent = ((pos.entry - currentOdds) / pos.entry * 100).toFixed(0);
                 const elapsed = (Date.now() - pos.time) / 1000;
                 const cycleTimeRemaining = 900 - elapsed; // 15-min cycle
-                
+
                 // 🎯 GOAT v47: Hold to resolution conditions (enhanced)
                 const isConvictionEntry = pos.tier === 'CONVICTION';
                 const isGenesisAgree = pos.genesisAgree === true; // Genesis model agreed with entry direction
@@ -15361,31 +15361,31 @@ class TradeExecutor {
                 const isMidCycle = elapsed >= 300 && cycleTimeRemaining >= 300; // 5-10 min mark
                 const isLateCycle = cycleTimeRemaining < 300; // Final 5 mins
                 const isDeepLoss = parseFloat(lossPercent) >= 50; // -50%+ = hold (selling is worse)
-                
+
                 // 🎯 v47 FIX: CONVICTION always holds (98%+ win rate)
                 if (isConvictionEntry) {
                     log(`💎 DIAMOND HANDS: CONVICTION entry at ${(pos.entry * 100).toFixed(0)}¢ - holding to resolution (stop at ${(pos.stopLoss * 100).toFixed(0)}¢ bypassed)`, pos.asset);
                     return; // Do NOT exit
                 }
-                
+
                 // 🎯 v47 FIX: Genesis agreement = high-confidence direction, hold to resolution
                 if (isGenesisAgree) {
                     log(`🌱 GENESIS DIAMOND HANDS: Genesis agreed with ${pos.side} at ${(pos.entry * 100).toFixed(0)}¢ - holding to resolution`, pos.asset);
                     return; // Do NOT exit
                 }
-                
+
                 // 🎯 v47 FIX: Mid-cycle onwards = too late to stop, hold for resolution
                 if (isMidCycle || isLateCycle) {
                     log(`⏰ CYCLE HOLD: ${isMidCycle ? 'Mid' : 'Late'} cycle (${(elapsed / 60).toFixed(1)}min elapsed) - holding to resolution`, pos.asset);
                     return; // Do NOT exit
                 }
-                
+
                 // 🎯 v47 FIX: Deep loss = selling locks in catastrophic loss, hold for 50% resolution chance
                 if (isDeepLoss) {
                     log(`🔒 DEEP LOSS HOLD: At -${lossPercent}% - selling now locks in massive loss, holding for resolution chance`, pos.asset);
                     return; // Do NOT exit - resolution gives 50% chance of recovery
                 }
-                
+
                 // ONLY exit on stop-loss if: early cycle + not conviction + not genesis agree + not deep loss
                 log(`🛑 EARLY CYCLE STOP: Exiting at -${lossPercent}% within first 5min (Odds ${(currentOdds * 100).toFixed(0)}¢ <= ${(pos.stopLoss * 100).toFixed(0)}¢)`, pos.asset);
                 this.closePosition(id, currentOdds, `EARLY STOP -${lossPercent}% 🛑`);
@@ -15604,11 +15604,11 @@ class TradeExecutor {
 
             if (state.attempts >= MAX_ATTEMPTS) {
                 const waitTimeMin = Math.round((Date.now() - startedAt) / 60000);
-                
+
                 // 🏆 v77: LIVE mode does NOT auto-close - mark as stale and keep polling slower
                 if (isLiveMode) {
                     log(`⚠️ LIVE RESOLUTION TTL: ${asset} slug=${slug} after ${waitTimeMin}min - marked as stale`, asset);
-                    
+
                     // Mark positions as stalePending for visibility in /api/health
                     for (const id of openMainIds) {
                         const pos = this.positions[id];
@@ -15617,21 +15617,21 @@ class TradeExecutor {
                             pos.staleSince = Date.now();
                         }
                     }
-                    
+
                     // Continue polling at slower rate (every 5 min) - do NOT delete
                     state.attempts = MAX_ATTEMPTS - 10; // Reset to keep polling
                     setTimeout(tick, 5 * 60 * 1000); // Poll every 5 min after TTL
                     return;
                 }
-                
+
                 // 🏆 v64 FIX: PAPER mode now uses fallback after extended wait
                 // Trade-off: 95%+ accuracy (Chainlink usually matches) vs trades staying pending forever
                 // User reported trades not resolving - this fixes that
                 this.pendingPolymarketResolutions.delete(slug);
-                
+
                 log(`⚠️ RESOLUTION FALLBACK: ${asset} slug=${slug} after ${state.attempts} attempts (~${waitTimeMin}min)`, asset);
                 log(`📊 Using Chainlink fallback (${fallbackOutcome}) - 95%+ match rate with Polymarket`, asset);
-                
+
                 for (const id of openMainIds) {
                     const pos = this.positions[id];
                     if (!pos) continue;
@@ -15673,12 +15673,12 @@ class TradeExecutor {
             if (pos.status === 'PENDING_RESOLUTION') {
                 return;
             }
-            
+
             // 🏆 v68: Skip hedges whose main position is pending resolution
             if (pos.isHedge && pos.mainId && pendingMainIds.has(pos.mainId)) {
                 return;
             }
-            
+
             // 🏆 v68 CRITICAL: In LIVE mode, NEVER force-close at 0.5 - this is dangerous
             // LIVE positions represent real capital; force-closing at uncertain price loses money
             if (this.mode === 'LIVE') {
@@ -15689,7 +15689,7 @@ class TradeExecutor {
                 }
                 return;
             }
-            
+
             const age = now - pos.time;
             if (age > maxAge) {
                 log(`⚠️ STALE POSITION: ${pos.asset} ${pos.side} opened ${Math.floor(age / 60000)}m ago - force closing`, pos.asset);
@@ -15972,7 +15972,7 @@ class TradeExecutor {
 
             for (let i = queue.length - 1; i >= 0; i--) {
                 const item = queue[i];
-                
+
                 // 🎯 GOAT v44.1: Idempotency check - skip if already processed
                 if (item.processedAt) {
                     skipped++;
@@ -16066,7 +16066,7 @@ class TradeExecutor {
                         // No balance - check if already redeemed or never had tokens
                         log(`ℹ️ No balance found for ${item.asset} ${item.side} token`, item.asset);
                         eventRecord.outcome = 'NO_BALANCE';
-                        
+
                         // 🎯 GOAT v44.1: Do NOT silently remove - verify before dropping
                         // Only remove if item has been in queue for > 24 hours (likely already processed)
                         const ageHours = (Date.now() - (item.addedAt || Date.now())) / (1000 * 60 * 60);
@@ -16091,10 +16091,10 @@ class TradeExecutor {
 
                 events.push(eventRecord);
                 this.redemptionEvents.push(eventRecord);
-                
+
                 // 🎯 GOAT v4: Persist redemption event to Redis
                 persistRedemptionEvent(eventRecord);
-                
+
                 // Keep only last 100 events in memory
                 if (this.redemptionEvents.length > 100) {
                     this.redemptionEvents = this.redemptionEvents.slice(-100);
@@ -16117,7 +16117,7 @@ class TradeExecutor {
             return { success: false, error: e.message, events };
         }
     }
-    
+
     // 🎯 GOAT v44.1: Get redemption events for API visibility
     getRedemptionEvents(limit = 50) {
         return (this.redemptionEvents || []).slice(-limit);
@@ -16128,7 +16128,7 @@ class TradeExecutor {
         const count = (this.redemptionQueue || []).length;
         const clearedItems = [...(this.redemptionQueue || [])];
         this.redemptionQueue = [];
-        
+
         // Record the clear event
         if (!this.redemptionEvents) this.redemptionEvents = [];
         const clearEvent = {
@@ -16139,10 +16139,10 @@ class TradeExecutor {
             clearedItems: clearedItems.map(i => ({ asset: i.asset, side: i.side, tokenId: i.tokenId }))
         };
         this.redemptionEvents.push(clearEvent);
-        
+
         // 🎯 GOAT v4: Persist clear event to Redis
         persistRedemptionEvent(clearEvent);
-        
+
         log(`🗑️ Redemption queue cleared: ${count} items (reason: ${reason})`);
         return { cleared: count, items: clearedItems };
     }
@@ -16649,21 +16649,21 @@ setInterval(() => {
         if (typeof tradeExecutor.refreshMATICBalance === 'function') {
             tradeExecutor.refreshMATICBalance().catch(() => { });
         }
-        
+
         // v94 FIX: Use CASH balance only (not MTM equity) to avoid false positives from price moves
         // For LIVE: use cachedLiveBalance (actual USDC). For PAPER: use paperBalance.
         const currentCashBalance = (tradeExecutor.mode === 'LIVE')
             ? (tradeExecutor.cachedLiveBalance || 0)
             : tradeExecutor.paperBalance;
-        
+
         if (!Number.isFinite(currentCashBalance) || currentCashBalance <= 0) return;
-        
+
         const cb = tradeExecutor.circuitBreaker;
         if (!cb) return;
-        
+
         const cfg = CONFIG?.RISK || {};
         const transferEnabled = cfg.autoTransferDetectionEnabled !== false;
-        
+
         // v94: Tiered thresholds for larger bankrolls
         // Below $1k: use config defaults (15% / $5)
         // $1k+: use lower pct threshold (5% / $20) to catch deposits/withdrawals on large accounts
@@ -16676,13 +16676,13 @@ setInterval(() => {
             minDeltaAbs = Number.isFinite(cfg.autoTransferMinDeltaAbs) ? cfg.autoTransferMinDeltaAbs : 5.0;
         }
         const quiescentSec = Number.isFinite(cfg.autoTransferQuiescentSec) ? cfg.autoTransferQuiescentSec : 120;
-        
+
         const prevLifetimePeak = cb.lifetimePeakBalance || 0;
         const prevCashBalance = _transferDetectionState.prevEquity;  // renamed for clarity (was tracking equity, now cash)
         const lastTradeEpoch = _transferDetectionState.lastTradeEpoch || 0;
         const now = Date.now();
         const nowSec = Math.floor(now / 1000);
-        
+
         // Initialize state
         if (!Number.isFinite(prevLifetimePeak) || prevLifetimePeak <= 0) {
             cb.lifetimePeakBalance = currentCashBalance;
@@ -16694,7 +16694,7 @@ setInterval(() => {
             _transferDetectionState.prevEquity = currentCashBalance;
             return;
         }
-        
+
         // Track last trade activity from tradeHistory
         const history = tradeExecutor.tradeHistory || [];
         if (history.length > 0) {
@@ -16704,12 +16704,12 @@ setInterval(() => {
                 _transferDetectionState.lastTradeEpoch = lastTradeTime;
             }
         }
-        
+
         const delta = currentCashBalance - prevCashBalance;
         const deltaPct = prevCashBalance > 0 ? Math.abs(delta) / prevCashBalance : 0;
         const secsSinceLastTrade = nowSec - Math.floor((_transferDetectionState.lastTradeEpoch || 0) / 1000);
         const isQuiescent = secsSinceLastTrade >= quiescentSec;
-        
+
         // Detect external transfer (deposit or withdrawal) - v94: uses cash balance only
         if (transferEnabled && isQuiescent && Math.abs(delta) >= minDeltaAbs && deltaPct >= minDeltaPct) {
             const type = delta > 0 ? 'DEPOSIT' : 'WITHDRAWAL';
@@ -16723,17 +16723,17 @@ setInterval(() => {
                 oldPeak,
                 newPeak: currentCashBalance
             };
-            
+
             // 🏆 v96 BASELINE BANKROLL: Reset baseline on transfer so profit-lock uses new start
             // This prevents withdrawals looking like drawdowns and deposits inflating profit multiple
             tradeExecutor.baselineBankroll = currentCashBalance;
             tradeExecutor.startingBalance = currentCashBalance; // backward compat
             tradeExecutor.baselineBankrollSource = `transfer_reset_${type.toLowerCase()}`;
-            
+
             // Also reset day-start balance so intraday drawdown doesn't false-trigger
             cb.dayStartBalance = currentCashBalance;
             cb.peakBalance = currentCashBalance;
-            
+
             log(`💰 ${type} DETECTED: Cash balance changed $${Math.abs(delta).toFixed(2)} (${(deltaPct * 100).toFixed(1)}%) after ${secsSinceLastTrade}s idle`);
             log(`   → Resetting lifetime peak: $${oldPeak.toFixed(2)} → $${currentCashBalance.toFixed(2)}`);
             log(`   → Resetting baseline bankroll: $${oldBaseline.toFixed(2)} → $${currentCashBalance.toFixed(2)}`);
@@ -16742,7 +16742,7 @@ setInterval(() => {
         else if (currentCashBalance > prevLifetimePeak) {
             cb.lifetimePeakBalance = currentCashBalance;
         }
-        
+
         // Update prev cash balance for next iteration
         _transferDetectionState.prevEquity = currentCashBalance;
     } catch { }
@@ -16761,48 +16761,48 @@ async function runGuardedAutoOptimizer() {
     const cfg = CONFIG?.RISK || {};
     if (!cfg.autoOptimizerEnabled) return;
     if (_autoOptimizerState.isRunning) return;
-    
+
     const intervalHours = Math.max(1, Number(cfg.autoOptimizerIntervalHours) || 24);
     const intervalMs = intervalHours * 60 * 60 * 1000;
     const now = Date.now();
-    
+
     if (now - _autoOptimizerState.lastRunEpoch < intervalMs) return;
-    
+
     _autoOptimizerState.isRunning = true;
     _autoOptimizerState.lastRunEpoch = now;
-    
+
     try {
         log(`🔄 AUTO-OPTIMIZER: Starting scheduled optimization run...`);
-        
+
         const minImprovementPct = Number(cfg.autoOptimizerMinImprovementPct) || 10;
         const requireZeroRuin = cfg.autoOptimizerRequireZeroRuin !== false;
         const maxDrawdownPct = Number(cfg.autoOptimizerMaxDrawdownPct) || 40;
         const tunableParams = cfg.autoOptimizerTunableParams || ['vaultTriggerBalance'];
-        
+
         // Only support vaultTriggerBalance tuning for now (safe scope)
         if (!tunableParams.includes('vaultTriggerBalance')) {
             log(`⚠️ AUTO-OPTIMIZER: No supported tunable params configured, skipping.`);
             _autoOptimizerState.isRunning = false;
             return;
         }
-        
+
         // Get current config baseline
         const currentTrigger = getVaultThresholds().vaultTriggerBalance;
         // Use equity-aware bankroll so the optimizer isn't distorted by open positions (PAPER) or locked funds (LIVE).
         const currentBalance = (tradeExecutor && typeof tradeExecutor.getBankrollForRisk === 'function')
             ? tradeExecutor.getBankrollForRisk()
             : (tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || 40));
-        
+
         // Run quick speed-score evaluation on current config
         const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
         const offsets = [0, 24, 48, 72];
-        
+
         async function evalSpeedScore(trigger) {
             let scores = [];
             let ruinAny = false;
             let maxDDSum = 0;
             let validWindows = 0;
-            
+
             for (const offset of offsets) {
                 try {
                     // Include apiKey for internal auth (v93.1 fix)
@@ -16810,29 +16810,29 @@ async function runGuardedAutoOptimizer() {
                     const resp = await fetch(url, { signal: AbortSignal.timeout(60000) });
                     if (!resp.ok) continue;
                     const data = await resp.json();
-                    
+
                     const metrics = data.objectiveMetrics || {};
                     const summary = data.summary || {};
-                    
+
                     if (metrics.ruined) ruinAny = true;
                     const finalBal = Number(summary.finalBalance) || currentBalance;
                     const returnPct = ((finalBal - currentBalance) / currentBalance) * 100;
                     scores.push(returnPct);
-                    
+
                     const ddStr = String(summary.maxDrawdown || '0').replace('%', '');
                     maxDDSum += parseFloat(ddStr) || 0;
                     validWindows++;
                 } catch { }
             }
-            
+
             if (validWindows === 0) return null;
-            
+
             const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
             const avgMaxDD = maxDDSum / validWindows;
-            
+
             return { trigger, avgScore, ruinAny, avgMaxDD, validWindows };
         }
-        
+
         // Evaluate current config
         const currentEval = await evalSpeedScore(currentTrigger);
         if (!currentEval) {
@@ -16840,57 +16840,57 @@ async function runGuardedAutoOptimizer() {
             _autoOptimizerState.isRunning = false;
             return;
         }
-        
+
         log(`📊 AUTO-OPTIMIZER: Current trigger=$${currentTrigger} → avgScore=${currentEval.avgScore.toFixed(1)}% avgDD=${currentEval.avgMaxDD.toFixed(1)}%`);
-        
+
         // Sweep a small range around current trigger
         const candidates = [];
         const step = 1.0;
         const minT = Math.max(6, currentTrigger - 3);
         const maxT = Math.min(20, currentTrigger + 3);
-        
+
         for (let t = minT; t <= maxT; t += step) {
             if (Math.abs(t - currentTrigger) < 0.5) continue; // Skip current
             const ev = await evalSpeedScore(t);
             if (ev) candidates.push(ev);
         }
-        
+
         // Filter by hard constraints
         const passing = candidates.filter(c => {
             if (requireZeroRuin && c.ruinAny) return false;
             if (c.avgMaxDD > maxDrawdownPct) return false;
             return true;
         });
-        
+
         // Find best improvement
         const best = passing.reduce((acc, c) => {
             if (!acc) return c;
             return c.avgScore > acc.avgScore ? c : acc;
         }, null);
-        
+
         if (!best) {
             log(`✅ AUTO-OPTIMIZER: No better candidate found. Keeping current.`);
             _autoOptimizerState.lastResult = { action: 'KEPT', currentTrigger, reason: 'no_improvement' };
             _autoOptimizerState.isRunning = false;
             return;
         }
-        
+
         const improvement = best.avgScore - currentEval.avgScore;
         const improvementPct = currentEval.avgScore !== 0 ? (improvement / Math.abs(currentEval.avgScore)) * 100 : (improvement > 0 ? 100 : 0);
-        
+
         if (improvement < 0 || improvementPct < minImprovementPct) {
             log(`✅ AUTO-OPTIMIZER: Best candidate trigger=$${best.trigger} only ${improvementPct.toFixed(1)}% better (need ${minImprovementPct}%). Keeping current.`);
             _autoOptimizerState.lastResult = { action: 'KEPT', currentTrigger, best, improvementPct, reason: 'insufficient_improvement' };
             _autoOptimizerState.isRunning = false;
             return;
         }
-        
+
         // Apply the new config
         log(`🚀 AUTO-OPTIMIZER: Applying new trigger=$${best.trigger} (${improvementPct.toFixed(1)}% improvement, DD=${best.avgMaxDD.toFixed(1)}%)`);
-        
+
         CONFIG.RISK.vaultTriggerBalance = best.trigger;
         CONFIG.RISK.stage1Threshold = best.trigger;
-        
+
         // Persist to Redis if available (MUST survive restarts + redeploys)
         // Use the same settings key that startup restores from: deity:settings.
         // Only mutate the RISK threshold values; do NOT write the full CONFIG blob here.
@@ -16928,7 +16928,7 @@ async function runGuardedAutoOptimizer() {
                 log(`💾 AUTO-OPTIMIZER: Persisted vaultTriggerBalance=$${best.trigger} to Redis settings`);
             }
         } catch { }
-        
+
         _autoOptimizerState.lastResult = {
             action: 'APPLIED',
             oldTrigger: currentTrigger,
@@ -16938,25 +16938,25 @@ async function runGuardedAutoOptimizer() {
             avgMaxDD: best.avgMaxDD,
             timestamp: now
         };
-        
+
         log(`✅ AUTO-OPTIMIZER: Successfully applied vaultTriggerBalance=$${best.trigger}`);
-        
+
     } catch (e) {
         log(`❌ AUTO-OPTIMIZER: Error: ${e.message}`);
         _autoOptimizerState.lastResult = { action: 'ERROR', error: e.message, timestamp: Date.now() };
     }
-    
+
     _autoOptimizerState.isRunning = false;
 }
 
 // Run auto-optimizer check every hour (actual execution gated by intervalHours)
 setInterval(() => {
-    runGuardedAutoOptimizer().catch(() => {});
+    runGuardedAutoOptimizer().catch(() => { });
 }, 60 * 60 * 1000);
 
 // Also run once at startup after 5 minutes (give server time to warm up)
 setTimeout(() => {
-    runGuardedAutoOptimizer().catch(() => {});
+    runGuardedAutoOptimizer().catch(() => { });
 }, 5 * 60 * 1000);
 
 // ==================== 🏆 v93 AUTO SAFETY SELF-CHECK ====================
@@ -16979,212 +16979,212 @@ async function runAutoSelfCheck() {
     try {
         const now = Date.now();
         _selfCheckState.lastCheckEpoch = now;
-        
+
         const failures = [];
         const warnings = [];
-    
-    // Check 1: Feed freshness
-    if (typeof anyFeedStale !== 'undefined' && anyFeedStale) {
-        failures.push('CHAINLINK_FEED_STALE');
-    }
-    
-    // Check 2: Balance floor
-    const cashBalance = tradeExecutor.mode === 'PAPER' 
-        ? tradeExecutor.paperBalance 
-        : (tradeExecutor.cachedLiveBalance || 0);
-    const floorEnabled = CONFIG?.RISK?.minBalanceFloorEnabled;
-    const floor = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
-        ? tradeExecutor.getEffectiveBalanceFloor(cashBalance)
-        : (CONFIG?.RISK?.minBalanceFloor || 2);
-    if (floorEnabled && cashBalance < floor) {
-        failures.push(`BALANCE_BELOW_FLOOR($${cashBalance.toFixed(2)}<$${Number(floor).toFixed(2)})`);
-    }
-    
-    // Check 3: Circuit breaker already halted
-    if (tradeExecutor?.circuitBreaker?.state === 'HALTED') {
-        warnings.push('CIRCUIT_BREAKER_HALTED');
-    }
-    
-    // Check 4: Redis availability for LIVE mode
-    if (tradeExecutor.mode === 'LIVE') {
-        const redisOk = typeof redis !== 'undefined' && redis && redis.status === 'ready';
-        if (!redisOk) {
-            failures.push('LIVE_MODE_NO_REDIS');
-        }
-        
-        // Check 5: Wallet loaded for LIVE
-        if (!tradeExecutor.wallet) {
-            failures.push('LIVE_MODE_NO_WALLET');
-        }
-    }
-    
-    // Check 6: Stale pending sells (stuck for > 1 hour)
-    const stalePendingCount = Object.values(tradeExecutor.positions || {})
-        .filter(p => p && p.stalePending && (now - (p.staleSince || 0)) > 3600000).length;
-    if (stalePendingCount > 0) {
-        warnings.push(`STALE_PENDING_SELLS(${stalePendingCount})`);
-    }
-    
-    // Check 7: Crash recovery queue growing
-    const crashQueue = (tradeExecutor.tradeHistory || []).filter(t => 
-        t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
-    ).length;
-    if (crashQueue > 5) {
-        warnings.push(`CRASH_RECOVERY_QUEUE(${crashQueue})`);
-    }
-    
-    // Check 8: Redemption queue growing
-    const redemptionQueue = (tradeExecutor.redemptionQueue || []).length;
-    if (redemptionQueue > 10) {
-        warnings.push(`REDEMPTION_QUEUE(${redemptionQueue})`);
-    }
 
-    // Check 9 (Autonomy): Internal /api/verify + /api/perfection-check (detect hidden regressions without manual testing)
-    // Run these less frequently to avoid unnecessary load.
-    const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
-    const verifyIntervalMs = 5 * 60 * 1000;      // every 5 minutes
-    const perfectionIntervalMs = 15 * 60 * 1000; // every 15 minutes
+        // Check 1: Feed freshness
+        if (typeof anyFeedStale !== 'undefined' && anyFeedStale) {
+            failures.push('CHAINLINK_FEED_STALE');
+        }
+
+        // Check 2: Balance floor
+        const cashBalance = tradeExecutor.mode === 'PAPER'
+            ? tradeExecutor.paperBalance
+            : (tradeExecutor.cachedLiveBalance || 0);
+        const floorEnabled = CONFIG?.RISK?.minBalanceFloorEnabled;
+        const floor = (tradeExecutor && typeof tradeExecutor.getEffectiveBalanceFloor === 'function')
+            ? tradeExecutor.getEffectiveBalanceFloor(cashBalance)
+            : (CONFIG?.RISK?.minBalanceFloor || 2);
+        if (floorEnabled && cashBalance < floor) {
+            failures.push(`BALANCE_BELOW_FLOOR($${cashBalance.toFixed(2)}<$${Number(floor).toFixed(2)})`);
+        }
+
+        // Check 3: Circuit breaker already halted
+        if (tradeExecutor?.circuitBreaker?.state === 'HALTED') {
+            warnings.push('CIRCUIT_BREAKER_HALTED');
+        }
+
+        // Check 4: Redis availability for LIVE mode
+        if (tradeExecutor.mode === 'LIVE') {
+            const redisOk = typeof redis !== 'undefined' && redis && redis.status === 'ready';
+            if (!redisOk) {
+                failures.push('LIVE_MODE_NO_REDIS');
+            }
+
+            // Check 5: Wallet loaded for LIVE
+            if (!tradeExecutor.wallet) {
+                failures.push('LIVE_MODE_NO_WALLET');
+            }
+        }
+
+        // Check 6: Stale pending sells (stuck for > 1 hour)
+        const stalePendingCount = Object.values(tradeExecutor.positions || {})
+            .filter(p => p && p.stalePending && (now - (p.staleSince || 0)) > 3600000).length;
+        if (stalePendingCount > 0) {
+            warnings.push(`STALE_PENDING_SELLS(${stalePendingCount})`);
+        }
+
+        // Check 7: Crash recovery queue growing
+        const crashQueue = (tradeExecutor.tradeHistory || []).filter(t =>
+            t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
+        ).length;
+        if (crashQueue > 5) {
+            warnings.push(`CRASH_RECOVERY_QUEUE(${crashQueue})`);
+        }
+
+        // Check 8: Redemption queue growing
+        const redemptionQueue = (tradeExecutor.redemptionQueue || []).length;
+        if (redemptionQueue > 10) {
+            warnings.push(`REDEMPTION_QUEUE(${redemptionQueue})`);
+        }
+
+        // Check 9 (Autonomy): Internal /api/verify + /api/perfection-check (detect hidden regressions without manual testing)
+        // Run these less frequently to avoid unnecessary load.
+        const baseUrl = `http://127.0.0.1:${process.env.PORT || 3000}`;
+        const verifyIntervalMs = 5 * 60 * 1000;      // every 5 minutes
+        const perfectionIntervalMs = 15 * 60 * 1000; // every 15 minutes
 
         // VERIFY
-    if (now - (_selfCheckState.lastVerifyEpoch || 0) >= verifyIntervalMs) {
-        _selfCheckState.lastVerifyEpoch = now;
+        if (now - (_selfCheckState.lastVerifyEpoch || 0) >= verifyIntervalMs) {
+            _selfCheckState.lastVerifyEpoch = now;
+            try {
+                // LIVE must run deep verify so we catch "looks healthy but cannot trade" states:
+                // - closed_only mode
+                // - collateral balance/allowance = 0
+                const deep = String(tradeExecutor?.mode || '').toUpperCase() === 'LIVE';
+                const url = `${baseUrl}/api/verify?apiKey=${encodeURIComponent(API_KEY)}${deep ? '&deep=1' : ''}`;
+                const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
+                if (!resp.ok) {
+                    failures.push(`VERIFY_HTTP_${resp.status}`);
+                    _selfCheckState.lastVerifySummary = { ok: false, httpStatus: resp.status, timestamp: now };
+                } else {
+                    const j = await resp.json();
+                    const status = String(j?.status || '').toUpperCase();
+                    const criticalFailures = Number(j?.criticalFailures) || 0;
+                    const warningsCount = Number(j?.warnings) || 0;
+                    _selfCheckState.lastVerifySummary = {
+                        ok: status === 'PASS',
+                        status,
+                        criticalFailures,
+                        warnings: warningsCount,
+                        passed: Number(j?.passed) || 0,
+                        failed: Number(j?.failed) || 0,
+                        timestamp: now
+                    };
+                    if (status === 'FAIL' || criticalFailures > 0) failures.push('VERIFY_FAILED');
+                    else if (status === 'WARN' || warningsCount > 0) warnings.push('VERIFY_WARN');
+                }
+            } catch (e) {
+                failures.push(`VERIFY_ERROR(${e.message})`);
+                _selfCheckState.lastVerifySummary = { ok: false, error: e.message, timestamp: now };
+            }
+        }
+
+        // PERFECTION CHECK
+        if (now - (_selfCheckState.lastPerfectionEpoch || 0) >= perfectionIntervalMs) {
+            _selfCheckState.lastPerfectionEpoch = now;
+            try {
+                const url = `${baseUrl}/api/perfection-check?apiKey=${encodeURIComponent(API_KEY)}`;
+                const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
+                if (!resp.ok) {
+                    failures.push(`PERFECTION_HTTP_${resp.status}`);
+                    _selfCheckState.lastPerfectionSummary = { ok: false, httpStatus: resp.status, timestamp: now };
+                } else {
+                    const j = await resp.json();
+                    const allPassed = j?.summary?.allPassed === true;
+                    const criticalFailed = Number(j?.summary?.criticalFailed) || 0;
+                    const failCount = Number(j?.summary?.failCount) || 0;
+                    _selfCheckState.lastPerfectionSummary = {
+                        ok: allPassed,
+                        failCount,
+                        criticalFailed,
+                        timestamp: now
+                    };
+                    if (!allPassed || criticalFailed > 0 || failCount > 0) failures.push('PERFECTION_FAILED');
+                }
+            } catch (e) {
+                failures.push(`PERFECTION_ERROR(${e.message})`);
+                _selfCheckState.lastPerfectionSummary = { ok: false, error: e.message, timestamp: now };
+            }
+        }
+
+        // Sticky enforcement: if the last internal /api/verify or /api/perfection-check was failing,
+        // keep trading blocked until it recovers. Without this, the 5m/15m gating can "auto-resume"
+        // between checks even if the last known state is FAIL.
         try {
-            // LIVE must run deep verify so we catch "looks healthy but cannot trade" states:
-            // - closed_only mode
-            // - collateral balance/allowance = 0
-            const deep = String(tradeExecutor?.mode || '').toUpperCase() === 'LIVE';
-            const url = `${baseUrl}/api/verify?apiKey=${encodeURIComponent(API_KEY)}${deep ? '&deep=1' : ''}`;
-            const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
-            if (!resp.ok) {
-                failures.push(`VERIFY_HTTP_${resp.status}`);
-                _selfCheckState.lastVerifySummary = { ok: false, httpStatus: resp.status, timestamp: now };
-            } else {
-                const j = await resp.json();
-                const status = String(j?.status || '').toUpperCase();
-                const criticalFailures = Number(j?.criticalFailures) || 0;
-                const warningsCount = Number(j?.warnings) || 0;
-                _selfCheckState.lastVerifySummary = {
-                    ok: status === 'PASS',
-                    status,
-                    criticalFailures,
-                    warnings: warningsCount,
-                    passed: Number(j?.passed) || 0,
-                    failed: Number(j?.failed) || 0,
-                    timestamp: now
-                };
-                if (status === 'FAIL' || criticalFailures > 0) failures.push('VERIFY_FAILED');
-                else if (status === 'WARN' || warningsCount > 0) warnings.push('VERIFY_WARN');
+            if (String(tradeExecutor?.mode || '').toUpperCase() === 'LIVE') {
+                const v = _selfCheckState?.lastVerifySummary;
+                const vStatus = String(v?.status || '').toUpperCase();
+                const vCritical = Number(v?.criticalFailures) || 0;
+                const vWarn = Number(v?.warnings) || 0;
+                if (vStatus === 'FAIL' || vCritical > 0) failures.push('VERIFY_FAILED');
+                else if (vStatus === 'WARN' || vWarn > 0) warnings.push('VERIFY_WARN');
+
+                const p = _selfCheckState?.lastPerfectionSummary;
+                if (p && p.ok === false) failures.push('PERFECTION_FAILED');
             }
-        } catch (e) {
-            failures.push(`VERIFY_ERROR(${e.message})`);
-            _selfCheckState.lastVerifySummary = { ok: false, error: e.message, timestamp: now };
-        }
-    }
+        } catch { /* ignore */ }
 
-    // PERFECTION CHECK
-    if (now - (_selfCheckState.lastPerfectionEpoch || 0) >= perfectionIntervalMs) {
-        _selfCheckState.lastPerfectionEpoch = now;
-        try {
-            const url = `${baseUrl}/api/perfection-check?apiKey=${encodeURIComponent(API_KEY)}`;
-            const resp = await fetch(url, { signal: AbortSignal.timeout(20000) });
-            if (!resp.ok) {
-                failures.push(`PERFECTION_HTTP_${resp.status}`);
-                _selfCheckState.lastPerfectionSummary = { ok: false, httpStatus: resp.status, timestamp: now };
-            } else {
-                const j = await resp.json();
-                const allPassed = j?.summary?.allPassed === true;
-                const criticalFailed = Number(j?.summary?.criticalFailed) || 0;
-                const failCount = Number(j?.summary?.failCount) || 0;
-                _selfCheckState.lastPerfectionSummary = {
-                    ok: allPassed,
-                    failCount,
-                    criticalFailed,
-                    timestamp: now
-                };
-                if (!allPassed || criticalFailed > 0 || failCount > 0) failures.push('PERFECTION_FAILED');
-            }
-        } catch (e) {
-            failures.push(`PERFECTION_ERROR(${e.message})`);
-            _selfCheckState.lastPerfectionSummary = { ok: false, error: e.message, timestamp: now };
-        }
-    }
-    
-    // Sticky enforcement: if the last internal /api/verify or /api/perfection-check was failing,
-    // keep trading blocked until it recovers. Without this, the 5m/15m gating can "auto-resume"
-    // between checks even if the last known state is FAIL.
-    try {
-        if (String(tradeExecutor?.mode || '').toUpperCase() === 'LIVE') {
-            const v = _selfCheckState?.lastVerifySummary;
-            const vStatus = String(v?.status || '').toUpperCase();
-            const vCritical = Number(v?.criticalFailures) || 0;
-            const vWarn = Number(v?.warnings) || 0;
-            if (vStatus === 'FAIL' || vCritical > 0) failures.push('VERIFY_FAILED');
-            else if (vStatus === 'WARN' || vWarn > 0) warnings.push('VERIFY_WARN');
+        const failuresUnique = Array.from(new Set(failures));
+        const warningsUnique = Array.from(new Set(warnings));
 
-            const p = _selfCheckState?.lastPerfectionSummary;
-            if (p && p.ok === false) failures.push('PERFECTION_FAILED');
-        }
-    } catch { /* ignore */ }
+        const result = {
+            timestamp: now,
+            passed: failuresUnique.length === 0,
+            failures: failuresUnique,
+            warnings: warningsUnique,
+            tradingAllowed: failuresUnique.length === 0
+        };
 
-    const failuresUnique = Array.from(new Set(failures));
-    const warningsUnique = Array.from(new Set(warnings));
+        _selfCheckState.lastResult = result;
 
-    const result = {
-        timestamp: now,
-        passed: failuresUnique.length === 0,
-        failures: failuresUnique,
-        warnings: warningsUnique,
-        tradingAllowed: failuresUnique.length === 0
-    };
-    
-    _selfCheckState.lastResult = result;
-    
-    // Auto-halt on critical failures (for LIVE mode only)
-    // NOTE: CircuitBreaker state is recomputed continuously (updateCircuitBreaker),
-    // so using it as a manual "halt latch" is not reliable. Use tradingPaused instead.
-    if (failuresUnique.length > 0 && tradeExecutor.mode === 'LIVE') {
-        const reason = `AUTO_SELFCHECK: ${failuresUnique.join(', ')}`;
-        _selfCheckState.autoHaltReason = reason;
+        // Auto-halt on critical failures (for LIVE mode only)
+        // NOTE: CircuitBreaker state is recomputed continuously (updateCircuitBreaker),
+        // so using it as a manual "halt latch" is not reliable. Use tradingPaused instead.
+        if (failuresUnique.length > 0 && tradeExecutor.mode === 'LIVE') {
+            const reason = `AUTO_SELFCHECK: ${failuresUnique.join(', ')}`;
+            _selfCheckState.autoHaltReason = reason;
 
-        const alreadyPausedBySelfCheck =
-            !!tradeExecutor?.tradingPaused &&
-            String(tradeExecutor?.tradingPausedReason || '').startsWith('AUTO_SELFCHECK:');
+            const alreadyPausedBySelfCheck =
+                !!tradeExecutor?.tradingPaused &&
+                String(tradeExecutor?.tradingPausedReason || '').startsWith('AUTO_SELFCHECK:');
 
-        if (!alreadyPausedBySelfCheck) {
-            tradeExecutor.tradingPaused = true;
-            tradeExecutor.tradingPausedReason = reason;
-            tradeExecutor.tradingPausedAt = now;
-            log(`🛑 AUTO-HALT: Trading paused due to: ${reason}`);
+            if (!alreadyPausedBySelfCheck) {
+                tradeExecutor.tradingPaused = true;
+                tradeExecutor.tradingPausedReason = reason;
+                tradeExecutor.tradingPausedAt = now;
+                log(`🛑 AUTO-HALT: Trading paused due to: ${reason}`);
 
-            // Send Telegram notification if configured
-            if (typeof sendTelegramNotification === 'function') {
-                sendTelegramNotification(`🛑 AUTO-HALT: ${reason}`);
+                // Send Telegram notification if configured
+                if (typeof sendTelegramNotification === 'function') {
+                    sendTelegramNotification(`🛑 AUTO-HALT: ${reason}`);
+                }
             }
         }
-    }
 
-    // Auto-resume (for LIVE mode only) when failures clear AND the pause was caused by AUTO_SELFCHECK.
-    // Do NOT auto-resume manual pauses.
-    if (failuresUnique.length === 0 && tradeExecutor.mode === 'LIVE') {
-        const paused = !!tradeExecutor?.tradingPaused;
-        const pauseReason = String(tradeExecutor?.tradingPausedReason || '');
-        const autoReason = String(_selfCheckState.autoHaltReason || '');
-        if (paused && pauseReason.startsWith('AUTO_SELFCHECK:') && autoReason.startsWith('AUTO_SELFCHECK:')) {
-            tradeExecutor.tradingPaused = false;
-            tradeExecutor.tradingPausedReason = null;
-            tradeExecutor.tradingPausedAt = 0;
-            _selfCheckState.autoHaltReason = null;
-            _selfCheckState.lastAutoResumeEpoch = now;
-            log(`✅ AUTO-RESUME: Trading resumed (self-check recovered)`);
-            if (typeof sendTelegramNotification === 'function') {
-                sendTelegramNotification(`✅ AUTO-RESUME: Self-check recovered, trading resumed`);
+        // Auto-resume (for LIVE mode only) when failures clear AND the pause was caused by AUTO_SELFCHECK.
+        // Do NOT auto-resume manual pauses.
+        if (failuresUnique.length === 0 && tradeExecutor.mode === 'LIVE') {
+            const paused = !!tradeExecutor?.tradingPaused;
+            const pauseReason = String(tradeExecutor?.tradingPausedReason || '');
+            const autoReason = String(_selfCheckState.autoHaltReason || '');
+            if (paused && pauseReason.startsWith('AUTO_SELFCHECK:') && autoReason.startsWith('AUTO_SELFCHECK:')) {
+                tradeExecutor.tradingPaused = false;
+                tradeExecutor.tradingPausedReason = null;
+                tradeExecutor.tradingPausedAt = 0;
+                _selfCheckState.autoHaltReason = null;
+                _selfCheckState.lastAutoResumeEpoch = now;
+                log(`✅ AUTO-RESUME: Trading resumed (self-check recovered)`);
+                if (typeof sendTelegramNotification === 'function') {
+                    sendTelegramNotification(`✅ AUTO-RESUME: Self-check recovered, trading resumed`);
+                }
             }
         }
-    }
-    
-    if (failuresUnique.length > 0) {
-        log(`⚠️ SELF-CHECK FAILED: ${failuresUnique.join(', ')}`);
-    }
+
+        if (failuresUnique.length > 0) {
+            log(`⚠️ SELF-CHECK FAILED: ${failuresUnique.join(', ')}`);
+        }
 
         return result;
     } finally {
@@ -17195,7 +17195,7 @@ async function runAutoSelfCheck() {
 // Run self-check every 60 seconds
 setInterval(() => {
     runAutoSelfCheck().catch(e => {
-        try { log(`❌ SELF-CHECK ERROR: ${e.message}`); } catch {}
+        try { log(`❌ SELF-CHECK ERROR: ${e.message}`); } catch { }
     });
 }, 60 * 1000);
 
@@ -17204,7 +17204,7 @@ const gateTrace = {
     // Structure: { asset: { cycleStart: timestamp, evaluations: [...] } }
     traces: {},
     maxTraces: 50, // Keep last 50 per asset
-    
+
     record(asset, evaluation) {
         if (!this.traces[asset]) {
             this.traces[asset] = [];
@@ -17219,15 +17219,15 @@ const gateTrace = {
             this.traces[asset] = this.traces[asset].slice(0, this.maxTraces);
         }
     },
-    
+
     getAll() {
         return this.traces;
     },
-    
+
     getForAsset(asset) {
         return this.traces[asset] || [];
     },
-    
+
     getSummary() {
         const summary = { totalEvaluations: 0, totalBlocked: 0, gateFailures: {}, byAsset: {} };
         for (const [asset, traces] of Object.entries(this.traces)) {
@@ -17549,7 +17549,7 @@ class SupremeBrain {
         this.lockState = 'NEUTRAL';
         this.lockStrength = 0;
         this.lastSignal = null;
-        
+
         // 🏆 v69: Critical error tracking - halt trading if too many errors
         this.criticalErrorCount = 0;
         this.criticalErrorResetTime = 0;
@@ -17566,12 +17566,12 @@ class SupremeBrain {
             '0.95-0.98': { total: 0, wins: 0 },
             '0.98-1.00': { total: 0, wins: 0 }
         };
-        
+
         // 🎯 GOAT FIX: Tier-conditioned calibration (CONVICTION has different hit rate than ADVISORY/NONE)
         this.tierCalibration = {
             'CONVICTION': { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } },
-            'ADVISORY':   { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } },
-            'NONE':       { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } }
+            'ADVISORY': { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } },
+            'NONE': { total: 0, wins: 0, priceBands: { extreme: { total: 0, wins: 0 }, mid: { total: 0, wins: 0 } } }
         };
 
         // FINAL SEVEN: REGIME PERSISTENCE
@@ -17584,7 +17584,7 @@ class SupremeBrain {
         this.stabilityCounter = 0;
         this.lagCounter = 0;
         this.isProcessing = false;
-        
+
         // Reduce terminal spam (can crash Cursor/VSCode over time)
         this.lastWarmupLogAt = 0;
         this.lastWarmupLogSig = '';
@@ -17687,12 +17687,12 @@ class SupremeBrain {
 
     async update() {
         if (this.isProcessing) return;
-        
+
         // 🏆 v69: Skip if trading halted due to repeated critical errors
         if (this.tradingHalted) {
             return; // Silent skip - already logged when halted
         }
-        
+
         this.isProcessing = true;
         try {
             const currentPrice = livePrices[this.asset];
@@ -18261,26 +18261,82 @@ class SupremeBrain {
             finalConfidence = Math.min(1.0, finalConfidence);
 
             // === SMOOTHING (The "Pinball" Fix) ===
-            // ULTRA-OPTIMIZED: 70/30 smoothing (favor new data for faster response)
-            // Alpha 0.7 = 70% new value, 30% old value (responsive)
+            // 🏆 v122: 80/20 smoothing (favor stability over responsiveness for accuracy)
+            // Alpha 0.8 = 80% new value, 20% old value (more stable, less noise)
             if (this.confidence > 0) {
-                finalConfidence = (finalConfidence * 0.70) + (this.confidence * 0.30);
+                finalConfidence = (finalConfidence * 0.80) + (this.confidence * 0.20);
             }
 
+            // 🏆 v122: CONVICTION = Practically Certain (pWin≥95% + locked + high confidence + all factors)
             // Determine tier with HYSTERESIS (prevent flickering)
-            // Must drop 3% below threshold to lose tier (More responsive than 5%)
             let newTier = 'NONE';
-            if (finalConfidence >= convictionThreshold) newTier = 'CONVICTION';
-            else if (finalConfidence >= advisoryThreshold) newTier = 'ADVISORY';
+
+            // Compute preliminary pWin for CONVICTION requirements check
+            const s = this.stats || {};
+            const priorRate = (this.tier === 'CONVICTION' && s.convictionTotal > 0)
+                ? (s.convictionWins / s.convictionTotal)
+                : (s.total > 0 ? (s.wins / s.total) : 0.5);
+
+            // Get market odds for pWin calculation (use market price, not currentPrice)
+            const market = currentMarkets[this.asset];
+            const marketOdds = market ? (finalSignal === 'UP' ? market.yesPrice : market.noPrice) : currentPrice;
+
+            // Get tier-conditioned pWin if available
+            let preliminaryPWin = null;
+            const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false);
+            const convictionLcbZ = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBZ)) ? Number(CONFIG.RISK.convictionPWinLCBZ) : 1.96;
+            const convictionLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBMinSamples)) ? Number(CONFIG.RISK.convictionPWinLCBMinSamples) : 25;
+            const convictionTierMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionTierPWinMinSamples)) ? Number(CONFIG.RISK.convictionTierPWinMinSamples) : 20;
+
+            if (convictionLcbEnabled && typeof this.getTierConditionedPWinWithLCB === 'function') {
+                preliminaryPWin = this.getTierConditionedPWinWithLCB('CONVICTION', marketOdds, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
+            }
+            if (preliminaryPWin === null && typeof this.getTierConditionedPWin === 'function') {
+                preliminaryPWin = this.getTierConditionedPWin('CONVICTION', marketOdds, { fallback: null, minSamples: convictionTierMinSamples });
+            }
+            if (preliminaryPWin === null && typeof this.getCalibratedWinProb === 'function') {
+                preliminaryPWin = this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 });
+            }
+
+            // Get calibration sample size
+            const calibrationSampleSize = this.calibrationBuckets ?
+                Object.values(this.calibrationBuckets).reduce((sum, b) => sum + (b.total || 0), 0) : 0;
+
+            // Determine pWin confidence level
+            const pWinConfidence = !Number.isFinite(preliminaryPWin) ? 'UNKNOWN' :
+                preliminaryPWin >= 0.90 ? 'VERY_HIGH' :
+                    preliminaryPWin >= 0.85 ? 'HIGH' :
+                        preliminaryPWin >= 0.80 ? 'MODERATE' :
+                            preliminaryPWin >= 0.70 ? 'LOW' : 'VERY_LOW';
+
+            // 🏆 v122: CONVICTION requires ALL factors (practically certain)
+            const isLocked = this.oracleLocked || this.convictionLocked;
+            const meetsConvictionRequirements =
+                finalConfidence >= 0.90 &&  // High confidence (90%+)
+                isLocked === true &&         // Locked calibration (oracle or conviction locked)
+                Number.isFinite(preliminaryPWin) && preliminaryPWin >= 0.95 &&  // pWin ≥ 95%
+                (pWinConfidence === 'VERY_HIGH' || pWinConfidence === 'HIGH') &&  // High pWin confidence
+                calibrationSampleSize >= 20;  // Sufficient samples
+
+            if (meetsConvictionRequirements) {
+                newTier = 'CONVICTION';
+            } else if (finalConfidence >= advisoryThreshold) {
+                newTier = 'ADVISORY';
+            }
 
             // DIAGNOSTIC: Log every 30 seconds to see why we're not hitting CONVICTION
             if (elapsed % 30 < 2) {
-                log(`📊 DIAG: Conf=${(finalConfidence * 100).toFixed(1)}% ConvThresh=${(convictionThreshold * 100).toFixed(1)}% AdvThresh=${(advisoryThreshold * 100).toFixed(1)}% Tier=${newTier} Elapsed=${elapsed}s Locked=${this.convictionLocked}`, this.asset);
+                log(`📊 DIAG: Conf=${(finalConfidence * 100).toFixed(1)}% ConvThresh=${(convictionThreshold * 100).toFixed(1)}% AdvThresh=${(advisoryThreshold * 100).toFixed(1)}% Tier=${newTier} Elapsed=${elapsed}s Locked=${isLocked} pWin=${preliminaryPWin !== null ? (preliminaryPWin * 100).toFixed(1) + '%' : 'N/A'} pWinConf=${pWinConfidence} samples=${calibrationSampleSize}`, this.asset);
             }
 
-            // Hysteresis check
+            // 🏆 v122: Stricter hysteresis for CONVICTION (5% drop required, not 3%)
             if (this.tier === 'CONVICTION' && newTier !== 'CONVICTION') {
-                if (finalConfidence > (convictionThreshold - 0.03)) newTier = 'CONVICTION'; // Hold tier
+                // Only lose CONVICTION if ALL requirements fail (5% drop + check all factors)
+                if (finalConfidence > (convictionThreshold - 0.05) && isLocked &&
+                    preliminaryPWin !== null && preliminaryPWin >= 0.90 &&
+                    (pWinConfidence === 'VERY_HIGH' || pWinConfidence === 'HIGH')) {
+                    newTier = 'CONVICTION'; // Hold tier - still meets most requirements
+                }
             }
             if (this.tier === 'ADVISORY' && newTier === 'NONE') {
                 if (finalConfidence > (advisoryThreshold - 0.03)) newTier = 'ADVISORY'; // Hold tier
@@ -18348,7 +18404,7 @@ class SupremeBrain {
                 this.oracleLocked = true;
                 this.oracleLockPrediction = finalSignal;
                 this.lockCertainty = adjustedCertainty;
-                
+
                 // 🎯 v53: Capture entry-time prices at oracle lock moment
                 const mkt = currentMarkets[this.asset];
                 if (mkt && !this.tradeEntryOdds) {
@@ -18357,7 +18413,7 @@ class SupremeBrain {
                     this.tradeEntryTier = 'CONVICTION';
                     this.tradeEntryConfidence = finalConfidence;
                 }
-                
+
                 log(`🔮 ═══════════════════════════════════════════════════`, this.asset);
                 log(`🔮 TRUE ORACLE LOCK: ${finalSignal} @ ${adjustedCertainty.toFixed(0)} certainty`, this.asset);
                 log(`🔮 Threshold: ${dynamicThreshold} | Velocity: ${velocityData.velocity.toFixed(1)} | Phase: ${this.currentPhase}`, this.asset);
@@ -18381,6 +18437,19 @@ class SupremeBrain {
                 // Only log every 30s to reduce spam
                 if (elapsed % 30 < 2) {
                     log(`🔮 ORACLE HOLDING: ${finalSignal} | Certainty: ${adjustedCertainty.toFixed(0)} | Vel: ${velocityData.velocity.toFixed(1)}`, this.asset);
+                }
+            }
+
+            // 🏆 v122: Prevent flip-flopping - direction lock before commitment
+            // Prevent flip if prediction changed but confidence still high
+            if (this.prediction && this.prediction !== 'WAIT' && this.prediction !== 'NEUTRAL' &&
+                this.prediction !== finalSignal &&
+                this.confidence > 0.70 && finalConfidence > 0.70) {
+                // Only flip if new direction has 15%+ more confidence
+                const confidenceDelta = finalConfidence - this.confidence;
+                if (confidenceDelta < 0.15) {
+                    finalSignal = this.prediction; // Hold old direction
+                    log(`🛡️ FLIP-PREVENTION: Holding ${this.prediction} (delta=${(confidenceDelta * 100).toFixed(1)}%, oldConf=${(this.confidence * 100).toFixed(1)}%, newConf=${(finalConfidence * 100).toFixed(1)}%)`, this.asset);
                 }
             }
 
@@ -18468,8 +18537,8 @@ class SupremeBrain {
                 else if (elapsed < 180) requiredStability = 1; // SNIPER: Immediate
                 else requiredStability = 1; // Always instant now
 
-                // Cycle commitment (moved outside IIFE)
-                if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed < 300) {
+                // 🏆 v122: Early cycle commitment (at 60s, not 300s) to prevent flip-flopping
+                if (!this.cycleCommitted && (tier === 'CONVICTION' || tier === 'ADVISORY') && elapsed >= 60) {
                     const market = currentMarkets[this.asset];
                     if (market) {
                         const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
@@ -18497,10 +18566,10 @@ class SupremeBrain {
                     }
                     this.stabilityCounter = 0;
                     this.pendingSignal = null;
-                    
+
                     // 🎯 GOAT v44.1: Invariant enforcement after state update
                     this.enforceStateInvariants();
-                    
+
                     log(`✅ PREDICTION FLIP: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}%`, this.asset);
                 }
                 // REMOVED: The broken code that updated confidence separately from prediction
@@ -18521,7 +18590,7 @@ class SupremeBrain {
                     this.lastSignal.conf = finalConfidence;
                     this.lastSignal.tier = tier;
                 }
-                
+
                 // 🎯 GOAT v44.1: Invariant enforcement after state update
                 this.enforceStateInvariants();
             }
@@ -18532,13 +18601,13 @@ class SupremeBrain {
             // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
             // 🕐 minElapsedSeconds: Wait for confidence to build before trading
             const minElapsed = CONFIG.ORACLE.minElapsedSeconds || 60;
-            
+
             // 🏆 v77 HYBRID: CONVICTION-ONLY MODE with FREQUENCY FLOOR override for ADVISORY
             // When convictionOnlyMode=true but we're below target trades/hour, allow high-quality ADVISORY
             // Determine if trade should be blocked or can proceed
             let shouldBlockTrade = false;
             let frequencyFloorPending = false;  // True if ADVISORY should be evaluated against frequency floor
-            
+
             // Drift probe (self-healing auto-disable): if an asset is autoDisabled, we allow reduced-size
             // CONVICTION "probe" trades at a throttled interval so the system can recover autonomously.
             // Without this, autoDisabled can become a permanent lockout (no new conviction trades → no new data).
@@ -18614,320 +18683,320 @@ class SupremeBrain {
                     shouldBlockTrade = true;
                 }
             }
-            
+
             // If trade should be blocked, skip the trading logic
             if (shouldBlockTrade) {
                 // Do not trade - fall through to end
             } else {
-            const meetsAdvisoryThreshold = tier === 'CONVICTION' || (tier === 'ADVISORY' && finalConfidence >= 0.80);
+                const meetsAdvisoryThreshold = tier === 'CONVICTION' || (tier === 'ADVISORY' && finalConfidence >= 0.80);
                 // 🎯 GOAT v44.1: Frequency governor replaces time-of-day filtering
                 // Instead of blocking trades by hour, we dynamically adjust thresholds based on recent trade frequency
                 const frequencyCheck = tradeExecutor.getFrequencyGovernorDecision();
                 const timeFilterPass = frequencyCheck.allowTrade || tier === 'CONVICTION';
-                
+
                 if (CONFIG.ORACLE.enabled && !this.convictionLocked && meetsAdvisoryThreshold && timeFilterPass && elapsed >= minElapsed && elapsed < 600) {
-                const market = currentMarkets[this.asset];
-                if (market) {
-                    const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
-                    // 🎯 v47 GATE TUNING: Allow mid-range odds if CONVICTION or GENESIS_AGREE
-                    // - CONVICTION tier has 98%+ win rate at any price
-                    // - GENESIS_AGREE = Genesis model (94% accuracy) matches signal direction
-                    // - Otherwise require extreme odds (<20c or >90c) for safety
-                    const isExtremeOdds = currentOdds < 0.20 || currentOdds > 0.90; // v47: lowered from 95c to 90c
-                    const isGenesisAgreeForGate = modelVotes.genesis === finalSignal;
-                    const canTradeMidRange = tier === 'CONVICTION' || isGenesisAgreeForGate;
-                    
-                    if (!isExtremeOdds && !canTradeMidRange) {
-                        log(`🚫 ENTRY PRICE FILTER: Mid-range odds ${(currentOdds * 100).toFixed(1)}¢ - requires CONVICTION or GENESIS agreement`, this.asset);
-                        // 🎯 GOAT v44.1: Record extreme odds filter block
-                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'PRICE_FILTER', failedGates: ['mid_range_odds'], inputs: { signal: finalSignal, tier, currentOdds, isExtremeOdds, isGenesisAgreeForGate, elapsed } });
-                        // Do not trade - fall through to end
-                    } else {
-                    // Consensus ratio (robust numeric calc; used in gates + trace)
-                    const upVotesNum = Number(votes.UP) || 0;
-                    const downVotesNum = Number(votes.DOWN) || 0;
-                    const totalVotesForConsensus = upVotesNum + downVotesNum;
-                    const consensusVotes = Math.max(upVotesNum, downVotesNum);
-                    const consensusRatio = totalVotesForConsensus > 0 ? consensusVotes / totalVotesForConsensus : 0;
-                    // 🎯 GOAT: EV/EDGE uses tier-conditioned calibrated probability (pWin), not raw signal score.
-                    // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
-                    const feeModelOracle = getPolymarketTakerFeeModel();
-                    const EV_SLIPPAGE_PCT = 0.01; // estimated entry slippage for EV/price-cap math
-                    const s = this.stats || {};
-                    const priorRate =
-                        (tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
-                            (s.total > 0 ? (s.wins / s.total) : 0.5);
-                    
-                    // 🎯 GOAT: Prefer tier+price conditioned pWin, fall back to bucket-based
-                    // 🏆 v96 LCB GATING: For ADVISORY, use Wilson LCB (conservative estimate) to reduce variance
-                    let pWinRaw = null;
-                    let lcbUsed = false;
-                    
-                    // 🏆 v97: Use conservative LCB pWin for BOTH ADVISORY and CONVICTION (tunable in CONFIG.RISK).
-                    // This protects against overconfidence (especially at high entry prices) and improves robustness across regimes.
-                    const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false); // default ON
-                    const convictionLcbZ = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBZ))
-                        ? Number(CONFIG.RISK.convictionPWinLCBZ)
-                        : 1.96;
-                    const convictionLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBMinSamples))
-                        ? Number(CONFIG.RISK.convictionPWinLCBMinSamples)
-                        : 25;
-                    const convictionTierMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionTierPWinMinSamples))
-                        ? Number(CONFIG.RISK.convictionTierPWinMinSamples)
-                        : 20;
-                    const advisoryLcbZ = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBZ))
-                        ? Number(CONFIG.RISK.advisoryPWinLCBZ)
-                        : 1.645;
-                    const advisoryLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBMinSamples))
-                        ? Number(CONFIG.RISK.advisoryPWinLCBMinSamples)
-                        : 8;
+                    const market = currentMarkets[this.asset];
+                    if (market) {
+                        const currentOdds = finalSignal === 'UP' ? market.yesPrice : market.noPrice;
+                        // 🎯 v47 GATE TUNING: Allow mid-range odds if CONVICTION or GENESIS_AGREE
+                        // - CONVICTION tier has 98%+ win rate at any price
+                        // - GENESIS_AGREE = Genesis model (94% accuracy) matches signal direction
+                        // - Otherwise require extreme odds (<20c or >90c) for safety
+                        const isExtremeOdds = currentOdds < 0.20 || currentOdds > 0.90; // v47: lowered from 95c to 90c
+                        const isGenesisAgreeForGate = modelVotes.genesis === finalSignal;
+                        const canTradeMidRange = tier === 'CONVICTION' || isGenesisAgreeForGate;
 
-                    if (tier === 'CONVICTION' && convictionLcbEnabled && typeof this.getTierConditionedPWinWithLCB === 'function') {
-                        // CONVICTION: Use tier-conditioned Wilson LCB when enough samples exist
-                        pWinRaw = this.getTierConditionedPWinWithLCB('CONVICTION', currentOdds, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
-                        if (pWinRaw !== null) {
-                            lcbUsed = true;
-                            log(`📊 LCB GATING: CONVICTION Wilson LCB(z=${convictionLcbZ}) pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
-                        }
-                    }
-
-                    if (pWinRaw === null && tier === 'ADVISORY' && typeof this.getCalibratedPWinWithLCB === 'function') {
-                        // ADVISORY: Use conservative LCB estimate to reduce overconfidence
-                        pWinRaw = this.getCalibratedPWinWithLCB(finalConfidence, { z: advisoryLcbZ, minSamples: advisoryLcbMinSamples, fallback: null });
-                        if (pWinRaw !== null) {
-                            lcbUsed = true;
-                            log(`📊 LCB GATING: ADVISORY Wilson LCB(z=${advisoryLcbZ}) pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
-                        }
-                    }
-                    
-                    // Fallback chain: tier-conditioned → calibrated → prior-based
-                    if (pWinRaw === null && typeof this.getTierConditionedPWin === 'function') {
-                        const minSamplesTier = (tier === 'CONVICTION' && convictionLcbEnabled) ? convictionTierMinSamples : 5;
-                        pWinRaw = this.getTierConditionedPWin(tier, currentOdds, { fallback: null, minSamples: minSamplesTier });
-                    }
-                    if (pWinRaw === null && typeof this.getCalibratedWinProb === 'function') {
-                        pWinRaw = this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 });
-                    }
-                    
-                    // Weight pWin toward 0.5 when signal score is weak to avoid overconfidence from priors
-                    const minConfRef = Math.max(0.0001, CONFIG.ORACLE.minConfidence || 0.8);
-                    const weight = Math.max(0, Math.min(1, finalConfidence / minConfRef)); // 0..1
-                    const pWinEff = Number.isFinite(pWinRaw) ? (0.5 + ((pWinRaw - 0.5) * weight)) : null;
-                    const edgePercent = (pWinEff !== null && currentOdds > 0) ? (((pWinEff - currentOdds) / currentOdds) * 100) : 0;
-                    const b = currentOdds > 0 ? ((1 - currentOdds) / currentOdds) : 0;
-                    const evRoi = (pWinEff !== null && currentOdds > 0)
-                        ? calcBinaryEvRoiAfterFees(pWinEff, currentOdds, { slippagePct: EV_SLIPPAGE_PCT, feeModel: feeModelOracle })
-                        : null;
-                    const priceMovingRight = (finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0);
-                    const isTrending = regime === 'TRENDING';
-                    const stabilityMet = this.stabilityCounter >= CONFIG.ORACLE.minStability || this.prediction === finalSignal;
-
-                    // 🔮 AGGRESSION SCALING: Higher aggression = lower thresholds = more trades
-                    // Range: 0 (conservative) to 100 (aggressive)
-                    // At 100%, thresholds drop by 30% (e.g., 70% consensus becomes 49%)
-                    const aggression = (CONFIG.ORACLE.aggression || 50) / 100; // 0.0 to 1.0
-                    const aggressionMultiplier = 1 - (aggression * 0.3); // 1.0 to 0.7
-
-                    const adjustedMinConsensus = CONFIG.ORACLE.minConsensus * aggressionMultiplier;
-                    const adjustedMinConfidence = CONFIG.ORACLE.minConfidence * aggressionMultiplier;
-                    const adjustedMinEdge = CONFIG.ORACLE.minEdge * aggressionMultiplier;
-
-                    log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Score=${(finalConfidence * 100).toFixed(0)}% pWin≈${pWinEff !== null ? (pWinEff * 100).toFixed(1) : 'NA'}% EV=${evRoi !== null ? (evRoi * 100).toFixed(2) : 'NA'}%`, this.asset);
-
-                    // ==================== MOLECULAR FIX: HARD BLOCKS (Cannot be bypassed by aggression) ====================
-                    // 🎯 GOAT v44.1: Gate trace inputs for this evaluation
-                    const gateInputs = {
-                        signal: finalSignal,
-                        confidence: finalConfidence,
-                        tier,
-                        // 🏆 v96.1: Drift probe metadata (only set when autoDisabled and probe allowed)
-                        driftProbe: !!driftProbeMultiplier,
-                        driftProbeMultiplier: driftProbeMultiplier,
-                        driftProbeReason: driftProbeReason,
-                        pWin: pWinEff,
-                        pWinRaw: pWinRaw,  // 🏆 v96: Raw pWin before weighting
-                        lcbUsed: lcbUsed,  // 🏆 v96: True if Wilson LCB was used (ADVISORY)
-                        evRoi,
-                        edgePercent,
-                        currentOdds,
-                        consensusRatio,
-                        upVotes: upVotesNum,
-                        downVotes: downVotesNum,
-                        totalVotes: totalVotesForConsensus,
-                        genesis: modelVotes.genesis,
-                        isTrending,
-                        priceMovingRight,
-                        stabilityCounter: this.stabilityCounter,
-                        elapsed,
-                        adjustedMinConsensus,
-                        adjustedMinConfidence,
-                        adjustedMinEdge,
-                        effectiveMinOdds: CONFIG.ORACLE.minOdds || 0.20,
-                        effectiveMaxOdds: tradeExecutor.getEffectiveMaxOdds(),
-                        effectiveMinStability: tradeExecutor.getEffectiveMinStability()
-                    };
-                    
-                    // 1. Missing calibrated pWin = cannot evaluate EV reliably
-                    if (pWinEff === null) {
-                        log(`🚫 ORACLE HARD BLOCK: Missing calibrated pWin (cannot compute EV)`, this.asset);
-                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['pWin_missing'], inputs: gateInputs });
-                        // Do not trade - fall through to end
-                    }
-                    // 2. NEGATIVE EV = Never trade
-                    else if (evRoi !== null && evRoi <= 0) {
-                        log(`🚫 ORACLE HARD BLOCK: Negative EV ${(evRoi * 100).toFixed(2)}%`, this.asset);
-                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['negative_EV'], inputs: gateInputs });
-                        // Do not trade - fall through to end
-                    }
-                    // 3. GENESIS DISAGREEMENT = 94% accurate model says NO
-                    else if (modelVotes.genesis && modelVotes.genesis !== finalSignal) {
-                        log(`🛡️ ORACLE HARD BLOCK: Genesis (94% accurate) says ${modelVotes.genesis}, not ${finalSignal}`, this.asset);
-                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['genesis_veto'], inputs: gateInputs });
-                        // Do not trade - fall through to end
-                    }
-                    // 4. MINIMUM HARD FLOOR: Even with max aggression, need 5% relative edge
-                    else if (edgePercent < 5) {
-                        log(`⚠️ ORACLE HARD BLOCK: Edge ${edgePercent.toFixed(1)}% below 5% minimum floor`, this.asset);
-                        gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['edge_floor'], inputs: gateInputs });
-                        // Do not trade - fall through to end
-                    }
-                    else {
-                        // ==================== v42 IMMUTABLE PROPHET: GOD / TREND MODES ====================
-
-                        // 🏆 v66 CRITICAL FIX: SUPREME MODE BLOCK - NOW IN CORRECT POSITION
-                        // Previous v65 fix was in wrong location (before confidence modifications)
-                        // This check must happen AFTER all confidence modifications, RIGHT BEFORE trade execution
-                        if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
-                            log(`🚫 SUPREME MODE BLOCK: ${(finalConfidence * 100).toFixed(1)}% < 75% minimum - TRADE BLOCKED (correct location)`, this.asset);
-                            gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'SUPREME_MODE_BLOCK', failedGates: ['confidence_75'], inputs: { finalConfidence, supremeConfidenceMode: true, tier, odds: currentOdds } });
+                        if (!isExtremeOdds && !canTradeMidRange) {
+                            log(`🚫 ENTRY PRICE FILTER: Mid-range odds ${(currentOdds * 100).toFixed(1)}¢ - requires CONVICTION or GENESIS agreement`, this.asset);
+                            // 🎯 GOAT v44.1: Record extreme odds filter block
+                            gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'PRICE_FILTER', failedGates: ['mid_range_odds'], inputs: { signal: finalSignal, tier, currentOdds, isExtremeOdds, isGenesisAgreeForGate, elapsed } });
                             // Do not trade - fall through to end
-                        }
-                        else {
-                        // 1. GOD MODE (>90%): 0 Historical Failures -> EXECUTE IMMEDIATELY
-                        const isGodMode = finalConfidence > 0.90;
+                        } else {
+                            // Consensus ratio (robust numeric calc; used in gates + trace)
+                            const upVotesNum = Number(votes.UP) || 0;
+                            const downVotesNum = Number(votes.DOWN) || 0;
+                            const totalVotesForConsensus = upVotesNum + downVotesNum;
+                            const consensusVotes = Math.max(upVotesNum, downVotesNum);
+                            const consensusRatio = totalVotesForConsensus > 0 ? consensusVotes / totalVotesForConsensus : 0;
+                            // 🎯 GOAT: EV/EDGE uses tier-conditioned calibrated probability (pWin), not raw signal score.
+                            // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
+                            const feeModelOracle = getPolymarketTakerFeeModel();
+                            const EV_SLIPPAGE_PCT = 0.01; // estimated entry slippage for EV/price-cap math
+                            const s = this.stats || {};
+                            const priorRate =
+                                (tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
+                                    (s.total > 0 ? (s.wins / s.total) : 0.5);
 
-                        // 2. TREND MODE (80-90%): Execute ONLY if Trend Aligned (Buy High / Short Low)
-                        // This CAPTURES the 5:45 velocity trade (60c) and BLOCKS the 80% reversals
-                        let isTrendMode = false;
-                        if (!isGodMode && finalConfidence > 0.80) {
-                            const isTrendUP = finalSignal === 'UP' && currentOdds > 0.50;
-                            const isTrendDOWN = finalSignal === 'DOWN' && currentOdds > 0.50; // FIX: Trend = NO price > 0.50
-                            if (isTrendUP || isTrendDOWN) {
-                                isTrendMode = true;
-                            }
-                        }
+                            // 🎯 GOAT: Prefer tier+price conditioned pWin, fall back to bucket-based
+                            // 🏆 v96 LCB GATING: For ADVISORY, use Wilson LCB (conservative estimate) to reduce variance
+                            let pWinRaw = null;
+                            let lcbUsed = false;
 
-                        if (isGodMode || isTrendMode) {
-                            // BYPASS ALL STANDARD CHECKS (Consensus, Momentum, Regime, etc.)
-                            this.convictionLocked = true;
-                            this.lockedDirection = finalSignal;
-                            this.lockTime = Date.now();
-                            this.lockConfidence = finalConfidence;
+                            // 🏆 v97: Use conservative LCB pWin for BOTH ADVISORY and CONVICTION (tunable in CONFIG.RISK).
+                            // This protects against overconfidence (especially at high entry prices) and improves robustness across regimes.
+                            const convictionLcbEnabled = (CONFIG?.RISK?.convictionPWinLCBEnabled !== false); // default ON
+                            const convictionLcbZ = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBZ))
+                                ? Number(CONFIG.RISK.convictionPWinLCBZ)
+                                : 1.96;
+                            const convictionLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionPWinLCBMinSamples))
+                                ? Number(CONFIG.RISK.convictionPWinLCBMinSamples)
+                                : 25;
+                            const convictionTierMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionTierPWinMinSamples))
+                                ? Number(CONFIG.RISK.convictionTierPWinMinSamples)
+                                : 20;
+                            const advisoryLcbZ = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBZ))
+                                ? Number(CONFIG.RISK.advisoryPWinLCBZ)
+                                : 1.645;
+                            const advisoryLcbMinSamples = Number.isFinite(Number(CONFIG?.RISK?.advisoryPWinLCBMinSamples))
+                                ? Number(CONFIG.RISK.advisoryPWinLCBMinSamples)
+                                : 8;
 
-                            const modeName = isGodMode ? "GOD MODE (>90%) ⚡" : "TREND MODE (80-90% + Trend) 🌊";
-                            log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
-                            log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
-
-                            // 🎯 v53: Capture entry-time prices for accurate backtesting
-                            this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
-                            this.tradeEntryReason = isGodMode ? 'GOD_MODE' : 'TREND_MODE';
-                            this.tradeEntryTier = tier;
-                            this.tradeEntryConfidence = finalConfidence;
-
-                            // 🎯 GOAT v44.1: Record successful trade
-                            gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
-                            
-                            // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
-                            // 🏆 v96: Pass lcbUsed for audit trail
-                            const genesisAgree = modelVotes.genesis === finalSignal;
-                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
-                                tier: tier,
-                                pWin: pWinEff,
-                                genesisAgree,
-                                lcbUsed,
-                                driftProbeMultiplier: driftProbeMultiplier,
-                                driftProbeReason: driftProbeReason
-                            });
-                        }
-                        else {
-                            // Safe to proceed with normal checks
-
-                            const SAFETY_MARGIN = 0.02; // 2¢ absolute safety margin
-                            const hardMinOdds = CONFIG.ORACLE.minOdds || 0.20;
-                            const hardMaxOdds = tradeExecutor.getEffectiveMaxOdds();
-                            const pClamped = (pWinEff !== null && Number.isFinite(pWinEff)) ? Math.max(0, Math.min(1, pWinEff)) : null;
-                            // 🎯 GOAT v44.1: EV-derived max price under taker-fee model (numeric search).
-                            let maxOk = null;
-                            if (pClamped !== null) {
-                                const step = 0.001; // 0.1¢ precision
-                                const startPx = Math.min(0.99, hardMaxOdds);
-                                const minPx = Math.max(0.01, hardMinOdds);
-                                for (let px = startPx; px >= minPx; px -= step) {
-                                    const ev = calcBinaryEvRoiAfterFees(pClamped, px, { slippagePct: EV_SLIPPAGE_PCT, feeModel: feeModelOracle });
-                                    if (Number.isFinite(ev) && ev > 0) { maxOk = px; break; }
+                            if (tier === 'CONVICTION' && convictionLcbEnabled && typeof this.getTierConditionedPWinWithLCB === 'function') {
+                                // CONVICTION: Use tier-conditioned Wilson LCB when enough samples exist
+                                pWinRaw = this.getTierConditionedPWinWithLCB('CONVICTION', currentOdds, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
+                                if (pWinRaw !== null) {
+                                    lcbUsed = true;
+                                    log(`📊 LCB GATING: CONVICTION Wilson LCB(z=${convictionLcbZ}) pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
                                 }
                             }
-                            const breakevenPrice = (maxOk !== null) ? maxOk : hardMaxOdds;
-                            const evDerivedMaxPrice = Math.max(hardMinOdds, Math.min(0.99, breakevenPrice - SAFETY_MARGIN));
-                            const effectiveMaxPrice = Math.min(evDerivedMaxPrice, hardMaxOdds);
-                            const oddsCheckPassed = (currentOdds >= hardMinOdds) && (currentOdds <= effectiveMaxPrice);
-                            
-                            const oracleChecks = {
-                                consensus: consensusRatio >= adjustedMinConsensus,
-                                confidence: finalConfidence >= adjustedMinConfidence,
-                                edge: edgePercent >= adjustedMinEdge,
-                                regime: !tradeExecutor.getEffectiveRequireTrending() || isTrending, // 🦅 v21: Dynamic SNIPER/HUNTER
-                                momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
-                                odds: oddsCheckPassed, // 🎯 GOAT: EV-derived price cap
-                                stability: this.stabilityCounter >= tradeExecutor.getEffectiveMinStability() || this.prediction === finalSignal // 🦅 v21: Dynamic
-                            };
-                            
-                            // Add EV-derived info to gate inputs for tracing
-                            gateInputs.evBreakevenPrice = breakevenPrice;
-                            gateInputs.evDerivedMaxPrice = evDerivedMaxPrice;
-                            gateInputs.effectiveMaxPrice = effectiveMaxPrice;
-                            gateInputs.hardMinOdds = hardMinOdds;
-                            gateInputs.hardMaxOdds = hardMaxOdds;
 
-                            const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
-
-
-                            if (failedChecks.length === 0) {
-                                this.convictionLocked = true;
-                                this.lockedDirection = finalSignal;
-                                this.lockTime = Date.now();
-                                this.lockConfidence = finalConfidence;
-
-                                // 🎯 v53: Capture entry-time prices for accurate backtesting
-                                this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
-                                this.tradeEntryReason = 'STANDARD_ORACLE';
-                                this.tradeEntryTier = tier;
-                                this.tradeEntryConfidence = finalConfidence;
-
-                                log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
-                                log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
-
-                                // 🎯 GOAT v44.1: Record successful trade
-                                gateTrace.record(this.asset, { decision: 'TRADE', reason: 'ORACLE_ALL_GATES_PASSED', failedGates: [], inputs: gateInputs, checks: oracleChecks });
-                                
-                                // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
-                                // 🏆 v96: Pass lcbUsed for audit trail
-                                const genesisAgreeStd = modelVotes.genesis === finalSignal;
-                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
-                                    tier: tier,
-                                    pWin: pWinEff,
-                                    genesisAgree: genesisAgreeStd,
-                                    lcbUsed,
-                                    driftProbeMultiplier: driftProbeMultiplier,
-                                    driftProbeReason: driftProbeReason
-                                });
-                            } else {
-                                log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
-                                // 🎯 GOAT v44.1: Record blocked trade with specific gates that failed
-                                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'ORACLE_GATES_FAILED', failedGates: failedChecks, inputs: gateInputs, checks: oracleChecks });
+                            if (pWinRaw === null && tier === 'ADVISORY' && typeof this.getCalibratedPWinWithLCB === 'function') {
+                                // ADVISORY: Use conservative LCB estimate to reduce overconfidence
+                                pWinRaw = this.getCalibratedPWinWithLCB(finalConfidence, { z: advisoryLcbZ, minSamples: advisoryLcbMinSamples, fallback: null });
+                                if (pWinRaw !== null) {
+                                    lcbUsed = true;
+                                    log(`📊 LCB GATING: ADVISORY Wilson LCB(z=${advisoryLcbZ}) pWin=${(pWinRaw * 100).toFixed(1)}% (conservative)`, this.asset);
+                                }
                             }
-                        }
-                        } // 🏆 v66: Close SUPREME MODE BLOCK else
+
+                            // Fallback chain: tier-conditioned → calibrated → prior-based
+                            if (pWinRaw === null && typeof this.getTierConditionedPWin === 'function') {
+                                const minSamplesTier = (tier === 'CONVICTION' && convictionLcbEnabled) ? convictionTierMinSamples : 5;
+                                pWinRaw = this.getTierConditionedPWin(tier, currentOdds, { fallback: null, minSamples: minSamplesTier });
+                            }
+                            if (pWinRaw === null && typeof this.getCalibratedWinProb === 'function') {
+                                pWinRaw = this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 });
+                            }
+
+                            // Weight pWin toward 0.5 when signal score is weak to avoid overconfidence from priors
+                            const minConfRef = Math.max(0.0001, CONFIG.ORACLE.minConfidence || 0.8);
+                            const weight = Math.max(0, Math.min(1, finalConfidence / minConfRef)); // 0..1
+                            const pWinEff = Number.isFinite(pWinRaw) ? (0.5 + ((pWinRaw - 0.5) * weight)) : null;
+                            const edgePercent = (pWinEff !== null && currentOdds > 0) ? (((pWinEff - currentOdds) / currentOdds) * 100) : 0;
+                            const b = currentOdds > 0 ? ((1 - currentOdds) / currentOdds) : 0;
+                            const evRoi = (pWinEff !== null && currentOdds > 0)
+                                ? calcBinaryEvRoiAfterFees(pWinEff, currentOdds, { slippagePct: EV_SLIPPAGE_PCT, feeModel: feeModelOracle })
+                                : null;
+                            const priceMovingRight = (finalSignal === 'UP' && force > 0) || (finalSignal === 'DOWN' && force < 0);
+                            const isTrending = regime === 'TRENDING';
+                            const stabilityMet = this.stabilityCounter >= CONFIG.ORACLE.minStability || this.prediction === finalSignal;
+
+                            // 🔮 AGGRESSION SCALING: Higher aggression = lower thresholds = more trades
+                            // Range: 0 (conservative) to 100 (aggressive)
+                            // At 100%, thresholds drop by 30% (e.g., 70% consensus becomes 49%)
+                            const aggression = (CONFIG.ORACLE.aggression || 50) / 100; // 0.0 to 1.0
+                            const aggressionMultiplier = 1 - (aggression * 0.3); // 1.0 to 0.7
+
+                            const adjustedMinConsensus = CONFIG.ORACLE.minConsensus * aggressionMultiplier;
+                            const adjustedMinConfidence = CONFIG.ORACLE.minConfidence * aggressionMultiplier;
+                            const adjustedMinEdge = CONFIG.ORACLE.minEdge * aggressionMultiplier;
+
+                            log(`🔮 ORACLE CHECK: Cons=${(consensusRatio * 100).toFixed(0)}% Score=${(finalConfidence * 100).toFixed(0)}% pWin≈${pWinEff !== null ? (pWinEff * 100).toFixed(1) : 'NA'}% EV=${evRoi !== null ? (evRoi * 100).toFixed(2) : 'NA'}%`, this.asset);
+
+                            // ==================== MOLECULAR FIX: HARD BLOCKS (Cannot be bypassed by aggression) ====================
+                            // 🎯 GOAT v44.1: Gate trace inputs for this evaluation
+                            const gateInputs = {
+                                signal: finalSignal,
+                                confidence: finalConfidence,
+                                tier,
+                                // 🏆 v96.1: Drift probe metadata (only set when autoDisabled and probe allowed)
+                                driftProbe: !!driftProbeMultiplier,
+                                driftProbeMultiplier: driftProbeMultiplier,
+                                driftProbeReason: driftProbeReason,
+                                pWin: pWinEff,
+                                pWinRaw: pWinRaw,  // 🏆 v96: Raw pWin before weighting
+                                lcbUsed: lcbUsed,  // 🏆 v96: True if Wilson LCB was used (ADVISORY)
+                                evRoi,
+                                edgePercent,
+                                currentOdds,
+                                consensusRatio,
+                                upVotes: upVotesNum,
+                                downVotes: downVotesNum,
+                                totalVotes: totalVotesForConsensus,
+                                genesis: modelVotes.genesis,
+                                isTrending,
+                                priceMovingRight,
+                                stabilityCounter: this.stabilityCounter,
+                                elapsed,
+                                adjustedMinConsensus,
+                                adjustedMinConfidence,
+                                adjustedMinEdge,
+                                effectiveMinOdds: CONFIG.ORACLE.minOdds || 0.20,
+                                effectiveMaxOdds: tradeExecutor.getEffectiveMaxOdds(),
+                                effectiveMinStability: tradeExecutor.getEffectiveMinStability()
+                            };
+
+                            // 1. Missing calibrated pWin = cannot evaluate EV reliably
+                            if (pWinEff === null) {
+                                log(`🚫 ORACLE HARD BLOCK: Missing calibrated pWin (cannot compute EV)`, this.asset);
+                                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['pWin_missing'], inputs: gateInputs });
+                                // Do not trade - fall through to end
+                            }
+                            // 2. NEGATIVE EV = Never trade
+                            else if (evRoi !== null && evRoi <= 0) {
+                                log(`🚫 ORACLE HARD BLOCK: Negative EV ${(evRoi * 100).toFixed(2)}%`, this.asset);
+                                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['negative_EV'], inputs: gateInputs });
+                                // Do not trade - fall through to end
+                            }
+                            // 3. GENESIS DISAGREEMENT = 94% accurate model says NO
+                            else if (modelVotes.genesis && modelVotes.genesis !== finalSignal) {
+                                log(`🛡️ ORACLE HARD BLOCK: Genesis (94% accurate) says ${modelVotes.genesis}, not ${finalSignal}`, this.asset);
+                                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['genesis_veto'], inputs: gateInputs });
+                                // Do not trade - fall through to end
+                            }
+                            // 4. MINIMUM HARD FLOOR: Even with max aggression, need 5% relative edge
+                            else if (edgePercent < 5) {
+                                log(`⚠️ ORACLE HARD BLOCK: Edge ${edgePercent.toFixed(1)}% below 5% minimum floor`, this.asset);
+                                gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'HARD_BLOCK', failedGates: ['edge_floor'], inputs: gateInputs });
+                                // Do not trade - fall through to end
+                            }
+                            else {
+                                // ==================== v42 IMMUTABLE PROPHET: GOD / TREND MODES ====================
+
+                                // 🏆 v66 CRITICAL FIX: SUPREME MODE BLOCK - NOW IN CORRECT POSITION
+                                // Previous v65 fix was in wrong location (before confidence modifications)
+                                // This check must happen AFTER all confidence modifications, RIGHT BEFORE trade execution
+                                if (CONFIG.RISK.supremeConfidenceMode && finalConfidence < 0.75) {
+                                    log(`🚫 SUPREME MODE BLOCK: ${(finalConfidence * 100).toFixed(1)}% < 75% minimum - TRADE BLOCKED (correct location)`, this.asset);
+                                    gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'SUPREME_MODE_BLOCK', failedGates: ['confidence_75'], inputs: { finalConfidence, supremeConfidenceMode: true, tier, odds: currentOdds } });
+                                    // Do not trade - fall through to end
+                                }
+                                else {
+                                    // 1. GOD MODE (>90%): 0 Historical Failures -> EXECUTE IMMEDIATELY
+                                    const isGodMode = finalConfidence > 0.90;
+
+                                    // 2. TREND MODE (80-90%): Execute ONLY if Trend Aligned (Buy High / Short Low)
+                                    // This CAPTURES the 5:45 velocity trade (60c) and BLOCKS the 80% reversals
+                                    let isTrendMode = false;
+                                    if (!isGodMode && finalConfidence > 0.80) {
+                                        const isTrendUP = finalSignal === 'UP' && currentOdds > 0.50;
+                                        const isTrendDOWN = finalSignal === 'DOWN' && currentOdds > 0.50; // FIX: Trend = NO price > 0.50
+                                        if (isTrendUP || isTrendDOWN) {
+                                            isTrendMode = true;
+                                        }
+                                    }
+
+                                    if (isGodMode || isTrendMode) {
+                                        // BYPASS ALL STANDARD CHECKS (Consensus, Momentum, Regime, etc.)
+                                        this.convictionLocked = true;
+                                        this.lockedDirection = finalSignal;
+                                        this.lockTime = Date.now();
+                                        this.lockConfidence = finalConfidence;
+
+                                        const modeName = isGodMode ? "GOD MODE (>90%) ⚡" : "TREND MODE (80-90% + Trend) 🌊";
+                                        log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
+                                        log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
+
+                                        // 🎯 v53: Capture entry-time prices for accurate backtesting
+                                        this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
+                                        this.tradeEntryReason = isGodMode ? 'GOD_MODE' : 'TREND_MODE';
+                                        this.tradeEntryTier = tier;
+                                        this.tradeEntryConfidence = finalConfidence;
+
+                                        // 🎯 GOAT v44.1: Record successful trade
+                                        gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
+
+                                        // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
+                                        // 🏆 v96: Pass lcbUsed for audit trail
+                                        const genesisAgree = modelVotes.genesis === finalSignal;
+                                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
+                                            tier: tier,
+                                            pWin: pWinEff,
+                                            genesisAgree,
+                                            lcbUsed,
+                                            driftProbeMultiplier: driftProbeMultiplier,
+                                            driftProbeReason: driftProbeReason
+                                        });
+                                    }
+                                    else {
+                                        // Safe to proceed with normal checks
+
+                                        const SAFETY_MARGIN = 0.02; // 2¢ absolute safety margin
+                                        const hardMinOdds = CONFIG.ORACLE.minOdds || 0.20;
+                                        const hardMaxOdds = tradeExecutor.getEffectiveMaxOdds();
+                                        const pClamped = (pWinEff !== null && Number.isFinite(pWinEff)) ? Math.max(0, Math.min(1, pWinEff)) : null;
+                                        // 🎯 GOAT v44.1: EV-derived max price under taker-fee model (numeric search).
+                                        let maxOk = null;
+                                        if (pClamped !== null) {
+                                            const step = 0.001; // 0.1¢ precision
+                                            const startPx = Math.min(0.99, hardMaxOdds);
+                                            const minPx = Math.max(0.01, hardMinOdds);
+                                            for (let px = startPx; px >= minPx; px -= step) {
+                                                const ev = calcBinaryEvRoiAfterFees(pClamped, px, { slippagePct: EV_SLIPPAGE_PCT, feeModel: feeModelOracle });
+                                                if (Number.isFinite(ev) && ev > 0) { maxOk = px; break; }
+                                            }
+                                        }
+                                        const breakevenPrice = (maxOk !== null) ? maxOk : hardMaxOdds;
+                                        const evDerivedMaxPrice = Math.max(hardMinOdds, Math.min(0.99, breakevenPrice - SAFETY_MARGIN));
+                                        const effectiveMaxPrice = Math.min(evDerivedMaxPrice, hardMaxOdds);
+                                        const oddsCheckPassed = (currentOdds >= hardMinOdds) && (currentOdds <= effectiveMaxPrice);
+
+                                        const oracleChecks = {
+                                            consensus: consensusRatio >= adjustedMinConsensus,
+                                            confidence: finalConfidence >= adjustedMinConfidence,
+                                            edge: edgePercent >= adjustedMinEdge,
+                                            regime: !tradeExecutor.getEffectiveRequireTrending() || isTrending, // 🦅 v21: Dynamic SNIPER/HUNTER
+                                            momentum: !CONFIG.ORACLE.requireMomentum || priceMovingRight,
+                                            odds: oddsCheckPassed, // 🎯 GOAT: EV-derived price cap
+                                            stability: this.stabilityCounter >= tradeExecutor.getEffectiveMinStability() || this.prediction === finalSignal // 🦅 v21: Dynamic
+                                        };
+
+                                        // Add EV-derived info to gate inputs for tracing
+                                        gateInputs.evBreakevenPrice = breakevenPrice;
+                                        gateInputs.evDerivedMaxPrice = evDerivedMaxPrice;
+                                        gateInputs.effectiveMaxPrice = effectiveMaxPrice;
+                                        gateInputs.hardMinOdds = hardMinOdds;
+                                        gateInputs.hardMaxOdds = hardMaxOdds;
+
+                                        const failedChecks = Object.entries(oracleChecks).filter(([k, v]) => !v).map(([k]) => k);
+
+
+                                        if (failedChecks.length === 0) {
+                                            this.convictionLocked = true;
+                                            this.lockedDirection = finalSignal;
+                                            this.lockTime = Date.now();
+                                            this.lockConfidence = finalConfidence;
+
+                                            // 🎯 v53: Capture entry-time prices for accurate backtesting
+                                            this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
+                                            this.tradeEntryReason = 'STANDARD_ORACLE';
+                                            this.tradeEntryTier = tier;
+                                            this.tradeEntryConfidence = finalConfidence;
+
+                                            log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
+                                            log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
+
+                                            // 🎯 GOAT v44.1: Record successful trade
+                                            gateTrace.record(this.asset, { decision: 'TRADE', reason: 'ORACLE_ALL_GATES_PASSED', failedGates: [], inputs: gateInputs, checks: oracleChecks });
+
+                                            // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
+                                            // 🏆 v96: Pass lcbUsed for audit trail
+                                            const genesisAgreeStd = modelVotes.genesis === finalSignal;
+                                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
+                                                tier: tier,
+                                                pWin: pWinEff,
+                                                genesisAgree: genesisAgreeStd,
+                                                lcbUsed,
+                                                driftProbeMultiplier: driftProbeMultiplier,
+                                                driftProbeReason: driftProbeReason
+                                            });
+                                        } else {
+                                            log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
+                                            // 🎯 GOAT v44.1: Record blocked trade with specific gates that failed
+                                            gateTrace.record(this.asset, { decision: 'NO_TRADE', reason: 'ORACLE_GATES_FAILED', failedGates: failedChecks, inputs: gateInputs, checks: oracleChecks });
+                                        }
+                                    }
+                                } // 🏆 v66: Close SUPREME MODE BLOCK else
                             }
                         }
                     }
@@ -19062,26 +19131,26 @@ class SupremeBrain {
 
         } catch (e) {
             log(`❌ CRITICAL ERROR in update cycle: ${e.message}`, this.asset);
-            
+
             // 🏆 v69: Track critical errors and halt trading if too many occur
             const now = Date.now();
             const RESET_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
             const MAX_ERRORS_BEFORE_HALT = 10;
-            
+
             // Reset counter if enough time has passed
             if (now - this.criticalErrorResetTime > RESET_WINDOW_MS) {
                 this.criticalErrorCount = 0;
                 this.criticalErrorResetTime = now;
             }
-            
+
             this.criticalErrorCount++;
-            
+
             if (this.criticalErrorCount >= MAX_ERRORS_BEFORE_HALT && !this.tradingHalted) {
                 this.tradingHalted = true;
                 log(`🛑 TRADING HALTED for ${this.asset}: ${this.criticalErrorCount} critical errors in ${RESET_WINDOW_MS / 1000}s`, this.asset);
                 // Send alert if Telegram is enabled
                 if (CONFIG.TELEGRAM?.enabled) {
-                    sendTelegramNotification(telegramSystemAlert('🛑 TRADING HALTED', 
+                    sendTelegramNotification(telegramSystemAlert('🛑 TRADING HALTED',
                         `${this.asset} trading suspended due to ${this.criticalErrorCount} critical errors. Manual review required.`, '🛑'));
                 }
             }
@@ -19282,8 +19351,8 @@ class SupremeBrain {
         if (elapsed < 60) return 'GENESIS';        // 0-1 min: High uncertainty, best odds
         if (elapsed < 300) return 'FORMATION';     // 1-5 min: Trend forming
         if (elapsed < 600) return 'CONFIRMATION';  // 5-10 min: Trend confirmed
-        if (elapsed < 840) return 'RESOLUTION';    // 10-14 min: Die mostly cast
-        return 'BLACKOUT';                         // 14-15 min: NO CHANGES ALLOWED
+        if (elapsed < 780) return 'RESOLUTION';    // 10-13 min: Die mostly cast
+        return 'BLACKOUT';                         // 🏆 v122: 13-15 min: NO CHANGES ALLOWED (extended from 60s to 120s)
     }
 
     // Dynamic threshold adjustment based on cycle phase
@@ -19456,13 +19525,13 @@ class SupremeBrain {
         }
         if (p === null && typeof this.getCalibratedWinProb === 'function') {
             const s = this.stats || {};
-            const priorRate = (this.tier === 'CONVICTION' && s.convictionTotal > 0) 
-                ? (s.convictionWins / s.convictionTotal) 
+            const priorRate = (this.tier === 'CONVICTION' && s.convictionTotal > 0)
+                ? (s.convictionWins / s.convictionTotal)
                 : (s.total > 0 ? (s.wins / s.total) : 0.5);
             p = this.getCalibratedWinProb(this.confidence, { priorRate, priorStrength: 40, minSamples: 0 });
         }
         if (p === null || p < 0.5) return 0; // No edge = no bet
-        
+
         const q = 1 - p;
 
         let kellyFraction = (b * p - q) / b;
@@ -19540,13 +19609,13 @@ class SupremeBrain {
                     this.calibrationBuckets[bucket].total++;
                     if (isWin) this.calibrationBuckets[bucket].wins++;
                 }
-                
+
                 // 🎯 GOAT FIX: Tier-conditioned calibration tracking
                 const signalTier = this.lastSignal.tier || 'NONE';
                 if (this.tierCalibration && this.tierCalibration[signalTier]) {
                     this.tierCalibration[signalTier].total++;
                     if (isWin) this.tierCalibration[signalTier].wins++;
-                    
+
                     // Track by price band if we have entry price recorded
                     const entryPrice = this.lastSignal.entryPrice;
                     if (Number.isFinite(entryPrice)) {
@@ -19811,13 +19880,13 @@ SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts
     // so they can fall back to another pWin source (e.g., bucket-based calibration).
     // Using `??` would coerce `null` → default, which breaks that flow.
     const fallbackPWin = Object.prototype.hasOwnProperty.call(opts, 'fallback') ? opts.fallback : 0.5; // neutral if unspecified
-    
+
     if (!this.tierCalibration || !this.tierCalibration[tier]) {
         return fallbackPWin;
     }
-    
+
     const tc = this.tierCalibration[tier];
-    
+
     // First try price-band specific
     if (Number.isFinite(entryPrice)) {
         const band = (entryPrice < 0.20 || entryPrice > 0.95) ? 'extreme' : 'mid';
@@ -19826,12 +19895,12 @@ SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts
             return (pb.wins + alpha) / (pb.total + 2 * alpha);
         }
     }
-    
+
     // Fall back to tier-wide
     if (tc.total >= minSamples) {
         return (tc.wins + alpha) / (tc.total + 2 * alpha);
     }
-    
+
     // Fall back to overall stats
     const s = this.stats || {};
     if (tier === 'CONVICTION' && s.convictionTotal >= minSamples) {
@@ -19840,7 +19909,7 @@ SupremeBrain.prototype.getTierConditionedPWin = function (tier, entryPrice, opts
     if (s.total >= minSamples) {
         return (s.wins + alpha) / (s.total + 2 * alpha);
     }
-    
+
     return fallbackPWin;
 };
 
@@ -19903,11 +19972,11 @@ function wilsonLCB(pHat, n, z = 1.96) {
     // z = 1.96 for 95% confidence (default), z = 1.645 for 90%
     if (!Number.isFinite(n) || n <= 0) return 0;
     if (!Number.isFinite(pHat)) return 0;
-    
+
     const denominator = 1 + (z * z) / n;
     const center = pHat + (z * z) / (2 * n);
     const spread = z * Math.sqrt((pHat * (1 - pHat) + (z * z) / (4 * n)) / n);
-    
+
     return Math.max(0, (center - spread) / denominator);
 }
 
@@ -19917,19 +19986,19 @@ SupremeBrain.prototype.getCalibratedPWinWithLCB = function (conf, opts = {}) {
     const z = opts.z ?? 1.645; // 90% confidence by default (less conservative than 95%)
     const minSamples = opts.minSamples ?? 5;
     const fallback = opts.fallback ?? null;
-    
+
     const bucket = this.getCalibrationBucket(conf);
     if (!bucket) return fallback;
-    
+
     const b = this.calibrationBuckets ? this.calibrationBuckets[bucket] : null;
     if (!b || typeof b.total !== 'number' || typeof b.wins !== 'number') {
         return fallback;
     }
-    
+
     if (b.total < minSamples) {
         return fallback;
     }
-    
+
     const pHat = b.wins / b.total;
     return wilsonLCB(pHat, b.total, z);
 };
@@ -19942,32 +20011,32 @@ SupremeBrain.prototype.enforceStateInvariants = function () {
         log(`⚠️ INVARIANT FIX: oracleLocked but prediction ${this.prediction} != lockPrediction ${this.oracleLockPrediction}. Forcing alignment.`, this.asset);
         this.prediction = this.oracleLockPrediction;
     }
-    
+
     // Invariant 2: convictionLocked must be consistent with tier
     // If convictionLocked, tier should be CONVICTION
     if (this.convictionLocked && this.tier !== 'CONVICTION') {
         log(`⚠️ INVARIANT FIX: convictionLocked but tier=${this.tier}. Upgrading to CONVICTION.`, this.asset);
         this.tier = 'CONVICTION';
     }
-    
+
     // Invariant 3: lockedDirection must match prediction when convictionLocked
     if (this.convictionLocked && this.lockedDirection && this.prediction !== this.lockedDirection) {
         log(`⚠️ INVARIANT FIX: convictionLocked to ${this.lockedDirection} but prediction=${this.prediction}. Forcing alignment.`, this.asset);
         this.prediction = this.lockedDirection;
     }
-    
+
     // Invariant 4: cycleCommitted direction must match prediction
     if (this.cycleCommitted && this.committedDirection && this.prediction !== this.committedDirection) {
         log(`⚠️ INVARIANT FIX: cycleCommitted to ${this.committedDirection} but prediction=${this.prediction}. Forcing alignment.`, this.asset);
         this.prediction = this.committedDirection;
     }
-    
+
     // Invariant 5: confidence must be in [0, 1]
     if (this.confidence < 0 || this.confidence > 1) {
         log(`⚠️ INVARIANT FIX: confidence=${this.confidence} out of bounds. Clamping.`, this.asset);
         this.confidence = Math.max(0, Math.min(1, this.confidence));
     }
-    
+
     // Invariant 6: NONE tier should not have high confidence signals
     // (This is informational - we don't force change, just log)
     if (this.tier === 'NONE' && this.confidence > 0.7 && this.prediction !== 'WAIT' && this.prediction !== 'NEUTRAL') {
@@ -20515,10 +20584,10 @@ async function syncProfileTrades(opts = {}) {
 async function fetchCurrentMarkets() {
     const serverNowSec = Math.floor(Date.now() / 1000);
     const computedCheckpoint = getCurrentCheckpoint();
-    
+
     // 🏆 v111: Update global clock drift state
     clockDriftState.serverNowEpochSec = serverNowSec;
-    
+
     // 🏆 v111: Helper to safely parse Gamma JSON string fields
     const safeParseJsonArray = (val) => {
         if (Array.isArray(val)) return val;
@@ -20527,23 +20596,23 @@ async function fetchCurrentMarkets() {
         }
         return [];
     };
-    
+
     for (const asset of ASSETS) {
         const computedSlug = `${asset.toLowerCase()}-updown-15m-${computedCheckpoint}`;
-        
+
         // 🏆 v111: Initialize per-asset drift tracking
         if (!clockDriftState.perAsset[asset]) {
             clockDriftState.perAsset[asset] = {};
         }
         clockDriftState.perAsset[asset].computedSlug = computedSlug;
-        
+
         let activeSlug = null;
         let market = null;
         let marketStatus = 'UNKNOWN';
         let driftDetected = false;
         let slugSource = 'COMPUTED_FALLBACK';
         let driftCycles = 0;
-        
+
         try {
             // 🏆 v112: Gamma-first resolver (scan window around computed checkpoint)
             const resolved = await resolveUpdown15mActiveFromGamma(asset, computedCheckpoint, { maxBack: 2, maxForward: 6 });
@@ -20553,7 +20622,7 @@ async function fetchCurrentMarkets() {
             marketStatus = market ? 'ACTIVE' : (resolved?.status || 'UNKNOWN');
             driftDetected = !!(resolved && resolved.ok && activeSlug !== computedSlug);
             slugSource = resolved?.source || 'COMPUTED_FALLBACK';
-            
+
             // 🏆 v111: Update drift diagnostics
             clockDriftState.perAsset[asset] = {
                 computedSlug,
@@ -20564,7 +20633,7 @@ async function fetchCurrentMarkets() {
                 driftCycles,
                 checkedAt: Date.now()
             };
-            
+
             // 🏆 v111: CLOSED MARKET HARD STOP - Never trade on closed markets
             if (marketStatus === 'CLOSED' || !market) {
                 const reason = marketStatus === 'CLOSED'
@@ -20599,12 +20668,12 @@ async function fetchCurrentMarkets() {
                 currentMarkets[asset] = null;
                 continue;
             }
-            
+
             // 🏆 v110: Map tokenIds to outcomes using market.outcomes (also a JSON string)
             let yesTokenId = tokenIds[0];
             let noTokenId = tokenIds[1];
             let tokenMappingSource = 'DEFAULT_ORDER';
-            
+
             const outcomes = safeParseJsonArray(market.outcomes);
             if (Array.isArray(outcomes) && outcomes.length >= 2) {
                 const yesIdx = outcomes.findIndex(o => /^(yes|up)$/i.test(String(o).trim()));
@@ -20615,12 +20684,12 @@ async function fetchCurrentMarkets() {
                     tokenMappingSource = 'OUTCOMES_MAPPED';
                 }
             }
-            
+
             const [yesBook, noBook] = await Promise.all([
                 fetchJSON(`${CLOB_API}/book?token_id=${yesTokenId}`),
                 fetchJSON(`${CLOB_API}/book?token_id=${noTokenId}`)
             ]);
-            
+
             // 🏆 v111: CLOB book missing = market effectively closed
             const yesBookError = yesBook?.error;
             const noBookError = noBook?.error;
@@ -20753,7 +20822,7 @@ async function fetchCurrentMarkets() {
                 ? (cachedEpoch >= (computedCheckpoint - INTERVAL_SECONDS) && cachedEpoch <= (computedCheckpoint + (2 * INTERVAL_SECONDS)))
                 : false;
             if (cached && cachedAgeMs < 30000 && cached.marketStatus === 'ACTIVE' && epochWindowOk) {
-                log(`⚠️ Using cached ACTIVE market data for ${asset} (Grace Period, age=${Math.floor(cachedAgeMs/1000)}s)`);
+                log(`⚠️ Using cached ACTIVE market data for ${asset} (Grace Period, age=${Math.floor(cachedAgeMs / 1000)}s)`);
                 cached.fetchOk = false;
                 cached.fetchError = fetchErrorInfo.fetchError;
             } else {
@@ -20767,7 +20836,7 @@ async function fetchCurrentMarkets() {
                     driftDiagnostics: clockDriftState.perAsset[asset]
                 };
             }
-            
+
             oracleBlindState.consecutiveFailures[asset] = (oracleBlindState.consecutiveFailures[asset] || 0) + 1;
             maybeAlertOracleBlind(asset, fetchErrorInfo.fetchError, computedSlug);
         }
@@ -20936,7 +21005,7 @@ async function saveState() {
         // 🎯 v105: Adaptive frequency controller state
         adaptiveGateState: {
             targetWinRate: adaptiveGateState?.targetWinRate || 0.90,
-            recentOracleSignals: Array.isArray(adaptiveGateState?.recentOracleSignals) 
+            recentOracleSignals: Array.isArray(adaptiveGateState?.recentOracleSignals)
                 ? adaptiveGateState.recentOracleSignals.slice(-50) : [],
             currentPWinThreshold: Number(adaptiveGateState?.currentPWinThreshold) || 0.75,
             globalRollingWins: Number(adaptiveGateState?.globalRollingWins) || 0,
@@ -20980,7 +21049,7 @@ async function saveState() {
     if (redisAvailable && redis) {
         try {
             await redis.set('deity:state', JSON.stringify(state));
-            
+
             // 🎯 GOAT v3: Sync new trades to persistent history
             // Only sync trades that have been closed (have a closeTime)
             const closedTrades = tradeExecutor.tradeHistory.filter(t => t.status === 'CLOSED' && t.closeTime);
@@ -21260,7 +21329,7 @@ async function loadState() {
                 // PINNACLE: RESTORE MODEL ACCURACY (THE LEARNING!) - CRITICAL FOR GENUINE EVOLUTION
                 if (state.modelAccuracy) ASSETS.forEach(a => { if (state.modelAccuracy[a]) Brains[a].modelAccuracy = state.modelAccuracy[a]; });
                 if (state.recentOutcomes) ASSETS.forEach(a => { if (state.recentOutcomes[a]) Brains[a].recentOutcomes = state.recentOutcomes[a]; });
-                
+
                 // 🎯 v52: RESTORE ROLLING ACCURACY (drift detection)
                 // Rolling conviction is now EXECUTED-trade based (not signal-only).
                 const rollingMode = state.rollingConvictionMode || 'LEGACY_SIGNAL_ONLY';
@@ -21461,7 +21530,7 @@ async function loadState() {
                     streakState.recentWinRate = Number(ss.recentWinRate) || 0;
                     streakState.deteriorationCount = Number(ss.deteriorationCount) || 0;
                 }
-                
+
                 // 🏆 v116: Restore pending calls and call outcomes
                 if (state.pendingCalls && typeof state.pendingCalls === 'object') {
                     for (const [id, call] of Object.entries(state.pendingCalls)) {
@@ -21564,7 +21633,7 @@ async function loadState() {
                 streakState.recentWinRate = Number(ss.recentWinRate) || 0;
                 streakState.deteriorationCount = Number(ss.deteriorationCount) || 0;
             }
-            
+
             // 🏆 v116: Restore pending calls and call outcomes (local file)
             if (state.pendingCalls && typeof state.pendingCalls === 'object') {
                 for (const [id, call] of Object.entries(state.pendingCalls)) {
@@ -23807,21 +23876,21 @@ function computeUltraProphetStatus(asset, brain, signal, entryPrice, pWin, evRoi
         gates: {},
         reasons: []
     };
-    
+
     if (!brain || !signal) return result;
-    
+
     // Gate 1: pWin ≥ 88%
     const pWinOk = Number.isFinite(pWin) && pWin >= 0.88;
     result.gates.pWin = { passed: pWinOk, value: pWin, threshold: 0.88 };
     if (pWinOk) result.passedGates++;
     else result.reasons.push(`pWin=${((pWin || 0) * 100).toFixed(1)}% < 88%`);
-    
+
     // Gate 2: EV ROI ≥ 25%
     const evOk = Number.isFinite(evRoi) && evRoi >= 0.25;
     result.gates.evRoi = { passed: evOk, value: evRoi, threshold: 0.25 };
     if (evOk) result.passedGates++;
     else result.reasons.push(`EV=${((evRoi || 0) * 100).toFixed(1)}% < 25%`);
-    
+
     // Gate 3: Genesis agrees
     const modelVotes = brain.lastSignal?.modelVotes || {};
     const finalPrediction = brain.prediction;
@@ -23829,13 +23898,13 @@ function computeUltraProphetStatus(asset, brain, signal, entryPrice, pWin, evRoi
     result.gates.genesis = { passed: genesisAgrees, value: modelVotes.genesis, expected: finalPrediction };
     if (genesisAgrees) result.passedGates++;
     else result.reasons.push(`Genesis=${modelVotes.genesis} vs pred=${finalPrediction}`);
-    
+
     // Gate 4: Oracle locked
     const oracleLocked = brain.oracleLocked === true;
     result.gates.oracleLocked = { passed: oracleLocked, value: brain.oracleLocked };
     if (oracleLocked) result.passedGates++;
     else result.reasons.push('Oracle not locked');
-    
+
     // Gate 5: Model consensus ≥ 85%
     // FIX: Use voteHistory (stores actual up/down tallies) instead of lastSignal.votes (doesn't exist)
     // voteHistory is populated by SupremeBrain.update() at line ~17285
@@ -23860,40 +23929,40 @@ function computeUltraProphetStatus(asset, brain, signal, entryPrice, pWin, evRoi
     result.gates.consensus = { passed: consensusOk, value: consensus, threshold: 0.85 };
     if (consensusOk) result.passedGates++;
     else result.reasons.push(`Consensus=${(consensus * 100).toFixed(0)}% < 85%`);
-    
+
     // Gate 6: Vote stability ≥ 0.8
     const stabilityOk = Number.isFinite(voteStability) && voteStability >= 0.8;
     result.gates.stability = { passed: stabilityOk, value: voteStability, threshold: 0.8 };
     if (stabilityOk) result.passedGates++;
     else result.reasons.push(`Stability=${voteStability?.toFixed(2) || 0} < 0.8`);
-    
+
     // Gate 7: Time left ≥ 180s
     const timeOk = Number.isFinite(timeLeftSec) && timeLeftSec >= 180;
     result.gates.timeLeft = { passed: timeOk, value: timeLeftSec, threshold: 180 };
     if (timeOk) result.passedGates++;
     else result.reasons.push(`TimeLeft=${timeLeftSec}s < 180s`);
-    
+
     // Gate 8: Extreme odds (≤35¢ OR ≥85¢)
     const extremeOdds = Number.isFinite(entryPrice) && (entryPrice <= 0.35 || entryPrice >= 0.85);
     result.gates.extremeOdds = { passed: extremeOdds, value: entryPrice, range: '≤35¢ OR ≥85¢' };
     if (extremeOdds) result.passedGates++;
     else result.reasons.push(`Price=${((entryPrice || 0) * 100).toFixed(0)}¢ not extreme`);
-    
+
     // Gate 9: No flip since lock (if locked, prediction matches lock)
     const noFlip = !brain.oracleLocked || brain.prediction === brain.oracleLockPrediction;
     result.gates.noFlip = { passed: noFlip, value: brain.prediction, lockValue: brain.oracleLockPrediction };
     if (noFlip) result.passedGates++;
     else result.reasons.push('Prediction flipped since lock');
-    
+
     // Gate 10: Tier is CONVICTION
     const tierOk = brain.tier === 'CONVICTION';
     result.gates.tier = { passed: tierOk, value: brain.tier, expected: 'CONVICTION' };
     if (tierOk) result.passedGates++;
     else result.reasons.push(`Tier=${brain.tier} not CONVICTION`);
-    
+
     // ALL gates must pass for ULTRA
     result.isUltra = result.passedGates === result.totalGates;
-    
+
     return result;
 }
 
@@ -23907,13 +23976,13 @@ function telegramUltraProphet(signal) {
     const ev = Number.isFinite(signal?.evRoi) ? `${(signal.evRoi * 100).toFixed(1)}%` : 'n/a';
     const edgePp = Number.isFinite(signal?.mispricingEdge) ? `${(signal.mispricingEdge * 100).toFixed(1)}pp` : 'n/a';
     const tLeft = formatMmSs(signal?.timeLeftSec);
-    
+
     const stake = getManualStakeRecommendation(entryPrice, signal?.pWin, null, true);
     const buyWhat = dir === 'UP' ? 'YES' : (dir === 'DOWN' ? 'NO' : '?');
     const potRoi = stake.potentialRoi > 0 ? `${stake.potentialRoi.toFixed(0)}%` : 'n/a';
     const stakeUsd = stake.recommendedStake > 0 ? `$${stake.recommendedStake.toFixed(2)}` : 'n/a';
     const profitUsd = stake.potentialProfit > 0 ? `$${stake.potentialProfit.toFixed(2)}` : 'n/a';
-    
+
     const ultra = signal?.ultraProphet || {};
     const gatesStr = `${ultra.passedGates || 0}/${ultra.totalGates || 10}`;
 
@@ -23968,31 +24037,31 @@ function maybeSendUltraProphetTelegram(asset, signal) {
 function computeAdaptiveThreshold() {
     const state = adaptiveGateState;
     const now = Date.now();
-    
+
     // Only adjust every N minutes
     if (now - state.lastThresholdAdjustAt < state.adjustIntervalMs) {
         return state.currentPWinThreshold;
     }
     state.lastThresholdAdjustAt = now;
-    
+
     // Calculate global rolling win rate from recent oracle signals
     const recentWithOutcome = state.recentOracleSignals.filter(s => typeof s.isWin === 'boolean');
     if (recentWithOutcome.length < 5) {
         // Not enough data, stay conservative
         return state.currentPWinThreshold;
     }
-    
+
     const wins = recentWithOutcome.filter(s => s.isWin).length;
     const total = recentWithOutcome.length;
     const currentWR = wins / total;
-    
+
     state.globalRollingWins = wins;
     state.globalRollingTotal = total;
-    
+
     const oldThreshold = state.currentPWinThreshold;
     let newThreshold = state.currentPWinThreshold;
     let driftDirection = null;  // 'tightening' or 'relaxing' or null
-    
+
     if (currentWR >= state.targetWinRate + 0.05) {
         // Doing very well (95%+): relax threshold to get more trades
         newThreshold = Math.max(state.minPWinThreshold, state.currentPWinThreshold - 0.02);
@@ -24010,14 +24079,14 @@ function computeAdaptiveThreshold() {
         newThreshold = Math.min(state.maxPWinThreshold, state.currentPWinThreshold + 0.01);
         driftDirection = 'tightening';
     }
-    
+
     state.currentPWinThreshold = newThreshold;
-    
+
     // 🚨 v106: Send DRIFT ALERT if threshold is tightening due to accuracy issues
     if (driftDirection === 'tightening' && newThreshold > oldThreshold) {
         sendDriftAlert(currentWR, oldThreshold, newThreshold, total);
     }
-    
+
     return newThreshold;
 }
 
@@ -24031,18 +24100,18 @@ let lastDriftAlertAt = 0;
 function sendDriftAlert(currentWR, oldThreshold, newThreshold, sampleSize) {
     try {
         if (!CONFIG?.TELEGRAM?.enabled) return;
-        
+
         const now = Date.now();
         const cooldownMs = 30 * 60 * 1000;  // 30 minutes
-        
+
         if (now - lastDriftAlertAt < cooldownMs) return;
         lastDriftAlertAt = now;
-        
+
         const wrPct = (currentWR * 100).toFixed(0);
         const oldPct = (oldThreshold * 100).toFixed(0);
         const newPct = (newThreshold * 100).toFixed(0);
         const targetPct = (adaptiveGateState.targetWinRate * 100).toFixed(0);
-        
+
         let msg = `⚠️ <b>DRIFT ALERT</b>\n`;
         msg += `━━━━━━━━━━━━━━━━━\n`;
         msg += `📉 Win rate below target\n`;
@@ -24052,7 +24121,7 @@ function sendDriftAlert(currentWR, oldThreshold, newThreshold, sampleSize) {
         msg += `🔒 Threshold: ${oldPct}% → <b>${newPct}%</b>\n`;
         msg += `━━━━━━━━━━━━━━━━━\n`;
         msg += `<i>Oracle auto-tightening to restore accuracy.\nSignals will be less frequent but more selective.</i>`;
-        
+
         sendTelegramNotification(msg, false);
         log(`⚠️ DRIFT ALERT: WR=${wrPct}%, threshold ${oldPct}%→${newPct}%`);
     } catch {
@@ -24067,16 +24136,16 @@ function sendDriftAlert(currentWR, oldThreshold, newThreshold, sampleSize) {
  */
 function getRequiredPWinFloor(bankroll) {
     if (!Number.isFinite(bankroll) || bankroll <= 0) bankroll = 1;
-    
+
     // Micro bankroll: extremely strict (cannot afford losses)
     if (bankroll <= 5) return 0.92;
-    
+
     // Small bankroll: still cautious
     if (bankroll <= 20) return 0.90;
-    
+
     // Moderate bankroll: standard floor
     if (bankroll <= 100) return 0.87;
-    
+
     // Larger bankroll: can use adaptive floor
     return 0.85;
 }
@@ -24090,7 +24159,7 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
     const { entryPrice = null, bankroll = null, calibrationSampleSize = 0 } = options;
     const threshold = computeAdaptiveThreshold();
     const isUltra = ultraProphet?.isUltra === true;
-    
+
     // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 80¢
     // This applies to ALL signals including ULTRA (expensive entries are risky even with high confidence)
     const HARD_ENTRY_CAP = 0.80;
@@ -24104,7 +24173,7 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             blockedReason: 'ENTRY_PRICE_CAP'
         };
     }
-    
+
     // ULTRA always passes (it's the diamond tier) - but only after entry price check
     if (isUltra) {
         return {
@@ -24116,7 +24185,7 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             blockedReason: null
         };
     }
-    
+
     // Check adaptive pWin threshold
     if (!Number.isFinite(pWin)) {
         return {
@@ -24128,7 +24197,7 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             blockedReason: 'NO_PWIN'
         };
     }
-    
+
     // Tier requirement: must be at least ADVISORY for any BUY
     if (tier !== 'CONVICTION' && tier !== 'ADVISORY') {
         return {
@@ -24140,20 +24209,20 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             blockedReason: 'LOW_TIER'
         };
     }
-    
+
     // 🏆 v112: BANKROLL-SENSITIVE pWin FLOOR
     // Get the manual journey bankroll (user's actual trading balance)
     const effectiveBankroll = bankroll || manualTradingJourney?.currentBalance || 1;
     const bankrollFloor = getRequiredPWinFloor(effectiveBankroll);
-    
+
     // 🏆 v108.1 + v112: Hard-enforce floor for ALL tiers
     // CONVICTION tier gets slight threshold reduction (-3pp) but never below bankroll floor
     // ADVISORY tier uses standard threshold but never below bankroll floor
     const baseFloor = Math.max(adaptiveGateState.minPWinThreshold, bankrollFloor);
-    const effectiveThreshold = tier === 'CONVICTION' 
+    const effectiveThreshold = tier === 'CONVICTION'
         ? Math.max(threshold - 0.03, baseFloor)
         : Math.max(threshold, baseFloor);
-    
+
     // 🏆 v112: STRICT RELIABILITY GATE - Block BUY when pWin isn't statistically reliable
     // For micro bankrolls, require meaningful sample sizes before trusting pWin
     const MIN_SAMPLES_FOR_BUY = effectiveBankroll <= 20 ? 10 : 5;  // Stricter for micro bankrolls
@@ -24169,7 +24238,7 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             effectiveBankroll
         };
     }
-    
+
     if (pWin >= effectiveThreshold) {
         return {
             passes: true,
@@ -24182,7 +24251,7 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             effectiveBankroll
         };
     }
-    
+
     return {
         passes: false,
         reason: `pWin=${(pWin * 100).toFixed(1)}% < ${(effectiveThreshold * 100).toFixed(1)}% threshold`,
@@ -24208,12 +24277,12 @@ function recordOracleSignalOutcome(asset, direction, pWin, tier, isWin) {
         isWin,
         timestamp: Date.now()
     });
-    
+
     // Trim to max size
     while (state.recentOracleSignals.length > state.maxRecentSignals) {
         state.recentOracleSignals.shift();
     }
-    
+
     // Update streak state
     updateStreakState(isWin, asset);
 }
@@ -24230,13 +24299,13 @@ function recordOracleSignalOutcome(asset, direction, pWin, tier, isWin) {
 function updateStreakState(isWin, asset) {
     const state = streakState;
     const now = Date.now();
-    
+
     // v106: GLOBAL streak tracking (any asset counts)
     if (isWin) {
         state.currentStreakLength++;
         state.currentStreakAsset = asset;  // Track last winning asset for info only
         state.deteriorationCount = 0;
-        
+
         // Update max streak seen
         if (state.currentStreakLength > state.maxStreakSeen) {
             state.maxStreakSeen = state.currentStreakLength;
@@ -24247,17 +24316,17 @@ function updateStreakState(isWin, asset) {
         state.currentStreakAsset = null;
         state.deteriorationCount++;
     }
-    
+
     // Calculate recent win rate (last 15 signals for more conservative estimate)
     const recent = adaptiveGateState.recentOracleSignals.slice(-15).filter(s => typeof s.isWin === 'boolean');
     if (recent.length >= 5) {  // v106: Require 5+ samples, not 3
         const wins = recent.filter(s => s.isWin).length;
         state.recentWinRate = wins / recent.length;
     }
-    
+
     // Determine streak mode (v106: CONSERVATIVE thresholds)
     const prevMode = state.mode;
-    
+
     // v106: Require 5+ consecutive wins AND 90%+ recent WR for ON mode (high bar)
     if (state.currentStreakLength >= 5 && state.recentWinRate >= 0.90 && recent.length >= 8) {
         state.mode = 'ON';
@@ -24271,7 +24340,7 @@ function updateStreakState(isWin, asset) {
         // v106: Very high bar to re-enter ON from OFF (93% WR, 4+ streak, 10+ samples)
         state.mode = 'ON';
     }
-    
+
     // Send telegram only on mode change (avoid spam)
     if (state.mode !== prevMode) {
         state.lastModeChangeAt = now;
@@ -24302,16 +24371,16 @@ function computeStreakState() {
 function sendStreakModeNotification(prevMode, newMode) {
     try {
         if (!CONFIG?.TELEGRAM?.enabled) return;
-        
+
         const state = streakState;
         const now = Date.now();
-        
+
         // Cooldown: don't spam (at least 10 min between streak messages)
         if (now - state.lastTelegramAt < 600000) return;  // v106: 10 min cooldown
         state.lastTelegramAt = now;
-        
+
         let msg = '';
-        
+
         if (newMode === 'ON') {
             msg = `📊 <b>STREAK STATUS: ON</b>\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
@@ -24334,7 +24403,7 @@ function sendStreakModeNotification(prevMode, newMode) {
             msg += `━━━━━━━━━━━━━━━━━\n`;
             msg += `<i>Normal variance - for information only</i>`;
         }
-        
+
         if (msg) {
             sendTelegramNotification(msg, false);
         }
@@ -24351,12 +24420,12 @@ function sendStreakModeNotification(prevMode, newMode) {
 function checkStreakFormingAlert() {
     try {
         if (!CONFIG?.TELEGRAM?.enabled) return;
-        
+
         const now = Date.now();
-        
+
         // Cooldown: at least 15 min between streak-forming alerts
         if (now - streakFormingState.lastAlertAt < 900000) return;
-        
+
         // Count consecutive wins across all assets (most recent first)
         const allCalls = [];
         for (const asset of ASSETS) {
@@ -24366,10 +24435,10 @@ function checkStreakFormingAlert() {
                 }
             }
         }
-        
+
         // Sort by resolved time (most recent first)
         allCalls.sort((a, b) => b.resolvedAt - a.resolvedAt);
-        
+
         // Count consecutive wins from most recent
         let consecutiveWins = 0;
         for (const call of allCalls) {
@@ -24379,17 +24448,17 @@ function checkStreakFormingAlert() {
                 break;  // Streak broken
             }
         }
-        
+
         // Only alert if 3+ wins AND different from last alert
         if (consecutiveWins >= 3 && consecutiveWins !== streakFormingState.lastAlertWinCount) {
             streakFormingState.lastAlertAt = now;
             streakFormingState.lastAlertWinCount = consecutiveWins;
-            
+
             // Calculate recent WR from call outcomes
             const recentCalls = allCalls.slice(0, 10);
             const wins = recentCalls.filter(c => c.isWin).length;
             const recentWR = recentCalls.length > 0 ? (wins / recentCalls.length * 100).toFixed(0) : '--';
-            
+
             let msg = `📊 <b>STREAK FORMING</b> ⚡\n`;
             msg += `━━━━━━━━━━━━━━━━━\n`;
             msg += `📈 ${consecutiveWins} consecutive BUY wins\n`;
@@ -24397,7 +24466,7 @@ function checkStreakFormingAlert() {
             msg += `━━━━━━━━━━━━━━━━━\n`;
             msg += `<i>⚠️ NON-PREDICTIVE: Past wins do not guarantee future results.</i>\n`;
             msg += `<i>This is an observation, not a trading signal.</i>`;
-            
+
             sendTelegramNotification(msg, false);
             log(`📊 STREAK FORMING ALERT: ${consecutiveWins} consecutive BUY wins`);
         }
@@ -24416,11 +24485,11 @@ function checkStreakFormingAlert() {
 function getCycleCommitment(asset) {
     const cycleEpoch = getCurrentCheckpoint();
     const commit = cycleCommitState.commitments[asset];
-    
+
     if (!commit || commit.cycleEpoch !== cycleEpoch) {
         return null;  // No commitment for this cycle
     }
-    
+
     return commit;
 }
 
@@ -24429,7 +24498,7 @@ function getCycleCommitment(asset) {
  */
 function setCycleCommitment(asset, direction, buyPrice) {
     const cycleEpoch = getCurrentCheckpoint();
-    
+
     cycleCommitState.commitments[asset] = {
         cycleEpoch,
         direction,
@@ -24438,7 +24507,7 @@ function setCycleCommitment(asset, direction, buyPrice) {
         emergencyTriggerCount: 0,
         emergencyFirstAt: 0
     };
-    
+
     log(`🔒 CYCLE COMMITMENT: ${asset} → ${direction} @ ${(buyPrice * 100).toFixed(1)}¢ (no flip-flop until cycle end)`, asset);
 }
 
@@ -24451,14 +24520,14 @@ function checkEmergencyExit(asset, brain, market, currentPWin, currentConsensus,
     if (!commit) {
         return { shouldEmergencyExit: false, reason: null, prewarning: false };
     }
-    
+
     const now = Date.now();
     const pos = commit.direction;
-    
+
     // Check for severe deterioration signals
     let deteriorationSignals = 0;
     let reasons = [];
-    
+
     // 1. Genesis disagrees with our committed position
     const modelVotes = brain.lastSignal?.modelVotes || {};
     const genesisVote = modelVotes.genesis;
@@ -24466,25 +24535,25 @@ function checkEmergencyExit(asset, brain, market, currentPWin, currentConsensus,
         deteriorationSignals++;
         reasons.push(`Genesis=${genesisVote} vs position=${pos}`);
     }
-    
+
     // 2. pWin collapsed below 55%
     if (Number.isFinite(currentPWin) && currentPWin < 0.55) {
         deteriorationSignals++;
         reasons.push(`pWin=${(currentPWin * 100).toFixed(0)}% < 55%`);
     }
-    
+
     // 3. Consensus collapsed below 55%
     if (Number.isFinite(currentConsensus) && currentConsensus < 0.55) {
         deteriorationSignals++;
         reasons.push(`Consensus=${(currentConsensus * 100).toFixed(0)}% < 55%`);
     }
-    
+
     // 4. Vote stability collapsed below 50%
     if (Number.isFinite(voteStability) && voteStability < 0.50) {
         deteriorationSignals++;
         reasons.push(`Stability=${(voteStability * 100).toFixed(0)}% < 50%`);
     }
-    
+
     // 5. Price moved severely against us (entry vs current)
     const currentOdds = pos === 'UP' ? market?.yesPrice : market?.noPrice;
     if (Number.isFinite(currentOdds) && Number.isFinite(commit.buyPrice)) {
@@ -24494,7 +24563,7 @@ function checkEmergencyExit(asset, brain, market, currentPWin, currentConsensus,
             reasons.push(`Price dropped ${(priceDrop * 100).toFixed(0)}¢`);
         }
     }
-    
+
     // Hysteresis: need sustained deterioration
     if (deteriorationSignals >= cycleCommitState.emergencyTriggerThreshold) {
         // Track emergency trigger timing
@@ -24502,9 +24571,9 @@ function checkEmergencyExit(asset, brain, market, currentPWin, currentConsensus,
             commit.emergencyFirstAt = now;
         }
         commit.emergencyTriggerCount++;
-        
+
         const sustainedMs = now - commit.emergencyFirstAt;
-        
+
         // Prewarning: 15-30 seconds before emergency
         if (sustainedMs >= cycleCommitState.emergencyHysteresisMs / 2 && sustainedMs < cycleCommitState.emergencyHysteresisMs) {
             return {
@@ -24514,7 +24583,7 @@ function checkEmergencyExit(asset, brain, market, currentPWin, currentConsensus,
                 prewarningReasons: reasons
             };
         }
-        
+
         // Full emergency: sustained for hysteresis period
         if (sustainedMs >= cycleCommitState.emergencyHysteresisMs) {
             return {
@@ -24528,7 +24597,7 @@ function checkEmergencyExit(asset, brain, market, currentPWin, currentConsensus,
         commit.emergencyTriggerCount = 0;
         commit.emergencyFirstAt = 0;
     }
-    
+
     return { shouldEmergencyExit: false, reason: null, prewarning: false };
 }
 
@@ -24589,7 +24658,7 @@ function getMostRecentPositionForAsset(asset) {
     try {
         // 🔮 SHADOW-BOOK FIRST: Prefer shadow-book position for manual trading SELL logic
         // This prevents PAPER auto-positions from polluting manual oracle SELLs
-        if (shadowBook.position && 
+        if (shadowBook.position &&
             String(shadowBook.position.asset || '').toUpperCase() === String(asset).toUpperCase()) {
             return {
                 id: `shadow_${shadowBook.position.cycleStartEpoch}`,
@@ -24601,7 +24670,7 @@ function getMostRecentPositionForAsset(asset) {
                 isShadow: true
             };
         }
-        
+
         // Fallback: check tradeExecutor positions (for PAPER evaluation)
         const positions = tradeExecutor?.positions || {};
         const matches = Object.entries(positions)
@@ -24651,7 +24720,7 @@ function updateOracleSignalForAsset(asset) {
             rt.telegramSellSentAt = 0;
             rt.telegramPresellSentAt = 0;  // 🔒 v105: PRESELL warning reset
             rt.telegramUltraSentAt = 0;  // 🔮 ULTRA-PROPHET reset
-            
+
             // 🔒 v105: Clear cycle commitment for new cycle
             clearCycleCommitment(asset);
         }
@@ -24700,7 +24769,7 @@ function updateOracleSignalForAsset(asset) {
             oracleSignals[asset] = signal;
             return signal;
         }
-        
+
         // Preconditions
         if (!market || !Number.isFinite(market.yesPrice) || !Number.isFinite(market.noPrice)) {
             // 🏆 v110: Include fetch error details when market data unavailable
@@ -24855,7 +24924,7 @@ function updateOracleSignalForAsset(asset) {
             // 🔒 v105: Use hysteresis-based emergency exit (30s sustained deterioration required)
             // This prevents flip-flopping on temporary market swings
             const emergencyCheck = checkEmergencyExit(asset, brain, market, pWin, currentConsensus, voteStability);
-            
+
             if (emergencyCheck.shouldEmergencyExit && timeLeftSec > 60) {
                 // Emergency SELL: sustained deterioration confirmed
                 signal.action = 'SELL';
@@ -24887,20 +24956,20 @@ function updateOracleSignalForAsset(asset) {
         //   - BUY: 90s-60s before cycle end (1-1.5 min before resolution)
         //   - AVOID: <60s (blackout - too late)
         // ═══════════════════════════════════════════════════════════════════════════════
-        
+
         const stable = voteStability >= minVoteStability;
-        
+
         // v119: Configurable timing windows (from CONFIG.ORACLE)
         // Default: BUY at 300s-60s (last 5 min), PREPARE at 420s-300s (7-5 min)
         const buyWindowStart = CONFIG.ORACLE.buyWindowStartSec || 300;
         const buyWindowEnd = CONFIG.ORACLE.buyWindowEndSec || 60;
         const prepareWindowStart = CONFIG.ORACLE.prepareWindowStartSec || 420;
         const prepareWindowEnd = buyWindowStart; // PREPARE ends when BUY starts
-        
+
         const inPrepareWindow = timeLeftSec <= prepareWindowStart && timeLeftSec > prepareWindowEnd;
         const inBuyWindow = timeLeftSec <= buyWindowStart && timeLeftSec > buyWindowEnd;
         const inBlackout = timeLeftSec <= buyWindowEnd;
-        
+
         // Compute consensus for emergency checks
         const voteHistoryArr = brain.voteHistory || [];
         const latestVotes = voteHistoryArr.length > 0 ? voteHistoryArr[voteHistoryArr.length - 1] : null;
@@ -24934,35 +25003,35 @@ function updateOracleSignalForAsset(asset) {
         // Uses dynamic pWin threshold that adapts based on recent performance.
         // Target: ≤1 loss per 10 trades (~90% win rate)
         // ═══════════════════════════════════════════════════════════════════════════════
-        
+
         // 🏆 v113: Compute REAL calibration sample size from actual calibration data
         // Use the MAX of: confidence bucket samples, tier calibration samples, and rolling samples
         // This fixes the issue where globalRollingTotal stays 0 when we have hundreds of calibration samples
         let calibrationSampleSize = 0;
-        
+
         // 1) Confidence bucket samples (from the current pWin bucket)
         const calBucket = brain?.getCalibrationBucket ? brain.getCalibrationBucket(brain.confidence) : null;
         const calStats = calBucket && brain?.calibrationBuckets ? brain.calibrationBuckets[calBucket] : null;
         if (calStats && Number.isFinite(calStats.total)) {
             calibrationSampleSize = Math.max(calibrationSampleSize, calStats.total);
         }
-        
+
         // 2) Tier calibration samples (CONVICTION/ADVISORY have their own sample counts)
         const tierCal = brain?.tierCalibration?.[signal.tier];
         if (tierCal && Number.isFinite(tierCal.total)) {
             calibrationSampleSize = Math.max(calibrationSampleSize, tierCal.total);
         }
-        
+
         // 3) Global rolling samples (recent executed oracle outcomes) - usually lower
         if (Number.isFinite(adaptiveGateState.globalRollingTotal)) {
             calibrationSampleSize = Math.max(calibrationSampleSize, adaptiveGateState.globalRollingTotal);
         }
-        
+
         // 4) If all else fails, use overall stats (wins + total from all time)
         if (calibrationSampleSize === 0 && brain?.stats?.total > 0) {
             calibrationSampleSize = Math.min(brain.stats.total, 100); // Cap at 100 to not over-trust ancient data
         }
-        
+
         // 🏆 v112: Pass entry price, bankroll, and sample size for enhanced gating
         const adaptiveGate = checkAdaptiveGate(pWin, signal.tier, ultraProphet, {
             entryPrice,
@@ -24977,7 +25046,7 @@ function updateOracleSignalForAsset(asset) {
             `rolling WR=${((adaptiveGateState.globalRollingTotal > 0 ? adaptiveGateState.globalRollingWins / adaptiveGateState.globalRollingTotal : 0) * 100).toFixed(0)}% ` +
             `(${calibrationSampleSize} samples)${bankrollInfo}`;
         signal.reasons.push(adaptiveInfo);
-        
+
         // Add streak state info
         const streakInfo = computeStreakState();
         signal.streakState = streakInfo;
@@ -24991,36 +25060,36 @@ function updateOracleSignalForAsset(asset) {
         // ═══════════════════════════════════════════════════════════════════════════════
         const predictionLocked = stable && brain?.oracleLocked === true;
         const couldFlip = !predictionLocked && timeLeftSec > 120;  // Still movable if >2min left and not locked
-        
+
         signal.calibration = {
             // Is the prediction locked (committed) or could it still change?
             isLocked: predictionLocked,
             couldFlip,
-            lockReason: predictionLocked 
-                ? `Direction locked (stability=${voteStability.toFixed(2)}, oracleLocked=${brain?.oracleLocked})` 
+            lockReason: predictionLocked
+                ? `Direction locked (stability=${voteStability.toFixed(2)}, oracleLocked=${brain?.oracleLocked})`
                 : (couldFlip ? `Still early - direction could change (${timeLeftSec}s left, stability=${voteStability.toFixed(2)})` : 'Near end but not locked'),
             // pWin confidence level
-            pWinConfidence: !Number.isFinite(pWin) ? 'UNKNOWN' : 
-                           pWin >= 0.90 ? 'VERY_HIGH' :
-                           pWin >= 0.85 ? 'HIGH' :
-                           pWin >= 0.80 ? 'MODERATE' :
-                           pWin >= 0.70 ? 'LOW' : 'VERY_LOW',
+            pWinConfidence: !Number.isFinite(pWin) ? 'UNKNOWN' :
+                pWin >= 0.90 ? 'VERY_HIGH' :
+                    pWin >= 0.85 ? 'HIGH' :
+                        pWin >= 0.80 ? 'MODERATE' :
+                            pWin >= 0.70 ? 'LOW' : 'VERY_LOW',
             // Sample size for calibration
             sampleSize: calibrationSampleSize,
             sampleSizeAdequate: calibrationSampleSize >= 20,
             // 🏆 v115 (v114.1 patch): True if Wilson LCB was actually used to compute pWin
             lcbUsed: signal.lcbUsed === true,
             // Why this pWin should be trusted (or not)
-            trustReason: calibrationSampleSize < 10 
+            trustReason: calibrationSampleSize < 10
                 ? '⚠️ Low sample size - pWin estimate less reliable'
                 : calibrationSampleSize < 20
-                ? 'Moderate sample - pWin estimate somewhat reliable'
-                : 'Adequate sample - pWin estimate reliable',
+                    ? 'Moderate sample - pWin estimate somewhat reliable'
+                    : 'Adequate sample - pWin estimate reliable',
             // Tier explains base accuracy
             tierNote: signal.tier === 'CONVICTION' ? 'CONVICTION tier = highest historical accuracy' :
-                     signal.tier === 'ADVISORY' ? 'ADVISORY tier = moderate historical accuracy' : 'Low tier = use caution'
+                signal.tier === 'ADVISORY' ? 'ADVISORY tier = moderate historical accuracy' : 'Low tier = use caution'
         };
-        
+
         // Add calibration summary to reasons
         signal.reasons.push(`📊 ${signal.calibration.isLocked ? '🔒 LOCKED' : '🔓 MOVABLE'}: ${signal.calibration.lockReason.substring(0, 50)}`);
 
@@ -25030,11 +25099,11 @@ function updateOracleSignalForAsset(asset) {
         // Only allow emergency exit under sustained deterioration.
         // ═══════════════════════════════════════════════════════════════════════════════
         const existingCommit = getCycleCommitment(asset);
-        
+
         if (existingCommit) {
             // We're already committed to a direction this cycle
             const emergencyCheck = checkEmergencyExit(asset, brain, market, pWin, currentConsensus, voteStability);
-            
+
             if (emergencyCheck.shouldEmergencyExit) {
                 // Emergency exit triggered after sustained deterioration
                 signal.action = 'SELL';
@@ -25051,11 +25120,11 @@ function updateOracleSignalForAsset(asset) {
             }
         } else {
             // No existing commitment - determine action based on timing window
-            
+
             // 🏆 v114: TAIL-BET DETECTION - Entry price below minOdds threshold
             const minOdds = CONFIG?.ORACLE?.minOdds || 0.35;
             const isTailBet = Number.isFinite(entryPrice) && entryPrice < minOdds;
-            
+
             // 🏆 v114: TAIL-BUY GATE - Allow tail BUY only if ALL strict conditions are met
             // Otherwise, tail entry is blocked (PREPARE is still allowed as FYI)
             const tailBuyAllowed = isTailBet ? (
@@ -25065,11 +25134,11 @@ function updateOracleSignalForAsset(asset) {
                 Number.isFinite(evRoi) && evRoi >= 0.30 &&
                 calibrationSampleSize >= 25
             ) : true; // Non-tail bets don't need this gate
-            
+
             const tailBuyBlockReason = isTailBet && !tailBuyAllowed
                 ? `🚫 TAIL BUY BLOCKED: Entry ${(entryPrice * 100).toFixed(1)}¢ < ${(minOdds * 100).toFixed(0)}¢ requires LOCKED+CONVICTION+pWin≥95%+EV≥30%+samples≥25`
                 : null;
-            
+
             if (inBlackout) {
                 signal.action = 'AVOID';
                 signal.reasons.push('Final 60s blackout - too late to enter');
@@ -25106,7 +25175,7 @@ function updateOracleSignalForAsset(asset) {
                     signal.isTailBet = true;
                     signal.reasons.push(`⚠️ TAIL PRICE (${(entryPrice * 100).toFixed(1)}¢ < ${(minOdds * 100).toFixed(0)}¢): BUY requires LOCKED+95%+EV+samples`);
                 }
-                const gateStatus = adaptiveGate.passes 
+                const gateStatus = adaptiveGate.passes
                     ? (tailBuyAllowed ? '✅ Gate passes - BUY coming soon' : '⏳ Gate passes but tail conditions not met')
                     : `⏳ Gate: ${adaptiveGate.reason}`;
                 signal.reasons.push(gateStatus);
@@ -25122,13 +25191,13 @@ function updateOracleSignalForAsset(asset) {
 
         oracleSignals[asset] = signal;
         rt.lastAction = signal.action;
-        
+
         // Send ULTRA notification if this is a new ULTRA BUY signal
         if (ultraProphet.isUltra && signal.action === 'BUY' && !rt.telegramUltraSentAt) {
             rt.telegramUltraSentAt = nowMs;
             maybeSendUltraProphetTelegram(asset, signal);
         }
-        
+
         return signal;
     } catch (e) {
         // Never crash the engine on advisory computation
@@ -25151,7 +25220,7 @@ function buildStateSnapshot() {
         const priorRate =
             (Brains[a].tier === 'CONVICTION' && s.convictionTotal > 0) ? (s.convictionWins / s.convictionTotal) :
                 (s.total > 0 ? (s.wins / s.total) : 0.5);
-        
+
         // 🎯 GOAT: Use tier-conditioned pWin (most accurate), fall back to bucket-based
         // 🏆 v111: Track pWinSource for UI clarity
         const market = currentMarkets[a];
@@ -25187,7 +25256,7 @@ function buildStateSnapshot() {
         const ttcCertifiedVals = cycles.map(c => Number(c?.timeToCertifiedCallSec)).filter(Number.isFinite);
         const avgTimeToCorrectCallSec10 = ttcVals.length > 0 ? (ttcVals.reduce((s, x) => s + x, 0) / ttcVals.length) : null;
         const avgTimeToCertifiedCallSec10 = ttcCertifiedVals.length > 0 ? (ttcCertifiedVals.reduce((s, x) => s + x, 0) / ttcCertifiedVals.length) : null;
-        
+
         response[a] = {
             prediction: Brains[a].prediction,
             confidence: Brains[a].confidence,
@@ -25239,7 +25308,7 @@ function buildStateSnapshot() {
     // This matches the actual runtime check in executeTrade() and prevents false halt status
     const dayStartBalance = tradeExecutor.circuitBreaker?.dayStartBalance || tradeExecutor.paperBalance;
     const globalStopTriggered = tradeExecutor.todayPnL < 0 && Math.abs(tradeExecutor.todayPnL) > dayStartBalance * CONFIG.RISK.globalStopLoss;
-    
+
     // 🔴 v46: Get circuit breaker status
     const cbStatus = tradeExecutor.circuitBreaker || {};
     const cbState = cbStatus.state || 'NORMAL';
@@ -25249,7 +25318,7 @@ function buildStateSnapshot() {
     let haltReason = null;
     let haltType = null;
     let resumeCondition = null;
-    
+
     if (cbState === 'HALTED') {
         haltReason = `🔌 CIRCUIT BREAKER HALTED: Trading suspended`;
         haltType = 'CIRCUIT_BREAKER_HALT';
@@ -25353,27 +25422,27 @@ app.get('/api/manual-journey', (req, res) => {
     const tradesWon = resolvedTrades.filter(t => t.won === true).length;
     const tradesLost = resolvedTrades.filter(t => t.won === false).length;
     const winRate = resolvedTrades.length > 0 ? (tradesWon / resolvedTrades.length * 100) : 0;
-    
+
     // Estimate trades to $1M
-    const avgRoi = resolvedTrades.length > 0 
+    const avgRoi = resolvedTrades.length > 0
         ? resolvedTrades.filter(t => t.won === true).reduce((sum, t) => sum + (t.roi || 0), 0) / Math.max(1, tradesWon)
         : 0.5; // assume 50% avg ROI if no data
     const tradesToMillion = avgRoi > 0 && j.currentBalance > 0
         ? Math.ceil(Math.log(1000000 / j.currentBalance) / Math.log(1 + avgRoi * 0.85))
         : 999;
-    
+
     const progressPctNum = (j.currentBalance > 0)
         ? ((Math.log(j.currentBalance) / Math.log(1000000)) * 100)
         : 0;
-    
+
     // 🏆 v119: Detect uninitialized state to avoid misleading "wiped" appearance
     const isInitialized = j.startingBalance > 0 || allTrades.length > 0;
-    const guidance = !isInitialized 
+    const guidance = !isInitialized
         ? 'Manual journey not started. POST /api/manual-journey/balance with {"balance": <starting_amount>} to begin.'
-        : j.currentBalance === 0 && resolvedTrades.length > 0 
+        : j.currentBalance === 0 && resolvedTrades.length > 0
             ? 'Bankroll depleted. Reset via POST /api/manual-journey/balance with {"balance": <new_amount>, "reset": true}.'
             : null;
-    
+
     res.json({
         // 🏆 v119: Sanity flags to avoid confusion
         initialized: isInitialized,
@@ -25402,11 +25471,11 @@ app.get('/api/manual-journey', (req, res) => {
 app.post('/api/manual-journey/trade', async (req, res) => {
     try {
         const { asset, direction, entryPrice, exitPrice, stake, won, notes, clientTradeId } = req.body;
-        
+
         if (typeof won !== 'boolean') {
             return res.status(400).json({ error: 'Missing required field: won (boolean)' });
         }
-        
+
         // 🏆 v112: Idempotency check - prevent duplicate submissions from multiple devices
         if (clientTradeId) {
             const { seen } = await checkManualTradeIdempotency(clientTradeId);
@@ -25421,19 +25490,19 @@ app.post('/api/manual-journey/trade', async (req, res) => {
                 });
             }
         }
-        
+
         const entry = Number(entryPrice) || 0.5;
         const exitRaw = Number.isFinite(Number(exitPrice)) ? Number(exitPrice) : (won ? 1.0 : 0.0);
         const exit = Math.max(0, Math.min(1, exitRaw));
         const stakeAmt = Number(stake) || manualTradingJourney.currentBalance * 0.85;
-        
+
         // Calculate P&L
         const shares = entry > 0 ? stakeAmt / entry : 0;
         // Early exits supported: payout is shares * exitPrice (0..1)
         const payout = shares * exit;
         const pnl = payout - stakeAmt;
         const roi = stakeAmt > 0 ? (payout / stakeAmt) - 1 : 0;
-        
+
         const trade = {
             id: Date.now(),
             clientTradeId: clientTradeId || null,
@@ -25452,36 +25521,36 @@ app.post('/api/manual-journey/trade', async (req, res) => {
             balanceBefore: manualTradingJourney.currentBalance,
             balanceAfter: manualTradingJourney.currentBalance + pnl
         };
-        
+
         manualTradingJourney.trades.push(trade);
         manualTradingJourney.currentBalance += pnl;
         manualTradingJourney.lastUpdated = Date.now();
-        
+
         // Keep only last 100 trades in memory
         if (manualTradingJourney.trades.length > 100) {
             manualTradingJourney.trades = manualTradingJourney.trades.slice(-100);
         }
-        
+
         // 🏆 v112: Persist immediately to Redis for cross-device sync
         await persistManualJourney();
-        
+
         // 🏆 v112: Mark clientTradeId as seen (idempotency)
         if (clientTradeId) {
             await markManualTradeIdSeen(clientTradeId);
         }
-        
+
         const emoji = won ? '✅' : '❌';
         const pnlStr = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`;
-        log(`${emoji} MANUAL TRADE: ${asset} ${direction} @ ${(entry*100).toFixed(0)}¢ → ${won ? 'WIN' : 'LOSS'} (${pnlStr}) | Balance: $${manualTradingJourney.currentBalance.toFixed(2)}`);
-        
+        log(`${emoji} MANUAL TRADE: ${asset} ${direction} @ ${(entry * 100).toFixed(0)}¢ → ${won ? 'WIN' : 'LOSS'} (${pnlStr}) | Balance: $${manualTradingJourney.currentBalance.toFixed(2)}`);
+
         // Send Telegram notification
         if (CONFIG.TELEGRAM?.enabled) {
-            const msg = won 
-                ? `✅ <b>MANUAL WIN</b>\n${asset} ${direction} @ ${(entry*100).toFixed(0)}¢\nP/L: <code>${pnlStr}</code>\nBalance: <code>$${manualTradingJourney.currentBalance.toFixed(2)}</code>`
-                : `❌ <b>MANUAL LOSS</b>\n${asset} ${direction} @ ${(entry*100).toFixed(0)}¢\nP/L: <code>${pnlStr}</code>\nBalance: <code>$${manualTradingJourney.currentBalance.toFixed(2)}</code>`;
+            const msg = won
+                ? `✅ <b>MANUAL WIN</b>\n${asset} ${direction} @ ${(entry * 100).toFixed(0)}¢\nP/L: <code>${pnlStr}</code>\nBalance: <code>$${manualTradingJourney.currentBalance.toFixed(2)}</code>`
+                : `❌ <b>MANUAL LOSS</b>\n${asset} ${direction} @ ${(entry * 100).toFixed(0)}¢\nP/L: <code>${pnlStr}</code>\nBalance: <code>$${manualTradingJourney.currentBalance.toFixed(2)}</code>`;
             sendTelegramNotification(msg);
         }
-        
+
         res.json({
             success: true,
             trade,
@@ -25499,11 +25568,11 @@ app.post('/api/manual-journey/balance', async (req, res) => {
     try {
         const { balance, reset } = req.body;
         const newBalance = Number(balance);
-        
+
         if (!Number.isFinite(newBalance) || newBalance < 0) {
             return res.status(400).json({ error: 'Invalid balance' });
         }
-        
+
         if (reset) {
             manualTradingJourney.startingBalance = newBalance;
             manualTradingJourney.currentBalance = newBalance;
@@ -25514,17 +25583,17 @@ app.post('/api/manual-journey/balance', async (req, res) => {
             manualTradingJourney.currentBalance = newBalance;
             log(`💰 MANUAL BALANCE UPDATED: $${newBalance.toFixed(2)}`);
         }
-        
+
         manualTradingJourney.lastUpdated = Date.now();
-        
+
         // 🏆 v112: Persist immediately to Redis for cross-device sync
         await persistManualJourney();
-        
+
         // Also update paper balance for stake calculations
         if (tradeExecutor) {
             tradeExecutor.paperBalance = newBalance;
         }
-        
+
         res.json({
             success: true,
             startingBalance: manualTradingJourney.startingBalance,
@@ -25544,7 +25613,7 @@ app.post('/api/manual-journey/balance', async (req, res) => {
 app.get('/api/oracle/confirm', async (req, res) => {
     try {
         const { decision, clientTradeId, asset, slug, direction, price, pWin, stake } = req.query;
-        
+
         // Validate required params
         if (!decision || !clientTradeId || !asset) {
             return res.status(400).send(`
@@ -25553,7 +25622,7 @@ app.get('/api/oracle/confirm', async (req, res) => {
                 <body><h2>❌ Missing parameters</h2><p>decision, clientTradeId, and asset are required.</p></body></html>
             `);
         }
-        
+
         // Check idempotency - have we already processed this trade?
         const seenCheck = await checkManualTradeIdempotency(clientTradeId);
         if (seenCheck.seen) {
@@ -25564,22 +25633,22 @@ app.get('/api/oracle/confirm', async (req, res) => {
                 <p style="color:#888;font-size:0.9em;">ID: ${clientTradeId}</p></body></html>
             `);
         }
-        
+
         const decisionLower = (decision || '').toLowerCase();
         const isTook = decisionLower === 'took' || decisionLower === 'yes' || decisionLower === 'buy';
         const isSkipped = decisionLower === 'skipped' || decisionLower === 'no' || decisionLower === 'skip';
-        
+
         const entryPriceNum = Number(price) || 0.50;
         const pWinNum = Number(pWin) || null;
         const stakeNum = Number(stake);
         const stakeValid = Number.isFinite(stakeNum) && stakeNum > 0;
-        
+
         // 🏆 v121: If TOOK but no stake provided, show stake entry page
         if (isTook && !stakeValid) {
             const currentBalance = manualTradingJourney?.currentBalance || 0;
             const balanceDisplay = currentBalance > 0 ? `$${currentBalance.toFixed(2)}` : 'Not set';
             const buyWhat = String(direction || 'UP').toUpperCase() === 'UP' ? 'YES' : 'NO';
-            
+
             return res.send(`
                 <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
@@ -25636,10 +25705,10 @@ app.get('/api/oracle/confirm', async (req, res) => {
                 </body></html>
             `);
         }
-        
+
         // 🏆 v121: Only mark idempotency AFTER we're actually recording (not on stake page)
         await markManualTradeIdSeen(clientTradeId);
-        
+
         const tradeRecord = {
             id: clientTradeId,
             asset: String(asset).toUpperCase(),
@@ -25657,22 +25726,22 @@ app.get('/api/oracle/confirm', async (req, res) => {
             pnl: null,
             won: null
         };
-        
+
         // Add to manual journey trades
         if (!Array.isArray(manualTradingJourney.trades)) {
             manualTradingJourney.trades = [];
         }
         manualTradingJourney.trades.push(tradeRecord);
         manualTradingJourney.lastUpdated = Date.now();
-        
+
         // Trim to last 100 trades
         if (manualTradingJourney.trades.length > 100) {
             manualTradingJourney.trades = manualTradingJourney.trades.slice(-100);
         }
-        
+
         // Persist to Redis
         await persistManualJourney();
-        
+
         // 🏆 v116: Also process pending call (opens shadow position only on confirm)
         let callResult = { success: false, reason: 'No pending call' };
         if (isTook) {
@@ -25680,15 +25749,15 @@ app.get('/api/oracle/confirm', async (req, res) => {
         } else if (isSkipped) {
             callResult = skipPendingCall(clientTradeId);
         }
-        
+
         // Log
         log(`📱 TELEGRAM CONFIRM: ${tradeRecord.decision} ${asset} ${direction} @ ${(entryPriceNum * 100).toFixed(0)}¢ stake=$${stakeValid ? stakeNum.toFixed(2) : 'n/a'} (ID: ${clientTradeId}) | CallResult: ${callResult.reason}`);
-        
+
         // Return nice HTML confirmation
         const emoji = isTook ? '✅' : (isSkipped ? '⏭️' : '❓');
         const actionText = isTook ? 'Trade Recorded' : (isSkipped ? 'Skipped' : 'Unknown Decision');
         const bgColor = isTook ? '#0f5132' : (isSkipped ? '#664d03' : '#495057');
-        
+
         res.send(`
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
@@ -25711,7 +25780,7 @@ app.get('/api/oracle/confirm', async (req, res) => {
                 <a href="${DASHBOARD_URL}" style="color:#00ff88;text-decoration:none;">← Back to Dashboard</a>
             </body></html>
         `);
-        
+
     } catch (e) {
         res.status(500).send(`
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25731,9 +25800,9 @@ app.get('/api/oracle/confirm', async (req, res) => {
 app.get('/api/push/vapid-key', (req, res) => {
     const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
     if (!vapidPublicKey) {
-        return res.json({ 
-            enabled: false, 
-            reason: 'VAPID_PUBLIC_KEY not configured. Run: npx web-push generate-vapid-keys' 
+        return res.json({
+            enabled: false,
+            reason: 'VAPID_PUBLIC_KEY not configured. Run: npx web-push generate-vapid-keys'
         });
     }
     res.json({ enabled: true, publicKey: vapidPublicKey });
@@ -25743,28 +25812,28 @@ app.get('/api/push/vapid-key', (req, res) => {
 app.post('/api/push/subscribe', (req, res) => {
     try {
         const { subscription, deviceId } = req.body;
-        
+
         if (!subscription || !subscription.endpoint) {
             return res.status(400).json({ error: 'Invalid subscription object' });
         }
-        
+
         // Remove existing subscription for this device/endpoint
-        webPushSubscriptions = webPushSubscriptions.filter(s => 
+        webPushSubscriptions = webPushSubscriptions.filter(s =>
             s.endpoint !== subscription.endpoint && s.deviceId !== deviceId
         );
-        
+
         // Add new subscription
         webPushSubscriptions.push({
             ...subscription,
             deviceId: deviceId || `device-${Date.now()}`,
             createdAt: Date.now()
         });
-        
+
         // Keep only last 50 subscriptions
         if (webPushSubscriptions.length > 50) {
             webPushSubscriptions = webPushSubscriptions.slice(-50);
         }
-        
+
         log(`📱 Web Push subscription added (${webPushSubscriptions.length} total)`);
         res.json({ success: true, message: 'Subscribed to push notifications' });
     } catch (e) {
@@ -25776,13 +25845,13 @@ app.post('/api/push/subscribe', (req, res) => {
 app.post('/api/push/unsubscribe', (req, res) => {
     try {
         const { endpoint, deviceId } = req.body;
-        
+
         const before = webPushSubscriptions.length;
-        webPushSubscriptions = webPushSubscriptions.filter(s => 
+        webPushSubscriptions = webPushSubscriptions.filter(s =>
             s.endpoint !== endpoint && s.deviceId !== deviceId
         );
         const removed = before - webPushSubscriptions.length;
-        
+
         log(`📱 Web Push subscription removed (${removed} removed, ${webPushSubscriptions.length} remaining)`);
         res.json({ success: true, removed });
     } catch (e) {
@@ -25794,18 +25863,18 @@ app.post('/api/push/unsubscribe', (req, res) => {
 app.post('/api/push/test', async (req, res) => {
     try {
         if (!webPushEnabled) {
-            return res.json({ 
-                success: false, 
-                reason: 'web-push package not installed. Run: npm install web-push' 
+            return res.json({
+                success: false,
+                reason: 'web-push package not installed. Run: npm install web-push'
             });
         }
-        
+
         const sent = await sendWebPushToAll({
             title: 'POLYPROPHET Test',
             body: 'Web Push notifications are working!',
             icon: '/favicon.ico'
         });
-        
+
         res.json({ success: true, sent, total: webPushSubscriptions.length });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -25815,10 +25884,10 @@ app.post('/api/push/test', async (req, res) => {
 // Helper: Send web push to all subscribers
 async function sendWebPushToAll(payload) {
     if (!webPushEnabled) return 0;
-    
+
     let sent = 0;
     const failed = [];
-    
+
     for (const sub of webPushSubscriptions) {
         try {
             // web-push.sendNotification would be called here if package is installed
@@ -25828,12 +25897,12 @@ async function sendWebPushToAll(payload) {
             failed.push(sub.endpoint);
         }
     }
-    
+
     // Remove failed subscriptions
     if (failed.length > 0) {
         webPushSubscriptions = webPushSubscriptions.filter(s => !failed.includes(s.endpoint));
     }
-    
+
     return sent;
 }
 
@@ -25851,7 +25920,7 @@ app.get('/api/cycle-recorder', (req, res) => {
         const cycleStart = nowSec - (nowSec % INTERVAL_SECONDS);
         const elapsedSec = nowSec - cycleStart;
         const timeLeftSec = INTERVAL_SECONDS - elapsedSec;
-        
+
         const result = {
             cycleStartEpoch: cycleStart,
             cycleStartISO: new Date(cycleStart * 1000).toISOString(),
@@ -25861,22 +25930,22 @@ app.get('/api/cycle-recorder', (req, res) => {
             timeLeftSec,
             assets: {}
         };
-        
+
         for (const asset of ASSETS) {
             const brain = Brains[asset];
             const market = currentMarkets[asset];
             const oddsHistory = marketOddsHistory[asset] || [];
             const signal = oracleSignals[asset] || null;
-            
+
             // Filter odds history to current cycle
             const cycleOdds = oddsHistory.filter(h => h && h.timestamp >= cycleStart * 1000);
-            
+
             // Get current cycle prediction history from brain
             const predictionHistory = brain?.currentCycleHistory || [];
-            
+
             // Compute ULTRA status
             const ultraStatus = signal?.ultraProphet || null;
-            
+
             result.assets[asset] = {
                 // Current state
                 currentPrediction: brain?.prediction || 'WAIT',
@@ -25886,11 +25955,11 @@ app.get('/api/cycle-recorder', (req, res) => {
                 oracleLockPrediction: brain?.oracleLockPrediction || null,
                 lockCertainty: brain?.lockCertainty || 0,
                 certaintyScore: brain?.certaintyScore || 0,
-                
+
                 // Market odds
                 currentOdds: market ? { yes: market.yesPrice, no: market.noPrice } : null,
                 marketUrl: market?.marketUrl || null,
-                
+
                 // History this cycle
                 oddsPath: cycleOdds.map(h => ({
                     timestamp: h.timestamp,
@@ -25905,7 +25974,7 @@ app.get('/api/cycle-recorder', (req, res) => {
                     tier: p.tier,
                     odds: p.marketOdds
                 })),
-                
+
                 // ULTRA-PROPHET status
                 ultraProphet: ultraStatus ? {
                     isUltra: ultraStatus.isUltra,
@@ -25914,7 +25983,7 @@ app.get('/api/cycle-recorder', (req, res) => {
                     gates: ultraStatus.gates,
                     reasons: ultraStatus.reasons
                 } : null,
-                
+
                 // Oracle signal
                 oracleSignal: signal ? {
                     action: signal.action,
@@ -25926,7 +25995,7 @@ app.get('/api/cycle-recorder', (req, res) => {
                 } : null
             };
         }
-        
+
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -25981,7 +26050,7 @@ app.get('/api/api-key', (req, res) => {
 app.get('/api/gates', (req, res) => {
     const asset = req.query.asset;
     const limit = parseInt(req.query.limit) || 20;
-    
+
     if (asset && ASSETS.includes(asset)) {
         // Get traces for specific asset
         const traces = gateTrace.getForAsset(asset).slice(0, limit);
@@ -25992,14 +26061,14 @@ app.get('/api/gates', (req, res) => {
             summary: gateTrace.getSummary().byAsset[asset] || {}
         });
     }
-    
+
     // Get summary + recent traces for all assets
     const summary = gateTrace.getSummary();
     const recentByAsset = {};
     for (const a of ASSETS) {
         recentByAsset[a] = gateTrace.getForAsset(a).slice(0, 5);
     }
-    
+
     res.json({
         summary,
         recentTraces: recentByAsset,
@@ -26025,7 +26094,7 @@ app.get('/api/trades', async (req, res) => {
     const offset = parseInt(req.query.offset) || 0;
     const limit = Math.min(parseInt(req.query.limit) || 100, 500); // Max 500 per request
     const includeLegacy = req.query.includeLegacy === '1' || String(req.query.includeLegacy || '').toLowerCase() === 'true';
-    
+
     // Load from Redis if available
     const historyResult = await loadTradeHistory(mode, offset, limit);
 
@@ -26043,7 +26112,7 @@ app.get('/api/trades', async (req, res) => {
     const filteredPositions = includeLegacy
         ? rawPositions
         : Object.fromEntries(Object.entries(rawPositions).filter(([_, p]) => allowedAssets.has(String(p?.asset || '').toUpperCase())));
-    
+
     const requestedMode = String(mode || '').toUpperCase();
     const effectiveBalance = requestedMode === 'LIVE'
         ? (tradeExecutor.cachedLiveBalance || 0)
@@ -26090,14 +26159,14 @@ app.get('/api/trades', async (req, res) => {
 app.get('/api/trades/export', async (req, res) => {
     const mode = req.query.mode || CONFIG.TRADE_MODE;
     const format = req.query.format || 'json'; // 'json' or 'csv'
-    
+
     // Load all trades from Redis
     const historyResult = await loadTradeHistory(mode, 0, TRADE_HISTORY_MAX);
-    
+
     if (format === 'csv') {
         // Generate CSV
         const headers = ['id', 'asset', 'mode', 'side', 'entry', 'exit', 'size', 'pnl', 'pnlPercent', 'time', 'closeTime', 'status', 'reason'];
-        const rows = historyResult.trades.map(t => 
+        const rows = historyResult.trades.map(t =>
             headers.map(h => {
                 const val = t[h];
                 if (val === undefined || val === null) return '';
@@ -26105,9 +26174,9 @@ app.get('/api/trades/export', async (req, res) => {
                 return String(val).replace(/,/g, ';');
             }).join(',')
         );
-        
+
         res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename=polyprophet_trades_${mode}_${new Date().toISOString().slice(0,10)}.csv`);
+        res.setHeader('Content-Disposition', `attachment; filename=polyprophet_trades_${mode}_${new Date().toISOString().slice(0, 10)}.csv`);
         res.send([headers.join(','), ...rows].join('\n'));
     } else {
         res.json({
@@ -26172,18 +26241,18 @@ app.post('/api/profile-trades/sync', async (req, res) => {
 app.post('/api/trades/reset', async (req, res) => {
     const mode = req.body.mode || 'PAPER';
     const confirm = req.body.confirm === true;
-    
+
     if (!confirm) {
-        return res.status(400).json({ 
-            error: 'Must confirm reset', 
+        return res.status(400).json({
+            error: 'Must confirm reset',
             hint: 'Send { "mode": "PAPER", "confirm": true } in body',
             warning: `This will permanently delete all ${mode} trade history`
         });
     }
-    
+
     // Reset Redis history
     await resetTradeHistory(mode);
-    
+
     // Also reset in-memory if matching current mode
     if (mode === CONFIG.TRADE_MODE || mode === 'PAPER') {
         const beforeCount = tradeExecutor.tradeHistory.length;
@@ -26195,11 +26264,11 @@ app.post('/api/trades/reset', async (req, res) => {
         const afterCount = tradeExecutor.tradeHistory.length;
         log(`🗑️ Trade history reset: ${mode} mode (${beforeCount - afterCount} trades removed)`);
     }
-    
-    res.json({ 
-        success: true, 
+
+    res.json({
+        success: true,
         mode: mode,
-        message: `${mode} trade history has been reset` 
+        message: `${mode} trade history has been reset`
     });
 });
 
@@ -26224,7 +26293,7 @@ app.post('/api/manual-buy', async (req, res) => {
             hint: 'This is a safety feature to prevent accidental real-money trades.'
         });
     }
-    
+
     const { asset, direction, size } = req.body;
 
     if (!asset || !direction || !size) {
@@ -26264,7 +26333,7 @@ app.post('/api/manual-sell', async (req, res) => {
             hint: 'This is a safety feature to prevent accidental real-money trades.'
         });
     }
-    
+
     const { positionId } = req.body;
 
     if (!positionId) {
@@ -26458,7 +26527,7 @@ app.post('/api/reconcile-crash-trades', async (req, res) => {
     try {
         log(`🔄 CRASH RECONCILE: Manual trigger via API`);
         const results = await tradeExecutor.reconcileCrashRecoveredTrades();
-        
+
         res.json({
             success: true,
             message: `Reconciled ${results.settled}/${results.total} crashed trades`,
@@ -26472,18 +26541,18 @@ app.post('/api/reconcile-crash-trades', async (req, res) => {
 
 // Get crash recovery statistics
 app.get('/api/crash-recovery-stats', (req, res) => {
-    const crashRecoveredTrades = (tradeExecutor.tradeHistory || []).filter(t => 
+    const crashRecoveredTrades = (tradeExecutor.tradeHistory || []).filter(t =>
         t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
     );
-    const reconciledTrades = (tradeExecutor.tradeHistory || []).filter(t => 
+    const reconciledTrades = (tradeExecutor.tradeHistory || []).filter(t =>
         t && t.crashReconciled
     );
     const recoveryQueueItems = tradeExecutor.recoveryQueue || [];
-    
+
     // Calculate total missing principal from unreconciled trades
     const missingPrincipal = crashRecoveredTrades.reduce((sum, t) => sum + (t.size || 0), 0);
     const recoveryQueuePrincipal = recoveryQueueItems.reduce((sum, item) => sum + (item.size || 0), 0);
-    
+
     res.json({
         success: true,
         unreconciled: {
@@ -26515,8 +26584,8 @@ app.get('/api/crash-recovery-stats', (req, res) => {
             }))
         },
         currentBalance: tradeExecutor.paperBalance,
-        recommendation: crashRecoveredTrades.length > 0 || recoveryQueueItems.length > 0 
-            ? 'Run POST /api/reconcile-crash-trades to settle crashed positions' 
+        recommendation: crashRecoveredTrades.length > 0 || recoveryQueueItems.length > 0
+            ? 'Run POST /api/reconcile-crash-trades to settle crashed positions'
             : 'All crashed trades have been reconciled'
     });
 });
@@ -26730,7 +26799,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
                 hint: 'This is a safety feature to prevent accidental fund transfers.'
             });
         }
-        
+
         // v94: Must be in LIVE mode to transfer real funds
         if (tradeExecutor.mode !== 'LIVE') {
             return res.status(403).json({
@@ -26739,7 +26808,7 @@ app.post('/api/wallet/transfer', async (req, res) => {
                 hint: 'PAPER mode does not have real USDC to transfer.'
             });
         }
-        
+
         const { to, amount } = req.body;
 
         if (!to || !amount) {
@@ -26838,7 +26907,7 @@ app.post('/api/reset-balance', async (req, res) => {
     tradeExecutor.baselineBankroll = newBalance;
     tradeExecutor.baselineBankrollInitialized = true;
     tradeExecutor.baselineBankrollSource = 'manual_reset';
-    
+
     tradeExecutor.positions = {};
     tradeExecutor.tradeHistory = [];
     tradeExecutor.todayPnL = 0;
@@ -26846,7 +26915,7 @@ app.post('/api/reset-balance', async (req, res) => {
     tradeExecutor.consecutiveLosses = 0;
     tradeExecutor.cycleTradeCount = {};
     tradeExecutor.currentCycleStart = 0;
-    
+
     // 🔴 CRITICAL: Reset day tracking + peak balance so CircuitBreaker/RiskEnvelope
     // do not immediately HALT after a manual balance reset (e.g. reset to $5).
     if (tradeExecutor.circuitBreaker) {
@@ -26925,8 +26994,8 @@ app.post('/api/settings', async (req, res) => {
     };
 
     // 🎯 v52: Keys that should be deep-merged (config objects) vs shallow-replaced (primitives)
-    const deepMergeKeys = ['ORACLE', 'RISK', 'ASSET_CONTROLS', 'SCALP', 'ARBITRAGE', 'UNCERTAINTY', 
-                          'MOMENTUM', 'ILLIQUIDITY_GAP', 'DEATH_BOUNCE', 'TELEGRAM'];
+    const deepMergeKeys = ['ORACLE', 'RISK', 'ASSET_CONTROLS', 'SCALP', 'ARBITRAGE', 'UNCERTAINTY',
+        'MOMENTUM', 'ILLIQUIDITY_GAP', 'DEATH_BOUNCE', 'TELEGRAM'];
 
     // Update CONFIG
     for (const [key, value] of Object.entries(updates)) {
@@ -26946,7 +27015,7 @@ app.post('/api/settings', async (req, res) => {
             }
         }
     }
-    
+
     // 🏆 v83: Sync vaultTriggerBalance <-> stage1Threshold for backward compatibility
     // If a legacy client updates only stage1Threshold, also update vaultTriggerBalance
     // If vaultTriggerBalance is updated, also update stage1Threshold for legacy reads
@@ -26954,7 +27023,7 @@ app.post('/api/settings', async (req, res) => {
         const riskUpdates = updates.RISK || {};
         const hasVaultTrigger = riskUpdates.vaultTriggerBalance !== undefined;
         const hasStage1 = riskUpdates.stage1Threshold !== undefined;
-        
+
         if (hasStage1 && !hasVaultTrigger && Number.isFinite(CONFIG.RISK.stage1Threshold)) {
             // Legacy client updated stage1Threshold only - sync to vaultTriggerBalance
             CONFIG.RISK.vaultTriggerBalance = CONFIG.RISK.stage1Threshold;
@@ -26965,7 +27034,7 @@ app.post('/api/settings', async (req, res) => {
             log(`⚙️ Synced stage1Threshold = vaultTriggerBalance = $${CONFIG.RISK.vaultTriggerBalance} (alias sync)`);
         }
     }
-    
+
     // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥80¢
     // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.80
     if (CONFIG.ORACLE && typeof CONFIG.ORACLE.maxOdds === 'number') {
@@ -26980,7 +27049,7 @@ app.post('/api/settings', async (req, res) => {
     if (reloadRequired) {
         tradeExecutor.reloadWallet();
     }
-    
+
     // 🏆 v80: Sync circuit breaker enable setting to runtime
     if (CONFIG.RISK && typeof CONFIG.RISK.enableCircuitBreaker === 'boolean') {
         const wasEnabled = tradeExecutor.circuitBreaker.enabled;
@@ -27903,7 +27972,7 @@ setInterval(() => {
                     } else {
                         log(`⚠️ Skipping learning evaluation (stale data) but positions resolved`, a);
                     }
-                    
+
                     // 🎯 GOAT v44.1: Notify watchdog that a cycle was detected
                     if (typeof watchdogCycleDetected === 'function') {
                         watchdogCycleDetected();
@@ -27922,18 +27991,18 @@ setInterval(() => {
                 Brains[a].pendingSignal = null;
                 Brains[a].voteHistory = [];
                 Brains[a].currentCycleHistory = [];
-                
+
                 // 🎯 GOAT: Reset ALL per-cycle locks/state so we never get “stuck locked” across cycles
                 // (Leaving these true causes permanent trade drought even with 0 positions.)
                 Brains[a].convictionLocked = false;
                 Brains[a].lockedDirection = null;
                 Brains[a].lockTime = null;
                 Brains[a].lockConfidence = 0;
-                
+
                 Brains[a].cycleCommitted = false;
                 Brains[a].committedDirection = null;
                 Brains[a].commitTime = null;
-                
+
                 Brains[a].oracleLocked = false;
                 Brains[a].oracleLockPrediction = null;
                 Brains[a].lockCertainty = 0;
@@ -27957,7 +28026,7 @@ setInterval(() => {
             }
         }
     });
-    
+
     // 🏆 v116: RESOLVE PENDING CALLS FOR THE JUST-FINISHED CYCLE
     // Check if we need to resolve pending calls (only once per cycle transition)
     const previousCycleStart = cp - INTERVAL_SECONDS;
@@ -27973,18 +28042,18 @@ setInterval(() => {
                 };
             }
         }
-        
+
         // Resolve all pending calls for this cycle
         const resolved = resolvePendingCallsForCycle(previousCycleStart, outcomes);
         if (resolved.length > 0) {
             log(`📋 PENDING CALLS RESOLVED: ${resolved.length} calls for cycle ${previousCycleStart}`);
-            
+
             // 🏆 v116: Check for streak-forming alert (3+ wins in a row across all assets)
             checkStreakFormingAlert();
         }
-        
+
         pendingCallsCycleResolved[previousCycleStart] = true;
-        
+
         // Cleanup old entries (keep only last 10 cycles)
         const cycleKeys = Object.keys(pendingCallsCycleResolved).map(Number).sort((a, b) => b - a);
         for (const key of cycleKeys.slice(10)) {
@@ -28050,27 +28119,27 @@ async function startup() {
 
     await initPatternStorage();
     await loadState();
-    
+
     // 🎯 GOAT v4: Load persisted settings from Redis
     await loadCollectorEnabled();
-    
+
     // 🏆 v112: Load manual trading journey from Redis (cross-device sync)
     await loadManualJourney();
-    
+
     // 🏆 v80: Wire enableCircuitBreaker setting to runtime
     if (CONFIG.RISK && typeof CONFIG.RISK.enableCircuitBreaker === 'boolean') {
         tradeExecutor.circuitBreaker.enabled = CONFIG.RISK.enableCircuitBreaker;
         log(`🔌 Circuit Breaker: ${CONFIG.RISK.enableCircuitBreaker ? 'ENABLED' : 'DISABLED'} (from settings)`);
     }
-    
+
     // 🏆 v80: Automatically reconcile crash-recovered trades at startup
     if (!LIGHT_MODE) {
         try {
-            const crashStats = (tradeExecutor.tradeHistory || []).filter(t => 
+            const crashStats = (tradeExecutor.tradeHistory || []).filter(t =>
                 t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
             );
             const recoveryItems = (tradeExecutor.recoveryQueue || []).length;
-            
+
             if (crashStats.length > 0 || recoveryItems > 0) {
                 log(`🔄 STARTUP: Found ${crashStats.length} crashed trades + ${recoveryItems} recovery queue items - auto-reconciling...`);
                 // Delay reconcile to allow Gamma API availability
@@ -28087,7 +28156,7 @@ async function startup() {
             log(`⚠️ Crash recovery check failed: ${e.message}`);
         }
     }
-    
+
     if (!LIGHT_MODE) {
         connectWebSocket();
     } else {
@@ -28102,10 +28171,10 @@ async function startup() {
                 Brains[a].update();
                 updateOracleSignalForAsset(a);
             });
-            
+
             // Step 2: Orchestrate notifications (single primary BUY + other candidates)
             orchestrateOracleNotifications();
-            
+
             // Step 3: Check shadow-book position for SELL conditions
             if (shadowBook.position) {
                 const posAsset = shadowBook.position.asset;
@@ -28114,7 +28183,7 @@ async function startup() {
                     maybeSendOracleSignalTelegram(posAsset, sig);
                 }
             }
-            
+
             // Step 4: Settle shadow-book position on cycle end
             // 🏆 v118: Use the checkpoint captured at confirmation/open for correct settlement.
             // If price-based settlement is not possible at the boundary, fall back to Gamma resolution (never force-loss).
@@ -28162,7 +28231,7 @@ async function startup() {
                     }
                 }
             }
-            
+
             // Step 5: Check exit conditions for PAPER positions
             ASSETS.forEach(a => {
                 const market = currentMarkets[a];
@@ -28211,7 +28280,7 @@ async function startup() {
     } else {
         log(`✅ STARTUP SELF-TESTS: ${selfTestResults.total}/${selfTestResults.total} PASSED`);
     }
-    
+
     // 🏆 v69: Handle listen errors properly - EADDRINUSE should exit so Render restarts
     server.on('error', (err) => {
         if (err.code === 'EADDRINUSE') {
@@ -28222,11 +28291,11 @@ async function startup() {
             process.exit(1);
         }
     });
-    
+
     server.listen(PORT, () => {
         // 🏆 v71: Mark startup as complete - errors after this won't exit
         startupCompleted = true;
-        
+
         // 🏆 v71: Deployment banner for provenance tracking
         let gitCommit = 'unknown';
         try {
@@ -28234,9 +28303,9 @@ async function startup() {
                 .execSync('git rev-parse --short HEAD', { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })
                 .trim();
         } catch (e) { /* ignore - not in git repo or git not available */ }
-        
+
         const pkgVersion = require('./package.json').version;
-        
+
         log(`========================================`);
         log(`🚀 POLYPROPHET DEPLOYMENT BANNER`);
         log(`   CONFIG_VERSION: ${CONFIG_VERSION}`);
@@ -28249,7 +28318,7 @@ async function startup() {
         log(`   Balance Floor: £${CONFIG.RISK.minBalanceFloor} (${CONFIG.RISK.minBalanceFloorEnabled ? 'enabled' : 'disabled'})`);
         log(`   Timestamp: ${new Date().toISOString()}`);
         log(`========================================`);
-        
+
         log(`⚡ SUPREME DEITY SERVER ONLINE on port ${PORT} `);
         log(`🌐 Access at: http://localhost:${PORT}`);
         log(`🔑 API Key source: ${typeof API_KEY_SOURCE !== 'undefined' ? API_KEY_SOURCE : 'unknown'}`);
@@ -28262,7 +28331,7 @@ async function startup() {
             }));
         }
     });
-    
+
     // 🎯 GOAT v44.1: Start Watchdog
     if (!LIGHT_MODE) {
         startWatchdog();
@@ -28273,13 +28342,13 @@ async function startup() {
 function runStartupSelfTests() {
     const tests = [];
     const failures = [];
-    
+
     // Test 1: Required environment variables
     tests.push('ENV_AUTH');
     if (!process.env.AUTH_USERNAME || !process.env.AUTH_PASSWORD) {
         failures.push('AUTH_USERNAME or AUTH_PASSWORD not set (using defaults)');
     }
-    
+
     // Test 2: Node version check
     tests.push('NODE_VERSION');
     const nodeVersion = process.version.match(/^v(\d+)/);
@@ -28290,7 +28359,7 @@ function runStartupSelfTests() {
     if (majorVersion >= 26) {
         failures.push(`Node version ${process.version} is above tested maximum (25.x)`);
     }
-    
+
     // Test 3: CONFIG sanity
     tests.push('CONFIG_SANITY');
     if (!CONFIG || !CONFIG.ORACLE) {
@@ -28305,25 +28374,25 @@ function runStartupSelfTests() {
     if (CONFIG.ORACLE.minConfidence < 0.3) {
         failures.push(`CONFIG.ORACLE.minConfidence (${CONFIG.ORACLE.minConfidence}) is very low`);
     }
-    
+
     // Test 4: Trade executor initialized
     tests.push('TRADE_EXECUTOR');
     if (!tradeExecutor) {
         failures.push('tradeExecutor not initialized');
     }
-    
+
     // Test 5: Brains initialized
     tests.push('BRAINS');
     if (!Brains || Object.keys(Brains).length === 0) {
         failures.push('Brains not initialized');
     }
-    
+
     // Test 6: Gate trace initialized
     tests.push('GATE_TRACE');
     if (!gateTrace) {
         failures.push('gateTrace not initialized');
     }
-    
+
     return {
         total: tests.length,
         passed: tests.length - failures.length,
@@ -28345,11 +28414,11 @@ function startWatchdog() {
     const WATCHDOG_INTERVAL = 5 * 60 * 1000; // Check every 5 minutes
     const CYCLE_TIMEOUT = 20 * 60 * 1000; // Alert if no cycle detected in 20 min
     const TRADE_DROUGHT_HOURS = 4; // Alert if no trades in 4 hours
-    
+
     setInterval(() => {
         const now = Date.now();
         const alerts = [];
-        
+
         // Check 1: Cycle detection
         const cycleAge = now - watchdogState.lastCycleDetected;
         if (cycleAge > CYCLE_TIMEOUT) {
@@ -28359,11 +28428,11 @@ function startWatchdog() {
                 watchdogState.alertsSent.add(alertKey);
             }
         }
-        
+
         // Check 2: Trade drought
         // 🏆 v80 FIX: Use correct timestamp field (.time or .closeTime, not .timestamp)
-        const lastTrade = tradeExecutor.tradeHistory.length > 0 
-            ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1] 
+        const lastTrade = tradeExecutor.tradeHistory.length > 0
+            ? tradeExecutor.tradeHistory[tradeExecutor.tradeHistory.length - 1]
             : null;
         const lastTradeTime = lastTrade ? (lastTrade.closeTime || lastTrade.time) : null;
         if (lastTradeTime) {
@@ -28376,7 +28445,7 @@ function startWatchdog() {
                 }
             }
         }
-        
+
         // Check 3: Memory usage
         const memUsage = process.memoryUsage();
         const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
@@ -28387,7 +28456,7 @@ function startWatchdog() {
                 watchdogState.alertsSent.add(alertKey);
             }
         }
-        
+
         // Log alerts
         for (const alert of alerts) {
             log(alert);
@@ -28396,7 +28465,7 @@ function startWatchdog() {
                 sendTelegramNotification(telegramSystemAlert('🐕 Watchdog Alert', alert));
             }
         }
-        
+
         // Clean up old alert keys (older than 6 hours)
         const cutoff = Math.floor((now - 6 * 60 * 60 * 1000) / (60 * 60 * 1000));
         for (const key of watchdogState.alertsSent) {
@@ -28406,7 +28475,7 @@ function startWatchdog() {
             }
         }
     }, WATCHDOG_INTERVAL);
-    
+
     log(`🐕 WATCHDOG: Started (checking every ${WATCHDOG_INTERVAL / 60000} minutes)`);
 }
 
@@ -28422,20 +28491,20 @@ let startupCompleted = false;
 process.on('uncaughtException', (error) => {
     log(`🔴 UNCAUGHT EXCEPTION: ${error.message}`);
     log(`Stack: ${error.stack}`);
-    
+
     // 🏆 v71: ALWAYS exit during startup - can't recover from startup failures
     if (!startupCompleted) {
         log(`🔴 FATAL: Uncaught exception during startup - exiting to allow restart`);
         process.exit(1);
     }
-    
+
     // After startup, exit on known-fatal errors
     const fatalCodes = ['EADDRINUSE', 'EACCES', 'ENOMEM', 'ENOSPC'];
     if (error.code && fatalCodes.includes(error.code)) {
         log(`🔴 FATAL: ${error.code} is unrecoverable - exiting`);
         process.exit(1);
     }
-    
+
     // For non-fatal runtime errors, log but continue
     log(`⚠️ Non-fatal runtime error - continuing operation`);
 });
@@ -28445,13 +28514,13 @@ process.on('unhandledRejection', (reason, promise) => {
     if (reason instanceof Error) {
         log(`Stack: ${reason.stack}`);
     }
-    
+
     // 🏆 v71: Exit during startup
     if (!startupCompleted) {
         log(`🔴 FATAL: Unhandled rejection during startup - exiting`);
         process.exit(1);
     }
-    
+
     // After startup, log but continue for most rejections
     log(`⚠️ Non-fatal rejection - continuing operation`);
 });
@@ -28465,27 +28534,27 @@ async function gracefulShutdown(signal) {
         process.exit(1);
     }
     isShuttingDown = true;
-    
+
     log(`🛑 ${signal} received - shutting down gracefully...`);
-    
+
     try {
         // Stop accepting new trades
         if (tradeExecutor) {
             tradeExecutor.tradingHalted = true;
         }
-        
+
         // Wait for saveState with timeout
         const savePromise = saveState();
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
             setTimeout(() => reject(new Error('saveState timeout')), 10000)
         );
-        
+
         await Promise.race([savePromise, timeoutPromise]);
         log('✅ State saved successfully before shutdown');
     } catch (e) {
         log(`⚠️ Error during shutdown: ${e.message}`);
     }
-    
+
     process.exit(0);
 }
 
