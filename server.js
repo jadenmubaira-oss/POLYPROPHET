@@ -18279,7 +18279,7 @@ class SupremeBrain {
 
             // Get market odds for pWin calculation (use market price, not currentPrice)
             const mktForPWin = currentMarkets[this.asset];
-            const marketOdds = mktForPWin ? (finalSignal === 'UP' ? mktForPWin.yesPrice : mktForPWin.noPrice) : currentPrice;
+            const pWinMarketOdds = mktForPWin ? (finalSignal === 'UP' ? mktForPWin.yesPrice : mktForPWin.noPrice) : currentPrice;
 
             // Get tier-conditioned pWin if available
             let preliminaryPWin = null;
@@ -18289,10 +18289,10 @@ class SupremeBrain {
             const convictionTierMinSamples = Number.isFinite(Number(CONFIG?.RISK?.convictionTierPWinMinSamples)) ? Number(CONFIG.RISK.convictionTierPWinMinSamples) : 20;
 
             if (convictionLcbEnabled && typeof this.getTierConditionedPWinWithLCB === 'function') {
-                preliminaryPWin = this.getTierConditionedPWinWithLCB('CONVICTION', marketOdds, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
+                preliminaryPWin = this.getTierConditionedPWinWithLCB('CONVICTION', pWinMarketOdds, { z: convictionLcbZ, minSamples: convictionLcbMinSamples, fallback: null });
             }
             if (preliminaryPWin === null && typeof this.getTierConditionedPWin === 'function') {
-                preliminaryPWin = this.getTierConditionedPWin('CONVICTION', marketOdds, { fallback: null, minSamples: convictionTierMinSamples });
+                preliminaryPWin = this.getTierConditionedPWin('CONVICTION', pWinMarketOdds, { fallback: null, minSamples: convictionTierMinSamples });
             }
             if (preliminaryPWin === null && typeof this.getCalibratedWinProb === 'function') {
                 preliminaryPWin = this.getCalibratedWinProb(finalConfidence, { priorRate, priorStrength: 40, minSamples: 0 });
