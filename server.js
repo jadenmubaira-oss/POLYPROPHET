@@ -8744,7 +8744,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 125;  // v125: 84% pWin floor for micro bankrolls (calibration shows ~95% actual WR)
+const CONFIG_VERSION = 126;  // v126: LOCKED-ONLY for ≤$20 bankrolls - MOVABLE signals blocked to prevent flip losses
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -24160,7 +24160,7 @@ function getRequiredPWinFloor(bankroll) {
  * Returns { passes, reason, threshold, pWin, isUltra, blockedReason }
  */
 function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
-    const { entryPrice = null, bankroll = null, calibrationSampleSize = 0 } = options;
+    const { entryPrice = null, bankroll = null, calibrationSampleSize = 0, oracleLocked = false } = options;
     const threshold = computeAdaptiveThreshold();
     const isUltra = ultraProphet?.isUltra === true;
 
@@ -24211,6 +24211,24 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             pWin,
             isUltra: false,
             blockedReason: 'LOW_TIER'
+        };
+    }
+
+    // 🏆 v126: LOCKED-ONLY FOR MICRO BANKROLLS
+    // For $1-20 bankrolls, REQUIRE oracleLocked=true to prevent MOVABLE signals
+    // MOVABLE signals can flip mid-cycle causing losses
+    const effectiveBankrollForLock = bankroll || manualTradingJourney?.currentBalance || 1;
+    const REQUIRE_LOCKED_THRESHOLD = 20; // $20 or less requires locked signals
+    if (effectiveBankrollForLock <= REQUIRE_LOCKED_THRESHOLD && !oracleLocked) {
+        return {
+            passes: false,
+            reason: `🔓 MOVABLE signal blocked (bankroll=$${effectiveBankrollForLock.toFixed(0)} requires LOCKED)`,
+            threshold,
+            pWin,
+            isUltra: false,
+            blockedReason: 'NOT_LOCKED',
+            requiresLocked: true,
+            effectiveBankroll: effectiveBankrollForLock
         };
     }
 
@@ -25036,11 +25054,12 @@ function updateOracleSignalForAsset(asset) {
             calibrationSampleSize = Math.min(brain.stats.total, 100); // Cap at 100 to not over-trust ancient data
         }
 
-        // 🏆 v112: Pass entry price, bankroll, and sample size for enhanced gating
+        // 🏆 v112 + v126: Pass entry price, bankroll, sample size, AND oracleLocked for enhanced gating
         const adaptiveGate = checkAdaptiveGate(pWin, signal.tier, ultraProphet, {
             entryPrice,
             bankroll: manualTradingJourney?.currentBalance || 1,
-            calibrationSampleSize
+            calibrationSampleSize,
+            oracleLocked: brain?.oracleLocked === true
         });
         signal.adaptiveGate = adaptiveGate;
 
