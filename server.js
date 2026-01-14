@@ -8755,7 +8755,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 128;  // v128: Backtester uses REAL entry prices + History saves convictionLocked correctly
+const CONFIG_VERSION = 129;  // v129: DEITY ASCENSION - Persistent learning (Redis), Early Sniper window, All fixes
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8866,9 +8866,10 @@ const CONFIG = {
         // 🏆 v119: Configurable timing windows (higher frequency)
         // BUY window: last 5 minutes down to final 60s blackout
         // PREPARE window: starts before BUY to give advance warning
-        buyWindowStartSec: 300,    // BUY window opens at 5 min before end (was 90s)
+        // 🏆 v129: EARLY SNIPER MODE - Open window after 30s elapsed (was 300s = last 5 min)
+        buyWindowStartSec: 870,    // BUY window opens at 14:30 remaining (after 30s elapsed)
         buyWindowEndSec: 60,       // Blackout: final 60s before resolution (unchanged)
-        prepareWindowStartSec: 420, // PREPARE window: 7 min before end (gives 2 min warning before BUY)
+        prepareWindowStartSec: 890, // PREPARE window: 14:50 remaining (10s warning before BUY)
         minStability: 2,         // 2 ticks - fast lock
         // NOTE: voteTrendScore is a 0..1 metric (based on leader flip rate), not "ticks".
         // This threshold is used ONLY by the oracle advisory signal layer (PREPARE/BUY/SELL),
@@ -19671,6 +19672,11 @@ class SupremeBrain {
                     }
                 }
 
+                // 🏆 v129: PERSISTENT LEARNING - Save modelAccuracy to Redis (survives restarts!)
+                if (redisAvailable && redis) {
+                    redis.set(`modelAccuracy:${this.asset}`, JSON.stringify(this.modelAccuracy)).catch(e => { });
+                }
+
                 // SMART MEMORY: Update the pattern that generated this signal (if any)
                 if (this.lastSignal && this.lastSignal.patternId) {
                     const pIndex = memoryPatterns[this.asset].findIndex(p => p.id === this.lastSignal.patternId);
@@ -20074,6 +20080,35 @@ SupremeBrain.prototype.enforceStateInvariants = function () {
 
 const Brains = {};
 ASSETS.forEach(a => Brains[a] = new SupremeBrain(a));
+
+// 🏆 v129: PERSISTENT LEARNING - Restore modelAccuracy from Redis on startup
+async function restoreModelAccuracyFromRedis() {
+    if (!redisAvailable || !redis) {
+        log('⚠️ Redis not available - modelAccuracy will reset on restart (Amnesia Mode)');
+        return;
+    }
+    try {
+        for (const asset of ASSETS) {
+            const key = `modelAccuracy:${asset}`;
+            const saved = await redis.get(key);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                // Merge saved stats into existing structure (preserves any new models)
+                for (const [model, stats] of Object.entries(parsed)) {
+                    if (Brains[asset].modelAccuracy[model]) {
+                        Brains[asset].modelAccuracy[model].wins = stats.wins || 0;
+                        Brains[asset].modelAccuracy[model].total = stats.total || 0;
+                    }
+                }
+                log(`✅ Restored modelAccuracy for ${asset} from Redis (${parsed.genesis?.total || 0} Genesis cycles)`, asset);
+            }
+        }
+    } catch (e) {
+        log(`⚠️ Failed to restore modelAccuracy: ${e.message}`);
+    }
+}
+// Trigger restoration (runs async, does not block startup)
+restoreModelAccuracyFromRedis();
 
 // ==================== DATA FETCHING ====================
 
