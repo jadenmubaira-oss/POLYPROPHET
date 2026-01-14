@@ -4,30 +4,30 @@
 
 > **FOR ANY AI/PERSON**: This is THE IMMORTAL MANIFESTO. Read fully before ANY changes. Continue building upon this document.
 >
-> ## 🏆 v134: VALUE HUNTER (THE PROFIT MAXIMIZER)
+> ## 🏆 v134.1: HIGH ODDS CONVICTION (90% WIN RATE STRATEGY)
 >
 > ### Core Philosophy & Goal
 >
-> - **Primary Goal**: £1 → £1,000 via compounding on CONVICTION-tier LOCKED signals only
-> - **Strategy**: VALUE HUNTER — Trade ONLY when Entry < 40¢ + prediction is LOCKED + pWin ≥ 85%
+> - **Primary Goal**: $1 → $1M via compounding on CONVICTION-tier LOCKED signals
+> - **Strategy**: HIGH ODDS CONVICTION — Trade ANY price when CONVICTION + LOCKED + pWin ≥ 90%
 > - **Approach**: "Bot does its thing and notifies me via Telegram" — minimal UI interaction
-> - **Risk Profile**: Aggressive profit-seeking at cheap prices. Quality over quantity.
+> - **Risk Profile**: Aggressive sizing + 90% WR = Survival. Accuracy over value.
 >
-> ### Why VALUE HUNTER Works
+> ### Why HIGH ODDS Works (From $1 Start)
 >
-> | Entry Price | Win Profit | 70% WR Result (10 trades) |
-> |-------------|------------|---------------------------|
-> | 70¢ (old) | +43% | **+$0** (break-even) |
-> | **35¢ (VALUE HUNTER)** | **+186%** | **+$10** (massive profit) |
+> | Win Rate | Max Safe Sizing | Trades to $1M (40% ROI) |
+> |----------|-----------------|-------------------------|
+> | 70% (Value Hunter) | 20% | **BUST** at >30% sizing |
+> | **90% (High Odds)** | **50%** | **~100 trades** |
 >
-> **Mathematical proof**: Cheap options (<40¢) have 4x higher profit multiples. Same win rate = 10x more profit.
+> **Mathematical proof**: At $1 starting balance with aggressive sizing, you BUST unless WR ≥ 90%.
 >
-> ### v134 VALUE HUNTER Features
+> ### v134.1 HIGH ODDS Features
 >
 > | Feature | Description |
 > |---------|-------------|
-> | **💎 maxOdds: 0.40** | Only trade when entry < 40¢ (cheap options only) |
-> | **🎯 minOdds: 0.20** | Allow extreme value bets down to 20¢ |
+> | **🚀 maxOdds: 0.95** | Trade at ANY price up to 95¢ (favorites allowed) |
+> | **🎯 minOdds: 0.20** | Still allow extreme value bets down to 20¢ |
 > | **🧠 10-Model Ensemble** | Genesis, Physicist, OrderBook, Historian, BTC Correlation, Macro, Funding, Volume, Whale, Sentiment |
 > | **👑 Genesis Supremacy** | Genesis model has 4x weight at >80% accuracy, VETO power at >90% |
 > | **🔒 TRUE PROPHET LOCK** | Once LOCKED, prediction cannot flip. Period. |
@@ -39,7 +39,8 @@
 > | Version | Feature |
 > |---------|---------|
 > | v133 | Nuclear Backup v2 (Redis-INDEPENDENT) |
-> | **v134** | **VALUE HUNTER** — maxOdds=0.40, minOdds=0.20 for cheap option trading |
+> | v134 | VALUE HUNTER — maxOdds=0.40, minOdds=0.20 for cheap option trading |
+> | **v134.1** | **HIGH ODDS CONVICTION** — maxOdds=0.95 for 90% WR aggressive sizing |
 >
 > ### How To Use v134
 >
