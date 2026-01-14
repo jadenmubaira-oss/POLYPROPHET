@@ -424,16 +424,26 @@ app.get('/api/backtest-proof', async (req, res) => {
                         const tier = cycle.tier || 'NONE';
                         if (tierFilter !== 'ALL' && tier !== tierFilter) continue;
 
-                        // Apply price filter
-                        const odds = cycle.marketOdds || {};
-                        const yesPrice = odds.yesPrice || 0.5;
-                        const noPrice = odds.noPrice || 0.5;
+                        // 🏆 v128: Apply LOCKED filter (critical for accurate v127 strategy backtesting)
+                        // If lockedFilter=true query param, only include signals where oracleWasLocked=true
+                        const lockedFilter = req.query.locked === 'true';
+                        if (lockedFilter && cycle.oracleWasLocked !== true) continue;
+
+                        // 🏆 v128: Use ENTRY PRICES (real trade price) instead of CYCLE-END PRICES (phantom)
+                        // entryOdds = price at moment of signal; marketOdds = price at cycle end (often 0.99/0.01)
+                        const entryOdds = cycle.entryOdds || cycle.marketOdds || {};
+                        const yesPrice = entryOdds.yesPrice || 0.5;
+                        const noPrice = entryOdds.noPrice || 0.5;
                         const prediction = cycle.prediction;
                         const entryPrice = prediction === 'UP' ? yesPrice : noPrice;
 
                         if (priceFilter === 'EXTREME') {
                             if (entryPrice >= 0.20 && entryPrice <= 0.95) continue; // Skip mid-range
                         }
+
+                        // 🏆 v128: Also add max price cap (80c) to match live strategy
+                        const maxPriceFilter = parseFloat(req.query.maxPrice) || 0.80;
+                        if (entryPrice >= maxPriceFilter) continue; // Skip expensive entries
 
                         allCycles.push({
                             asset,
@@ -444,6 +454,7 @@ app.get('/api/backtest-proof', async (req, res) => {
                             tier,
                             confidence: cycle.confidence || 0,
                             entryPrice,
+                            wasLocked: cycle.oracleWasLocked === true,
                             configVersion: configVer
                         });
                     }
@@ -8744,7 +8755,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 127;  // v127: TRUE PROPHET LOCK - uses convictionLocked (fixed property name) + enforces no-flip when locked
+const CONFIG_VERSION = 128;  // v128: Backtester uses REAL entry prices + History saves convictionLocked correctly
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -19748,7 +19759,9 @@ class SupremeBrain {
                     certaintyAtEnd: this.certaintyScore,
                     certaintyVelocityAtEnd: this.certaintyVelocity,
                     phaseAtEnd: this.currentPhase,
-                    oracleWasLocked: this.oracleLocked,
+                    // 🏆 v128: Fixed to save convictionLocked (the real lock property)
+                    oracleWasLocked: this.convictionLocked,
+                    lockedDirection: this.lockedDirection,  // Also save which direction was locked
                     oracleLockPrediction: this.oracleLockPrediction,
                     lockCertainty: this.lockCertainty,
                     manipulationScore: this.manipulationScore,
