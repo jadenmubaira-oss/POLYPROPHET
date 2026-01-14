@@ -4,67 +4,122 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 >
-> ## 🏆 v129: DEITY ASCENSION (THE ABSOLUTE CEILING)
+> ## 🏆 v133: DEITY FINAL (THE ABSOLUTE CEILING)
 >
-> This is the **FINAL** version. The bot has reached its theoretical maximum.
+> This is the **FINAL** version. The bot has reached its theoretical maximum for the stated goal.
 >
-> ### Core Philosophy
+> ### Core Philosophy & Goal
 >
-> - **Goal**: £1 → £1,000,000 via compounding on CONVICTION-tier LOCKED signals only
+> - **Primary Goal**: £1 → £1,000,000 via compounding on CONVICTION-tier LOCKED signals only
 > - **Strategy**: Trade ONLY when prediction is LOCKED + Entry < 80¢ + pWin ≥ 85-92%
-> - **Approach**: "Bot does its thing and notifies me" — minimal UI interaction
+> - **Approach**: "Bot does its thing and notifies me via Telegram" — minimal UI interaction
+> - **Risk Profile**: Ultra-conservative. Miss opportunities rather than take bad trades.
 >
-> ### v129 "DEITY" Features
+> ### Why This Works (Theory)
+>
+> 1. **Calibrated pWin**: Historical accuracy by confidence bucket shows 96-97% win rate for 70-90% confidence
+> 2. **LOCKED signals**: Once locked, prediction cannot flip - removes uncertainty
+> 3. **Entry < 80¢**: Ensures meaningful edge (20%+ profit potential)
+> 4. **Compounding**: Even 2% edge compounds to massive returns over 300+ trades
+>
+> ### v133 "DEITY FINAL" Features
 >
 > | Feature | Description |
 > |---------|-------------|
-> | **🧠 Persistent Learning** | Model weights saved to Redis. No more "amnesia" on restart. |
-> | **⚡ Early Sniper Window** | Trading window opens at 30s elapsed (was 10 min). Catches moves before the crowd. |
-> | **📊 Truth Backtester** | Uses real entry prices, not phantom closing prices. Results are reality. |
+> | **🧠 Persistent Learning** | Model weights saved to Redis. No "amnesia" on restart. |
+> | **⚡ Early Sniper Window** | Trading window opens at 30s elapsed (`buyWindowStartSec=870`). |
+> | **📊 Truth Backtester** | Uses real entry prices, not phantom closing prices. |
 > | **🔒 TRUE PROPHET LOCK** | Once LOCKED, prediction cannot flip. Period. |
 > | **💰 LOCKED-ONLY Gate** | Bankroll ≤$20 requires LOCKED status. No "maybe" signals. |
-> | **🚫 80¢ Hard Cap** | No BUY signals at expensive prices. Value protection. |
+> | **🚫 80¢ Hard Cap** | No BUY signals at expensive prices (`maxOdds: 0.80`). |
+> | **💾 Nuclear Backup** | Redis-INDEPENDENT. Download all state via `/api/nuclear-backup`. |
+> | **🔄 Nuclear Restore** | Restore on new server via `/api/nuclear-restore`. |
+> | **📜 Telegram History** | All signals logged and accessible via `/api/telegram-history`. |
 >
-> ### Version History (v126-v129)
+> ### Version History (v126-v133)
 >
-> - **v126**: LOCKED-ONLY safety gate for micro-bankrolls (≤$20)
-> - **v127**: TRUE PROPHET LOCK — `convictionLocked` enforced, no flips
-> - **v128**: Backtester uses `entryOdds` (real prices) + History saves `convictionLocked`
-> - **v129**: Persistent learning (Redis modelAccuracy) + Early Sniper window (870s)
+> | Version | Feature |
+> |---------|---------|
+> | v126 | LOCKED-ONLY safety gate for micro-bankrolls (≤$20) |
+> | v127 | TRUE PROPHET LOCK — `convictionLocked` enforced, no flips |
+> | v128 | Backtester uses `entryOdds` (real prices) + History saves `convictionLocked` |
+> | v129 | Persistent learning (Redis modelAccuracy) + Early Sniper window (870s) |
+> | v130 | Telegram History Logging + `/api/telegram-history` endpoint |
+> | v131 | GOAT preset fixes (buyWindowStartSec, advisoryPWinThreshold, etc.) |
+> | v132 | Nuclear Backup v1 (Redis-dependent, deprecated) |
+> | v133 | **Nuclear Backup v2** (Redis-INDEPENDENT, standalone download) |
 >
-> ### How To Use v129
+> ### How To Use v133
 >
-> 1. **Watch Dashboard**: Asset cards show `LOCKED` badge when signal is committed
-> 2. **Wait for Telegram**: BUY signals only fire when ALL gates pass
-> 3. **Confirm the Trade**: Click "I TOOK IT" in Telegram to record to ledger
-> 4. **Compound**: Re-invest winnings for exponential growth
+> 1. **Deploy to Render/VPS**: Push to GitHub, Render auto-deploys
+> 2. **Watch Telegram**: Wait for CONVICTION + LOCKED signals at entry < 80¢
+> 3. **Verify on Dashboard**: Asset cards show direction, tier, and LOCKED badge
+> 4. **Execute Trade**: Buy on Polymarket at the signaled entry price
+> 5. **Confirm in Telegram**: Click "I TOOK IT" to record trade to ledger
+> 6. **Compound**: Re-invest winnings for exponential growth
 >
-> ### Critical Settings (Hardcoded)
+> ### Nuclear Backup (Disaster Recovery)
+>
+> **To backup (anytime):**
+>
+> ```
+> 1. Visit: https://your-server.com/api/nuclear-backup
+> 2. Download the JSON file (polyprophet_nuclear_backup_TIMESTAMP.json)
+> 3. Save to USB/local folder/cloud storage
+> ```
+>
+> **To restore on new server:**
+>
+> ```
+> 1. Deploy fresh server from GitHub
+> 2. POST the backup JSON to: /api/nuclear-restore
+> 3. All learning/calibration data is restored
+> ```
+>
+> **What gets backed up:**
+>
+> - Telegram history (last 200 messages)
+> - Calibration buckets (pWin accuracy by confidence)
+> - Tier calibration (accuracy by tier + price band)
+> - Model accuracy weights (which models perform best)
+> - Cycle history (last 100 cycles per asset)
+> - Trading state (balance, P&L, positions)
+>
+> ### Critical Settings (Hardcoded - DO NOT CHANGE)
 >
 > | Setting | Value | Meaning |
 > |---------|-------|---------|
 > | `buyWindowStartSec` | 870 | Trade window opens at 30s elapsed |
 > | `buyWindowEndSec` | 60 | Blackout: final 60s before resolution |
 > | `maxOdds` | 0.80 | No BUY at ≥80¢ (too expensive) |
-> | `minConfidence` | 0.80 | Base confidence threshold |
-> | `minVoteStability` | 0.80 | Direction must be stable |
+> | `advisoryPWinThreshold` | 0.90 | ADVISORY requires 90% pWin |
+> | `advisoryEvRoiThreshold` | 0.25 | ADVISORY requires 25% EV |
+> | `maxAdvisoryPerHour` | 1 | Quality over quantity |
 >
-> ### Backtest API (v129)
+> ### Signal Interpretation Guide
 >
-> ```
-> GET /api/backtest-proof?tier=CONVICTION&locked=true&maxPrice=0.80&balance=1
-> ```
+> | Signal | Entry Price | Tier | LOCKED? | Action |
+> |--------|-------------|------|---------|--------|
+> | < 80¢ | CONVICTION | Yes | ✅ TRADE (after verifying on dashboard) |
+> | < 80¢ | CONVICTION | No | ⏳ WAIT for lock |
+> | < 80¢ | ADVISORY | Yes | ⚠️ Consider (90% pWin required) |
+> | ≥ 80¢ | Any | Any | 🚫 NO TRADE (too expensive) |
 >
-> - `tier=CONVICTION`: Only highest-confidence signals
-> - `locked=true`: Only signals where prediction was LOCKED
-> - `maxPrice=0.80`: Only entries < 80¢
-> - `balance=1`: Starting balance £1
+> ### API Endpoints
 >
-> **Note**: Backtest requires 24h+ of v129 data to be accurate. Prior data may lack entry prices.
+> | Endpoint | Description |
+> |----------|-------------|
+> | `/api/state` | Current asset states, predictions, signals |
+> | `/api/telegram-history` | Past Telegram messages (filter by type) |
+> | `/api/nuclear-backup` | Download complete state backup (GET) |
+> | `/api/nuclear-restore` | Restore from backup file (POST) |
+> | `/api/calibration` | Aggregate calibration data |
+> | `/api/debug-export` | Full debug snapshot |
 >
 > ---
 >
 > **PREVIOUS VERSIONS (For Historical Context)**
+
 >
 > **v123 PRACTICALLY CERTAIN ADVISORY**:
 >
