@@ -4,6 +4,68 @@
 
 > **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
 >
+> ## 🏆 v129: DEITY ASCENSION (THE ABSOLUTE CEILING)
+>
+> This is the **FINAL** version. The bot has reached its theoretical maximum.
+>
+> ### Core Philosophy
+>
+> - **Goal**: £1 → £1,000,000 via compounding on CONVICTION-tier LOCKED signals only
+> - **Strategy**: Trade ONLY when prediction is LOCKED + Entry < 80¢ + pWin ≥ 85-92%
+> - **Approach**: "Bot does its thing and notifies me" — minimal UI interaction
+>
+> ### v129 "DEITY" Features
+>
+> | Feature | Description |
+> |---------|-------------|
+> | **🧠 Persistent Learning** | Model weights saved to Redis. No more "amnesia" on restart. |
+> | **⚡ Early Sniper Window** | Trading window opens at 30s elapsed (was 10 min). Catches moves before the crowd. |
+> | **📊 Truth Backtester** | Uses real entry prices, not phantom closing prices. Results are reality. |
+> | **🔒 TRUE PROPHET LOCK** | Once LOCKED, prediction cannot flip. Period. |
+> | **💰 LOCKED-ONLY Gate** | Bankroll ≤$20 requires LOCKED status. No "maybe" signals. |
+> | **🚫 80¢ Hard Cap** | No BUY signals at expensive prices. Value protection. |
+>
+> ### Version History (v126-v129)
+>
+> - **v126**: LOCKED-ONLY safety gate for micro-bankrolls (≤$20)
+> - **v127**: TRUE PROPHET LOCK — `convictionLocked` enforced, no flips
+> - **v128**: Backtester uses `entryOdds` (real prices) + History saves `convictionLocked`
+> - **v129**: Persistent learning (Redis modelAccuracy) + Early Sniper window (870s)
+>
+> ### How To Use v129
+>
+> 1. **Watch Dashboard**: Asset cards show `LOCKED` badge when signal is committed
+> 2. **Wait for Telegram**: BUY signals only fire when ALL gates pass
+> 3. **Confirm the Trade**: Click "I TOOK IT" in Telegram to record to ledger
+> 4. **Compound**: Re-invest winnings for exponential growth
+>
+> ### Critical Settings (Hardcoded)
+>
+> | Setting | Value | Meaning |
+> |---------|-------|---------|
+> | `buyWindowStartSec` | 870 | Trade window opens at 30s elapsed |
+> | `buyWindowEndSec` | 60 | Blackout: final 60s before resolution |
+> | `maxOdds` | 0.80 | No BUY at ≥80¢ (too expensive) |
+> | `minConfidence` | 0.80 | Base confidence threshold |
+> | `minVoteStability` | 0.80 | Direction must be stable |
+>
+> ### Backtest API (v129)
+>
+> ```
+> GET /api/backtest-proof?tier=CONVICTION&locked=true&maxPrice=0.80&balance=1
+> ```
+>
+> - `tier=CONVICTION`: Only highest-confidence signals
+> - `locked=true`: Only signals where prediction was LOCKED
+> - `maxPrice=0.80`: Only entries < 80¢
+> - `balance=1`: Starting balance £1
+>
+> **Note**: Backtest requires 24h+ of v129 data to be accurate. Prior data may lack entry prices.
+>
+> ---
+>
+> **PREVIOUS VERSIONS (For Historical Context)**
+>
 > **v123 PRACTICALLY CERTAIN ADVISORY**:
 >
 > - **🎯 ADVISORY = CONVICTION-LEVEL**: ADVISORY tier now requires pWin≥90% + EV≥25% (was 65%/8%) - essentially CONVICTION-grade certainty.
@@ -18,51 +80,23 @@
 > - **💾 BACKUP/RESTORE SYSTEM**: Full Redis backup/restore for nuclear option recovery. Run `node scripts/migrate-redis.js backup` to export all data. USB-ready.
 > - **🎯 ACCURACY FOCUS**: Increased smoothing (80/20), stricter CONVICTION requirements, multi-model agreement required.
 >
-> **v121 STAKE-LESS TELEGRAM**: Messages omit sizing; confirm page prompts for stake.
+> **v119 HIGHER-FREQUENCY ORACLE**: Timing windows + Telegram clarity.
 >
-> - **📱 NO STAKE IN TELEGRAM**: BUY/PREPARE messages no longer include stake/shares/bankroll-path — you control sizing.
-> - **✏️ STAKE-ENTRY ON CONFIRM**: Clicking "I TOOK IT" now opens a stake-entry page (quick % buttons if bankroll set) — P/L tracking remains accurate.
-> - **🔐 IDEMPOTENCY FIX**: Trade is only marked "seen" AFTER recording (not on stake-entry page render).
->
-> **v120 HOTFIX**: Fix Telegram confirm/skip link crash.
->
-> - **🔧 CONFIRM LINK FIX**: `/api/oracle/confirm` was calling undefined `isManualTradeIdSeen` — fixed to use `checkManualTradeIdempotency`.
->
-> **v119 HIGHER-FREQUENCY ORACLE**: Timing windows + Telegram clarity + manual-journey sanity.
->
-> - **⏱️ HIGHER-FREQUENCY BUY WINDOW**: Now starts at **300s** (5 minutes) before cycle end, not 90s. PREPARE starts at 420s. Final 60s blackout unchanged.
-> - **📡 TELEGRAM WARNINGS**: Dashboard + `/api/health` now warn when Telegram is OFF/not configured. Status = `degraded` if no `botToken`/`chatId`.
-> - **📊 MANUAL-JOURNEY SANITY**: `/api/manual-journey` now includes `initialized` flag + `guidance` string to avoid "balance=0, trades=0" confusion.
+> - **⏱️ BUY WINDOW**: v119 used 300s (5 min). **v129 uses 870s (after 30s elapsed)** for Early Sniper mode.
+> - **📡 TELEGRAM WARNINGS**: Dashboard + `/api/health` now warn when Telegram is OFF/not configured.
 > - **🔧 CONFIGURABLE WINDOWS**: `CONFIG.ORACLE.buyWindowStartSec`, `prepareWindowStartSec`, `buyWindowEndSec` are now settable via GOAT preset or settings API.
->
-> **v118 FINAL PATCH**: Shadow-book settlement correctness + manual-ledger accuracy.
->
-> - **🔧 SHADOW-BOOK SETTLEMENT FIX**: Settlement now uses the **cycle checkpoint captured at confirmation/open** (`cycleStartCheckpointPrice`) instead of a non-existent `brain.checkpoint`.
-> - **🛟 GAMMA FALLBACK**: If prices are missing at the cycle boundary, the bot resolves the cycle via **Gamma** (never force-loss due to missing data).
-> - **📖 LEDGER RECONCILIATION**: When a confirmed shadow position closes, the corresponding manual-ledger entry is updated with `exitPrice/pnl/won`.
-> - **✅ MANUAL-JOURNEY STATS FIX**: Pending trades (`won=null`) are **not** counted as losses in `/api/manual-journey`.
 >
 > **v116 TWO-TIER ORACLE**: Forecast vs CALL separation, confirm-gated trades, streak alerts.
 >
 > - **🎯 TWO-TIER MODEL**: Dashboard shows FORECAST (continuous) vs CALL (actionable BUY/PREPARE/WAIT)
 > - **📊 DUAL LAST-10 METRICS**: Forecast accuracy (all cycles) + CALL accuracy (BUY calls only)
 > - **✅ CONFIRM-GATED TRADES**: NO CONFIRM = SKIPPED - shadow position only opens on Telegram confirmation
-> - **📈 STREAK ALERTS**: "Streak forming" (early warning) + "Streak ON" (confirmed) Telegram notifications
-> - **🚫 STALE-CYCLE SUPPRESSION**: Telegram PREPARE/BUY blocked if market slug rolled or status != ACTIVE
-> - **🚫 TAIL-BUY GATE**: Entry < 35¢ blocked UNLESS LOCKED+CONVICTION+pWin≥95%+EV≥30%+samples≥25
-> - **📋 TELEGRAM PROOF FIELDS**: Every message shows: Slug, CycleStart, PriceSource, Spread, LCB, Samples
-> - **✅ LCB PROOF IS EXACT**: `LCB: ON` means the oracle actually used Wilson LCB in pWin computation
-> - **🔒 DETERMINISTIC CONFIRM IDs**: Trade confirmation links are stable per signal
 > - **🚫 NO BUY AT ≥80¢**: Hard block - even GOAT preset cannot override (server clamps)
 > - **💰 BANKROLL-SENSITIVE pWin FLOORS**:
 >   - ≤$5: 92% pWin required (cannot afford losses)
 >   - ≤$20: 90% pWin required (cautious)
 >   - ≤$100: 87% pWin required (moderate)
 >   - >$100: 85% pWin required (standard)
-> - **📊 RELIABILITY GATE**: Uses REAL calibration samples (bucket/tier), not just rolling trades
-> - **📱 TELEGRAM CONFIRM LINKS**: "I TOOK IT" / "SKIPPED" buttons in BUY signals - records to manual ledger
-> - **GAMMA-DRIVEN MARKET SELECTION**: No more local clock drift issues
-> - **CLOSED-MARKET HARD STOP**: Never trade on stale/closed market data
 
 ---
 
