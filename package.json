@@ -1,6 +1,6 @@
 {
     "name": "polyprophet",
-    "version": "4.7.0-v106",
+    "version": "4.9.0-v134",
     "description": "POLYPROPHET v106 - Paper-only oracle: 97%+ WR, 41+ trades/day, ENABLE_LIVE_TRADING opt-in, drift alerts, per-asset breakdown",
     "main": "server.js",
     "scripts": {
