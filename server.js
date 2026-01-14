@@ -13007,23 +13007,13 @@ class TradeExecutor {
 
         // 🏆 v77: CONVICTION-ONLY MODE with FREQUENCY FLOOR exception for ADVISORY
         // Block ADVISORY trades UNLESS frequency floor allows them with high-quality gates
+        // 🏆 v77: CONVICTION-ONLY MODE
+        // STRICT ENFORCEMENT for $1M Roadmap: Block ALL Non-Conviction trades.
+        // No Frequency Floor exceptions allowed.
         const tradeTierCheck = options.tier || 'ADVISORY';
         if (CONFIG.RISK.convictionOnlyMode && tradeTierCheck === 'ADVISORY') {
-            const pWinForFloor = options.pWin || confidence; // Use pWin if available, else raw confidence
-
-            // Calculate EV for frequency floor gate
-            const evRoiForFloor = calcBinaryEvRoiAfterFees(pWinForFloor, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
-
-            const floorResult = this.shouldAllowAdvisoryTrade(pWinForFloor, Number.isFinite(evRoiForFloor) ? evRoiForFloor : -Infinity);
-
-            if (!floorResult.allowed) {
-                log(`💎 CONVICTION-ONLY BLOCK: ADVISORY tier blocked (${floorResult.reason}) - waiting for CONVICTION`, asset);
-                return { success: false, error: `CONVICTION-ONLY mode: ADVISORY blocked (${floorResult.reason})` };
-            }
-
-            // ADVISORY passed frequency floor - store size multiplier for sizing logic
-            options.frequencyFloorMultiplier = floorResult.sizeMultiplier;
-            log(`📊 FREQUENCY FLOOR PASS: ADVISORY allowed @ ${(floorResult.sizeMultiplier * 100).toFixed(0)}% size (${floorResult.reason})`, asset);
+            log(`💎 CONVICTION-ONLY BLOCK: ADVISORY tier blocked (Strict Mode Active)`, asset);
+            return { success: false, error: `CONVICTION-ONLY mode: ADVISORY blocked (Strict Enforcement)` };
         }
 
         // 🏆 v70: BALANCE FLOOR GUARD - Stop new trades if balance dropped below floor
