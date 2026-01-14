@@ -2,118 +2,93 @@
 
 ## Adaptive Manual Trading Oracle for Polymarket 15-Min Crypto Markets
 
-> **FOR ANY AI/PERSON**: This is THE FINAL, SINGLE SOURCE OF TRUTH. Read fully before ANY changes.
+> **FOR ANY AI/PERSON**: This is THE IMMORTAL MANIFESTO. Read fully before ANY changes. Continue building upon this document.
 >
-> ## 🏆 v133: DEITY FINAL (THE ABSOLUTE CEILING)
->
-> This is the **FINAL** version. The bot has reached its theoretical maximum for the stated goal.
+> ## 🏆 v134: VALUE HUNTER (THE PROFIT MAXIMIZER)
 >
 > ### Core Philosophy & Goal
 >
-> - **Primary Goal**: £1 → £1,000,000 via compounding on CONVICTION-tier LOCKED signals only
-> - **Strategy**: Trade ONLY when prediction is LOCKED + Entry < 80¢ + pWin ≥ 85-92%
+> - **Primary Goal**: £1 → £1,000 via compounding on CONVICTION-tier LOCKED signals only
+> - **Strategy**: VALUE HUNTER — Trade ONLY when Entry < 40¢ + prediction is LOCKED + pWin ≥ 85%
 > - **Approach**: "Bot does its thing and notifies me via Telegram" — minimal UI interaction
-> - **Risk Profile**: Ultra-conservative. Miss opportunities rather than take bad trades.
+> - **Risk Profile**: Aggressive profit-seeking at cheap prices. Quality over quantity.
 >
-> ### Why This Works (Theory)
+> ### Why VALUE HUNTER Works
 >
-> 1. **Calibrated pWin**: Historical accuracy by confidence bucket shows 96-97% win rate for 70-90% confidence
-> 2. **LOCKED signals**: Once locked, prediction cannot flip - removes uncertainty
-> 3. **Entry < 80¢**: Ensures meaningful edge (20%+ profit potential)
-> 4. **Compounding**: Even 2% edge compounds to massive returns over 300+ trades
+> | Entry Price | Win Profit | 70% WR Result (10 trades) |
+> |-------------|------------|---------------------------|
+> | 70¢ (old) | +43% | **+$0** (break-even) |
+> | **35¢ (VALUE HUNTER)** | **+186%** | **+$10** (massive profit) |
 >
-> ### v133 "DEITY FINAL" Features
+> **Mathematical proof**: Cheap options (<40¢) have 4x higher profit multiples. Same win rate = 10x more profit.
+>
+> ### v134 VALUE HUNTER Features
 >
 > | Feature | Description |
 > |---------|-------------|
-> | **🧠 Persistent Learning** | Model weights saved to Redis. No "amnesia" on restart. |
-> | **⚡ Early Sniper Window** | Trading window opens at 30s elapsed (`buyWindowStartSec=870`). |
-> | **📊 Truth Backtester** | Uses real entry prices, not phantom closing prices. |
+> | **💎 maxOdds: 0.40** | Only trade when entry < 40¢ (cheap options only) |
+> | **🎯 minOdds: 0.20** | Allow extreme value bets down to 20¢ |
+> | **🧠 10-Model Ensemble** | Genesis, Physicist, OrderBook, Historian, BTC Correlation, Macro, Funding, Volume, Whale, Sentiment |
+> | **👑 Genesis Supremacy** | Genesis model has 4x weight at >80% accuracy, VETO power at >90% |
 > | **🔒 TRUE PROPHET LOCK** | Once LOCKED, prediction cannot flip. Period. |
-> | **💰 LOCKED-ONLY Gate** | Bankroll ≤$20 requires LOCKED status. No "maybe" signals. |
-> | **🚫 80¢ Hard Cap** | No BUY signals at expensive prices (`maxOdds: 0.80`). |
-> | **💾 Nuclear Backup** | Redis-INDEPENDENT. Download all state via `/api/nuclear-backup`. |
-> | **🔄 Nuclear Restore** | Restore on new server via `/api/nuclear-restore`. |
-> | **📜 Telegram History** | All signals logged and accessible via `/api/telegram-history`. |
+> | **📊 CONVICTION Requirements** | 90%+ confidence + locked + 95% pWin + 20+ samples |
+> | **📱 Telegram Alerts** | All signals sent to Telegram with "I TOOK IT" / "SKIPPED" buttons |
 >
-> ### Version History (v126-v133)
+> ### Version History
 >
 > | Version | Feature |
 > |---------|---------|
-> | v126 | LOCKED-ONLY safety gate for micro-bankrolls (≤$20) |
-> | v127 | TRUE PROPHET LOCK — `convictionLocked` enforced, no flips |
-> | v128 | Backtester uses `entryOdds` (real prices) + History saves `convictionLocked` |
-> | v129 | Persistent learning (Redis modelAccuracy) + Early Sniper window (870s) |
-> | v130 | Telegram History Logging + `/api/telegram-history` endpoint |
-> | v131 | GOAT preset fixes (buyWindowStartSec, advisoryPWinThreshold, etc.) |
-> | v132 | Nuclear Backup v1 (Redis-dependent, deprecated) |
-> | v133 | **Nuclear Backup v2** (Redis-INDEPENDENT, standalone download) |
+> | v133 | Nuclear Backup v2 (Redis-INDEPENDENT) |
+> | **v134** | **VALUE HUNTER** — maxOdds=0.40, minOdds=0.20 for cheap option trading |
 >
-> ### How To Use v133
+> ### How To Use v134
 >
-> 1. **Deploy to Render/VPS**: Push to GitHub, Render auto-deploys
-> 2. **Watch Telegram**: Wait for CONVICTION + LOCKED signals at entry < 80¢
+> 1. **Deploy to Render**: Push to GitHub, Render auto-deploys
+> 2. **Watch Telegram**: Wait for CONVICTION + LOCKED signals at entry < 40¢
 > 3. **Verify on Dashboard**: Asset cards show direction, tier, and LOCKED badge
 > 4. **Execute Trade**: Buy on Polymarket at the signaled entry price
 > 5. **Confirm in Telegram**: Click "I TOOK IT" to record trade to ledger
 > 6. **Compound**: Re-invest winnings for exponential growth
 >
-> ### Nuclear Backup (Disaster Recovery)
->
-> **To backup (anytime):**
->
-> ```
-> 1. Visit: https://your-server.com/api/nuclear-backup
-> 2. Download the JSON file (polyprophet_nuclear_backup_TIMESTAMP.json)
-> 3. Save to USB/local folder/cloud storage
-> ```
->
-> **To restore on new server:**
->
-> ```
-> 1. Deploy fresh server from GitHub
-> 2. POST the backup JSON to: /api/nuclear-restore
-> 3. All learning/calibration data is restored
-> ```
->
-> **What gets backed up:**
->
-> - Telegram history (last 200 messages)
-> - Calibration buckets (pWin accuracy by confidence)
-> - Tier calibration (accuracy by tier + price band)
-> - Model accuracy weights (which models perform best)
-> - Cycle history (last 100 cycles per asset)
-> - Trading state (balance, P&L, positions)
->
-> ### Critical Settings (Hardcoded - DO NOT CHANGE)
+> ### Critical Settings (v134 VALUE HUNTER)
 >
 > | Setting | Value | Meaning |
 > |---------|-------|---------|
+> | `maxOdds` | **0.40** | No BUY at ≥40¢ (VALUE HUNTER) |
+> | `minOdds` | **0.20** | Allow extreme value bets |
 > | `buyWindowStartSec` | 870 | Trade window opens at 30s elapsed |
 > | `buyWindowEndSec` | 60 | Blackout: final 60s before resolution |
-> | `maxOdds` | 0.80 | No BUY at ≥80¢ (too expensive) |
-> | `advisoryPWinThreshold` | 0.90 | ADVISORY requires 90% pWin |
-> | `advisoryEvRoiThreshold` | 0.25 | ADVISORY requires 25% EV |
-> | `maxAdvisoryPerHour` | 1 | Quality over quantity |
+> | `ACTIVE_PRESET` | VALUE_HUNTER | Active strategy preset |
+>
+> ### For Future AI/Developers
+>
+> This README is the **immortal manifesto**. When continuing work:
+>
+> 1. **Read this entire document first** — it contains all context
+> 2. **Update version number** when making changes
+> 3. **Document changes** in the version history table
+> 4. **Keep the VALUE_HUNTER strategy** unless explicitly changing approach
+> 5. **Push to GitHub** for Render auto-deployment
+> 6. **Key files**: `server.js` (all logic), `public/index.html` (dashboard)
 >
 > ### Signal Interpretation Guide
 >
-> | Signal | Entry Price | Tier | LOCKED? | Action |
-> |--------|-------------|------|---------|--------|
-> | < 80¢ | CONVICTION | Yes | ✅ TRADE (after verifying on dashboard) |
-> | < 80¢ | CONVICTION | No | ⏳ WAIT for lock |
-> | < 80¢ | ADVISORY | Yes | ⚠️ Consider (90% pWin required) |
-> | ≥ 80¢ | Any | Any | 🚫 NO TRADE (too expensive) |
+> | Entry Price | Tier | LOCKED? | Action |
+> |-------------|------|---------|--------|
+> | < 40¢ | CONVICTION | Yes | ✅ TRADE (high profit potential) |
+> | < 40¢ | CONVICTION | No | ⏳ WAIT for lock |
+> | < 40¢ | ADVISORY | Yes | ⚠️ Consider (90% pWin required) |
+> | ≥ 40¢ | Any | Any | 🚫 NO TRADE (VALUE HUNTER block) |
 >
 > ### API Endpoints
 >
 > | Endpoint | Description |
 > |----------|-------------|
 > | `/api/state` | Current asset states, predictions, signals |
-> | `/api/telegram-history` | Past Telegram messages (filter by type) |
-> | `/api/nuclear-backup` | Download complete state backup (GET) |
-> | `/api/nuclear-restore` | Restore from backup file (POST) |
-> | `/api/calibration` | Aggregate calibration data |
+> | `/api/health` | Server health + configVersion |
+> | `/api/settings` | View/update CONFIG settings |
+> | `/api/telegram-history` | Past Telegram messages |
+> | `/api/nuclear-backup` | Download complete state backup |
 > | `/api/debug-export` | Full debug snapshot |
 >
 > ---

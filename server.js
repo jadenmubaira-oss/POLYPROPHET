@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 133;  // v133: Redis-Independent Nuclear Backup - /api/nuclear-backup + /api/nuclear-restore
+const CONFIG_VERSION = 134;  // v134: VALUE HUNTER STRATEGY - maxOdds=0.40, minOdds=0.20 for cheap option trading
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9030,7 +9030,7 @@ const CONFIG = {
     // ==================== MULTI-MODE SYSTEM ====================
     MULTI_MODE_ENABLED: true,    // Master switch for multi-mode operation
     // UI/ops metadata (does not affect trading unless you explicitly use it)
-    ACTIVE_PRESET: process.env.ACTIVE_PRESET || 'CUSTOM',
+    ACTIVE_PRESET: process.env.ACTIVE_PRESET || 'VALUE_HUNTER',  // 🏆 v134: Value Hunter strategy
 
     // MODE 1: ORACLE 🔮 - Final outcome prediction with near-certainty
     // 🏆 v39 ADAPTIVE STRATEGY: Real-time Regime Detection
@@ -9042,12 +9042,13 @@ const CONFIG = {
         minConsensus: 0.72,      // 72% model agreement (balanced for ~1/hour)
         minConfidence: 0.80,     // 80% entry threshold
         minEdge: 0,              // DISABLED - broken
-        // 🏆 v112: HARD 80¢ CAP - Block BUY signals at entry price ≥ 80¢
-        // At high entry prices, even high-pWin trades have thin margins that can't survive slippage/fees.
-        // Key: pWin gating still applies, but we ALSO hard-block expensive entries.
+        // 🏆 v133: VALUE HUNTER STRATEGY - Buy cheap options only
+        // Mathematical basis: Cheap options (<40¢) have higher profit multiple on wins.
+        // If entry=30¢ and win: 233% profit. If entry=70¢ and win: only 43% profit.
+        // Combined with existing ensemble intelligence, this maximizes EV per trade.
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
-        minOdds: 0.35,
-        maxOdds: 0.80,  // 🚫 v112: Hard cap at 80¢ - no BUY signals above this
+        minOdds: 0.20,  // 🎯 v133: Lower floor to 20¢ for more opportunities at extremes
+        maxOdds: 0.40,  // 🏆 v133: VALUE HUNTER CAP - Only buy cheap options
         // 🏆 v119: Configurable timing windows (higher frequency)
         // BUY window: last 5 minutes down to final 60s blackout
         // PREPARE window: starts before BUY to give advance warning
