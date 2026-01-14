@@ -8717,6 +8717,97 @@ async function getCollectorSnapshots(limit = 100) {
 // Run collector every minute (actual saves happen at COLLECTOR_INTERVAL_MS)
 setInterval(runForwardDataCollector, 60 * 1000);
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏆 v132: NUCLEAR BACKUP - Daily auto-export to Redis
+// Saves complete state snapshot every 24 hours for disaster recovery.
+// Can be downloaded via /api/daily-backup to save locally (USB, offline storage)
+// ═══════════════════════════════════════════════════════════════════════════════
+let lastDailyBackupAt = 0;
+const DAILY_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+async function runDailyBackup() {
+    if (!redisAvailable || !redis) return;
+    const now = Date.now();
+    if (now - lastDailyBackupAt < DAILY_BACKUP_INTERVAL_MS) return;
+
+    lastDailyBackupAt = now;
+
+    try {
+        // Collect all state for nuclear backup
+        const backup = {
+            exportTime: new Date().toISOString(),
+            configVersion: CONFIG_VERSION,
+            telegramHistory: telegramHistory || [],
+            calibrationData: {},
+            tierCalibrationData: {},
+            modelAccuracyData: {},
+            cycleHistoryData: {},
+            tradingState: tradeExecutor ? tradeExecutor.getPortfolioSummary() : null,
+            manualJourney: manualTradingJourney,
+            shadowBook: shadowBook
+        };
+
+        // Collect per-asset data
+        for (const asset of ['BTC', 'ETH', 'XRP', 'SOL']) {
+            const brain = brains ? brains[asset] : null;
+            if (brain) {
+                backup.calibrationData[asset] = brain.calibrationBuckets || {};
+                backup.tierCalibrationData[asset] = brain.tierCalibration || {};
+                backup.modelAccuracyData[asset] = brain.modelAccuracy || {};
+                backup.cycleHistoryData[asset] = (brain.cycleHistory || []).slice(-50); // Last 50 cycles
+            }
+        }
+
+        // Save to Redis with 7-day expiry (keeps last 7 daily backups)
+        const key = `daily_backup:${new Date().toISOString().split('T')[0]}`;
+        await redis.set(key, JSON.stringify(backup), 'EX', 7 * 24 * 60 * 60);
+
+        // Also save "latest" for quick restore
+        await redis.set('daily_backup:latest', JSON.stringify(backup));
+
+        log('📦 NUCLEAR BACKUP: Daily snapshot saved to Redis');
+
+        // Send Telegram notification
+        if (CONFIG.TELEGRAM?.enabled) {
+            const msg = `📦 <b>DAILY BACKUP COMPLETE</b>\n\nSnapshot saved to Redis.\nRestore via: /api/daily-backup`;
+            sendTelegramNotification(msg, true); // Silent notification
+        }
+    } catch (e) {
+        log(`⚠️ Daily backup failed: ${e.message}`);
+    }
+}
+
+// Run backup check every hour (actual backup happens once per 24h)
+setInterval(runDailyBackup, 60 * 60 * 1000);
+// Also run on startup after a delay (give Redis time to connect)
+setTimeout(runDailyBackup, 30 * 1000);
+
+// API: Download daily backup for offline storage (USB, local file)
+app.get('/api/daily-backup', async (req, res) => {
+    if (!redisAvailable || !redis) {
+        return res.status(500).json({ error: 'Redis not available' });
+    }
+    try {
+        const backup = await redis.get('daily_backup:latest');
+        if (!backup) {
+            return res.status(404).json({ error: 'No backup found. Wait 24h or trigger manually.' });
+        }
+        res.setHeader('Content-Disposition', 'attachment; filename=polyprophet_backup.json');
+        res.setHeader('Content-Type', 'application/json');
+        res.send(backup);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// API: Trigger immediate backup (for manual saves before important events)
+app.post('/api/daily-backup/trigger', async (req, res) => {
+    lastDailyBackupAt = 0; // Reset timer to force backup
+    await runDailyBackup();
+    res.json({ success: true, message: 'Backup triggered' });
+});
+
+
 // API: Toggle forward collector
 app.post('/api/collector/toggle', async (req, res) => {
     forwardCollectorEnabled = !forwardCollectorEnabled;
@@ -8777,7 +8868,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 131;  // v131: GOAT Preset Fixes - buyWindowStartSec (870), tradeFrequencyFloor (0.90/0.25/1)
+const CONFIG_VERSION = 132;  // v132: Nuclear Backup - 24h auto-export to Redis, /api/daily-backup for USB offline storage
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
