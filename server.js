@@ -6371,6 +6371,28 @@ app.get('/api/portfolio', (req, res) => {
     res.json(tradeExecutor.getPortfolioSummary());
 });
 
+// 🏆 v130: Telegram History API - View past signals sent to Telegram
+app.get('/api/telegram-history', (req, res) => {
+    const typeFilter = req.query.type; // Optional: filter by type (BUY_SIGNAL, SELL_SIGNAL, etc.)
+    const limit = Math.min(parseInt(req.query.limit) || 50, 100);
+
+    let filtered = telegramHistory;
+    if (typeFilter) {
+        filtered = telegramHistory.filter(h => h.type === typeFilter.toUpperCase());
+    }
+
+    // Return newest first
+    const result = filtered.slice(-limit).reverse();
+
+    res.json({
+        total: telegramHistory.length,
+        filtered: result.length,
+        typeFilter: typeFilter || 'ALL',
+        messages: result,
+        availableTypes: ['BUY_SIGNAL', 'SELL_SIGNAL', 'PREPARE_SIGNAL', 'PRESELL_SIGNAL', 'ULTRA_SIGNAL', 'RESULT_WIN', 'RESULT_LOSS', 'ALERT_BLIND', 'ALERT_HALT', 'OTHER']
+    });
+});
+
 // 🎯 GOAT v3: Calibration endpoint with confidence bounds
 app.get('/api/calibration', (req, res) => {
     const calibrationData = {
@@ -8755,7 +8777,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 129;  // v129: DEITY ASCENSION - Persistent learning (Redis), Early Sniper window, All fixes
+const CONFIG_VERSION = 130;  // v130: Telegram History Logging - All sent messages are logged and accessible via /api/telegram-history
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9617,6 +9639,10 @@ function createSeededRng(seed) {
 })();
 
 // ==================== TELEGRAM NOTIFICATION HELPER ====================
+// 🏆 v130: TELEGRAM HISTORY - Log all sent messages for review
+let telegramHistory = [];
+const TELEGRAM_HISTORY_MAX = 100; // Keep last 100 messages
+
 async function sendTelegramNotification(message, silent = false) {
     if (!CONFIG.TELEGRAM.enabled || !CONFIG.TELEGRAM.botToken || !CONFIG.TELEGRAM.chatId) return;
     try {
@@ -9627,11 +9653,60 @@ async function sendTelegramNotification(message, silent = false) {
             parse_mode: 'HTML',
             disable_notification: silent
         }, { timeout: 5000 });
-        log(`📱 Telegram notification sent`);
+
+        // 🏆 v130: Log the message for history review
+        const historyEntry = {
+            timestamp: new Date().toISOString(),
+            message: message,
+            silent: silent,
+            type: detectTelegramMessageType(message)
+        };
+        telegramHistory.push(historyEntry);
+        if (telegramHistory.length > TELEGRAM_HISTORY_MAX) {
+            telegramHistory.shift(); // Remove oldest
+        }
+
+        // Persist to Redis if available (non-blocking)
+        if (redisAvailable && redis) {
+            redis.set('telegramHistory', JSON.stringify(telegramHistory)).catch(e => { });
+        }
+
+        log(`📱 Telegram notification sent (${historyEntry.type})`);
     } catch (e) {
         log(`⚠️ Telegram notification failed: ${e.message}`);
     }
 }
+
+// Helper to detect message type from content
+function detectTelegramMessageType(message) {
+    if (!message) return 'UNKNOWN';
+    const m = message.toUpperCase();
+    if (m.includes('🟢') && m.includes('BUY')) return 'BUY_SIGNAL';
+    if (m.includes('🔴') && m.includes('SELL')) return 'SELL_SIGNAL';
+    if (m.includes('🟡') && m.includes('PREPARE')) return 'PREPARE_SIGNAL';
+    if (m.includes('📊') && m.includes('PRESELL')) return 'PRESELL_SIGNAL';
+    if (m.includes('ULTRA')) return 'ULTRA_SIGNAL';
+    if (m.includes('ORACLE BLIND')) return 'ALERT_BLIND';
+    if (m.includes('HALT')) return 'ALERT_HALT';
+    if (m.includes('📈') || m.includes('WIN')) return 'RESULT_WIN';
+    if (m.includes('📉') || m.includes('LOSS')) return 'RESULT_LOSS';
+    return 'OTHER';
+}
+
+// Restore telegram history from Redis on startup
+async function restoreTelegramHistoryFromRedis() {
+    if (!redisAvailable || !redis) return;
+    try {
+        const saved = await redis.get('telegramHistory');
+        if (saved) {
+            telegramHistory = JSON.parse(saved);
+            log(`✅ Restored ${telegramHistory.length} Telegram history entries from Redis`);
+        }
+    } catch (e) {
+        log(`⚠️ Failed to restore Telegram history: ${e.message}`);
+    }
+}
+// Trigger restoration after Redis is ready (called later)
 
 // 🏆 v110: Alert when oracle is blind (no market data) for an asset
 async function maybeAlertOracleBlind(asset, error, slug) {
@@ -20109,6 +20184,7 @@ async function restoreModelAccuracyFromRedis() {
 }
 // Trigger restoration (runs async, does not block startup)
 restoreModelAccuracyFromRedis();
+restoreTelegramHistoryFromRedis(); // 🏆 v130: Also restore Telegram history
 
 // ==================== DATA FETCHING ====================
 
