@@ -8718,93 +8718,165 @@ async function getCollectorSnapshots(limit = 100) {
 setInterval(runForwardDataCollector, 60 * 1000);
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🏆 v132: NUCLEAR BACKUP - Daily auto-export to Redis
-// Saves complete state snapshot every 24 hours for disaster recovery.
-// Can be downloaded via /api/daily-backup to save locally (USB, offline storage)
+// 🏆 v133: NUCLEAR BACKUP - REDIS-INDEPENDENT STANDALONE EXPORT
+// Generates a complete state snapshot that can be downloaded as a file.
+// Works even if Redis fails - all data is gathered live from memory.
+// Usage: 
+//   1. Visit /api/nuclear-backup to download polyprophet_nuclear_backup.json
+//   2. Save to USB/local/cloud storage
+//   3. To restore: Upload via /api/nuclear-restore on new server
 // ═══════════════════════════════════════════════════════════════════════════════
-let lastDailyBackupAt = 0;
-const DAILY_BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-async function runDailyBackup() {
-    if (!redisAvailable || !redis) return;
-    const now = Date.now();
-    if (now - lastDailyBackupAt < DAILY_BACKUP_INTERVAL_MS) return;
-
-    lastDailyBackupAt = now;
-
+// API: Download complete nuclear backup (Redis-independent - reads from memory)
+app.get('/api/nuclear-backup', async (req, res) => {
     try {
-        // Collect all state for nuclear backup
+        // Collect ALL state from memory - no Redis dependency
         const backup = {
-            exportTime: new Date().toISOString(),
-            configVersion: CONFIG_VERSION,
-            telegramHistory: telegramHistory || [],
-            calibrationData: {},
-            tierCalibrationData: {},
-            modelAccuracyData: {},
-            cycleHistoryData: {},
-            tradingState: tradeExecutor ? tradeExecutor.getPortfolioSummary() : null,
-            manualJourney: manualTradingJourney,
-            shadowBook: shadowBook
+            // Metadata
+            _version: 'POLYPROPHET_NUCLEAR_v133',
+            _exportTime: new Date().toISOString(),
+            _configVersion: CONFIG_VERSION,
+            _serverUptime: process.uptime(),
+            _restoreInstructions: 'POST this file to /api/nuclear-restore on new server',
+
+            // Configuration (sanitized - no secrets)
+            config: {
+                TRADE_MODE: CONFIG.TRADE_MODE,
+                ORACLE: CONFIG.ORACLE,
+                RISK: CONFIG.RISK,
+                ASSET_CONTROLS: CONFIG.ASSET_CONTROLS
+            },
+
+            // Telegram notification history
+            telegramHistory: (telegramHistory || []).slice(-200), // Last 200 messages
+
+            // Per-asset learned data
+            assets: {}
         };
 
-        // Collect per-asset data
+        // Gather all learning/calibration data from brains
         for (const asset of ['BTC', 'ETH', 'XRP', 'SOL']) {
             const brain = brains ? brains[asset] : null;
             if (brain) {
-                backup.calibrationData[asset] = brain.calibrationBuckets || {};
-                backup.tierCalibrationData[asset] = brain.tierCalibration || {};
-                backup.modelAccuracyData[asset] = brain.modelAccuracy || {};
-                backup.cycleHistoryData[asset] = (brain.cycleHistory || []).slice(-50); // Last 50 cycles
+                backup.assets[asset] = {
+                    // Calibration buckets (pWin accuracy by confidence level)
+                    calibrationBuckets: brain.calibrationBuckets || {},
+                    // Tier calibration (accuracy by tier + price band)
+                    tierCalibration: brain.tierCalibration || {},
+                    // Model accuracy weights (which models are performing best)
+                    modelAccuracy: brain.modelAccuracy || {},
+                    // Stats (total wins/losses)
+                    stats: brain.stats || { wins: 0, total: 0 },
+                    // Recent cycle history (last 100 cycles)
+                    cycleHistory: (brain.cycleHistory || []).slice(-100),
+                    // Win/loss streaks
+                    winStreak: brain.winStreak || 0,
+                    lossStreak: brain.lossStreak || 0,
+                    // Certainty series for pattern analysis
+                    certaintySeries: brain.certaintySeries || []
+                };
             }
         }
 
-        // Save to Redis with 7-day expiry (keeps last 7 daily backups)
-        const key = `daily_backup:${new Date().toISOString().split('T')[0]}`;
-        await redis.set(key, JSON.stringify(backup), 'EX', 7 * 24 * 60 * 60);
-
-        // Also save "latest" for quick restore
-        await redis.set('daily_backup:latest', JSON.stringify(backup));
-
-        log('📦 NUCLEAR BACKUP: Daily snapshot saved to Redis');
-
-        // Send Telegram notification
-        if (CONFIG.TELEGRAM?.enabled) {
-            const msg = `📦 <b>DAILY BACKUP COMPLETE</b>\n\nSnapshot saved to Redis.\nRestore via: /api/daily-backup`;
-            sendTelegramNotification(msg, true); // Silent notification
+        // Trading state
+        if (tradeExecutor) {
+            backup.tradingState = {
+                paperBalance: tradeExecutor.paperBalance,
+                baselineBankroll: tradeExecutor.baselineBankroll,
+                todayPnL: tradeExecutor.todayPnL,
+                consecutiveLosses: tradeExecutor.consecutiveLosses,
+                tradeHistory: (tradeExecutor.tradeHistory || []).slice(-50)
+            };
         }
-    } catch (e) {
-        log(`⚠️ Daily backup failed: ${e.message}`);
-    }
-}
 
-// Run backup check every hour (actual backup happens once per 24h)
-setInterval(runDailyBackup, 60 * 60 * 1000);
-// Also run on startup after a delay (give Redis time to connect)
-setTimeout(runDailyBackup, 30 * 1000);
+        // Manual journey (if tracking)
+        backup.manualJourney = manualTradingJourney || null;
 
-// API: Download daily backup for offline storage (USB, local file)
-app.get('/api/daily-backup', async (req, res) => {
-    if (!redisAvailable || !redis) {
-        return res.status(500).json({ error: 'Redis not available' });
-    }
-    try {
-        const backup = await redis.get('daily_backup:latest');
-        if (!backup) {
-            return res.status(404).json({ error: 'No backup found. Wait 24h or trigger manually.' });
-        }
-        res.setHeader('Content-Disposition', 'attachment; filename=polyprophet_backup.json');
+        // Shadow book state
+        backup.shadowBook = shadowBook || null;
+
+        // Generate filename with timestamp
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        const filename = `polyprophet_nuclear_backup_${timestamp}.json`;
+
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Type', 'application/json');
-        res.send(backup);
+        res.send(JSON.stringify(backup, null, 2));
+
+        log('📦 NUCLEAR BACKUP: Complete state exported to downloadable file');
     } catch (e) {
-        res.status(500).json({ error: e.message });
+        log(`⚠️ Nuclear backup failed: ${e.message}`);
+        res.status(500).json({ error: e.message, stack: e.stack });
     }
 });
 
-// API: Trigger immediate backup (for manual saves before important events)
-app.post('/api/daily-backup/trigger', async (req, res) => {
-    lastDailyBackupAt = 0; // Reset timer to force backup
-    await runDailyBackup();
-    res.json({ success: true, message: 'Backup triggered' });
+// API: Restore from nuclear backup file
+app.post('/api/nuclear-restore', express.json({ limit: '50mb' }), async (req, res) => {
+    try {
+        const backup = req.body;
+
+        // Validate backup format
+        if (!backup._version || !backup._version.startsWith('POLYPROPHET_NUCLEAR')) {
+            return res.status(400).json({ error: 'Invalid backup format. Must be a POLYPROPHET nuclear backup file.' });
+        }
+
+        let restored = { assets: 0, telegramHistory: 0, tradingState: false };
+
+        // Restore per-asset learning data
+        if (backup.assets && brains) {
+            for (const asset of Object.keys(backup.assets)) {
+                const brain = brains[asset];
+                const data = backup.assets[asset];
+                if (brain && data) {
+                    if (data.calibrationBuckets) brain.calibrationBuckets = data.calibrationBuckets;
+                    if (data.tierCalibration) brain.tierCalibration = data.tierCalibration;
+                    if (data.modelAccuracy) brain.modelAccuracy = data.modelAccuracy;
+                    if (data.stats) brain.stats = data.stats;
+                    if (data.cycleHistory) brain.cycleHistory = data.cycleHistory;
+                    restored.assets++;
+                }
+            }
+        }
+
+        // Restore telegram history
+        if (backup.telegramHistory && Array.isArray(backup.telegramHistory)) {
+            telegramHistory = backup.telegramHistory;
+            restored.telegramHistory = backup.telegramHistory.length;
+        }
+
+        // Restore trading state
+        if (backup.tradingState && tradeExecutor) {
+            if (backup.tradingState.paperBalance !== undefined) {
+                tradeExecutor.paperBalance = backup.tradingState.paperBalance;
+            }
+            if (backup.tradingState.baselineBankroll !== undefined) {
+                tradeExecutor.baselineBankroll = backup.tradingState.baselineBankroll;
+            }
+            restored.tradingState = true;
+        }
+
+        // Persist to Redis if available
+        if (redisAvailable && redis) {
+            for (const asset of ['BTC', 'ETH', 'XRP', 'SOL']) {
+                const brain = brains ? brains[asset] : null;
+                if (brain) {
+                    await redis.set(`modelAccuracy:${asset}`, JSON.stringify(brain.modelAccuracy || {}));
+                    await redis.set(`calibrationBuckets:${asset}`, JSON.stringify(brain.calibrationBuckets || {}));
+                }
+            }
+        }
+
+        log(`📦 NUCLEAR RESTORE: Restored ${restored.assets} assets, ${restored.telegramHistory} messages`);
+        res.json({
+            success: true,
+            message: 'Nuclear restore complete',
+            restored,
+            backupTime: backup._exportTime
+        });
+    } catch (e) {
+        log(`⚠️ Nuclear restore failed: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 
@@ -8868,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 132;  // v132: Nuclear Backup - 24h auto-export to Redis, /api/daily-backup for USB offline storage
+const CONFIG_VERSION = 133;  // v133: Redis-Independent Nuclear Backup - /api/nuclear-backup + /api/nuclear-restore
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
