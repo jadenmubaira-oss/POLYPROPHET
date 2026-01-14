@@ -9048,7 +9048,7 @@ const CONFIG = {
         // Combined with existing ensemble intelligence, this maximizes EV per trade.
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
         minOdds: 0.20,  // 🎯 v133: Lower floor to 20¢ for more opportunities at extremes
-        maxOdds: 0.40,  // 🏆 v133: VALUE HUNTER CAP - Only buy cheap options
+        maxOdds: 0.95,  // 🏆 v134.1: HIGH ODDS UNLOCK - Allow all price ranges for 90% WR CONVICTION
         // 🏆 v119: Configurable timing windows (higher frequency)
         // BUY window: last 5 minutes down to final 60s blackout
         // PREPARE window: starts before BUY to give advance warning
