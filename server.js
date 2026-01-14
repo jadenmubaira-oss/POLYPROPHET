@@ -8777,7 +8777,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 130;  // v130: Telegram History Logging - All sent messages are logged and accessible via /api/telegram-history
+const CONFIG_VERSION = 131;  // v131: GOAT Preset Fixes - buyWindowStartSec (870), tradeFrequencyFloor (0.90/0.25/1)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -23101,10 +23101,10 @@ app.get('/', (req, res) => {
                         // 🚫 v113: Hard cap at 80¢ - no BUY signals above this (matches oracle gate)
                         minOdds: 0.35,
                         maxOdds: 0.80,           // 🚫 v113: Changed from 0.95 to 0.80 (hard entry cap)
-                        // 🏆 v119: Higher-frequency timing windows
-                        buyWindowStartSec: 300,   // BUY window: last 5 min (was 90s)
+                        // 🏆 v130: FIXED - Match v129 Early Sniper window
+                        buyWindowStartSec: 870,   // BUY window: after 30s elapsed (was 300 = 10 min too late)
                         buyWindowEndSec: 60,      // Final 60s blackout
-                        prepareWindowStartSec: 420, // PREPARE: 7 min before end
+                        prepareWindowStartSec: 890, // PREPARE: 10s after cycle start
                         minStability: 2,
                         requireTrending: false,
                         // Ensure GOAT resets ALL critical runtime behavior (deep-merge safe)
@@ -23169,9 +23169,10 @@ app.get('/', (req, res) => {
                             enabled: true,
                             targetTradesPerHour: 1,
                             lookbackMinutes: 120,
-                            advisoryPWinThreshold: 0.65,
-                            advisoryEvRoiThreshold: 0.08,
-                            maxAdvisoryPerHour: 2,
+                            // 🏆 v130: FIXED - Match v122.1 hardcoded values (was 0.65/0.08/2)
+                            advisoryPWinThreshold: 0.90,   // 90% pWin required (conservative)
+                            advisoryEvRoiThreshold: 0.25,  // 25% EV ROI required
+                            maxAdvisoryPerHour: 1,         // Reduced from 2 to 1 - quality over quantity
                             sizeReduction: 0.50
                         },
 
