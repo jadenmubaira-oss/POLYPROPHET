@@ -188,7 +188,7 @@
 >
 > | Setting | Value | Meaning |
 > |---------|-------|---------|
-> | `maxOdds` | **0.40** | Only trade cheap options (<40¢) |
+> | `maxOdds` | **0.65** | Frequency Fix (~1/hr) at >50% ROI |
 > | `minOdds` | **0.20** | Allow extreme value bets |
 > | `buyWindowStartSec` | 870 | Trade window opens at 30s elapsed |
 > | `buyWindowEndSec` | 60 | Blackout: final 60s before resolution |

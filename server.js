@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 134;  // v134: VALUE HUNTER STRATEGY - maxOdds=0.40, minOdds=0.20 for cheap option trading
+const CONFIG_VERSION = 134.5;  // v134.5: FREQUENCY FIX - maxOdds=0.65 (~1/hr) + minOrder=2 for $1 start
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
