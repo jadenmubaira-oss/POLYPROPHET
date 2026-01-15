@@ -161,7 +161,10 @@
 > ### 🛑 OPEN ISSUES & TODOs (Continuous Improvement)
 >
 > - [ ] **XRP Re-evaluation**: Test XRP performance specifically with "Value Hunter" settings (<40¢). It failed at High Odds, but might thrive as a value asset.
-> - [x] **Liquidity Flickering**: Analyzed. "Soft Penalty" fix drafted in implementation plan. (Pending Execution)
+> - [x] **Liquidity Flickering**: FIXED in v134.3. Soft Penalty implemented.
+> - [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH/SOL locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
+> - [ ] **Missing tools.html**: Causes perfection-check warning. Restore file or remove check.
+> - [ ] **XRP Still Trading**: Despite `enabled: false`, XRP has an active position (DOWN @ 0.51). Check ASSET_CONTROLS enforcement.
 >
 > ---
 > | ANY (≤95¢) | CONVICTION | Yes | ✅ **TRADE** (97.8% WR) |
