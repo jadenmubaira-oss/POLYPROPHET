@@ -18337,6 +18337,20 @@ class SupremeBrain {
                 finalConfidence = Math.min(0.75, finalConfidence);
             }
 
+            // 🏆 v134.4: MARKET CONSENSUS SANITY CHECK
+            // When market is overwhelming (>95% or <5%), models are WRONG to bet against it
+            // This prevents the "inverse sentiment" bug where bot locks DOWN when market is 99% UP
+            const marketDataForConsensus = currentMarkets[this.asset];
+            if (marketDataForConsensus && marketDataForConsensus.yesPrice > 0.95 && finalSignal === 'DOWN') {
+                log(`🚨 MARKET CONSENSUS OVERRIDE: Market is ${(marketDataForConsensus.yesPrice * 100).toFixed(0)}% UP - overriding DOWN to UP`, this.asset);
+                finalSignal = 'UP';
+                finalConfidence = Math.max(finalConfidence, 0.90); // High confidence - market knows
+            } else if (marketDataForConsensus && marketDataForConsensus.yesPrice < 0.05 && finalSignal === 'UP') {
+                log(`🚨 MARKET CONSENSUS OVERRIDE: Market is ${((1 - marketDataForConsensus.yesPrice) * 100).toFixed(0)}% DOWN - overriding UP to DOWN`, this.asset);
+                finalSignal = 'DOWN';
+                finalConfidence = Math.max(finalConfidence, 0.90); // High confidence - market knows
+            }
+
             // 🔴🔴🔴 GENESIS HARD VETO 🔴🔴🔴
             // When Genesis accuracy >90%, it OVERRIDES the ensemble if it disagrees
             // Genesis has 94.4% accuracy - trust it over low-accuracy models

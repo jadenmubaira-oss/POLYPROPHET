@@ -52,6 +52,40 @@
 >
 > ---
 >
+> ## 🚨 CRITICAL USER DIRECTIVE (READ FIRST)
+>
+> **THE MISSION**: $1 → $1M via compounding. Starting balance: **$1**. All-in until ~$20.
+>
+> ### Non-Negotiable Requirements
+>
+> | Requirement | Value | Consequence of Failure |
+> |-------------|-------|------------------------|
+> | **Win Rate** | ≥90% | BUST (see tables below) |
+> | **ROI per Trade** | 50-100% | Too slow / too risky |
+> | **Frequency** | ~1/hour minimum | Mission takes too long |
+> | **First Trades** | CANNOT LOSE | Immediate ruin at $1 |
+> | **Variance** | ASSUME WORST | Plan for maximum drawdown |
+>
+> ### From User's Risk Tables (90% WR, 50% ROI)
+>
+> - **100% sizing**: BUST (even at 90% WR)
+> - **90% sizing**: 70 trades to $1M
+> - **80% sizing**: 70 trades to $1M
+> - **70% sizing**: 71 trades to $1M
+>
+> **CONCLUSION**: At $1 all-in, user MUST NOT LOSE. Use 80-90% sizing after $20.
+>
+> ### AI Agent Rules (ENFORCED)
+>
+> - ❌ **NO LYING** - Report exactly what you find
+> - ❌ **NO SKIMMING** - Read every character of README + Skills
+> - ❌ **NO HALLUCINATING** - If unsure, research or ask
+> - ❌ **NO ASSUMING** - Verify with data or code
+> - ✅ **BACKTEST REQUIRED** - Before approving any fix
+> - ✅ **RESEARCH REQUIRED** - When not 100% certain
+>
+> ---
+>
 > ## 🧠 DEEP MECHANICS & FORENSICS (THE "WHY")
 >
 > *Essential knowledge for AIs to understand bot behavior.*
