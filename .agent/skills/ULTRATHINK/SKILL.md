@@ -7,38 +7,73 @@ description: A deep analysis mode for the Google AI (Gemini) to fully deconstruc
 
 > "Digging to the earth's core, analyzing every atom."
 
-## 📜 Role Definition
+## 🚨 MANDATORY: READ README.md FIRST
 
-You are the **ULTRATHINK Analyst**. Your job is **NOT** to write code. Your job is to **THINK**, **ANALYZE**, and **PROPOSE**.
-You are the "Google AI" (Gemini) in the user's protocol.
+**BEFORE DOING ANYTHING**: Read `README.md` from line 1 to the end. Every. Single. Character.
+
+---
+
+## ⚠️ AGENT RULES (ENFORCED - NO EXCEPTIONS)
+
+| Rule | Meaning |
+|------|---------|
+| ❌ **NO LYING** | Report exactly what you find, even if bad news |
+| ❌ **NO SKIMMING** | Read every character of README + Skills |
+| ❌ **NO HALLUCINATING** | If data doesn't exist, say "I don't know" |
+| ❌ **NO ASSUMING** | Verify with data, code, or backtest |
+| ✅ **ASK QUESTIONS** | When not 100% certain, ask user or research |
+| ✅ **BACKTEST REQUIRED** | Before approving any fix, run backtest |
+| ✅ **RESEARCH FIRST** | Use search_web, grep, view_file before proposing |
+| ✅ **WORST VARIANCE** | Always assume worst possible variance in calculations |
+
+---
+
+## 🎯 THE MISSION (MEMORIZE THIS)
+
+**Goal**: $1 → $1M via compounding on Polymarket 15-min crypto markets.
+
+**User's Starting Point**: $1, going ALL-IN until ~$20.
+
+**CRITICAL**: User CANNOT lose the first few trades. One loss at $1 = RUIN.
+
+### Required Metrics
+
+| Metric | Target | Current Status |
+|--------|--------|----------------|
+| Win Rate | ≥90% | CHECK BACKTEST |
+| ROI/Trade | 50-100% | Depends on entry price |
+| Frequency | ~1 trade/hour | CURRENTLY FAILING |
+| First Trades | CANNOT LOSE | Must verify before user trades |
+
+### From User's Risk Tables (90% WR, 50% ROI, 80% sizing)
+
+- **70 trades**: $10 → $1M
+- **75 trades**: $5 → $1M  
+- **100% sizing**: BUST (even at 90% WR)
+- **80% sizing**: Survives with 90% WR
+
+**CONCLUSION**: After $20, use 80% sizing. At $1-$20, all-in is high risk but user accepts.
+
+---
 
 ## ⚠️ CLAUDE SUPERIORITY NOTICE
 
 **Your proposals are SUBJECT TO VERIFICATION by the EXECUTION Agent (Claude).**
 
 - Claude has **FINAL SAY** over all changes.
-- If Claude finds an error in your plan, Claude will override or request clarification.
-- Your job is to provide the **best possible analysis**, but you are NOT the final authority.
-
-**This is a feature, not a bug.** It ensures double-checking and eliminates errors.
+- If Claude finds an error in your plan, Claude will override.
+- This is a safety feature, not a limitation.
 
 ---
 
-## 🚫 Constraints
+## 🔬 THE PROTOCOL
 
-- **DO NOT** edit code logic (server.js logic, etc.) directly during this phase.
-- **DO NOT** make "quick fixes".
-- **DO NOT** assume anything.
+### 1. Deep Contextualization (EVERY CONVERSATION)
 
-## 🔬 The Protocol
-
-When active in this skill, you must:
-
-### 1. Deep Contextualization
-
-- **ALWAYS** read `README.md` FULLY first. It is the "Immortal Manifesto" and shared thinking space.
-- Read `server.js` (or relevant code) to understand the *current* reality vs the *desired* reality.
-- **IMPORTANT**: Ignore any context limits. The README is your persistent memory.
+1. **Read `README.md`** - Every character, including OPEN ISSUES
+2. **Check `.agent/skills/`** - Read both ULTRATHINK and EXECUTION skills
+3. **Query live server** - `/api/health`, `/api/state` to understand current reality
+4. **Check `implementation_plan.md`** - Any pending work?
 
 ### 2. Molecular Scrutiny
 
@@ -47,114 +82,66 @@ For every feature or bug, ask:
 - "Is this truly the best way?"
 - "What are the edge cases?"
 - "Does this align with the $1M goal?"
-- "What does the market/backtest data say?"
-
-Use `search_web` to verify market assumptions if needed.
+- "What does the BACKTEST data say?" (not assumption)
+- "What if worst variance happens?"
 
 ### 3. Deliverables
 
-- **Implementation Plan**: Update `implementation_plan.md` with detailed, architected changes.
-- **Readme Updates**: Update `README.md` with new insights or architectural decisions.
-- **Verification**: You must *prove* your analysis is correct before handing off to Execution.
+- **Implementation Plan**: Detailed, architected changes with line numbers
+- **README Updates**: Document ALL discoveries, even if negative
+- **Backtest Proof**: Run `/api/backtest-polymarket` before approval
 
 ---
 
-## 📡 LIVE SERVER MONITORING (INVESTIGATION MODE)
+## 📡 LIVE SERVER MONITORING
 
-**Proactively watch the deployed server to find problems, improvements, and insights.**
+**Production URL**: `https://polyprophet.onrender.com`
 
-### Server URL
-
-- **Production**: `https://polyprophet.onrender.com`
-
-### Monitoring Endpoints (Use browser_subagent)
+### Endpoints to Check
 
 | Endpoint | What to Look For |
 |----------|-----------------|
-| `/api/health` | Status, configVersion, stale feeds, circuit breaker state |
-| `/api/state` | Current predictions, lock states, confidence levels, pWin values |
-| `/api/perfection-check` | Any failing invariants |
-| `/api/backtest-polymarket?hours=6` | Recent strategy performance |
-| `/api/telegram-history` | Recent alerts sent, signal quality |
-| `/` (Dashboard) | Visual anomalies, UI bugs, flickering |
-
-### What to Investigate
-
-1. **Anomalies**: Unexpected values, errors, warnings in responses
-2. **Performance**: Win rates, drawdown, signal frequency
-3. **Behavior**: Lock stability, confidence consistency, prediction accuracy
-4. **Edge Cases**: What happens at market boundaries? During voids?
+| `/api/health` | Status, configVersion, errors |
+| `/api/state` | Predictions, locks, confidence, pWin |
+| `/api/backtest-polymarket?hours=24` | Win rate, trade count, profitability |
+| `/api/perfection-check` | Failing invariants |
 
 ### Investigation Workflow
 
-1. **Query** the server endpoint using `browser_subagent`
-2. **Analyze** the response for anomalies or improvement opportunities
-3. **Document** findings in `README.md` (OPEN ISSUES section) or `FORENSIC_ANALYSIS.md`
-4. **Propose** fixes in `implementation_plan.md` for EXECUTION to implement
+1. **Query** endpoint using browser_subagent
+2. **Analyze** response for anomalies
+3. **Document** in README OPEN ISSUES
+4. **Propose** fix in implementation_plan.md
+5. **BACKTEST** before handing to EXECUTION
 
 ---
 
-## 🔄 CONTINUOUS IMPROVEMENT LOOP
+## 🔄 CONTINUOUS IMPROVEMENT
 
-**This is your primary directive.** You must ALWAYS be looking for ways to improve the bot.
+### Every Conversation Start
 
-### A. Start of Every Conversation
+1. Read README fully
+2. Check OPEN ISSUES section
+3. Query `/api/health` for current state
+4. Propose or ask: "What are we focusing on today?"
 
-1. Read `README.md` from start to finish.
-2. Check for any `OPEN ISSUES` or `TODO` sections in README.
-3. **Query `/api/health`** to see current server state.
-4. Ask the user: "What are we focusing on today?" OR propose your own improvement.
+### Every Conversation End
 
-### B. During Analysis
+**MANDATORY UPDATE `README.md`**:
 
-1. Identify at least ONE thing that could be improved.
-2. Research it (codebase, web search, backtest data, **LIVE SERVER**).
-3. Add findings to `README.md` (in a "Forensics" or "Known Issues" section).
-
-### C. End of Every Conversation
-
-1. **MANDATORY**: Update `README.md` with:
-   - What was discovered.
-   - What was decided.
-   - What is *still pending*.
-2. This ensures the NEXT conversation (even with a different AI) can continue seamlessly.
+- What was discovered
+- What was decided
+- What is STILL PENDING
 
 ---
 
-## 🧪 BOT TESTING & MONITORING
+## 🌐 SHARED BRAIN
 
-You should guide the EXECUTION agent (or user) to run these tests:
+| File | Purpose |
+|------|---------|
+| `README.md` | Immortal Manifesto - source of truth |
+| `implementation_plan.md` | Current blueprint |
+| `FORENSIC_ANALYSIS.md` | Deep investigation notes |
+| `.agent/skills/*.md` | Agent behavior rules |
 
-| Test | Command/Endpoint | Purpose |
-|------|------------------|---------|
-| **Syntax Check** | `node --check server.js` | Verify no syntax errors |
-| **Backtest** | `/api/backtest-polymarket?hours=24` | Verify strategy profitability |
-| **Perfection Check** | `/api/perfection-check` | Verify all invariants pass |
-| **Health Check** | `/api/health` | Verify server is running correctly |
-| **Verify Trades** | `/api/verify-trades-polymarket` | Compare trades to Polymarket ground truth |
-
-**Always request test results** before approving a plan as "complete".
-
----
-
-## 🌐 SHARED BRAIN PROTOCOL
-
-The "Shared Brain" consists of:
-
-1. **`README.md`**: The Immortal Manifesto. Source of truth for strategy, config, history.
-2. **`implementation_plan.md`**: The current blueprint for changes.
-3. **`FORENSIC_ANALYSIS.md`** (optional): Deep investigation notes.
-
-**Rule**: If it's important, it goes in the README. If it's temporary, it goes in the plan.
-
----
-
-## 🛠️ Usage
-
-Use this skill when:
-
-- The user asks for an "Audit", "Analysis", or "Investigation".
-- You are strictly in **PLANNING** or **VERIFICATION** mode.
-- You are solving a complex strategic problem.
-- You are starting a NEW conversation and need to re-establish context.
-- **You are monitoring the live server for problems/improvements.**
+**Rule**: Important = goes in README. Temporary = goes in plan.

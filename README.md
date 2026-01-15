@@ -84,6 +84,20 @@
 > - ✅ **BACKTEST REQUIRED** - Before approving any fix
 > - ✅ **RESEARCH REQUIRED** - When not 100% certain
 >
+> ### 📝 KNOWN FACTS (DO NOT RE-INVESTIGATE)
+>
+> *These have been verified. Do not waste time re-discovering.*
+>
+> | Fact | Status | Verified |
+> |------|--------|----------|
+> | v134.3 Liquidity Soft Penalty | IMPLEMENTED | ✅ |
+> | v134.4 Market Consensus Override | IMPLEMENTED | ✅ |
+> | XRP is disabled in ASSET_CONTROLS | TRUE | ✅ |
+> | Genesis Veto can override ensemble | TRUE | ✅ |
+> | Backtest with maxOdds=0.40 shows 0 trades/24h | TRUE | ✅ |
+> | Minimum order cost ~$1.75 with minOrderShares=5 | TRUE | ✅ |
+> | Value Hunter (0.40) is too restrictive for 1/hour | TRUE | ✅ |
+>
 > ---
 >
 > ## 🧠 DEEP MECHANICS & FORENSICS (THE "WHY")
@@ -199,6 +213,10 @@
 > - [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH/SOL locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
 > - [ ] **Missing tools.html**: Causes perfection-check warning. Restore file or remove check.
 > - [ ] **XRP Still Trading**: Despite `enabled: false`, XRP has an active position (DOWN @ 0.51). Check ASSET_CONTROLS enforcement.
+> - [ ] **🚨 CRITICAL: Zero Trades with Value Hunter**: Backtest shows 0 trades in 24h with maxOdds=0.40. System is TOO RESTRICTIVE.
+>   - 30-day backtest: Only 1 trade found = 1 LOSS
+>   - Minimum order cost: $1.75 (user starts with $1 - CANNOT TRADE)
+>   - Need to either: (A) Expand asset coverage, OR (B) Increase maxOdds, OR (C) Lower minOrderShares
 >
 > ---
 > | ANY (≤95¢) | CONVICTION | Yes | ✅ **TRADE** (97.8% WR) |
