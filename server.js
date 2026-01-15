@@ -18271,10 +18271,26 @@ class SupremeBrain {
             // 🔴 UNBOUNDED FIX #7: 60s was too tight for sell execution, extended to 90s
             const isFinalMinute = elapsed >= 810; // 900-810 = 90 seconds before end
 
-            if (isLagging || isPanic || isSpoofing || isExtremeVolatility || isLiquidityVoid || isFinalMinute) {
+            // 🏆 v134.3: SOFT PENALTY FOR LIQUIDITY VOIDS (Prevents Lock Flickering)
+            // Handle liquidity void separately based on lock state
+            if (isLagging || isPanic || isSpoofing || isExtremeVolatility || isFinalMinute) {
                 votes.UP = 0; votes.DOWN = 0; totalConfidence = 0;
                 if (isExtremeVolatility) log(`⚠️ CIRCUIT BREAKER: Extreme volatility detected (${(currentATR / normalATR).toFixed(1)}x normal)`, this.asset);
                 if (isFinalMinute && !this.inBlackout) log(`⏱️ FINAL MINUTE: No new signals - holding current prediction`, this.asset);
+            } else if (isLiquidityVoid) {
+                // 🔒 SOFT PENALTY: Don't nuke locked signals for temporary liquidity dips
+                if (this.oracleLocked) {
+                    // TRUE PROPHET LOCK: Ignore void completely - we are committed
+                    log(`🔒 LIQUIDITY VOID IGNORED: TRUE PROPHET LOCK active - maintaining signal`, this.asset);
+                } else if (this.lockState !== 'NEUTRAL') {
+                    // CONVICTION LOCK: Apply soft penalty (80% confidence) but keep direction
+                    totalConfidence *= 0.8;
+                    log(`⚠️ LIQUIDITY VOID PENALTY: Confidence reduced to ${(totalConfidence * 100).toFixed(0)}% (lockState: ${this.lockState})`, this.asset);
+                } else {
+                    // NEUTRAL: Hard nuke - don't enter new trades in void
+                    votes.UP = 0; votes.DOWN = 0; totalConfidence = 0;
+                    log(`🚫 LIQUIDITY VOID: No lock - nuking new signal`, this.asset);
+                }
             }
 
             // === DECISION LOGIC ===

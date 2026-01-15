@@ -161,7 +161,7 @@
 > ### 🛑 OPEN ISSUES & TODOs (Continuous Improvement)
 >
 > - [ ] **XRP Re-evaluation**: Test XRP performance specifically with "Value Hunter" settings (<40¢). It failed at High Odds, but might thrive as a value asset.
-> - [ ] **Liquidity Flickering**: The "Liquidity Void" safety check (spread > 5%) causes valid locks to flicker. Consider a "Soft Penalty" (80% weight) instead of "Hard Nuke" (0% weight) for LOCKED signals.
+> - [x] **Liquidity Flickering**: Analyzed. "Soft Penalty" fix drafted in implementation plan. (Pending Execution)
 >
 > ---
 > | ANY (≤95¢) | CONVICTION | Yes | ✅ **TRADE** (97.8% WR) |
