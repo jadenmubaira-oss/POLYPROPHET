@@ -3579,8 +3579,8 @@ app.get('/api/backtest-dataset', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-            return (Number.isFinite(env) && env > 0) ? env : 5;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? env : 2;
         })();
         const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
 
@@ -4395,8 +4395,8 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-            return (Number.isFinite(env) && env > 0) ? env : 5;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? env : 2;
         })();
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/backtests we assume taker by default (configurable via env).
@@ -6072,7 +6072,7 @@ app.get('/api/risk-controls', (req, res) => {
             },
             // 🏆 v107: Order mode settings for manual vs CLOB trading
             orderMode: {
-                clobMinShares: Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5),
+                clobMinShares: Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2), // 🏆 v134.6
                 manualMinOrder: 1.00, // Flat $1 minimum for website manual orders
                 currentMode: 'CLOB', // Runtime always uses CLOB; MANUAL is for backtest simulation only
                 note: 'Use orderMode=MANUAL in backtest for $1-start manual trading simulation'
@@ -6529,8 +6529,8 @@ app.get('/api/projection', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-            return (Number.isFinite(env) && env > 0) ? env : 5;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? env : 2;
         })();
         const MIN_ORDER_COST = MIN_ORDER_SHARES * avgEntryPrice;
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
@@ -6919,7 +6919,7 @@ app.get('/api/verify', async (req, res) => {
     // CLOB-native min order is shares-based; for this check we use the same conservative
     // reference cost as the dynamic floor: (minOrderShares × ORACLE.minOdds).
     const MIN_ORDER = (() => {
-        let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+        let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
         try {
             const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
             const shares = enabledAssets
@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 134.5;  // v134.5: FREQUENCY FIX - maxOdds=0.65 (~1/hr) + minOrder=2 for $1 start
+const CONFIG_VERSION = 134.6;  // v134.6: GLOBAL FIX - Enforce minOrder=2 and maxOdds=0.65 everywhere
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -11646,7 +11646,7 @@ class TradeExecutor {
 
         const referenceMinOrderCost = (() => {
             // Prefer live per-market min order (shares) when known; fall back to 5 shares.
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
@@ -11654,7 +11654,7 @@ class TradeExecutor {
                     .filter(n => Number.isFinite(n) && n > 0);
                 if (shares.length) minShares = Math.max(...shares);
             } catch { }
-            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 2;
             const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
             const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
             return minShares * minOdds;
@@ -11679,7 +11679,7 @@ class TradeExecutor {
     // This is the correct "can we keep trading autonomously?" boundary for micro-bankrolls.
     getRuinFloor() {
         const referenceMinOrderCost = (() => {
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
@@ -11687,7 +11687,7 @@ class TradeExecutor {
                     .filter(n => Number.isFinite(n) && n > 0);
                 if (shares.length) minShares = Math.max(...shares);
             } catch { }
-            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 2;
             const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
             const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
             return minShares * minOdds;
@@ -12082,7 +12082,7 @@ class TradeExecutor {
         // and fall back to a conservative reference cost when unknown.
         const perTradeCap = profile.perTradeLossCap;
         const referenceMinOrderCost = (() => {
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
@@ -12877,7 +12877,7 @@ class TradeExecutor {
             ? Math.floor(this.cachedMATICBalance / this.GAS_PER_TRADE)
             : 0;
         const referenceMinOrderCost = (() => {
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
+            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
@@ -12975,8 +12975,8 @@ class TradeExecutor {
         const minOrderShares = (() => {
             const n = Number(market?.minOrderShares);
             if (Number.isFinite(n) && n > 0) return n;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-            return (Number.isFinite(env) && env > 0) ? env : 5;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? env : 2;
         })();
         const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
         const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
@@ -14180,8 +14180,8 @@ class TradeExecutor {
             const minShares = (() => {
                 const n = Number(market?.minOrderShares);
                 if (Number.isFinite(n) && n > 0) return n;
-                const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-                return (Number.isFinite(env) && env > 0) ? env : 5;
+                const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+                return (Number.isFinite(env) && env > 0) ? env : 2;
             })();
             // Pair uses the SAME share size on both legs, so the minimum total cost is:
             // (minShares * yesPrice) + (minShares * noPrice) = minShares * (yesPrice + noPrice)
@@ -23296,7 +23296,7 @@ app.get('/', (req, res) => {
                         minEdge: 0,              // Not used for hard edge floor (engine enforces >=5% edge)
                         // 🚫 v113: Hard cap at 80¢ - no BUY signals above this (matches oracle gate)
                         minOdds: 0.35,
-                        maxOdds: 0.80,           // 🚫 v113: Changed from 0.95 to 0.80 (hard entry cap)
+                        maxOdds: 0.65,           // 🏆 v134.5: Frequency Fix (was 0.80)
                         // 🏆 v130: FIXED - Match v129 Early Sniper window
                         buyWindowStartSec: 870,   // BUY window: after 30s elapsed (was 300 = 10 min too late)
                         buyWindowEndSec: 60,      // Final 60s blackout
