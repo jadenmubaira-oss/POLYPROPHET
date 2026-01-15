@@ -10502,6 +10502,14 @@ function orchestrateOracleNotifications() {
         const rt = oracleSignalRuntime?.[primaryBuy.signal.asset];
         if (rt?.telegramBuySentAt) return;
 
+        // 💎 STRICT MODE PATCH: Silently block non-CONVICTION notifications if convictionOnlyMode is active
+        // This prevents ADVISORY signals from spamming Telegram (or inducing manual trades) when we want strict purity.
+        // We return EARLY so rt.telegramBuySentAt is NOT set, allowing a later CONVICTION signal to fire for this same cycle.
+        if (CONFIG.RISK.convictionOnlyMode && (primaryBuy.signal?.tier || 'ADVISORY') !== 'CONVICTION') {
+            // log(`💎 STRICT BLOCK: Suppressed ADVISORY notification for ${primaryBuy.signal.asset}`, primaryBuy.signal.asset);
+            return;
+        }
+
         // Send the primary BUY notification
         if (rt) rt.telegramBuySentAt = now;
         primaryBuyState.lastPrimaryBuyAt = now;
@@ -10951,6 +10959,9 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         }
 
         if (action === 'BUY') {
+            // 💎 STRICT MODE PATCH: Silently block ADVISORY notifications
+            if (CONFIG.RISK.convictionOnlyMode && !isConviction) return;
+
             if (rt.telegramBuySentAt) return;
             rt.telegramBuySentAt = now;
 
