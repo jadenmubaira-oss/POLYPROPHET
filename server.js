@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 134.8;  // v134.8: SOL-ONLY GOLDEN ZONE - minOdds=0.60, maxOdds=0.75, BTC/ETH disabled
+const CONFIG_VERSION = 134.9;  // v134.9: All assets enabled for notifications (user manually filters SOL)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9334,10 +9334,10 @@ const CONFIG = {
     // 🏆 v97 ORACLE ASSET UNIVERSE: all 4 Polymarket 15m markets by default
     // 🏆 v135: XRP TERMINATED - 0% recent WR, 98% block rate. Mathematically toxic.
     ASSET_CONTROLS: {
-        BTC: { enabled: false, maxTradesPerCycle: 1 },  // 🚨 v134.8: DISABLED - 58% WR toxic
-        ETH: { enabled: false, maxTradesPerCycle: 1 },  // 🚨 v134.8: DISABLED - 60% WR toxic
+        BTC: { enabled: true, maxTradesPerCycle: 1 },  // 🔔 v134.9: Re-enabled for notifications (user manually filters SOL)
+        ETH: { enabled: true, maxTradesPerCycle: 1 },  // 🔔 v134.9: Re-enabled for notifications (user manually filters SOL)
         XRP: { enabled: false, maxTradesPerCycle: 1 },  // 💀 DISABLED: 40% historical WR causes ruin
-        SOL: { enabled: true, maxTradesPerCycle: 1 }    // 🏆 v134.8: ONLY ASSET - 89% WR Golden Zone
+        SOL: { enabled: true, maxTradesPerCycle: 1 }    // 🏆 v134.8: BEST ASSET - 83% WR in Golden Zone
     },
 
     // 🏆 v76: ASSET AUTO-ENABLE REMOVED - Static config only
