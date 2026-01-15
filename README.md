@@ -42,24 +42,24 @@
 > | v134 | VALUE HUNTER — maxOdds=0.40, minOdds=0.20 for cheap option trading |
 > | **v134.1** | **HIGH ODDS CONVICTION** — maxOdds=0.95 for 90% WR aggressive sizing |
 >
-> ### How To Use v134
+> ### How To Use v134.1
 >
 > 1. **Deploy to Render**: Push to GitHub, Render auto-deploys
-> 2. **Watch Telegram**: Wait for CONVICTION + LOCKED signals at entry < 40¢
+> 2. **Watch Telegram**: Wait for **CONVICTION + LOCKED** signals (ANY entry price up to 95¢)
 > 3. **Verify on Dashboard**: Asset cards show direction, tier, and LOCKED badge
 > 4. **Execute Trade**: Buy on Polymarket at the signaled entry price
 > 5. **Confirm in Telegram**: Click "I TOOK IT" to record trade to ledger
 > 6. **Compound**: Re-invest winnings for exponential growth
 >
-> ### Critical Settings (v134 VALUE HUNTER)
+> ### Critical Settings (v134.1 HIGH ODDS)
 >
 > | Setting | Value | Meaning |
 > |---------|-------|---------|
-> | `maxOdds` | **0.40** | No BUY at ≥40¢ (VALUE HUNTER) |
+> | `maxOdds` | **0.95** | Trade up to 95¢ (HIGH ODDS) |
 > | `minOdds` | **0.20** | Allow extreme value bets |
 > | `buyWindowStartSec` | 870 | Trade window opens at 30s elapsed |
 > | `buyWindowEndSec` | 60 | Blackout: final 60s before resolution |
-> | `ACTIVE_PRESET` | VALUE_HUNTER | Active strategy preset |
+> | `convictionOnlyMode` | **true** | STRICT - Only CONVICTION tier trades |
 >
 > ### For Future AI/Developers
 >
@@ -68,18 +68,18 @@
 > 1. **Read this entire document first** — it contains all context
 > 2. **Update version number** when making changes
 > 3. **Document changes** in the version history table
-> 4. **Keep the VALUE_HUNTER strategy** unless explicitly changing approach
+> 4. **Keep the HIGH ODDS strategy** unless explicitly changing approach
 > 5. **Push to GitHub** for Render auto-deployment
 > 6. **Key files**: `server.js` (all logic), `public/index.html` (dashboard)
 >
-> ### Signal Interpretation Guide
+> ### Signal Interpretation Guide (v134.1 HIGH ODDS)
 >
 > | Entry Price | Tier | LOCKED? | Action |
 > |-------------|------|---------|--------|
-> | < 40¢ | CONVICTION | Yes | ✅ TRADE (high profit potential) |
-> | < 40¢ | CONVICTION | No | ⏳ WAIT for lock |
-> | < 40¢ | ADVISORY | Yes | ⚠️ Consider (90% pWin required) |
-> | ≥ 40¢ | Any | Any | 🚫 NO TRADE (VALUE HUNTER block) |
+> | ANY (≤95¢) | CONVICTION | Yes | ✅ **TRADE** (97.8% WR) |
+> | ANY (≤95¢) | CONVICTION | No | ⏳ WAIT for lock |
+> | ANY | ADVISORY | Any | 🚫 **BLOCKED** (Strict Mode) |
+> | > 95¢ | Any | Any | 🚫 NO TRADE (maxOdds cap) |
 >
 > ### API Endpoints
 >
