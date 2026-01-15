@@ -828,8 +828,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-            return (Number.isFinite(env) && env > 0) ? env : 5;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.5: 2 shares (~$0.70) for $1 start
+            return (Number.isFinite(env) && env > 0) ? env : 2;
         })();
         // Reference min cost at the configured entry window's minimum (used for "can we keep trading?" survivability checks).
         const REFERENCE_MIN_ORDER_COST = orderMode === 'MANUAL' ? manualMinOrder : MIN_ORDER_SHARES * minOddsEntry;
@@ -2743,8 +2743,8 @@ app.get('/api/vault-projection', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-            return (Number.isFinite(env) && env > 0) ? env : 5;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.5
+            return (Number.isFinite(env) && env > 0) ? env : 2;
         })();
         const BALANCE_FLOOR = parseFloat(req.query.floor) || 2.0;
         const MAX_ABSOLUTE_STAKE = 100;
@@ -3036,8 +3036,8 @@ app.get('/api/vault-optimize', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5);
-            return (Number.isFinite(env) && env > 0) ? env : 5;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.5
+            return (Number.isFinite(env) && env > 0) ? env : 2;
         })();
         const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
         const MAX_ABSOLUTE_STAKE = 100;
@@ -9048,7 +9048,7 @@ const CONFIG = {
         // Combined with existing ensemble intelligence, this maximizes EV per trade.
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
         minOdds: 0.20,  // 🎯 v133: Lower floor to 20¢ for more opportunities at extremes
-        maxOdds: 0.40,  // 🏆 v134.2: VALUE HUNTER RESTORED - Only trade cheap options (<40¢) for max ROI
+        maxOdds: 0.65,  // 🏆 v134.5: FREQUENCY FIX - ~1 trade/hour @ ~54% ROI (was 0.40 = 0 trades/day)
         // 🏆 v119: Configurable timing windows (higher frequency)
         // BUY window: last 5 minutes down to final 60s blackout
         // PREPARE window: starts before BUY to give advance warning

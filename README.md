@@ -97,6 +97,7 @@
 > | Backtest with maxOdds=0.40 shows 0 trades/24h | TRUE | ✅ |
 > | Minimum order cost ~$1.75 with minOrderShares=5 | TRUE | ✅ |
 > | Value Hunter (0.40) is too restrictive for 1/hour | TRUE | ✅ |
+> | **v134.5: maxOdds=0.65, minOrder=2** | **IMPLEMENTED** | ✅ |
 >
 > ---
 >
@@ -169,7 +170,10 @@
 > | v133 | Nuclear Backup v2 (Redis-INDEPENDENT) |
 > | v134 | VALUE HUNTER — maxOdds=0.40, minOdds=0.20 for cheap option trading |
 > | v134.1 | HIGH ODDS CONVICTION — maxOdds=0.95 for 90% WR aggressive sizing |
-> | **v134.2** | **VALUE HUNTER RESTORED** — maxOdds=0.40 for max ROI compounding |
+> | v134.2 | VALUE HUNTER RESTORED — maxOdds=0.40 for max ROI compounding |
+> | v134.3 | Liquidity Soft Penalty - Prevents flickering |
+> | v134.4 | Market Consensus Override - Fixes inverse sentiment |
+> | **v134.5** | **FREQUENCY FIX** — maxOdds=0.65 (~1/hr), minOrder=2 ($1 start) |
 >
 > ### How To Use v134.1
 >
