@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 134.7;  // v134.7: HARD CAP FIX - Entry cap 65¢, maxOdds 65¢ everywhere
+const CONFIG_VERSION = 134.8;  // v134.8: SOL-ONLY GOLDEN ZONE - minOdds=0.60, maxOdds=0.75, BTC/ETH disabled
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -9047,8 +9047,8 @@ const CONFIG = {
         // If entry=30¢ and win: 233% profit. If entry=70¢ and win: only 43% profit.
         // Combined with existing ensemble intelligence, this maximizes EV per trade.
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
-        minOdds: 0.20,  // 🎯 v133: Lower floor to 20¢ for more opportunities at extremes
-        maxOdds: 0.65,  // 🏆 v134.5: FREQUENCY FIX - ~1 trade/hour @ ~54% ROI (was 0.40 = 0 trades/day)
+        minOdds: 0.60,  // 🏆 v134.8: SOL GOLDEN ZONE - filter noise below 60¢
+        maxOdds: 0.75,  // 🏆 v134.8: SOL GOLDEN ZONE - cap at 75¢ for 89% WR target
         // 🏆 v119: Configurable timing windows (higher frequency)
         // BUY window: last 5 minutes down to final 60s blackout
         // PREPARE window: starts before BUY to give advance warning
@@ -9334,10 +9334,10 @@ const CONFIG = {
     // 🏆 v97 ORACLE ASSET UNIVERSE: all 4 Polymarket 15m markets by default
     // 🏆 v135: XRP TERMINATED - 0% recent WR, 98% block rate. Mathematically toxic.
     ASSET_CONTROLS: {
-        BTC: { enabled: true, maxTradesPerCycle: 1 },
-        ETH: { enabled: true, maxTradesPerCycle: 1 },
+        BTC: { enabled: false, maxTradesPerCycle: 1 },  // 🚨 v134.8: DISABLED - 58% WR toxic
+        ETH: { enabled: false, maxTradesPerCycle: 1 },  // 🚨 v134.8: DISABLED - 60% WR toxic
         XRP: { enabled: false, maxTradesPerCycle: 1 },  // 💀 DISABLED: 40% historical WR causes ruin
-        SOL: { enabled: true, maxTradesPerCycle: 1 }
+        SOL: { enabled: true, maxTradesPerCycle: 1 }    // 🏆 v134.8: ONLY ASSET - 89% WR Golden Zone
     },
 
     // 🏆 v76: ASSET AUTO-ENABLE REMOVED - Static config only
@@ -24500,13 +24500,13 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
     const threshold = computeAdaptiveThreshold();
     const isUltra = ultraProphet?.isUltra === true;
 
-    // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 65¢
+    // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 75¢
     // This applies to ALL signals including ULTRA (expensive entries are risky even with high confidence)
-    const HARD_ENTRY_CAP = 0.65; // 🏆 v134.7: Matched to CONFIG maxOdds for frequency fix
+    const HARD_ENTRY_CAP = 0.75; // 🏆 v134.8: SOL Golden Zone cap
     if (Number.isFinite(entryPrice) && entryPrice >= HARD_ENTRY_CAP) {
         return {
             passes: false,
-            reason: `🚫 Entry ${(entryPrice * 100).toFixed(0)}¢ >= 65¢ cap (too expensive)`,
+            reason: `🚫 Entry ${(entryPrice * 100).toFixed(0)}¢ >= 75¢ cap (too expensive)`,
             threshold,
             pWin,
             isUltra,
@@ -27394,12 +27394,12 @@ app.post('/api/settings', async (req, res) => {
         }
     }
 
-    // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥65¢
-    // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.65
+    // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥75¢
+    // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.75
     if (CONFIG.ORACLE && typeof CONFIG.ORACLE.maxOdds === 'number') {
-        const MAX_ODDS_HARD_CAP = 0.65; // 🏆 v134.7: Matched to frequency fix
+        const MAX_ODDS_HARD_CAP = 0.75; // 🏆 v134.8: SOL Golden Zone cap
         if (CONFIG.ORACLE.maxOdds > MAX_ODDS_HARD_CAP) {
-            log(`🚫 v134.7: Clamping ORACLE.maxOdds from ${CONFIG.ORACLE.maxOdds} to ${MAX_ODDS_HARD_CAP} (hard cap)`);
+            log(`🚫 v134.8: Clamping ORACLE.maxOdds from ${CONFIG.ORACLE.maxOdds} to ${MAX_ODDS_HARD_CAP} (hard cap)`);
             CONFIG.ORACLE.maxOdds = MAX_ODDS_HARD_CAP;
         }
     }
@@ -28724,11 +28724,11 @@ function runStartupSelfTests() {
     if (!CONFIG || !CONFIG.ORACLE) {
         failures.push('CONFIG or CONFIG.ORACLE is undefined');
     }
-    if (CONFIG.ORACLE.maxOdds > 0.65) {
-        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) exceeds 65¢ hard cap (v134.7 rule)`);
+    if (CONFIG.ORACLE.maxOdds > 0.75) {
+        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) exceeds 75¢ hard cap (v134.8 rule)`);
     }
-    if (CONFIG.ORACLE.minOdds < 0.10) {
-        failures.push(`CONFIG.ORACLE.minOdds (${CONFIG.ORACLE.minOdds}) is too low - allows tail bets`);
+    if (CONFIG.ORACLE.minOdds < 0.50) {
+        failures.push(`CONFIG.ORACLE.minOdds (${CONFIG.ORACLE.minOdds}) is below 50¢ - enables noise trades`);
     }
     if (CONFIG.ORACLE.minConfidence < 0.3) {
         failures.push(`CONFIG.ORACLE.minConfidence (${CONFIG.ORACLE.minConfidence}) is very low`);
