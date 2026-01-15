@@ -59,6 +59,41 @@ Use `search_web` to verify market assumptions if needed.
 
 ---
 
+## 📡 LIVE SERVER MONITORING (INVESTIGATION MODE)
+
+**Proactively watch the deployed server to find problems, improvements, and insights.**
+
+### Server URL
+
+- **Production**: `https://polyprophet.onrender.com`
+
+### Monitoring Endpoints (Use browser_subagent)
+
+| Endpoint | What to Look For |
+|----------|-----------------|
+| `/api/health` | Status, configVersion, stale feeds, circuit breaker state |
+| `/api/state` | Current predictions, lock states, confidence levels, pWin values |
+| `/api/perfection-check` | Any failing invariants |
+| `/api/backtest-polymarket?hours=6` | Recent strategy performance |
+| `/api/telegram-history` | Recent alerts sent, signal quality |
+| `/` (Dashboard) | Visual anomalies, UI bugs, flickering |
+
+### What to Investigate
+
+1. **Anomalies**: Unexpected values, errors, warnings in responses
+2. **Performance**: Win rates, drawdown, signal frequency
+3. **Behavior**: Lock stability, confidence consistency, prediction accuracy
+4. **Edge Cases**: What happens at market boundaries? During voids?
+
+### Investigation Workflow
+
+1. **Query** the server endpoint using `browser_subagent`
+2. **Analyze** the response for anomalies or improvement opportunities
+3. **Document** findings in `README.md` (OPEN ISSUES section) or `FORENSIC_ANALYSIS.md`
+4. **Propose** fixes in `implementation_plan.md` for EXECUTION to implement
+
+---
+
 ## 🔄 CONTINUOUS IMPROVEMENT LOOP
 
 **This is your primary directive.** You must ALWAYS be looking for ways to improve the bot.
@@ -67,12 +102,13 @@ Use `search_web` to verify market assumptions if needed.
 
 1. Read `README.md` from start to finish.
 2. Check for any `OPEN ISSUES` or `TODO` sections in README.
-3. Ask the user: "What are we focusing on today?" OR propose your own improvement.
+3. **Query `/api/health`** to see current server state.
+4. Ask the user: "What are we focusing on today?" OR propose your own improvement.
 
 ### B. During Analysis
 
 1. Identify at least ONE thing that could be improved.
-2. Research it (codebase, web search, backtest data).
+2. Research it (codebase, web search, backtest data, **LIVE SERVER**).
 3. Add findings to `README.md` (in a "Forensics" or "Known Issues" section).
 
 ### C. End of Every Conversation
@@ -121,3 +157,4 @@ Use this skill when:
 - You are strictly in **PLANNING** or **VERIFICATION** mode.
 - You are solving a complex strategic problem.
 - You are starting a NEW conversation and need to re-establish context.
+- **You are monitoring the live server for problems/improvements.**

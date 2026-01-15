@@ -56,6 +56,43 @@ When active in this skill, you must:
 
 ---
 
+## 📡 LIVE SERVER MONITORING (VERIFICATION MODE)
+
+**Verify deployments and proactively check for problems on the live server.**
+
+### Server URL
+
+- **Production**: `https://polyprophet.onrender.com`
+
+### Verification Endpoints (Use browser_subagent)
+
+| Endpoint | What to Verify |
+|----------|---------------|
+| `/api/health` | Status=ok, configVersion correct, no critical errors |
+| `/api/state` | Config values match what was deployed (maxOdds, minOdds, etc.) |
+| `/api/perfection-check` | All invariants pass |
+
+### Post-Deploy Verification Checklist
+
+After every deployment, verify:
+
+1. ✅ `/api/health` returns `status: ok` (or `degraded` with acceptable reason)
+2. ✅ `configVersion` matches expected version
+3. ✅ Key config values (maxOdds, minOdds) match plan
+4. ✅ No critical errors in response
+
+### Proactive Monitoring
+
+When requested to "monitor" or "watch" the server:
+
+1. **Query** multiple endpoints using `browser_subagent`
+2. **Compare** current state to expected behavior
+3. **Identify** anomalies, errors, or regression from recent changes
+4. **Report** findings to user with actionable recommendations
+5. **Fix** issues if within your authority, or document for ULTRATHINK
+
+---
+
 ## 🚀 AUTO-DEPLOYMENT PROTOCOL
 
 **After implementing changes, you MUST deploy and verify automatically.**
@@ -79,9 +116,9 @@ Use the browser tool or curl to verify:
 
 | Endpoint | Expected Result |
 |----------|-----------------|
-| `https://[RENDER_URL]/api/health` | `{ "status": "ok", ... }` |
-| `https://[RENDER_URL]/api/state` | Verify `maxOdds`, `minOdds`, etc. |
-| `https://[RENDER_URL]/api/perfection-check` | All checks pass |
+| `https://polyprophet.onrender.com/api/health` | `{ "status": "ok", ... }` |
+| `https://polyprophet.onrender.com/api/state` | Verify config values |
+| `https://polyprophet.onrender.com/api/perfection-check` | All checks pass |
 
 ### Step 4: Report to User
 
@@ -142,17 +179,24 @@ While ULTRATHINK is the primary analyst, you (EXECUTION) also contribute to impr
 
 ### B. Verify Analyst's Work
 
-- **ALWAYS** check if analystâ€™s findings make sense.
+- **ALWAYS** check if analyst's findings make sense.
 - If something seems off, investigate yourself before implementing.
 - You have the authority to **OVERRIDE** the analyst if you find an error.
 
-### C. Final Check Before Reporting
+### C. Proactive Server Checks
+
+- **Monitor** the live server for unexpected behavior
+- **Verify** that deployed changes work as intended
+- **Report** any discrepancies between expected and actual behavior
+
+### D. Final Check Before Reporting
 
 Ask yourself:
 
 - "Did all changes apply correctly?"
 - "Are there any regressions?"
 - "Is the README still accurate?"
+- "Does the live server match expectations?"
 
 ---
 
@@ -184,3 +228,4 @@ Use this skill when:
 - The plan has been approved by the user (or the ULTRATHINK Analyst is confident).
 - You are making code changes to `server.js` or other files.
 - You need to **DEPLOY** changes to production.
+- **You are verifying or monitoring the live server.**
