@@ -4,14 +4,94 @@
 
 > **FOR ANY AI/PERSON**: This is THE IMMORTAL MANIFESTO. Read fully before ANY changes. Continue building upon this document.
 >
-> ## 🏆 v134.1: HIGH ODDS CONVICTION (90% WIN RATE STRATEGY)
+> ## 🤖 AI COLLABORATION PROTOCOL
+>
+> To ensure "Deity-Level" quality, all AI agents must adhere to this strict protocol:
+>
+> ### 1. 🧠 ULTRATHINK (The Analyst - Google Gemini)
+>
+> - **Role**: Deep Analysis, Strategy, Forensics. "Dig to the Earth's core."
+> - **Responsibility**: You do not edit code logic. You analyze, question, and architect.
+> - **Method**:
+>   - Read everything. Assume nothing.
+>   - Ask infinite questions: "Is this the best way?", "What if this fails?", "Does this match the market reality?"
+>   - producing `implementation_plan.md` that is bulletproof.
+>
+> ### 2. 👷 EXECUTION (The Builder - Claude)
+>
+> - **Role**: High-Precision Implementation. "Verification at every step."
+> - **Responsibility**: You execute the `implementation_plan.md` with zero deviation.
+> - **Method**:
+>   - Verify *before* you cut.
+>   - Verify *after* you cut.
+>   - Maintain the "Immortal Manifesto" (this README) as the source of truth.
+>
+> ### 3. 🌐 SHARED BRAIN
+>
+> - This `README.md` is the shared thinking space.
+> - `task.md` tracks our flight path.
+> - `implementation_plan.md` is the blueprint.
+>
+> ### 4. 🚀 NEW CONVERSATION STARTUP PROTOCOL
+>
+> When you (an AI) start a **new conversation** about this project:
+>
+> 1. **READ THIS FILE FIRST** (`README.md`) - It contains ALL context you need.
+> 2. **Check `.agent/skills/`** - Read `ULTRATHINK/SKILL.md` and `EXECUTION/SKILL.md` for your role.
+> 3. **Check `implementation_plan.md`** (if exists) - There may be pending work.
+> 4. **Check for `TODO` or `OPEN ISSUES`** in this README - Prioritize these.
+> 5. **Ask the user**: "What are we focusing on today?" OR propose your own improvement.
+>
+> **CRITICAL**: At the END of your session, **UPDATE THIS README** with:
+>
+> - What was done.
+> - What is still pending.
+> - Any new issues discovered.
+>
+> This ensures the NEXT conversation (even with a different AI) can continue seamlessly.
+>
+> ---
+>
+> ## 🧠 DEEP MECHANICS & FORENSICS (THE "WHY")
+>
+> *Essential knowledge for AIs to understand bot behavior.*
+>
+> ### 1. The "True Prophet Lock" vs. "Conviction Lock"
+>
+> - **True Prophet Lock**: Unbreakable. Triggered when `Certainty >= Threshold` AND `Genesis Model` agrees. once locked, it **never** flips.
+> - **Conviction Lock (Safety)**: A pre-lock state. It **can break** (flicker) if a "Catastrophic Reversal" occurs (Opposing Force > 5x ATR). **This is a safety feature, not a bug.**
+>
+> ### 2. "Genesis Supremacy" (The Veto)
+>
+> - The **Genesis Model** (94.4% accuracy) has **VETO POWER**.
+> - If the Ensemble says "UP" but Genesis (>90% acc) says "DOWN", the bot will **NOT** trade UP. It effectively blocks the trade.
+> - This explains why high-confidence signals sometimes don't trigger a trade.
+>
+> ### 3. Volatility & "Liquidity Voids"
+>
+> - **Flickering Confidence**: If the spread (Yes + No) deviates from $1.00 by >5% (Liquidity Void), confidence is **nuked to 0**.
+> - This causes "flickering" in thin markets. It preserves capital by avoiding bad fills.
+>
+> ### 4. Backtest Reality
+>
+> - `/api/backtest-polymarket` is a **Signal Reliability** test, not a Logic Replay.
+> - It uses *historical snapshots* of what the bot thought *then*. It does **not** re-run current logic (except for pWin calibration).
+>
+> ### 5. XRP Status: TERMINATED
+>
+> - XRP is hard-coded `enabled: false` in `ASSET_CONTROLS`.
+> - Reason: "Mathematically toxic" (0% recent WR). Do not re-enable.
+>
+> ---
+>
+> ## 🏆 v134.2: VALUE HUNTER RESTORED (MAX ROI STRATEGY)
 >
 > ### Core Philosophy & Goal
 >
 > - **Primary Goal**: $1 → $1M via compounding on CONVICTION-tier LOCKED signals
-> - **Strategy**: HIGH ODDS CONVICTION — Trade ANY price when CONVICTION + LOCKED + pWin ≥ 90%
+> - **Strategy**: VALUE HUNTER — Trade ONLY cheap options (<40¢) for maximum profit multiples
 > - **Approach**: "Bot does its thing and notifies me via Telegram" — minimal UI interaction
-> - **Risk Profile**: Aggressive sizing + 90% WR = Survival. Accuracy over value.
+> - **Risk Profile**: Conservative entry + high ROI = Steady compounding. Value over frequency.
 >
 > ### Why HIGH ODDS Works (From $1 Start)
 >
@@ -40,7 +120,8 @@
 > |---------|---------|
 > | v133 | Nuclear Backup v2 (Redis-INDEPENDENT) |
 > | v134 | VALUE HUNTER — maxOdds=0.40, minOdds=0.20 for cheap option trading |
-> | **v134.1** | **HIGH ODDS CONVICTION** — maxOdds=0.95 for 90% WR aggressive sizing |
+> | v134.1 | HIGH ODDS CONVICTION — maxOdds=0.95 for 90% WR aggressive sizing |
+> | **v134.2** | **VALUE HUNTER RESTORED** — maxOdds=0.40 for max ROI compounding |
 >
 > ### How To Use v134.1
 >
@@ -51,11 +132,11 @@
 > 5. **Confirm in Telegram**: Click "I TOOK IT" to record trade to ledger
 > 6. **Compound**: Re-invest winnings for exponential growth
 >
-> ### Critical Settings (v134.1 HIGH ODDS)
+> ### Critical Settings (v134.2 VALUE HUNTER)
 >
 > | Setting | Value | Meaning |
 > |---------|-------|---------|
-> | `maxOdds` | **0.95** | Trade up to 95¢ (HIGH ODDS) |
+> | `maxOdds` | **0.40** | Only trade cheap options (<40¢) |
 > | `minOdds` | **0.20** | Allow extreme value bets |
 > | `buyWindowStartSec` | 870 | Trade window opens at 30s elapsed |
 > | `buyWindowEndSec` | 60 | Blackout: final 60s before resolution |
@@ -76,6 +157,13 @@
 >
 > | Entry Price | Tier | LOCKED? | Action |
 > |-------------|------|---------|--------|
+>
+> ### 🛑 OPEN ISSUES & TODOs (Continuous Improvement)
+>
+> - [ ] **XRP Re-evaluation**: Test XRP performance specifically with "Value Hunter" settings (<40¢). It failed at High Odds, but might thrive as a value asset.
+> - [ ] **Liquidity Flickering**: The "Liquidity Void" safety check (spread > 5%) causes valid locks to flicker. Consider a "Soft Penalty" (80% weight) instead of "Hard Nuke" (0% weight) for LOCKED signals.
+>
+> ---
 > | ANY (≤95¢) | CONVICTION | Yes | ✅ **TRADE** (97.8% WR) |
 > | ANY (≤95¢) | CONVICTION | No | ⏳ WAIT for lock |
 > | ANY | ADVISORY | Any | 🚫 **BLOCKED** (Strict Mode) |

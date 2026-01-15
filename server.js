@@ -9048,7 +9048,7 @@ const CONFIG = {
         // Combined with existing ensemble intelligence, this maximizes EV per trade.
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
         minOdds: 0.20,  // 🎯 v133: Lower floor to 20¢ for more opportunities at extremes
-        maxOdds: 0.95,  // 🏆 v134.1: HIGH ODDS UNLOCK - Allow all price ranges for 90% WR CONVICTION
+        maxOdds: 0.40,  // 🏆 v134.2: VALUE HUNTER RESTORED - Only trade cheap options (<40¢) for max ROI
         // 🏆 v119: Configurable timing windows (higher frequency)
         // BUY window: last 5 minutes down to final 60s blackout
         // PREPARE window: starts before BUY to give advance warning
@@ -9332,10 +9332,11 @@ const CONFIG = {
     },
 
     // 🏆 v97 ORACLE ASSET UNIVERSE: all 4 Polymarket 15m markets by default
+    // 🏆 v135: XRP TERMINATED - 0% recent WR, 98% block rate. Mathematically toxic.
     ASSET_CONTROLS: {
         BTC: { enabled: true, maxTradesPerCycle: 1 },
         ETH: { enabled: true, maxTradesPerCycle: 1 },
-        XRP: { enabled: true, maxTradesPerCycle: 1 },
+        XRP: { enabled: false, maxTradesPerCycle: 1 },  // 💀 DISABLED: 40% historical WR causes ruin
         SOL: { enabled: true, maxTradesPerCycle: 1 }
     },
 
@@ -18726,10 +18727,10 @@ class SupremeBrain {
                 if (!voteOverwhelm && !forceOverwhelm) {
                     finalSignal = this.lockedDirection;
                     tier = 'CONVICTION';
-                    log(`🔒 Lock held: Weak reversal ignored`, this.asset);
+                    log(`🛡️ SAFETY LOCK held: Weak reversal ignored (breakable if catastrophic)`, this.asset);
                 } else {
                     this.convictionLocked = false;
-                    log(`💥 Lock broken: Catastrophic reversal`, this.asset);
+                    log(`💥 SAFETY LOCK broken: Catastrophic reversal detected - PROTECTION TRIGGERED`, this.asset);
                 }
             }
 
