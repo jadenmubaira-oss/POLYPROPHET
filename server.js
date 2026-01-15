@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 134.6;  // v134.6: GLOBAL FIX - Enforce minOrder=2 and maxOdds=0.65 everywhere
+const CONFIG_VERSION = 134.7;  // v134.7: HARD CAP FIX - Entry cap 65¢, maxOdds 65¢ everywhere
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -24500,13 +24500,13 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
     const threshold = computeAdaptiveThreshold();
     const isUltra = ultraProphet?.isUltra === true;
 
-    // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 80¢
+    // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 65¢
     // This applies to ALL signals including ULTRA (expensive entries are risky even with high confidence)
-    const HARD_ENTRY_CAP = 0.80;
+    const HARD_ENTRY_CAP = 0.65; // 🏆 v134.7: Matched to CONFIG maxOdds for frequency fix
     if (Number.isFinite(entryPrice) && entryPrice >= HARD_ENTRY_CAP) {
         return {
             passes: false,
-            reason: `🚫 Entry ${(entryPrice * 100).toFixed(0)}¢ >= 80¢ cap (too expensive)`,
+            reason: `🚫 Entry ${(entryPrice * 100).toFixed(0)}¢ >= 65¢ cap (too expensive)`,
             threshold,
             pWin,
             isUltra,
@@ -27394,12 +27394,12 @@ app.post('/api/settings', async (req, res) => {
         }
     }
 
-    // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥80¢
-    // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.80
+    // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥65¢
+    // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.65
     if (CONFIG.ORACLE && typeof CONFIG.ORACLE.maxOdds === 'number') {
-        const MAX_ODDS_HARD_CAP = 0.80;
+        const MAX_ODDS_HARD_CAP = 0.65; // 🏆 v134.7: Matched to frequency fix
         if (CONFIG.ORACLE.maxOdds > MAX_ODDS_HARD_CAP) {
-            log(`🚫 v113: Clamping ORACLE.maxOdds from ${CONFIG.ORACLE.maxOdds} to ${MAX_ODDS_HARD_CAP} (hard cap)`);
+            log(`🚫 v134.7: Clamping ORACLE.maxOdds from ${CONFIG.ORACLE.maxOdds} to ${MAX_ODDS_HARD_CAP} (hard cap)`);
             CONFIG.ORACLE.maxOdds = MAX_ODDS_HARD_CAP;
         }
     }
@@ -28724,8 +28724,8 @@ function runStartupSelfTests() {
     if (!CONFIG || !CONFIG.ORACLE) {
         failures.push('CONFIG or CONFIG.ORACLE is undefined');
     }
-    if (CONFIG.ORACLE.maxOdds > 0.80) {
-        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) exceeds 80¢ hard cap (v112 rule)`);
+    if (CONFIG.ORACLE.maxOdds > 0.65) {
+        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) exceeds 65¢ hard cap (v134.7 rule)`);
     }
     if (CONFIG.ORACLE.minOdds < 0.10) {
         failures.push(`CONFIG.ORACLE.minOdds (${CONFIG.ORACLE.minOdds}) is too low - allows tail bets`);
