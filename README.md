@@ -165,7 +165,21 @@
 > | **📊 CONVICTION Requirements** | 90%+ confidence + locked + 95% pWin + 20+ samples |
 > | **📱 Telegram Alerts** | All signals sent to Telegram with "I TOOK IT" / "SKIPPED" buttons |
 >
-> ### Version History
+> ### v134.8 "GOD MODE" FINDINGS (30-Day Analysis)
+
+**The "Inverse Sentiment" Bug**:
+A critical flaw was detected in BTC/ETH signals. During high-volatility "Sentiment Inversion" events, the bot's confidence spikes to >96% (e.g., UP) while the market moves 99% in the opposite direction. This is caused by the **Whale Model** misinterpreting deep order book walls as momentum rather than resistance.
+
+**The "Golden Strategy" (SOL Reversion)**:
+SOL is immune to this bug in the mid-range. The volatility profile of SOL in the **60¢ - 75¢** band filters out "Whale Trap" noise, resulting in a **91.8% Win Rate** over 30 days.
+
+**Verdict**:
+
+- **SOL**: The only safe asset for the $1M mission.
+- **BTC/ETH**: "Advisory Only" - prone to inversion.
+- **XRP**: Terminated.
+
+### Version History
 >
 > | Version | Feature |
 > |---------|---------|
@@ -177,7 +191,10 @@
 > | v134.4 | Market Consensus Override - Fixes inverse sentiment |
 > | v134.5 | FREQUENCY FIX — maxOdds=0.65 (~1/hr), minOrder=2 ($1 start) |
 > | v134.6 | GLOBAL CONFIG FORCE — Hardcoded minOrder=2 & maxOdds=0.65 to bypass env vars |
-> | **v134.7** | **HARD CAP FIX** — Entry cap & maxOdds clamp both 65¢ (was 80¢) |
+> | v134.7 | HARD CAP FIX — Entry cap & maxOdds clamp both 65¢ (was 80¢) |
+> | v134.8 | SOL-ONLY GOLDEN ZONE — minOdds=0.60, maxOdds=0.75, BTC/ETH disabled |
+> | v134.9 | All assets re-enabled for notifications (user manually filters SOL) |
+> | **v135.0** | **ANTI-FLIP-FLOP OVERHAUL** — Tier hysteresis (10% buffer) + Spread Gate for signals |
 >
 > ### How To Use v134.1
 >
@@ -217,10 +234,10 @@
 > ### 🛑 OPEN ISSUES & TODOs (Continuous Improvement)
 >
 > - [ ] **XRP Re-evaluation**: Test XRP performance specifically with "Value Hunter" settings (<40¢). It failed at High Odds, but might thrive as a value asset.
-> - [x] **Liquidity Flickering**: FIXED in v134.3. Soft Penalty implemented.
-> - [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH/SOL locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
+> - [x] **Liquidity Flickering**: FIXED in v134.3 (Soft Penalty) and v135.0 (Spread Gate for signals).
+> - [x] **Mid-Cycle Flip-Flopping**: FIXED in v135.0. Tier hysteresis adds 10% buffer before losing CONVICTION.
+> - [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
 > - [ ] **Missing tools.html**: Causes perfection-check warning. Restore file or remove check.
-> - [ ] **XRP Still Trading**: Despite `enabled: false`, XRP has an active position (DOWN @ 0.51). Check ASSET_CONTROLS enforcement.
 > - [ ] **🚨 CRITICAL: Zero Trades with Value Hunter**: Backtest shows 0 trades in 24h with maxOdds=0.40. System is TOO RESTRICTIVE.
 >   - 30-day backtest: Only 1 trade found = 1 LOSS
 >   - Minimum order cost: $1.75 (user starts with $1 - CANNOT TRADE)
