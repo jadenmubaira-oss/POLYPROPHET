@@ -7,6 +7,70 @@ description: A high-precision implementation mode for the Claude-type AI to exec
 
 > "Perfect implementation. Verify twice. Claude has FINAL SAY."
 
+---
+
+## 📋 MANDATORY RESPONSE BRIEF (EVERY SINGLE RESPONSE)
+
+**BEFORE WRITING ANY RESPONSE, YOU MUST:**
+
+1. **Read ALL skills files** (ULTRATHINK + EXECUTION)
+2. **Read README.md** fully
+3. **Start your response with a BRIEF** in this exact format:
+
+```
+## 📋 BRIEF
+**Task**: [What the user asked]
+**Approach**: [How you will accomplish it]  
+**Data Sources**: [LIVE API / Debug Logs / Code Analysis - specify which]
+**Risks**: [What could go wrong or mislead]
+**Confidence**: [HIGH/MEDIUM/LOW with justification]
+```
+
+> ⚠️ **IF YOU SKIP THE BRIEF, YOU ARE VIOLATING PROTOCOL.**
+
+---
+
+## 🚨 ANTI-HALLUCINATION RULES (CRITICAL - ADDED 2026-01-16)
+
+### The Incident
+
+On 2026-01-16, the agent presented a backtest showing 100% WR when live reality showed 25% WR. This was caused by:
+
+1. Using STALE debug logs from Dec 2025 (not current data)
+2. Synthetic entry prices (all 0.50) that don't reflect reality
+3. Not cross-checking against LIVE rolling accuracy
+
+### MANDATORY VERIFICATION RULES
+
+| Rule | Enforcement |
+|------|-------------|
+| **NEVER trust local debug logs** | They are STALE. Always check file dates first. |
+| **ALWAYS verify with LIVE data** | Query `/api/health` for rolling accuracy BEFORE presenting any WR stats |
+| **CROSS-CHECK all claims** | If backtest says X but live says Y, REPORT THE DISCREPANCY |
+| **DATA SOURCE TRANSPARENCY** | State WHERE your data comes from (live API, local file, code analysis) |
+| **ENTRY PRICE SANITY CHECK** | If all entry prices are identical (e.g., 0.50), data is SYNTHETIC - flag it |
+| **RECENCY CHECK** | Check timestamps on all data sources. Anything >24h old must be flagged |
+
+### What Counts as HALLUCINATION
+
+1. ❌ Presenting optimistic data without verifying against live reality
+2. ❌ Using stale debug logs without disclosing their age
+3. ❌ Claiming 100% WR when live rolling accuracy shows otherwise
+4. ❌ Not flagging synthetic/fallback data
+5. ❌ Giving trading advice based on unverified backtests
+
+### Required Statement
+
+If presenting ANY performance data, include:
+
+```
+⚠️ DATA SOURCE: [Live API / Local Debug File dated X / Code Analysis]
+⚠️ LIVE ROLLING ACCURACY: BTC=X%, ETH=Y%, XRP=Z%, SOL=W%
+⚠️ DISCREPANCIES: [None / Describe any mismatch]
+```
+
+---
+
 ## 🚨 MANDATORY: READ README.md FIRST
 
 **BEFORE DOING ANYTHING**: Read `README.md` from line 1 to the end. Every. Single. Character.
@@ -22,7 +86,7 @@ description: A high-precision implementation mode for the Claude-type AI to exec
 | ❌ **NO HALLUCINATING** | If data doesn't exist, say "I don't know" |
 | ❌ **NO ASSUMING** | Verify with data, code, or backtest |
 | ✅ **ASK QUESTIONS** | When not 100% certain, ask user or research |
-| ✅ **BACKTEST REQUIRED** | Before approving any fix, run backtest |
+| ✅ **LIVE DATA FIRST** | Always query live API before presenting stats |
 | ✅ **VERIFY TWICE** | Check before AND after every change |
 | ✅ **WORST VARIANCE** | Always assume worst possible variance in calculations |
 
@@ -40,9 +104,9 @@ description: A high-precision implementation mode for the Claude-type AI to exec
 
 | Metric | Target | Your Job |
 |--------|--------|----------|
-| Win Rate | ≥90% | VERIFY via backtest |
+| Win Rate | ≥90% | VERIFY via **LIVE** rolling accuracy |
 | ROI/Trade | 50-100% | Verify config allows |
-| Frequency | ~1 trade/hour | Check backtest output |
+| Frequency | ~1 trade/hour | Check live data |
 | First Trades | CANNOT LOSE | Triple-check before deploy |
 
 ### From User's Risk Tables (90% WR, 50% ROI, 80% sizing)
@@ -88,8 +152,8 @@ description: A high-precision implementation mode for the Claude-type AI to exec
 | Syntax | `node --check server.js` | After every edit |
 | Values | `grep -n "CONFIG.ORACLE.maxOdds" server.js` | After config changes |
 | Deploy | `git push origin main` | After verification passes |
-| Live | Browser to `/api/health` | After deploy |
-| Backtest | `/api/backtest-polymarket?hours=24` | After any logic change |
+| **LIVE** | Query `/api/health` | After deploy |
+| **LIVE WR** | Check `rollingAccuracy` in health | Before presenting any stats |
 
 ---
 
@@ -109,9 +173,8 @@ git push origin main
 
 | Endpoint | What to Check |
 |----------|---------------|
-| `/api/health` | status=ok, configVersion |
-| `/api/state` | Config values match plan |
-| `/api/backtest-polymarket?hours=24` | Win rate, trade count |
+| `/api/health` | status=ok, configVersion, **rollingAccuracy** |
+| `/api/state-public` | Config values match plan |
 
 ### Step 4: Report to User
 
@@ -119,12 +182,12 @@ Include:
 
 1. ✅ Deployment Status
 2. 📊 Health Check Result
-3. 🧪 Backtest Results (Win Rate, Trades)
+3. 🎯 **LIVE Rolling Accuracy** (not backtest)
 4. ⚠️ Any Issues Found
 
 ---
 
-## 📡 LIVE SERVER MONITORING
+## 📡 LIVE SERVER MONITORING (ALWAYS USE LIVE DATA)
 
 **Production URL**: `https://polyprophet.onrender.com`
 
@@ -133,13 +196,13 @@ Include:
 1. ✅ `/api/health` returns status ok or degraded (acceptable)
 2. ✅ `configVersion` matches expected
 3. ✅ Key config values match plan
-4. ✅ Backtest shows ≥90% WR (or explain why not)
+4. ✅ **rollingAccuracy** shows actual live WR (DO NOT USE BACKTEST ALONE)
 
 ### Proactive Monitoring
 
 When asked to monitor:
 
-1. Query multiple endpoints
+1. Query **LIVE** endpoints first
 2. Compare to expected behavior
 3. Report ANY discrepancies
 4. Fix if authorized, or document for ULTRATHINK
@@ -159,7 +222,7 @@ When asked to monitor:
 Ask yourself:
 
 - "Did all changes apply correctly?"
-- "Does backtest show ≥90% WR?"
+- "Does **LIVE** rolling accuracy show ≥90% WR?"
 - "Is README still accurate?"
 - "Would I bet MY $1 on this?"
 
@@ -177,5 +240,16 @@ Ask yourself:
 **CRITICAL**: At end of work, update README with:
 
 - Changes made
-- Test results (ACTUAL numbers, not assumptions)
+- Test results (**LIVE** rolling accuracy, not just backtest)
 - Outstanding issues
+
+---
+
+## 🚨 LESSONS LEARNED LOG
+
+### 2026-01-16: The Hallucination Incident
+
+- **What happened**: Agent presented 100% WR backtest; live reality was 25% WR
+- **Root cause**: Used stale Dec 2025 debug logs, didn't verify against live rolling accuracy
+- **Fix implemented**: Anti-hallucination rules added, mandatory brief, live data requirement
+- **Prevention**: Never trust local data without live cross-check. Always include DATA SOURCE statement.

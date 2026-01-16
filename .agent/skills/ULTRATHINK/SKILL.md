@@ -7,6 +7,70 @@ description: A deep analysis mode for the Google AI (Gemini) to fully deconstruc
 
 > "Digging to the earth's core, analyzing every atom."
 
+---
+
+## 📋 MANDATORY RESPONSE BRIEF (EVERY SINGLE RESPONSE)
+
+**BEFORE WRITING ANY RESPONSE, YOU MUST:**
+
+1. **Read ALL skills files** (ULTRATHINK + EXECUTION)
+2. **Read README.md** fully
+3. **Start your response with a BRIEF** in this exact format:
+
+```
+## 📋 BRIEF
+**Task**: [What the user asked]
+**Approach**: [How you will accomplish it]  
+**Data Sources**: [LIVE API / Debug Logs / Code Analysis - specify which]
+**Risks**: [What could go wrong or mislead]
+**Confidence**: [HIGH/MEDIUM/LOW with justification]
+```
+
+> ⚠️ **IF YOU SKIP THE BRIEF, YOU ARE VIOLATING PROTOCOL.**
+
+---
+
+## 🚨 ANTI-HALLUCINATION RULES (CRITICAL - ADDED 2026-01-16)
+
+### The Incident
+
+On 2026-01-16, the agent presented a backtest showing 100% WR when live reality showed 25% WR. This was caused by:
+
+1. Using STALE debug logs from Dec 2025 (not current data)
+2. Synthetic entry prices (all 0.50) that don't reflect reality
+3. Not cross-checking against LIVE rolling accuracy
+
+### MANDATORY VERIFICATION RULES
+
+| Rule | Enforcement |
+|------|-------------|
+| **NEVER trust local debug logs** | They are STALE. Always check file dates first. |
+| **ALWAYS verify with LIVE data** | Query `/api/health` for rolling accuracy BEFORE presenting any WR stats |
+| **CROSS-CHECK all claims** | If backtest says X but live says Y, REPORT THE DISCREPANCY |
+| **DATA SOURCE TRANSPARENCY** | State WHERE your data comes from (live API, local file, code analysis) |
+| **ENTRY PRICE SANITY CHECK** | If all entry prices are identical (e.g., 0.50), data is SYNTHETIC - flag it |
+| **RECENCY CHECK** | Check timestamps on all data sources. Anything >24h old must be flagged |
+
+### What Counts as HALLUCINATION
+
+1. ❌ Presenting optimistic data without verifying against live reality
+2. ❌ Using stale debug logs without disclosing their age
+3. ❌ Claiming 100% WR when live rolling accuracy shows otherwise
+4. ❌ Not flagging synthetic/fallback data
+5. ❌ Giving trading advice based on unverified backtests
+
+### Required Statement
+
+If presenting ANY performance data, include:
+
+```
+⚠️ DATA SOURCE: [Live API / Local Debug File dated X / Code Analysis]
+⚠️ LIVE ROLLING ACCURACY: BTC=X%, ETH=Y%, XRP=Z%, SOL=W%
+⚠️ DISCREPANCIES: [None / Describe any mismatch]
+```
+
+---
+
 ## 🚨 MANDATORY: READ README.md FIRST
 
 **BEFORE DOING ANYTHING**: Read `README.md` from line 1 to the end. Every. Single. Character.
@@ -40,7 +104,7 @@ description: A deep analysis mode for the Google AI (Gemini) to fully deconstruc
 
 | Metric | Target | Current Status |
 |--------|--------|----------------|
-| Win Rate | ≥90% | CHECK BACKTEST |
+| Win Rate | ≥90% | CHECK **LIVE** ROLLING ACCURACY |
 | ROI/Trade | 50-100% | Depends on entry price |
 | Frequency | ~1 trade/hour | CURRENTLY FAILING |
 | First Trades | CANNOT LOSE | Must verify before user trades |
@@ -82,18 +146,18 @@ For every feature or bug, ask:
 - "Is this truly the best way?"
 - "What are the edge cases?"
 - "Does this align with the $1M goal?"
-- "What does the BACKTEST data say?" (not assumption)
+- "What does the **LIVE** data say?" (not stale debug logs)
 - "What if worst variance happens?"
 
 ### 3. Deliverables
 
 - **Implementation Plan**: Detailed, architected changes with line numbers
 - **README Updates**: Document ALL discoveries, even if negative
-- **Backtest Proof**: Run `/api/backtest-polymarket` before approval
+- **LIVE Verification**: Query rolling accuracy BEFORE presenting any stats
 
 ---
 
-## 📡 LIVE SERVER MONITORING
+## 📡 LIVE SERVER MONITORING (ALWAYS USE LIVE DATA)
 
 **Production URL**: `https://polyprophet.onrender.com`
 
@@ -101,18 +165,17 @@ For every feature or bug, ask:
 
 | Endpoint | What to Look For |
 |----------|-----------------|
-| `/api/health` | Status, configVersion, errors |
-| `/api/state` | Predictions, locks, confidence, pWin |
+| `/api/health` | Status, configVersion, **rollingAccuracy** |
+| `/api/state-public` | Predictions, locks, confidence, pWin |
 | `/api/backtest-polymarket?hours=24` | Win rate, trade count, profitability |
 | `/api/perfection-check` | Failing invariants |
 
 ### Investigation Workflow
 
-1. **Query** endpoint using browser_subagent
-2. **Analyze** response for anomalies
+1. **Query LIVE endpoint** first (not local files)
+2. **Compare** to any local data - flag discrepancies
 3. **Document** in README OPEN ISSUES
-4. **Propose** fix in implementation_plan.md
-5. **BACKTEST** before handing to EXECUTION
+4. **NEVER present local backtest results without live cross-check**
 
 ---
 
@@ -121,9 +184,9 @@ For every feature or bug, ask:
 ### Every Conversation Start
 
 1. Read README fully
-2. Check OPEN ISSUES section
-3. Query `/api/health` for current state
-4. Propose or ask: "What are we focusing on today?"
+2. Read ALL skills files
+3. Query `/api/health` for current state (LIVE DATA)
+4. Start response with BRIEF
 
 ### Every Conversation End
 
@@ -132,6 +195,7 @@ For every feature or bug, ask:
 - What was discovered
 - What was decided
 - What is STILL PENDING
+- Any discrepancies between expected and actual performance
 
 ---
 
@@ -145,3 +209,14 @@ For every feature or bug, ask:
 | `.agent/skills/*.md` | Agent behavior rules |
 
 **Rule**: Important = goes in README. Temporary = goes in plan.
+
+---
+
+## 🚨 LESSONS LEARNED LOG
+
+### 2026-01-16: The Hallucination Incident
+
+- **What happened**: Agent presented 100% WR backtest; live reality was 25% WR
+- **Root cause**: Used stale Dec 2025 debug logs, didn't verify against live rolling accuracy
+- **Fix implemented**: Anti-hallucination rules added, mandatory brief, live data requirement
+- **Prevention**: Never trust local data without live cross-check. Always include DATA SOURCE statement.
