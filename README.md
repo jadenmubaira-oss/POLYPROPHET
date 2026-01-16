@@ -205,7 +205,7 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > | v134.8 | SOL-ONLY GOLDEN ZONE — minOdds=0.60, maxOdds=0.75, BTC/ETH disabled |
 > | v134.9 | All assets re-enabled for notifications (user manually filters SOL) |
 > | v135.0 | ANTI-FLIP-FLOP OVERHAUL — Tier hysteresis (10% buffer) + Spread Gate for signals |
-> | **v135.1** | **ZOMBIE CONVICTION FIX** — Hard 70% confidence floor + warmup reset to kill cross-cycle state leakage |
+> | **v135.2** | **ACTIVE ZOMBIE KILL** — Hard 70% confidence floor + FORCE UNLOCK (shatters oracleLocked/convictionLocked) |
 >
 > ### How To Use v134.1
 >
