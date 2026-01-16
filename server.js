@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 135.1;  // v135.1: Zombie Conviction Fix - hard 70% confidence floor + cycle-reset detection
+const CONFIG_VERSION = 135.2;  // v135.2: Active Zombie Kill - FORCE UNLOCK (oracleLocked + convictionLocked) if conf < 70%
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
