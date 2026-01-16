@@ -18665,12 +18665,15 @@ class SupremeBrain {
                 if (finalConfidence > (advisoryThreshold - 0.03)) newTier = 'ADVISORY'; // Hold tier
             }
 
-            // 🏆 v135.1 ZOMBIE CONVICTION FIX: Hard confidence floor (70%) forces tier to NONE
+            // 🏆 v135.2 ZOMBIE CONVICTION FIX: Hard confidence floor (70%) forces tier to NONE
             // This prevents zombie tier states from persisting across cycle boundaries
             if (finalConfidence < 0.70) {
                 newTier = 'NONE';
-                if (this.tier === 'CONVICTION') {
-                    log(`🧟 ZOMBIE KILL: Confidence ${(finalConfidence * 100).toFixed(1)}% < 70% floor → CONVICTION → NONE`, this.asset);
+                if (this.tier === 'CONVICTION' || this.oracleLocked || this.convictionLocked) {
+                    log(`🧟 ZOMBIE KILL: Confidence ${(finalConfidence * 100).toFixed(1)}% < 70% floor → FORCE UNLOCK`, this.asset);
+                    // CRITICAL: We must shatter the lock if confidence collapses (e.g. market inversion or cycle zombie)
+                    this.oracleLocked = false;
+                    this.convictionLocked = false;
                 }
             }
 
