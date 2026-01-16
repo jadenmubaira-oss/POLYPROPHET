@@ -17967,6 +17967,15 @@ class SupremeBrain {
                     this.lastWarmupLogSig = sig;
                     this.lastWarmupLogAt = nowMs;
                 }
+                // 🏆 v135.1 ZOMBIE PREVENTION: Reset tier/lock during warmup to prevent stale state
+                if (this.tier === 'CONVICTION' || this.oracleLocked || this.convictionLocked) {
+                    log(`🧟 WARMUP RESET: Clearing stale ${this.tier} tier (oracleLocked=${this.oracleLocked}, convictionLocked=${this.convictionLocked})`, this.asset);
+                    this.tier = 'NONE';
+                    this.oracleLocked = false;
+                    this.convictionLocked = false;
+                    this.lockedDirection = null;
+                    this.confidence = 0;
+                }
                 this.isProcessing = false;
                 return;
             }
