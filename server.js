@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 134.9;  // v134.9: All assets enabled for notifications (user manually filters SOL)
+const CONFIG_VERSION = 135.0;  // v135.0: Anti-flip-flop overhaul - tier hysteresis (10% buffer) + spread gate for signals
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -18550,9 +18550,29 @@ class SupremeBrain {
                 finalConfidence = (finalConfidence * 0.80) + (this.confidence * 0.20);
             }
 
-            // 🏆 v122: CONVICTION = Practically Certain (pWin≥95% + locked + high confidence + all factors)
+            // 🏆 v135.0: CONVICTION = Practically Certain (pWin≥95% + locked + high confidence + all factors)
             // Determine tier with HYSTERESIS (prevent flickering)
             let newTier = 'NONE';
+
+            // 🏆 v135.0: SPREAD GATE FOR SIGNALS - If spread is too wide, cap tier at ADVISORY
+            // This prevents confident signals during liquidity voids / manipulation
+            const SIGNAL_SPREAD_MAX = 0.05;  // 5% max spread for confident signals
+            let spreadVoidActive = false;
+            const mktSpread = currentMarkets[this.asset];
+            if (mktSpread && mktSpread.yesPrice && mktSpread.noPrice) {
+                const spread = Math.abs(1 - (mktSpread.yesPrice + mktSpread.noPrice));
+                if (spread > SIGNAL_SPREAD_MAX) {
+                    spreadVoidActive = true;
+                    this.spreadVoid = true;
+                    if (!this.spreadVoidLogged) {
+                        log(`💧 SPREAD VOID: ${(spread * 100).toFixed(1)}% spread → Signals capped at ADVISORY`, this.asset);
+                        this.spreadVoidLogged = true;
+                    }
+                } else {
+                    this.spreadVoid = false;
+                    this.spreadVoidLogged = false;
+                }
+            }
 
             // Compute preliminary pWin for CONVICTION requirements check
             const s = this.stats || {};
@@ -18592,17 +18612,28 @@ class SupremeBrain {
                         preliminaryPWin >= 0.80 ? 'MODERATE' :
                             preliminaryPWin >= 0.70 ? 'LOW' : 'VERY_LOW';
 
-            // 🏆 v122: CONVICTION requires ALL factors (practically certain)
+            // 🏆 v135.0 CONVICTION ENTRY: Strict requirements (95% pWin, 90% confidence)
             const isLocked = this.oracleLocked || this.convictionLocked;
-            const meetsConvictionRequirements =
+            const meetsConvictionEntry =
                 finalConfidence >= 0.90 &&  // High confidence (90%+)
                 isLocked === true &&         // Locked calibration (oracle or conviction locked)
                 Number.isFinite(preliminaryPWin) && preliminaryPWin >= 0.95 &&  // pWin ≥ 95%
                 (pWinConfidence === 'VERY_HIGH' || pWinConfidence === 'HIGH') &&  // High pWin confidence
-                calibrationSampleSize >= 20;  // Sufficient samples
+                calibrationSampleSize >= 20 &&  // Sufficient samples
+                !spreadVoidActive;  // NOT in spread void
 
-            if (meetsConvictionRequirements) {
-                newTier = 'CONVICTION';
+            // 🏆 v135.0 CONVICTION HOLD: Lenient requirements (85% pWin, 80% confidence) - 10% buffer
+            // Once CONVICTION, stay until BELOW this threshold (prevents flickering)
+            const meetsConvictionHold =
+                finalConfidence >= 0.80 &&  // 10% lower than entry threshold
+                Number.isFinite(preliminaryPWin) && preliminaryPWin >= 0.85 &&  // 10% lower than entry
+                !spreadVoidActive;  // NOT in spread void
+
+            // 🏆 v135.0 HYSTERESIS: If already CONVICTION, only drop if BELOW hold threshold
+            if (this.tier === 'CONVICTION' && meetsConvictionHold) {
+                newTier = 'CONVICTION';  // HOLD tier (10% buffer)
+            } else if (meetsConvictionEntry) {
+                newTier = 'CONVICTION';  // ENTER tier (strict)
             } else if (finalConfidence >= advisoryThreshold) {
                 newTier = 'ADVISORY';
             }
