@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 135.2;  // v135.2: Active Zombie Kill - FORCE UNLOCK (oracleLocked + convictionLocked) if conf < 70%
+const CONFIG_VERSION = 135.3;  // v135.3: Emergency disable at n>=3/40% + Live WR Gate blocks CONVICTION if WR<70%
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -14892,6 +14892,15 @@ class TradeExecutor {
                     const total = brain.rollingConviction.length;
                     const rollingWR = total > 0 ? (wins / total) : 1;
 
+                    // 🚨 v135.3 EMERGENCY DISABLE: Trigger at n>=3 if WR < 40% (catches toxic assets faster)
+                    // This was added after XRP showed 25% WR with n=4 but wasn't auto-disabled
+                    if (total >= 3 && rollingWR < 0.40 && !brain.autoDisabled) {
+                        log(`🚨 EMERGENCY DISABLE: ${pos.asset} WR ${(rollingWR * 100).toFixed(1)}% < 40% (n=${total}) - TOXIC ASSET DETECTED`, pos.asset);
+                        brain.autoDisabled = true;
+                        brain.autoDisabledAt = Date.now();
+                        brain.driftWarning = true;
+                    }
+
                     if (total >= 20) {
                         if (rollingWR < 0.70) {
                             if (!brain.driftWarning) {
@@ -18623,13 +18632,27 @@ class SupremeBrain {
 
             // 🏆 v135.0 CONVICTION ENTRY: Strict requirements (95% pWin, 90% confidence)
             const isLocked = this.oracleLocked || this.convictionLocked;
+
+            // 🚨 v135.3 LIVE WR GATE: Block CONVICTION entry if rolling WR is too low
+            // This was added after XRP (25% WR) and SOL (0% WR) kept losing CONVICTION trades
+            const rollingConvictionData = this.rollingConviction || [];
+            const rollingTotal = rollingConvictionData.length;
+            const rollingWins = rollingConvictionData.filter(r => r.wasCorrect).length;
+            const liveRollingWR = rollingTotal >= 3 ? (rollingWins / rollingTotal) : 1.0;
+            const meetsLiveWRGate = liveRollingWR >= 0.70 || rollingTotal < 3; // Pass if WR >= 70% OR insufficient data
+
+            if (!meetsLiveWRGate && finalConfidence >= 0.90) {
+                log(`🚫 LIVE WR GATE: ${this.asset} blocked from CONVICTION - rolling WR ${(liveRollingWR * 100).toFixed(1)}% < 70% (n=${rollingTotal})`, this.asset);
+            }
+
             const meetsConvictionEntry =
                 finalConfidence >= 0.90 &&  // High confidence (90%+)
                 isLocked === true &&         // Locked calibration (oracle or conviction locked)
                 Number.isFinite(preliminaryPWin) && preliminaryPWin >= 0.95 &&  // pWin ≥ 95%
                 (pWinConfidence === 'VERY_HIGH' || pWinConfidence === 'HIGH') &&  // High pWin confidence
                 calibrationSampleSize >= 20 &&  // Sufficient samples
-                !spreadVoidActive;  // NOT in spread void
+                !spreadVoidActive &&  // NOT in spread void
+                meetsLiveWRGate;  // 🚨 v135.3: Pass live WR check
 
             // 🏆 v135.0 CONVICTION HOLD: Lenient requirements (85% pWin, 80% confidence) - 10% buffer
             // Once CONVICTION, stay until BELOW this threshold (prevents flickering)

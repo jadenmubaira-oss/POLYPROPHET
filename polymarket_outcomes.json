@@ -1,0 +1,1658 @@
+[
+  {
+    "epoch": 1768585500,
+    "time": "2026-01-16T17:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768585500",
+    "outcome": "UP",
+    "volume": 263440.023059,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768585500,
+    "time": "2026-01-16T17:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768585500",
+    "outcome": "UP",
+    "volume": 183755.523185,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768585500,
+    "time": "2026-01-16T17:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768585500",
+    "outcome": "UP",
+    "volume": 19254.386831,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768584600,
+    "time": "2026-01-16T17:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768584600",
+    "outcome": "UP",
+    "volume": 240406.417017,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768584600,
+    "time": "2026-01-16T17:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768584600",
+    "outcome": "UP",
+    "volume": 342108.188703,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768584600,
+    "time": "2026-01-16T17:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768584600",
+    "outcome": "UP",
+    "volume": 14507.70031,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768583700,
+    "time": "2026-01-16T17:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768583700",
+    "outcome": "DOWN",
+    "volume": 206741.726324,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768583700,
+    "time": "2026-01-16T17:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768583700",
+    "outcome": "DOWN",
+    "volume": 650205.960315,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768583700,
+    "time": "2026-01-16T17:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768583700",
+    "outcome": "UP",
+    "volume": 20963.923206,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768582800,
+    "time": "2026-01-16T17:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768582800",
+    "outcome": "DOWN",
+    "volume": 202826.862462,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768582800,
+    "time": "2026-01-16T17:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768582800",
+    "outcome": "DOWN",
+    "volume": 239800.551936,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768582800,
+    "time": "2026-01-16T17:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768582800",
+    "outcome": "DOWN",
+    "volume": 11191.064269,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768581900,
+    "time": "2026-01-16T16:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768581900",
+    "outcome": "DOWN",
+    "volume": 288445.865936,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768581900,
+    "time": "2026-01-16T16:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768581900",
+    "outcome": "DOWN",
+    "volume": 252357.406086,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768581900,
+    "time": "2026-01-16T16:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768581900",
+    "outcome": "UP",
+    "volume": 21130.159179,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768581000,
+    "time": "2026-01-16T16:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768581000",
+    "outcome": "UP",
+    "volume": 269372.773122,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768581000,
+    "time": "2026-01-16T16:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768581000",
+    "outcome": "UP",
+    "volume": 244475.649164,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768581000,
+    "time": "2026-01-16T16:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768581000",
+    "outcome": "UP",
+    "volume": 11083.3124,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768580100,
+    "time": "2026-01-16T16:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768580100",
+    "outcome": "UP",
+    "volume": 240572.669852,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768580100,
+    "time": "2026-01-16T16:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768580100",
+    "outcome": "UP",
+    "volume": 257520.880879,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768580100,
+    "time": "2026-01-16T16:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768580100",
+    "outcome": "UP",
+    "volume": 12378.385795,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768579200,
+    "time": "2026-01-16T16:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768579200",
+    "outcome": "UP",
+    "volume": 217100.677206,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768579200,
+    "time": "2026-01-16T16:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768579200",
+    "outcome": "UP",
+    "volume": 55115.454922,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768579200,
+    "time": "2026-01-16T16:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768579200",
+    "outcome": "UP",
+    "volume": 12295.237911,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768578300,
+    "time": "2026-01-16T15:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768578300",
+    "outcome": "UP",
+    "volume": 316473.901588,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768578300,
+    "time": "2026-01-16T15:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768578300",
+    "outcome": "DOWN",
+    "volume": 100520.97046,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768578300,
+    "time": "2026-01-16T15:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768578300",
+    "outcome": "DOWN",
+    "volume": 15814.013541,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768577400,
+    "time": "2026-01-16T15:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768577400",
+    "outcome": "DOWN",
+    "volume": 330482.569437,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768577400,
+    "time": "2026-01-16T15:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768577400",
+    "outcome": "DOWN",
+    "volume": 75859.325912,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768577400,
+    "time": "2026-01-16T15:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768577400",
+    "outcome": "DOWN",
+    "volume": 16648.373264,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768576500,
+    "time": "2026-01-16T15:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768576500",
+    "outcome": "DOWN",
+    "volume": 186466.975029,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768576500,
+    "time": "2026-01-16T15:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768576500",
+    "outcome": "DOWN",
+    "volume": 268084.837232,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768576500,
+    "time": "2026-01-16T15:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768576500",
+    "outcome": "DOWN",
+    "volume": 10999.666712,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768575600,
+    "time": "2026-01-16T15:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768575600",
+    "outcome": "UP",
+    "volume": 232455.246181,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768575600,
+    "time": "2026-01-16T15:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768575600",
+    "outcome": "UP",
+    "volume": 71715.454638,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768575600,
+    "time": "2026-01-16T15:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768575600",
+    "outcome": "UP",
+    "volume": 12943.239216,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768574700,
+    "time": "2026-01-16T14:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768574700",
+    "outcome": "DOWN",
+    "volume": 311630.367348,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768574700,
+    "time": "2026-01-16T14:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768574700",
+    "outcome": "DOWN",
+    "volume": 95335.126572,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768574700,
+    "time": "2026-01-16T14:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768574700",
+    "outcome": "DOWN",
+    "volume": 19025.275571,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768573800,
+    "time": "2026-01-16T14:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768573800",
+    "outcome": "DOWN",
+    "volume": 315736.480253,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768573800,
+    "time": "2026-01-16T14:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768573800",
+    "outcome": "DOWN",
+    "volume": 79576.516024,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768573800,
+    "time": "2026-01-16T14:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768573800",
+    "outcome": "DOWN",
+    "volume": 23312.977968,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768572900,
+    "time": "2026-01-16T14:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768572900",
+    "outcome": "UP",
+    "volume": 298740.553182,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768572900,
+    "time": "2026-01-16T14:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768572900",
+    "outcome": "UP",
+    "volume": 51618.558303,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768572900,
+    "time": "2026-01-16T14:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768572900",
+    "outcome": "UP",
+    "volume": 16204.067542,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768572000,
+    "time": "2026-01-16T14:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768572000",
+    "outcome": "DOWN",
+    "volume": 333540.197967,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768572000,
+    "time": "2026-01-16T14:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768572000",
+    "outcome": "DOWN",
+    "volume": 68158.515797,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768572000,
+    "time": "2026-01-16T14:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768572000",
+    "outcome": "DOWN",
+    "volume": 12572.922102,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768571100,
+    "time": "2026-01-16T13:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768571100",
+    "outcome": "UP",
+    "volume": 270837.317742,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768571100,
+    "time": "2026-01-16T13:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768571100",
+    "outcome": "UP",
+    "volume": 42491.340833,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768571100,
+    "time": "2026-01-16T13:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768571100",
+    "outcome": "UP",
+    "volume": 12426.569123,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768570200,
+    "time": "2026-01-16T13:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768570200",
+    "outcome": "DOWN",
+    "volume": 249350.546003,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768570200,
+    "time": "2026-01-16T13:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768570200",
+    "outcome": "DOWN",
+    "volume": 37617.027947,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768570200,
+    "time": "2026-01-16T13:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768570200",
+    "outcome": "DOWN",
+    "volume": 10556.72199,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768569300,
+    "time": "2026-01-16T13:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768569300",
+    "outcome": "UP",
+    "volume": 297057.856679,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768569300,
+    "time": "2026-01-16T13:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768569300",
+    "outcome": "DOWN",
+    "volume": 57980.965367,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768569300,
+    "time": "2026-01-16T13:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768569300",
+    "outcome": "DOWN",
+    "volume": 14741.050653,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768568400,
+    "time": "2026-01-16T13:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768568400",
+    "outcome": "UP",
+    "volume": 259972.693731,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768568400,
+    "time": "2026-01-16T13:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768568400",
+    "outcome": "UP",
+    "volume": 63765.076085,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768568400,
+    "time": "2026-01-16T13:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768568400",
+    "outcome": "DOWN",
+    "volume": 12972.53007,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768567500,
+    "time": "2026-01-16T12:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768567500",
+    "outcome": "DOWN",
+    "volume": 160549.176286,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768567500,
+    "time": "2026-01-16T12:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768567500",
+    "outcome": "DOWN",
+    "volume": 35628.907076,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768567500,
+    "time": "2026-01-16T12:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768567500",
+    "outcome": "DOWN",
+    "volume": 9714.492667,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768566600,
+    "time": "2026-01-16T12:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768566600",
+    "outcome": "DOWN",
+    "volume": 188307.588948,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768566600,
+    "time": "2026-01-16T12:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768566600",
+    "outcome": "UP",
+    "volume": 61633.73922,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768566600,
+    "time": "2026-01-16T12:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768566600",
+    "outcome": "DOWN",
+    "volume": 16063.337616,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768565700,
+    "time": "2026-01-16T12:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768565700",
+    "outcome": "UP",
+    "volume": 207246.784124,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768565700,
+    "time": "2026-01-16T12:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768565700",
+    "outcome": "UP",
+    "volume": 39485.316157,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768565700,
+    "time": "2026-01-16T12:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768565700",
+    "outcome": "UP",
+    "volume": 20493.796215,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768564800,
+    "time": "2026-01-16T12:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768564800",
+    "outcome": "UP",
+    "volume": 142238.289123,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768564800,
+    "time": "2026-01-16T12:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768564800",
+    "outcome": "UP",
+    "volume": 48711.071014,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768564800,
+    "time": "2026-01-16T12:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768564800",
+    "outcome": "UP",
+    "volume": 12021.632157,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768563900,
+    "time": "2026-01-16T11:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768563900",
+    "outcome": "UP",
+    "volume": 187785.291614,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768563900,
+    "time": "2026-01-16T11:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768563900",
+    "outcome": "UP",
+    "volume": 46084.676915,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768563900,
+    "time": "2026-01-16T11:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768563900",
+    "outcome": "UP",
+    "volume": 8751.320456,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768563000,
+    "time": "2026-01-16T11:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768563000",
+    "outcome": "DOWN",
+    "volume": 198307.667917,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768563000,
+    "time": "2026-01-16T11:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768563000",
+    "outcome": "DOWN",
+    "volume": 47809.702339,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768563000,
+    "time": "2026-01-16T11:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768563000",
+    "outcome": "DOWN",
+    "volume": 12090.924391,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768562100,
+    "time": "2026-01-16T11:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768562100",
+    "outcome": "UP",
+    "volume": 242258.504399,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768562100,
+    "time": "2026-01-16T11:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768562100",
+    "outcome": "UP",
+    "volume": 53118.006754,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768562100,
+    "time": "2026-01-16T11:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768562100",
+    "outcome": "UP",
+    "volume": 15036.4156,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768561200,
+    "time": "2026-01-16T11:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768561200",
+    "outcome": "UP",
+    "volume": 283385.531012,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768561200,
+    "time": "2026-01-16T11:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768561200",
+    "outcome": "UP",
+    "volume": 306819.333689,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768561200,
+    "time": "2026-01-16T11:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768561200",
+    "outcome": "DOWN",
+    "volume": 19639.958081,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768560300,
+    "time": "2026-01-16T10:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768560300",
+    "outcome": "DOWN",
+    "volume": 262059.229207,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768560300,
+    "time": "2026-01-16T10:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768560300",
+    "outcome": "DOWN",
+    "volume": 146534.33077,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768560300,
+    "time": "2026-01-16T10:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768560300",
+    "outcome": "UP",
+    "volume": 14244.855129,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768559400,
+    "time": "2026-01-16T10:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768559400",
+    "outcome": "DOWN",
+    "volume": 207118.288489,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768559400,
+    "time": "2026-01-16T10:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768559400",
+    "outcome": "DOWN",
+    "volume": 570170.286808,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768559400,
+    "time": "2026-01-16T10:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768559400",
+    "outcome": "DOWN",
+    "volume": 10702.608259,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768558500,
+    "time": "2026-01-16T10:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768558500",
+    "outcome": "DOWN",
+    "volume": 148006.460194,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768558500,
+    "time": "2026-01-16T10:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768558500",
+    "outcome": "DOWN",
+    "volume": 59161.143901,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768558500,
+    "time": "2026-01-16T10:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768558500",
+    "outcome": "DOWN",
+    "volume": 16136.192528,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768557600,
+    "time": "2026-01-16T10:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768557600",
+    "outcome": "DOWN",
+    "volume": 161405.123131,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768557600,
+    "time": "2026-01-16T10:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768557600",
+    "outcome": "DOWN",
+    "volume": 78646.65314,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768557600,
+    "time": "2026-01-16T10:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768557600",
+    "outcome": "UP",
+    "volume": 10696.530128,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768556700,
+    "time": "2026-01-16T09:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768556700",
+    "outcome": "DOWN",
+    "volume": 181577.468146,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768556700,
+    "time": "2026-01-16T09:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768556700",
+    "outcome": "DOWN",
+    "volume": 319410.222565,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768556700,
+    "time": "2026-01-16T09:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768556700",
+    "outcome": "DOWN",
+    "volume": 17418.258242,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768555800,
+    "time": "2026-01-16T09:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768555800",
+    "outcome": "DOWN",
+    "volume": 108937.191885,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768555800,
+    "time": "2026-01-16T09:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768555800",
+    "outcome": "DOWN",
+    "volume": 146719.965117,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768555800,
+    "time": "2026-01-16T09:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768555800",
+    "outcome": "UP",
+    "volume": 15544.239456,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768554900,
+    "time": "2026-01-16T09:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768554900",
+    "outcome": "UP",
+    "volume": 222264.733006,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768554900,
+    "time": "2026-01-16T09:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768554900",
+    "outcome": "DOWN",
+    "volume": 390376.518732,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768554900,
+    "time": "2026-01-16T09:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768554900",
+    "outcome": "DOWN",
+    "volume": 14696.105374,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768554000,
+    "time": "2026-01-16T09:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768554000",
+    "outcome": "UP",
+    "volume": 240090.905807,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768554000,
+    "time": "2026-01-16T09:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768554000",
+    "outcome": "DOWN",
+    "volume": 69294.467297,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768554000,
+    "time": "2026-01-16T09:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768554000",
+    "outcome": "UP",
+    "volume": 15054.310552,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768553100,
+    "time": "2026-01-16T08:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768553100",
+    "outcome": "DOWN",
+    "volume": 151367.134829,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768553100,
+    "time": "2026-01-16T08:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768553100",
+    "outcome": "DOWN",
+    "volume": 44128.736936,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768553100,
+    "time": "2026-01-16T08:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768553100",
+    "outcome": "DOWN",
+    "volume": 13625.42979,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768552200,
+    "time": "2026-01-16T08:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768552200",
+    "outcome": "DOWN",
+    "volume": 227410.938845,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768552200,
+    "time": "2026-01-16T08:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768552200",
+    "outcome": "DOWN",
+    "volume": 95656.261918,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768552200,
+    "time": "2026-01-16T08:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768552200",
+    "outcome": "DOWN",
+    "volume": 13014.445963,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768551300,
+    "time": "2026-01-16T08:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768551300",
+    "outcome": "UP",
+    "volume": 176686.716716,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768551300,
+    "time": "2026-01-16T08:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768551300",
+    "outcome": "DOWN",
+    "volume": 54146.308444,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768551300,
+    "time": "2026-01-16T08:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768551300",
+    "outcome": "UP",
+    "volume": 15185.485529,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768550400,
+    "time": "2026-01-16T08:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768550400",
+    "outcome": "UP",
+    "volume": 183646.754475,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768550400,
+    "time": "2026-01-16T08:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768550400",
+    "outcome": "UP",
+    "volume": 48001.186221,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768550400,
+    "time": "2026-01-16T08:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768550400",
+    "outcome": "UP",
+    "volume": 11805.698656,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768549500,
+    "time": "2026-01-16T07:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768549500",
+    "outcome": "UP",
+    "volume": 115982.414894,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768549500,
+    "time": "2026-01-16T07:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768549500",
+    "outcome": "UP",
+    "volume": 28956.594945,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768549500,
+    "time": "2026-01-16T07:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768549500",
+    "outcome": "UP",
+    "volume": 13523.761699,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768548600,
+    "time": "2026-01-16T07:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768548600",
+    "outcome": "DOWN",
+    "volume": 144824.282619,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768548600,
+    "time": "2026-01-16T07:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768548600",
+    "outcome": "DOWN",
+    "volume": 54986.370313,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768548600,
+    "time": "2026-01-16T07:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768548600",
+    "outcome": "DOWN",
+    "volume": 12624.885914,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768547700,
+    "time": "2026-01-16T07:15:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768547700",
+    "outcome": "DOWN",
+    "volume": 122889.051989,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768547700,
+    "time": "2026-01-16T07:15:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768547700",
+    "outcome": "DOWN",
+    "volume": 302501.457368,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768547700,
+    "time": "2026-01-16T07:15:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768547700",
+    "outcome": "DOWN",
+    "volume": 14244.2869,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768546800,
+    "time": "2026-01-16T07:00:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768546800",
+    "outcome": "DOWN",
+    "volume": 155499.131527,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768546800,
+    "time": "2026-01-16T07:00:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768546800",
+    "outcome": "UP",
+    "volume": 120565.218548,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768546800,
+    "time": "2026-01-16T07:00:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768546800",
+    "outcome": "DOWN",
+    "volume": 20902.71653,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768545900,
+    "time": "2026-01-16T06:45:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768545900",
+    "outcome": "UP",
+    "volume": 149017.595241,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768545900,
+    "time": "2026-01-16T06:45:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768545900",
+    "outcome": "DOWN",
+    "volume": 136597.202077,
+    "outcomePrices": [
+      "0",
+      "1"
+    ]
+  },
+  {
+    "epoch": 1768545900,
+    "time": "2026-01-16T06:45:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768545900",
+    "outcome": "UP",
+    "volume": 14524.198581,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768545000,
+    "time": "2026-01-16T06:30:00.000Z",
+    "asset": "BTC",
+    "slug": "btc-updown-15m-1768545000",
+    "outcome": "UP",
+    "volume": 118587.256681,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768545000,
+    "time": "2026-01-16T06:30:00.000Z",
+    "asset": "ETH",
+    "slug": "eth-updown-15m-1768545000",
+    "outcome": "UP",
+    "volume": 286674.400341,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  },
+  {
+    "epoch": 1768545000,
+    "time": "2026-01-16T06:30:00.000Z",
+    "asset": "SOL",
+    "slug": "sol-updown-15m-1768545000",
+    "outcome": "UP",
+    "volume": 5738.350678,
+    "outcomePrices": [
+      "1",
+      "0"
+    ]
+  }
+]
