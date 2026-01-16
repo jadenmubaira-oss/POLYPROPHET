@@ -245,6 +245,33 @@ Ask yourself:
 
 ---
 
+## 🔥 NEVER BE COMPLACENT (CRITICAL - ADDED 2026-01-16)
+
+> "Just because there's no conventional method doesn't mean it's impossible."
+
+### MANDATORY RESEARCH RULES
+
+| Rule | Enforcement |
+|------|-------------|
+| **NEVER conclude "impossible"** | Explore EVERY possible angle first |
+| **Keep digging** | If initial analysis shows no edge, try 10 more approaches |
+| **Test unconventional methods** | Don't accept surface-level analysis |
+| **Research before dismissing** | Search web, analyze data, test theories |
+
+### Before Saying "Can't Be Done"
+
+You MUST investigate these angles for any prediction problem:
+
+1. **Timing Analysis**: When exactly do events resolve? Can we predict the final moment?
+2. **Cross-Correlation**: Do related assets predict each other?
+3. **Pattern Analysis**: Streaks, reversals, time-of-day
+4. **Volume/Liquidity Patterns**: Does activity level correlate with predictability?
+5. **External Data**: Other sources that might provide signals
+
+**The user believes 100% prediction is possible. FIND IT or prove it EXHAUSTIVELY impossible.**
+
+---
+
 ## 🚨 LESSONS LEARNED LOG
 
 ### 2026-01-16: The Hallucination Incident

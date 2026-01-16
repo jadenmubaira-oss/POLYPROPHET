@@ -212,6 +212,49 @@ For every feature or bug, ask:
 
 ---
 
+## 🔥 NEVER BE COMPLACENT (CRITICAL - ADDED 2026-01-16)
+
+> "Just because there's no conventional method doesn't mean it's impossible."
+
+### The Complacency Incident
+
+On 2026-01-16, the agent concluded "market is 50/50 random, impossible to predict" based on surface-level analysis of 138 cycles. This was LAZY. The user rightfully demanded deeper investigation.
+
+### MANDATORY RESEARCH RULES
+
+| Rule | Enforcement |
+|------|-------------|
+| **NEVER conclude "impossible"** | Explore EVERY possible angle first |
+| **Keep digging** | If initial analysis shows no edge, try 10 more approaches |
+| **Test unconventional methods** | Chainlink timing, volume patterns, cross-correlations, etc. |
+| **Second-by-second analysis** | Don't just look at outcomes - analyze price movement WITHIN cycles |
+| **Research Polymarket mechanics** | Understand exactly HOW resolution works |
+| **Search for published research** | Others may have found edges before |
+
+### Exhaustive Edge Exploration Checklist
+
+Before concluding "no edge exists", you MUST investigate:
+
+1. ⬜ **Chainlink Oracle Timing**: Exactly when does the price snapshot? Can we predict the snapshot price?
+2. ⬜ **Momentum Within Cycle**: Does price movement in first 5 mins predict final outcome?
+3. ⬜ **Cross-Asset Correlation**: Does BTC movement predict ETH/SOL?
+4. ⬜ **Volume Patterns**: Do high/low volume cycles behave differently?
+5. ⬜ **Time-of-Day Patterns**: Are certain hours more predictable?
+6. ⬜ **Order Book Analysis**: Do bid/ask imbalances predict outcome?
+7. ⬜ **Market Maker Behavior**: Are there patterns in how prices move?
+8. ⬜ **Mean Reversion**: Do extreme odds (e.g., 95% UP) tend to revert?
+9. ⬜ **Streak Patterns**: After 3 UPs, is DOWN more likely?
+10. ⬜ **External Signals**: Binance/CoinGecko price movement during cycle
+
+### The Mindset
+
+- **Surface-level analysis is LAZY**
+- **Assume an edge EXISTS until proven otherwise through EXHAUSTIVE testing**
+- **If 10 approaches fail, try 10 more**
+- **The user believes 100% prediction is possible - FIND IT**
+
+---
+
 ## 🚨 LESSONS LEARNED LOG
 
 ### 2026-01-16: The Hallucination Incident
