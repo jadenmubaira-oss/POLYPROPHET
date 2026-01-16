@@ -204,7 +204,8 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > | v134.7 | HARD CAP FIX — Entry cap & maxOdds clamp both 65¢ (was 80¢) |
 > | v134.8 | SOL-ONLY GOLDEN ZONE — minOdds=0.60, maxOdds=0.75, BTC/ETH disabled |
 > | v134.9 | All assets re-enabled for notifications (user manually filters SOL) |
-> | **v135.0** | **ANTI-FLIP-FLOP OVERHAUL** — Tier hysteresis (10% buffer) + Spread Gate for signals |
+> | v135.0 | ANTI-FLIP-FLOP OVERHAUL — Tier hysteresis (10% buffer) + Spread Gate for signals |
+> | **v135.1** | **ZOMBIE CONVICTION FIX** — Hard 70% confidence floor + warmup reset to kill cross-cycle state leakage |
 >
 > ### How To Use v134.1
 >
@@ -249,6 +250,7 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 >
 - [ ] **🚨 CRITICAL: Low Trade Volume**: Current "Golden Zone" strategy is extremely strict (1 trade/24h).
   - **Verdict**: Accepted for $1 stage. Safety > Speed.
+- [x] **🚨 CRITICAL: Zombie Conviction Bug**: FIXED in v135.1. Stale CONVICTION tiers were leaking across cycle boundaries due to hysteresis + warmup skip + smoothing. Added hard 70% confidence floor + warmup reset.
 - [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
 - [ ] **Missing tools.html**: Causes perfection-check warning. Restore file or remove check.
 - [ ] **🚨 CRITICAL: Zero Trades with Value Hunter**: Backtest shows 0 trades in 24h with maxOdds=0.40. System is TOO RESTRICTIVE.
