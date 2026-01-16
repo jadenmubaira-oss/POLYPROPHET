@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 135.0;  // v135.0: Anti-flip-flop overhaul - tier hysteresis (10% buffer) + spread gate for signals
+const CONFIG_VERSION = 135.1;  // v135.1: Zombie Conviction Fix - hard 70% confidence floor + cycle-reset detection
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -18654,6 +18654,15 @@ class SupremeBrain {
             }
             if (this.tier === 'ADVISORY' && newTier === 'NONE') {
                 if (finalConfidence > (advisoryThreshold - 0.03)) newTier = 'ADVISORY'; // Hold tier
+            }
+
+            // 🏆 v135.1 ZOMBIE CONVICTION FIX: Hard confidence floor (70%) forces tier to NONE
+            // This prevents zombie tier states from persisting across cycle boundaries
+            if (finalConfidence < 0.70) {
+                newTier = 'NONE';
+                if (this.tier === 'CONVICTION') {
+                    log(`🧟 ZOMBIE KILL: Confidence ${(finalConfidence * 100).toFixed(1)}% < 70% floor → CONVICTION → NONE`, this.asset);
+                }
             }
 
             tier = newTier;
