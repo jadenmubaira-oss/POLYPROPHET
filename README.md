@@ -205,7 +205,10 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > | v134.8 | SOL-ONLY GOLDEN ZONE — minOdds=0.60, maxOdds=0.75, BTC/ETH disabled |
 > | v134.9 | All assets re-enabled for notifications (user manually filters SOL) |
 > | v135.0 | ANTI-FLIP-FLOP OVERHAUL — Tier hysteresis (10% buffer) + Spread Gate for signals |
-> | **v135.2** | **ACTIVE ZOMBIE KILL** — Hard 70% confidence floor + FORCE UNLOCK (shatters oracleLocked/convictionLocked) |
+> | v135.2 | ACTIVE ZOMBIE KILL — Hard 70% confidence floor + FORCE UNLOCK |
+> | v136 | GOLDEN HOUR RESEARCH — BTC→ETH correlation strategy, 5 hours (02,03,04,08,14 UTC) |
+> | v137 | GOLDEN HOUR DASHBOARD — Signal locking, countdown timer, anti-flip-flop |
+> | **v138** | **90-DAY VERIFIED GOLDEN HOURS** — 6 hours (01,02,05,14,16,21 UTC), 88.4% avg WR |
 >
 > ### How To Use v134.1
 >
