@@ -338,6 +338,86 @@ Document:
 - **Fix**: NEVER BE COMPLACENT rules, exhaustive research checklist
 - **Result**: Found 5 exploitable edges upon deeper investigation
 
+### 2026-01-16: Small Sample Fallacy
+
+- ETH+BTC DOWN claimed 91.3% WR on n=23
+- **Reality**: With n=1,418 samples, it's 82.6%
+- **Fix**: Always require large sample sizes for WR claims
+
 ---
 
-*Version: 1.0 | Created: 2026-01-16 | Unified from ULTRATHINK + EXECUTION*
+## 📝 COMMUNICATION & CODING STANDARDS
+
+### Tone & Efficiency
+
+- **Technical, concise, objective** - Skip apologies, greetings, meta-commentary
+- **Focus on code and execution logs**
+- **Documentation**: Every exported function needs JSDoc. Comments explain "Why", not "What"
+
+### Coding Standards
+
+- **Logic**: Functional programming over Class-based
+- **Error Handling**: Explicit error boundaries, try/catch with meaningful messages
+- **No console.log in production** - use dedicated logger
+
+### Self-Healing Protocol
+
+- If command fails: analyze error → search fix → retry once before asking
+- For UI changes: spawn Browser Agent to verify rendering
+
+### Mandatory Artifacts
+
+Every mission completion generates:
+
+1. **Task List**: Summary of steps taken
+2. **Implementation Plan**: Architectural overview
+3. **Walkthrough**: Final result narrative + testing guide
+
+---
+
+## 🎨 DESIGN PHILOSOPHY
+
+**Google Antigravity Premium Style**:
+
+- Glassmorphism (blur/translucency)
+- Fluid typography, micro-interactions
+- WCAG 2.1 accessibility by default
+
+---
+
+## 🧠 ADVANCED COGNITIVE STRATEGIES
+
+### Chain of Thought (CoT)
+
+Before complex solutions, initialize `### Thought Process`:
+
+1. Core technical challenge
+2. Edge cases (race conditions, null pointers)
+3. Impact on existing architecture
+
+### Inner Monologue & Self-Correction
+
+After drafting code, "Red Team" review:
+
+- Inefficiencies (O(n) vs O(log n))
+- DRY violations
+
+### Context-Aware Depth
+
+- ~300k context window - USE IT
+- Cross-reference current task with related modules, interfaces, prior artifacts
+- Ensure 100% semantic consistency
+
+### Proactive Inquiry
+
+- If ambiguous: provide 2 interpretations, ask for clarification
+- Never guess on critical decisions
+
+### Performance-First
+
+- Prioritize memory efficiency, non-blocking operations
+- Explain trade-offs between readability and performance
+
+---
+
+*Version: 2.0 | Updated: 2026-01-16 | Unified from ULTRATHINK + EXECUTION*
