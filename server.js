@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 136;  // v136: GOLDEN STRATEGY - Time-based premium hours (93% WR verified on 8,592 cycles)
+const CONFIG_VERSION = 136.1;  // v136.1: GOLDEN HOUR CARD on main dashboard (automatic signals during premium hours)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -22260,6 +22260,24 @@ app.get('/', (req, res) => {
     </div>` : ''}
     <div class="main-container">
         <div class="predictions-grid" id="predictionsGrid"><div style="text-align:center;padding:40px;color:#666;">Loading predictions...</div></div>
+        
+        <!-- 🏆 v136: GOLDEN HOUR SIGNAL CARD - Automatic Premium Hour Alerts -->
+        <div id="goldenHourCard" style="display:none;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);border:3px solid #ffd700;border-radius:14px;padding:20px;margin-bottom:20px;box-shadow:0 0 30px rgba(255,215,0,0.3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:15px;">
+                <div style="font-size:1.3em;font-weight:bold;color:#ffd700;">🏆 GOLDEN HOUR ACTIVE</div>
+                <div id="goldenHourTime" style="color:#888;font-size:0.9em;">UTC --:--</div>
+            </div>
+            <div id="goldenHourInfo" style="font-size:1.1em;margin-bottom:12px;color:#e0e8ff;"></div>
+            <div id="goldenHourSignal" style="padding:15px;border-radius:10px;background:rgba(255,215,0,0.1);border:2px solid #ffd700;text-align:center;">
+                <div style="font-weight:bold;font-size:1.1em;color:#ffd700;">⏳ Checking BTC direction...</div>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:0.8em;color:#888;">
+                <span>93% Win Rate</span>
+                <span>272 trades verified</span>
+                <span>Entry: 40-45¢</span>
+            </div>
+        </div>
+        
         <div class="trading-panel">
             <div class="panel-header"><span class="panel-title">📊 Active Positions</span><span id="positionCount">0 positions</span></div>
             <div class="positions-list" id="positionsList"><div class="no-positions">No active positions</div></div>
@@ -22991,6 +23009,75 @@ app.get('/', (req, res) => {
             }
         }
         
+        // 🏆 v136: GOLDEN HOUR - Premium Trading Hours Signal System
+        // 93% Win Rate verified on 272 trades over 30 days
+        const GOLDEN_HOURS = {
+            // BTC DOWN → ETH DOWN conditions (92.9%, 96.1% WR)
+            2: { condition: 'DOWN', wr: '92.9%' },
+            14: { condition: 'DOWN', wr: '96.1%' },
+            // BTC UP → ETH UP conditions (93.1%, 91.5%, 91.7% WR)
+            3: { condition: 'UP', wr: '93.1%' },
+            4: { condition: 'UP', wr: '91.5%' },
+            8: { condition: 'UP', wr: '91.7%' }
+        };
+        
+        function updateGoldenHour(btcData) {
+            const card = document.getElementById('goldenHourCard');
+            const info = document.getElementById('goldenHourInfo');
+            const signal = document.getElementById('goldenHourSignal');
+            const timeEl = document.getElementById('goldenHourTime');
+            
+            if (!card || !info || !signal) return;
+            
+            const now = new Date();
+            const utcHour = now.getUTCHours();
+            const utcMin = now.getUTCMinutes();
+            
+            // Show UTC time
+            if (timeEl) {
+                timeEl.textContent = 'UTC ' + utcHour.toString().padStart(2,'0') + ':' + utcMin.toString().padStart(2,'0');
+            }
+            
+            const goldenConfig = GOLDEN_HOURS[utcHour];
+            
+            // Only show during premium hours AND first 12 mins of cycle (entry window)
+            const cycleMin = utcMin % 15;
+            const inTradingWindow = cycleMin <= 12;
+            
+            if (goldenConfig && inTradingWindow) {
+                card.style.display = 'block';
+                
+                const expectedBTC = goldenConfig.condition;
+                // Get BTC prediction from data
+                const btcPrediction = (btcData?.prediction || btcData?.oracleSignal?.direction || '').toUpperCase();
+                
+                info.innerHTML = '<div style=\"font-size:1em;\">Hour ' + utcHour + ' UTC (' + goldenConfig.wr + ' historical WR)</div>' +
+                    '<div style=\"font-size:0.85em;color:#aaa;margin-top:4px;\">Looking for: BTC ' + expectedBTC + ' → Trade ETH ' + expectedBTC + '</div>';
+                
+                if (btcPrediction === expectedBTC) {
+                    // SIGNAL MATCH: Trade ETH in same direction
+                    signal.innerHTML = '<div style=\"font-weight:bold;font-size:1.4em;color:#00ff88;\">🚀 BUY ETH ' + expectedBTC + ' NOW</div>' +
+                        '<div style=\"font-size:0.85em;color:#aaa;margin-top:8px;\">Entry: 40-45¢ | Sizing: 20-30% | ' + goldenConfig.wr + ' WR</div>';
+                    signal.style.background = 'rgba(0,255,136,0.2)';
+                    signal.style.borderColor = '#00ff88';
+                } else if (btcPrediction === 'UP' || btcPrediction === 'DOWN') {
+                    // Wrong direction - skip
+                    signal.innerHTML = '<div style=\"font-weight:bold;font-size:1.1em;color:#ff6b6b;\">❌ SKIP - BTC is ' + btcPrediction + ', need ' + expectedBTC + '</div>';
+                    signal.style.background = 'rgba(255,107,107,0.15)';
+                    signal.style.borderColor = '#ff6b6b';
+                } else {
+                    // Waiting for BTC direction
+                    signal.innerHTML = '<div style=\"font-weight:bold;font-size:1.1em;color:#ffd700;\">⏳ Waiting for BTC direction...</div>' +
+                        '<div style=\"font-size:0.85em;color:#aaa;margin-top:4px;\">Need BTC ' + expectedBTC + ' to trigger signal</div>';
+                    signal.style.background = 'rgba(255,215,0,0.1)';
+                    signal.style.borderColor = '#ffd700';
+                }
+            } else {
+                // Hide card outside premium hours
+                card.style.display = 'none';
+            }
+        }
+        
         async function fetchData() {
             try {
                 console.log('fetchData called');
@@ -23012,6 +23099,9 @@ app.get('/', (req, res) => {
                 document.getElementById('countdown').textContent = Math.floor(remaining / 60) + ':' + (remaining % 60).toString().padStart(2, '0');
                 
                 if (!data) { console.error('No data received'); return; }
+                
+                // 🏆 v136: Update GOLDEN HOUR signal card with BTC data
+                updateGoldenHour(data.BTC);
                 
                 // RENDER PREDICTION CARDS
                 const assets = ['BTC', 'ETH', 'XRP', 'SOL'];
