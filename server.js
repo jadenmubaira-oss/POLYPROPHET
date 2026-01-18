@@ -8940,7 +8940,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 138;  // v138: 90-DAY VERIFIED GOLDEN HOURS - 6 hours (01,02,05,14,16,21 UTC) with 88.4% avg WR
+const CONFIG_VERSION = 139;  // v139: FINAL GOLDEN STRATEGY JSON (enforced)
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -8962,6 +8962,104 @@ const CODE_FINGERPRINT = (() => {
         configVersion: CONFIG_VERSION,
         gitCommit,
         serverSha256
+    };
+})();
+
+const FINAL_GOLDEN_STRATEGY_PATH = path.join(__dirname, 'final_golden_strategy.json');
+
+function loadFinalGoldenStrategyFile(filePath) {
+    if (!fs.existsSync(filePath)) {
+        throw new Error(
+            `Missing required file: ${filePath}. ` +
+            `Run \"npm run analysis\" then \"node final_golden_strategy.js\" to generate final_golden_strategy.json.`
+        );
+    }
+
+    let raw;
+    try {
+        raw = fs.readFileSync(filePath, 'utf8');
+    } catch (e) {
+        throw new Error(`Failed to read ${filePath}: ${e?.message || e}`);
+    }
+
+    let parsed;
+    try {
+        parsed = JSON.parse(raw);
+    } catch (e) {
+        throw new Error(`Invalid JSON in ${filePath}: ${e?.message || e}`);
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+        throw new Error(`Invalid final golden strategy payload: root must be an object (${filePath})`);
+    }
+
+    const gs = parsed.goldenStrategy;
+    if (!gs || typeof gs !== 'object') {
+        throw new Error(
+            `Invalid ${filePath}: missing \"goldenStrategy\". ` +
+            `Run \"node final_golden_strategy.js\" to generate it (after \"npm run analysis\").`
+        );
+    }
+
+    const errors = [];
+    const entryMinute = Number(gs.entryMinute);
+    const utcHour = Number(gs.utcHour);
+    const direction = String(gs.direction || '').trim().toUpperCase();
+    const bandMin = Number(gs.priceBand?.min);
+    const bandMax = Number(gs.priceBand?.max);
+
+    if (!Number.isInteger(entryMinute) || entryMinute < 0 || entryMinute > 14) {
+        errors.push('goldenStrategy.entryMinute must be integer 0..14');
+    }
+    if (!Number.isInteger(utcHour) || utcHour < 0 || utcHour > 23) {
+        errors.push('goldenStrategy.utcHour must be integer 0..23');
+    }
+    if (!['UP', 'DOWN', 'BEST'].includes(direction)) {
+        errors.push("goldenStrategy.direction must be 'UP', 'DOWN', or 'BEST'");
+    }
+    if (!Number.isFinite(bandMin) || !Number.isFinite(bandMax) || bandMin <= 0 || bandMax >= 1 || bandMin >= bandMax) {
+        errors.push('goldenStrategy.priceBand must have numeric min/max within (0,1) and min<max');
+    }
+    if (errors.length) {
+        throw new Error(`Invalid ${filePath}:\n- ${errors.join('\n- ')}`);
+    }
+
+    parsed.goldenStrategy.entryMinute = entryMinute;
+    parsed.goldenStrategy.utcHour = utcHour;
+    parsed.goldenStrategy.direction = direction;
+    parsed.goldenStrategy.priceBand = { min: bandMin, max: bandMax };
+
+    return parsed;
+}
+
+const FINAL_GOLDEN_STRATEGY_RUNTIME = (() => {
+    const enforced = String(process.env.ENFORCE_FINAL_GOLDEN_STRATEGY || 'true').trim().toLowerCase() !== 'false';
+    const filePath = FINAL_GOLDEN_STRATEGY_PATH;
+    let payload = null;
+    let loadError = null;
+
+    try {
+        payload = loadFinalGoldenStrategyFile(filePath);
+    } catch (e) {
+        loadError = (e && e.message) ? e.message : String(e);
+        if (enforced) {
+            console.error(`❌ FINAL GOLDEN STRATEGY LOAD FAILED: ${loadError}`);
+            throw e;
+        }
+        console.error(`⚠️ FINAL GOLDEN STRATEGY LOAD FAILED (enforcement disabled): ${loadError}`);
+    }
+
+    if (payload?.goldenStrategy) {
+        const gs = payload.goldenStrategy;
+        console.log(`🏆 Final golden strategy loaded: H${gs.utcHour} @ m${gs.entryMinute}, ${gs.direction}, price ${gs.priceBand.min}-${gs.priceBand.max}`);
+    }
+
+    return {
+        enforced,
+        filePath,
+        payload,
+        goldenStrategy: payload ? payload.goldenStrategy : null,
+        loadError
     };
 })();
 
@@ -9060,6 +9158,14 @@ const CONFIG = {
             balanced: 0.30,  // 99.3% survival
             aggressive: 0.40 // 98.1% survival
         }
+    },
+
+    FINAL_GOLDEN_STRATEGY: FINAL_GOLDEN_STRATEGY_RUNTIME,
+
+    RUNTIME: {
+        // Polymarket-only runtime: disable Binance funding rates by default.
+        // Enable explicitly with BINANCE_FUNDING_RATES_ENABLED=true.
+        binanceFundingRatesEnabled: String(process.env.BINANCE_FUNDING_RATES_ENABLED || 'false').trim().toLowerCase() === 'true'
     },
 
     ORACLE: {
@@ -13054,6 +13160,82 @@ class TradeExecutor {
         if (CONFIG.RISK.convictionOnlyMode && tradeTierCheck === 'ADVISORY') {
             log(`💎 CONVICTION-ONLY BLOCK: ADVISORY tier blocked (Strict Mode Active)`, asset);
             return { success: false, error: `CONVICTION-ONLY mode: ADVISORY blocked (Strict Enforcement)` };
+        }
+
+        // ==================== 🏆 FINAL GOLDEN STRATEGY (HARD GATE) ====================
+        // Enforced Polymarket-only strategy. If enabled, block ANY automated ORACLE entry
+        // that does not match the final golden strategy constraints.
+        if (mode === 'ORACLE' && mode !== 'MANUAL' && CONFIG?.FINAL_GOLDEN_STRATEGY?.enforced) {
+            const gs = CONFIG?.FINAL_GOLDEN_STRATEGY?.goldenStrategy;
+            if (!gs) {
+                log(`🛑 FINAL GOLDEN STRATEGY: Missing goldenStrategy runtime config - TRADE BLOCKED`, asset);
+                return { success: false, error: 'FINAL_GOLDEN_STRATEGY_MISSING' };
+            }
+
+            const nowSec = Math.floor(Date.now() / 1000);
+            const cycleStartEpochSec = nowSec - (nowSec % INTERVAL_SECONDS);
+            const elapsedSec = nowSec - cycleStartEpochSec;
+            const entryMinute = Math.max(0, Math.min(14, Math.floor(elapsedSec / 60)));
+            const utcHour = new Date(cycleStartEpochSec * 1000).getUTCHours();
+
+            const reasons = [];
+            if (utcHour !== gs.utcHour) reasons.push('utcHour');
+            if (entryMinute !== gs.entryMinute) reasons.push('entryMinute');
+
+            const yesPx = Number(market?.yesPrice);
+            const noPx = Number(market?.noPrice);
+            const strategyDir = String(gs.direction || '').trim().toUpperCase();
+            const bandMin = Number(gs.priceBand?.min);
+            const bandMax = Number(gs.priceBand?.max);
+            const px = Number(entryPrice);
+
+            let requiredDirection = strategyDir;
+            let bandCheckPrice = px;
+
+            if (strategyDir === 'BEST') {
+                if (!Number.isFinite(yesPx) || !Number.isFinite(noPx)) {
+                    reasons.push('bestPrice_missing');
+                } else {
+                    const bestPrice = Math.min(yesPx, noPx);
+                    requiredDirection = yesPx < noPx ? 'UP' : 'DOWN'; // tie -> DOWN (matches analysis)
+                    bandCheckPrice = bestPrice;
+                }
+            }
+
+            if (direction !== requiredDirection) reasons.push('direction');
+            if (!Number.isFinite(bandMin) || !Number.isFinite(bandMax) || !Number.isFinite(bandCheckPrice) || bandCheckPrice < bandMin || bandCheckPrice > bandMax) {
+                reasons.push('priceBand');
+            }
+
+            if (reasons.length) {
+                const bandTxt = (Number.isFinite(bandMin) && Number.isFinite(bandMax))
+                    ? `${(bandMin * 100).toFixed(1)}¢-${(bandMax * 100).toFixed(1)}¢`
+                    : 'N/A';
+                const pxTxt = Number.isFinite(bandCheckPrice) ? `${(bandCheckPrice * 100).toFixed(1)}¢` : 'N/A';
+                const reqDirTxt = requiredDirection || 'N/A';
+                log(`🛑 FINAL GOLDEN STRATEGY BLOCK: H${utcHour} m${entryMinute} ${direction} @ ${pxTxt} (req H${gs.utcHour} m${gs.entryMinute} ${reqDirTxt} in ${bandTxt})`, asset);
+                gateTrace.record(asset, {
+                    decision: 'NO_TRADE',
+                    reason: 'FINAL_GOLDEN_STRATEGY',
+                    failedGates: reasons,
+                    inputs: {
+                        mode,
+                        direction,
+                        entryPrice: px,
+                        yesPrice: Number.isFinite(yesPx) ? yesPx : null,
+                        noPrice: Number.isFinite(noPx) ? noPx : null,
+                        utcHour,
+                        entryMinute,
+                        required: {
+                            utcHour: gs.utcHour,
+                            entryMinute: gs.entryMinute,
+                            direction: strategyDir,
+                            priceBand: { min: bandMin, max: bandMax }
+                        }
+                    }
+                });
+                return { success: false, error: 'FINAL_GOLDEN_STRATEGY_BLOCK' };
+            }
         }
 
         // 🏆 v70: BALANCE FLOOR GUARD - Stop new trades if balance dropped below floor
@@ -21284,15 +21466,17 @@ async function fetchCurrentMarkets() {
 
 async function fetchFearGreedIndex() {
     try {
-        const data = await fetchJSON('https://api.alternative.me/fng/');
-        if (data) {
-            fearGreedIndex = parseInt(data.data[0].value);
-            log(`Fear & Greed: ${fearGreedIndex}`);
+        const data = await fetchJSON('https://api.alternative.me/fng/?limit=1');
+        if (data && data.data && data.data[0]) {
+            fearGreedIndex.value = parseInt(data.data[0].value);
+            fearGreedIndex.classification = data.data[0].value_classification;
+            fearGreedIndex.timestamp = Date.now();
         }
     } catch (e) { }
 }
 
 async function fetchFundingRates() {
+    if (CONFIG?.RUNTIME?.binanceFundingRatesEnabled === false) return;
     const symbolMap = { 'BTC': 'BTCUSDT', 'ETH': 'ETHUSDT', 'XRP': 'XRPUSDT', 'SOL': 'SOLUSDT' };
     for (const asset of ASSETS) {
         try {
@@ -22286,68 +22470,25 @@ app.get('/', (req, res) => {
                     <div id="signalSubtext" style="font-size:0.9em;color:#aaa;margin-top:8px;"></div>
                 </div>
                 <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:0.8em;color:#888;">
-                    <span>93% Win Rate Verified</span>
-                    <span>272 trades backtested</span>
-                    <span>Max Loss Streak: 1</span>
+                    <span id="finalGsWinRate">--</span>
+                    <span id="finalGsTrades">--</span>
+                    <span id="finalGsMaxLossStreak">--</span>
                 </div>
             </div>
             
             <!-- All Golden Hours Schedule -->
             <div style="background:rgba(0,0,0,0.3);border-radius:10px;padding:15px;">
                 <div style="font-size:1em;font-weight:bold;color:#ffd700;margin-bottom:12px;">📅 GOLDEN HOURS SCHEDULE</div>
-                <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;" id="goldenHoursGrid">
-                    <!-- Hour 1 (NEW) -->
-                    <div class="golden-hour-slot" id="gh-1" style="background:rgba(0,255,136,0.15);border:1px solid rgba(0,255,136,0.4);border-radius:8px;padding:8px;text-align:center;">
-                        <div style="font-size:1.1em;font-weight:bold;color:#00ff88;">01:00</div>
-                        <div style="font-size:0.65em;color:#888;">UTC</div>
-                        <div style="font-size:0.8em;color:#00ff88;margin-top:3px;">↑ UP</div>
-                        <div style="font-size:0.7em;color:#888;">87.8% WR</div>
-                        <div id="gh-1-status" style="font-size:0.65em;margin-top:3px;color:#00ff88;">🟢 Healthy</div>
-                    </div>
-                    <!-- Hour 2 -->
-                    <div class="golden-hour-slot" id="gh-2" style="background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);border-radius:8px;padding:8px;text-align:center;">
-                        <div style="font-size:1.1em;font-weight:bold;color:#ff4466;">02:00</div>
-                        <div style="font-size:0.65em;color:#888;">UTC</div>
-                        <div style="font-size:0.8em;color:#ff4466;margin-top:3px;">↓ DOWN</div>
-                        <div style="font-size:0.7em;color:#888;">89.0% WR</div>
-                        <div id="gh-2-status" style="font-size:0.65em;margin-top:3px;color:#00ff88;">🟢 Healthy</div>
-                    </div>
-                    <!-- Hour 5 (NEW) -->
-                    <div class="golden-hour-slot" id="gh-5" style="background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);border-radius:8px;padding:8px;text-align:center;">
-                        <div style="font-size:1.1em;font-weight:bold;color:#ff4466;">05:00</div>
-                        <div style="font-size:0.65em;color:#888;">UTC</div>
-                        <div style="font-size:0.8em;color:#ff4466;margin-top:3px;">↓ DOWN</div>
-                        <div style="font-size:0.7em;color:#888;">88.2% WR</div>
-                        <div id="gh-5-status" style="font-size:0.65em;margin-top:3px;color:#00ff88;">🟢 Healthy</div>
-                    </div>
-                    <!-- Hour 14 -->
-                    <div class="golden-hour-slot" id="gh-14" style="background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);border-radius:8px;padding:8px;text-align:center;">
-                        <div style="font-size:1.1em;font-weight:bold;color:#ff4466;">14:00</div>
-                        <div style="font-size:0.65em;color:#888;">UTC</div>
-                        <div style="font-size:0.8em;color:#ff4466;margin-top:3px;">↓ DOWN</div>
-                        <div style="font-size:0.7em;color:#888;">87.7% WR</div>
-                        <div id="gh-14-status" style="font-size:0.65em;margin-top:3px;color:#00ff88;">🟢 Healthy</div>
-                    </div>
-                    <!-- Hour 16 (NEW - BEST) -->
-                    <div class="golden-hour-slot" id="gh-16" style="background:rgba(255,68,102,0.15);border:1px solid rgba(255,68,102,0.4);border-radius:8px;padding:8px;text-align:center;">
-                        <div style="font-size:1.1em;font-weight:bold;color:#ff4466;">16:00</div>
-                        <div style="font-size:0.65em;color:#888;">UTC ⭐</div>
-                        <div style="font-size:0.8em;color:#ff4466;margin-top:3px;">↓ DOWN</div>
-                        <div style="font-size:0.7em;color:#888;">89.4% WR</div>
-                        <div id="gh-16-status" style="font-size:0.65em;margin-top:3px;color:#00ff88;">🟢 Healthy</div>
-                    </div>
-                    <!-- Hour 21 (NEW) -->
-                    <div class="golden-hour-slot" id="gh-21" style="background:rgba(0,255,136,0.15);border:1px solid rgba(0,255,136,0.4);border-radius:8px;padding:8px;text-align:center;">
-                        <div style="font-size:1.1em;font-weight:bold;color:#00ff88;">21:00</div>
-                        <div style="font-size:0.65em;color:#888;">UTC</div>
-                        <div style="font-size:0.8em;color:#00ff88;margin-top:3px;">↑ UP</div>
-                        <div style="font-size:0.7em;color:#888;">86.2% WR</div>
-                        <div id="gh-21-status" style="font-size:0.65em;margin-top:3px;color:#00ff88;">🟢 Healthy</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:6px;" id="goldenHoursGrid">
+                    <div class="golden-hour-slot" id="finalGoldenStrategySlot" style="background:rgba(255,215,0,0.12);border:1px solid rgba(255,215,0,0.5);border-radius:8px;padding:10px;text-align:center;">
+                        <div id="finalGsHour" style="font-size:1.1em;font-weight:bold;color:#ffd700;">--:--</div>
+                        <div id="finalGsEntry" style="font-size:0.75em;color:#888;">Entry: --</div>
+                        <div id="finalGsDirection" style="font-size:0.9em;color:#ffd700;margin-top:6px;">--</div>
+                        <div id="finalGsPriceBand" style="font-size:0.75em;color:#888;margin-top:4px;">Band: --</div>
+                        <div id="finalGsStatus" style="font-size:0.7em;margin-top:6px;color:#888;">Loading...</div>
                     </div>
                 </div>
-                <div style="margin-top:12px;font-size:0.75em;color:#666;text-align:center;">
-                    Strategy: When BTC matches expected direction → Trade ETH same direction | Entry: 40-45¢ | Sizing: 20-30%
-                </div>
+                <div id="goldenStrategySummary" style="margin-top:12px;font-size:0.75em;color:#666;text-align:center;">Loading final golden strategy...</div>
             </div>
         </div>
         
@@ -23082,47 +23223,14 @@ app.get('/', (req, res) => {
             }
         }
         
-        // 🏆 v138: 90-DAY VERIFIED GOLDEN HOUR SYSTEM
-        // Win rates verified on 8,641 cycles over 90 days (Binance data)
-        // Max consecutive losses: 6 (Monte Carlo worst case)
-        // Average WR: 88.4% (realistic long-term performance)
-        
-        const GOLDEN_HOURS = {
-            1:  { condition: 'UP',   wr: 87.8, trades: 196, wins: 172 },
-            2:  { condition: 'DOWN', wr: 89.0, trades: 163, wins: 145 },
-            5:  { condition: 'DOWN', wr: 88.2, trades: 186, wins: 164 },
-            14: { condition: 'DOWN', wr: 87.7, trades: 179, wins: 157 },
-            16: { condition: 'DOWN', wr: 89.4, trades: 170, wins: 152 },
-            21: { condition: 'UP',   wr: 86.2, trades: 188, wins: 162 }
-        };
-        const GOLDEN_HOUR_LIST = [1, 2, 5, 14, 16, 21];
-        
+        // 🏆 v138: GOLDEN HOUR SYSTEM (legacy backtest-era label)
+        // Legacy win-rate annotations (non-authoritative for Polymarket-only analysis pipeline)
+        // Use exhaustive_market_analysis.js → exhaustive_analysis/final_results.json for current metrics
+        // Dashboard config may still carry legacy display stats
+
         // Signal state management (prevents flip-flop)
         let currentCycleKey = null;
         let lockedSignalState = null; // 'BUY' | 'SKIP' | null
-        
-        function getNextGoldenHour() {
-            const now = new Date();
-            const currentHour = now.getUTCHours();
-            const currentMin = now.getUTCMinutes();
-            
-            // Find next golden hour
-            for (let i = 0; i < 24; i++) {
-                const checkHour = (currentHour + i) % 24;
-                if (GOLDEN_HOURS[checkHour]) {
-                    if (i === 0 && currentMin < 60) {
-                        // Current hour is golden and not passed
-                        return { hour: checkHour, hoursAway: 0, minsAway: 60 - currentMin };
-                    } else if (i > 0) {
-                        // Future golden hour
-                        const minsToNextHour = 60 - currentMin;
-                        const totalMins = minsToNextHour + (i - 1) * 60;
-                        return { hour: checkHour, hoursAway: Math.floor(totalMins / 60), minsAway: totalMins % 60 };
-                    }
-                }
-            }
-            return { hour: 2, hoursAway: 24, minsAway: 0 };
-        }
         
         function getCycleKey() {
             const now = new Date();
@@ -23130,133 +23238,293 @@ app.get('/', (req, res) => {
             const cycleEpoch = epoch - (epoch % 900);
             return now.getUTCHours() + '-' + cycleEpoch;
         }
+
+        function formatCountdownHms(totalSec) {
+            const safe = Math.max(0, Math.floor(totalSec));
+            const h = Math.floor(safe / 3600);
+            const m = Math.floor((safe % 3600) / 60);
+            const s = safe % 60;
+            return h.toString().padStart(2, '0') + ':' + m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0');
+        }
+
+        function formatPercent(value, decimals = 1) {
+            if (!Number.isFinite(value)) return '--';
+            const pct = value > 1 ? value : (value * 100);
+            return pct.toFixed(decimals) + '%';
+        }
+
+        function formatCents(value, decimals = 1) {
+            if (!Number.isFinite(value)) return '--';
+            return (value * 100).toFixed(decimals) + '¢';
+        }
+
+        function formatPriceBand(band) {
+            const min = Number(band?.min);
+            const max = Number(band?.max);
+            if (!Number.isFinite(min) || !Number.isFinite(max)) return '--';
+            return formatCents(min) + ' - ' + formatCents(max);
+        }
+
+        function getNextFinalGoldenStrategyEntryEpochSec(gs, nowEpochSec) {
+            const targetHour = Number(gs?.utcHour);
+            const entryMinute = Number(gs?.entryMinute);
+            if (!Number.isInteger(targetHour) || targetHour < 0 || targetHour > 23) return null;
+            if (!Number.isInteger(entryMinute) || entryMinute < 0 || entryMinute > 14) return null;
+            if (!Number.isFinite(nowEpochSec)) return null;
+
+            const cycleStartEpochSec = nowEpochSec - (nowEpochSec % 900);
+            for (let i = 0; i < 96; i++) {
+                const checkCycleStart = cycleStartEpochSec + (i * 900);
+                const checkHour = new Date(checkCycleStart * 1000).getUTCHours();
+                if (checkHour !== targetHour) continue;
+                const entryEpochSec = checkCycleStart + (entryMinute * 60);
+                if (entryEpochSec > nowEpochSec) return entryEpochSec;
+            }
+            return null;
+        }
+
+        function resolveFinalGoldenStrategyIntent(gs, btcData) {
+            const strategyDir = String(gs?.direction || '').trim().toUpperCase();
+            const yesPx = Number(btcData?.market?.yesPrice);
+            const noPx = Number(btcData?.market?.noPrice);
+            let requiredDirection = strategyDir;
+            let checkPrice = null;
+
+            if (strategyDir === 'BEST') {
+                if (Number.isFinite(yesPx) && Number.isFinite(noPx)) {
+                    checkPrice = Math.min(yesPx, noPx);
+                    requiredDirection = yesPx < noPx ? 'UP' : 'DOWN';
+                }
+            } else if (strategyDir === 'UP') {
+                if (Number.isFinite(yesPx)) checkPrice = yesPx;
+            } else if (strategyDir === 'DOWN') {
+                if (Number.isFinite(noPx)) checkPrice = noPx;
+            }
+
+            return { requiredDirection, checkPrice, yesPx, noPx };
+        }
         
-        function updateGoldenHourSystem(btcData) {
+        function updateGoldenHourSystem(btcData, finalGsState) {
             const now = new Date();
             const utcHour = now.getUTCHours();
             const utcMin = now.getUTCMinutes();
             const utcSec = now.getUTCSeconds();
             const cycleMin = utcMin % 15;
             const cycleKey = getCycleKey();
-            
+            const nowEpochSec = Math.floor(now.getTime() / 1000);
+
+            const gsState = finalGsState || {};
+            const gs = gsState.goldenStrategy || null;
+            const stage1 = gsState.stage1Survival || null;
+            const enforced = gsState.enforced === true;
+            const loadError = gsState.loadError || null;
+
             // Reset locked state on new cycle
             if (cycleKey !== currentCycleKey) {
                 currentCycleKey = cycleKey;
                 lockedSignalState = null;
             }
-            
+
             // Update current time display
             const timeDisplay = document.getElementById('currentTimeDisplay');
             if (timeDisplay) {
                 timeDisplay.textContent = 'UTC ' + utcHour.toString().padStart(2,'0') + ':' + utcMin.toString().padStart(2,'0') + ':' + utcSec.toString().padStart(2,'0');
             }
-            
-            // Update countdown to next golden hour
-            const next = getNextGoldenHour();
-            const countdownEl = document.getElementById('countdownTimer');
-            if (countdownEl) {
-                if (next.hoursAway === 0 && next.minsAway <= 60) {
-                    const secsLeft = (next.minsAway * 60) - utcSec;
-                    const h = Math.floor(secsLeft / 3600);
-                    const m = Math.floor((secsLeft % 3600) / 60);
-                    const s = secsLeft % 60;
-                    countdownEl.textContent = (h > 0 ? h + ':' : '') + m.toString().padStart(2,'0') + ':' + s.toString().padStart(2,'0');
-                    countdownEl.style.color = '#00ff88'; // Active now
+
+            const strategyHour = Number(gs?.utcHour);
+            const entryMinute = Number(gs?.entryMinute);
+            const inGoldenHour = Number.isInteger(strategyHour) && utcHour === strategyHour;
+
+            const slotEl = document.getElementById('finalGoldenStrategySlot');
+            const finalHourEl = document.getElementById('finalGsHour');
+            const finalEntryEl = document.getElementById('finalGsEntry');
+            const finalDirEl = document.getElementById('finalGsDirection');
+            const finalBandEl = document.getElementById('finalGsPriceBand');
+            const finalStatusEl = document.getElementById('finalGsStatus');
+            const summaryEl = document.getElementById('goldenStrategySummary');
+
+            if (finalHourEl) {
+                finalHourEl.textContent = Number.isInteger(strategyHour)
+                    ? ('UTC ' + String(strategyHour).padStart(2,'0') + ':00')
+                    : '--:--';
+            }
+            if (finalEntryEl) {
+                finalEntryEl.textContent = Number.isInteger(entryMinute)
+                    ? ('Entry: m' + entryMinute)
+                    : 'Entry: --';
+            }
+            if (finalDirEl) {
+                const d = String(gs?.direction || '').trim().toUpperCase();
+                finalDirEl.textContent = d ? ('Direction: ' + d) : 'Direction: --';
+            }
+            if (finalBandEl) {
+                finalBandEl.textContent = 'Band: ' + (gs ? formatPriceBand(gs.priceBand) : '--');
+            }
+
+            if (finalStatusEl) {
+                if (loadError) {
+                    finalStatusEl.textContent = 'Error';
+                    finalStatusEl.style.color = '#ff6b6b';
+                } else if (!gs) {
+                    finalStatusEl.textContent = 'Not loaded';
+                    finalStatusEl.style.color = '#888';
                 } else {
-                    countdownEl.textContent = next.hoursAway + 'h ' + next.minsAway + 'm';
-                    countdownEl.style.color = '#ffd700';
+                    finalStatusEl.textContent = enforced ? 'ENFORCED' : 'ADVISORY';
+                    finalStatusEl.style.color = enforced ? '#00ff88' : '#ffd700';
                 }
             }
-            
-            // Highlight current/next golden hour in schedule
-            GOLDEN_HOUR_LIST.forEach(h => {
-                const slot = document.getElementById('gh-' + h);
-                if (slot) {
-                    if (h === utcHour && GOLDEN_HOURS[h]) {
-                        slot.style.boxShadow = '0 0 15px rgba(255,215,0,0.6)';
-                        slot.style.transform = 'scale(1.05)';
-                    } else {
-                        slot.style.boxShadow = 'none';
-                        slot.style.transform = 'scale(1)';
-                    }
+
+            if (summaryEl) {
+                if (loadError) {
+                    summaryEl.textContent = 'Final golden strategy error: ' + loadError;
+                    summaryEl.style.color = '#ff6b6b';
+                } else if (!gs) {
+                    summaryEl.textContent = 'Final golden strategy not loaded';
+                    summaryEl.style.color = '#666';
+                } else {
+                    const parts = [];
+                    parts.push(enforced ? 'ENFORCED' : 'ADVISORY');
+                    parts.push('LCB ' + formatPercent(gs.winRateLCB));
+                    if (Number.isFinite(Number(gs.trades))) parts.push(Number(gs.trades) + ' trades');
+                    if (Number.isFinite(Number(gs.tradesPerDayEmpirical))) parts.push(Number(gs.tradesPerDayEmpirical).toFixed(2) + '/day');
+                    if (typeof stage1?.pReachTarget === 'number') parts.push('P($1→$20) ' + formatPercent(stage1.pReachTarget));
+                    summaryEl.textContent = parts.join(' | ');
+                    summaryEl.style.color = '#666';
                 }
-            });
-            
+            }
+
+            if (slotEl) {
+                if (inGoldenHour && gs && !loadError) {
+                    slotEl.style.boxShadow = '0 0 15px rgba(255,215,0,0.6)';
+                    slotEl.style.transform = 'scale(1.02)';
+                } else {
+                    slotEl.style.boxShadow = 'none';
+                    slotEl.style.transform = 'scale(1)';
+                }
+            }
+
+            const winRateEl = document.getElementById('finalGsWinRate');
+            if (winRateEl) {
+                winRateEl.textContent = gs ? ('LCB: ' + formatPercent(gs.winRateLCB)) : '--';
+            }
+            const tradesEl = document.getElementById('finalGsTrades');
+            if (tradesEl) {
+                tradesEl.textContent = gs && Number.isFinite(Number(gs.trades)) ? ('Trades: ' + Number(gs.trades)) : '--';
+            }
+            const maxLossEl = document.getElementById('finalGsMaxLossStreak');
+            if (maxLossEl) {
+                maxLossEl.textContent = (typeof stage1?.maxConsecLosses === 'number') ? ('Max losses: ' + stage1.maxConsecLosses) : '--';
+            }
+
+            // Update countdown to next final golden strategy entry
+            const countdownEl = document.getElementById('countdownTimer');
+            if (countdownEl) {
+                const nextEntryEpochSec = gs ? getNextFinalGoldenStrategyEntryEpochSec(gs, nowEpochSec) : null;
+                if (nextEntryEpochSec) {
+                    const secsLeft = nextEntryEpochSec - nowEpochSec;
+                    countdownEl.textContent = formatCountdownHms(secsLeft);
+                    countdownEl.style.color = inGoldenHour ? '#00ff88' : '#ffd700';
+                } else {
+                    countdownEl.textContent = '--:--:--';
+                    countdownEl.style.color = '#888';
+                }
+            }
+
             // Active signal card
             const activeCard = document.getElementById('goldenHourActiveCard');
-            const goldenConfig = GOLDEN_HOURS[utcHour];
-            const inTradingWindow = cycleMin <= 12;
-            
-            if (goldenConfig && inTradingWindow) {
+            const lockAfterMin = Number.isInteger(entryMinute) ? Math.max(0, Math.min(14, entryMinute)) : 3;
+            const tradingWindowEnd = Number.isInteger(entryMinute) ? Math.max(12, entryMinute) : 12;
+            const inTradingWindow = !!gs && !loadError && inGoldenHour && cycleMin <= tradingWindowEnd;
+
+            if (activeCard && inTradingWindow) {
                 activeCard.style.display = 'block';
-                
+
                 const activeHourBadge = document.getElementById('activeHourBadge');
                 const signalLockStatus = document.getElementById('signalLockStatus');
                 const signalText = document.getElementById('signalText');
                 const signalSubtext = document.getElementById('signalSubtext');
                 const signalBox = document.getElementById('goldenHourSignal');
-                
+
                 if (activeHourBadge) {
-                    activeHourBadge.textContent = '🔥 HOUR ' + utcHour + ':00 ACTIVE';
+                    activeHourBadge.textContent = '🔥 HOUR ' + strategyHour + ':00 ACTIVE';
                 }
-                
-                // Calculate lock time (after minute 3 of cycle)
-                const lockAfterMin = 3;
+
                 const isLocked = cycleMin >= lockAfterMin || lockedSignalState !== null;
-                
+
                 if (signalLockStatus) {
                     if (isLocked) {
                         signalLockStatus.textContent = '🔒 Signal LOCKED';
                         signalLockStatus.style.color = '#00ff88';
                     } else {
                         const secsUntilLock = ((lockAfterMin - cycleMin) * 60) - utcSec;
-                        const m = Math.floor(secsUntilLock / 60);
-                        const s = secsUntilLock % 60;
+                        const m = Math.max(0, Math.floor(secsUntilLock / 60));
+                        const s = Math.max(0, secsUntilLock % 60);
                         signalLockStatus.textContent = '⏳ Locks in ' + m + ':' + s.toString().padStart(2,'0');
                         signalLockStatus.style.color = '#ffd700';
                     }
                 }
-                
-                const expectedBTC = goldenConfig.condition;
-                const btcPrediction = (btcData?.prediction || btcData?.oracleSignal?.direction || '').toUpperCase();
-                
-                // Determine signal state (with locking)
+
+                const intent = resolveFinalGoldenStrategyIntent(gs, btcData);
+                const requiredDirection = String(intent.requiredDirection || '').trim().toUpperCase();
+                const checkPrice = Number(intent.checkPrice);
+                const bandMin = Number(gs?.priceBand?.min);
+                const bandMax = Number(gs?.priceBand?.max);
+                const inBand = Number.isFinite(checkPrice) && Number.isFinite(bandMin) && Number.isFinite(bandMax) && checkPrice >= bandMin && checkPrice <= bandMax;
+
                 let signalState = 'WAITING';
-                if (btcPrediction === expectedBTC) {
-                    signalState = 'BUY';
-                } else if (btcPrediction === 'UP' || btcPrediction === 'DOWN') {
-                    signalState = 'SKIP';
+                if (Number.isInteger(entryMinute)) {
+                    if (cycleMin < entryMinute) {
+                        signalState = 'WAITING';
+                    } else if (cycleMin === entryMinute) {
+                        if ((requiredDirection === 'UP' || requiredDirection === 'DOWN') && inBand) {
+                            signalState = 'BUY';
+                        } else if (requiredDirection === 'UP' || requiredDirection === 'DOWN') {
+                            signalState = 'SKIP';
+                        }
+                    } else {
+                        signalState = 'SKIP';
+                    }
                 }
-                
-                // Apply locking logic (once BUY or SKIP, cannot change in this cycle after lock time)
+
                 if (isLocked && lockedSignalState === null && signalState !== 'WAITING') {
                     lockedSignalState = signalState;
                 }
                 if (lockedSignalState !== null) {
                     signalState = lockedSignalState;
                 }
-                
-                // Render signal
-                if (signalState === 'BUY') {
-                    signalText.innerHTML = '🚀 BUY ETH ' + expectedBTC + ' NOW';
-                    signalText.style.color = '#00ff88';
-                    signalSubtext.textContent = 'Entry: 40-45¢ | Sizing: 20-30% | ' + goldenConfig.wr + '% WR verified';
-                    signalBox.style.background = 'rgba(0,255,136,0.2)';
-                    signalBox.style.borderColor = '#00ff88';
-                } else if (signalState === 'SKIP') {
-                    signalText.innerHTML = '❌ SKIP - BTC is ' + btcPrediction + ', need ' + expectedBTC;
-                    signalText.style.color = '#ff6b6b';
-                    signalSubtext.textContent = 'Wait for next golden hour cycle';
-                    signalBox.style.background = 'rgba(255,107,107,0.15)';
-                    signalBox.style.borderColor = '#ff6b6b';
-                } else {
-                    signalText.innerHTML = '⏳ Waiting for BTC direction...';
-                    signalText.style.color = '#ffd700';
-                    signalSubtext.textContent = 'Need BTC ' + expectedBTC + ' to trigger signal';
-                    signalBox.style.background = 'rgba(255,215,0,0.1)';
-                    signalBox.style.borderColor = '#ffd700';
+
+                if (signalText && signalSubtext && signalBox) {
+                    if (signalState === 'BUY') {
+                        signalText.innerHTML = '🚀 BUY ' + requiredDirection + ' NOW';
+                        signalText.style.color = '#00ff88';
+                        signalSubtext.textContent = 'Entry: m' + entryMinute + ' | Price ' + formatCents(checkPrice) + ' in ' + formatPriceBand(gs.priceBand);
+                        signalBox.style.background = 'rgba(0,255,136,0.2)';
+                        signalBox.style.borderColor = '#00ff88';
+                    } else if (signalState === 'SKIP') {
+                        const tooLate = Number.isInteger(entryMinute) && cycleMin > entryMinute;
+                        const reason = tooLate ? ('Entry m' + entryMinute + ' passed') : 'Price out of band';
+                        signalText.innerHTML = '❌ SKIP - ' + reason;
+                        signalText.style.color = '#ff6b6b';
+                        signalSubtext.textContent = 'Need ' + requiredDirection + ' in ' + formatPriceBand(gs.priceBand);
+                        signalBox.style.background = 'rgba(255,107,107,0.15)';
+                        signalBox.style.borderColor = '#ff6b6b';
+                    } else {
+                        const secsUntilEntry = Number.isInteger(entryMinute) ? (((entryMinute - cycleMin) * 60) - utcSec) : null;
+                        if (Number.isFinite(secsUntilEntry) && secsUntilEntry > 0) {
+                            const m = Math.floor(secsUntilEntry / 60);
+                            const s = secsUntilEntry % 60;
+                            signalText.innerHTML = '⏳ Entry in ' + m + ':' + s.toString().padStart(2,'0');
+                            signalSubtext.textContent = 'Waiting for m' + entryMinute + ' | Need ' + requiredDirection + ' in ' + formatPriceBand(gs.priceBand);
+                        } else {
+                            signalText.innerHTML = '⏳ Waiting for strategy conditions...';
+                            signalSubtext.textContent = 'Need ' + requiredDirection + ' in ' + formatPriceBand(gs.priceBand);
+                        }
+                        signalText.style.color = '#ffd700';
+                        signalBox.style.background = 'rgba(255,215,0,0.1)';
+                        signalBox.style.borderColor = '#ffd700';
+                    }
                 }
-            } else {
+            } else if (activeCard) {
                 activeCard.style.display = 'none';
             }
         }
@@ -23284,7 +23552,7 @@ app.get('/', (req, res) => {
                 if (!data) { console.error('No data received'); return; }
                 
                 // 🏆 v137: Update GOLDEN HOUR SYSTEM with BTC data
-                updateGoldenHourSystem(data.BTC);
+                updateGoldenHourSystem(data.BTC, data._finalGoldenStrategy);
                 
                 // RENDER PREDICTION CARDS
                 const assets = ['BTC', 'ETH', 'XRP', 'SOL'];
@@ -26133,6 +26401,13 @@ function buildStateSnapshot() {
         currentCycleComputed: getCurrentCheckpoint(),
         intervalSeconds: INTERVAL_SECONDS,
         note: 'If driftDetected=true for any asset, bot is using NEXT_CYCLE slug instead of computed slug'
+    };
+
+    response._finalGoldenStrategy = {
+        enforced: CONFIG?.FINAL_GOLDEN_STRATEGY?.enforced === true,
+        loadError: CONFIG?.FINAL_GOLDEN_STRATEGY?.loadError || null,
+        goldenStrategy: CONFIG?.FINAL_GOLDEN_STRATEGY?.goldenStrategy || null,
+        stage1Survival: CONFIG?.FINAL_GOLDEN_STRATEGY?.payload?.stage1Survival || null
     };
 
     return response;
@@ -28989,7 +29264,9 @@ async function startup() {
         setInterval(() => { syncProfileTrades().catch(() => { }); }, 20000);
 
         fetchFearGreedIndex();
-        fetchFundingRates();
+        if (CONFIG?.RUNTIME?.binanceFundingRatesEnabled) {
+            fetchFundingRates();
+        }
 
         // CHAINLINK-ONLY: Validate prices (no external HTTP sources)
         await validatePrices();
@@ -28999,7 +29276,9 @@ async function startup() {
         setInterval(validatePrices, 5000);
 
         setInterval(fetchFearGreedIndex, 300000);
-        setInterval(fetchFundingRates, 300000);
+        if (CONFIG?.RUNTIME?.binanceFundingRatesEnabled) {
+            setInterval(fetchFundingRates, 300000);
+        }
 
         // 💰 Periodic balance monitoring (every 5 minutes) - alerts on low gas/USDC
         setInterval(() => tradeExecutor.checkLowBalances(), 300000);

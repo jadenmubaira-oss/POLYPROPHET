@@ -1,0 +1,92 @@
+{
+  "generatedAt": "2026-01-18T21:15:00.000Z",
+  "dataSource": "exhaustive_90day_analysis.json + polymarket_max_history.json",
+  "analysisMeta": {
+    "startedAt": "2026-01-17T09:00:00.000Z",
+    "completedAt": "2026-01-17T09:42:15.915Z",
+    "runtimeMinutes": 42.3,
+    "totalMarkets": 8641,
+    "datasetRows": 8641,
+    "dataRange": "2025-12-17 to 2026-01-16 (30 days)"
+  },
+  "feeModel": {
+    "takerFeeRate": 0.02,
+    "appliedTo": "winning_profit"
+  },
+  "goldenStrategy": {
+    "entryMinute": 0,
+    "utcHour": 2,
+    "direction": "DOWN",
+    "priceBand": {
+      "min": 0.40,
+      "max": 0.60
+    },
+    "trades": 163,
+    "wins": 145,
+    "losses": 18,
+    "winRate": 0.8896,
+    "winRateLCB": 0.832,
+    "tradesPerDayEmpirical": 5.43
+  },
+  "stage1Survival": {
+    "scenario": "$1 to $20 all-in",
+    "winRate": 0.8896,
+    "feeModel": "2% on winning profit",
+    "pReachTarget": 0.57,
+    "pLossBeforeTarget": 0.43,
+    "pNoLossBeforeTarget": 0.57,
+    "maxConsecLosses": 6,
+    "expectedWinsToTarget": 5,
+    "methodology": "Geometric probability with empirical win rate"
+  },
+  "topStrategiesByLCB": [
+    {
+      "utcHour": 2,
+      "direction": "DOWN",
+      "winRate": 0.8896,
+      "winRateLCB": 0.832,
+      "trades": 163
+    },
+    {
+      "utcHour": 5,
+      "direction": "DOWN",
+      "winRate": 0.8817,
+      "winRateLCB": 0.823,
+      "trades": 186
+    },
+    {
+      "utcHour": 16,
+      "direction": "DOWN",
+      "winRate": 0.8941,
+      "winRateLCB": 0.838,
+      "trades": 170
+    },
+    {
+      "utcHour": 1,
+      "direction": "UP",
+      "winRate": 0.8776,
+      "winRateLCB": 0.822,
+      "trades": 196
+    },
+    {
+      "utcHour": 14,
+      "direction": "DOWN",
+      "winRate": 0.8771,
+      "winRateLCB": 0.818,
+      "trades": 179
+    }
+  ],
+  "validatedStrategies": [
+    {
+      "entryMinute": 0,
+      "utcHour": 2,
+      "direction": "DOWN",
+      "priceBand": { "min": 0.40, "max": 0.60 },
+      "winRate": 0.8896,
+      "winRateLCB": 0.832,
+      "trades": 163,
+      "testWinRate": 0.87,
+      "tradesPerDay": 5.43
+    }
+  ]
+}
