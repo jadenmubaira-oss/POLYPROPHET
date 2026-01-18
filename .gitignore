@@ -26,6 +26,8 @@ deity_state.json
 # Local script outputs (keep out of repo)
 backtest_results.json
 
+ exhaustive_analysis/
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -91,6 +93,7 @@ local_archive/
 
 # Large chat exports
 cursor_*.md
+ cursor_*
 
 # ============================================
 # WRAPPER/BACKUP FILES

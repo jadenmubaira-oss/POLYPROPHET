@@ -100,13 +100,13 @@
 > | v134.5: maxOdds=0.65, minOrder=2 | IMPLEMENTED | ✅ |
 > | v134.6: Force Code Setup | IMPLEMENTED | ✅ |
 > | **v134.7: Hard Cap Fix** | **IMPLEMENTED** | ✅ |
-> | **v138: GOLDEN HOUR SYSTEM (90-day verified)** | **DEPLOYED** | ✅ |
-> | GOLDEN HOURS: 01, 02, 05, 14, 16, 21 UTC | CONFIGURED | ✅ |
-> | 30-day WR (93%) was anomalously good | **TRUE** | ✅ |
-> | 90-day TRUE WR is 88.4% | **VERIFIED** | ✅ |
-> | Hour 16 DOWN is BEST (89.4% WR) | VERIFIED | ✅ |
-> | Max consecutive losses in 90 days: 6 | VERIFIED | ✅ |
-> | All-in @ 88% WR has 12% bust risk per trade | CALCULATED | ✅ |
+> | **v138: GOLDEN HOUR SYSTEM (legacy backtest-era label; not authoritative for the Polymarket-only analysis pipeline)** | **DEPLOYED** | ✅ |
+> | GOLDEN HOURS (legacy config): 01, 02, 05, 14, 16, 21 UTC | CONFIGURED | ✅ |
+> | Legacy short-window WR claim: 93% (non-authoritative) | HISTORICAL | N/A |
+> | Legacy full-window WR claim: 88.4% (non-authoritative) | HISTORICAL | N/A |
+> | Legacy best-hour claim: 16 DOWN (89.4% WR) | HISTORICAL | N/A |
+> | Legacy max consecutive losses claim: 6 (non-authoritative) | HISTORICAL | N/A |
+> | Legacy all-in bust risk estimate: 12% per trade at 88% WR | HISTORICAL | N/A |
 >
 > ---
 >
@@ -215,7 +215,7 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > | v135.2 | ACTIVE ZOMBIE KILL — Hard 70% confidence floor + FORCE UNLOCK |
 > | v136 | GOLDEN HOUR RESEARCH — BTC→ETH correlation strategy, 5 hours (02,03,04,08,14 UTC) |
 > | v137 | GOLDEN HOUR DASHBOARD — Signal locking, countdown timer, anti-flip-flop |
-> | **v138** | **90-DAY VERIFIED GOLDEN HOURS** — 6 hours (01,02,05,14,16,21 UTC), 88.4% avg WR |
+> | **v138** | **GOLDEN HOURS (legacy backtest-era label)** — 6 hours (01,02,05,14,16,21 UTC), legacy avg WR claim 88.4% |
 >
 > ### How To Use v134.1
 >
@@ -746,7 +746,7 @@ v112 adds bankroll-sensitive floors on top of the hard-enforced baseline:
 | **Losses per 10 trades** | ~0.2 |
 
 **NOTE**: v109 backtest uses **actual entry prices** from recorded `entryOdds` when available.
-Falls back to 50¢ only when cycle lacks price data. Check `entryStats` in results.
+Check `entryStats` in results.
 
 ### Per-Asset Breakdown (v106 backtest)
 
@@ -2927,7 +2927,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - Oracle Lock (unbreakable once certainty threshold met)
    - CONVICTION entry: 95% pWin + 90% conf + locked + live WR gate
 
-4. **Strategy Verification Results**
+4. **Strategy Verification Results (Legacy; non-authoritative)**
 
 | Strategy | WR | Samples | Status |
 |----------|-----|---------|--------|
@@ -2958,7 +2958,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
 2. At cycle start:
    - Hours 2, 14: Watch for BTC DOWN → Trade ETH DOWN
    - Hours 3, 4, 8: Watch for BTC UP → Trade ETH UP
-3. Entry: 40-45¢ | Sizing: 20-30%
+3. Entry: use the strategy price band (no fixed entry price) | Sizing: use Stage-1 survival outputs
 ```
 
 #### ⚠️ Why Other Strategies Failed
@@ -2982,4 +2982,50 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
 
 ---
 
-*Version: v96.1 | Updated: 2026-01-16 | Single Source of Truth*
+### 2026-01-17 12:00 UTC — EXHAUSTIVE POLYMARKET ATOMIC ANALYSIS & FINAL STRATEGY
+
+**Agent**: DEITY v2.0 | **Method**: Certainty-first strategy search + walk-forward validation + Stage-1 survival Monte Carlo
+
+#### 🔬 What Was Done
+
+1. **Exhaustive Polymarket Data Build**
+   - **Source**: Polymarket Gamma API (market metadata + resolved outcomes)
+   - **Intracycle odds**: Polymarket CLOB `prices-history` (minute-level snapshots)
+   - **Authoritative output (gitignored)**: `exhaustive_analysis/final_results.json`
+
+2. **Certainty-First Ranking**
+   - Exhaustive sweep over entry minute / UTC hour / direction / price band
+   - Ranked by **Wilson LCB** (95% CI) on empirical win rate
+   - Walk-forward validation results are emitted in `validatedStrategies`
+
+3. **Stage-1 Survival Analysis (empirical ROI + consistent 2% fee model)**
+   - Scenario: $1 → $20 all-in strategy
+   - Monte Carlo simulation bootstraps from the **empirical net ROI distribution** derived from Polymarket entry prices
+   - Fee model: **2% taker fee applied to winning profit only**
+   - Implemented by `calculateStage1Survival()` in `exhaustive_market_analysis.js`
+
+#### 🏆 How To Generate The Final Strategy Outputs
+
+1. Generate the authoritative dataset:
+   - `npm run analysis`
+   - Produces: `exhaustive_analysis/final_results.json`
+
+2. Generate the summary + playbook:
+   - `node final_golden_strategy.js`
+   - Produces: `final_golden_strategy.json`
+
+The single source of truth for the current best strategy is `final_golden_strategy.json` (generated from the Polymarket-only dataset above).
+
+---
+
+## 🎯 THE FINAL VERDICT (v139-ATOMIC)
+
+After generating the outputs above, verify:
+
+- **[Data provenance]** `final_golden_strategy.json.dataSource` is `exhaustive_analysis/final_results.json`
+- **[Fee model]** `final_golden_strategy.json.feeModel.takerFeeRate` is `0.02`
+- **[Stage-1 survival]** `final_golden_strategy.json.stage1Survival` is produced by empirical ROI bootstrapping (no fixed 50¢ assumption)
+
+---
+
+*Version: v139-ATOMIC | Updated: 2026-01-17 | Polymarket-only pipeline*
