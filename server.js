@@ -22999,6 +22999,17 @@ app.get('/', (req, res) => {
     </div>
     
     <script>
+        (function() {
+            const __origFetch = window.fetch.bind(window);
+            window.fetch = function(input, init) {
+                try {
+                    if (typeof input === 'string' && input.startsWith('/')) {
+                        input = new URL(input, window.location.origin).toString();
+                    }
+                } catch (e) {}
+                return __origFetch(input, init);
+            };
+        })();
         // 🏆 v80: Crash recovery functions
         async function loadCrashRecoveryStats() {
             try {
@@ -23187,6 +23198,20 @@ app.get('/', (req, res) => {
     </div>
     <script>
         console.log('SCRIPT STARTING v2');
+        (function() {
+            const __origFetch = window.fetch.bind(window);
+            window.fetch = function(input, init) {
+                try {
+                    if (typeof input === 'string') {
+                        const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(input);
+                        if (!hasScheme) {
+                            input = new URL(input, window.location.origin).toString();
+                        }
+                    }
+                } catch (e) {}
+                return __origFetch(input, init);
+            };
+        })();
         let currentData = null;
         function openModal(id) { document.getElementById(id).classList.add('active'); }
         function closeModal(id) { document.getElementById(id).classList.remove('active'); }
