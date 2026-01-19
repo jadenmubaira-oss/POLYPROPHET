@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>POLYPROPHET Tools</title>
+  <style>
+    :root {
+      --bg: #0b0f16;
+      --panel: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.12);
+      --text: #e7eaf0;
+      --muted: rgba(231,234,240,0.7);
+      --good: #00ff88;
+      --warn: #ffd700;
+      --bad: #ff4466;
+      --blue: #4fc3f7;
+      --pink: #ff0066;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      background: radial-gradient(1200px 600px at 10% 10%, rgba(79,195,247,0.12), transparent),
+                  radial-gradient(1000px 500px at 90% 20%, rgba(255,0,102,0.10), transparent),
+                  radial-gradient(900px 500px at 30% 90%, rgba(0,255,136,0.10), transparent),
+                  var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+    }
+
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+    }
+
+    .nav {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    @media (min-width: 980px) {
+      .grid.two { grid-template-columns: 1fr 1fr; }
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      backdrop-filter: blur(10px);
+    }
+
+    .card h2 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    @media (min-width: 720px) {
+      .row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+      .row.cols-2 { grid-template-columns: 1fr 1fr; }
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: var(--text);
+      outline: none;
+      font-family: var(--sans);
+      font-size: 13px;
+    }
+
+    textarea { min-height: 90px; font-family: var(--mono); font-size: 12px; }
+
+    .btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.4px;
+      color: #000;
+    }
+
+    .btn-blue { background: linear-gradient(90deg, var(--blue), #1d9bf0); }
+    .btn-green { background: linear-gradient(90deg, var(--good), #00cc66); }
+    .btn-pink { background: linear-gradient(90deg, var(--pink), #cc0044); color: #fff; }
+    .btn-warn { background: linear-gradient(90deg, var(--warn), #ffb000); }
+    .btn-gray { background: linear-gradient(90deg, #8b93a8, #68708a); color: #000; }
+
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    pre {
+      margin: 12px 0 0 0;
+      padding: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(0,0,0,0.35);
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text);
+      overflow: auto;
+      max-height: 420px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .hidden-marker { display: none; }
+
+    .pill {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--muted);
+      font-family: var(--mono);
+    }
+
+    .note { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="hidden-marker">POLYPROPHET_TOOLS_UI_MARKER_v1</div>
+
+  <div class="container">
+    <div class="topbar">
+      <div>
+        <div class="title">POLYPROPHET Tools</div>
+        <div class="note">Operational panels for vault projection/optimization, audits, and API Explorer.</div>
+      </div>
+      <div class="nav">
+        <a href="/">Dashboard</a>
+        <span style="opacity:0.35">|</span>
+        <a href="/settings">Settings</a>
+        <span style="opacity:0.35">|</span>
+        <a href="/api/health">/api/health</a>
+        <a href="/api/perfection-check">/api/perfection-check</a>
+        <span class="pill" id="originPill"></span>
+      </div>
+    </div>
+
+    <div class="grid two">
+      <div class="card">
+        <h2>Vault Projection (Monte Carlo)</h2>
+        <div class="note">
+          Endpoints: <span class="pill">/api/vault-projection</span> <span class="pill">/api/vault-optimize</span>
+        </div>
+
+        <div class="row cols-3">
+          <div>
+            <label>vaultTriggerBalance</label>
+            <input id="vVaultTrigger" type="number" step="0.1" value="11" />
+          </div>
+          <div>
+            <label>startingBalance</label>
+            <input id="vStart" type="number" step="0.1" value="10" />
+          </div>
+          <div>
+            <label>seed (optional)</label>
+            <input id="vSeed" type="number" step="1" placeholder="12345" />
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="btn-blue" onclick="runVaultProjection()">Run vault-projection</button>
+          <button class="btn-green" onclick="runVaultOptimize()">Run vault-optimize</button>
+          <button class="btn-warn" onclick="applyWinner()">Apply Winner (settings)</button>
+        </div>
+
+        <div class="status" id="vaultStatus">Ready.</div>
+        <pre id="vaultOut">{}</pre>
+      </div>
+
+      <div class="card">
+        <h2>Polymarket Optimizer (Ground Truth)</h2>
+        <div class="note">
+          Endpoint: <span class="pill">/api/vault-optimize-polymarket</span>
+        </div>
+
+        <div class="row cols-3">
+          <div>
+            <label>hours (optional)</label>
+            <input id="pHours" type="number" step="1" placeholder="720" />
+          </div>
+          <div>
+            <label>stake (optional)</label>
+            <input id="pStake" type="number" step="0.01" placeholder="0.17" />
+          </div>
+          <div>
+            <label>limit (optional)</label>
+            <input id="pLimit" type="number" step="1" placeholder="3000" />
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="btn-pink" onclick="runPolymarketOptimizer()">Run vault-optimize-polymarket</button>
+          <button class="btn-warn" onclick="applyPolymarketWinner()">Apply Polymarket Winner (settings)</button>
+        </div>
+
+        <div class="status" id="polyStatus">Ready.</div>
+        <pre id="polyOut">{}</pre>
+      </div>
+    </div>
+
+    <div class="grid two" style="margin-top:14px;">
+      <div class="card">
+        <h2>Audit & Safety</h2>
+        <div class="note">
+          Endpoints: <span class="pill">/api/verify</span> <span class="pill">/api/verify?deep=1</span> <span class="pill">/api/perfection-check</span>
+        </div>
+
+        <div class="btns">
+          <button class="btn-blue" onclick="runVerify(false)">Run /api/verify</button>
+          <button class="btn-warn" onclick="runVerify(true)">Run /api/verify?deep=1</button>
+          <button class="btn-green" onclick="runPerfectionCheck()">Run perfection-check</button>
+        </div>
+
+        <div class="status" id="auditStatus">Ready.</div>
+        <pre id="auditOut">{}</pre>
+      </div>
+
+      <div class="card">
+        <h2>API Explorer</h2>
+        <div class="note">API Explorer</div>
+
+        <div class="row cols-2">
+          <div>
+            <label>Method</label>
+            <select id="xMethod">
+              <option value="GET">GET</option>
+              <option value="POST">POST</option>
+            </select>
+          </div>
+          <div>
+            <label>Endpoint</label>
+            <input id="xEndpoint" type="text" value="/api/state" />
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label>Body (JSON, only for POST)</label>
+            <textarea id="xBody" placeholder='{"RISK":{"vaultTriggerBalance":11}}'></textarea>
+          </div>
+        </div>
+
+        <div class="btns">
+          <button class="btn-gray" onclick="apiExplorerSend()">Send</button>
+        </div>
+
+        <div class="status" id="xStatus">Ready.</div>
+        <pre id="xOut">{}</pre>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px;">
+      <h2>Apply Winner</h2>
+      <div class="note">This panel applies optimizer winners to runtime via <span class="pill">POST /api/settings</span>.</div>
+      <div class="btns">
+        <button class="btn-warn" onclick="applyWinner()">applyWinner</button>
+        <button class="btn-warn" onclick="applyPolymarketWinner()">applyPolymarketWinner</button>
+        <button class="btn-blue" onclick="loadSettings()">Load Settings</button>
+      </div>
+      <div class="status" id="applyStatus">Ready.</div>
+      <pre id="applyOut">{}</pre>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('originPill').textContent = window.location.origin;
+
+    function apiUrl(path) {
+      return new URL(path, window.location.origin).toString();
+    }
+
+    async function fetchJson(path, options) {
+      const res = await fetch(apiUrl(path), { cache: 'no-store', ...(options || {}) });
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch { json = { raw: text }; }
+      return { ok: res.ok, status: res.status, json };
+    }
+
+    function qp(k, v) {
+      if (v === null || v === undefined) return null;
+      const s = String(v).trim();
+      if (s.length === 0) return null;
+      return `${encodeURIComponent(k)}=${encodeURIComponent(s)}`;
+    }
+
+    function setOut(elId, obj) {
+      document.getElementById(elId).textContent = JSON.stringify(obj, null, 2);
+    }
+
+    function setStatus(elId, text, kind) {
+      const el = document.getElementById(elId);
+      el.textContent = text;
+      if (kind === 'good') el.style.color = 'var(--good)';
+      else if (kind === 'bad') el.style.color = 'var(--bad)';
+      else if (kind === 'warn') el.style.color = 'var(--warn)';
+      else el.style.color = 'var(--muted)';
+    }
+
+    let lastVaultOptimize = null;
+    let lastPolyOptimize = null;
+
+    async function runVaultProjection() {
+      setStatus('vaultStatus', 'Running vault-projection...', 'warn');
+      const vaultTriggerBalance = document.getElementById('vVaultTrigger').value;
+      const startingBalance = document.getElementById('vStart').value;
+      const seed = document.getElementById('vSeed').value;
+
+      const qs = [
+        qp('vaultTriggerBalance', vaultTriggerBalance),
+        qp('startingBalance', startingBalance),
+        qp('seed', seed)
+      ].filter(Boolean).join('&');
+
+      const path = '/api/vault-projection' + (qs ? `?${qs}` : '');
+      const out = await fetchJson(path);
+      setOut('vaultOut', out);
+      setStatus('vaultStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function runVaultOptimize() {
+      setStatus('vaultStatus', 'Running vault-optimize...', 'warn');
+      const startingBalance = document.getElementById('vStart').value;
+      const seed = document.getElementById('vSeed').value;
+
+      const qs = [
+        qp('startingBalance', startingBalance),
+        qp('seed', seed)
+      ].filter(Boolean).join('&');
+
+      const path = '/api/vault-optimize' + (qs ? `?${qs}` : '');
+      const out = await fetchJson(path);
+      lastVaultOptimize = out.json;
+      setOut('vaultOut', out);
+      setStatus('vaultStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function runPolymarketOptimizer() {
+      setStatus('polyStatus', 'Running vault-optimize-polymarket...', 'warn');
+      const hours = document.getElementById('pHours').value;
+      const stake = document.getElementById('pStake').value;
+      const limit = document.getElementById('pLimit').value;
+
+      const qs = [
+        qp('hours', hours),
+        qp('stake', stake),
+        qp('limit', limit)
+      ].filter(Boolean).join('&');
+
+      const path = '/api/vault-optimize-polymarket' + (qs ? `?${qs}` : '');
+      const out = await fetchJson(path);
+      lastPolyOptimize = out.json;
+      setOut('polyOut', out);
+      setStatus('polyStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function runVerify(deep) {
+      const path = deep ? '/api/verify?deep=1' : '/api/verify';
+      setStatus('auditStatus', `Running ${path}...`, 'warn');
+      const out = await fetchJson(path);
+      setOut('auditOut', out);
+      setStatus('auditStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function runPerfectionCheck() {
+      const path = '/api/perfection-check';
+      setStatus('auditStatus', `Running ${path}...`, 'warn');
+      const out = await fetchJson(path);
+      setOut('auditOut', out);
+      setStatus('auditStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function apiExplorerSend() {
+      const method = document.getElementById('xMethod').value;
+      const endpoint = document.getElementById('xEndpoint').value || '/api/state';
+      const bodyText = document.getElementById('xBody').value;
+
+      setStatus('xStatus', `Sending ${method} ${endpoint}...`, 'warn');
+
+      const options = { method };
+      if (method === 'POST') {
+        options.headers = { 'Content-Type': 'application/json' };
+        if (bodyText && bodyText.trim().length > 0) options.body = bodyText;
+      }
+
+      const out = await fetchJson(endpoint, options);
+      setOut('xOut', out);
+      setStatus('xStatus', `${method} ${endpoint} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function applyWinner() {
+      const v = lastVaultOptimize?.winner?.vaultTriggerBalance;
+      if (!Number.isFinite(v)) {
+        setStatus('applyStatus', 'No winner available. Run vault-optimize first.', 'bad');
+        return;
+      }
+      setStatus('applyStatus', `Applying winner vaultTriggerBalance=$${Number(v).toFixed(2)}...`, 'warn');
+      const out = await fetchJson('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ RISK: { vaultTriggerBalance: Number(v) } })
+      });
+      setOut('applyOut', out);
+      setStatus('applyStatus', `POST /api/settings → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function applyPolymarketWinner() {
+      const v = lastPolyOptimize?.winner?.vaultTriggerBalance;
+      if (!Number.isFinite(v)) {
+        setStatus('applyStatus', 'No winner available. Run vault-optimize-polymarket first.', 'bad');
+        return;
+      }
+      setStatus('applyStatus', `Applying Polymarket winner vaultTriggerBalance=$${Number(v).toFixed(2)}...`, 'warn');
+      const out = await fetchJson('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ RISK: { vaultTriggerBalance: Number(v) } })
+      });
+      setOut('applyOut', out);
+      setStatus('applyStatus', `POST /api/settings → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function loadSettings() {
+      setStatus('applyStatus', 'Loading /api/settings...', 'warn');
+      const out = await fetchJson('/api/settings');
+      setOut('applyOut', out);
+      setStatus('applyStatus', `/api/settings → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+  </script>
+</body>
+</html>
