@@ -262,7 +262,7 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
   - **Verdict**: Accepted for $1 stage. Safety > Speed.
 - [x] **🚨 CRITICAL: Zombie Conviction Bug**: FIXED in v135.1. Stale CONVICTION tiers were leaking across cycle boundaries due to hysteresis + warmup skip + smoothing. Added hard 70% confidence floor + warmup reset.
 - [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
-- [ ] **Missing tools.html**: Causes perfection-check warning. Restore file or remove check.
+- [x] **Missing tools.html**: Fixed by adding `public/tools.html` (deploy latest commit if live still 404s).
 - [ ] **🚨 CRITICAL: Zero Trades with Value Hunter**: Backtest shows 0 trades in 24h with maxOdds=0.40. System is TOO RESTRICTIVE.
 >
 > - 30-day backtest: Only 1 trade found = 1 LOSS
@@ -1817,7 +1817,7 @@ if (maxTradeSize < minOrderCost) {
 Before enabling LIVE mode, verify ALL:
 
 ```
-[ ] /api/version shows configVersion: 103
+[ ] /api/version shows configVersion: 139
 [ ] /api/perfection-check shows allPassed: true
 [ ] /api/health shows status: "ok"
 [ ] /api/verify?deep=1 shows status: PASS and `criticalFailures: 0`
@@ -1853,7 +1853,7 @@ URL (Render): https://<your-service>.onrender.com
 URL (local):  http://localhost:3000
 Auth:         <AUTH_USERNAME> / <AUTH_PASSWORD>
 API key:      API_KEY (Bearer/query). (AUTH_PASSWORD is Basic Auth only; never accepted as a token.)
-ConfigVersion: 103  (verify via /api/version)
+ConfigVersion: 139  (verify via /api/version)
 Mode:          PAPER by default (switch to LIVE via Render env or /api/settings)
 ```
 
@@ -1896,7 +1896,7 @@ POLYMARKET_PROFILE_ADDRESS = <optional> (direct 0x address alternative)
 
 1. Push code to GitHub (triggers Render deploy)
 2. Wait for deployment to complete (~2-5 minutes)
-3. Verify via `/api/version` shows `configVersion: 103`
+3. Verify via `/api/version` shows `configVersion: 139`
 4. Verify via `/api/perfection-check` shows `allPassed: true`
 5. Run 24-72h PAPER to validate behavior
 6. Set `TRADE_MODE=LIVE` in Render dashboard when ready
@@ -1912,7 +1912,7 @@ POLYMARKET_PROFILE_ADDRESS = <optional> (direct 0x address alternative)
 ### PowerShell
 
 ```powershell
-# Check version (should show configVersion: 103)
+# Check version (should show configVersion: 139)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/version?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check system verify (should show status: PASS or WARN; failed should be 0)
@@ -1921,7 +1921,7 @@ Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?apiKey=<API_
 # Deep verify (CLOB permission + collateral allowance; should PASS in LIVE)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/verify?deep=1&apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
-# Check vault system perfection (should show allPassed: true)
+# Check vault system perfection (most comprehensive)
 Invoke-WebRequest -Uri "https://polyprophet.onrender.com/api/perfection-check?apiKey=<API_KEY>" -UseBasicParsing | Select-Object -ExpandProperty Content
 
 # Check health (shows all safety statuses including crash recovery)
@@ -2000,9 +2000,10 @@ Run these commands in order. If ANY fails, fix it before proceeding.
 
 ### Required Inputs (for deployed verification)
 
-- **deploymentUrl**: Render URL or custom domain (example: `https://your-app.onrender.com`)
+- **deploymentUrl**: Render URL or custom domain (example: `https://<your-service>.onrender.com`)
 - **auth**: `API_KEY` (preferred) or Basic Auth (`AUTH_USERNAME`/`AUTH_PASSWORD`)
 - **UI auth note**: If you open the dashboard via `?apiKey=...`, the server should persist it via an **HttpOnly cookie** so internal UI `fetch('/api/...')` calls do not 401.
+- **UI Basic Auth note**: Avoid URL-embedded Basic Auth (`https://user:pass@host`). Some browsers block `fetch()` on URLs that include credentials. The dashboard rewrites relative `/api/*` requests to `window.location.origin` to avoid this.
 - **mode intent**: `TRADE_MODE=PAPER` or `TRADE_MODE=LIVE`
 - **persistence**: `REDIS_URL` present? (required for LIVE)
 - **wallet**: `POLYMARKET_PRIVATE_KEY` present? (required for LIVE; also required for wallet balance endpoints)
@@ -2115,6 +2116,7 @@ This is the “no stone unturned” layer: it’s what you review in code to con
 - **Proxy + networking (critical for autonomy)**
   - `fetchJSON()` uses **timeouts** and a **proxy-aware HTTP client** so a single hung request can’t stall the engine and region blocks don’t silently disable trading.
   - Wallet RPC uses **explicit proxy bypass** (direct JSON-RPC) to avoid the global CLOB proxy breaking on-chain reads.
+  - **Cycle boundary integrity**: watch a real 15m rollover and compare `/api/state._clockDrift` vs Gamma active slug immediately before/after the boundary. If drift appears, the bot must prefer Gamma’s active slug (avoid stale markets).
 
 - **CLOB execution prerequisites (silent-failure trap)**
   - `/api/verify?deep=1` must confirm **not** `closed_only` and show **non-zero collateral allowance**.
@@ -2261,7 +2263,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>"
 The check verifies:
 
 - `public/tools.html` file exists
-- Contains `POLYPROPHET_TOOLS_UI_MARKER_v84` marker
+- Contains `POLYPROPHET_TOOLS_UI_MARKER_vN` marker (any vN accepted)
 - Has Monte Carlo Optimizer panel (`vault-projection`, `vault-optimize`)
 - Has Polymarket Backtest Optimizer panel (`vault-optimize-polymarket`)
 - Has Audit panel (`perfection-check`)
@@ -2276,7 +2278,7 @@ The check verifies:
 
 | # | Check | Command | Pass Criteria |
 |---|-------|---------|---------------|
-| 1 | CONFIG_VERSION >= 103 | `/api/version` | `configVersion: 103` |
+| 1 | CONFIG_VERSION >= 139 | `/api/version` | `configVersion: 139` |
 | 2 | Perfection check | `/api/perfection-check` | `allPassed: true`, `criticalFailed: 0` |
 | 3 | System verify | `/api/verify` | `failed: 0` |
 | 4 | Vault thresholds exposed | `/api/risk-controls` | `vaultThresholds.sources` shows value origins |
@@ -2664,7 +2666,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
 
 - `/api/vault-optimize-polymarket` endpoint at server.js ~line 2576
 - `objectiveMetrics` returned from `/api/backtest-polymarket` at ~line 1515
-- Tools UI contains `POLYPROPHET_TOOLS_UI_MARKER_v84` marker
+- Tools UI contains `POLYPROPHET_TOOLS_UI_MARKER_vN` marker
 
 ---
 
@@ -2707,7 +2709,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
 - `getVaultThresholds()` function at server.js ~line 6082
 - `/api/perfection-check` verifies all wiring is correct (including Tools UI)
 - `getDynamicRiskProfile()` returns `thresholds` object for audit
-- `public/tools.html` contains `POLYPROPHET_TOOLS_UI_MARKER_v83` marker
+- `public/tools.html` contains `POLYPROPHET_TOOLS_UI_MARKER_vN` marker
 
 ---
 

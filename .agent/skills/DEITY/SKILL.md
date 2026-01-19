@@ -182,7 +182,7 @@ Before concluding "no edge exists":
 7. ⬜ **Market Maker Behavior**: Price movement patterns?
 8. ⬜ **Mean Reversion**: Extreme odds tend to revert?
 9. ⬜ **Streak Patterns**: After 3 UPs, DOWN more likely?
-10. ⬜ **External Signals**: Binance/CoinGecko during cycle?
+10. ⬜ **External Signals**: Avoid non-Polymarket signals (analysis must remain Polymarket-only)
 
 ### The Mindset
 
@@ -344,44 +344,17 @@ Document:
 - **Reality**: With n=1,418 samples, it's 82.6%
 - **Fix**: Always require large sample sizes for WR claims
 
-### 2026-01-17: The 90-Day Reality Check (CRITICAL)
+### 2026-01-17: Legacy Backtest Reality Check (CRITICAL)
 
 **The Discovery**:
 
-- Initial 30-day backtest showed 93% WR for GOLDEN HOUR strategy
-- Full 90-day exhaustive analysis (8,641 cycles) revealed TRUE WR is **88%**
-- The Dec 17 - Jan 16 period was **anomalously good** due to strong BTC-ETH correlation
+- A short-window backtest can overstate win rate
+- A longer-window exhaustive backtest can materially reduce the estimate and reveal longer loss streaks
 
-**Key Findings**:
+**Policy (current)**:
 
-| Period | Win Rate | Max Consec Losses |
-|--------|----------|-------------------|
-| 30 days | 93% | 1 |
-| **90 days** | **88%** | **6** |
-
-**Revised GOLDEN HOURS (v138)**:
-
-| Hour UTC | Direction | 90-Day WR | Trades |
-|----------|-----------|-----------|--------|
-| 01:00 | UP | 87.8% | 196 |
-| 02:00 | DOWN | 89.0% | 163 |
-| 05:00 | DOWN | 88.2% | 186 |
-| 14:00 | DOWN | 87.7% | 179 |
-| **16:00** | DOWN | **89.4%** | 170 |
-| 21:00 | UP | 86.2% | 188 |
-
-**Hours REMOVED** (degraded over 90 days):
-
-- Hour 03: 93.1% → 82.8%
-- Hour 04: 91.5% → 85.8%
-- Hour 08: 91.7% → 83.7%
-
-**Hours ADDED** (strong over 90 days):
-
-- Hour 01: 87.8%
-- Hour 05: 88.2%
-- Hour 16: 89.4% ⭐ BEST
-- Hour 21: 86.2%
+- Any performance claims must be derived from the Polymarket-only pipeline (`exhaustive_market_analysis.js` → `exhaustive_analysis/final_results.json`)
+- Do not cite legacy backtest-era hour lists, win rates, or streak stats as authoritative
 
 ### 2026-01-17: All-In Risk Analysis
 
@@ -389,38 +362,42 @@ Document:
 
 **Honest Assessment**:
 
-- 88% WR = 12% loss rate per trade
-- First trade has 12% chance of immediate bust
-- Monte Carlo showed max 6 consecutive losses possible
-- All-in strategy at 10 trades: 72% bust probability
+- Even a high win rate still implies a non-zero loss rate per trade
+- All-in sizing means a single loss can end the run
+- Use the Stage-1 survival simulation outputs (`pReachTarget`, `pLossBeforeTarget`, `maxConsecLosses`) to make sizing decisions
 
-**Recommendation**: Split $1 into 4 trades (25¢ each), focus on Hour 16
+**Recommendation**: Use the Polymarket-only Stage-1 survival outputs to decide between all-in vs. splitting bankroll into multiple attempts
 
 ---
 
-## 🏆 CURRENT STATE (v138)
+## 🏆 CURRENT STATE (v139)
 
 ### Live Server
 
 - **URL**: <https://polyprophet.onrender.com/>
-- **Version**: 138
-- **Git Commit**: c066cfa
+- **Version**: 139
+- **Git Commit**: (verify via `/api/version` → `code.gitCommit`)
 
-### Active Strategy: GOLDEN HOUR SYSTEM
+### Active Strategy: FINAL GOLDEN STRATEGY (ENFORCED)
 
-- 6 premium hours per day (01, 02, 05, 14, 16, 21 UTC)
-- Average WR: 88.4% (90-day verified)
-- Trade ETH direction when BTC matches expected direction
-- Signal locking prevents flip-flop after minute 3
+- Strategy is loaded from `final_golden_strategy.json` at startup (enforced unless `ENFORCE_FINAL_GOLDEN_STRATEGY=false`).
+
+### Deployment / Autonomy Caveats
+
+- **Tools UI**: `public/tools.html` must exist and include `POLYPROPHET_TOOLS_UI_MARKER_vN` (any vN accepted by regex)
+- **Basic Auth**: Avoid URL-embedded creds (`https://user:pass@host`) — some browsers block `fetch()` when credentials are in the URL
+- **Cycle boundary integrity**: Observe real 15m rollovers and compare `/api/state` response `_clockDrift` vs Gamma active slug before/after boundary
 
 ### Key Files Modified This Session
 
 | File | Changes |
 |------|---------|
-| `server.js` | v137→v138: Updated GOLDEN_HOURS config, dashboard HTML |
-| `README.md` | Added v136, v137, v138 version history |
-| `exhaustive_90day_analysis.js` | New: 90-day analysis script |
-| `exhaustive_90day_analysis.json` | New: Results of 90-day analysis |
+| `server.js` | v139: Final golden strategy JSON enforced + dashboard uses `_finalGoldenStrategy` |
+| `public/tools.html` | Restored Tools UI (fixes `/tools.html` + `/api/perfection-check` warning) |
+| `README.md` | Updated v139 verification + deploy caveats (marker vN, Basic Auth, cycle drift) |
+| `final_golden_strategy.json` | Authoritative final strategy + Stage-1 survival outputs |
+| `final_golden_strategy.js` | Generates `final_golden_strategy.json` from Polymarket-only dataset |
+| `exhaustive_market_analysis.js` | Generates `exhaustive_analysis/final_results.json` (Polymarket-only) |
 
 ---
 
@@ -428,16 +405,17 @@ Document:
 
 ### Immediate Context
 
-1. ✅ v138 is deployed and verified
-2. ✅ 6 golden hours: 01, 02, 05, 14, 16, 21 UTC
-3. ✅ 88.4% average WR (not 93% as 30-day suggested)
-4. ⚠️ User considering all-in trades - advised against
+1. ✅ v139 is the current config version (`CONFIG_VERSION=139`)
+2. ✅ Strategy is sourced from `final_golden_strategy.json` and exposed via `/api/state` → `_finalGoldenStrategy`
+3. ✅ Dashboard Golden Strategy panel is driven by `_finalGoldenStrategy` (no legacy hour list)
+4. ✅ Tools UI should be available at `/tools.html` and pass `/api/perfection-check`
+5. ⚠️ All-in trading requires Stage-1 survival risk disclosure (see `_finalGoldenStrategy.stage1Survival`)
+6. ⚠️ Avoid URL-embedded Basic Auth creds (`https://user:pass@host`) — browser fetch can fail
 
 ### What NOT to Re-Investigate
 
-- Golden hours are FINAL at v138 (90-day verified)
-- 30-day data was anomalously good, 90-day is truth
-- Hour 16 (DOWN) is statistically best at 89.4%
+- Do not treat legacy backtest-era golden hours or win-rate numbers as authoritative
+- Current authoritative strategy selection and metrics must come from the Polymarket-only pipeline outputs
 
 ### What MAY Need Work
 
