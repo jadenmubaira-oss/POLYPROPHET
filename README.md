@@ -142,12 +142,12 @@
 >
 > ---
 >
-> ## 🏆 v134.2: VALUE HUNTER RESTORED (MAX ROI STRATEGY)
+> ## 🏆 v134.8: SOL Golden Zone (CERTAINTY-FIRST STRATEGY)
 >
 > ### Core Philosophy & Goal
 >
 > - **Primary Goal**: $1 → $1M via compounding on CONVICTION-tier LOCKED signals
-> - **Strategy**: VALUE HUNTER — Trade ONLY cheap options (<40¢) for maximum profit multiples
+> - **Strategy**: SOL Golden Zone — Prefer entries in **60¢–80¢**; tail entries **<60¢** are blocked unless the strict Tail-BUY gate passes
 > - **Approach**: "Bot does its thing and notifies me via Telegram" — minimal UI interaction
 > - **Risk Profile**: Conservative entry + high ROI = Steady compounding. Value over frequency.
 >
@@ -164,39 +164,39 @@
 >
 > | Feature | Description |
 > |---------|-------------|
-> | **🚀 maxOdds: 0.95** | Trade at ANY price up to 95¢ (favorites allowed) |
-> | **🎯 minOdds: 0.20** | Still allow extreme value bets down to 20¢ |
+> | **🚀 maxOdds: 0.80** | Hard cap: no BUY at ≥80¢ |
+> | **🎯 minOdds: 0.60** | Default entry floor; tail bets <60¢ require strict Tail-BUY gate |
 > | **🧠 10-Model Ensemble** | Genesis, Physicist, OrderBook, Historian, BTC Correlation, Macro, Funding, Volume, Whale, Sentiment |
 > | **👑 Genesis Supremacy** | Genesis model has 4x weight at >80% accuracy, VETO power at >90% |
 > | **🔒 TRUE PROPHET LOCK** | Once LOCKED, prediction cannot flip. Period. |
-> | **📊 CONVICTION Requirements** | 90%+ confidence + locked + 95% pWin + 20+ samples |
+> | **📊 BUY Gate (Certainty-First)** | Entry <80¢ + (strict mode: tier=CONVICTION) + pWin ≥ 85–90% (and meets bankroll floor) + min samples (≤$20: 10, else 5) + ≤$20 requires 🔒 LOCKED; tail <60¢ additionally requires pWin ≥ 95% + EV ROI ≥ 30% + samples ≥ 25 |
 > | **📱 Telegram Alerts** | All signals sent to Telegram with "I TOOK IT" / "SKIPPED" buttons |
 >
 > ### v134.8 "GOD MODE" FINDINGS (30-Day Analysis)
-
-**The "Inverse Sentiment" Bug**:
-A critical flaw was detected in BTC/ETH signals. During high-volatility "Sentiment Inversion" events, the bot's confidence spikes to >96% (e.g., UP) while the market moves 99% in the opposite direction. This is caused by the **Whale Model** misinterpreting deep order book walls as momentum rather than resistance.
-
-**The "Golden Strategy" (SOL Reversion)**:
-SOL is immune to this bug in the mid-range. The volatility profile of SOL in the **60¢ - 75¢** band filters out "Whale Trap" noise, resulting in a **91.8% Win Rate** over 30 days.
-
-**Verdict**:
-
-- **SOL**: The only safe asset for the $1M mission.
-- **SOL**: The only safe asset for the $1M mission.
-- **BTC/ETH**: "Advisory Only" - prone to inversion.
-- **XRP**: Terminated.
-
-### v135.0 ULTRATHINK VERIFICATION (2026-01-16)
-
-**Status**: ✅ DEITY-LEVEL STABLE
-
-1. **Hysteresis Confirmed**: Forensic analysis shows SOL maintaining CONVICTION tier even when raw confidence dips to ~0.57. This is the **Smoothing (80/20) + Hysteresis (10% buffer)** systems working in tandem to prevent flip-flopping.
-2. **Spread Gate Active**: Logic confirmed. No "Liquidity Voids" currently active (spreads <5%).
-3. **Trade Starvation Risk**: High. Current strict settings (SOL only, 60-75¢, Conviction) yielded only 1 trade in 24h.
-    - **Mitigation**: Users must be patient. 1 safe trade > 10 risky trades. Volume will naturally increase during volatility.
-
-### Version History
+>
+> **The "Inverse Sentiment" Bug**:
+> A critical flaw was detected in BTC/ETH signals. During high-volatility "Sentiment Inversion" events, the bot's confidence spikes to >96% (e.g., UP) while the market moves 99% in the opposite direction. This is caused by the **Whale Model** misinterpreting deep order book walls as momentum rather than resistance.
+>
+> **The "Golden Strategy" (SOL Reversion)**:
+> SOL is immune to this bug in the mid-range. The volatility profile of SOL in the **60¢ - 80¢** band filters out "Whale Trap" noise, resulting in a **91.8% Win Rate** over 30 days.
+>
+> **Verdict**:
+>
+> - **SOL**: The only safe asset for the $1M mission.
+> - **SOL**: The only safe asset for the $1M mission.
+> - **BTC/ETH**: "Advisory Only" - prone to inversion.
+> - **XRP**: Terminated.
+>
+> ### v135.0 ULTRATHINK VERIFICATION (2026-01-16)
+>
+> **Status**: ✅ DEITY-LEVEL STABLE
+>
+> 1. **Hysteresis Confirmed**: Forensic analysis shows SOL maintaining CONVICTION tier even when raw confidence dips to ~0.57. This is the **Smoothing (80/20) + Hysteresis (10% buffer)** systems working in tandem to prevent flip-flopping.
+> 2. **Spread Gate Active**: Logic confirmed. No "Liquidity Voids" currently active (spreads <5%).
+> 3. **Trade Starvation Risk**: High. Current strict settings (SOL only, 60-80¢, Conviction) yielded only 1 trade in 24h.
+>     - **Mitigation**: Users must be patient. 1 safe trade > 10 risky trades. Volume will naturally increase during volatility.
+>
+> ### Version History
 >
 > | Version | Feature |
 > |---------|---------|
@@ -209,7 +209,7 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > | v134.5 | FREQUENCY FIX — maxOdds=0.65 (~1/hr), minOrder=2 ($1 start) |
 > | v134.6 | GLOBAL CONFIG FORCE — Hardcoded minOrder=2 & maxOdds=0.65 to bypass env vars |
 > | v134.7 | HARD CAP FIX — Entry cap & maxOdds clamp both 65¢ (was 80¢) |
-> | v134.8 | SOL-ONLY GOLDEN ZONE — minOdds=0.60, maxOdds=0.75, BTC/ETH disabled |
+> | v134.8 | SOL-ONLY GOLDEN ZONE — minOdds=0.60, maxOdds=0.80, BTC/ETH disabled |
 > | v134.9 | All assets re-enabled for notifications (user manually filters SOL) |
 > | v135.0 | ANTI-FLIP-FLOP OVERHAUL — Tier hysteresis (10% buffer) + Spread Gate for signals |
 > | v135.2 | ACTIVE ZOMBIE KILL — Hard 70% confidence floor + FORCE UNLOCK |
@@ -220,18 +220,18 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > ### How To Use v134.1
 >
 > 1. **Deploy to Render**: Push to GitHub, Render auto-deploys
-> 2. **Watch Telegram**: Wait for **CONVICTION + LOCKED** signals (ANY entry price up to 95¢)
+> 2. **Watch Telegram**: Wait for **CONVICTION + LOCKED** signals (entry price <80¢)
 > 3. **Verify on Dashboard**: Asset cards show direction, tier, and LOCKED badge
 > 4. **Execute Trade**: Buy on Polymarket at the signaled entry price
 > 5. **Confirm in Telegram**: Click "I TOOK IT" to record trade to ledger
 > 6. **Compound**: Re-invest winnings for exponential growth
 >
-> ### Critical Settings (v134.2 VALUE HUNTER)
+> ### Critical Settings (Current: SOL Golden Zone)
 >
 > | Setting | Value | Meaning |
 > |---------|-------|---------|
-> | `maxOdds` | **0.65** | Frequency Fix (~1/hr) at >50% ROI |
-> | `minOdds` | **0.20** | Allow extreme value bets |
+> | `maxOdds` | **0.80** | Hard cap: no BUY at ≥80¢ |
+> | `minOdds` | **0.60** | Default entry floor; tail bets <60¢ require strict Tail-BUY gate |
 > | `buyWindowStartSec` | 870 | Trade window opens at 30s elapsed |
 > | `buyWindowEndSec` | 60 | Blackout: final 60s before resolution |
 > | `convictionOnlyMode` | **true** | STRICT - Only CONVICTION tier trades |
@@ -254,26 +254,26 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 >
 > ### 🛑 OPEN ISSUES & TODOs (Continuous Improvement)
 >
-> - [ ] **XRP Re-evaluation**: Test XRP performance specifically with "Value Hunter" settings (<40¢). It failed at High Odds, but might thrive as a value asset.
+> - [ ] **XRP Re-evaluation**: Test XRP performance under the current **SOL Golden Zone-style entry gates** (default `minOdds=0.60`, `maxOdds=0.80`, Tail-BUY gate below 60¢). It failed in some prior presets, but may behave differently under the stricter certainty gates.
 > - [x] **Liquidity Flickering**: FIXED in v134.3 (Soft Penalty) and v135.0 (Spread Gate for signals).
 > - [x] **Mid-Cycle Flip-Flopping**: FIXED in v135.0. Verified via tick forensics (Smoothing + Hysteresis).
 >
-- [ ] **🚨 CRITICAL: Low Trade Volume**: Current "Golden Zone" strategy is extremely strict (1 trade/24h).
-  - **Verdict**: Accepted for $1 stage. Safety > Speed.
-- [x] **🚨 CRITICAL: Zombie Conviction Bug**: FIXED in v135.1. Stale CONVICTION tiers were leaking across cycle boundaries due to hysteresis + warmup skip + smoothing. Added hard 70% confidence floor + warmup reset.
-- [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
-- [x] **Missing tools.html**: Fixed by adding `public/tools.html` (deploy latest commit if live still 404s).
-- [ ] **🚨 CRITICAL: Zero Trades with Value Hunter**: Backtest shows 0 trades in 24h with maxOdds=0.40. System is TOO RESTRICTIVE.
+> - [ ] **🚨 CRITICAL: Low Trade Volume**: Current "Golden Zone" strategy is extremely strict (1 trade/24h).
+>   - **Verdict**: Accepted for $1 stage. Safety > Speed.
+> - [x] **🚨 CRITICAL: Zombie Conviction Bug**: FIXED in v135.1. Stale CONVICTION tiers were leaking across cycle boundaries due to hysteresis + warmup skip + smoothing. Added hard 70% confidence floor + warmup reset.
+> - [ ] **🚨 CRITICAL: Inverse Sentiment Bug**: BTC/ETH locked on DOWN while market is 99% UP. Historian/Genesis models may be overriding real-time data. Needs sanity check gate.
+> - [x] **Missing tools.html**: Fixed by adding `public/tools.html` (deploy latest commit if live still 404s).
+> - [ ] **🚨 CRITICAL: Zero Trades with Value Hunter**: Backtest shows 0 trades in 24h with maxOdds=0.40. System is TOO RESTRICTIVE.
 >
 > - 30-day backtest: Only 1 trade found = 1 LOSS
 > - Minimum order cost: $1.75 (user starts with $1 - CANNOT TRADE)
 > - Need to either: (A) Expand asset coverage, OR (B) Increase maxOdds, OR (C) Lower minOrderShares
 >
 > ---
-> | ANY (≤95¢) | CONVICTION | Yes | ✅ **TRADE** (97.8% WR) |
-> | ANY (≤95¢) | CONVICTION | No | ⏳ WAIT for lock |
+> | < 80¢ | CONVICTION | Yes | ✅ **TRADE** (97.8% WR) |
+> | < 80¢ | CONVICTION | No | ⏳ WAIT for lock |
 > | ANY | ADVISORY | Any | 🚫 **BLOCKED** (Strict Mode) |
-> | > 95¢ | Any | Any | 🚫 NO TRADE (maxOdds cap) |
+> | ≥ 80¢ | Any | Any | 🚫 NO TRADE (80¢ hard cap) |
 >
 > ### API Endpoints
 >
@@ -289,7 +289,6 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > ---
 >
 > **PREVIOUS VERSIONS (For Historical Context)**
-
 >
 > **v123 PRACTICALLY CERTAIN ADVISORY**:
 >
@@ -316,13 +315,11 @@ SOL is immune to this bug in the mid-range. The volatility profile of SOL in the
 > - **🎯 TWO-TIER MODEL**: Dashboard shows FORECAST (continuous) vs CALL (actionable BUY/PREPARE/WAIT)
 > - **📊 DUAL LAST-10 METRICS**: Forecast accuracy (all cycles) + CALL accuracy (BUY calls only)
 > - **✅ CONFIRM-GATED TRADES**: NO CONFIRM = SKIPPED - shadow position only opens on Telegram confirmation
-> - **🚫 NO BUY AT ≥80¢**: Hard block - even GOAT preset cannot override (server clamps)
-> - **💰 BANKROLL-SENSITIVE pWin FLOORS**:
->   - ≤$5: 92% pWin required (cannot afford losses)
->   - ≤$20: 90% pWin required (cautious)
->   - ≤$100: 87% pWin required (moderate)
->   - >$100: 85% pWin required (standard)
-
+> - **🚫 NO BUY AT ≥80¢**: Hard block (entry price cap; enforced in code)
+> - **💰 BUY pWin FLOOR**:
+>   - Hard floor: ≥85% pWin (never BUY below this)
+>   - Adaptive tightening: up to 90% if recent oracle WR drops
+>   - ≤$20 bankroll: requires LOCKED + ≥10 calibration samples
 ---
 
 ## 🎯 v119: HIGHER-FREQUENCY ORACLE + TELEGRAM CLARITY
@@ -486,6 +483,53 @@ This ensures CONVICTION signals are rare but extremely accurate.
 
 ### Backup/Restore System
 
+#### Disaster Recovery USB Kit
+
+**Goal**: You should be able to restore PolyProphet on a brand-new machine/server with minimal friction.
+
+**USB Kit contents (store in USB or encrypted cloud):**
+
+- Full repo source (zip or git clone + commit SHA)
+- `redis-export.json` (created via `node scripts/migrate-redis.js backup` / `scripts/backup.bat` / `./scripts/backup.sh`)
+- `polyprophet_nuclear_backup_<timestamp>.json` (download from `/api/nuclear-backup`)
+- Your `.env` (or an equivalent secure record of required env vars)
+
+**Runtime prerequisites (new machine):**
+
+- Node.js `20.x` (see `package.json` `engines.node`)
+- `npm install`
+
+**Environment variables to preserve (minimum functional restore):**
+
+- `REDIS_URL`
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_CHAT_ID`
+- `BINANCE_FUNDING_RATES_ENABLED=false`
+- `ENFORCE_FINAL_GOLDEN_STRATEGY=true`
+
+**If restoring LIVE trading**, also preserve:
+
+- `POLYMARKET_PRIVATE_KEY`
+- `POLYMARKET_API_KEY`
+- `POLYMARKET_SECRET`
+- `POLYMARKET_PASSPHRASE`
+- `POLYMARKET_ADDRESS`
+- `ENABLE_LIVE_TRADING=true`
+
+**Restore path A (Redis snapshot via `redis-export.json`):**
+
+1. Copy `redis-export.json` into the repo root.
+2. Set `TARGET_REDIS_URL` to your new Redis instance.
+3. Run `node scripts/migrate-redis.js restore`.
+4. Set `REDIS_URL` to the same Redis URL and start the server.
+5. Verify `/api/health` shows Redis as available and the expected `configVersion`.
+
+**Restore path B (Nuclear backup, Redis-independent):**
+
+1. Start the server on the new machine.
+2. POST the saved nuclear backup file to `/api/nuclear-restore`.
+3. Restart the server.
+
 **Full Redis Backup**:
 
 ```bash
@@ -532,7 +576,7 @@ v116 introduces a fundamental separation between **Forecast** (what the model th
 **What v116 does instead:**
 
 - **Forecast**: Shown on every cycle—the model's current best guess (can be wrong ~40-50% of the time)
-- **CALL**: Only BUY/PREPARE when strict gates pass (pWin ≥ 85-92%, tier = CONVICTION/ADVISORY, etc.)
+- **CALL**: Only BUY/PREPARE when strict gates pass (pWin ≥ 85% with adaptive tightening up to 90%, tier = CONVICTION/ADVISORY, entry <80¢, etc.)
 - **CALL accuracy** tracks only the BUY calls you received—this is what matters for trading
 - **Forecast accuracy** tracks all cycles—this shows overall model calibration
 
@@ -572,7 +616,7 @@ v115 adds critical safety layers to prevent stale-cycle alerts and tail-bet gamb
    - No active slug available (market data missing)
    - This prevents delayed/queued sends from firing after the market rolled
 
-2. **Tail-BUY Gate**: When entry price is below `CONFIG.ORACLE.minOdds` (default 35¢):
+2. **Tail-BUY Gate**: When entry price is below `CONFIG.ORACLE.minOdds` (default 60¢):
    - **BUY is BLOCKED** unless ALL strict conditions are met:
      - Prediction is LOCKED (stable + oracleLocked)
      - Tier is CONVICTION
@@ -617,13 +661,13 @@ v113 fixes critical issues discovered in v112 and adds Telegram trade confirmati
    - Links are idempotent (clicking twice won't duplicate)
    - Syncs across devices via Redis
 
-4. **Hard ≥80¢ Entry Price Cap**: BUY signals blocked when entry price ≥ 80¢ (unchanged from v112).
+4. **Hard ≥80¢ Entry Price Cap**: BUY signals blocked when entry price ≥ 80¢ (hard cap).
 
-5. **Bankroll-Sensitive pWin Floors** (unchanged from v112):
-   - ≤$5 bankroll: **92% pWin floor**
-   - ≤$20 bankroll: **90% pWin floor**
-   - ≤$100 bankroll: **87% pWin floor**
-   - >$100 bankroll: **85% pWin floor**
+5. **Adaptive BUY Gate**:
+   - Hard floor: **85% pWin** (never BUY below this)
+   - Tightens up to **90%** if rolling WR drops
+   - Bankroll ≤$20: requires 🔒 LOCKED + **≥10** calibration samples
+   - Bankroll >$20: requires **≥5** calibration samples
 
 ### v111 Critical Fixes
 
@@ -692,15 +736,14 @@ v112 adds bankroll-sensitive floors on top of the hard-enforced baseline:
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
 | **Win Rate Target** | 85% | 1-2 losses per 10 trades |
-| **pWin Floor (≤$5)** | **92%** | Micro bankroll cannot afford losses |
-| **pWin Floor (≤$20)** | **90%** | Small bankroll stays cautious |
-| **pWin Floor (≤$100)** | **87%** | Moderate growth phase |
-| **pWin Floor (>$100)** | **85%** | Standard floor |
-| **Entry Price Cap** | **80¢** | No BUY at expensive prices |
+| **pWin Floor (Hard)** | **85%** | Never BUY below this |
+| **Adaptive Tighten Cap** | **90%** | Auto-tighten when rolling WR drops |
+| **Entry Price Cap** | **80¢** | Hard cap (also clamps `ORACLE.maxOdds`) |
 | **PREPARE Threshold** | 75% | Early warning (below BUY floor) |
 | **Model Consensus** | 72% | Balanced for frequency |
 | **Vote Stability** | 80% | Balanced for frequency |
 | **Frequency Target** | ~1/hour | When conditions allow (may be less at micro bankrolls) |
+| **Locked-only (≤$20)** | true | Movable signals blocked for small bankrolls |
 | **Min Samples (≤$20)** | 10 | Stricter reliability for micro bankrolls |
 | **Min Samples (>$20)** | 5 | Standard reliability requirement |
 
@@ -708,8 +751,9 @@ v112 adds bankroll-sensitive floors on top of the hard-enforced baseline:
 
 **WILL DO:**
 
-- Block BUY signals at entry price ≥ 80¢ (protects thin-margin trades)
-- Require higher certainty for smaller bankrolls (92% for ≤$5)
+- Block BUY signals at entry price ≥ 80¢ (hard cap)
+- Require pWin ≥ 85% for BUY (adaptive tightens up to 90%)
+- For bankroll ≤$20, require 🔒 LOCKED signals (no MOVABLE trades)
 - Require statistical reliability before allowing BUY signals
 - Send PREPARE signals even when BUY is blocked (for awareness)
 - Allow SELL/HOLD signals regardless of price
@@ -767,16 +811,17 @@ Check `entryStats` in results.
 ### How It Works
 
 1. **Timing Windows**:
-   - **PREPARE**: 3-1.5 minutes before cycle end (get ready, pWin ≥ 75%)
-   - **BUY**: 1.5-1 minute before end (execute now, pWin ≥ bankroll floor)
+   - **PREPARE**: Default `14:50–14:30` remaining (pWin ≥ 75%)
+   - **BUY**: Default `14:30–1:00` remaining (must pass adaptive gate)
    - **AVOID**: <60 seconds (blackout, too late)
 
-2. **v112 Gate Stack** (all must pass for BUY):
+2. **BUY Gate Stack** (all must pass for BUY):
    - ✅ Entry price < 80¢ (hard cap)
    - ✅ Tier = CONVICTION or ADVISORY
-   - ✅ pWin ≥ bankroll-sensitive floor (92%/90%/87%/85%)
+   - ✅ pWin ≥ adaptive threshold (≥85%, tightens up to 90% based on recent WR)
    - ✅ Calibration samples ≥ minimum (10 for micro, 5 for larger)
-   - ✅ In BUY timing window (1.5-1 minutes before end)
+   - ✅ ≤$20 bankroll: signal must be 🔒 LOCKED
+   - ✅ In BUY timing window
    - ✅ Prediction is stable (not flip-flopping)
 
 3. **Adaptive Threshold** (v109+ - HARD-ENFORCED):
@@ -944,9 +989,9 @@ The system tracks "hot regimes" and warns when they're deteriorating:
 
 | Mode | Condition | What It Means |
 |------|-----------|---------------|
-| **🔥 ON** | 3+ consecutive wins + 85%+ recent WR | Hot streak - consider larger positions |
-| **⚠️ RISK** | Was ON but WR dropping or 2+ deterioration signals | Streak may be ending - be cautious |
-| **❄️ OFF** | Normal conditions | Standard risk management |
+| **🔥 ON** | ≥5 consecutive wins + ≥90% recent WR (last 15, min 8) | Detection only (informational) |
+| **⚠️ RISK** | ON → any loss OR recent WR <80% | Detection only (informational) |
+| **❄️ OFF** | Streak broken (2 losses after ON) | Detection only (informational) |
 
 ### Telegram Alerts
 
@@ -958,7 +1003,7 @@ You'll receive notifications **only when mode changes** (not on every trade):
 📈 Current streak: 5 wins
 🎯 Recent WR: 95%
 ━━━━━━━━━━━━━━━━━
-Hot regime detected - consider larger positions
+Detection only - past performance does not predict future results
 ```
 
 ---
@@ -1008,9 +1053,9 @@ Hot regime detected - consider larger positions
 ...
 
 📋 OTHER CANDIDATES:
-• ETH YES @ 32¢ | pWin: 85% | EV: 22% (8/10)
+• ETH YES @ 63¢ | pWin: 88% | EV: 22% (8/10)
   → Open
-• SOL NO @ 88¢ | pWin: 82% | EV: 18% (7/10)
+• SOL NO @ 71¢ | pWin: 86% | EV: 18% (7/10)
   → Open
 ━━━━━━━━━━━━━━━━━━━━━
 ```
@@ -1499,9 +1544,9 @@ RISK: {
 }
 ORACLE: {
     enabled: true,
-    minOdds: 0.35,               // Entry price range
-    maxOdds: 0.95,
-    minConsensus: 0.70,          // 70% model agreement
+    minOdds: 0.60,               // Entry price range
+    maxOdds: 0.80,
+    minConsensus: 0.72,          // 72% model agreement
     minConfidence: 0.80,         // 80% confidence threshold
 }
 // ASSET UNIVERSE - BTC+ETH only (higher accuracy)
@@ -2007,6 +2052,71 @@ Run these commands in order. If ANY fails, fix it before proceeding.
 - **mode intent**: `TRADE_MODE=PAPER` or `TRADE_MODE=LIVE`
 - **persistence**: `REDIS_URL` present? (required for LIVE)
 - **wallet**: `POLYMARKET_PRIVATE_KEY` present? (required for LIVE; also required for wallet balance endpoints)
+
+### Production Audit Checklist (Manual Signal Oracle)
+
+This checklist is for production readiness reviews focused on **manual trading signals**, where:
+
+- BUY issuance must be **independent of bankroll** and **independent of user confirmations**.
+- Performance tracking must include **all issued BUY signals**, not only user-confirmed trades.
+- Emergency exits should be treated as **failures** (LOSS) for both learning and issued-signal performance.
+
+#### A) Signal issuance + tracking invariants (bankroll/confirmation independent)
+
+- [ ] `recordIssuedSignal()` is called immediately when a primary BUY is issued (before any confirmation).
+- [ ] `resolveIssuedSignal()` is called at cycle end for outcomes, regardless of user confirmation.
+- [ ] Issued signal tracking is **not** derived from shadow-book (confirm-gated) trade closures.
+
+#### B) Adaptive learning invariants (confirmation independent)
+
+- [ ] `recordOracleSignalOutcome()` is driven by issued-signal resolution (cycle-end), not just shadow-book closes.
+- [ ] Emergency exits (`SELL_SIGNAL` / `EMERGENCY`) are treated as **LOSS** for learning and issued-signal stats, even if the market later resolves as a win.
+
+#### C) BUY gating invariants (bankroll agnostic)
+
+- [ ] BUY issuance gating does **not** use `manualTradingJourney.currentBalance` as an implicit input.
+- [ ] Any bankroll-dependent floors/requirements apply only when bankroll is explicitly provided (e.g., for stake recommendations), not for signal quality.
+
+#### D) Deployment + secrets + portability invariants
+
+- [ ] `.gitignore` excludes secrets and heavy artifacts (`.env`, `*.env`, `node_modules/`, `exhaustive_analysis/`).
+- [ ] `AUTH_USERNAME`, `AUTH_PASSWORD`, `API_KEY` are **not** left at defaults in production.
+- [ ] LIVE mode requires `REDIS_URL` (persistence). If Redis is unavailable, LIVE must be blocked/downgraded safely.
+- [ ] Tools UI is present and served (`/tools.html`) and `/api/perfection-check` passes.
+
+#### E) Copy/paste commands (local verification + deploy)
+
+Local syntax verification:
+
+```bash
+node --check server.js
+```
+
+Run the Polymarket-only analysis pipeline (regenerates strategy artifacts):
+
+- Windows: double-click `run_analysis.bat`
+- All platforms:
+
+```bash
+npm run analysis
+node final_golden_strategy.js
+```
+
+Deploy to GitHub (Render auto-deploy):
+
+```bash
+git status -sb
+git add -A
+git commit -m "audit: oracle signal invariants"
+git push origin main
+```
+
+Post-deploy verification:
+
+- `GET /api/version`
+- `GET /api/health`
+- `GET /api/verify?deep=1`
+- `GET /api/perfection-check`
 
 Optional (offline, no server needed) forensic proofs:
 
@@ -2927,7 +3037,7 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - Dynamic model weighting (<60% = disabled, >70% = boosted)
    - Genesis Supremacy (4x weight at >80%, VETO at >90%)
    - Oracle Lock (unbreakable once certainty threshold met)
-   - CONVICTION entry: 95% pWin + 90% conf + locked + live WR gate
+   - BUY gate: Entry <80¢ + adaptive pWin ≥ 85–90% (and bankroll floor) + min samples (≤$20: 10, else 5) + ≤$20 requires 🔒 LOCKED; tail <60¢ requires pWin ≥ 95% + EV ROI ≥ 30% + samples ≥ 25
 
 4. **Strategy Verification Results (Legacy; non-authoritative)**
 
@@ -3008,6 +3118,12 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
 
 #### 🏆 How To Generate The Final Strategy Outputs
 
+Easiest (Windows):
+
+- Double-click `run_analysis.bat` (runs the full pipeline end-to-end)
+
+Manual (all platforms):
+
 1. Generate the authoritative dataset:
    - `npm run analysis`
    - Produces: `exhaustive_analysis/final_results.json`
@@ -3017,6 +3133,14 @@ curl "http://localhost:3000/api/perfection-check?apiKey=<API_KEY>" | jq '.summar
    - Produces: `final_golden_strategy.json`
 
 The single source of truth for the current best strategy is `final_golden_strategy.json` (generated from the Polymarket-only dataset above).
+
+#### 📊 Certainty-First Outputs (Per-Asset + Streaks)
+
+Each strategy row now includes:
+
+- `perAsset.BTC|ETH|SOL|XRP`: trades, wins, losses, raw `winRate`, `winRateLCB`, `posteriorPWinRateGE90`, and `streak`
+- `posteriorPWinRateGE90`: approximate posterior probability that true win rate ≥ 0.90
+- `streak`: win-streak probabilities for 10/15/20 consecutive wins using conservative `p = winRateLCB` and `horizonTrades=100`
 
 ---
 

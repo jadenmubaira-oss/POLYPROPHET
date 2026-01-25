@@ -13,6 +13,7 @@ node_modules/
 *.env
 .env.*
 !.env.example
+POLYPROPHET.env
 
 # Logs
 *.log
@@ -26,11 +27,12 @@ deity_state.json
 # Local script outputs (keep out of repo)
 backtest_results.json
 
- exhaustive_analysis/
+exhaustive_analysis/
 
 # OS files
 .DS_Store
 Thumbs.db
+nul
 
 # IDE
 .cursor/
@@ -93,7 +95,7 @@ local_archive/
 
 # Large chat exports
 cursor_*.md
- cursor_*
+cursor_*
 
 # ============================================
 # WRAPPER/BACKUP FILES

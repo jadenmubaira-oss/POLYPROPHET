@@ -7,7 +7,8 @@
         "start": "node server.js",
         "forensics:debug": "node scripts/forensics/analyze_debug.js",
         "forensics:ledger": "node scripts/forensics/generate_ledger.js",
-        "test": "node -e \"console.log('OK')\""
+        "test": "node -e \"console.log('OK')\"",
+        "analysis": "node exhaustive_market_analysis.js"
     },
     "dependencies": {
         "@polymarket/clob-client": "^4.5.0",

@@ -155,6 +155,13 @@ If presenting ANY performance data, include:
 | **LIVE** | Query `/api/health` | After deploy |
 | **LIVE WR** | Check `rollingAccuracy` in health | Before presenting any stats |
 
+### Certainty-First Analysis Pipeline (Local)
+
+- Windows easiest: double-click `run_analysis.bat`
+- Manual: `npm run analysis` then `node final_golden_strategy.js`
+
+The analysis outputs include per-asset certainty stats (`perAsset.*`) and conservative win-streak probabilities (`streak`) in the strategy rows.
+
 ---
 
 ## 🚀 AUTO-DEPLOYMENT PROTOCOL

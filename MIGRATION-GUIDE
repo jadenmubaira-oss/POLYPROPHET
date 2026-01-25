@@ -40,7 +40,7 @@ cd C:\Users\voide\Downloads\POLYPROPHET-main\POLYPROPHET-main
 # Set your Render Redis URL (the internal one won't work externally)
 # You need to get the EXTERNAL Redis URL from Render Dashboard
 # Go to Render → Your Redis → Info → External URL
-$env:SOURCE_REDIS_URL="redis://red-d4k427muk2gs73fk8icg:6379"
+$env:SOURCE_REDIS_URL="redis://:<PASSWORD>@<HOST>:<PORT>"  # EXTERNAL URL from Render
 
 # Run the export
 node scripts/migrate-redis.js export

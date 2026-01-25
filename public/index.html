@@ -337,7 +337,7 @@
             const el = document.getElementById('version');
             if (!el) return;
             try {
-                const res = await fetch('/api/version', { cache: 'no-store' });
+                const res = await fetch(new URL('/api/version', window.location.origin).toString(), { cache: 'no-store' });
                 const v = await res.json();
                 const commit = v.gitCommit ? String(v.gitCommit).slice(0, 7) : 'unknown';
                 el.innerText = `v${v.configVersion || '?'} • ${commit}`;

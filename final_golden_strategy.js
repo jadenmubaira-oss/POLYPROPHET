@@ -16,27 +16,179 @@ const path = require('path');
 
 const { calculateStage1Survival } = require('./exhaustive_market_analysis');
 
-// Load the Polymarket analysis dataset
-const analysisPath = path.join(__dirname, 'exhaustive_analysis', 'final_results.json');
-if (!fs.existsSync(analysisPath)) {
-    console.error('❌ Missing Polymarket analysis dataset: exhaustive_analysis/final_results.json');
-    console.error('');
-    console.error('This file is generated locally (and is gitignored). Generate it first by running:');
-    console.error('  npm run analysis');
-    console.error('');
-    console.error('Then re-run:');
-    console.error('  node final_golden_strategy.js');
-    process.exit(1);
+const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
+const WIN_RATE_TARGET = 0.9;
+const DEFAULT_MIN_TRADES_PER_ASSET = 20;
+
+function safeGetNumber(value) {
+    return Number.isFinite(value) ? value : null;
 }
 
-const analysis = JSON.parse(fs.readFileSync(analysisPath, 'utf8'));
+function projectStrategyForAsset(strategy, asset) {
+    if (!strategy || !strategy.perAsset || !strategy.perAsset[asset]) return null;
+    const m = strategy.perAsset[asset];
+    return {
+        entryMinute: strategy.entryMinute,
+        utcHour: strategy.utcHour,
+        direction: strategy.direction,
+        priceBand: strategy.priceBand,
+        global: {
+            trades: safeGetNumber(strategy.trades),
+            winRate: safeGetNumber(strategy.winRate),
+            winRateLCB: safeGetNumber(strategy.winRateLCB),
+            posteriorPWinRateGE90: safeGetNumber(strategy.posteriorPWinRateGE90),
+            tradesPerDay: safeGetNumber(strategy.tradesPerDay)
+        },
+        asset: {
+            trades: safeGetNumber(m.trades),
+            wins: safeGetNumber(m.wins),
+            losses: safeGetNumber(m.losses),
+            winRate: safeGetNumber(m.winRate),
+            winRateLCB: safeGetNumber(m.winRateLCB),
+            posteriorPWinRateGE90: safeGetNumber(m.posteriorPWinRateGE90),
+            avgROI: safeGetNumber(m.avgROI),
+            streak: m.streak ?? null
+        }
+    };
+}
+
+function isBetterAssetMetric(a, b) {
+    if (!a) return false;
+    if (!b) return true;
+
+    const aLCB = safeGetNumber(a.winRateLCB);
+    const bLCB = safeGetNumber(b.winRateLCB);
+    if (typeof aLCB === 'number' && typeof bLCB === 'number') {
+        if (Math.abs(aLCB - bLCB) > 0.01) return aLCB > bLCB;
+    } else if (typeof aLCB === 'number') {
+        return true;
+    } else if (typeof bLCB === 'number') {
+        return false;
+    }
+
+    const aTrades = safeGetNumber(a.trades) ?? 0;
+    const bTrades = safeGetNumber(b.trades) ?? 0;
+    if (aTrades !== bTrades) return aTrades > bTrades;
+
+    const aWR = safeGetNumber(a.winRate);
+    const bWR = safeGetNumber(b.winRate);
+    if (typeof aWR === 'number' && typeof bWR === 'number') {
+        if (Math.abs(aWR - bWR) > 0.001) return aWR > bWR;
+    } else if (typeof aWR === 'number') {
+        return true;
+    } else if (typeof bWR === 'number') {
+        return false;
+    }
+
+    const aPost = safeGetNumber(a.posteriorPWinRateGE90);
+    const bPost = safeGetNumber(b.posteriorPWinRateGE90);
+    if (typeof aPost === 'number' && typeof bPost === 'number') {
+        if (Math.abs(aPost - bPost) > 1e-6) return aPost > bPost;
+    } else if (typeof aPost === 'number') {
+        return true;
+    } else if (typeof bPost === 'number') {
+        return false;
+    }
+
+    return false;
+}
+
+function pickBestStrategyForAsset(strategies, asset, options = {}) {
+    const minTrades = Number.isFinite(options.minTrades) ? options.minTrades : DEFAULT_MIN_TRADES_PER_ASSET;
+    const targetWinRate = Number.isFinite(options.targetWinRate) ? options.targetWinRate : WIN_RATE_TARGET;
+
+    let bestOverall = null;
+    let bestMeetingTarget = null;
+    let bestOverallMetric = null;
+    let bestMeetingTargetMetric = null;
+
+    for (const s of strategies) {
+        const m = s?.perAsset?.[asset];
+        if (!m || !Number.isFinite(m.trades) || m.trades < minTrades) continue;
+
+        if (isBetterAssetMetric(m, bestOverallMetric)) {
+            bestOverall = s;
+            bestOverallMetric = m;
+        }
+
+        if (Number.isFinite(m.winRate) && m.winRate >= targetWinRate) {
+            if (isBetterAssetMetric(m, bestMeetingTargetMetric)) {
+                bestMeetingTarget = s;
+                bestMeetingTargetMetric = m;
+            }
+        }
+    }
+
+    return {
+        criteria: { asset, minTrades, targetWinRate },
+        bestMeetingTarget: bestMeetingTarget ? projectStrategyForAsset(bestMeetingTarget, asset) : null,
+        bestOverall: bestOverall ? projectStrategyForAsset(bestOverall, asset) : null
+    };
+}
+
+function tryReadJson(relPath) {
+    try {
+        const p = path.join(__dirname, relPath);
+        if (!fs.existsSync(p)) return null;
+        return JSON.parse(fs.readFileSync(p, 'utf8'));
+    } catch {
+        return null;
+    }
+}
+
+const analysisPath = path.join(__dirname, 'exhaustive_analysis', 'final_results.json');
+const analysisSourceLabel = fs.existsSync(analysisPath)
+    ? 'exhaustive_analysis/final_results.json'
+    : 'exhaustive_analysis/strategies_*.json';
+
+const analysis = fs.existsSync(analysisPath)
+    ? JSON.parse(fs.readFileSync(analysisPath, 'utf8'))
+    : {
+        startedAt: null,
+        completedAt: null,
+        runtimeMinutes: null,
+        counts: {},
+        files: {
+            strategiesRanked: 'strategies_ranked.json',
+            strategiesValidated: 'strategies_validated.json',
+            decisionDataset: 'decision_dataset.json',
+            manifestCombined: 'manifest_combined.json'
+        },
+        strategies: Array.isArray(tryReadJson(path.join('exhaustive_analysis', 'strategies_ranked.json')))
+            ? tryReadJson(path.join('exhaustive_analysis', 'strategies_ranked.json'))
+            : [],
+        validatedStrategies: Array.isArray(tryReadJson(path.join('exhaustive_analysis', 'strategies_validated.json')))
+            ? tryReadJson(path.join('exhaustive_analysis', 'strategies_validated.json'))
+            : []
+    };
 
 console.log('='.repeat(70));
 console.log('🔱 FINAL GOLDEN STRATEGY ANALYSIS');
 console.log('='.repeat(70));
-console.log(`Data source: exhaustive_analysis/final_results.json`);
-console.log(`Total markets analyzed: ${analysis.combinedManifest?.length ?? 0}`);
-console.log(`Dataset rows: ${analysis.dataset?.length ?? 0}`);
+console.log(`Data source: ${analysisSourceLabel}`);
+const embeddedManifestCount = Array.isArray(analysis.combinedManifest) ? analysis.combinedManifest.length : null;
+const embeddedDatasetCount = Array.isArray(analysis.dataset) ? analysis.dataset.length : null;
+const manifestFromFile = embeddedManifestCount === null ? tryReadJson(path.join('exhaustive_analysis', 'manifest_combined.json')) : null;
+const datasetFromFile = embeddedDatasetCount === null ? tryReadJson(path.join('exhaustive_analysis', 'decision_dataset.json')) : null;
+const totalMarkets = embeddedManifestCount ?? (Array.isArray(manifestFromFile) ? manifestFromFile.length : (analysis.counts?.totalMarkets ?? 0));
+const datasetRows = embeddedDatasetCount ?? (Array.isArray(datasetFromFile) ? datasetFromFile.length : (analysis.counts?.datasetRows ?? 0));
+const datasetSplit = analysis.datasetSplit ?? analysis.counts?.datasetSplit ?? null;
+console.log(`Total markets analyzed: ${totalMarkets}`);
+console.log(`Dataset rows: ${datasetRows}`);
+if (datasetSplit && typeof datasetSplit === 'object') {
+    const trainRatio = Number(datasetSplit.trainRatio);
+    const valRatio = Number(datasetSplit.valRatio);
+    const testRatio = Number(datasetSplit.testRatio);
+    const trainRows = Number(datasetSplit?.rows?.train);
+    const valRows = Number(datasetSplit?.rows?.val);
+    const testRows = Number(datasetSplit?.rows?.test);
+    if (Number.isFinite(trainRows) && Number.isFinite(valRows) && Number.isFinite(testRows)) {
+        console.log(`Split rows: train=${trainRows} val=${valRows} test=${testRows}`);
+    }
+    if (Number.isFinite(trainRatio) && Number.isFinite(valRatio) && Number.isFinite(testRatio)) {
+        console.log(`Split ratios: train=${trainRatio.toFixed(2)} val=${valRatio.toFixed(2)} test=${testRatio.toFixed(2)}`);
+    }
+}
 console.log('');
 
 // Wilson score lower confidence bound
@@ -107,7 +259,9 @@ if (!goldenStrategy) {
     process.exit(1);
 }
 
-const dataset = Array.isArray(analysis.dataset) ? analysis.dataset : [];
+const dataset = Array.isArray(analysis.dataset)
+    ? analysis.dataset
+    : (Array.isArray(datasetFromFile) ? datasetFromFile : []);
 const strategyTrades = filterDatasetForStrategy(goldenStrategy, dataset);
 const strategyDays = computeDateRangeDaysFromRows(strategyTrades);
 const tradesPerDay = strategyDays ? (strategyTrades.length / strategyDays) : null;
@@ -118,6 +272,15 @@ const stage1SurvivalEnhanced = {
     pNoLossBeforeTarget: typeof stage1Survival?.pLossBeforeTarget === 'number' ? (1 - stage1Survival.pLossBeforeTarget) : null
 };
 
+const perAssetGoldenStrategies = {};
+const allStrategies = Array.isArray(analysis.strategies) ? analysis.strategies : [];
+for (const asset of ASSETS) {
+    perAssetGoldenStrategies[asset] = pickBestStrategyForAsset(allStrategies, asset, {
+        minTrades: DEFAULT_MIN_TRADES_PER_ASSET,
+        targetWinRate: WIN_RATE_TARGET
+    });
+}
+
 console.log('');
 console.log('='.repeat(70));
 console.log('🌟 GOLDEN STRATEGY (Polymarket-only)');
@@ -126,9 +289,42 @@ console.log(`Entry Minute: ${goldenStrategy.entryMinute}`);
 console.log(`UTC Hour: ${goldenStrategy.utcHour}`);
 console.log(`Direction: ${goldenStrategy.direction}`);
 console.log(`Price Band: ${goldenStrategy.priceBand?.min} - ${goldenStrategy.priceBand?.max}`);
-console.log(`Trades: ${goldenStrategy.trades}`);
-console.log(`Win Rate: ${(goldenStrategy.winRate * 100).toFixed(1)}%`);
-console.log(`Win Rate LCB: ${(goldenStrategy.winRateLCB * 100).toFixed(1)}%`);
+console.log(`Train Trades: ${goldenStrategy.trades}`);
+console.log(`Train Win Rate: ${(goldenStrategy.winRate * 100).toFixed(1)}%`);
+console.log(`Train Win Rate LCB: ${(goldenStrategy.winRateLCB * 100).toFixed(1)}%`);
+if (Number.isFinite(goldenStrategy.valWinRate) && Number.isFinite(goldenStrategy.valTrades)) {
+    console.log('');
+    console.log('OOS (validation split):');
+    console.log(`Val Trades: ${goldenStrategy.valTrades}`);
+    console.log(`Val Win Rate: ${(goldenStrategy.valWinRate * 100).toFixed(1)}%`);
+    if (Number.isFinite(goldenStrategy.valWinRateLCB)) {
+        console.log(`Val Win Rate LCB: ${(goldenStrategy.valWinRateLCB * 100).toFixed(1)}%`);
+    }
+    if (Number.isFinite(goldenStrategy.valPosteriorPWinRateGE90)) {
+        console.log(`Val P(WR≥90%): ${(goldenStrategy.valPosteriorPWinRateGE90 * 100).toFixed(1)}%`);
+    }
+    if (Number.isFinite(goldenStrategy.degradationTrainToVal)) {
+        console.log(`Train→Val degradation: ${(goldenStrategy.degradationTrainToVal * 100).toFixed(1)}pp`);
+    }
+}
+if (Number.isFinite(goldenStrategy.testWinRate) && Number.isFinite(goldenStrategy.testTrades)) {
+    console.log('');
+    console.log('OOS (test split):');
+    console.log(`Test Trades: ${goldenStrategy.testTrades}`);
+    console.log(`Test Win Rate: ${(goldenStrategy.testWinRate * 100).toFixed(1)}%`);
+    if (Number.isFinite(goldenStrategy.testWinRateLCB)) {
+        console.log(`Test Win Rate LCB: ${(goldenStrategy.testWinRateLCB * 100).toFixed(1)}%`);
+    }
+    if (Number.isFinite(goldenStrategy.testPosteriorPWinRateGE90)) {
+        console.log(`Test P(WR≥90%): ${(goldenStrategy.testPosteriorPWinRateGE90 * 100).toFixed(1)}%`);
+    }
+    if (Number.isFinite(goldenStrategy.degradation)) {
+        console.log(`Train→Test degradation: ${(goldenStrategy.degradation * 100).toFixed(1)}pp`);
+    }
+    if (Number.isFinite(goldenStrategy.degradationValToTest)) {
+        console.log(`Val→Test degradation: ${(goldenStrategy.degradationValToTest * 100).toFixed(1)}pp`);
+    }
+}
 if (typeof tradesPerDay === 'number') {
     console.log(`Trades/Day (empirical): ${tradesPerDay.toFixed(2)}`);
 }
@@ -143,13 +339,14 @@ if (typeof stage1SurvivalEnhanced.maxConsecLosses === 'number') {
 
 const finalResults = {
     generatedAt: new Date().toISOString(),
-    dataSource: 'exhaustive_analysis/final_results.json',
+    dataSource: analysisSourceLabel,
     analysisMeta: {
         startedAt: analysis.startedAt ?? null,
         completedAt: analysis.completedAt ?? null,
         runtimeMinutes: analysis.runtimeMinutes ?? null,
-        totalMarkets: Array.isArray(analysis.combinedManifest) ? analysis.combinedManifest.length : null,
-        datasetRows: Array.isArray(analysis.dataset) ? analysis.dataset.length : null
+        totalMarkets,
+        datasetRows,
+        datasetSplit: datasetSplit ?? null
     },
     feeModel: {
         takerFeeRate: 0.02,
@@ -159,6 +356,7 @@ const finalResults = {
         ...goldenStrategy,
         tradesPerDayEmpirical: tradesPerDay
     },
+    perAssetGoldenStrategies,
     stage1Survival: stage1SurvivalEnhanced,
     topStrategiesByLCB: Array.isArray(analysis.strategies) ? analysis.strategies.slice(0, 25) : [],
     validatedStrategies: Array.isArray(analysis.validatedStrategies) ? analysis.validatedStrategies.slice(0, 25) : []

@@ -1,6 +1,6 @@
 ---
 name: DEITY
-description: The unified AI agent for Polyprophet - combines deep analysis, precise execution, and atomic-level investigation. One agent, one skill, one mission.
+description: The unified AI agent for Polyprophet -  combines deep analysis, precise execution, and atomic-level investigation. One agent, one skill, one mission.
 ---
 
 # 🔱 DEITY: The Unified Oracle Agent
@@ -355,6 +355,12 @@ Document:
 
 - Any performance claims must be derived from the Polymarket-only pipeline (`exhaustive_market_analysis.js` → `exhaustive_analysis/final_results.json`)
 - Do not cite legacy backtest-era hour lists, win rates, or streak stats as authoritative
+
+**Certainty-first outputs (current)**:
+
+- Strategy rows include per-asset certainty metrics (`perAsset.BTC|ETH|SOL|XRP`) with raw `winRate`, `winRateLCB`, and `posteriorPWinRateGE90`
+- Strategy rows include conservative win-streak stats (`streak`) for 10/15/20 wins based on `p = winRateLCB`
+- Easiest local run (Windows): double-click `run_analysis.bat`
 
 ### 2026-01-17: All-In Risk Analysis
 

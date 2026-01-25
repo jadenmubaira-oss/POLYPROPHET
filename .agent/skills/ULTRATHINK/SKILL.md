@@ -155,6 +155,13 @@ For every feature or bug, ask:
 - **README Updates**: Document ALL discoveries, even if negative
 - **LIVE Verification**: Query rolling accuracy BEFORE presenting any stats
 
+When analyzing strategy certainty, use the Polymarket-only pipeline outputs:
+
+- Windows easiest: double-click `run_analysis.bat`
+- Manual: `npm run analysis` then `node final_golden_strategy.js`
+
+Strategy rows include per-asset certainty metrics (`perAsset.*`) and conservative win-streak probabilities (`streak`).
+
 ---
 
 ## 📡 LIVE SERVER MONITORING (ALWAYS USE LIVE DATA)
@@ -244,7 +251,7 @@ Before concluding "no edge exists", you MUST investigate:
 7. ⬜ **Market Maker Behavior**: Are there patterns in how prices move?
 8. ⬜ **Mean Reversion**: Do extreme odds (e.g., 95% UP) tend to revert?
 9. ⬜ **Streak Patterns**: After 3 UPs, is DOWN more likely?
-10. ⬜ **External Signals**: Binance/CoinGecko price movement during cycle
+10. ⬜ **External Signals**: Avoid non-Polymarket signals (analysis must remain Polymarket-only)
 
 ### The Mindset
 

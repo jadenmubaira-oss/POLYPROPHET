@@ -25,9 +25,9 @@ services:
       # 🏆 v107: Start unpaused by default (paper auto-trading enabled)
       - key: START_PAUSED
         value: "false"
-      # 🏆 v107: No auth for easy access (user's personal deployment)
+      # 🏆 v107: Auth enabled by default (set NO_AUTH=true only for private deployments)
       - key: NO_AUTH
-        value: "true"
+        value: "false"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"
@@ -36,9 +36,9 @@ services:
       - key: AUTH_USERNAME
         value: admin
       - key: AUTH_PASSWORD
-        value: changeme
+        generateValue: true
       - key: API_KEY
-        value: changeme
+        generateValue: true
       # 🏆 v70: REQUIRED FOR LIVE MODE - Set in Render dashboard
       # Without Redis, LIVE mode will be downgraded to PAPER for safety
       # - key: REDIS_URL

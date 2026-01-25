@@ -361,7 +361,7 @@ app.use((req, res, next) => {
 
 // Serve static assets, but do NOT auto-serve public/index.html at `/`
 // (we want `/` to be the full-featured dashboard, like the original server.js UI)
-app.use(express.static('public', { index: false }));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // ==================== PROOF-QUALITY BACKTEST API ====================
 // 🎯 GOAT: Deterministic backtester using historical cycle data
@@ -664,12 +664,14 @@ app.get('/api/backtest-proof', async (req, res) => {
 app.get('/api/backtest-polymarket', async (req, res) => {
     try {
         const startTime = Date.now();
+        const goldenMode = (req.query.golden === '1' || String(req.query.golden || '').toLowerCase() === 'true');
+        const goldenStrategy = goldenMode ? (CONFIG?.FINAL_GOLDEN_STRATEGY?.goldenStrategy || null) : null;
         const tierFilter = req.query.tier || 'CONVICTION'; // CONVICTION, ADVISORY, ALL
         // 🏆 v76: Parameter aliases for consistency
         const startingBalance = parseFloat(req.query.balance || req.query.startBalance) || 5.0; // 🎯 v55 TURBO default: £5 start
         // 🏆 v89: Auto-bankroll profile (parity with LIVE/PAPER runtime). Default ON.
         const autoProfileDisabled = (req.query.autoProfile === '0' || String(req.query.autoProfile || '').toLowerCase() === 'false');
-        const autoProfileEnabled = !autoProfileDisabled && (CONFIG?.RISK?.autoBankrollProfileEnabled !== false);
+        const autoProfileEnabled = !goldenMode && !autoProfileDisabled && (CONFIG?.RISK?.autoBankrollProfileEnabled !== false);
         const policyAtStart = autoProfileEnabled ? getBankrollAdaptivePolicy(startingBalance) : null;
         // 🏆 v58 TRUE OPTIMAL defaults (£5→£42 in 24h verified):
         const minOddsEntry = parseFloat(req.query.minOdds) || 0.35; // 🏆 v60 FINAL: TRUE MAXIMUM 35¢ (wider range = more trades)
@@ -692,7 +694,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             ? Math.max(1, Math.min(3, maxTradesPerCycleRaw))
             : Math.max(1, Math.min(3, (CONFIG?.RISK?.maxGlobalTradesPerCycle || 1)));
         const selection = String(req.query.selection || 'HIGHEST_CONF').toUpperCase(); // BEST_EV | HIGHEST_CONF
-        const respectEVGate = !(String(req.query.respectEV || '').toLowerCase() === 'false' || String(req.query.respectEV || '') === '0');
+        const respectEVGate = !goldenMode && !(String(req.query.respectEV || '').toLowerCase() === 'false' || String(req.query.respectEV || '') === '0');
         const snapshotPick = String(req.query.snapshotPick || 'EARLIEST').toUpperCase(); // EARLIEST | LATEST
         const stakeMode = String(req.query.stakeMode || 'PER_TRADE').toUpperCase(); // PER_TRADE | PER_WINDOW
         const maxExposureRaw = parseFloat(req.query.maxExposure);
@@ -727,13 +729,13 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v78: Adaptive mode - apply v68 profit lock-in schedule (matches runtime applyVarianceControls)
         // DEFAULT TO TRUE (matches runtime behavior) - use adaptive=0 to disable
         const adaptiveDisabled = req.query.adaptive === '0' || String(req.query.adaptive || '').toLowerCase() === 'false';
-        const adaptiveRequested = !adaptiveDisabled;
+        const adaptiveRequested = !adaptiveDisabled && !goldenMode;
 
         // 🏆 v78: Kelly sizing mode - apply mathematically optimal position sizing
         // DEFAULT TO TRUE (matches runtime CONFIG.RISK.kellyEnabled = true)
         // Query param can override: kelly=0 to disable
         const kellyDisabled = req.query.kelly === '0' || String(req.query.kelly || '').toLowerCase() === 'false';
-        const kellyRequested = !kellyDisabled; // Default TRUE (parity with runtime)
+        const kellyRequested = !kellyDisabled && !goldenMode; // Default TRUE (parity with runtime)
         const kellyGloballyEnabled = (CONFIG?.RISK?.kellyEnabled !== false);
         const kellyFractionParam = parseFloat(req.query.kellyK);
         const kellyFractionOverrideProvided = Number.isFinite(kellyFractionParam) && kellyFractionParam > 0 && kellyFractionParam <= 1;
@@ -761,6 +763,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v76: Asset filtering - match runtime ASSET_CONTROLS
         // Oracle mode defaults to all enabled assets (BTC/ETH/XRP/SOL).
         const defaultAssetsCsv = (() => {
+            if (goldenMode) return 'BTC,ETH,XRP,SOL';
             try {
                 const ctrl = CONFIG?.ASSET_CONTROLS || {};
                 const enabled = Object.entries(ctrl)
@@ -782,6 +785,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v89 FIX: If query param is omitted, default to runtime CONFIG (parity).
         // 🏆 v89 AUTO-PROFILE: If enabled and param omitted, default to policy for starting bankroll.
         const riskEnvelopeEnabled = (() => {
+            if (goldenMode) return false;
             if (riskEnvelopeProvided) {
                 return req.query.riskEnvelope !== '0' && String(req.query.riskEnvelope || '').toLowerCase() !== 'false';
             }
@@ -844,10 +848,30 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         // 🏆 v88: Runtime parity - Loss cooldown + Global stop-loss simulation
         // These were previously "runtime-only" protections; now backtests match runtime halts.
         // Defined at endpoint scope so they can be referenced in response JSON
-        const simulateHalts = req.query.simulateHalts !== '0' && req.query.simulateHalts !== 'false'; // Default: ON
+        const simulateHalts = !goldenMode && req.query.simulateHalts !== '0' && req.query.simulateHalts !== 'false'; // Default: ON
         const maxConsecutiveLosses = parseInt(req.query.maxConsecLosses) || (CONFIG?.RISK?.maxConsecutiveLosses ?? 3);
         const cooldownSeconds = parseInt(req.query.cooldownSecs) || (CONFIG?.RISK?.cooldownAfterLoss ?? 1200);
         const globalStopLoss = parseFloat(req.query.globalStopLoss) || (CONFIG?.RISK?.globalStopLoss ?? 0.20);
+
+        if (goldenMode && !goldenStrategy) {
+            return res.status(500).json({ error: 'FINAL_GOLDEN_STRATEGY_MISSING' });
+        }
+
+        const goldenEntryMinute = (goldenMode && goldenStrategy && Number.isFinite(Number(goldenStrategy.entryMinute)))
+            ? Math.max(0, Math.min(14, Number(goldenStrategy.entryMinute)))
+            : null;
+        const goldenParams = goldenMode ? {
+            entryMinute: goldenEntryMinute,
+            utcHour: Number(goldenStrategy?.utcHour),
+            direction: String(goldenStrategy?.direction || '').trim().toUpperCase(),
+            bandMin: Number(goldenStrategy?.priceBand?.min),
+            bandMax: Number(goldenStrategy?.priceBand?.max)
+        } : null;
+        const goldenGateStats = goldenMode ? {
+            totalCandidates: 0,
+            passed: 0,
+            failed: { utcHour: 0, entryMinute: 0, direction: 0, priceBand: 0, bestPriceMissing: 0 }
+        } : null;
 
         const crypto = require('crypto');
 
@@ -1050,11 +1074,14 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                                 prediction: pred,
                                 tier,
                                 entryPrice,
+                                yesPrice,
+                                noPrice,
                                 slug,
                                 confidence: cycle.confidence || cycle.entryConfidence,
                                 pWin: null,
                                 source: 'debug',
                                 entrySource: cycle.entryOdds ? 'entryOdds' : 'marketOdds',
+                                entryOddsTimestampMs: Number.isFinite(Number(entryOdds?.timestamp)) ? Number(entryOdds.timestamp) : null,
                                 observedAtMs: Number.isFinite(observedAtMs) ? observedAtMs : null,
                                 cycleStartEpochSec: times.cycleStartEpochSec
                             });
@@ -1100,6 +1127,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     prediction: pred,
                     tier,
                     entryPrice,
+                    yesPrice,
+                    noPrice,
                     slug: market.slug,
                     confidence: signal.confidence,
                     pWin: signal.pWin ?? null,
@@ -1215,6 +1244,53 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             const cycles = byWindow.get(w) || [];
             const enriched = [];
             for (const c of cycles) {
+                if (goldenMode && goldenParams && goldenGateStats) {
+                    goldenGateStats.totalCandidates++;
+                    const cycleStartEpochSec = Number.isFinite(c?.cycleStartEpochSec) ? Number(c.cycleStartEpochSec) : parseSlugStartEpochSec(c?.slug);
+                    const entryMs = Number.isFinite(c?.entryOddsTimestampMs) ? Number(c.entryOddsTimestampMs) : c?.observedAtMs;
+                    const entryEpochSec = Number.isFinite(entryMs) ? Math.floor(entryMs / 1000) : cycleStartEpochSec;
+                    const utcHour = Number.isFinite(cycleStartEpochSec) ? new Date(cycleStartEpochSec * 1000).getUTCHours() : null;
+                    const elapsedSec = Number.isFinite(cycleStartEpochSec) ? (entryEpochSec - cycleStartEpochSec) : null;
+                    const entryMinute = Number.isFinite(elapsedSec) ? Math.max(0, Math.min(14, Math.floor(elapsedSec / 60))) : null;
+
+                    const reasons = [];
+                    if (utcHour !== goldenParams.utcHour) reasons.push('utcHour');
+                    if (entryMinute !== goldenParams.entryMinute) reasons.push('entryMinute');
+
+                    const yesPx = Number(c?.yesPrice);
+                    const noPx = Number(c?.noPrice);
+                    const strategyDir = String(goldenParams.direction || '').trim().toUpperCase();
+                    const px = Number(c?.entryPrice);
+                    let requiredDirection = strategyDir;
+                    let bandCheckPrice = px;
+                    if (strategyDir === 'BEST') {
+                        if (!Number.isFinite(yesPx) || !Number.isFinite(noPx)) {
+                            reasons.push('bestPrice_missing');
+                        } else {
+                            const bestPrice = Math.min(yesPx, noPx);
+                            requiredDirection = yesPx < noPx ? 'UP' : 'DOWN';
+                            bandCheckPrice = bestPrice;
+                        }
+                    }
+                    if (String(c?.prediction || '').toUpperCase() !== requiredDirection) reasons.push('direction');
+                    if (!Number.isFinite(goldenParams.bandMin) || !Number.isFinite(goldenParams.bandMax) || !Number.isFinite(bandCheckPrice) || bandCheckPrice < goldenParams.bandMin || bandCheckPrice > goldenParams.bandMax) {
+                        reasons.push('priceBand');
+                    }
+
+                    if (reasons.length) {
+                        for (const r of reasons) {
+                            if (r === 'utcHour') goldenGateStats.failed.utcHour++;
+                            else if (r === 'entryMinute') goldenGateStats.failed.entryMinute++;
+                            else if (r === 'direction') goldenGateStats.failed.direction++;
+                            else if (r === 'priceBand') goldenGateStats.failed.priceBand++;
+                            else if (r === 'bestPrice_missing') goldenGateStats.failed.bestPriceMissing++;
+                        }
+                        continue;
+                    }
+
+                    goldenGateStats.passed++;
+                }
+
                 // 🏆 v97: Prefer recomputing pWin from current calibration (LCB-aware) for backtest parity.
                 // Collector snapshots may contain optimistic pWin; this keeps Polymarket-native tests conservative.
                 let pWinUsed = null;
@@ -1395,7 +1471,9 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                     if (!Array.isArray(c.gammaOutcomes) || !Array.isArray(c.clobTokenIds)) continue;
                     if (!Number.isFinite(c.cycleStartEpochSec)) continue;
 
-                    const targetEpochSec = Number.isFinite(c.observedAtMs) ? Math.floor(c.observedAtMs / 1000) : c.cycleStartEpochSec;
+                    const targetEpochSec = (goldenMode && Number.isFinite(goldenEntryMinute))
+                        ? (c.cycleStartEpochSec + Math.floor(goldenEntryMinute * 60))
+                        : (Number.isFinite(c.observedAtMs) ? Math.floor(c.observedAtMs / 1000) : c.cycleStartEpochSec);
                     const cycleEndEpochSec = c.cycleStartEpochSec + 900;
 
                     // Map prediction (UP/DOWN) -> tokenId based on Gamma outcomes ordering
@@ -2054,7 +2132,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
             };
         }
 
-        const primarySim = simulate(stakeFrac, { allowDynamicStake: true });
+        const primarySim = simulate(stakeFrac, { allowDynamicStake: !goldenMode });
         const scanResults = scan ? scanStakes.map(sf => simulate(sf, { allowDynamicStake: false })).map(r => ({
             stake: r.stakeFrac,
             trades: r.totalTrades,
@@ -2148,6 +2226,12 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 // ⚡ v97+: Exceptional sizing booster (count of trades that were upsized)
                 exceptionalBoosts: primarySim.exceptionalBoosts
             },
+            golden: goldenMode ? {
+                enabled: true,
+                strategy: goldenStrategy,
+                gateStats: goldenGateStats,
+                entryMinute: goldenEntryMinute
+            } : { enabled: false },
             // 🏆 v84: Objective metrics for optimizer aggregation
             objectiveMetrics: {
                 hit100: primarySim.hit100,  // { day, tradeIndex, balance } or null
@@ -2191,6 +2275,7 @@ app.get('/api/backtest-polymarket', async (req, res) => {
                 globalStopLossPct: (globalStopLoss * 100).toFixed(1) + '%'
             },
             filters: {
+                golden: goldenMode,
                 tierFilter,
                 minOddsEntry,
                 maxOddsEntry,
@@ -9182,13 +9267,18 @@ const CONFIG = {
         // Combined with existing ensemble intelligence, this maximizes EV per trade.
         // v79 LOCKED: Runtime entry window must match backtest defaults for parity.
         minOdds: 0.60,  // 🏆 v134.8: SOL GOLDEN ZONE - filter noise below 60¢
-        maxOdds: 0.75,  // 🏆 v134.8: SOL GOLDEN ZONE - cap at 75¢ for 89% WR target
+        maxOdds: 0.80,  // 🏆 v134.8: SOL GOLDEN ZONE - cap at 80¢ for 89% WR target
         // 🏆 v119: Configurable timing windows (higher frequency)
         // BUY window: last 5 minutes down to final 60s blackout
         // PREPARE window: starts before BUY to give advance warning
         // 🏆 v129: EARLY SNIPER MODE - Open window after 30s elapsed (was 300s = last 5 min)
         buyWindowStartSec: 870,    // BUY window opens at 14:30 remaining (after 30s elapsed)
         buyWindowEndSec: 60,       // Blackout: final 60s before resolution (unchanged)
+        extendedBlackoutSec: 30,
+        volatilityGuardEnabled: true,
+        volatilityGuardATRMultiplier: 4.0,
+        volatilityGuardOddsVelocityThreshold: 0.12,
+        manipulationScoreThreshold: 0.85,
         prepareWindowStartSec: 890, // PREPARE window: 14:50 remaining (10s warning before BUY)
         minStability: 2,         // 2 ticks - fast lock
         // NOTE: voteTrendScore is a 0..1 metric (based on leader flip rate), not "ticks".
@@ -10128,6 +10218,170 @@ let callRecentOutcomes = {
     SOL: []
 };
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🏆 ISSUED SIGNAL LEDGER: INDEPENDENT SIGNAL TRACKING
+// Records ALL BUY signals issued by the oracle, REGARDLESS of user confirmation.
+// This is the authoritative source for win rate / streak tracking.
+// Decoupled from bankroll and confirmation state.
+// ═══════════════════════════════════════════════════════════════════════════════
+let issuedSignalLedger = {
+    // All issued signals (rolling window, capped at 500)
+    signals: [],  // Array of { id, asset, slug, direction, entryPrice, pWin, tier, cycleStartEpoch, issuedAt, resolvedAt, outcome, isWin }
+    // Aggregate stats (computed from signals array)
+    stats: {
+        total: 0,
+        wins: 0,
+        losses: 0,
+        pending: 0,
+        winRate: 0,
+        currentWinStreak: 0,
+        currentLossStreak: 0,
+        maxWinStreak: 0,
+        maxLossStreak: 0,
+        lastUpdated: 0
+    },
+    // Per-asset breakdown
+    byAsset: {
+        BTC: { total: 0, wins: 0, losses: 0 },
+        ETH: { total: 0, wins: 0, losses: 0 },
+        XRP: { total: 0, wins: 0, losses: 0 },
+        SOL: { total: 0, wins: 0, losses: 0 }
+    },
+    // Zero-signal day tracking
+    zeroSignalDays: [],  // Array of UTC date strings with zero signals
+    lastSignalDate: null
+};
+
+/**
+ * 🏆 Record a newly issued BUY signal to the IssuedSignalLedger
+ * Called immediately when oracle issues BUY, BEFORE any confirmation
+ */
+function recordIssuedSignal(asset, slug, direction, entryPrice, pWin, tier, cycleStartEpoch) {
+    const now = Date.now();
+    const id = `ISL_${asset}_${cycleStartEpoch}_${now}`;
+    
+    const signal = {
+        id,
+        asset,
+        slug: slug || asset,
+        direction,
+        entryPrice,
+        pWin,
+        tier,
+        cycleStartEpoch,
+        issuedAt: now,
+        resolvedAt: null,
+        outcome: null,  // 'WIN' | 'LOSS' | null (pending)
+        isWin: null
+    };
+    
+    issuedSignalLedger.signals.push(signal);
+    issuedSignalLedger.stats.total++;
+    issuedSignalLedger.stats.pending++;
+    
+    if (issuedSignalLedger.byAsset[asset]) {
+        issuedSignalLedger.byAsset[asset].total++;
+    }
+    
+    // Track zero-signal days
+    const today = new Date().toISOString().split('T')[0];
+    issuedSignalLedger.lastSignalDate = today;
+    
+    // Cap at 500 signals (rolling window)
+    if (issuedSignalLedger.signals.length > 500) {
+        issuedSignalLedger.signals = issuedSignalLedger.signals.slice(-500);
+    }
+    
+    issuedSignalLedger.stats.lastUpdated = now;
+    
+    log(`📋 ISL: Recorded signal ${id} - ${asset} ${direction} @ ${(entryPrice * 100).toFixed(1)}¢ (pWin=${(pWin * 100).toFixed(1)}%)`, asset);
+    
+    return id;
+}
+
+/**
+ * 🏆 Resolve an issued signal's outcome based on market resolution
+ * Called when cycle ends, regardless of whether user confirmed
+ */
+function resolveIssuedSignal(cycleStartEpoch, asset, actualOutcome) {
+    const now = Date.now();
+    let resolved = 0;
+    
+    for (const signal of issuedSignalLedger.signals) {
+        if (signal.cycleStartEpoch === cycleStartEpoch && signal.asset === asset && signal.resolvedAt === null) {
+            const isWin = (signal.direction === 'UP' && actualOutcome === 'UP') ||
+                          (signal.direction === 'DOWN' && actualOutcome === 'DOWN');
+            const effectiveIsWin = signal.emergencyExit === true ? false : isWin;
+            
+            signal.resolvedAt = now;
+            signal.outcome = effectiveIsWin ? 'WIN' : 'LOSS';
+            signal.isWin = effectiveIsWin;
+            try {
+                const pWinForLearning = Number.isFinite(signal.pWin) ? signal.pWin : 0.5;
+                const tierForLearning = signal.tier || 'ADVISORY';
+                recordOracleSignalOutcome(asset, signal.direction, pWinForLearning, tierForLearning, effectiveIsWin);
+            } catch { }
+            
+            issuedSignalLedger.stats.pending--;
+            if (effectiveIsWin) {
+                issuedSignalLedger.stats.wins++;
+                issuedSignalLedger.stats.currentWinStreak++;
+                issuedSignalLedger.stats.currentLossStreak = 0;
+                if (issuedSignalLedger.stats.currentWinStreak > issuedSignalLedger.stats.maxWinStreak) {
+                    issuedSignalLedger.stats.maxWinStreak = issuedSignalLedger.stats.currentWinStreak;
+                }
+                if (issuedSignalLedger.byAsset[asset]) {
+                    issuedSignalLedger.byAsset[asset].wins++;
+                }
+            } else {
+                issuedSignalLedger.stats.losses++;
+                issuedSignalLedger.stats.currentLossStreak++;
+                issuedSignalLedger.stats.currentWinStreak = 0;
+                if (issuedSignalLedger.stats.currentLossStreak > issuedSignalLedger.stats.maxLossStreak) {
+                    issuedSignalLedger.stats.maxLossStreak = issuedSignalLedger.stats.currentLossStreak;
+                }
+                if (issuedSignalLedger.byAsset[asset]) {
+                    issuedSignalLedger.byAsset[asset].losses++;
+                }
+            }
+            
+            // Update win rate
+            const totalResolved = issuedSignalLedger.stats.wins + issuedSignalLedger.stats.losses;
+            issuedSignalLedger.stats.winRate = totalResolved > 0 ? issuedSignalLedger.stats.wins / totalResolved : 0;
+            
+            resolved++;
+            log(`📋 ISL: Resolved ${signal.id} → ${signal.outcome} (WR=${(issuedSignalLedger.stats.winRate * 100).toFixed(1)}%, streak=${issuedSignalLedger.stats.currentWinStreak}W/${issuedSignalLedger.stats.currentLossStreak}L)`, asset);
+        }
+    }
+    
+    issuedSignalLedger.stats.lastUpdated = now;
+    return resolved;
+}
+
+/**
+ * 🏆 Get ISL summary for API exposure
+ */
+function getIssuedSignalLedgerSummary() {
+    const recentSignals = issuedSignalLedger.signals.slice(-20).map(s => ({
+        id: s.id,
+        asset: s.asset,
+        direction: s.direction,
+        entryPrice: s.entryPrice,
+        pWin: s.pWin,
+        outcome: s.outcome,
+        issuedAt: s.issuedAt,
+        resolvedAt: s.resolvedAt
+    }));
+    
+    return {
+        stats: { ...issuedSignalLedger.stats },
+        byAsset: { ...issuedSignalLedger.byAsset },
+        recentSignals,
+        zeroSignalDaysCount: issuedSignalLedger.zeroSignalDays.length,
+        lastSignalDate: issuedSignalLedger.lastSignalDate
+    };
+}
+
 // Streak-forming alert tracking (to avoid spam)
 let streakFormingState = {
     lastAlertAt: 0,
@@ -10591,7 +10845,14 @@ function orchestrateOracleNotifications() {
         if (now - primaryBuyState.lastPrimaryBuyAt < 30000) return;
 
         // Find all BUY signals
-        const buySignals = allSignals.filter(s => s.action === 'BUY');
+        let buySignals = allSignals.filter(s => s.action === 'BUY');
+        if (CONFIG?.FINAL_GOLDEN_STRATEGY?.enforced) {
+            buySignals = buySignals.filter(s => {
+                const px = Number.isFinite(s?.implied) ? s.implied : null;
+                const chk = checkFinalGoldenStrategy(s.asset, s.direction, px, s.cycleStartEpochSec, s.entryMinute, s.utcHour);
+                return chk.passes;
+            });
+        }
 
         // If no BUY signals, send PREPARE signals normally
         if (buySignals.length === 0) {
@@ -10645,15 +10906,33 @@ function orchestrateOracleNotifications() {
             return;
         }
 
+        const slug = currentMarkets?.[primaryBuy.signal.asset]?.slug || '';
+
         // Send the primary BUY notification
         if (rt) rt.telegramBuySentAt = now;
         primaryBuyState.lastPrimaryBuyAt = now;
+
+        if (primaryBuy.signal?.asset && primaryBuy.signal?.direction) {
+            const entryPxIsl = Number.isFinite(primaryBuy.signal?.implied) ? primaryBuy.signal.implied : 0.5;
+            const pWinIsl = Number.isFinite(primaryBuy.signal?.pWin) ? primaryBuy.signal.pWin : 0.5;
+            const cycleStartEpochIsl = Number.isFinite(primaryBuy.signal?.cycleStartEpochSec)
+                ? primaryBuy.signal.cycleStartEpochSec
+                : (Math.floor(now / 1000) - (Math.floor(now / 1000) % 900));
+            recordIssuedSignal(
+                primaryBuy.signal.asset,
+                slug,
+                primaryBuy.signal.direction,
+                entryPxIsl,
+                pWinIsl,
+                primaryBuy.signal.tier || 'ADVISORY',
+                cycleStartEpochIsl
+            );
+        }
 
         // 🏆 v112: Enhanced conviction notification with dedup + optional Web Push
         const tier = String(primaryBuy.signal?.tier || '').toUpperCase();
         const isConviction = tier === 'CONVICTION';
         const isLocked = primaryBuy.signal?.calibration?.isLocked === true;
-        const slug = currentMarkets?.[primaryBuy.signal.asset]?.slug || '';
         const direction = primaryBuy.signal?.direction || '';
 
         if (isConviction) {
@@ -10835,6 +11114,15 @@ function resolvePendingCallsForCycle(cycleStartEpoch, outcomes) {
     // outcomes = { [asset]: { isWin: boolean, actualDirection: 'UP'|'DOWN' } }
     const resolved = [];
 
+    try {
+        for (const [a, outcome] of Object.entries(outcomes || {})) {
+            const actualDirection = outcome?.actualDirection;
+            if (actualDirection === 'UP' || actualDirection === 'DOWN') {
+                resolveIssuedSignal(cycleStartEpoch, a, actualDirection);
+            }
+        }
+    } catch { }
+
     for (const [clientTradeId, call] of Object.entries(pendingCalls)) {
         if (call.cycleStartEpoch !== cycleStartEpoch) continue;
         if (call.resolvedAt) continue;  // Already resolved
@@ -10927,12 +11215,33 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     if (!shadowBook.position) return;
 
     const pos = shadowBook.position;
+    const isEmergencyExit = reason === 'SELL_SIGNAL' || reason === 'EMERGENCY';
     // IMPORTANT: Shadow-book must support early exits.
     // Realized value of a binary share position at exit is shares * exitPrice (0..1),
     // not a forced 0/1 settlement unless we're at resolution.
     const exit = Number.isFinite(Number(exitPrice))
         ? Math.max(0, Math.min(1, Number(exitPrice)))
         : (isWin ? 1.0 : 0.0);
+
+    if (isEmergencyExit) {
+        try {
+            const cycleEpoch = Number(pos.cycleStartEpoch);
+            if (Number.isFinite(cycleEpoch) && issuedSignalLedger && Array.isArray(issuedSignalLedger.signals)) {
+                for (const s of issuedSignalLedger.signals) {
+                    if (!s) continue;
+                    if (s.asset !== pos.asset) continue;
+                    if (Number(s.cycleStartEpoch) !== cycleEpoch) continue;
+                    if (s.direction !== pos.direction) continue;
+                    if (s.resolvedAt !== null) continue;
+                    s.emergencyExit = true;
+                    s.emergencyExitAt = Date.now();
+                    s.emergencyExitReason = reason;
+                    s.emergencyExitPrice = exit;
+                }
+            }
+        } catch { }
+    }
+
     const realized = Number(pos.shares || 0) * exit;
     const pnl = realized - Number(pos.stake || 0);
     const isWinResolved = pnl >= 0;
@@ -10992,14 +11301,27 @@ function closeShadowPosition(exitPrice, isWin, reason = 'SELL') {
     // For EMERGENCY exits (SELL_SIGNAL), treat conservatively as LOSS to tighten
     // thresholds - we exited early because we were uncertain.
     // ═══════════════════════════════════════════════════════════════════════════════
-    const brain = Brains[pos.asset];
-    const pWinAtEntry = pos.pWinAtEntry || (brain?.confidence || 0.5);
-    const tier = pos.tierAtEntry || (brain?.tier || 'ADVISORY');
+    let hasIssuedSignalForPosition = false;
+    try {
+        const cycleEpoch = Number(pos.cycleStartEpoch);
+        if (Number.isFinite(cycleEpoch) && issuedSignalLedger && Array.isArray(issuedSignalLedger.signals)) {
+            hasIssuedSignalForPosition = issuedSignalLedger.signals.some(s =>
+                s && s.asset === pos.asset &&
+                Number(s.cycleStartEpoch) === cycleEpoch &&
+                s.direction === pos.direction
+            );
+        }
+    } catch { }
 
-    // For adaptive learning: use actual correctness for resolution, treat early exits as losses
-    const isEmergencyExit = reason === 'SELL_SIGNAL' || reason === 'EMERGENCY';
-    const correctnessForLearning = isEmergencyExit ? false : isWin;  // Emergency = conservative loss
-    recordOracleSignalOutcome(pos.asset, pos.direction, pWinAtEntry, tier, correctnessForLearning);
+    if (!pos?.clientTradeId && !hasIssuedSignalForPosition) {
+        const brain = Brains[pos.asset];
+        const pWinAtEntry = pos.pWinAtEntry || (brain?.confidence || 0.5);
+        const tier = pos.tierAtEntry || (brain?.tier || 'ADVISORY');
+
+        // For adaptive learning: use actual correctness for resolution, treat early exits as losses
+        const correctnessForLearning = isEmergencyExit ? false : isWin;  // Emergency = conservative loss
+        recordOracleSignalOutcome(pos.asset, pos.direction, pWinAtEntry, tier, correctnessForLearning);
+    }
 
     // Record closed trade
     const closedTrade = {
@@ -13166,7 +13488,30 @@ class TradeExecutor {
         // Enforced Polymarket-only strategy. If enabled, block ANY automated ORACLE entry
         // that does not match the final golden strategy constraints.
         if (mode === 'ORACLE' && mode !== 'MANUAL' && CONFIG?.FINAL_GOLDEN_STRATEGY?.enforced) {
-            const gs = CONFIG?.FINAL_GOLDEN_STRATEGY?.goldenStrategy;
+            const fgs = CONFIG?.FINAL_GOLDEN_STRATEGY || null;
+            const assetKey = String(asset || '').toUpperCase();
+            const perAssetNode = fgs?.payload?.perAssetGoldenStrategies?.[assetKey] || null;
+            const candidate = (perAssetNode?.bestMeetingTarget || perAssetNode?.bestOverall || null);
+
+            const candidateEntryMinute = candidate ? Number(candidate.entryMinute) : NaN;
+            const candidateUtcHour = candidate ? Number(candidate.utcHour) : NaN;
+            const candidateDir = candidate ? String(candidate.direction || '').trim().toUpperCase() : '';
+            const candidateBandMin = candidate ? Number(candidate.priceBand?.min) : NaN;
+            const candidateBandMax = candidate ? Number(candidate.priceBand?.max) : NaN;
+
+            const candidateOk =
+                !!candidate &&
+                Number.isInteger(candidateEntryMinute) && candidateEntryMinute >= 0 && candidateEntryMinute <= 14 &&
+                Number.isInteger(candidateUtcHour) && candidateUtcHour >= 0 && candidateUtcHour <= 23 &&
+                ['UP', 'DOWN', 'BEST'].includes(candidateDir) &&
+                Number.isFinite(candidateBandMin) &&
+                Number.isFinite(candidateBandMax) &&
+                candidateBandMin > 0 &&
+                candidateBandMax < 1 &&
+                candidateBandMin < candidateBandMax;
+
+            const gs = candidateOk ? candidate : (fgs?.goldenStrategy || null);
+            const gsSource = candidateOk ? `perAsset:${assetKey}` : 'global';
             if (!gs) {
                 log(`🛑 FINAL GOLDEN STRATEGY: Missing goldenStrategy runtime config - TRADE BLOCKED`, asset);
                 return { success: false, error: 'FINAL_GOLDEN_STRATEGY_MISSING' };
@@ -13179,8 +13524,10 @@ class TradeExecutor {
             const utcHour = new Date(cycleStartEpochSec * 1000).getUTCHours();
 
             const reasons = [];
-            if (utcHour !== gs.utcHour) reasons.push('utcHour');
-            if (entryMinute !== gs.entryMinute) reasons.push('entryMinute');
+            const reqUtcHour = Number(gs.utcHour);
+            const reqEntryMinute = Number(gs.entryMinute);
+            if (utcHour !== reqUtcHour) reasons.push('utcHour');
+            if (entryMinute !== reqEntryMinute) reasons.push('entryMinute');
 
             const yesPx = Number(market?.yesPrice);
             const noPx = Number(market?.noPrice);
@@ -13213,12 +13560,13 @@ class TradeExecutor {
                     : 'N/A';
                 const pxTxt = Number.isFinite(bandCheckPrice) ? `${(bandCheckPrice * 100).toFixed(1)}¢` : 'N/A';
                 const reqDirTxt = requiredDirection || 'N/A';
-                log(`🛑 FINAL GOLDEN STRATEGY BLOCK: H${utcHour} m${entryMinute} ${direction} @ ${pxTxt} (req H${gs.utcHour} m${gs.entryMinute} ${reqDirTxt} in ${bandTxt})`, asset);
+                log(`🛑 FINAL GOLDEN STRATEGY BLOCK: ${gsSource} H${utcHour} m${entryMinute} ${direction} @ ${pxTxt} (req H${reqUtcHour} m${reqEntryMinute} ${reqDirTxt} in ${bandTxt})`, asset);
                 gateTrace.record(asset, {
                     decision: 'NO_TRADE',
                     reason: 'FINAL_GOLDEN_STRATEGY',
                     failedGates: reasons,
                     inputs: {
+                        goldenStrategySource: gsSource,
                         mode,
                         direction,
                         entryPrice: px,
@@ -13227,8 +13575,8 @@ class TradeExecutor {
                         utcHour,
                         entryMinute,
                         required: {
-                            utcHour: gs.utcHour,
-                            entryMinute: gs.entryMinute,
+                            utcHour: reqUtcHour,
+                            entryMinute: reqEntryMinute,
                             direction: strategyDir,
                             priceBand: { min: bandMin, max: bandMax }
                         }
@@ -13344,6 +13692,112 @@ class TradeExecutor {
             if (!entryPrice || entryPrice <= 0) {
                 log(`🚨 CRITICAL BLOCK: Invalid entry price ${entryPrice} - MUST BE > 0`, asset);
                 return { success: false, error: `Invalid entry price: ${entryPrice}. Must be > 0.` };
+            }
+
+            if (mode === 'ORACLE') {
+                const nowSec = Math.floor(Date.now() / 1000);
+                const cycleStartEpochSec = getCurrentCheckpoint();
+                const elapsedSec = nowSec - cycleStartEpochSec;
+                const timeLeftSec = INTERVAL_SECONDS - elapsedSec;
+
+                const buyWindowStart = CONFIG.ORACLE.buyWindowStartSec || 300;
+                const buyWindowEnd = CONFIG.ORACLE.buyWindowEndSec || 60;
+                const extendedBlackoutSec = Number.isFinite(Number(CONFIG?.ORACLE?.extendedBlackoutSec))
+                    ? Math.max(0, Number(CONFIG.ORACLE.extendedBlackoutSec))
+                    : 0;
+                const effectiveBuyWindowEnd = Math.min(
+                    Math.max(0, Number(buyWindowStart) - 1),
+                    Number(buyWindowEnd) + extendedBlackoutSec
+                );
+
+                if (timeLeftSec <= effectiveBuyWindowEnd) {
+                    log(`🚫 ORACLE HARD BLOCK: Final ${effectiveBuyWindowEnd}s blackout - too late to enter (tLeft=${timeLeftSec}s)`, asset);
+                    gateTrace.record(asset, {
+                        decision: 'NO_TRADE',
+                        reason: 'EXTENDED_BLACKOUT',
+                        failedGates: ['extended_blackout'],
+                        inputs: {
+                            timeLeftSec,
+                            buyWindowStart,
+                            buyWindowEnd,
+                            extendedBlackoutSec,
+                            effectiveBuyWindowEnd,
+                            entryPrice,
+                            direction,
+                            cycleStartEpochSec
+                        }
+                    });
+                    return { success: false, error: 'EXTENDED_BLACKOUT' };
+                }
+
+                const volatilityGuardEnabled = CONFIG?.ORACLE?.volatilityGuardEnabled !== false;
+                if (volatilityGuardEnabled) {
+                    const atrMultiplier = Number.isFinite(Number(CONFIG?.ORACLE?.volatilityGuardATRMultiplier))
+                        ? Math.max(0, Number(CONFIG.ORACLE.volatilityGuardATRMultiplier))
+                        : 4.0;
+                    const oddsVelocityThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.volatilityGuardOddsVelocityThreshold))
+                        ? Math.max(0, Number(CONFIG.ORACLE.volatilityGuardOddsVelocityThreshold))
+                        : 0.12;
+                    const manipulationScoreThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.manipulationScoreThreshold))
+                        ? Math.max(0, Math.min(1, Number(CONFIG.ORACLE.manipulationScoreThreshold)))
+                        : 0.85;
+
+                    const ph = Array.isArray(priceHistory?.[asset]) ? priceHistory[asset] : [];
+                    const currentATR = MathLib.calculateATR(ph.slice(-30), 5);
+                    const rawNormalATR = MathLib.calculateATR(ph.slice(-100, -30), 20);
+                    const normalATR = Math.max(rawNormalATR, currentATR * 0.1, 0.0001);
+                    const atrRatio = normalATR > 0 ? (currentATR / normalATR) : null;
+
+                    const oddsTrend = computeOddsTrend(asset, direction, 60000);
+                    const oddsVelAbs = Number.isFinite(oddsTrend?.velocityPerMin)
+                        ? Math.abs(Number(oddsTrend.velocityPerMin))
+                        : null;
+
+                    const brain = Brains?.[asset];
+                    const manipulationScore = Number.isFinite(brain?.manipulationScore)
+                        ? Number(brain.manipulationScore)
+                        : null;
+
+                    const atrTriggered = ph.length >= 30 && Number.isFinite(atrRatio) && atrRatio > atrMultiplier;
+                    const oddsTriggered = Number.isFinite(oddsVelAbs) && oddsVelAbs > oddsVelocityThreshold;
+                    const manipTriggered = Number.isFinite(manipulationScore) && manipulationScore >= manipulationScoreThreshold;
+
+                    const shouldBlockBuy = manipTriggered || (atrTriggered && oddsTriggered);
+                    if (shouldBlockBuy) {
+                        const failedGates = [];
+                        if (manipTriggered) failedGates.push('manipulation_score');
+                        if (atrTriggered) failedGates.push('atr_spike');
+                        if (oddsTriggered) failedGates.push('odds_velocity_spike');
+
+                        const parts = [];
+                        if (manipTriggered) parts.push(`manip=${(manipulationScore * 100).toFixed(0)}%`);
+                        if (atrTriggered) parts.push(`atr=${atrRatio.toFixed(1)}x`);
+                        if (oddsTriggered) parts.push(`vel=${(oddsVelAbs * 100).toFixed(1)}¢/min`);
+                        log(`🚫 ORACLE HARD BLOCK: Volatility/spike guard: ${parts.join(', ') || 'triggered'}`, asset);
+
+                        gateTrace.record(asset, {
+                            decision: 'NO_TRADE',
+                            reason: 'VOLATILITY_GUARD',
+                            failedGates,
+                            inputs: {
+                                timeLeftSec,
+                                entryPrice,
+                                direction,
+                                pWin: Number.isFinite(options?.pWin) ? options.pWin : null,
+                                oddsVelocityPerMin: oddsTrend?.velocityPerMin,
+                                manipulationScore,
+                                currentATR,
+                                normalATR,
+                                atrRatio,
+                                atrMultiplier,
+                                oddsVelocityThreshold,
+                                manipulationScoreThreshold
+                            }
+                        });
+
+                        return { success: false, error: 'VOLATILITY_GUARD' };
+                    }
+                }
             }
 
             // 🎯 v53 CRITICAL: TAIL BET FILTER - Block trades where Oracle disagrees with market
@@ -25169,13 +25623,13 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
     const threshold = computeAdaptiveThreshold();
     const isUltra = ultraProphet?.isUltra === true;
 
-    // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 75¢
+    // 🚫 v112: HARD ENTRY PRICE CAP - Block BUY when entry price >= 80¢
     // This applies to ALL signals including ULTRA (expensive entries are risky even with high confidence)
-    const HARD_ENTRY_CAP = 0.75; // 🏆 v134.8: SOL Golden Zone cap
+    const HARD_ENTRY_CAP = 0.80; // 🏆 v134.8: SOL Golden Zone cap
     if (Number.isFinite(entryPrice) && entryPrice >= HARD_ENTRY_CAP) {
         return {
             passes: false,
-            reason: `🚫 Entry ${(entryPrice * 100).toFixed(0)}¢ >= 75¢ cap (too expensive)`,
+            reason: `🚫 Entry ${(entryPrice * 100).toFixed(0)}¢ >= ${(HARD_ENTRY_CAP * 100).toFixed(0)}¢ cap (too expensive)`,
             threshold,
             pWin,
             isUltra,
@@ -25222,24 +25676,27 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
     // 🏆 v126: LOCKED-ONLY FOR MICRO BANKROLLS
     // For $1-20 bankrolls, REQUIRE oracleLocked=true to prevent MOVABLE signals
     // MOVABLE signals can flip mid-cycle causing losses
-    const effectiveBankrollForLock = bankroll || manualTradingJourney?.currentBalance || 1;
+    const bankrollProvided = Number.isFinite(bankroll) && bankroll > 0;
+    const effectiveBankrollForLock = bankrollProvided ? bankroll : 1;
     const REQUIRE_LOCKED_THRESHOLD = 20; // $20 or less requires locked signals
     if (effectiveBankrollForLock <= REQUIRE_LOCKED_THRESHOLD && !oracleLocked) {
         return {
             passes: false,
-            reason: `🔓 MOVABLE signal blocked (bankroll=$${effectiveBankrollForLock.toFixed(0)} requires LOCKED)`,
+            reason: bankrollProvided
+                ? `🔓 MOVABLE signal blocked (bankroll=$${effectiveBankrollForLock.toFixed(0)} requires LOCKED)`
+                : `🔓 MOVABLE signal blocked (requires LOCKED)`,
             threshold,
             pWin,
             isUltra: false,
             blockedReason: 'NOT_LOCKED',
             requiresLocked: true,
-            effectiveBankroll: effectiveBankrollForLock
+            effectiveBankroll: bankrollProvided ? effectiveBankrollForLock : null
         };
     }
 
     // 🏆 v112: BANKROLL-SENSITIVE pWin FLOOR
     // Get the manual journey bankroll (user's actual trading balance)
-    const effectiveBankroll = bankroll || manualTradingJourney?.currentBalance || 1;
+    const effectiveBankroll = bankrollProvided ? bankroll : 1;
     const bankrollFloor = getRequiredPWinFloor(effectiveBankroll);
 
     // 🏆 v108.1 + v112: Hard-enforce floor for ALL tiers
@@ -25262,20 +25719,21 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
             isUltra: false,
             blockedReason: 'LOW_SAMPLES',
             bankrollFloor,
-            effectiveBankroll
+            effectiveBankroll: bankrollProvided ? effectiveBankroll : null
         };
     }
 
     if (pWin >= effectiveThreshold) {
+        const bankrollSuffix = bankrollProvided ? `, bankroll=$${effectiveBankroll.toFixed(0)}` : '';
         return {
             passes: true,
-            reason: `pWin=${(pWin * 100).toFixed(1)}% >= ${(effectiveThreshold * 100).toFixed(1)}% threshold (${tier}, bankroll=$${effectiveBankroll.toFixed(0)})`,
+            reason: `pWin=${(pWin * 100).toFixed(1)}% >= ${(effectiveThreshold * 100).toFixed(1)}% threshold (${tier}${bankrollSuffix})`,
             threshold: effectiveThreshold,
             pWin,
             isUltra: false,
             blockedReason: null,
             bankrollFloor,
-            effectiveBankroll
+            effectiveBankroll: bankrollProvided ? effectiveBankroll : null
         };
     }
 
@@ -25287,8 +25745,113 @@ function checkAdaptiveGate(pWin, tier, ultraProphet, options = {}) {
         isUltra: false,
         blockedReason: 'PWIN_BELOW_THRESHOLD',
         bankrollFloor,
-        effectiveBankroll
+        effectiveBankroll: bankrollProvided ? effectiveBankroll : null
     };
+}
+
+function checkFinalGoldenStrategy(asset, direction, entryPrice, cycleStartEpochSec, entryMinute, utcHour) {
+    try {
+        const fgs = CONFIG?.FINAL_GOLDEN_STRATEGY || null;
+        if (!fgs || fgs.enforced !== true) {
+            return { passes: true, reason: null };
+        }
+
+        const assetKey = String(asset || '').toUpperCase();
+        const perAssetNode = fgs?.payload?.perAssetGoldenStrategies?.[assetKey] || null;
+        const candidate = (perAssetNode?.bestMeetingTarget || perAssetNode?.bestOverall || null);
+
+        const candidateEntryMinute = candidate ? Number(candidate.entryMinute) : NaN;
+        const candidateUtcHour = candidate ? Number(candidate.utcHour) : NaN;
+        const candidateDir = candidate ? String(candidate.direction || '').trim().toUpperCase() : '';
+        const candidateBandMin = candidate ? Number(candidate.priceBand?.min) : NaN;
+        const candidateBandMax = candidate ? Number(candidate.priceBand?.max) : NaN;
+
+        const candidateOk =
+            !!candidate &&
+            Number.isInteger(candidateEntryMinute) && candidateEntryMinute >= 0 && candidateEntryMinute <= 14 &&
+            Number.isInteger(candidateUtcHour) && candidateUtcHour >= 0 && candidateUtcHour <= 23 &&
+            ['UP', 'DOWN', 'BEST'].includes(candidateDir) &&
+            Number.isFinite(candidateBandMin) &&
+            Number.isFinite(candidateBandMax) &&
+            candidateBandMin > 0 &&
+            candidateBandMax < 1 &&
+            candidateBandMin < candidateBandMax;
+
+        const gs = candidateOk ? candidate : (fgs?.goldenStrategy || null);
+        const gsSource = candidateOk ? `perAsset:${assetKey}` : 'global';
+
+        if (!gs) {
+            return { passes: false, reason: 'FINAL_GOLDEN_STRATEGY_MISSING', source: gsSource, failedGates: ['missing'] };
+        }
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        const cycleStart = Number.isFinite(cycleStartEpochSec)
+            ? Number(cycleStartEpochSec)
+            : (nowSec - (nowSec % INTERVAL_SECONDS));
+        const elapsedSec = nowSec - cycleStart;
+
+        const em = Number.isInteger(entryMinute)
+            ? Number(entryMinute)
+            : Math.max(0, Math.min(14, Math.floor(elapsedSec / 60)));
+        const uh = Number.isInteger(utcHour)
+            ? Number(utcHour)
+            : new Date(cycleStart * 1000).getUTCHours();
+
+        const reasons = [];
+        const reqUtcHour = Number(gs.utcHour);
+        const reqEntryMinute = Number(gs.entryMinute);
+        if (Number.isFinite(reqUtcHour) && uh !== reqUtcHour) reasons.push('utcHour');
+        if (Number.isFinite(reqEntryMinute) && em !== reqEntryMinute) reasons.push('entryMinute');
+
+        const market = currentMarkets?.[assetKey] || currentMarkets?.[asset] || null;
+        const yesPx = Number(market?.yesPrice);
+        const noPx = Number(market?.noPrice);
+
+        const strategyDir = String(gs.direction || '').trim().toUpperCase();
+        const bandMin = Number(gs.priceBand?.min);
+        const bandMax = Number(gs.priceBand?.max);
+        const px = Number(entryPrice);
+
+        let requiredDirection = strategyDir;
+        let bandCheckPrice = px;
+
+        if (strategyDir === 'BEST') {
+            if (!Number.isFinite(yesPx) || !Number.isFinite(noPx)) {
+                reasons.push('bestPrice_missing');
+            } else {
+                const bestPrice = Math.min(yesPx, noPx);
+                requiredDirection = yesPx < noPx ? 'UP' : 'DOWN';
+                bandCheckPrice = bestPrice;
+            }
+        }
+
+        if (direction !== requiredDirection) reasons.push('direction');
+        if (!Number.isFinite(bandMin) || !Number.isFinite(bandMax) || !Number.isFinite(bandCheckPrice) || bandCheckPrice < bandMin || bandCheckPrice > bandMax) {
+            reasons.push('priceBand');
+        }
+
+        if (reasons.length) {
+            const bandTxt = (Number.isFinite(bandMin) && Number.isFinite(bandMax))
+                ? `${(bandMin * 100).toFixed(1)}¢-${(bandMax * 100).toFixed(1)}¢`
+                : 'N/A';
+            const pxTxt = Number.isFinite(bandCheckPrice) ? `${(bandCheckPrice * 100).toFixed(1)}¢` : 'N/A';
+            const reqDirTxt = requiredDirection || 'N/A';
+            const reqUtcTxt = Number.isFinite(reqUtcHour) ? `H${reqUtcHour}` : 'H?';
+            const reqMinTxt = Number.isFinite(reqEntryMinute) ? `m${reqEntryMinute}` : 'm?';
+            const gotUtcTxt = Number.isFinite(uh) ? `H${uh}` : 'H?';
+            const gotMinTxt = Number.isFinite(em) ? `m${em}` : 'm?';
+            return {
+                passes: false,
+                reason: `${gsSource} ${gotUtcTxt} ${gotMinTxt} ${direction} @ ${pxTxt} (req ${reqUtcTxt} ${reqMinTxt} ${reqDirTxt} in ${bandTxt})`,
+                source: gsSource,
+                failedGates: reasons
+            };
+        }
+
+        return { passes: true, reason: null, source: gsSource, failedGates: [] };
+    } catch (e) {
+        return { passes: false, reason: `FINAL_GOLDEN_STRATEGY_ERROR: ${e?.message || e}`, source: 'unknown', failedGates: ['error'] };
+    }
 }
 
 /**
@@ -25761,6 +26324,8 @@ function updateOracleSignalForAsset(asset) {
             cycleEndEpochSec: cycleStartEpochSec + INTERVAL_SECONDS,
             timestampMs: nowMs,
             elapsedSec,
+            entryMinute: Math.max(0, Math.min(14, Math.floor(elapsedSec / 60))),
+            utcHour: new Date(cycleStartEpochSec * 1000).getUTCHours(),
             // 🏆 v114: Proof fields for Telegram verification
             marketSlug: market?.slug || null,
             pricingDiagnostics: market?.pricingDiagnostics || null,
@@ -25990,12 +26555,19 @@ function updateOracleSignalForAsset(asset) {
         // Default: BUY at 300s-60s (last 5 min), PREPARE at 420s-300s (7-5 min)
         const buyWindowStart = CONFIG.ORACLE.buyWindowStartSec || 300;
         const buyWindowEnd = CONFIG.ORACLE.buyWindowEndSec || 60;
+        const extendedBlackoutSec = Number.isFinite(Number(CONFIG?.ORACLE?.extendedBlackoutSec))
+            ? Math.max(0, Number(CONFIG.ORACLE.extendedBlackoutSec))
+            : 0;
+        const effectiveBuyWindowEnd = Math.min(
+            Math.max(0, Number(buyWindowStart) - 1),
+            Number(buyWindowEnd) + extendedBlackoutSec
+        );
         const prepareWindowStart = CONFIG.ORACLE.prepareWindowStartSec || 420;
         const prepareWindowEnd = buyWindowStart; // PREPARE ends when BUY starts
 
         const inPrepareWindow = timeLeftSec <= prepareWindowStart && timeLeftSec > prepareWindowEnd;
-        const inBuyWindow = timeLeftSec <= buyWindowStart && timeLeftSec > buyWindowEnd;
-        const inBlackout = timeLeftSec <= buyWindowEnd;
+        const inBuyWindow = timeLeftSec <= buyWindowStart && timeLeftSec > effectiveBuyWindowEnd;
+        const inBlackout = timeLeftSec <= effectiveBuyWindowEnd;
 
         // Compute consensus for emergency checks
         const voteHistoryArr = brain.voteHistory || [];
@@ -26062,7 +26634,6 @@ function updateOracleSignalForAsset(asset) {
         // 🏆 v112 + v126: Pass entry price, bankroll, sample size, AND oracleLocked for enhanced gating
         const adaptiveGate = checkAdaptiveGate(pWin, signal.tier, ultraProphet, {
             entryPrice,
-            bankroll: manualTradingJourney?.currentBalance || 1,
             calibrationSampleSize,
             oracleLocked: brain?.convictionLocked === true
         });
@@ -26169,11 +26740,84 @@ function updateOracleSignalForAsset(asset) {
 
             if (inBlackout) {
                 signal.action = 'AVOID';
-                signal.reasons.push('Final 60s blackout - too late to enter');
+                signal.reasons.push(`Final ${effectiveBuyWindowEnd}s blackout - too late to enter`);
             } else if (!stable) {
                 signal.action = 'WAIT';
                 signal.reasons.push('Signal not stable enough');
             } else if (inBuyWindow && adaptiveGate.passes) {
+                let blockedByVolatilityGuard = false;
+                const volatilityGuardEnabled = CONFIG?.ORACLE?.volatilityGuardEnabled !== false;
+                if (volatilityGuardEnabled) {
+                    const atrMultiplier = Number.isFinite(Number(CONFIG?.ORACLE?.volatilityGuardATRMultiplier))
+                        ? Math.max(0, Number(CONFIG.ORACLE.volatilityGuardATRMultiplier))
+                        : 4.0;
+                    const oddsVelocityThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.volatilityGuardOddsVelocityThreshold))
+                        ? Math.max(0, Number(CONFIG.ORACLE.volatilityGuardOddsVelocityThreshold))
+                        : 0.12;
+                    const manipulationScoreThreshold = Number.isFinite(Number(CONFIG?.ORACLE?.manipulationScoreThreshold))
+                        ? Math.max(0, Math.min(1, Number(CONFIG.ORACLE.manipulationScoreThreshold)))
+                        : 0.85;
+
+                    const ph = Array.isArray(priceHistory?.[asset]) ? priceHistory[asset] : [];
+                    const currentATR = MathLib.calculateATR(ph.slice(-30), 5);
+                    const rawNormalATR = MathLib.calculateATR(ph.slice(-100, -30), 20);
+                    const normalATR = Math.max(rawNormalATR, currentATR * 0.1, 0.0001);
+                    const atrRatio = normalATR > 0 ? (currentATR / normalATR) : null;
+
+                    const oddsVelAbs = Number.isFinite(signal.oddsVelocityPerMin)
+                        ? Math.abs(Number(signal.oddsVelocityPerMin))
+                        : null;
+                    const manipulationScore = Number.isFinite(brain?.manipulationScore)
+                        ? Number(brain.manipulationScore)
+                        : null;
+
+                    const atrTriggered = ph.length >= 30 && Number.isFinite(atrRatio) && atrRatio > atrMultiplier;
+                    const oddsTriggered = Number.isFinite(oddsVelAbs) && oddsVelAbs > oddsVelocityThreshold;
+                    const manipTriggered = Number.isFinite(manipulationScore) && manipulationScore >= manipulationScoreThreshold;
+
+                    const shouldBlockBuy = manipTriggered || (atrTriggered && oddsTriggered);
+                    if (shouldBlockBuy) {
+                        blockedByVolatilityGuard = true;
+                        signal.action = 'AVOID';
+
+                        const failedGates = [];
+                        if (manipTriggered) failedGates.push('manipulation_score');
+                        if (atrTriggered) failedGates.push('atr_spike');
+                        if (oddsTriggered) failedGates.push('odds_velocity_spike');
+
+                        const parts = [];
+                        if (manipTriggered) parts.push(`manip=${(manipulationScore * 100).toFixed(0)}%`);
+                        if (atrTriggered) parts.push(`atr=${atrRatio.toFixed(1)}x`);
+                        if (oddsTriggered) parts.push(`vel=${(oddsVelAbs * 100).toFixed(1)}¢/min`);
+                        signal.reasons.unshift(`🚫 Volatility/spike guard: ${parts.join(', ') || 'triggered'}`);
+
+                        gateTrace.record(asset, {
+                            decision: 'NO_TRADE',
+                            reason: 'VOLATILITY_GUARD',
+                            failedGates,
+                            inputs: {
+                                timeLeftSec,
+                                entryPrice,
+                                direction: signal.direction,
+                                pWin,
+                                evRoi,
+                                oddsVelocityPerMin: signal.oddsVelocityPerMin,
+                                manipulationScore,
+                                currentATR,
+                                normalATR,
+                                atrRatio,
+                                atrMultiplier,
+                                oddsVelocityThreshold,
+                                manipulationScoreThreshold
+                            }
+                        });
+                    }
+                }
+
+                if (blockedByVolatilityGuard) {
+                    // BUY suppressed by anti-manipulation gates
+                }
+                else {
                 // 🏆 v114: Check tail-buy gate before issuing BUY
                 if (isTailBet && !tailBuyAllowed) {
                     // Tail bet blocked - downgrade to PREPARE with explicit label
@@ -26185,16 +26829,30 @@ function updateOracleSignalForAsset(asset) {
                     if (!rt.lastPrepareAt) rt.lastPrepareAt = nowMs;
                 } else {
                     // BUY window: issue BUY if adaptive gate passes (and tail-buy allowed if applicable)
-                    signal.action = 'BUY';
-                    signal.reasons.unshift(adaptiveGate.reason);
-                    if (isTailBet && tailBuyAllowed) {
-                        signal.isTailBet = true;
-                        signal.reasons.unshift('✅ TAIL BUY APPROVED: All strict conditions met');
+                    let fgsBlock = null;
+                    if (CONFIG?.FINAL_GOLDEN_STRATEGY?.enforced) {
+                        const fgsCheck = checkFinalGoldenStrategy(asset, signal.direction, entryPrice, cycleStartEpochSec, signal.entryMinute, signal.utcHour);
+                        if (!fgsCheck.passes) {
+                            fgsBlock = fgsCheck;
+                        }
                     }
-                    if (ultraProphet.isUltra) {
-                        signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
+                    if (fgsBlock) {
+                        signal.action = 'WAIT';
+                        signal.blockedReason = 'FINAL_GOLDEN_STRATEGY_BLOCK';
+                        signal.reasons.unshift(`🛑 FINAL GOLDEN STRATEGY BLOCK: ${fgsBlock.reason}`);
+                    } else {
+                        signal.action = 'BUY';
+                        signal.reasons.unshift(adaptiveGate.reason);
+                        if (isTailBet && tailBuyAllowed) {
+                            signal.isTailBet = true;
+                            signal.reasons.unshift('✅ TAIL BUY APPROVED: All strict conditions met');
+                        }
+                        if (ultraProphet.isUltra) {
+                            signal.reasons.unshift('🔮 ULTRA-PROPHET: Maximum confidence signal');
+                        }
+                        if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
                     }
-                    if (!rt.lastBuyAt) rt.lastBuyAt = nowMs;
+                }
                 }
             } else if (inPrepareWindow && Number.isFinite(pWin) && pWin >= 0.75) {
                 // 🏆 v107.1: PREPARE threshold 75% (below BUY floor of 85%) for early warning
@@ -28070,10 +28728,10 @@ app.post('/api/settings', async (req, res) => {
         }
     }
 
-    // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥75¢
-    // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.75
+    // 🚫 v113: HARD CLAMP - Prevent GOAT preset or any setting from enabling BUY ≥80¢
+    // This is a safety invariant: no matter what the user/preset sets, maxOdds cannot exceed 0.80
     if (CONFIG.ORACLE && typeof CONFIG.ORACLE.maxOdds === 'number') {
-        const MAX_ODDS_HARD_CAP = 0.75; // 🏆 v134.8: SOL Golden Zone cap
+        const MAX_ODDS_HARD_CAP = 0.80; // 🏆 v134.8: SOL Golden Zone cap
         if (CONFIG.ORACLE.maxOdds > MAX_ODDS_HARD_CAP) {
             log(`🚫 v134.8: Clamping ORACLE.maxOdds from ${CONFIG.ORACLE.maxOdds} to ${MAX_ODDS_HARD_CAP} (hard cap)`);
             CONFIG.ORACLE.maxOdds = MAX_ODDS_HARD_CAP;
@@ -29404,8 +30062,8 @@ function runStartupSelfTests() {
     if (!CONFIG || !CONFIG.ORACLE) {
         failures.push('CONFIG or CONFIG.ORACLE is undefined');
     }
-    if (CONFIG.ORACLE.maxOdds > 0.75) {
-        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) exceeds 75¢ hard cap (v134.8 rule)`);
+    if (CONFIG.ORACLE.maxOdds > 0.80) {
+        failures.push(`CONFIG.ORACLE.maxOdds (${CONFIG.ORACLE.maxOdds}) exceeds 80¢ hard cap (v134.8 rule)`);
     }
     if (CONFIG.ORACLE.minOdds < 0.50) {
         failures.push(`CONFIG.ORACLE.minOdds (${CONFIG.ORACLE.minOdds}) is below 50¢ - enables noise trades`);
