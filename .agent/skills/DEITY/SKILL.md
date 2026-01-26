@@ -388,6 +388,63 @@ Document:
 
 - Strategy is loaded from `final_golden_strategy.json` at startup (enforced unless `ENFORCE_FINAL_GOLDEN_STRATEGY=false`).
 
+### Final Strategy Audit Gates (Offline, Deterministic)
+
+`final_golden_strategy.json` embeds explicit pass/fail gates:
+
+- `auditVerdict`: `PASS` | `WARN` | `FAIL`
+- `auditAllPassed`: boolean (true only when `auditVerdict === "PASS"`)
+- `auditGates.global`: global gates (includes optional Stage-1 gate when enabled)
+- `auditGates.perAsset.<ASSET>.runtime`: per-asset runtime gates (`bestMeetingTarget || bestOverall`)
+
+Gate semantics:
+
+- `PASS`: meets `valWinRate` + `testWinRate` hard gates AND meets confidence proof on both splits (**either** `winRateLCB` OR `posteriorPWinRateGE90`).
+- `WARN`: meets `valWinRate` + `testWinRate` hard gates but fails confidence proof.
+- `FAIL`: fails hard gates, or fails Stage‑1 survival gate (when enabled).
+
+Rerunnable audit procedure:
+
+```bash
+npm run analysis
+node final_golden_strategy.js
+node -e "const r=require('./final_golden_strategy.json'); console.log({auditVerdict:r.auditVerdict,auditAllPassed:r.auditAllPassed,config:r.auditGates?.config});"
+```
+
+Optional env overrides:
+
+- `AUDIT_MIN_VAL_WIN_RATE` (default `0.90`)
+- `AUDIT_MIN_TEST_WIN_RATE` (default `0.90`)
+- `AUDIT_MIN_WIN_RATE_LCB` (default `0.90`)
+- `AUDIT_MIN_POSTERIOR_PWINRATE_GE90` (default `0.80`)
+- `AUDIT_MAX_STAGE1_PLOSS_BEFORE_TARGET` (unset = disabled)
+
+### Disaster Recovery Checklist (USB Kit + Restore + Validation)
+
+- **USB kit contents**:
+  - Repo source + commit SHA
+  - `redis-export.json` (from `node scripts/migrate-redis.js backup` or `scripts/backup.bat` / `./scripts/backup.sh`)
+  - `polyprophet_nuclear_backup_<timestamp>.json` (download from `/api/nuclear-backup`)
+  - `.env` / secure record of required env vars
+
+- **Restore path A (Redis snapshot)**:
+  - Copy `redis-export.json` to repo root
+  - Set `TARGET_REDIS_URL` to new Redis
+  - Run `node scripts/migrate-redis.js restore`
+  - Set `REDIS_URL` and start server
+
+- **Restore path B (Nuclear backup)**:
+  - Start server
+  - `POST /api/nuclear-restore` with the saved nuclear backup JSON
+  - Restart server
+
+- **Post-restore validation (before LIVE)**:
+  - `GET /api/version`
+  - `GET /api/health`
+  - `GET /api/perfection-check`
+  - `GET /api/state` → `_finalGoldenStrategy.loadError=null`
+  - If `TRADE_MODE=LIVE`: `GET /api/verify?deep=1`
+
 ### Deployment / Autonomy Caveats
 
 - **Tools UI**: `public/tools.html` must exist and include `POLYPROPHET_TOOLS_UI_MARKER_vN` (any vN accepted by regex)

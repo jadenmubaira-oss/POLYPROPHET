@@ -530,6 +530,15 @@ This ensures CONVICTION signals are rare but extremely accurate.
 2. POST the saved nuclear backup file to `/api/nuclear-restore`.
 3. Restart the server.
 
+**Post-restore validation (must pass before enabling LIVE):**
+
+- [ ] `GET /api/version` returns expected `configVersion`
+- [ ] `GET /api/health` shows Redis available when `REDIS_URL` is set
+- [ ] `GET /api/perfection-check` summary shows `allPassed: true` (or review failures)
+- [ ] `GET /api/state` shows `_finalGoldenStrategy.loadError=null` and `goldenStrategy` is present
+- [ ] (Offline) `node -e "const r=require('./final_golden_strategy.json'); console.log({auditVerdict:r.auditVerdict,auditAllPassed:r.auditAllPassed});"`
+- [ ] If `TRADE_MODE=LIVE`: `GET /api/verify?deep=1` passes deep checks (CLOB readiness + allowances)
+
 **Full Redis Backup**:
 
 ```bash
@@ -3144,14 +3153,30 @@ Each strategy row now includes:
 
 ---
 
-## 🎯 THE FINAL VERDICT (v139-ATOMIC)
+## THE FINAL VERDICT (v139-ATOMIC)
 
 After generating the outputs above, verify:
 
 - **[Data provenance]** `final_golden_strategy.json.dataSource` is `exhaustive_analysis/final_results.json`
 - **[Fee model]** `final_golden_strategy.json.feeModel.takerFeeRate` is `0.02`
 - **[Stage-1 survival]** `final_golden_strategy.json.stage1Survival` is produced by empirical ROI bootstrapping (no fixed 50¢ assumption)
+- **[Audit gates]** `final_golden_strategy.json.auditAllPassed` is `true` and `final_golden_strategy.json.auditVerdict` is `PASS`
+- **[Gate thresholds]** `final_golden_strategy.json.auditGates.config` shows the exact thresholds used for this run
+
+Gate semantics:
+
+- `PASS`: meets `valWinRate` + `testWinRate` hard gates AND meets the confidence proof gate on both splits (**either** `winRateLCB ≥ AUDIT_MIN_WIN_RATE_LCB` **or** `posteriorPWinRateGE90 ≥ AUDIT_MIN_POSTERIOR_PWINRATE_GE90`). If `AUDIT_MAX_STAGE1_PLOSS_BEFORE_TARGET` is set, Stage‑1 survival must also pass.
+- `WARN`: meets `valWinRate` + `testWinRate` hard gates, but does **not** meet the confidence proof gate.
+- `FAIL`: fails the hard win-rate gates, or fails the Stage‑1 survival gate (when enabled).
+
+Environment overrides (optional):
+
+- `AUDIT_MIN_VAL_WIN_RATE` (default `0.90`)
+- `AUDIT_MIN_TEST_WIN_RATE` (default `0.90`)
+- `AUDIT_MIN_WIN_RATE_LCB` (default `0.90`)
+- `AUDIT_MIN_POSTERIOR_PWINRATE_GE90` (default `0.80`)
+- `AUDIT_MAX_STAGE1_PLOSS_BEFORE_TARGET` (unset = disabled)
 
 ---
-
+ 
 *Version: v139-ATOMIC | Updated: 2026-01-17 | Polymarket-only pipeline*

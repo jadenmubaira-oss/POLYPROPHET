@@ -14,19 +14,122 @@
 const fs = require('fs');
 const path = require('path');
 
-const { calculateStage1Survival } = require('./exhaustive_market_analysis');
+const { calculateStage1Survival, splitDatasetByMarkets3Way, walkForwardValidation } = require('./exhaustive_market_analysis');
 
 const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
 const WIN_RATE_TARGET = 0.9;
 const DEFAULT_MIN_TRADES_PER_ASSET = 20;
 
+function readEnvNumber(name) {
+    const raw = process.env[name];
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+}
+
+const AUDIT_MIN_VAL_WIN_RATE = readEnvNumber('AUDIT_MIN_VAL_WIN_RATE') ?? 0.9;
+const AUDIT_MIN_TEST_WIN_RATE = readEnvNumber('AUDIT_MIN_TEST_WIN_RATE') ?? 0.9;
+const AUDIT_MIN_WIN_RATE_LCB = readEnvNumber('AUDIT_MIN_WIN_RATE_LCB') ?? 0.9;
+const AUDIT_MIN_POSTERIOR_PWINRATE_GE90 = readEnvNumber('AUDIT_MIN_POSTERIOR_PWINRATE_GE90') ?? 0.8;
+const AUDIT_MAX_STAGE1_PLOSS_BEFORE_TARGET = readEnvNumber('AUDIT_MAX_STAGE1_PLOSS_BEFORE_TARGET');
+
 function safeGetNumber(value) {
     return Number.isFinite(value) ? value : null;
 }
 
+function normalizeGateMetric(metric) {
+    const m = metric && typeof metric === 'object' ? metric : {};
+    return {
+        trades: safeGetNumber(m.trades),
+        winRate: safeGetNumber(m.winRate),
+        winRateLCB: safeGetNumber(m.winRateLCB),
+        posteriorPWinRateGE90: safeGetNumber(m.posteriorPWinRateGE90)
+    };
+}
+
+function compareVerdict(a, b) {
+    const score = v => (v === 'PASS' ? 2 : v === 'WARN' ? 1 : 0);
+    return score(a) - score(b);
+}
+
+function evaluateAuditGatesForMetrics(metrics, stage1, config) {
+    const failures = [];
+    const val = normalizeGateMetric(metrics?.val);
+    const test = normalizeGateMetric(metrics?.test);
+
+    const hard = {
+        passed: true,
+        failures: []
+    };
+    if (!(typeof val.winRate === 'number' && val.winRate >= config.minValWinRate)) {
+        hard.passed = false;
+        hard.failures.push('valWinRate');
+    }
+    if (!(typeof test.winRate === 'number' && test.winRate >= config.minTestWinRate)) {
+        hard.passed = false;
+        hard.failures.push('testWinRate');
+    }
+
+    const proof = {
+        passed: true,
+        failures: []
+    };
+    const valProofOk =
+        (typeof val.winRateLCB === 'number' && val.winRateLCB >= config.minWinRateLCB) ||
+        (typeof val.posteriorPWinRateGE90 === 'number' && val.posteriorPWinRateGE90 >= config.minPosteriorPWinRateGE90);
+    const testProofOk =
+        (typeof test.winRateLCB === 'number' && test.winRateLCB >= config.minWinRateLCB) ||
+        (typeof test.posteriorPWinRateGE90 === 'number' && test.posteriorPWinRateGE90 >= config.minPosteriorPWinRateGE90);
+    if (!valProofOk) {
+        proof.passed = false;
+        proof.failures.push('valProof');
+    }
+    if (!testProofOk) {
+        proof.passed = false;
+        proof.failures.push('testProof');
+    }
+
+    const stage1Enabled = Number.isFinite(config.maxStage1PLossBeforeTarget) && stage1 && typeof stage1 === 'object';
+    const stage1Gate = {
+        enabled: stage1Enabled,
+        passed: true,
+        failures: []
+    };
+    if (stage1Enabled) {
+        const pLoss = safeGetNumber(stage1?.pLossBeforeTarget);
+        if (!(typeof pLoss === 'number' && pLoss <= config.maxStage1PLossBeforeTarget)) {
+            stage1Gate.passed = false;
+            stage1Gate.failures.push('stage1PLossBeforeTarget');
+        }
+    }
+
+    let verdict = 'PASS';
+    if (!hard.passed) verdict = 'FAIL';
+    else if (!proof.passed) verdict = 'WARN';
+    if (stage1Gate.enabled && !stage1Gate.passed) verdict = 'FAIL';
+
+    if (!hard.passed) failures.push(...hard.failures);
+    if (!proof.passed) failures.push(...proof.failures);
+    if (stage1Gate.enabled && !stage1Gate.passed) failures.push(...stage1Gate.failures);
+
+    return {
+        verdict,
+        hard,
+        proof,
+        stage1: stage1Gate,
+        failures,
+        metrics: {
+            val,
+            test,
+            stage1: stage1 ? { pLossBeforeTarget: safeGetNumber(stage1.pLossBeforeTarget) } : null
+        }
+    };
+}
+
 function projectStrategyForAsset(strategy, asset) {
-    if (!strategy || !strategy.perAsset || !strategy.perAsset[asset]) return null;
-    const m = strategy.perAsset[asset];
+    if (!strategy) return null;
+    const trainM = strategy?.perAsset?.[asset] || null;
+    const valM = strategy?.valPerAsset?.[asset] || null;
+    const testM = strategy?.testPerAsset?.[asset] || null;
     return {
         entryMinute: strategy.entryMinute,
         utcHour: strategy.utcHour,
@@ -39,15 +142,51 @@ function projectStrategyForAsset(strategy, asset) {
             posteriorPWinRateGE90: safeGetNumber(strategy.posteriorPWinRateGE90),
             tradesPerDay: safeGetNumber(strategy.tradesPerDay)
         },
-        asset: {
-            trades: safeGetNumber(m.trades),
-            wins: safeGetNumber(m.wins),
-            losses: safeGetNumber(m.losses),
-            winRate: safeGetNumber(m.winRate),
-            winRateLCB: safeGetNumber(m.winRateLCB),
-            posteriorPWinRateGE90: safeGetNumber(m.posteriorPWinRateGE90),
-            avgROI: safeGetNumber(m.avgROI),
-            streak: m.streak ?? null
+        asset: trainM ? {
+            trades: safeGetNumber(trainM.trades),
+            wins: safeGetNumber(trainM.wins),
+            losses: safeGetNumber(trainM.losses),
+            winRate: safeGetNumber(trainM.winRate),
+            winRateLCB: safeGetNumber(trainM.winRateLCB),
+            posteriorPWinRateGE90: safeGetNumber(trainM.posteriorPWinRateGE90),
+            avgROI: safeGetNumber(trainM.avgROI),
+            streak: trainM.streak ?? null
+        } : null,
+        validation: {
+            global: {
+                trades: safeGetNumber(strategy.valTrades),
+                winRate: safeGetNumber(strategy.valWinRate),
+                winRateLCB: safeGetNumber(strategy.valWinRateLCB),
+                posteriorPWinRateGE90: safeGetNumber(strategy.valPosteriorPWinRateGE90)
+            },
+            asset: valM ? {
+                trades: safeGetNumber(valM.trades),
+                wins: safeGetNumber(valM.wins),
+                losses: safeGetNumber(valM.losses),
+                winRate: safeGetNumber(valM.winRate),
+                winRateLCB: safeGetNumber(valM.winRateLCB),
+                posteriorPWinRateGE90: safeGetNumber(valM.posteriorPWinRateGE90),
+                avgROI: safeGetNumber(valM.avgROI),
+                streak: valM.streak ?? null
+            } : null
+        },
+        test: {
+            global: {
+                trades: safeGetNumber(strategy.testTrades),
+                winRate: safeGetNumber(strategy.testWinRate),
+                winRateLCB: safeGetNumber(strategy.testWinRateLCB),
+                posteriorPWinRateGE90: safeGetNumber(strategy.testPosteriorPWinRateGE90)
+            },
+            asset: testM ? {
+                trades: safeGetNumber(testM.trades),
+                wins: safeGetNumber(testM.wins),
+                losses: safeGetNumber(testM.losses),
+                winRate: safeGetNumber(testM.winRate),
+                winRateLCB: safeGetNumber(testM.winRateLCB),
+                posteriorPWinRateGE90: safeGetNumber(testM.posteriorPWinRateGE90),
+                avgROI: safeGetNumber(testM.avgROI),
+                streak: testM.streak ?? null
+            } : null
         }
     };
 }
@@ -93,9 +232,22 @@ function isBetterAssetMetric(a, b) {
     return false;
 }
 
+function strategyKey(strategy) {
+    if (!strategy) return null;
+    const entryMinute = Number(strategy.entryMinute);
+    const utcHour = Number(strategy.utcHour);
+    const direction = String(strategy.direction || '').trim().toUpperCase();
+    const bandMin = Number(strategy.priceBand?.min);
+    const bandMax = Number(strategy.priceBand?.max);
+    const minTxt = Number.isFinite(bandMin) ? bandMin.toFixed(6) : 'NaN';
+    const maxTxt = Number.isFinite(bandMax) ? bandMax.toFixed(6) : 'NaN';
+    return `${entryMinute}|${utcHour}|${direction}|${minTxt}|${maxTxt}`;
+}
+
 function pickBestStrategyForAsset(strategies, asset, options = {}) {
     const minTrades = Number.isFinite(options.minTrades) ? options.minTrades : DEFAULT_MIN_TRADES_PER_ASSET;
     const targetWinRate = Number.isFinite(options.targetWinRate) ? options.targetWinRate : WIN_RATE_TARGET;
+    const selectedOn = (typeof options.selectedOn === 'string' && options.selectedOn.trim()) ? options.selectedOn.trim() : 'validation';
 
     let bestOverall = null;
     let bestMeetingTarget = null;
@@ -103,7 +255,7 @@ function pickBestStrategyForAsset(strategies, asset, options = {}) {
     let bestMeetingTargetMetric = null;
 
     for (const s of strategies) {
-        const m = s?.perAsset?.[asset];
+        const m = selectedOn === 'train' ? (s?.perAsset?.[asset]) : (s?.valPerAsset?.[asset]);
         if (!m || !Number.isFinite(m.trades) || m.trades < minTrades) continue;
 
         if (isBetterAssetMetric(m, bestOverallMetric)) {
@@ -120,10 +272,45 @@ function pickBestStrategyForAsset(strategies, asset, options = {}) {
     }
 
     return {
-        criteria: { asset, minTrades, targetWinRate },
-        bestMeetingTarget: bestMeetingTarget ? projectStrategyForAsset(bestMeetingTarget, asset) : null,
-        bestOverall: bestOverall ? projectStrategyForAsset(bestOverall, asset) : null
+        criteria: { asset, minTrades, targetWinRate, selectedOn },
+        bestMeetingTarget,
+        bestOverall
     };
+}
+
+function pickTopStrategiesForAsset(strategies, asset, options = {}) {
+    const minTrades = Number.isFinite(options.minTrades) ? options.minTrades : DEFAULT_MIN_TRADES_PER_ASSET;
+    const selectedOn = (typeof options.selectedOn === 'string' && options.selectedOn.trim()) ? options.selectedOn.trim() : 'validation';
+    const limitRaw = Number(options.limit);
+    const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.floor(limitRaw)) : 50;
+
+    const top = [];
+    const topMetrics = [];
+
+    for (const s of strategies) {
+        const m = selectedOn === 'train' ? (s?.perAsset?.[asset]) : (s?.valPerAsset?.[asset]);
+        if (!m || !Number.isFinite(m.trades) || m.trades < minTrades) continue;
+
+        let inserted = false;
+        for (let i = 0; i < top.length; i++) {
+            if (isBetterAssetMetric(m, topMetrics[i])) {
+                top.splice(i, 0, s);
+                topMetrics.splice(i, 0, m);
+                inserted = true;
+                break;
+            }
+        }
+        if (!inserted && top.length < limit) {
+            top.push(s);
+            topMetrics.push(m);
+        }
+        if (top.length > limit) {
+            top.length = limit;
+            topMetrics.length = limit;
+        }
+    }
+
+    return top;
 }
 
 function tryReadJson(relPath) {
@@ -252,7 +439,7 @@ function computeDateRangeDaysFromRows(rows) {
     return Math.max(1, days);
 }
 
-const goldenStrategy = pickGoldenStrategy(analysis);
+let goldenStrategy = pickGoldenStrategy(analysis);
 
 if (!goldenStrategy) {
     console.error('❌ Could not determine golden strategy from final_results.json');
@@ -262,24 +449,367 @@ if (!goldenStrategy) {
 const dataset = Array.isArray(analysis.dataset)
     ? analysis.dataset
     : (Array.isArray(datasetFromFile) ? datasetFromFile : []);
+
+const trainRatioRaw = Number(datasetSplit?.trainRatio);
+const valRatioRaw = Number(datasetSplit?.valRatio);
+const trainRatio = (Number.isFinite(trainRatioRaw) && trainRatioRaw > 0 && trainRatioRaw < 1) ? trainRatioRaw : 0.6;
+const valRatio = (Number.isFinite(valRatioRaw) && valRatioRaw > 0 && valRatioRaw < 1 && (trainRatio + valRatioRaw) < 1) ? valRatioRaw : 0.2;
+const split = splitDatasetByMarkets3Way(dataset, trainRatio, valRatio);
+const valSet = split.valSet;
+const testSet = split.testSet;
+
+const auditConfig = {
+    minValWinRate: AUDIT_MIN_VAL_WIN_RATE,
+    minTestWinRate: AUDIT_MIN_TEST_WIN_RATE,
+    minWinRateLCB: AUDIT_MIN_WIN_RATE_LCB,
+    minPosteriorPWinRateGE90: AUDIT_MIN_POSTERIOR_PWINRATE_GE90,
+    maxStage1PLossBeforeTarget: AUDIT_MAX_STAGE1_PLOSS_BEFORE_TARGET
+};
+
+const allStrategies = Array.isArray(analysis.strategies) ? analysis.strategies : [];
+const validationEvaluatedStrategies = (Array.isArray(valSet) && valSet.length && allStrategies.length)
+    ? walkForwardValidation(valSet, allStrategies, 'val', { minTrades: 0, maxStrategies: allStrategies.length })
+    : (Array.isArray(analysis.validatedStrategies) ? analysis.validatedStrategies : []);
+
+const perAssetStrategyPicks = {};
+const perAssetCandidateSets = {};
+const uniqueSelected = [];
+const selectedByKey = new Map();
+const assetCandidateLimit = readEnvNumber('ASSET_TEST_CANDIDATES') ?? 60;
+const globalCandidateLimit = readEnvNumber('GLOBAL_TEST_CANDIDATES') ?? 250;
+const globalCandidates = Array.isArray(validationEvaluatedStrategies)
+    ? validationEvaluatedStrategies.slice(0, Math.max(1, Math.floor(globalCandidateLimit)))
+    : [];
+
+for (const candidate of globalCandidates) {
+    const key = strategyKey(candidate);
+    if (!key || selectedByKey.has(key)) continue;
+    selectedByKey.set(key, candidate);
+    uniqueSelected.push(candidate);
+}
+
+for (const asset of ASSETS) {
+    const pick = pickBestStrategyForAsset(validationEvaluatedStrategies, asset, {
+        minTrades: DEFAULT_MIN_TRADES_PER_ASSET,
+        targetWinRate: WIN_RATE_TARGET,
+        selectedOn: 'validation'
+    });
+    perAssetStrategyPicks[asset] = pick;
+
+    const candidates = pickTopStrategiesForAsset(validationEvaluatedStrategies, asset, {
+        minTrades: DEFAULT_MIN_TRADES_PER_ASSET,
+        selectedOn: 'validation',
+        limit: assetCandidateLimit
+    });
+    perAssetCandidateSets[asset] = candidates;
+
+    for (const candidate of [pick.bestMeetingTarget, pick.bestOverall, ...candidates]) {
+        const key = strategyKey(candidate);
+        if (!key || selectedByKey.has(key)) continue;
+        selectedByKey.set(key, candidate);
+        uniqueSelected.push(candidate);
+    }
+}
+
+const testedSelectedStrategies = (Array.isArray(testSet) && testSet.length && uniqueSelected.length)
+    ? walkForwardValidation(testSet, uniqueSelected, 'test', { minTrades: 0, maxStrategies: uniqueSelected.length })
+    : [];
+const testedByKey = new Map();
+for (const s of testedSelectedStrategies) {
+    const key = strategyKey(s);
+    if (!key) continue;
+    testedByKey.set(key, s);
+}
+
+const fallbackKey = strategyKey(goldenStrategy);
+if (fallbackKey && testedByKey.has(fallbackKey)) {
+    goldenStrategy = testedByKey.get(fallbackKey);
+}
+
+let bestGlobal = null;
+let bestGlobalAudit = null;
+for (const candidateRaw of globalCandidates) {
+    const cKey = strategyKey(candidateRaw);
+    const candidate = cKey ? (testedByKey.get(cKey) || candidateRaw) : candidateRaw;
+
+    const audit = evaluateAuditGatesForMetrics({
+        val: {
+            trades: candidate.valTrades,
+            winRate: candidate.valWinRate,
+            winRateLCB: candidate.valWinRateLCB,
+            posteriorPWinRateGE90: candidate.valPosteriorPWinRateGE90
+        },
+        test: {
+            trades: candidate.testTrades,
+            winRate: candidate.testWinRate,
+            winRateLCB: candidate.testWinRateLCB,
+            posteriorPWinRateGE90: candidate.testPosteriorPWinRateGE90
+        }
+    }, null, auditConfig);
+
+    if (!bestGlobal) {
+        bestGlobal = candidate;
+        bestGlobalAudit = audit;
+        continue;
+    }
+
+    const verdictCmp = compareVerdict(audit.verdict, bestGlobalAudit?.verdict);
+    if (verdictCmp > 0) {
+        bestGlobal = candidate;
+        bestGlobalAudit = audit;
+        continue;
+    }
+    if (verdictCmp < 0) continue;
+
+    const aTestLCB = safeGetNumber(audit?.metrics?.test?.winRateLCB);
+    const bTestLCB = safeGetNumber(bestGlobalAudit?.metrics?.test?.winRateLCB);
+    if (typeof aTestLCB === 'number' && typeof bTestLCB === 'number' && Math.abs(aTestLCB - bTestLCB) > 0.01) {
+        if (aTestLCB > bTestLCB) {
+            bestGlobal = candidate;
+            bestGlobalAudit = audit;
+        }
+        continue;
+    } else if (typeof aTestLCB === 'number' && typeof bTestLCB !== 'number') {
+        bestGlobal = candidate;
+        bestGlobalAudit = audit;
+        continue;
+    } else if (typeof aTestLCB !== 'number' && typeof bTestLCB === 'number') {
+        continue;
+    }
+
+    const aTestWR = safeGetNumber(audit?.metrics?.test?.winRate);
+    const bTestWR = safeGetNumber(bestGlobalAudit?.metrics?.test?.winRate);
+    if (typeof aTestWR === 'number' && typeof bTestWR === 'number' && Math.abs(aTestWR - bTestWR) > 0.001) {
+        if (aTestWR > bTestWR) {
+            bestGlobal = candidate;
+            bestGlobalAudit = audit;
+        }
+        continue;
+    } else if (typeof aTestWR === 'number' && typeof bTestWR !== 'number') {
+        bestGlobal = candidate;
+        bestGlobalAudit = audit;
+        continue;
+    } else if (typeof aTestWR !== 'number' && typeof bTestWR === 'number') {
+        continue;
+    }
+
+    const aValLCB = safeGetNumber(audit?.metrics?.val?.winRateLCB);
+    const bValLCB = safeGetNumber(bestGlobalAudit?.metrics?.val?.winRateLCB);
+    if (typeof aValLCB === 'number' && typeof bValLCB === 'number' && Math.abs(aValLCB - bValLCB) > 0.01) {
+        if (aValLCB > bValLCB) {
+            bestGlobal = candidate;
+            bestGlobalAudit = audit;
+        }
+        continue;
+    } else if (typeof aValLCB === 'number' && typeof bValLCB !== 'number') {
+        bestGlobal = candidate;
+        bestGlobalAudit = audit;
+        continue;
+    } else if (typeof aValLCB !== 'number' && typeof bValLCB === 'number') {
+        continue;
+    }
+
+    const aValWR = safeGetNumber(audit?.metrics?.val?.winRate);
+    const bValWR = safeGetNumber(bestGlobalAudit?.metrics?.val?.winRate);
+    if (typeof aValWR === 'number' && typeof bValWR === 'number' && Math.abs(aValWR - bValWR) > 0.001) {
+        if (aValWR > bValWR) {
+            bestGlobal = candidate;
+            bestGlobalAudit = audit;
+        }
+        continue;
+    } else if (typeof aValWR === 'number' && typeof bValWR !== 'number') {
+        bestGlobal = candidate;
+        bestGlobalAudit = audit;
+        continue;
+    } else if (typeof aValWR !== 'number' && typeof bValWR === 'number') {
+        continue;
+    }
+
+    const aTPD = safeGetNumber(candidate?.tradesPerDay) ?? 0;
+    const bTPD = safeGetNumber(bestGlobal?.tradesPerDay) ?? 0;
+    if (aTPD > bTPD) {
+        bestGlobal = candidate;
+        bestGlobalAudit = audit;
+    }
+}
+
+if (bestGlobal) {
+    goldenStrategy = bestGlobal;
+}
+
+const perAssetGoldenStrategies = {};
+for (const asset of ASSETS) {
+    const pick = perAssetStrategyPicks[asset];
+    const candidates = perAssetCandidateSets[asset] || [];
+
+    const meetKey = strategyKey(pick?.bestMeetingTarget);
+    const overallKey = strategyKey(pick?.bestOverall);
+    const testedMeeting = meetKey ? (testedByKey.get(meetKey) || pick.bestMeetingTarget) : null;
+    const testedOverall = overallKey ? (testedByKey.get(overallKey) || pick.bestOverall) : null;
+
+    let bestRuntime = null;
+    let bestRuntimeAudit = null;
+    const testedCandidates = candidates.map(s => {
+        const key = strategyKey(s);
+        return key ? (testedByKey.get(key) || s) : s;
+    });
+
+    for (const candidate of [testedMeeting, testedOverall, ...testedCandidates]) {
+        if (!candidate) continue;
+        const audit = evaluateAuditGatesForMetrics({ val: candidate?.valPerAsset?.[asset], test: candidate?.testPerAsset?.[asset] }, null, auditConfig);
+        if (!audit) continue;
+
+        if (!bestRuntime) {
+            bestRuntime = candidate;
+            bestRuntimeAudit = audit;
+            continue;
+        }
+
+        const verdictCmp = compareVerdict(audit.verdict, bestRuntimeAudit?.verdict);
+        if (verdictCmp > 0) {
+            bestRuntime = candidate;
+            bestRuntimeAudit = audit;
+            continue;
+        }
+        if (verdictCmp < 0) continue;
+
+        const aTestLCB = safeGetNumber(audit?.metrics?.test?.winRateLCB);
+        const bTestLCB = safeGetNumber(bestRuntimeAudit?.metrics?.test?.winRateLCB);
+        if (typeof aTestLCB === 'number' && typeof bTestLCB === 'number' && Math.abs(aTestLCB - bTestLCB) > 0.01) {
+            if (aTestLCB > bTestLCB) {
+                bestRuntime = candidate;
+                bestRuntimeAudit = audit;
+            }
+            continue;
+        } else if (typeof aTestLCB === 'number' && typeof bTestLCB !== 'number') {
+            bestRuntime = candidate;
+            bestRuntimeAudit = audit;
+            continue;
+        } else if (typeof aTestLCB !== 'number' && typeof bTestLCB === 'number') {
+            continue;
+        }
+
+        const aTestWR = safeGetNumber(audit?.metrics?.test?.winRate);
+        const bTestWR = safeGetNumber(bestRuntimeAudit?.metrics?.test?.winRate);
+        if (typeof aTestWR === 'number' && typeof bTestWR === 'number' && Math.abs(aTestWR - bTestWR) > 0.001) {
+            if (aTestWR > bTestWR) {
+                bestRuntime = candidate;
+                bestRuntimeAudit = audit;
+            }
+            continue;
+        } else if (typeof aTestWR === 'number' && typeof bTestWR !== 'number') {
+            bestRuntime = candidate;
+            bestRuntimeAudit = audit;
+            continue;
+        } else if (typeof aTestWR !== 'number' && typeof bTestWR === 'number') {
+            continue;
+        }
+
+        const aValLCB = safeGetNumber(audit?.metrics?.val?.winRateLCB);
+        const bValLCB = safeGetNumber(bestRuntimeAudit?.metrics?.val?.winRateLCB);
+        if (typeof aValLCB === 'number' && typeof bValLCB === 'number' && Math.abs(aValLCB - bValLCB) > 0.01) {
+            if (aValLCB > bValLCB) {
+                bestRuntime = candidate;
+                bestRuntimeAudit = audit;
+            }
+            continue;
+        } else if (typeof aValLCB === 'number' && typeof bValLCB !== 'number') {
+            bestRuntime = candidate;
+            bestRuntimeAudit = audit;
+            continue;
+        } else if (typeof aValLCB !== 'number' && typeof bValLCB === 'number') {
+            continue;
+        }
+
+        const aTrades = safeGetNumber(candidate?.testPerAsset?.[asset]?.trades) ?? 0;
+        const bTrades = safeGetNumber(bestRuntime?.testPerAsset?.[asset]?.trades) ?? 0;
+        if (aTrades > bTrades) {
+            bestRuntime = candidate;
+            bestRuntimeAudit = audit;
+        }
+    }
+
+    const meetingCandidate = bestRuntime || testedMeeting;
+    const overallCandidate = testedOverall;
+    perAssetGoldenStrategies[asset] = {
+        criteria: {
+            ...(pick?.criteria || { asset, minTrades: DEFAULT_MIN_TRADES_PER_ASSET, targetWinRate: WIN_RATE_TARGET, selectedOn: 'validation' }),
+            testCandidates: assetCandidateLimit
+        },
+        bestMeetingTarget: meetingCandidate ? projectStrategyForAsset(meetingCandidate, asset) : null,
+        bestOverall: overallCandidate ? projectStrategyForAsset(overallCandidate, asset) : null
+    };
+}
+
 const strategyTrades = filterDatasetForStrategy(goldenStrategy, dataset);
 const strategyDays = computeDateRangeDaysFromRows(strategyTrades);
 const tradesPerDay = strategyDays ? (strategyTrades.length / strategyDays) : null;
 
-const stage1Survival = analysis.stage1Survival || calculateStage1Survival(goldenStrategy, dataset);
+const cachedStage1Survival = analysis.stage1Survival;
+const cachedGoldenKey = strategyKey(analysis.goldenStrategy);
+const selectedGoldenKey = strategyKey(goldenStrategy);
+const canUseCachedStage1 =
+    cachedStage1Survival &&
+    Number.isFinite(Number(cachedStage1Survival.empiricalTrades)) &&
+    cachedGoldenKey &&
+    selectedGoldenKey &&
+    cachedGoldenKey === selectedGoldenKey;
+
+const stage1SurvivalBase = canUseCachedStage1
+    ? cachedStage1Survival
+    : calculateStage1Survival(goldenStrategy, Array.isArray(testSet) && testSet.length ? testSet : dataset);
+const stage1Survival = (stage1SurvivalBase && typeof stage1SurvivalBase === 'object') ? stage1SurvivalBase : {};
 const stage1SurvivalEnhanced = {
     ...stage1Survival,
     pNoLossBeforeTarget: typeof stage1Survival?.pLossBeforeTarget === 'number' ? (1 - stage1Survival.pLossBeforeTarget) : null
 };
 
-const perAssetGoldenStrategies = {};
-const allStrategies = Array.isArray(analysis.strategies) ? analysis.strategies : [];
+const auditGates = {
+    config: auditConfig,
+    global: evaluateAuditGatesForMetrics({
+        val: {
+            trades: goldenStrategy.valTrades,
+            winRate: goldenStrategy.valWinRate,
+            winRateLCB: goldenStrategy.valWinRateLCB,
+            posteriorPWinRateGE90: goldenStrategy.valPosteriorPWinRateGE90
+        },
+        test: {
+            trades: goldenStrategy.testTrades,
+            winRate: goldenStrategy.testWinRate,
+            winRateLCB: goldenStrategy.testWinRateLCB,
+            posteriorPWinRateGE90: goldenStrategy.testPosteriorPWinRateGE90
+        }
+    }, stage1SurvivalEnhanced, auditConfig),
+    perAsset: {}
+};
+
 for (const asset of ASSETS) {
-    perAssetGoldenStrategies[asset] = pickBestStrategyForAsset(allStrategies, asset, {
-        minTrades: DEFAULT_MIN_TRADES_PER_ASSET,
-        targetWinRate: WIN_RATE_TARGET
-    });
+    const node = perAssetGoldenStrategies[asset];
+    const meeting = node?.bestMeetingTarget || null;
+    const overall = node?.bestOverall || null;
+    const runtime = meeting || overall;
+    const meetingAudit = meeting
+        ? evaluateAuditGatesForMetrics({ val: meeting.validation?.asset, test: meeting.test?.asset }, null, auditConfig)
+        : null;
+    const overallAudit = overall
+        ? evaluateAuditGatesForMetrics({ val: overall.validation?.asset, test: overall.test?.asset }, null, auditConfig)
+        : null;
+    const runtimeAudit = runtime
+        ? evaluateAuditGatesForMetrics({ val: runtime.validation?.asset, test: runtime.test?.asset }, null, auditConfig)
+        : null;
+    auditGates.perAsset[asset] = {
+        runtime: runtimeAudit,
+        bestMeetingTarget: meetingAudit,
+        bestOverall: overallAudit
+    };
 }
+
+const verdicts = [auditGates.global?.verdict, ...Object.values(auditGates.perAsset).map(v => v?.runtime?.verdict)].filter(Boolean);
+const auditVerdict = verdicts.reduce((worst, v) => (compareVerdict(v, worst) < 0 ? v : worst), 'PASS');
+auditGates.summary = {
+    verdict: auditVerdict,
+    allPassed: auditVerdict === 'PASS'
+};
 
 console.log('');
 console.log('='.repeat(70));
@@ -352,6 +882,9 @@ const finalResults = {
         takerFeeRate: 0.02,
         appliedTo: 'winning_profit'
     },
+    auditGates,
+    auditVerdict: auditGates.summary.verdict,
+    auditAllPassed: auditGates.summary.allPassed,
     goldenStrategy: {
         ...goldenStrategy,
         tradesPerDayEmpirical: tradesPerDay
@@ -359,7 +892,7 @@ const finalResults = {
     perAssetGoldenStrategies,
     stage1Survival: stage1SurvivalEnhanced,
     topStrategiesByLCB: Array.isArray(analysis.strategies) ? analysis.strategies.slice(0, 25) : [],
-    validatedStrategies: Array.isArray(analysis.validatedStrategies) ? analysis.validatedStrategies.slice(0, 25) : []
+    validatedStrategies: Array.isArray(validationEvaluatedStrategies) ? validationEvaluatedStrategies.slice(0, 25) : []
 };
 
 fs.writeFileSync(path.join(__dirname, 'final_golden_strategy.json'), JSON.stringify(finalResults, null, 2));
