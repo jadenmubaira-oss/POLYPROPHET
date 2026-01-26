@@ -3,68 +3,65 @@ name: Redis Snapshot Backup
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 */6 * * *"
+    - cron: '0 3 * * *'
 
 permissions:
   contents: write
 
-concurrency:
-  group: redis-snapshot-backup
-  cancel-in-progress: false
-
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
-
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Checkout (or create) redis-backups branch
+      - name: Configure git
         run: |
-          git config user.name "redis-backup-bot"
-          git config user.email "redis-backup-bot@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git fetch origin redis-backups:redis-backups || true
-
-          if git show-ref --verify --quiet refs/heads/redis-backups; then
-            git checkout redis-backups
+      - name: Checkout redis-backups branch
+        run: |
+          git fetch origin redis-backups || true
+          if git show-ref --verify --quiet refs/remotes/origin/redis-backups; then
+            git checkout -B redis-backups origin/redis-backups
           else
-            git checkout --orphan redis-backups
-            # Remove everything from the working tree (branch will only contain backups)
-            git clean -fdx
+            git checkout -b redis-backups
           fi
 
-      - name: Fetch Redis snapshot
+      - name: Fetch snapshot
         env:
-          REDIS_SNAPSHOT_URL: ${{ secrets.REDIS_SNAPSHOT_URL || 'https://polyprophet.onrender.com/api/redis/snapshot?scope=critical' }}
-          REDIS_SNAPSHOT_BASIC_USER: ${{ secrets.REDIS_SNAPSHOT_BASIC_USER || 'admin' }}
-          REDIS_SNAPSHOT_BASIC_PASS: ${{ secrets.REDIS_SNAPSHOT_BASIC_PASS || 'changeme' }}
+          REDIS_SNAPSHOT_URL: ${{ secrets.REDIS_SNAPSHOT_URL }}
+          REDIS_SNAPSHOT_AUTH_USERNAME: ${{ secrets.REDIS_SNAPSHOT_AUTH_USERNAME }}
+          REDIS_SNAPSHOT_AUTH_PASSWORD: ${{ secrets.REDIS_SNAPSHOT_AUTH_PASSWORD }}
           REDIS_SNAPSHOT_PASSPHRASE: ${{ secrets.REDIS_SNAPSHOT_PASSPHRASE }}
         run: |
-          ts=$(date -u +"%Y%m%dT%H%M%SZ")
+          set -euo pipefail
+          URL="${REDIS_SNAPSHOT_URL:-https://polyprophet.onrender.com/api/redis/snapshot?scope=critical}"
+          USERNAME="${REDIS_SNAPSHOT_AUTH_USERNAME:-admin}"
+          PASSWORD="${REDIS_SNAPSHOT_AUTH_PASSWORD:-changeme}"
+
+          TS="$(date -u +'%Y-%m-%dT%H-%M-%SZ')"
           mkdir -p redis_backups
 
-          out_json="redis_backups/redis_snapshot_${ts}.json"
-          out_gz="${out_json}.gz"
+          OUT="redis_backups/redis_snapshot_${TS}.json"
+          curl -f -sS -u "${USERNAME}:${PASSWORD}" "${URL}" -o "${OUT}"
+          gzip -f "${OUT}"
 
-          curl -fsSL --retry 3 --retry-delay 5 -u "$REDIS_SNAPSHOT_BASIC_USER:$REDIS_SNAPSHOT_BASIC_PASS" "$REDIS_SNAPSHOT_URL" -o "$out_json"
-          gzip -9 "$out_json"
-
-          if [ -n "$REDIS_SNAPSHOT_PASSPHRASE" ]; then
-            out_enc="${out_gz}.enc"
-            openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$REDIS_SNAPSHOT_PASSPHRASE" -in "$out_gz" -out "$out_enc"
-            rm -f "$out_gz"
-            echo "$out_enc" > redis_backups/LATEST
-          else
-            echo "$out_gz" > redis_backups/LATEST
+          if [ -n "${REDIS_SNAPSHOT_PASSPHRASE:-}" ]; then
+            openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"${REDIS_SNAPSHOT_PASSPHRASE}" -in "${OUT}.gz" -out "${OUT}.gz.enc"
+            rm -f "${OUT}.gz"
           fi
 
-      - name: Commit and push to redis-backups branch
+      - name: Commit and push
         run: |
-          git add -A
-          git commit -m "Redis snapshot backup" || exit 0
+          set -euo pipefail
+          git add redis_backups
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Redis snapshot backup $(date -u +'%Y-%m-%dT%H-%M-%SZ')"
           git push origin redis-backups

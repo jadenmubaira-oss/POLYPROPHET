@@ -25783,6 +25783,9 @@ function checkFinalGoldenStrategy(asset, direction, entryPrice, cycleStartEpochS
         const perAssetNode = fgs?.payload?.perAssetGoldenStrategies?.[assetKey] || null;
         const candidate = (perAssetNode?.bestMeetingTarget || perAssetNode?.bestOverall || null);
 
+        const perAssetAuditVerdict = String(fgs?.payload?.auditGates?.perAsset?.[assetKey]?.runtime?.verdict || '').trim().toUpperCase();
+        const auditAllowsOverride = perAssetAuditVerdict !== 'FAIL';
+
         const candidateEntryMinute = candidate ? Number(candidate.entryMinute) : NaN;
         const candidateUtcHour = candidate ? Number(candidate.utcHour) : NaN;
         const candidateDir = candidate ? String(candidate.direction || '').trim().toUpperCase() : '';
@@ -25791,6 +25794,7 @@ function checkFinalGoldenStrategy(asset, direction, entryPrice, cycleStartEpochS
 
         const candidateOk =
             !!candidate &&
+            auditAllowsOverride &&
             Number.isInteger(candidateEntryMinute) && candidateEntryMinute >= 0 && candidateEntryMinute <= 14 &&
             Number.isInteger(candidateUtcHour) && candidateUtcHour >= 0 && candidateUtcHour <= 23 &&
             ['UP', 'DOWN', 'BEST'].includes(candidateDir) &&
@@ -27784,9 +27788,17 @@ function shouldIncludeRedisSnapshotKey(key, scope) {
 }
 
 app.get('/api/redis/snapshot', async (req, res) => {
+    let snapshotRedis = null;
+    let closeSnapshotRedis = false;
     try {
         if (!redisAvailable || !redis || redis.status !== 'ready') {
             return res.status(503).json({ ok: false, error: 'REDIS_UNAVAILABLE' });
+        }
+
+        snapshotRedis = redis;
+        if (!redis?.options?.returnBuffers && typeof redis.duplicate === 'function') {
+            snapshotRedis = redis.duplicate({ returnBuffers: true });
+            closeSnapshotRedis = true;
         }
 
         const scope = String(req.query.scope || 'critical').trim().toLowerCase();
@@ -27812,7 +27824,7 @@ app.get('/api/redis/snapshot', async (req, res) => {
         let cursor = '0';
 
         do {
-            const reply = await redis.scan(cursor, 'MATCH', '*', 'COUNT', 500);
+            const reply = await snapshotRedis.scan(cursor, 'MATCH', '*', 'COUNT', 500);
             cursor = String(reply?.[0] ?? '0');
             const keys = Array.isArray(reply?.[1]) ? reply[1] : [];
             scanned += keys.length;
@@ -27833,7 +27845,7 @@ app.get('/api/redis/snapshot', async (req, res) => {
 
             if (!selected.length) continue;
 
-            const pipe = redis.pipeline();
+            const pipe = snapshotRedis.pipeline();
             for (const key of selected) {
                 pipe.pttl(key);
                 pipe.dump(key);
@@ -27879,6 +27891,14 @@ app.get('/api/redis/snapshot', async (req, res) => {
             return res.status(500).json({ ok: false, error: e?.message || String(e) });
         }
         try { res.end(); } catch { }
+    } finally {
+        if (closeSnapshotRedis && snapshotRedis) {
+            try {
+                await snapshotRedis.quit();
+            } catch {
+                try { snapshotRedis.disconnect(); } catch { }
+            }
+        }
     }
 });
 
