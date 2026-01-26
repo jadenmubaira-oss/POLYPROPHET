@@ -888,6 +888,75 @@ function splitDatasetByMarkets3Way(dataset, trainRatio = 0.6, valRatio = 0.2) {
     return { trainSet, valSet, testSet };
 }
 
+function mulberry32(seed) {
+    let a = (Number(seed) || 0) >>> 0;
+    return function () {
+        a |= 0;
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function shuffleInPlace(arr, rand) {
+    if (!Array.isArray(arr) || typeof rand !== 'function') return;
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const tmp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = tmp;
+    }
+}
+
+function splitDatasetByMarkets3WaySeeded(dataset, trainRatio = 0.6, valRatio = 0.2, seed = 1) {
+    if (!Array.isArray(dataset) || dataset.length === 0) {
+        return { trainSet: [], valSet: [], testSet: [], markets: { train: 0, val: 0, test: 0 }, seed };
+    }
+
+    const bySlug = new Map();
+    for (const row of dataset) {
+        if (!row || !row.slug) continue;
+        const slug = row.slug;
+        const epoch = Number(row.cycleStartEpochSec);
+        const existing = bySlug.get(slug);
+        if (!existing) {
+            bySlug.set(slug, { slug, epoch: Number.isFinite(epoch) ? epoch : Infinity });
+        } else if (Number.isFinite(epoch) && epoch < existing.epoch) {
+            existing.epoch = epoch;
+        }
+    }
+
+    const markets = Array.from(bySlug.values());
+    shuffleInPlace(markets, mulberry32(seed));
+
+    const trainEnd = Math.max(0, Math.floor(markets.length * trainRatio));
+    const valEnd = Math.max(trainEnd, Math.floor(markets.length * (trainRatio + valRatio)));
+
+    const trainSlugs = new Set(markets.slice(0, trainEnd).map(m => m.slug));
+    const valSlugs = new Set(markets.slice(trainEnd, valEnd).map(m => m.slug));
+    const testSlugs = new Set(markets.slice(valEnd).map(m => m.slug));
+
+    const trainSet = [];
+    const valSet = [];
+    const testSet = [];
+
+    for (const row of dataset) {
+        if (!row || !row.slug) continue;
+        if (trainSlugs.has(row.slug)) trainSet.push(row);
+        else if (valSlugs.has(row.slug)) valSet.push(row);
+        else if (testSlugs.has(row.slug)) testSet.push(row);
+    }
+
+    return {
+        trainSet,
+        valSet,
+        testSet,
+        markets: { train: trainSlugs.size, val: valSlugs.size, test: testSlugs.size },
+        seed
+    };
+}
+
 // ============== PHASE 6: WALK-FORWARD VALIDATION ==============
 function walkForwardValidation(holdoutSet, topStrategies, prefix = 'test', options = {}) {
     const rawPrefix = String(prefix || 'test').trim().toLowerCase();
@@ -903,13 +972,30 @@ function walkForwardValidation(holdoutSet, topStrategies, prefix = 'test', optio
     
     const data = Array.isArray(holdoutSet) ? holdoutSet : [];
     const validated = [];
+
+    const grouped = new Map();
+    for (const row of data) {
+        if (!row) continue;
+        const entryMinute = Number(row.entryMinute);
+        const utcHour = Number(row.utcHour);
+        if (!Number.isFinite(entryMinute) || !Number.isFinite(utcHour)) continue;
+        const key = `${entryMinute}|${utcHour}`;
+        let bucket = grouped.get(key);
+        if (!bucket) {
+            bucket = [];
+            grouped.set(key, bucket);
+        }
+        bucket.push(row);
+    }
     
     const strategiesToValidate = Array.isArray(topStrategies) ? topStrategies : [];
     for (const strategy of strategiesToValidate.slice(0, maxStrategies)) {
-        const filtered = data.filter(row => {
-            if (row.entryMinute !== strategy.entryMinute) return false;
-            if (row.utcHour !== strategy.utcHour) return false;
-            
+        const entryMinute = Number(strategy.entryMinute);
+        const utcHour = Number(strategy.utcHour);
+        const key = `${entryMinute}|${utcHour}`;
+        const bucket = grouped.get(key) || [];
+
+        const filtered = bucket.filter(row => {
             const band = strategy.priceBand;
             if (strategy.direction === 'UP') {
                 return row.upPrice >= band.min && row.upPrice <= band.max;
@@ -920,8 +1006,9 @@ function walkForwardValidation(holdoutSet, topStrategies, prefix = 'test', optio
                 return bestPrice >= band.min && bestPrice <= band.max;
             }
         });
-        
-        if (filtered.length < minTrades) continue;
+
+        const holdoutTrades = filtered.length;
+        if (holdoutTrades < minTrades) continue;
         
         let wins = 0;
         const z = 1.96;
@@ -948,10 +1035,12 @@ function walkForwardValidation(holdoutSet, topStrategies, prefix = 'test', optio
                 if (won) perAssetAgg[assetKey].wins++;
             }
         }
-        
-        const holdoutWinRate = wins / filtered.length;
-        const holdoutWinRateLCB = wilsonLCBFromCounts(wins, filtered.length, z);
-        const holdoutPosteriorPWinRateGE90 = posteriorProbWinRateAtLeast(wins, filtered.length, WIN_RATE_TARGET, 1, 1);
+
+        const holdoutWinRate = holdoutTrades > 0 ? (wins / holdoutTrades) : null;
+        const holdoutWinRateLCB = holdoutTrades > 0 ? wilsonLCBFromCounts(wins, holdoutTrades, z) : 0;
+        const holdoutPosteriorPWinRateGE90 = holdoutTrades > 0
+            ? posteriorProbWinRateAtLeast(wins, holdoutTrades, WIN_RATE_TARGET, 1, 1)
+            : 0;
         const holdoutStreak = computeStreakStats(holdoutWinRateLCB);
 
         const holdoutPerAsset = {};
@@ -1000,7 +1089,7 @@ function walkForwardValidation(holdoutSet, topStrategies, prefix = 'test', optio
 
         const evaluated = {
             ...strategy,
-            [`${metricPrefix}Trades`]: filtered.length,
+            [`${metricPrefix}Trades`]: holdoutTrades,
             [`${metricPrefix}Wins`]: wins,
             [`${metricPrefix}WinRate`]: holdoutWinRate,
             [`${metricPrefix}WinRateLCB`]: holdoutWinRateLCB,
@@ -1013,13 +1102,15 @@ function walkForwardValidation(holdoutSet, topStrategies, prefix = 'test', optio
             [`minAsset${metricCap}PosteriorPWinRateGE90`]: minAssetHoldoutPosteriorPWinRateGE90
         };
 
+        const trainWR = Number(strategy?.winRate);
+        const valWR = Number(strategy?.valWinRate);
+        const holdoutWR = (typeof holdoutWinRate === 'number' && Number.isFinite(holdoutWinRate)) ? holdoutWinRate : null;
+
         if (metricPrefix === 'val') {
-            evaluated.degradationTrainToVal = strategy.winRate - holdoutWinRate;
+            evaluated.degradationTrainToVal = (Number.isFinite(trainWR) && holdoutWR !== null) ? (trainWR - holdoutWR) : null;
         } else {
-            evaluated.degradation = strategy.winRate - holdoutWinRate;
-            if (Number.isFinite(strategy.valWinRate)) {
-                evaluated.degradationValToTest = strategy.valWinRate - holdoutWinRate;
-            }
+            evaluated.degradation = (Number.isFinite(trainWR) && holdoutWR !== null) ? (trainWR - holdoutWR) : null;
+            evaluated.degradationValToTest = (Number.isFinite(valWR) && holdoutWR !== null) ? (valWR - holdoutWR) : null;
         }
         
         validated.push(evaluated);
@@ -1078,8 +1169,49 @@ function calculateStage1Survival(strategy, dataset) {
     let lossBeforeTarget = 0;
     let maxConsecLosses = 0;
     
-    // Collect ROIs for simulation
-    const rois = [];
+    function randomNormal() {
+        let u = 0;
+        let v = 0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+    }
+
+    function sampleGamma(shape) {
+        if (!Number.isFinite(shape) || shape <= 0) return null;
+        if (shape < 1) {
+            const u = Math.random();
+            const g = sampleGamma(shape + 1);
+            if (!Number.isFinite(g) || g === null) return null;
+            return g * Math.pow(u, 1 / shape);
+        }
+
+        const d = shape - 1 / 3;
+        const c = 1 / Math.sqrt(9 * d);
+        for (;;) {
+            const x = randomNormal();
+            const v = Math.pow(1 + c * x, 3);
+            if (v <= 0) continue;
+            const u = Math.random();
+            if (u < 1 - 0.0331 * Math.pow(x, 4)) return d * v;
+            if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+        }
+    }
+
+    function sampleBeta(a, b) {
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return null;
+        const x = sampleGamma(a);
+        const y = sampleGamma(b);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x === null || y === null) return null;
+        const sum = x + y;
+        if (!Number.isFinite(sum) || sum <= 0) return null;
+        return x / sum;
+    }
+
+    // Collect win ROIs for simulation
+    const winROIs = [];
+    let empiricalTrades = 0;
+    let empiricalWins = 0;
     for (const row of sorted) {
         let tradedUp;
         if (strategy.direction === 'UP') {
@@ -1095,38 +1227,63 @@ function calculateStage1Survival(strategy, dataset) {
         const grossROI = won ? (1 / entryPrice) - 1 : -1;
         const fee = won ? grossROI * 0.02 : 0;
         const netROI = grossROI - fee;
-        
-        rois.push({ won, netROI });
+
+        if (Number.isFinite(netROI)) {
+            empiricalTrades++;
+            if (won) {
+                empiricalWins++;
+                winROIs.push(netROI);
+            }
+        }
     }
+
+    const empiricalLosses = empiricalTrades - empiricalWins;
+    const posteriorMean = empiricalTrades > 0 ? (empiricalWins + 1) / (empiricalTrades + 2) : null;
+    const winRateLCB = empiricalTrades > 0 ? wilsonLCBFromCounts(empiricalWins, empiricalTrades, 1.96) : null;
+
+    if (!empiricalTrades || winROIs.length === 0) {
+        console.log(`  🎯 P(reach $20 from $1 all-in): 0.0%`);
+        console.log(`  ⚠️ P(≥1 loss before $20): 100.0%`);
+        console.log(`  📉 Max consecutive losses observed: 0`);
+        return {
+            pReachTarget: 0,
+            pLossBeforeTarget: 1,
+            maxConsecLosses: 0,
+            simulations: SIMULATIONS,
+            empiricalTrades,
+            empiricalWins,
+            empiricalLosses,
+            posteriorMeanWinRate: posteriorMean,
+            winRateLCB
+        };
+    }
+
+    const MAX_TRADES = Math.max(100, winROIs.length * 4);
     
     for (let sim = 0; sim < SIMULATIONS; sim++) {
         let balance = START_BALANCE;
         let consecLosses = 0;
         let hadLoss = false;
-        
-        // Shuffle ROIs for this simulation (bootstrap)
-        const shuffled = [...rois].sort(() => Math.random() - 0.5);
-        
-        for (const trade of shuffled) {
+
+        const p = sampleBeta(empiricalWins + 1, empiricalLosses + 1);
+        const pWin = (typeof p === 'number' && Number.isFinite(p)) ? Math.max(0, Math.min(1, p)) : (posteriorMean ?? 0);
+
+        for (let t = 0; t < MAX_TRADES; t++) {
             if (balance >= TARGET_BALANCE) break;
-            
-            // All-in strategy
-            const stake = balance;
-            const pnl = stake * trade.netROI;
-            balance += pnl;
-            
-            if (!trade.won) {
+
+            const won = Math.random() < pWin;
+            if (!won) {
                 hadLoss = true;
                 consecLosses++;
                 maxConsecLosses = Math.max(maxConsecLosses, consecLosses);
-                
-                if (balance < 0.01) {
-                    // Bust
-                    break;
-                }
-            } else {
-                consecLosses = 0;
+                balance = 0;
+                break;
             }
+
+            const netROI = winROIs[Math.floor(Math.random() * winROIs.length)];
+            if (!Number.isFinite(netROI)) continue;
+            balance += balance * netROI;
+            consecLosses = 0;
         }
         
         if (balance >= TARGET_BALANCE) {
@@ -1149,7 +1306,12 @@ function calculateStage1Survival(strategy, dataset) {
         pReachTarget,
         pLossBeforeTarget,
         maxConsecLosses,
-        simulations: SIMULATIONS
+        simulations: SIMULATIONS,
+        empiricalTrades,
+        empiricalWins,
+        empiricalLosses,
+        posteriorMeanWinRate: posteriorMean,
+        winRateLCB
     };
 }
 
@@ -1370,6 +1532,143 @@ async function main() {
         results.goldenStrategy = golden;
         results.stage1Survival = calculateStage1Survival(results.goldenStrategy, testSet);
     }
+
+    const robustnessRunsRaw = Number(process.env.ROBUSTNESS_RUNS ?? process.env.MULTI_SPLIT_RUNS);
+    const robustnessRuns = Number.isFinite(robustnessRunsRaw) ? Math.max(0, Math.floor(robustnessRunsRaw)) : 0;
+    const robustnessSeedRaw = Number(process.env.ROBUSTNESS_SEED);
+    const robustnessSeedBase = Number.isFinite(robustnessSeedRaw) ? Math.floor(robustnessSeedRaw) : 1337;
+
+    if (robustnessRuns > 0) {
+        console.log('\n' + '='.repeat(60));
+        console.log('PHASE 8: MULTI-SPLIT ROBUSTNESS');
+        console.log('='.repeat(60));
+
+        const runs = [];
+
+        function compactStrategy(s) {
+            if (!s) return null;
+            return {
+                entryMinute: s.entryMinute,
+                utcHour: s.utcHour,
+                direction: s.direction,
+                priceBand: s.priceBand,
+                trades: s.trades,
+                winRate: s.winRate,
+                winRateLCB: s.winRateLCB,
+                posteriorPWinRateGE90: s.posteriorPWinRateGE90,
+                valTrades: s.valTrades ?? null,
+                valWinRate: s.valWinRate ?? null,
+                valWinRateLCB: s.valWinRateLCB ?? null,
+                valPosteriorPWinRateGE90: s.valPosteriorPWinRateGE90 ?? null,
+                testTrades: s.testTrades ?? null,
+                testWinRate: s.testWinRate ?? null,
+                testWinRateLCB: s.testWinRateLCB ?? null,
+                testPosteriorPWinRateGE90: s.testPosteriorPWinRateGE90 ?? null,
+                minAssetWinRateLCB: s.minAssetWinRateLCB ?? null,
+                minAssetValWinRateLCB: s.minAssetValWinRateLCB ?? null,
+                minAssetTestWinRateLCB: s.minAssetTestWinRateLCB ?? null,
+                degradationTrainToVal: s.degradationTrainToVal ?? null,
+                degradationValToTest: s.degradationValToTest ?? null,
+                degradation: s.degradation ?? null
+            };
+        }
+
+        function compactSurvival(s) {
+            if (!s) return null;
+            return {
+                pReachTarget: s.pReachTarget,
+                pLossBeforeTarget: s.pLossBeforeTarget,
+                maxConsecLosses: s.maxConsecLosses,
+                simulations: s.simulations,
+                empiricalTrades: s.empiricalTrades ?? null,
+                empiricalWins: s.empiricalWins ?? null,
+                empiricalLosses: s.empiricalLosses ?? null,
+                posteriorMeanWinRate: s.posteriorMeanWinRate ?? null,
+                winRateLCB: s.winRateLCB ?? null
+            };
+        }
+
+        if (results.goldenStrategy) {
+            runs.push({
+                label: 'primary',
+                seed: null,
+                datasetSplit: results.datasetSplit,
+                goldenStrategy: compactStrategy(results.goldenStrategy),
+                stage1Survival: compactSurvival(results.stage1Survival)
+            });
+        }
+
+        for (let i = 0; i < robustnessRuns; i++) {
+            const seed = robustnessSeedBase + i;
+            const splitRun = splitDatasetByMarkets3WaySeeded(results.dataset, trainRatio, valRatio, seed);
+            const trainSetR = splitRun.trainSet;
+            const valSetR = splitRun.valSet;
+            const testSetR = splitRun.testSet;
+
+            const strategiesR = runStrategySearch(trainSetR);
+            const validatedR = walkForwardValidation(valSetR, strategiesR, 'val');
+            const candidateR = validatedR.length > 0 ? validatedR[0] : strategiesR[0];
+
+            let goldenR = candidateR;
+            const testedR = walkForwardValidation(testSetR, [candidateR], 'test', { minTrades: 0, maxStrategies: 1 });
+            if (testedR.length > 0) {
+                goldenR = testedR[0];
+            }
+
+            const survivalR = calculateStage1Survival(goldenR, testSetR);
+
+            runs.push({
+                label: `seeded_${seed}`,
+                seed,
+                datasetSplit: {
+                    trainRatio,
+                    valRatio,
+                    testRatio: Math.max(0, 1 - trainRatio - valRatio),
+                    rows: { train: trainSetR.length, val: valSetR.length, test: testSetR.length },
+                    markets: splitRun.markets
+                },
+                goldenStrategy: compactStrategy(goldenR),
+                stage1Survival: compactSurvival(survivalR)
+            });
+        }
+
+        const testWinRates = runs.map(r => Number(r?.goldenStrategy?.testWinRate)).filter(Number.isFinite);
+        const testLCBs = runs.map(r => Number(r?.goldenStrategy?.testWinRateLCB)).filter(Number.isFinite);
+        const pLoss = runs.map(r => Number(r?.stage1Survival?.pLossBeforeTarget)).filter(Number.isFinite);
+
+        const summary = {
+            runs: runs.length,
+            testWinRate: {
+                min: testWinRates.length ? Math.min(...testWinRates) : null,
+                avg: testWinRates.length ? (testWinRates.reduce((a, b) => a + b, 0) / testWinRates.length) : null,
+                max: testWinRates.length ? Math.max(...testWinRates) : null
+            },
+            testWinRateLCB: {
+                min: testLCBs.length ? Math.min(...testLCBs) : null,
+                avg: testLCBs.length ? (testLCBs.reduce((a, b) => a + b, 0) / testLCBs.length) : null,
+                max: testLCBs.length ? Math.max(...testLCBs) : null,
+                countGE90: testLCBs.filter(v => v >= WIN_RATE_TARGET).length
+            },
+            stage1: {
+                minPLossBeforeTarget: pLoss.length ? Math.min(...pLoss) : null,
+                avgPLossBeforeTarget: pLoss.length ? (pLoss.reduce((a, b) => a + b, 0) / pLoss.length) : null,
+                maxPLossBeforeTarget: pLoss.length ? Math.max(...pLoss) : null
+            }
+        };
+
+        results.robustness = {
+            mode: 'seeded_slug_split',
+            seedBase: robustnessSeedBase,
+            requestedRuns: robustnessRuns,
+            summary,
+            runs
+        };
+
+        fs.writeFileSync(
+            path.join(OUTPUT_DIR, 'robustness_splits.json'),
+            JSON.stringify(results.robustness, null, 2)
+        );
+    }
     
     // Final summary
     const runtime = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
@@ -1434,7 +1733,8 @@ async function main() {
         strategies: results.strategies,
         validatedStrategies: results.validatedStrategies,
         goldenStrategy: results.goldenStrategy,
-        stage1Survival: results.stage1Survival
+        stage1Survival: results.stage1Survival,
+        robustness: results.robustness ?? null
     };
     
     fs.writeFileSync(
@@ -1452,4 +1752,4 @@ if (require.main === module) {
     main().catch(console.error);
 }
 
-module.exports = { main, findEarliestEpoch, buildMarketManifest, fetchIntracycleData, calculateStage1Survival };
+module.exports = { main, findEarliestEpoch, buildMarketManifest, fetchIntracycleData, calculateStage1Survival, splitDatasetByMarkets3Way, walkForwardValidation };

@@ -1,0 +1,70 @@
+name: Redis Snapshot Backup
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: redis-snapshot-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout (or create) redis-backups branch
+        run: |
+          git config user.name "redis-backup-bot"
+          git config user.email "redis-backup-bot@users.noreply.github.com"
+
+          git fetch origin redis-backups:redis-backups || true
+
+          if git show-ref --verify --quiet refs/heads/redis-backups; then
+            git checkout redis-backups
+          else
+            git checkout --orphan redis-backups
+            # Remove everything from the working tree (branch will only contain backups)
+            git clean -fdx
+          fi
+
+      - name: Fetch Redis snapshot
+        env:
+          REDIS_SNAPSHOT_URL: ${{ secrets.REDIS_SNAPSHOT_URL || 'https://polyprophet.onrender.com/api/redis/snapshot?scope=critical' }}
+          REDIS_SNAPSHOT_BASIC_USER: ${{ secrets.REDIS_SNAPSHOT_BASIC_USER || 'admin' }}
+          REDIS_SNAPSHOT_BASIC_PASS: ${{ secrets.REDIS_SNAPSHOT_BASIC_PASS || 'changeme' }}
+          REDIS_SNAPSHOT_PASSPHRASE: ${{ secrets.REDIS_SNAPSHOT_PASSPHRASE }}
+        run: |
+          ts=$(date -u +"%Y%m%dT%H%M%SZ")
+          mkdir -p redis_backups
+
+          out_json="redis_backups/redis_snapshot_${ts}.json"
+          out_gz="${out_json}.gz"
+
+          curl -fsSL --retry 3 --retry-delay 5 -u "$REDIS_SNAPSHOT_BASIC_USER:$REDIS_SNAPSHOT_BASIC_PASS" "$REDIS_SNAPSHOT_URL" -o "$out_json"
+          gzip -9 "$out_json"
+
+          if [ -n "$REDIS_SNAPSHOT_PASSPHRASE" ]; then
+            out_enc="${out_gz}.enc"
+            openssl enc -aes-256-cbc -salt -pbkdf2 -pass pass:"$REDIS_SNAPSHOT_PASSPHRASE" -in "$out_gz" -out "$out_enc"
+            rm -f "$out_gz"
+            echo "$out_enc" > redis_backups/LATEST
+          else
+            echo "$out_gz" > redis_backups/LATEST
+          fi
+
+      - name: Commit and push to redis-backups branch
+        run: |
+          git add -A
+          git commit -m "Redis snapshot backup" || exit 0
+          git push origin redis-backups

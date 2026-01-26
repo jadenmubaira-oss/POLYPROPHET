@@ -731,13 +731,18 @@ for (const asset of ASSETS) {
 
     const meetingCandidate = bestRuntime || testedMeeting;
     const overallCandidate = testedOverall;
+    const runtimeCandidate = meetingCandidate || overallCandidate;
+    const runtimeAudit = runtimeCandidate
+        ? evaluateAuditGatesForMetrics({ val: runtimeCandidate?.valPerAsset?.[asset], test: runtimeCandidate?.testPerAsset?.[asset] }, null, auditConfig)
+        : null;
+    const allowOverride = runtimeAudit && runtimeAudit.verdict !== 'FAIL';
     perAssetGoldenStrategies[asset] = {
         criteria: {
             ...(pick?.criteria || { asset, minTrades: DEFAULT_MIN_TRADES_PER_ASSET, targetWinRate: WIN_RATE_TARGET, selectedOn: 'validation' }),
             testCandidates: assetCandidateLimit
         },
-        bestMeetingTarget: meetingCandidate ? projectStrategyForAsset(meetingCandidate, asset) : null,
-        bestOverall: overallCandidate ? projectStrategyForAsset(overallCandidate, asset) : null
+        bestMeetingTarget: (allowOverride && meetingCandidate) ? projectStrategyForAsset(meetingCandidate, asset) : null,
+        bestOverall: (allowOverride && overallCandidate) ? projectStrategyForAsset(overallCandidate, asset) : null
     };
 }
 

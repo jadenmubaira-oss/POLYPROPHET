@@ -250,7 +250,7 @@ const CTF_ABI = [
 // Initialize App
 const app = express();
 app.use(cors());
-app.use(express.json()); // CRITICAL: Parse JSON bodies BEFORE any routes
+app.use(express.json({ limit: '25mb' })); // CRITICAL: Parse JSON bodies BEFORE any routes
 
 // ==================== PASSWORD PROTECTION ====================
 // 🎯 GOAT v44.1: Support both Basic Auth AND Bearer token for API access
@@ -8841,7 +8841,7 @@ app.get('/api/nuclear-backup', async (req, res) => {
 
         // Gather all learning/calibration data from brains
         for (const asset of ['BTC', 'ETH', 'XRP', 'SOL']) {
-            const brain = brains ? brains[asset] : null;
+            const brain = (typeof Brains !== 'undefined' && Brains) ? Brains[asset] : null;
             if (brain) {
                 backup.assets[asset] = {
                     // Calibration buckets (pWin accuracy by confidence level)
@@ -8908,9 +8908,9 @@ app.post('/api/nuclear-restore', express.json({ limit: '50mb' }), async (req, re
         let restored = { assets: 0, telegramHistory: 0, tradingState: false };
 
         // Restore per-asset learning data
-        if (backup.assets && brains) {
+        if (backup.assets && (typeof Brains !== 'undefined' && Brains)) {
             for (const asset of Object.keys(backup.assets)) {
-                const brain = brains[asset];
+                const brain = Brains[asset];
                 const data = backup.assets[asset];
                 if (brain && data) {
                     if (data.calibrationBuckets) brain.calibrationBuckets = data.calibrationBuckets;
@@ -8943,7 +8943,7 @@ app.post('/api/nuclear-restore', express.json({ limit: '50mb' }), async (req, re
         // Persist to Redis if available
         if (redisAvailable && redis) {
             for (const asset of ['BTC', 'ETH', 'XRP', 'SOL']) {
-                const brain = brains ? brains[asset] : null;
+                const brain = (typeof Brains !== 'undefined' && Brains) ? Brains[asset] : null;
                 if (brain) {
                     await redis.set(`modelAccuracy:${asset}`, JSON.stringify(brain.modelAccuracy || {}));
                     await redis.set(`calibrationBuckets:${asset}`, JSON.stringify(brain.calibrationBuckets || {}));
@@ -22107,6 +22107,13 @@ async function saveState() {
             XRP: (callRecentOutcomes?.XRP || []).slice(-10),
             SOL: (callRecentOutcomes?.SOL || []).slice(-10)
         },
+        issuedSignalLedger: {
+            signals: Array.isArray(issuedSignalLedger?.signals) ? issuedSignalLedger.signals.slice(-500) : [],
+            stats: issuedSignalLedger?.stats ? { ...issuedSignalLedger.stats } : {},
+            byAsset: issuedSignalLedger?.byAsset ? { ...issuedSignalLedger.byAsset } : {},
+            zeroSignalDays: Array.isArray(issuedSignalLedger?.zeroSignalDays) ? issuedSignalLedger.zeroSignalDays.slice(-365) : [],
+            lastSignalDate: issuedSignalLedger?.lastSignalDate || null
+        },
         streakFormingState: {
             lastAlertAt: Number(streakFormingState?.lastAlertAt) || 0,
             lastAlertWinCount: Number(streakFormingState?.lastAlertWinCount) || 0
@@ -22622,6 +22629,14 @@ async function loadState() {
                         }
                     }
                 }
+                if (state.issuedSignalLedger && typeof state.issuedSignalLedger === 'object') {
+                    const isl = state.issuedSignalLedger;
+                    if (Array.isArray(isl.signals)) issuedSignalLedger.signals = isl.signals.slice(-500);
+                    if (isl.stats && typeof isl.stats === 'object') issuedSignalLedger.stats = { ...issuedSignalLedger.stats, ...isl.stats };
+                    if (isl.byAsset && typeof isl.byAsset === 'object') issuedSignalLedger.byAsset = { ...issuedSignalLedger.byAsset, ...isl.byAsset };
+                    if (Array.isArray(isl.zeroSignalDays)) issuedSignalLedger.zeroSignalDays = isl.zeroSignalDays.slice(-365);
+                    if (isl.lastSignalDate !== undefined) issuedSignalLedger.lastSignalDate = isl.lastSignalDate;
+                }
                 if (state.streakFormingState && typeof state.streakFormingState === 'object') {
                     streakFormingState.lastAlertAt = Number(state.streakFormingState.lastAlertAt) || 0;
                     streakFormingState.lastAlertWinCount = Number(state.streakFormingState.lastAlertWinCount) || 0;
@@ -22724,6 +22739,14 @@ async function loadState() {
                         callRecentOutcomes[asset] = state.callRecentOutcomes[asset].slice(-10);
                     }
                 }
+            }
+            if (state.issuedSignalLedger && typeof state.issuedSignalLedger === 'object') {
+                const isl = state.issuedSignalLedger;
+                if (Array.isArray(isl.signals)) issuedSignalLedger.signals = isl.signals.slice(-500);
+                if (isl.stats && typeof isl.stats === 'object') issuedSignalLedger.stats = { ...issuedSignalLedger.stats, ...isl.stats };
+                if (isl.byAsset && typeof isl.byAsset === 'object') issuedSignalLedger.byAsset = { ...issuedSignalLedger.byAsset, ...isl.byAsset };
+                if (Array.isArray(isl.zeroSignalDays)) issuedSignalLedger.zeroSignalDays = isl.zeroSignalDays.slice(-365);
+                if (isl.lastSignalDate !== undefined) issuedSignalLedger.lastSignalDate = isl.lastSignalDate;
             }
             if (state.streakFormingState && typeof state.streakFormingState === 'object') {
                 streakFormingState.lastAlertAt = Number(state.streakFormingState.lastAlertAt) || 0;
@@ -27603,6 +27626,14 @@ app.get('/api/state', (req, res) => {
     res.json(buildStateSnapshot());
 });
 
+app.get('/api/issued-signal-ledger', (req, res) => {
+    try {
+        res.json(getIssuedSignalLedgerSummary());
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🔮 CYCLE RECORDER: Export cycle-level data for analysis
 // Returns odds path, prediction evolution, and ULTRA gate status per asset
@@ -27737,6 +27768,175 @@ app.get('/api/api-key', (req, res) => {
             basicAuth: 'Basic base64(username:password)'
         }
     });
+});
+
+function shouldIncludeRedisSnapshotKey(key, scope) {
+    const k = String(key || '');
+    if (!k) return false;
+    if (scope === 'all') return true;
+
+    if (k === 'deity:settings') return true;
+    if (k === 'deity:state') return true;
+    if (k.startsWith('polyprophet:trades:')) return true;
+    if (k.startsWith('polyprophet:collector:')) return true;
+    if (k.startsWith('polyprophet:manualJourney')) return true;
+    return false;
+}
+
+app.get('/api/redis/snapshot', async (req, res) => {
+    try {
+        if (!redisAvailable || !redis || redis.status !== 'ready') {
+            return res.status(503).json({ ok: false, error: 'REDIS_UNAVAILABLE' });
+        }
+
+        const scope = String(req.query.scope || 'critical').trim().toLowerCase();
+        const maxKeysRaw = Number(req.query.maxKeys);
+        const maxKeys = Number.isFinite(maxKeysRaw) && maxKeysRaw > 0 ? Math.floor(maxKeysRaw) : 0;
+
+        const generatedAt = new Date().toISOString();
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-store');
+
+        res.write('{');
+        res.write(`"version":1,`);
+        res.write(`"generatedAt":${JSON.stringify(generatedAt)},`);
+        res.write(`"scope":${JSON.stringify(scope)},`);
+        res.write(`"entries":[`);
+
+        let first = true;
+        let scanned = 0;
+        let considered = 0;
+        let included = 0;
+        let exported = 0;
+        let errors = 0;
+        let cursor = '0';
+
+        do {
+            const reply = await redis.scan(cursor, 'MATCH', '*', 'COUNT', 500);
+            cursor = String(reply?.[0] ?? '0');
+            const keys = Array.isArray(reply?.[1]) ? reply[1] : [];
+            scanned += keys.length;
+
+            const selected = [];
+            for (const rawKey of keys) {
+                const key = String(rawKey || '');
+                if (!key) continue;
+                considered++;
+                if (!shouldIncludeRedisSnapshotKey(key, scope)) continue;
+                included++;
+                selected.push(key);
+                if (maxKeys && included >= maxKeys) {
+                    cursor = '0';
+                    break;
+                }
+            }
+
+            if (!selected.length) continue;
+
+            const pipe = redis.pipeline();
+            for (const key of selected) {
+                pipe.pttl(key);
+                pipe.dump(key);
+            }
+
+            const results = await pipe.exec();
+            for (let i = 0; i < selected.length; i++) {
+                const key = selected[i];
+                const ttlReply = results?.[i * 2];
+                const dumpReply = results?.[i * 2 + 1];
+
+                const ttlErr = ttlReply?.[0];
+                const dumpErr = dumpReply?.[0];
+                if (ttlErr || dumpErr) {
+                    errors++;
+                    continue;
+                }
+
+                const ttlMsRaw = Number(ttlReply?.[1]);
+                const ttlMs = (Number.isFinite(ttlMsRaw) && ttlMsRaw >= 0) ? ttlMsRaw : null;
+
+                const dumped = dumpReply?.[1];
+                if (!Buffer.isBuffer(dumped)) {
+                    errors++;
+                    continue;
+                }
+                const dumpBase64 = dumped.toString('base64');
+
+                const entry = { key, ttlMs, dumpBase64 };
+                if (!first) res.write(',');
+                res.write(JSON.stringify(entry));
+                first = false;
+                exported++;
+            }
+        } while (cursor !== '0');
+
+        const summary = { scanned, considered, included, exported, errors };
+        res.write(`],"summary":${JSON.stringify(summary)}`);
+        res.write('}');
+        res.end();
+    } catch (e) {
+        if (!res.headersSent) {
+            return res.status(500).json({ ok: false, error: e?.message || String(e) });
+        }
+        try { res.end(); } catch { }
+    }
+});
+
+app.post('/api/redis/snapshot/import', async (req, res) => {
+    try {
+        if (!redisAvailable || !redis || redis.status !== 'ready') {
+            return res.status(503).json({ ok: false, error: 'REDIS_UNAVAILABLE' });
+        }
+
+        const body = req.body;
+        if (!body || typeof body !== 'object') {
+            return res.status(400).json({ ok: false, error: 'INVALID_BODY' });
+        }
+
+        const entries = Array.isArray(body.entries) ? body.entries : null;
+        if (!entries) {
+            return res.status(400).json({ ok: false, error: 'MISSING_ENTRIES' });
+        }
+
+        const replace = String(req.query.replace || 'true').trim().toLowerCase() !== 'false';
+        const flush = String(req.query.flush || 'false').trim().toLowerCase() === 'true' || String(req.query.flush || '') === '1';
+
+        if (flush) {
+            await redis.flushdb();
+        }
+
+        let restored = 0;
+        let skipped = 0;
+        let errors = 0;
+
+        for (const e of entries) {
+            const key = String(e?.key || '');
+            const dumpBase64 = String(e?.dumpBase64 || '');
+            if (!key || !dumpBase64) {
+                skipped++;
+                continue;
+            }
+
+            const ttlMsRaw = Number(e?.ttlMs);
+            const ttlMs = (Number.isFinite(ttlMsRaw) && ttlMsRaw > 0) ? Math.floor(ttlMsRaw) : 0;
+            const dumped = Buffer.from(dumpBase64, 'base64');
+
+            try {
+                if (replace) {
+                    await redis.restore(key, ttlMs, dumped, 'REPLACE');
+                } else {
+                    await redis.restore(key, ttlMs, dumped);
+                }
+                restored++;
+            } catch {
+                errors++;
+            }
+        }
+
+        res.json({ ok: errors === 0, restored, skipped, errors, replace, flush });
+    } catch (e) {
+        res.status(500).json({ ok: false, error: e?.message || String(e) });
+    }
 });
 
 // 🎯 GOAT v44.1: GateTrace API - shows why trades were blocked
