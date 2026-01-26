@@ -27848,7 +27848,11 @@ app.get('/api/redis/snapshot', async (req, res) => {
             const pipe = snapshotRedis.pipeline();
             for (const key of selected) {
                 pipe.pttl(key);
-                pipe.dump(key);
+                if (typeof pipe.dumpBuffer === 'function') {
+                    pipe.dumpBuffer(key);
+                } else {
+                    pipe.callBuffer('DUMP', key);
+                }
             }
 
             const results = await pipe.exec();
@@ -27864,8 +27868,17 @@ app.get('/api/redis/snapshot', async (req, res) => {
                     continue;
                 }
 
-                const ttlMsRaw = Number(ttlReply?.[1]);
-                const ttlMs = (Number.isFinite(ttlMsRaw) && ttlMsRaw >= 0) ? ttlMsRaw : null;
+                const ttlVal = ttlReply?.[1];
+                let ttlMs = null;
+                if (typeof ttlVal === 'number') {
+                    if (Number.isFinite(ttlVal) && ttlVal >= 0) ttlMs = ttlVal;
+                } else if (typeof ttlVal === 'string') {
+                    const n = Number(ttlVal);
+                    if (Number.isFinite(n) && n >= 0) ttlMs = n;
+                } else if (Buffer.isBuffer(ttlVal)) {
+                    const n = Number(ttlVal.toString());
+                    if (Number.isFinite(n) && n >= 0) ttlMs = n;
+                }
 
                 const dumped = dumpReply?.[1];
                 if (!Buffer.isBuffer(dumped)) {
