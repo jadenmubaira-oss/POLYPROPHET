@@ -4,13 +4,19 @@ services:
     runtime: node
     plan: starter
     region: frankfurt
+    autoDeploy: true
     # 🏆 v79 FINAL (LOCKED) - Long-horizon datasets + rolling validation + all invariants verified
     buildCommand: npm ci
-    startCommand: node server.js
+    startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
+      # Runtime behavior defaults for easy first deploy
+      - key: NO_AUTH
+        value: "true"
+      - key: START_PAUSED
+        value: "false"
       # 🏆 v70: TRADE_MODE - Set via Render dashboard for LIVE trading
       # Keep PAPER here for safety - override in dashboard for LIVE
       # NOTE: LIVE mode REQUIRES REDIS_URL to be set!
@@ -22,15 +28,16 @@ services:
       # 🏆 v80 SWEET SPOT: 32% max stake cap (max profit with lower ruin risk)
       - key: MAX_POSITION_SIZE
         value: "0.32"
-      # 🏆 v107: Start unpaused by default (paper auto-trading enabled)
-      - key: START_PAUSED
-        value: "false"
-      # 🏆 v107: Auth enabled by default (set NO_AUTH=true only for private deployments)
-      - key: NO_AUTH
-        value: "false"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"
+      # Operator runtime lock: TOP7 primary, gates ON
+      - key: OPERATOR_STRATEGY_SET_ENFORCED
+        value: "true"
+      - key: OPERATOR_PRIMARY_GATES_ENFORCED
+        value: "true"
+      - key: OPERATOR_STRATEGY_SET_PATH
+        value: debug/strategy_set_top7_drop6.json
       # Auth - Set your own credentials in Render dashboard
       # These are just defaults - override in dashboard with your values
       - key: AUTH_USERNAME
