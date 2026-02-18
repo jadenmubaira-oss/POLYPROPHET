@@ -1,0 +1,51 @@
+{
+  "generatedAt": "2026-02-02T22:56:28.954Z",
+  "description": "TRUE FINAL: 4 strategies validated on FULL Oct-Jan dataset",
+  "priceRange": {
+    "min": 0.65,
+    "max": 0.8
+  },
+  "warning": "Based on full historical data - future may vary",
+  "strategies": [
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 23,
+      "entryMinute": 13,
+      "warningMinutes": 2,
+      "fullDatasetWR": 93.8
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 15,
+      "entryMinute": 12,
+      "warningMinutes": 3,
+      "fullDatasetWR": 93.5
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 0,
+      "entryMinute": 12,
+      "warningMinutes": 3,
+      "fullDatasetWR": 93.5
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 1,
+      "entryMinute": 13,
+      "warningMinutes": 2,
+      "fullDatasetWR": 92.9
+    }
+  ],
+  "fullDatasetPerformance": {
+    "signals": 106,
+    "wins": 99,
+    "losses": 7,
+    "winRate": "93.4%",
+    "signalsPerDay": "1.0",
+    "lossesPer10": "0.66"
+  }
+}

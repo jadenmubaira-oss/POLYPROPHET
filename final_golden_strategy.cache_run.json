@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-02-06T09:52:16.147Z",
+  "generatedAt": "2026-02-03T00:47:41.480Z",
   "dataSource": "exhaustive_analysis/final_results.json",
   "analysisMeta": {
     "startedAt": "2026-02-03T00:44:52.207Z",
     "completedAt": "2026-02-03T00:45:21.737Z",
     "runtimeMinutes": "0.5",
-    "totalMarkets": 41727,
+    "totalMarkets": 38952,
     "datasetRows": 584115,
     "datasetSplit": {
       "trainRatio": 0.6,

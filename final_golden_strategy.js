@@ -41,10 +41,134 @@ const WIN_RATE_TARGET = 0.9;
 const DEFAULT_MIN_TRADES_PER_ASSET = 20;
 
 
+function readEnvBool(name, fallback) {
+
+    const raw = (process.env[name] ?? '').toString().trim().toLowerCase();
+
+    if (!raw) return fallback;
+
+    if (['1', 'true', 'yes', 'y', 'on'].includes(raw)) return true;
+
+    if (['0', 'false', 'no', 'n', 'off'].includes(raw)) return false;
+
+    return fallback;
+
+}
+
+
+function readEnvNumber(name, fallback) {
+
+    const raw = (process.env[name] ?? '').toString().trim();
+
+    if (!raw) return fallback;
+
+    const n = Number(raw);
+
+    return Number.isFinite(n) ? n : fallback;
+
+}
+
+
+function readEnvString(name, fallback) {
+
+    const raw = (process.env[name] ?? '').toString().trim();
+
+    return raw ? raw : fallback;
+
+}
+
+
 
 function safeGetNumber(value) {
 
     return Number.isFinite(value) ? value : null;
+
+}
+
+
+function readSelectionMode() {
+
+    const rawMode = (process.env.FINAL_GOLDEN_STRATEGY_SELECTION_MODE ?? '').toString().trim().toLowerCase();
+
+    if (rawMode === 'soft') return 'soft';
+
+    if (rawMode === 'strict') return 'strict';
+
+    return readEnvBool('FINAL_GOLDEN_STRATEGY_SOFT_SELECTION', false) ? 'soft' : 'strict';
+
+}
+
+
+function computeSoftScore(parts, weights) {
+
+    const lcb = safeGetNumber(parts?.lcb) ?? 0;
+
+    const posterior = safeGetNumber(parts?.posterior) ?? 0;
+
+    const winRate = safeGetNumber(parts?.winRate) ?? 0;
+
+    const tpd = safeGetNumber(parts?.tradesPerDay) ?? 0;
+
+    const score =
+
+        (safeGetNumber(weights?.lcb) ?? 0) * lcb +
+
+        (safeGetNumber(weights?.posterior) ?? 0) * posterior +
+
+        (safeGetNumber(weights?.tradesPerDay) ?? 0) * tpd +
+
+        (safeGetNumber(weights?.winRate) ?? 0) * winRate;
+
+    return Number.isFinite(score) ? score : -Infinity;
+
+}
+
+
+function pickGoldenStrategySoft(validatedStrategies, options = {}) {
+
+    const list = Array.isArray(validatedStrategies) ? validatedStrategies : [];
+
+    const minTrades = Number.isFinite(options.minTrades) ? options.minTrades : DEFAULT_MIN_TRADES_PER_ASSET;
+
+    const holdoutDays = Number.isFinite(options.holdoutDays) && options.holdoutDays > 0 ? options.holdoutDays : 1;
+
+    const weights = options.weights || { lcb: 1000, posterior: 100, tradesPerDay: 1, winRate: 0 };
+
+
+    let best = null;
+
+    let bestScore = -Infinity;
+
+    for (const s of list) {
+
+        const trades = safeGetNumber(s?.valTrades);
+
+        if (typeof trades !== 'number' || trades < minTrades) continue;
+
+        const score = computeSoftScore({
+
+            lcb: safeGetNumber(s?.valWinRateLCB),
+
+            posterior: safeGetNumber(s?.valPosteriorPWinRateGE90),
+
+            winRate: safeGetNumber(s?.valWinRate),
+
+            tradesPerDay: trades / holdoutDays
+
+        }, weights);
+
+        if (score > bestScore) {
+
+            bestScore = score;
+
+            best = s;
+
+        }
+
+    }
+
+
+    return best;
 
 }
 
@@ -355,6 +479,104 @@ function pickBestStrategyForAsset(strategies, asset, options = {}) {
 }
 
 
+function pickBestStrategyForAssetSoft(strategies, asset, options = {}) {
+
+    const minTrades = Number.isFinite(options.minTrades) ? options.minTrades : DEFAULT_MIN_TRADES_PER_ASSET;
+
+    const targetWinRate = Number.isFinite(options.targetWinRate) ? options.targetWinRate : WIN_RATE_TARGET;
+
+    const selectedOn = (typeof options.selectedOn === 'string' && options.selectedOn.trim()) ? options.selectedOn.trim() : 'validation';
+
+    const holdoutDays = Number.isFinite(options.holdoutDays) && options.holdoutDays > 0 ? options.holdoutDays : 1;
+
+    const weights = options.weights || { lcb: 1000, posterior: 100, tradesPerDay: 1, winRate: 0 };
+
+
+    let bestOverall = null;
+
+    let bestMeetingTarget = null;
+
+    let bestOverallMetric = null;
+
+    let bestMeetingTargetMetric = null;
+
+    let bestOverallScore = -Infinity;
+
+    let bestMeetingTargetScore = -Infinity;
+
+
+    for (const s of strategies) {
+
+        const m = selectedOn === 'train' ? (s?.perAsset?.[asset]) : (s?.valPerAsset?.[asset]);
+
+        if (!m || !Number.isFinite(m.trades) || m.trades < minTrades) continue;
+
+        const score = computeSoftScore({
+
+            lcb: safeGetNumber(m.winRateLCB),
+
+            posterior: safeGetNumber(m.posteriorPWinRateGE90),
+
+            winRate: safeGetNumber(m.winRate),
+
+            tradesPerDay: (safeGetNumber(m.trades) ?? 0) / holdoutDays
+
+        }, weights);
+
+        if (score > bestOverallScore) {
+
+            bestOverallScore = score;
+
+            bestOverall = s;
+
+            bestOverallMetric = m;
+
+        } else if (score === bestOverallScore && isBetterAssetMetric(m, bestOverallMetric)) {
+
+            bestOverall = s;
+
+            bestOverallMetric = m;
+
+        }
+
+
+
+        if (Number.isFinite(m.winRate) && m.winRate >= targetWinRate) {
+
+            if (score > bestMeetingTargetScore) {
+
+                bestMeetingTargetScore = score;
+
+                bestMeetingTarget = s;
+
+                bestMeetingTargetMetric = m;
+
+            } else if (score === bestMeetingTargetScore && isBetterAssetMetric(m, bestMeetingTargetMetric)) {
+
+                bestMeetingTarget = s;
+
+                bestMeetingTargetMetric = m;
+
+            }
+
+        }
+
+    }
+
+
+    return {
+
+        criteria: { asset, minTrades, targetWinRate, selectedOn, selectionMode: 'soft' },
+
+        bestMeetingTarget,
+
+        bestOverall
+
+    };
+
+}
+
+
 
 function tryReadJson(relPath) {
 
@@ -608,17 +830,7 @@ function computeDateRangeDaysFromRows(rows) {
 
 
 
-const goldenStrategy = pickGoldenStrategy(analysis);
-
-
-
-if (!goldenStrategy) {
-
-    console.error('❌ Could not determine golden strategy from final_results.json');
-
-    process.exit(1);
-
-}
+const strictGoldenStrategy = pickGoldenStrategy(analysis);
 
 
 
@@ -644,6 +856,86 @@ const valSet = split.valSet;
 
 const testSet = split.testSet;
 
+
+
+const allStrategies = Array.isArray(analysis.strategies) ? analysis.strategies : [];
+
+const validationEvaluatedStrategies = (Array.isArray(valSet) && valSet.length && allStrategies.length)
+
+    ? walkForwardValidation(valSet, allStrategies, 'val', { minTrades: 0, maxStrategies: allStrategies.length })
+
+    : (Array.isArray(analysis.validatedStrategies) ? analysis.validatedStrategies : []);
+
+
+
+const selectionMode = readSelectionMode();
+
+const softWeights = {
+
+    lcb: readEnvNumber('FINAL_GOLDEN_STRATEGY_SOFT_WEIGHT_LCB', 1000),
+
+    posterior: readEnvNumber('FINAL_GOLDEN_STRATEGY_SOFT_WEIGHT_POSTERIOR', 100),
+
+    tradesPerDay: readEnvNumber('FINAL_GOLDEN_STRATEGY_SOFT_WEIGHT_TRADES_PER_DAY', 1),
+
+    winRate: readEnvNumber('FINAL_GOLDEN_STRATEGY_SOFT_WEIGHT_WIN_RATE', 0)
+
+};
+
+const softMinValTrades = readEnvNumber('FINAL_GOLDEN_STRATEGY_SOFT_MIN_VAL_TRADES', DEFAULT_MIN_TRADES_PER_ASSET);
+
+const softMinTradesPerAsset = readEnvNumber('FINAL_GOLDEN_STRATEGY_SOFT_MIN_TRADES_PER_ASSET', DEFAULT_MIN_TRADES_PER_ASSET);
+
+const valHoldoutDays = computeDateRangeDaysFromRows(valSet) || 1;
+
+
+
+let goldenStrategy = strictGoldenStrategy;
+
+if (selectionMode === 'soft') {
+
+    const candidate = pickGoldenStrategySoft(validationEvaluatedStrategies, {
+
+        minTrades: softMinValTrades,
+
+        holdoutDays: valHoldoutDays,
+
+        weights: softWeights
+
+    });
+
+    if (candidate) {
+
+        goldenStrategy = candidate;
+
+        const tested = (Array.isArray(testSet) && testSet.length)
+
+            ? walkForwardValidation(testSet, [candidate], 'test', { minTrades: 0, maxStrategies: 1 })
+
+            : [];
+
+        if (tested.length > 0) {
+
+            goldenStrategy = tested[0];
+
+        }
+
+    }
+
+}
+
+
+
+if (!goldenStrategy) {
+
+    console.error('❌ Could not determine golden strategy from final_results.json');
+
+    process.exit(1);
+
+}
+
+
+
 const strategyTrades = filterDatasetForStrategy(goldenStrategy, dataset);
 
 const strategyDays = computeDateRangeDaysFromRows(strategyTrades);
@@ -654,7 +946,17 @@ const tradesPerDay = strategyDays ? (strategyTrades.length / strategyDays) : nul
 
 const cachedStage1Survival = analysis.stage1Survival;
 
-const stage1Survival = (cachedStage1Survival && Number.isFinite(Number(cachedStage1Survival.empiricalTrades)))
+const canUseCachedStage1Survival =
+
+    cachedStage1Survival &&
+
+    Number.isFinite(Number(cachedStage1Survival.empiricalTrades)) &&
+
+    strictGoldenStrategy &&
+
+    strategyKey(strictGoldenStrategy) === strategyKey(goldenStrategy);
+
+const stage1Survival = canUseCachedStage1Survival
 
     ? cachedStage1Survival
 
@@ -670,16 +972,6 @@ const stage1SurvivalEnhanced = {
 
 
 
-const allStrategies = Array.isArray(analysis.strategies) ? analysis.strategies : [];
-
-const validationEvaluatedStrategies = (Array.isArray(valSet) && valSet.length && allStrategies.length)
-
-    ? walkForwardValidation(valSet, allStrategies, 'val', { minTrades: 0, maxStrategies: allStrategies.length })
-
-    : (Array.isArray(analysis.validatedStrategies) ? analysis.validatedStrategies : []);
-
-
-
 const perAssetStrategyPicks = {};
 
 const uniqueSelected = [];
@@ -688,15 +980,31 @@ const selectedByKey = new Map();
 
 for (const asset of ASSETS) {
 
-    const pick = pickBestStrategyForAsset(validationEvaluatedStrategies, asset, {
+    const pick = selectionMode === 'soft'
 
-        minTrades: DEFAULT_MIN_TRADES_PER_ASSET,
+        ? pickBestStrategyForAssetSoft(validationEvaluatedStrategies, asset, {
 
-        targetWinRate: WIN_RATE_TARGET,
+            minTrades: softMinTradesPerAsset,
 
-        selectedOn: 'validation'
+            targetWinRate: WIN_RATE_TARGET,
 
-    });
+            selectedOn: 'validation',
+
+            holdoutDays: valHoldoutDays,
+
+            weights: softWeights
+
+        })
+
+        : pickBestStrategyForAsset(validationEvaluatedStrategies, asset, {
+
+            minTrades: DEFAULT_MIN_TRADES_PER_ASSET,
+
+            targetWinRate: WIN_RATE_TARGET,
+
+            selectedOn: 'validation'
+
+        });
 
     perAssetStrategyPicks[asset] = pick;
 
@@ -765,20 +1073,6 @@ for (const asset of ASSETS) {
         bestOverall: bestOverall ? projectStrategyForAsset(bestOverall, asset) : null
 
     };
-
-}
-
-
-
-function readEnvNumber(name, fallback) {
-
-    const raw = (process.env[name] ?? '').toString().trim();
-
-    if (!raw) return fallback;
-
-    const n = Number(raw);
-
-    return Number.isFinite(n) ? n : fallback;
 
 }
 
@@ -1262,13 +1556,23 @@ const finalResults = {
 
 
 
-fs.writeFileSync(path.join(__dirname, 'final_golden_strategy.json'), JSON.stringify(finalResults, null, 2));
+const FINAL_OUT = (() => {
+    const raw = String(process.env.FINAL_GOLDEN_STRATEGY_OUT || '').trim();
+    if (!raw) return path.join(__dirname, 'final_golden_strategy.json');
+    try {
+        return path.isAbsolute(raw) ? raw : path.join(__dirname, raw);
+    } catch {
+        return path.join(__dirname, 'final_golden_strategy.json');
+    }
+})();
+
+fs.writeFileSync(FINAL_OUT, JSON.stringify(finalResults, null, 2));
 
 
 
 console.log('');
 
-console.log('✅ Results saved to: final_golden_strategy.json');
+console.log(`✅ Results saved to: ${FINAL_OUT}`);
 
 console.log('');
 

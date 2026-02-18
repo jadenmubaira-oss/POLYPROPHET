@@ -1,0 +1,25 @@
+{
+  "signals": [],
+  "stats": {
+    "total": 0,
+    "wins": 0,
+    "losses": 0,
+    "pending": 0,
+    "confirmed": 0,
+    "skipped": 0,
+    "winRate": 0,
+    "currentWinStreak": 0,
+    "currentLossStreak": 0,
+    "maxWinStreak": 0,
+    "maxLossStreak": 0,
+    "lastUpdated": 0
+  },
+  "byAsset": {
+    "BTC": { "total": 0, "wins": 0, "losses": 0 },
+    "ETH": { "total": 0, "wins": 0, "losses": 0 },
+    "XRP": { "total": 0, "wins": 0, "losses": 0 },
+    "SOL": { "total": 0, "wins": 0, "losses": 0 }
+  },
+  "zeroSignalDays": [],
+  "lastSignalDate": null
+}

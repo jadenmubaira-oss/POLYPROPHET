@@ -263,17 +263,25 @@
       <div class="card">
         <h2>Audit & Safety</h2>
         <div class="note">
-          Endpoints: <span class="pill">/api/verify</span> <span class="pill">/api/verify?deep=1</span> <span class="pill">/api/perfection-check</span>
+          Endpoints: <span class="pill">/api/verify</span> <span class="pill">/api/verify?deep=1</span> <span class="pill">/api/perfection-check</span> <span class="pill">/api/audit</span> <span class="pill">/api/golden-strategy/refresh-status</span>
         </div>
 
         <div class="btns">
           <button class="btn-blue" onclick="runVerify(false)">Run /api/verify</button>
           <button class="btn-warn" onclick="runVerify(true)">Run /api/verify?deep=1</button>
           <button class="btn-green" onclick="runPerfectionCheck()">Run perfection-check</button>
+          <button class="btn-gray" onclick="loadAuditReport()">Fetch /api/audit</button>
+          <button class="btn-gray" onclick="loadGoldenRefreshStatus()">Fetch golden refresh status</button>
         </div>
 
         <div class="status" id="auditStatus">Ready.</div>
         <pre id="auditOut">{}</pre>
+
+        <div class="status" id="auditReportStatus">Ready.</div>
+        <pre id="auditReportOut">{}</pre>
+
+        <div class="status" id="goldenRefreshStatus">Ready.</div>
+        <pre id="goldenRefreshOut">{}</pre>
       </div>
 
       <div class="card">
@@ -431,6 +439,22 @@
       setStatus('auditStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
     }
 
+    async function loadAuditReport() {
+      const path = '/api/audit';
+      setStatus('auditReportStatus', `Fetching ${path}...`, 'warn');
+      const out = await fetchJson(path);
+      setOut('auditReportOut', out);
+      setStatus('auditReportStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
+    async function loadGoldenRefreshStatus() {
+      const path = '/api/golden-strategy/refresh-status';
+      setStatus('goldenRefreshStatus', `Fetching ${path}...`, 'warn');
+      const out = await fetchJson(path);
+      setOut('goldenRefreshOut', out);
+      setStatus('goldenRefreshStatus', `${path} → ${out.status}`, out.ok ? 'good' : 'bad');
+    }
+
     async function apiExplorerSend() {
       const method = document.getElementById('xMethod').value;
       const endpoint = document.getElementById('xEndpoint').value || '/api/state';
@@ -487,6 +511,11 @@
       setOut('applyOut', out);
       setStatus('applyStatus', `/api/settings → ${out.status}`, out.ok ? 'good' : 'bad');
     }
+
+    setTimeout(() => {
+      loadAuditReport();
+      loadGoldenRefreshStatus();
+    }, 400);
   </script>
 </body>
 </html>

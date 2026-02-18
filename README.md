@@ -31,6 +31,9 @@
 > - This `README.md` is the shared thinking space.
 > - `task.md` tracks our flight path.
 > - `implementation_plan.md` is the blueprint.
+> - `.windsurf/workflows/atlas-build-app.md` is the standard build/change workflow (ATLAS).
+> - `.windsurf/workflows/oracle-certainty-audit.md` is the local oracle correctness + frequency audit workflow.
+> - `DEPLOY_RENDER.md` is the fastest GitHub -> Render deployment guide.
 >
 > ### 4. 🚀 NEW CONVERSATION STARTUP PROTOCOL
 >

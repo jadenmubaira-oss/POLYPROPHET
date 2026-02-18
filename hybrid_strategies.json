@@ -1,0 +1,152 @@
+{
+  "generatedAt": "2026-02-03T13:20:00.000Z",
+  "version": "2.0",
+  "description": "ORACLE HYBRID SYSTEM - Backtested 90.2% WR, <1 loss per 10 trades, ~1.2 signals/day",
+  "backtest": {
+    "totalTrades": 498,
+    "wins": 449,
+    "losses": 49,
+    "winRate": 90.2,
+    "lossesPerTen": 0.98,
+    "signalsPerDay": 1.2,
+    "dataRange": "406 days (Oct 2024 - Feb 2026)"
+  },
+  "priceRange": {
+    "min": 0.72,
+    "max": 0.78,
+    "note": "Tighter band for higher certainty"
+  },
+  "strategies": [
+    {
+      "id": 1,
+      "name": "Dawn Dominator",
+      "tier": "GOLD",
+      "direction": "DOWN",
+      "utcHour": 4,
+      "entryMinute": 11,
+      "priceMin": 0.72,
+      "priceMax": 0.78,
+      "historicalWR": 93.8,
+      "trades": 65,
+      "lossesPerTen": 0.62,
+      "signalsPerDay": 0.16,
+      "warningMinutes": 3
+    },
+    {
+      "id": 2,
+      "name": "Night Rally",
+      "tier": "GOLD",
+      "direction": "UP",
+      "utcHour": 2,
+      "entryMinute": 9,
+      "priceMin": 0.72,
+      "priceMax": 0.78,
+      "historicalWR": 90.6,
+      "trades": 85,
+      "lossesPerTen": 0.94,
+      "signalsPerDay": 0.21,
+      "warningMinutes": 3
+    },
+    {
+      "id": 3,
+      "name": "Evening Surge",
+      "tier": "GOLD",
+      "direction": "UP",
+      "utcHour": 19,
+      "entryMinute": 9,
+      "priceMin": 0.72,
+      "priceMax": 0.78,
+      "historicalWR": 90.2,
+      "trades": 92,
+      "lossesPerTen": 0.98,
+      "signalsPerDay": 0.23,
+      "warningMinutes": 3
+    },
+    {
+      "id": 4,
+      "name": "Afternoon Lift",
+      "tier": "SILVER",
+      "direction": "UP",
+      "utcHour": 15,
+      "entryMinute": 12,
+      "priceMin": 0.72,
+      "priceMax": 0.78,
+      "historicalWR": 89.6,
+      "trades": 48,
+      "lossesPerTen": 1.04,
+      "signalsPerDay": 0.12,
+      "warningMinutes": 3
+    },
+    {
+      "id": 5,
+      "name": "Late Day Push",
+      "tier": "SILVER",
+      "direction": "UP",
+      "utcHour": 17,
+      "entryMinute": 12,
+      "priceMin": 0.72,
+      "priceMax": 0.78,
+      "historicalWR": 89.6,
+      "trades": 48,
+      "lossesPerTen": 1.04,
+      "signalsPerDay": 0.12,
+      "warningMinutes": 3
+    },
+    {
+      "id": 6,
+      "name": "Midnight Fade",
+      "tier": "SILVER",
+      "direction": "DOWN",
+      "utcHour": 0,
+      "entryMinute": 13,
+      "priceMin": 0.72,
+      "priceMax": 0.78,
+      "historicalWR": 89.1,
+      "trades": 46,
+      "lossesPerTen": 1.09,
+      "signalsPerDay": 0.11,
+      "warningMinutes": 2
+    },
+    {
+      "id": 7,
+      "name": "Evening Drop",
+      "tier": "SILVER",
+      "direction": "DOWN",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "priceMin": 0.72,
+      "priceMax": 0.78,
+      "historicalWR": 88.6,
+      "trades": 114,
+      "lossesPerTen": 1.14,
+      "signalsPerDay": 0.28,
+      "warningMinutes": 3
+    }
+  ],
+  "tradingRules": {
+    "rule1": "ONLY trade when price is 72-78 cents (tight band)",
+    "rule2": "Enter at EXACT minute specified (±30 seconds)",
+    "rule3": "GOLD tier = highest confidence, trade every time",
+    "rule4": "SILVER tier = high confidence, trade if conditions optimal",
+    "rule5": "Never chase - if you miss entry minute, skip the cycle"
+  },
+  "schedule": {
+    "note": "All times in UTC. Convert to local time.",
+    "dailyWindows": [
+      {"time": "00:13", "name": "Midnight Fade", "direction": "DOWN"},
+      {"time": "02:09", "name": "Night Rally", "direction": "UP"},
+      {"time": "04:11", "name": "Dawn Dominator", "direction": "DOWN"},
+      {"time": "15:12", "name": "Afternoon Lift", "direction": "UP"},
+      {"time": "17:12", "name": "Late Day Push", "direction": "UP"},
+      {"time": "19:09", "name": "Evening Surge", "direction": "UP"},
+      {"time": "20:03", "name": "Evening Drop", "direction": "DOWN"}
+    ]
+  },
+  "summary": {
+    "goldCount": 3,
+    "silverCount": 4,
+    "totalCount": 7,
+    "combinedWR": 90.2,
+    "combinedLossesPerTen": 0.98
+  }
+}

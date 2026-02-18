@@ -1,0 +1,2430 @@
+{
+  "BTC": {
+    "prediction": "DOWN",
+    "confidence": 0.25231913865076083,
+    "pWin": 0.765351450222106,
+    "pWinSource": "TIER_CONDITIONED",
+    "pWinBucket": "0.00-0.50",
+    "pWinSamples": 142,
+    "evRoi": 0.2813811997033692,
+    "timeToCorrectCallSecLast": 106,
+    "timeToCertifiedCallSecLast": 218,
+    "avgTimeToCorrectCallSec10": 80.11111111111111,
+    "avgTimeToCertifiedCallSec10": 146.44444444444446,
+    "tier": "NONE",
+    "edge": -56.92742597289846,
+    "votes": {
+      "UP": 4.119497849854474,
+      "DOWN": 15.961031274154614
+    },
+    "stats": {
+      "wins": 2928,
+      "total": 3825,
+      "convictionWins": 577,
+      "convictionTotal": 591
+    },
+    "live": 66444.58966615159,
+    "checkpoint": 66570.3345923664,
+    "market": {
+      "slug": "btc-updown-15m-1770822000",
+      "title": "Bitcoin Up or Down - February 11, 10:00AM-10:15AM ET",
+      "yesPrice": 0.43,
+      "noPrice": 0.58,
+      "minOrderShares": 5,
+      "tickSize": 0.01,
+      "marketUrl": "https://polymarket.com/event/btc-updown-15m-1770822000",
+      "volume": 76.80392,
+      "lastUpdated": 1770822047735,
+      "tokenIds": {
+        "yes": "103616779477063245935454236108001639640515864184019805193605682242326016116175",
+        "no": "63021674260189251048353300646709529814106743663987821767482645008487541147751"
+      },
+      "marketStatus": "ACTIVE",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.43,
+        "noBestAsk": 0.58,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "driftDiagnostics": {
+        "computedSlug": "btc-updown-15m-1770822000",
+        "activeSlugFromGamma": "btc-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822047582
+      },
+      "fetchOk": true,
+      "fetchAt": 1770822047735,
+      "fetchError": null
+    },
+    "locked": false,
+    "voteStability": 0.8888888888888888,
+    "forecastAccuracy": "60.0",
+    "forecastTotal": 10,
+    "forecastOutcomes": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true
+    ],
+    "callAccuracy": "--",
+    "callTotal": 0,
+    "callOutcomes": [],
+    "recentAccuracy": "60.0",
+    "recentTotal": 10,
+    "recentOutcomes": [
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true
+    ],
+    "kellySize": 0,
+    "calibration": {
+      "0.00-0.50": {
+        "total": 142,
+        "wins": 48
+      },
+      "0.50-0.60": {
+        "total": 32,
+        "wins": 31
+      },
+      "0.60-0.70": {
+        "total": 16,
+        "wins": 16
+      },
+      "0.70-0.80": {
+        "total": 137,
+        "wins": 132
+      },
+      "0.80-0.90": {
+        "total": 104,
+        "wins": 103
+      },
+      "0.90-0.95": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.95-0.98": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.98-1.00": {
+        "total": 0,
+        "wins": 0
+      }
+    },
+    "tierCalibration": {
+      "CONVICTION": {
+        "total": 90,
+        "wins": 85,
+        "priceBands": {
+          "extreme": {
+            "total": 0,
+            "wins": 0
+          },
+          "mid": {
+            "total": 90,
+            "wins": 85
+          }
+        }
+      },
+      "ADVISORY": {
+        "total": 67,
+        "wins": 62,
+        "priceBands": {
+          "extreme": {
+            "total": 6,
+            "wins": 6
+          },
+          "mid": {
+            "total": 61,
+            "wins": 56
+          }
+        }
+      },
+      "NONE": {
+        "total": 2,
+        "wins": 0,
+        "priceBands": {
+          "extreme": {
+            "total": 2,
+            "wins": 0
+          },
+          "mid": {
+            "total": 0,
+            "wins": 0
+          }
+        }
+      }
+    },
+    "newsState": "NEUTRAL",
+    "oracleSignal": {
+      "asset": "BTC",
+      "cycleStartEpochSec": 1770822000,
+      "cycleEndEpochSec": 1770822900,
+      "timestampMs": 1770822050668,
+      "elapsedSec": 50,
+      "entryMinute": 0,
+      "utcHour": 15,
+      "marketSlug": "btc-updown-15m-1770822000",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.43,
+        "noBestAsk": 0.58,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "pWinSource": "TIER_CONDITIONED",
+      "timeLeftSec": 850,
+      "marketUrl": "https://polymarket.com/event/btc-updown-15m-1770822000",
+      "action": "WAIT",
+      "direction": "DOWN",
+      "tier": "NONE",
+      "confidence": 0.26159569325380394,
+      "implied": 0.58,
+      "pWin": 0.5867684957209426,
+      "evRoi": -0.023471914842829993,
+      "mispricingEdge": 0.006768495720942624,
+      "oddsDelta60s": -0.41900000000000004,
+      "oddsVelocityPerMin": -0.3972505333017303,
+      "position": null,
+      "reasons": [
+        "pWin=58.7% vs implied=58.0% (edge=0.7%)",
+        "EV=-2.3% ROI, stability=0.89, tLeft=850s",
+        "Odds: Δ60s=-41.9¢, vel=-39.7¢/min",
+        "Adaptive: threshold=85%, rolling WR=0% (142 samples)",
+        "📊 🔓 MOVABLE: Still early - direction could change (850s left, s"
+      ],
+      "hybridMomentum": -0.41941941941941946,
+      "lcbUsed": false,
+      "ultraProphet": {
+        "isUltra": false,
+        "passedGates": 5,
+        "totalGates": 10,
+        "gates": {
+          "pWin": {
+            "passed": false,
+            "value": 0.5867684957209426,
+            "threshold": 0.88
+          },
+          "evRoi": {
+            "passed": false,
+            "value": -0.023471914842829993,
+            "threshold": 0.25
+          },
+          "genesis": {
+            "passed": true,
+            "value": "DOWN",
+            "expected": "DOWN"
+          },
+          "oracleLocked": {
+            "passed": false,
+            "value": false
+          },
+          "consensus": {
+            "passed": true,
+            "value": 0.9003207089988703,
+            "threshold": 0.85
+          },
+          "stability": {
+            "passed": true,
+            "value": 0.8888888888888888,
+            "threshold": 0.8
+          },
+          "timeLeft": {
+            "passed": true,
+            "value": 850,
+            "threshold": 180
+          },
+          "extremeOdds": {
+            "passed": false,
+            "value": 0.58,
+            "range": "≤35¢ OR ≥85¢"
+          },
+          "noFlip": {
+            "passed": true,
+            "value": "DOWN",
+            "lockValue": null
+          },
+          "tier": {
+            "passed": false,
+            "value": "NONE",
+            "expected": "CONVICTION"
+          }
+        },
+        "reasons": [
+          "pWin=58.7% < 88%",
+          "EV=-2.3% < 25%",
+          "Oracle not locked",
+          "Price=58¢ not extreme",
+          "Tier=NONE not CONVICTION"
+        ]
+      },
+      "adaptiveGate": {
+        "passes": false,
+        "reason": "Tier=NONE (need CONVICTION or ADVISORY)",
+        "threshold": 0.85,
+        "pWin": 0.5867684957209426,
+        "isUltra": false,
+        "blockedReason": "LOW_TIER"
+      },
+      "streakState": {
+        "mode": "OFF",
+        "streakLength": 0,
+        "streakAsset": null,
+        "maxStreak": 0,
+        "recentWinRate": 0,
+        "deteriorationCount": 0,
+        "lastModeChange": 0
+      },
+      "calibration": {
+        "isLocked": false,
+        "couldFlip": true,
+        "lockReason": "Still early - direction could change (850s left, stability=0.89)",
+        "pWinConfidence": "VERY_LOW",
+        "sampleSize": 142,
+        "sampleSizeAdequate": true,
+        "lcbUsed": false,
+        "trustReason": "Adequate sample - pWin estimate reliable",
+        "tierNote": "Low tier = use caution"
+      }
+    },
+    "modelVotes": {
+      "genesis": "DOWN",
+      "physicist": "UP",
+      "orderbook": "DOWN",
+      "historian": "DOWN",
+      "sentiment": "UP",
+      "volume": "DOWN"
+    }
+  },
+  "ETH": {
+    "prediction": "NEUTRAL",
+    "confidence": 0.00044927949929585354,
+    "pWin": 0.7741850683491062,
+    "pWinSource": "TIER_CONDITIONED",
+    "pWinBucket": "0.00-0.50",
+    "pWinSamples": 128,
+    "evRoi": 0.15989585989579647,
+    "timeToCorrectCallSecLast": 103,
+    "timeToCertifiedCallSecLast": 269,
+    "avgTimeToCorrectCallSec10": 95.14285714285714,
+    "avgTimeToCertifiedCallSec10": 220.14285714285714,
+    "tier": "NONE",
+    "edge": 0,
+    "votes": {
+      "UP": 0,
+      "DOWN": 0
+    },
+    "stats": {
+      "wins": 2944,
+      "total": 3802,
+      "convictionWins": 704,
+      "convictionTotal": 731
+    },
+    "live": 1936.4364868657813,
+    "checkpoint": 1942.7588,
+    "market": {
+      "slug": "eth-updown-15m-1770822000",
+      "title": "Ethereum Up or Down - February 11, 10:00AM-10:15AM ET",
+      "yesPrice": 0.36,
+      "noPrice": 0.65,
+      "minOrderShares": 5,
+      "tickSize": 0.01,
+      "marketUrl": "https://polymarket.com/event/eth-updown-15m-1770822000",
+      "volume": 23,
+      "lastUpdated": 1770822048243,
+      "tokenIds": {
+        "yes": "6829778631167153980768118570278814685107155620965690386630851537182159355859",
+        "no": "48713835153652389480446774523688261727173550607455076987684376928761536523849"
+      },
+      "marketStatus": "ACTIVE",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.36,
+        "noBestAsk": 0.65,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "driftDiagnostics": {
+        "computedSlug": "eth-updown-15m-1770822000",
+        "activeSlugFromGamma": "eth-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822048145
+      },
+      "fetchOk": true,
+      "fetchAt": 1770822048243,
+      "fetchError": null
+    },
+    "locked": false,
+    "voteStability": 0.8888888888888888,
+    "forecastAccuracy": "100.0",
+    "forecastTotal": 10,
+    "forecastOutcomes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "callAccuracy": "--",
+    "callTotal": 0,
+    "callOutcomes": [],
+    "recentAccuracy": "100.0",
+    "recentTotal": 10,
+    "recentOutcomes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "kellySize": 0,
+    "calibration": {
+      "0.00-0.50": {
+        "total": 128,
+        "wins": 50
+      },
+      "0.50-0.60": {
+        "total": 40,
+        "wins": 40
+      },
+      "0.60-0.70": {
+        "total": 14,
+        "wins": 13
+      },
+      "0.70-0.80": {
+        "total": 127,
+        "wins": 126
+      },
+      "0.80-0.90": {
+        "total": 105,
+        "wins": 103
+      },
+      "0.90-0.95": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.95-0.98": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.98-1.00": {
+        "total": 0,
+        "wins": 0
+      }
+    },
+    "tierCalibration": {
+      "CONVICTION": {
+        "total": 90,
+        "wins": 85,
+        "priceBands": {
+          "extreme": {
+            "total": 0,
+            "wins": 0
+          },
+          "mid": {
+            "total": 90,
+            "wins": 85
+          }
+        }
+      },
+      "ADVISORY": {
+        "total": 67,
+        "wins": 63,
+        "priceBands": {
+          "extreme": {
+            "total": 7,
+            "wins": 7
+          },
+          "mid": {
+            "total": 60,
+            "wins": 56
+          }
+        }
+      },
+      "NONE": {
+        "total": 0,
+        "wins": 0,
+        "priceBands": {
+          "extreme": {
+            "total": 0,
+            "wins": 0
+          },
+          "mid": {
+            "total": 0,
+            "wins": 0
+          }
+        }
+      }
+    },
+    "newsState": "NEUTRAL",
+    "oracleSignal": {
+      "asset": "ETH",
+      "cycleStartEpochSec": 1770822000,
+      "cycleEndEpochSec": 1770822900,
+      "timestampMs": 1770822050669,
+      "elapsedSec": 50,
+      "entryMinute": 0,
+      "utcHour": 15,
+      "marketSlug": "eth-updown-15m-1770822000",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.36,
+        "noBestAsk": 0.65,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "pWinSource": null,
+      "timeLeftSec": 850,
+      "marketUrl": "https://polymarket.com/event/eth-updown-15m-1770822000",
+      "action": "WAIT",
+      "direction": null,
+      "tier": "NONE",
+      "confidence": 0.0022463974964792677,
+      "implied": null,
+      "pWin": null,
+      "evRoi": null,
+      "mispricingEdge": null,
+      "oddsDelta60s": null,
+      "oddsVelocityPerMin": null,
+      "position": null,
+      "reasons": [
+        "No directional prediction yet"
+      ]
+    },
+    "modelVotes": {
+      "genesis": "DOWN",
+      "physicist": "UP",
+      "orderbook": "DOWN",
+      "historian": "DOWN",
+      "correlation": "DOWN",
+      "sentiment": "UP",
+      "volume": "DOWN"
+    }
+  },
+  "XRP": {
+    "prediction": "DOWN",
+    "confidence": 0.26179767025091333,
+    "pWin": 0.698226395409494,
+    "pWinSource": "TIER_CONDITIONED",
+    "pWinBucket": "0.00-0.50",
+    "pWinSamples": 132,
+    "evRoi": 0.07628056579924561,
+    "timeToCorrectCallSecLast": 102,
+    "timeToCertifiedCallSecLast": 123,
+    "avgTimeToCorrectCallSec10": 212.375,
+    "avgTimeToCertifiedCallSec10": 222.875,
+    "tier": "NONE",
+    "edge": -58.85625172860076,
+    "votes": {
+      "UP": 4.298178232383046,
+      "DOWN": 17.622401618968436
+    },
+    "stats": {
+      "wins": 2676,
+      "total": 3832,
+      "convictionWins": 1400,
+      "convictionTotal": 1563
+    },
+    "live": 1.35774545,
+    "checkpoint": 1.3618151715520626,
+    "market": {
+      "slug": "xrp-updown-15m-1770822000",
+      "title": "XRP Up or Down - February 11, 10:00AM-10:15AM ET",
+      "yesPrice": 0.38,
+      "noPrice": 0.63,
+      "minOrderShares": 5,
+      "tickSize": 0.01,
+      "marketUrl": "https://polymarket.com/event/xrp-updown-15m-1770822000",
+      "volume": 668.591947,
+      "lastUpdated": 1770822048763,
+      "tokenIds": {
+        "yes": "7734651793984569163523533097856594406097847489024757561722115136609076212880",
+        "no": "9609887075886158580566439459921110535829014449929672403690120985199447354246"
+      },
+      "marketStatus": "ACTIVE",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.38,
+        "noBestAsk": 0.63,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "driftDiagnostics": {
+        "computedSlug": "xrp-updown-15m-1770822000",
+        "activeSlugFromGamma": "xrp-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822048665
+      },
+      "fetchOk": true,
+      "fetchAt": 1770822048763,
+      "fetchError": null
+    },
+    "locked": false,
+    "voteStability": 1,
+    "forecastAccuracy": "90.0",
+    "forecastTotal": 10,
+    "forecastOutcomes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ],
+    "callAccuracy": "--",
+    "callTotal": 0,
+    "callOutcomes": [],
+    "recentAccuracy": "90.0",
+    "recentTotal": 10,
+    "recentOutcomes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      true
+    ],
+    "kellySize": 0,
+    "calibration": {
+      "0.00-0.50": {
+        "total": 132,
+        "wins": 56
+      },
+      "0.50-0.60": {
+        "total": 40,
+        "wins": 40
+      },
+      "0.60-0.70": {
+        "total": 16,
+        "wins": 15
+      },
+      "0.70-0.80": {
+        "total": 117,
+        "wins": 114
+      },
+      "0.80-0.90": {
+        "total": 86,
+        "wins": 85
+      },
+      "0.90-0.95": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.95-0.98": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.98-1.00": {
+        "total": 0,
+        "wins": 0
+      }
+    },
+    "tierCalibration": {
+      "CONVICTION": {
+        "total": 90,
+        "wins": 85,
+        "priceBands": {
+          "extreme": {
+            "total": 0,
+            "wins": 0
+          },
+          "mid": {
+            "total": 90,
+            "wins": 85
+          }
+        }
+      },
+      "ADVISORY": {
+        "total": 66,
+        "wins": 62,
+        "priceBands": {
+          "extreme": {
+            "total": 6,
+            "wins": 6
+          },
+          "mid": {
+            "total": 60,
+            "wins": 56
+          }
+        }
+      },
+      "NONE": {
+        "total": 2,
+        "wins": 1,
+        "priceBands": {
+          "extreme": {
+            "total": 1,
+            "wins": 0
+          },
+          "mid": {
+            "total": 1,
+            "wins": 1
+          }
+        }
+      }
+    },
+    "newsState": "NEUTRAL",
+    "oracleSignal": {
+      "asset": "XRP",
+      "cycleStartEpochSec": 1770822000,
+      "cycleEndEpochSec": 1770822900,
+      "timestampMs": 1770822050669,
+      "elapsedSec": 50,
+      "entryMinute": 0,
+      "utcHour": 15,
+      "marketSlug": "xrp-updown-15m-1770822000",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.38,
+        "noBestAsk": 0.63,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "pWinSource": "TIER_CONDITIONED",
+      "timeLeftSec": 850,
+      "marketUrl": "https://polymarket.com/event/xrp-updown-15m-1770822000",
+      "action": "WAIT",
+      "direction": "DOWN",
+      "tier": "NONE",
+      "confidence": 0.3020606593949613,
+      "implied": 0.63,
+      "pWin": 0.5748454946335977,
+      "evRoi": -0.11762309721489281,
+      "mispricingEdge": -0.05515450536640232,
+      "oddsDelta60s": -0.36,
+      "oddsVelocityPerMin": -0.34757981462409887,
+      "position": null,
+      "reasons": [
+        "pWin=57.5% vs implied=63.0% (edge=-5.5%)",
+        "EV=-11.8% ROI, stability=1.00, tLeft=850s",
+        "Odds: Δ60s=-36.0¢, vel=-34.8¢/min",
+        "Adaptive: threshold=85%, rolling WR=0% (132 samples)",
+        "📊 🔓 MOVABLE: Still early - direction could change (850s left, s"
+      ],
+      "hybridMomentum": -0.36363636363636365,
+      "lcbUsed": false,
+      "ultraProphet": {
+        "isUltra": false,
+        "passedGates": 5,
+        "totalGates": 10,
+        "gates": {
+          "pWin": {
+            "passed": false,
+            "value": 0.5748454946335977,
+            "threshold": 0.88
+          },
+          "evRoi": {
+            "passed": false,
+            "value": -0.11762309721489281,
+            "threshold": 0.25
+          },
+          "genesis": {
+            "passed": true,
+            "value": "DOWN",
+            "expected": "DOWN"
+          },
+          "oracleLocked": {
+            "passed": false,
+            "value": false
+          },
+          "consensus": {
+            "passed": true,
+            "value": 0.8903167161641448,
+            "threshold": 0.85
+          },
+          "stability": {
+            "passed": true,
+            "value": 1,
+            "threshold": 0.8
+          },
+          "timeLeft": {
+            "passed": true,
+            "value": 850,
+            "threshold": 180
+          },
+          "extremeOdds": {
+            "passed": false,
+            "value": 0.63,
+            "range": "≤35¢ OR ≥85¢"
+          },
+          "noFlip": {
+            "passed": true,
+            "value": "DOWN",
+            "lockValue": null
+          },
+          "tier": {
+            "passed": false,
+            "value": "NONE",
+            "expected": "CONVICTION"
+          }
+        },
+        "reasons": [
+          "pWin=57.5% < 88%",
+          "EV=-11.8% < 25%",
+          "Oracle not locked",
+          "Price=63¢ not extreme",
+          "Tier=NONE not CONVICTION"
+        ]
+      },
+      "adaptiveGate": {
+        "passes": false,
+        "reason": "Tier=NONE (need CONVICTION or ADVISORY)",
+        "threshold": 0.85,
+        "pWin": 0.5748454946335977,
+        "isUltra": false,
+        "blockedReason": "LOW_TIER"
+      },
+      "streakState": {
+        "mode": "OFF",
+        "streakLength": 0,
+        "streakAsset": null,
+        "maxStreak": 0,
+        "recentWinRate": 0,
+        "deteriorationCount": 0,
+        "lastModeChange": 0
+      },
+      "calibration": {
+        "isLocked": false,
+        "couldFlip": true,
+        "lockReason": "Still early - direction could change (850s left, stability=1.00)",
+        "pWinConfidence": "VERY_LOW",
+        "sampleSize": 132,
+        "sampleSizeAdequate": true,
+        "lcbUsed": false,
+        "trustReason": "Adequate sample - pWin estimate reliable",
+        "tierNote": "Low tier = use caution"
+      }
+    },
+    "modelVotes": {
+      "genesis": "DOWN",
+      "physicist": "UP",
+      "orderbook": "DOWN",
+      "historian": "DOWN",
+      "correlation": "DOWN",
+      "sentiment": "UP",
+      "volume": "DOWN"
+    }
+  },
+  "SOL": {
+    "prediction": "DOWN",
+    "confidence": 0.25323730289017954,
+    "pWin": 0.8,
+    "pWinSource": "TIER_CONDITIONED",
+    "pWinBucket": "0.00-0.50",
+    "pWinSamples": 130,
+    "evRoi": 0.27579042196793385,
+    "timeToCorrectCallSecLast": 105,
+    "timeToCertifiedCallSecLast": 219,
+    "avgTimeToCorrectCallSec10": 213,
+    "avgTimeToCertifiedCallSec10": 249.14285714285714,
+    "tier": "NONE",
+    "edge": -58.89672084236657,
+    "votes": {
+      "UP": 5.834127168979048,
+      "DOWN": 16.948383953380286
+    },
+    "stats": {
+      "wins": 343,
+      "total": 428,
+      "convictionWins": 1,
+      "convictionTotal": 1
+    },
+    "live": 79.69997491714403,
+    "checkpoint": 79.94002763354337,
+    "market": {
+      "slug": "sol-updown-15m-1770822000",
+      "title": "Solana Up or Down - February 11, 10:00AM-10:15AM ET",
+      "yesPrice": 0.4,
+      "noPrice": 0.61,
+      "minOrderShares": 5,
+      "tickSize": 0.01,
+      "marketUrl": "https://polymarket.com/event/sol-updown-15m-1770822000",
+      "volume": 551.873166,
+      "lastUpdated": 1770822049267,
+      "tokenIds": {
+        "yes": "7331207994283213929638573285171154166133897168817829984416581550985792310688",
+        "no": "97754356712660680401460291719216499520975913526284013857474384292356301815787"
+      },
+      "marketStatus": "ACTIVE",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.4,
+        "noBestAsk": 0.61,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "driftDiagnostics": {
+        "computedSlug": "sol-updown-15m-1770822000",
+        "activeSlugFromGamma": "sol-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822049174
+      },
+      "fetchOk": true,
+      "fetchAt": 1770822049267,
+      "fetchError": null
+    },
+    "locked": false,
+    "voteStability": 1,
+    "forecastAccuracy": "100.0",
+    "forecastTotal": 10,
+    "forecastOutcomes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "callAccuracy": "--",
+    "callTotal": 0,
+    "callOutcomes": [],
+    "recentAccuracy": "100.0",
+    "recentTotal": 10,
+    "recentOutcomes": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "kellySize": 0,
+    "calibration": {
+      "0.00-0.50": {
+        "total": 130,
+        "wins": 46
+      },
+      "0.50-0.60": {
+        "total": 43,
+        "wins": 42
+      },
+      "0.60-0.70": {
+        "total": 17,
+        "wins": 17
+      },
+      "0.70-0.80": {
+        "total": 120,
+        "wins": 120
+      },
+      "0.80-0.90": {
+        "total": 118,
+        "wins": 118
+      },
+      "0.90-0.95": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.95-0.98": {
+        "total": 0,
+        "wins": 0
+      },
+      "0.98-1.00": {
+        "total": 0,
+        "wins": 0
+      }
+    },
+    "tierCalibration": {
+      "CONVICTION": {
+        "total": 90,
+        "wins": 85,
+        "priceBands": {
+          "extreme": {
+            "total": 0,
+            "wins": 0
+          },
+          "mid": {
+            "total": 90,
+            "wins": 85
+          }
+        }
+      },
+      "ADVISORY": {
+        "total": 67,
+        "wins": 63,
+        "priceBands": {
+          "extreme": {
+            "total": 6,
+            "wins": 6
+          },
+          "mid": {
+            "total": 61,
+            "wins": 57
+          }
+        }
+      },
+      "NONE": {
+        "total": 0,
+        "wins": 0,
+        "priceBands": {
+          "extreme": {
+            "total": 0,
+            "wins": 0
+          },
+          "mid": {
+            "total": 0,
+            "wins": 0
+          }
+        }
+      }
+    },
+    "newsState": "NEUTRAL",
+    "oracleSignal": {
+      "asset": "SOL",
+      "cycleStartEpochSec": 1770822000,
+      "cycleEndEpochSec": 1770822900,
+      "timestampMs": 1770822050670,
+      "elapsedSec": 50,
+      "entryMinute": 0,
+      "utcHour": 15,
+      "marketSlug": "sol-updown-15m-1770822000",
+      "pricingDiagnostics": {
+        "yesBestAsk": 0.4,
+        "noBestAsk": 0.61,
+        "pricingFallback": null,
+        "spread": 0.010000000000000009,
+        "tokenMappingSource": "OUTCOMES_MAPPED",
+        "outcomesFromGamma": [
+          "Up",
+          "Down"
+        ]
+      },
+      "pWinSource": "TIER_CONDITIONED",
+      "timeLeftSec": 850,
+      "marketUrl": "https://polymarket.com/event/sol-updown-15m-1770822000",
+      "action": "WAIT",
+      "direction": "DOWN",
+      "tier": "NONE",
+      "confidence": 0.2661865144508976,
+      "implied": 0.61,
+      "pWin": 0.5998199429190866,
+      "evRoi": -0.04912445724146959,
+      "mispricingEdge": -0.010180057080913407,
+      "oddsDelta60s": -0.38,
+      "oddsVelocityPerMin": -0.3712448098998616,
+      "position": null,
+      "reasons": [
+        "pWin=60.0% vs implied=61.0% (edge=-1.0%)",
+        "EV=-4.9% ROI, stability=1.00, tLeft=850s",
+        "Odds: Δ60s=-38.0¢, vel=-37.1¢/min",
+        "Adaptive: threshold=85%, rolling WR=0% (130 samples)",
+        "📊 🔓 MOVABLE: Still early - direction could change (850s left, s"
+      ],
+      "hybridMomentum": -0.38383838383838387,
+      "lcbUsed": false,
+      "ultraProphet": {
+        "isUltra": false,
+        "passedGates": 5,
+        "totalGates": 10,
+        "gates": {
+          "pWin": {
+            "passed": false,
+            "value": 0.5998199429190866,
+            "threshold": 0.88
+          },
+          "evRoi": {
+            "passed": false,
+            "value": -0.04912445724146959,
+            "threshold": 0.25
+          },
+          "genesis": {
+            "passed": true,
+            "value": "DOWN",
+            "expected": "DOWN"
+          },
+          "oracleLocked": {
+            "passed": false,
+            "value": false
+          },
+          "consensus": {
+            "passed": true,
+            "value": 0.8803439391796996,
+            "threshold": 0.85
+          },
+          "stability": {
+            "passed": true,
+            "value": 1,
+            "threshold": 0.8
+          },
+          "timeLeft": {
+            "passed": true,
+            "value": 850,
+            "threshold": 180
+          },
+          "extremeOdds": {
+            "passed": false,
+            "value": 0.61,
+            "range": "≤35¢ OR ≥85¢"
+          },
+          "noFlip": {
+            "passed": true,
+            "value": "DOWN",
+            "lockValue": null
+          },
+          "tier": {
+            "passed": false,
+            "value": "NONE",
+            "expected": "CONVICTION"
+          }
+        },
+        "reasons": [
+          "pWin=60.0% < 88%",
+          "EV=-4.9% < 25%",
+          "Oracle not locked",
+          "Price=61¢ not extreme",
+          "Tier=NONE not CONVICTION"
+        ]
+      },
+      "adaptiveGate": {
+        "passes": false,
+        "reason": "Tier=NONE (need CONVICTION or ADVISORY)",
+        "threshold": 0.85,
+        "pWin": 0.5998199429190866,
+        "isUltra": false,
+        "blockedReason": "LOW_TIER"
+      },
+      "streakState": {
+        "mode": "OFF",
+        "streakLength": 0,
+        "streakAsset": null,
+        "maxStreak": 0,
+        "recentWinRate": 0,
+        "deteriorationCount": 0,
+        "lastModeChange": 0
+      },
+      "calibration": {
+        "isLocked": false,
+        "couldFlip": true,
+        "lockReason": "Still early - direction could change (850s left, stability=1.00)",
+        "pWinConfidence": "VERY_LOW",
+        "sampleSize": 130,
+        "sampleSizeAdequate": true,
+        "lcbUsed": false,
+        "trustReason": "Adequate sample - pWin estimate reliable",
+        "tierNote": "Low tier = use caution"
+      }
+    },
+    "modelVotes": {
+      "genesis": "DOWN",
+      "physicist": "UP",
+      "orderbook": "DOWN",
+      "historian": "DOWN",
+      "correlation": "DOWN",
+      "sentiment": "UP",
+      "volume": "UP"
+    }
+  },
+  "_trading": {
+    "mode": "PAPER",
+    "balance": 5,
+    "liveBalance": 0,
+    "maticBalance": 0,
+    "estimatedTradesRemaining": {
+      "gas": 0,
+      "usdc": 0
+    },
+    "todayPnL": 0,
+    "positions": {},
+    "positionCount": 0,
+    "tradeHistory": [],
+    "tradingState": "HARVEST",
+    "stateSizeMultiplier": 1,
+    "recentWinStreak": 0,
+    "recentLossStreak": 0,
+    "stateThresholds": {
+      "observeToHarvest": 2,
+      "harvestToStrike": 3,
+      "strikeToHarvest": 1,
+      "harvestToObserve": 3,
+      "observeMinMinutes": 15,
+      "observeMinPWin": 0.6,
+      "harvestMinPWin": 0.55,
+      "strikeMinPWin": 0.65
+    },
+    "stateEntryTime": 1770814074496,
+    "modes": {
+      "ORACLE": true,
+      "ARBITRAGE": false,
+      "ILLIQUIDITY_GAP": false,
+      "DEATH_BOUNCE": false,
+      "SCALP": false,
+      "UNCERTAINTY": false,
+      "MOMENTUM": false
+    },
+    "inCooldown": false,
+    "cooldownRemaining": 0,
+    "consecutiveLosses": 0,
+    "globalStopTriggered": false,
+    "haltReason": null,
+    "haltType": null,
+    "resumeCondition": null,
+    "isHalted": false,
+    "isThrottled": false,
+    "circuitBreaker": {
+      "state": "NORMAL",
+      "enabled": true,
+      "dayStartBalance": 5,
+      "thresholds": {
+        "soft": 0.25,
+        "hard": 0.45,
+        "halt": 0.7
+      }
+    }
+  },
+  "_clockDrift": {
+    "serverNowEpochSec": 1770822051,
+    "gammaNowEpochSec": 1770822049,
+    "clockSkewSec": 0,
+    "perAsset": {
+      "BTC": {
+        "computedSlug": "btc-updown-15m-1770822000",
+        "activeSlugFromGamma": "btc-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822047582
+      },
+      "ETH": {
+        "computedSlug": "eth-updown-15m-1770822000",
+        "activeSlugFromGamma": "eth-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822048145
+      },
+      "XRP": {
+        "computedSlug": "xrp-updown-15m-1770822000",
+        "activeSlugFromGamma": "xrp-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822048665
+      },
+      "SOL": {
+        "computedSlug": "sol-updown-15m-1770822000",
+        "activeSlugFromGamma": "sol-updown-15m-1770822000",
+        "driftDetected": false,
+        "marketStatus": "ACTIVE",
+        "slugSource": "GAMMA_MARKETS_SCAN",
+        "driftCycles": 0,
+        "checkedAt": 1770822049174
+      }
+    },
+    "currentCycleComputed": 1770822000,
+    "intervalSeconds": 900,
+    "note": "If driftDetected=true for any asset, bot is using NEXT_CYCLE slug instead of computed slug"
+  },
+  "_issuedSignals": {
+    "issued": 0,
+    "confirmed": 0,
+    "skipped": 0,
+    "resolved": 0,
+    "pendingOutcome": 0,
+    "winRate": 0
+  },
+  "_finalGoldenStrategy": {
+    "enforced": false,
+    "loadError": null,
+    "goldenStrategy": {
+      "entryMinute": 9,
+      "utcHour": 2,
+      "priceBand": {
+        "min": 0.7,
+        "max": 0.8
+      },
+      "direction": "UP",
+      "trades": 84,
+      "wins": 77,
+      "losses": 7,
+      "winRate": 0.9166666666666666,
+      "winRateLCB": 0.8378409753848758,
+      "posteriorPWinRateGE90": 0.5886354680350774,
+      "streak": {
+        "p": 0.8378409753848758,
+        "horizonTrades": 100,
+        "pConsecutive": {
+          "10": 0.1704574397729524,
+          "15": 0.07037589674113695,
+          "20": 0.0290557387739497
+        },
+        "pAtLeastOneInHorizon": {
+          "10": 0.9832527730430949,
+          "15": 0.7197091231701197,
+          "20": 0.3600110404865322
+        },
+        "expectedTradesToFirst": {
+          "10": 30.011077483358736,
+          "15": 81.45960697943488,
+          "20": 206.0730758527651
+        }
+      },
+      "perAsset": {
+        "BTC": {
+          "trades": 25,
+          "wins": 24,
+          "losses": 1,
+          "winRate": 0.96,
+          "winRateLCB": 0.8045552759497747,
+          "posteriorPWinRateGE90": 0.6998023287724815,
+          "avgROI": 0.2580632112755176,
+          "streak": {
+            "p": 0.8045552759497747,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.11364723425920571,
+              "15": 0.03831230722800265,
+              "20": 0.01291569385476678
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.9426718858919941,
+              "15": 0.5330593955669173,
+              "20": 0.20184788714227297
+            },
+            "expectedTradesToFirst": {
+              "10": 39.90467533666977,
+              "15": 128.43157254463884,
+              "20": 391.0322289175647
+            }
+          }
+        },
+        "ETH": {
+          "trades": 19,
+          "wins": 17,
+          "losses": 2,
+          "winRate": 0.8947368421052632,
+          "winRateLCB": 0.6860544950515831,
+          "posteriorPWinRateGE90": 0.28282950603042645,
+          "avgROI": 0.2004362499778452,
+          "streak": {
+            "p": 0.6860544950515831,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.023098625725968207,
+              "15": 0.0035105827367804742,
+              "20": 0.0005335465104283603
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.5183911479717692,
+              "15": 0.09402872295843345,
+              "20": 0.013878942369706215
+            },
+            "expectedTradesToFirst": {
+              "10": 134.71324865131007,
+              "15": 904.1473395804069,
+              "20": 5966.802579397129
+            }
+          }
+        },
+        "SOL": {
+          "trades": 22,
+          "wins": 19,
+          "losses": 3,
+          "winRate": 0.8636363636363636,
+          "winRateLCB": 0.6666458812053,
+          "posteriorPWinRateGE90": 0.1855466534777589,
+          "avgROI": 0.1271403522673056,
+          "streak": {
+            "p": 0.6666458812053,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.01733612389884866,
+              "15": 0.002282590488541595,
+              "20": 0.0003005411918362317
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.43522377702297455,
+              "15": 0.06545367121629408,
+              "20": 0.008295912266191863
+            },
+            "expectedTradesToFirst": {
+              "10": 170.03846020406812,
+              "15": 1311.2144351106224,
+              "20": 9978.37054159631
+            }
+          }
+        },
+        "XRP": {
+          "trades": 18,
+          "wins": 17,
+          "losses": 1,
+          "winRate": 0.9444444444444444,
+          "winRateLCB": 0.7424220019799247,
+          "posteriorPWinRateGE90": 0.49999999949999996,
+          "avgROI": 0.24328570577529346,
+          "streak": {
+            "p": 0.7424220019799247,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.050875458823476015,
+              "15": 0.011475259316246336,
+              "20": 0.0025883123104992038
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.7614018128051536,
+              "15": 0.24005937935291222,
+              "20": 0.05503725618605648
+            },
+            "expectedTradesToFirst": {
+              "10": 72.42793456891111,
+              "15": 334.4385034789054,
+              "20": 1496.0600008705894
+            }
+          }
+        }
+      },
+      "assetsTraded": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "minAssetWinRate": 0.8636363636363636,
+      "minAssetWinRateLCB": 0.6666458812053,
+      "minAssetPosteriorPWinRateGE90": 0.1855466534777589,
+      "avgROI": 0.2075726129202739,
+      "tradesPerDay": 1.196616708710491,
+      "score": 839.0375920935863,
+      "valTrades": 31,
+      "valWins": 28,
+      "valWinRate": 0.9032258064516129,
+      "valWinRateLCB": 0.7509971000182296,
+      "valPosteriorPWinRateGE90": 0.35235393824933525,
+      "valStreak": {
+        "p": 0.7509971000182296,
+        "horizonTrades": 100,
+        "pConsecutive": {
+          "10": 0.05706667903592528,
+          "15": 0.01363244956497805,
+          "20": 0.003256605856189314
+        },
+        "pAtLeastOneInHorizon": {
+          "10": 0.7941279076030978,
+          "15": 0.2723419160041143,
+          "20": 0.06681354533887296
+        },
+        "expectedTradesToFirst": {
+          "10": 66.35810542360977,
+          "15": 290.57648882089086,
+          "20": 1229.1751213189145
+        }
+      },
+      "valPerAsset": {
+        "BTC": {
+          "trades": 6,
+          "wins": 6,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.6096569663469354,
+          "posteriorPWinRateGE90": 0.4102979628195763,
+          "streak": {
+            "p": 0.6096569663469354,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.007093415621709949,
+              "15": 0.0005974246125049873,
+              "20": 0.00005031654518231875
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.23175350608080025,
+              "15": 0.020278764660565773,
+              "20": 0.001620831580202764
+            },
+            "expectedTradesToFirst": {
+              "10": 358.5969163230304,
+              "15": 4285.592967067651,
+              "20": 50912.087004443165
+            }
+          }
+        },
+        "ETH": {
+          "trades": 7,
+          "wins": 6,
+          "losses": 1,
+          "winRate": 0.8571428571428571,
+          "winRateLCB": 0.4868654966809702,
+          "posteriorPWinRateGE90": 0.17627105090862816,
+          "streak": {
+            "p": 0.4868654966809702,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.0007483245261442871,
+              "15": 0.000020470807248213627,
+              "20": 5.599895964290717e-7
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.03482195292233026,
+              "15": 0.0009130529064503845,
+              "20": 0.000023547832472381458
+            },
+            "expectedTradesToFirst": {
+              "10": 2602.2779873820264,
+              "15": 95197.36395529313,
+              "20": 3480074.813586559
+            }
+          }
+        },
+        "SOL": {
+          "trades": 10,
+          "wins": 9,
+          "losses": 1,
+          "winRate": 0.9,
+          "winRateLCB": 0.5958436145024277,
+          "posteriorPWinRateGE90": 0.25946981123544777,
+          "streak": {
+            "p": 0.5958436145024277,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.0056405687225755535,
+              "15": 0.0004236276926568866,
+              "20": 0.00003181601551409762
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.194064146827843,
+              "15": 0.014900914661472586,
+              "20": 0.0010601905002113332
+            },
+            "expectedTradesToFirst": {
+              "10": 436.1853324780666,
+              "15": 5838.2433683711315,
+              "20": 77766.21248599867
+            }
+          }
+        },
+        "XRP": {
+          "trades": 8,
+          "wins": 7,
+          "losses": 1,
+          "winRate": 0.875,
+          "winRateLCB": 0.5291051942301385,
+          "posteriorPWinRateGE90": 0.20350796091548096,
+          "streak": {
+            "p": 0.5291051942301385,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.001719571546336722,
+              "15": 0.00007130670610260537,
+              "20": 0.0000029569263029708653
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.0724441515086055,
+              "15": 0.0029225437420965505,
+              "20": 0.00011434534662468909
+            },
+            "expectedTradesToFirst": {
+              "10": 1232.844796656927,
+              "15": 29779.31855116926,
+              "20": 718181.6680563288
+            }
+          }
+        }
+      },
+      "valAssetsTraded": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "minAssetValWinRate": 0.8571428571428571,
+      "minAssetValWinRateLCB": 0.4868654966809702,
+      "minAssetValPosteriorPWinRateGE90": 0.17627105090862816,
+      "degradationTrainToVal": 0.013440860215053752,
+      "testTrades": 31,
+      "testWins": 24,
+      "testWinRate": 0.7741935483870968,
+      "testWinRateLCB": 0.6018723994130262,
+      "testPosteriorPWinRateGE90": 0.026320106006133992,
+      "testStreak": {
+        "p": 0.6018723994130262,
+        "horizonTrades": 100,
+        "pConsecutive": {
+          "10": 0.006237984332127159,
+          "15": 0.0004926816865294667,
+          "20": 0.00003891244852786392
+        },
+        "pAtLeastOneInHorizon": {
+          "10": 0.20993432758460118,
+          "15": 0.017065991124516677,
+          "20": 0.0012778210933765966
+        },
+        "expectedTradesToFirst": {
+          "10": 400.1435554002902,
+          "15": 5095.622802776622,
+          "20": 64546.43410304598
+        }
+      },
+      "testPerAsset": {
+        "BTC": {
+          "trades": 14,
+          "wins": 11,
+          "losses": 3,
+          "winRate": 0.7857142857142857,
+          "winRateLCB": 0.5241027622679172,
+          "posteriorPWinRateGE90": 0.07660487155956908,
+          "streak": {
+            "p": 0.5241027622679172,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.0015637397876238311,
+              "15": 0.00006183676049343516,
+              "20": 0.000002445282123397824
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.06672125632521075,
+              "15": 0.0025609939264709114,
+              "20": 0.00009553895510561183
+            },
+            "expectedTradesToFirst": {
+              "10": 1341.6606254054977,
+              "15": 33979.20629178204,
+              "20": 859323.6829695501
+            }
+          }
+        },
+        "ETH": {
+          "trades": 5,
+          "wins": 3,
+          "losses": 2,
+          "winRate": 0.6,
+          "winRateLCB": 0.23071993220883702,
+          "posteriorPWinRateGE90": 0.030194476863266484,
+          "streak": {
+            "p": 0.23071993220883702,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 4.2741637270894447e-7,
+              "15": 2.7943238111084503e-10,
+              "20": 1.8268475565967133e-13
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.00003001932415591657,
+              "15": 1.855118536564504e-8,
+              "20": 1.143252159607755e-11
+            },
+            "expectedTradesToFirst": {
+              "10": 3041334.441466489,
+              "15": 4651990171.078914,
+              "20": 7115627607119.457
+            }
+          }
+        },
+        "SOL": {
+          "trades": 5,
+          "wins": 3,
+          "losses": 2,
+          "winRate": 0.6,
+          "winRateLCB": 0.23071993220883702,
+          "posteriorPWinRateGE90": 0.030194476863266484,
+          "streak": {
+            "p": 0.23071993220883702,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 4.2741637270894447e-7,
+              "15": 2.7943238111084503e-10,
+              "20": 1.8268475565967133e-13
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.00003001932415591657,
+              "15": 1.855118536564504e-8,
+              "20": 1.143252159607755e-11
+            },
+            "expectedTradesToFirst": {
+              "10": 3041334.441466489,
+              "15": 4651990171.078914,
+              "20": 7115627607119.457
+            }
+          }
+        },
+        "XRP": {
+          "trades": 7,
+          "wins": 7,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.6456611570247934,
+          "posteriorPWinRateGE90": 0.45548959716076654,
+          "streak": {
+            "p": 0.6456611570247934,
+            "horizonTrades": 100,
+            "pConsecutive": {
+              "10": 0.012590605033586243,
+              "15": 0.0014127649135645657,
+              "20": 0.0001585233351117672
+            },
+            "pAtLeastOneInHorizon": {
+              "10": 0.3519616504514764,
+              "15": 0.04331266088100272,
+              "20": 0.004646084557562213
+            },
+            "expectedTradesToFirst": {
+              "10": 221.32572321740494,
+              "15": 1994.7907555885506,
+              "20": 17799.966513473668
+            }
+          }
+        }
+      },
+      "testAssetsTraded": [
+        "BTC",
+        "ETH",
+        "SOL",
+        "XRP"
+      ],
+      "minAssetTestWinRate": 0.6,
+      "minAssetTestWinRateLCB": 0.23071993220883702,
+      "minAssetTestPosteriorPWinRateGE90": 0.030194476863266484,
+      "degradation": 0.14247311827956988,
+      "degradationValToTest": 0.12903225806451613,
+      "tradesPerDayEmpirical": 1.3644859813084111
+    },
+    "stage1Survival": {
+      "pReachTarget": 0.0679,
+      "pLossBeforeTarget": 0.9321,
+      "maxConsecLosses": 1,
+      "simulations": 10000,
+      "empiricalTrades": 31,
+      "empiricalWins": 24,
+      "empiricalLosses": 7,
+      "posteriorMeanWinRate": 0.7575757575757576,
+      "winRateLCB": 0.6018723994130262,
+      "pNoLossBeforeTarget": 0.06789999999999996
+    },
+    "report": {
+      "ok": true,
+      "enforced": false,
+      "filePath": "C:\\Users\\voide\\Downloads\\POLYPROPHET-main\\POLYPROPHET-main\\final_golden_strategy.json",
+      "lastLoadedAt": null,
+      "generatedAt": "2026-02-06T09:52:16.147Z",
+      "audit": {
+        "overallVerdict": "FAIL",
+        "allPassed": false,
+        "laymanSummary": "FAIL: One or more assets failed minimum win-rate targets (ETH, SOL, XRP).",
+        "gates": {
+          "config": {
+            "minValWinRate": 0.9,
+            "minTestWinRate": 0.9,
+            "minWinRateLCB": 0.9,
+            "minPosteriorPWinRateGE90": 0.8,
+            "maxStage1PLossBeforeTarget": null
+          },
+          "global": {
+            "verdict": "FAIL",
+            "failures": [
+              {
+                "code": "testWinRate",
+                "message": "Test win rate is below the minimum."
+              },
+              {
+                "code": "valProof",
+                "message": "Validation confidence proof failed (LCB and posterior are below thresholds)."
+              },
+              {
+                "code": "testProof",
+                "message": "Test confidence proof failed (LCB and posterior are below thresholds)."
+              }
+            ],
+            "hard": {
+              "passed": false,
+              "failures": [
+                "testWinRate"
+              ]
+            },
+            "proof": {
+              "passed": false,
+              "failures": [
+                "valProof",
+                "testProof"
+              ]
+            },
+            "stage1": {
+              "enabled": false,
+              "passed": true,
+              "failures": []
+            },
+            "metrics": {
+              "val": {
+                "trades": 31,
+                "winRate": 0.9032258064516129,
+                "winRatePct": "90.3%",
+                "winRateLCB": 0.7509971000182296,
+                "winRateLCBPct": "75.1%",
+                "posteriorPWinRateGE90": 0.35235393824933525,
+                "posteriorPWinRateGE90Pct": "35.2%",
+                "thresholds": {
+                  "minWinRate": 0.9,
+                  "minWinRateLCB": 0.9,
+                  "minPosteriorPWinRateGE90": 0.8
+                },
+                "passes": {
+                  "hard": true,
+                  "proof": false
+                }
+              },
+              "test": {
+                "trades": 31,
+                "winRate": 0.7741935483870968,
+                "winRatePct": "77.4%",
+                "winRateLCB": 0.6018723994130262,
+                "winRateLCBPct": "60.2%",
+                "posteriorPWinRateGE90": 0.026320106006133992,
+                "posteriorPWinRateGE90Pct": "2.6%",
+                "thresholds": {
+                  "minWinRate": 0.9,
+                  "minWinRateLCB": 0.9,
+                  "minPosteriorPWinRateGE90": 0.8
+                },
+                "passes": {
+                  "hard": false,
+                  "proof": false
+                }
+              }
+            }
+          },
+          "perAsset": {
+            "BTC": {
+              "strategy": {
+                "entryMinute": 3,
+                "utcHour": 16,
+                "direction": "UP",
+                "priceBand": {
+                  "min": 0.65,
+                  "max": 0.8
+                }
+              },
+              "audit": {
+                "verdict": "WARN",
+                "failures": [
+                  {
+                    "code": "valProof",
+                    "message": "Validation confidence proof failed (LCB and posterior are below thresholds)."
+                  },
+                  {
+                    "code": "testProof",
+                    "message": "Test confidence proof failed (LCB and posterior are below thresholds)."
+                  }
+                ],
+                "hard": {
+                  "passed": true,
+                  "failures": []
+                },
+                "proof": {
+                  "passed": false,
+                  "failures": [
+                    "valProof",
+                    "testProof"
+                  ]
+                },
+                "stage1": {
+                  "enabled": false,
+                  "passed": true,
+                  "failures": []
+                },
+                "metrics": {
+                  "val": {
+                    "trades": 21,
+                    "winRate": 0.9523809523809523,
+                    "winRatePct": "95.2%",
+                    "winRateLCB": 0.7733018341376451,
+                    "winRateLCBPct": "77.3%",
+                    "posteriorPWinRateGE90": 0.5897020371804236,
+                    "posteriorPWinRateGE90Pct": "59.0%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": true,
+                      "proof": false
+                    }
+                  },
+                  "test": {
+                    "trades": 14,
+                    "winRate": 0.9285714285714286,
+                    "winRatePct": "92.9%",
+                    "winRateLCB": 0.6853073044604219,
+                    "winRateLCBPct": "68.5%",
+                    "posteriorPWinRateGE90": 0.37764288768348264,
+                    "posteriorPWinRateGE90Pct": "37.8%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": true,
+                      "proof": false
+                    }
+                  }
+                }
+              }
+            },
+            "ETH": {
+              "strategy": {
+                "entryMinute": 5,
+                "utcHour": 9,
+                "direction": "UP",
+                "priceBand": {
+                  "min": 0.6,
+                  "max": 0.75
+                }
+              },
+              "audit": {
+                "verdict": "FAIL",
+                "failures": [
+                  {
+                    "code": "testWinRate",
+                    "message": "Test win rate is below the minimum."
+                  },
+                  {
+                    "code": "valProof",
+                    "message": "Validation confidence proof failed (LCB and posterior are below thresholds)."
+                  },
+                  {
+                    "code": "testProof",
+                    "message": "Test confidence proof failed (LCB and posterior are below thresholds)."
+                  }
+                ],
+                "hard": {
+                  "passed": false,
+                  "failures": [
+                    "testWinRate"
+                  ]
+                },
+                "proof": {
+                  "passed": false,
+                  "failures": [
+                    "valProof",
+                    "testProof"
+                  ]
+                },
+                "stage1": {
+                  "enabled": false,
+                  "passed": true,
+                  "failures": []
+                },
+                "metrics": {
+                  "val": {
+                    "trades": 22,
+                    "winRate": 0.9545454545454546,
+                    "winRatePct": "95.5%",
+                    "winRateLCB": 0.7820151050048196,
+                    "winRateLCBPct": "78.2%",
+                    "posteriorPWinRateGE90": 0.6184876313160838,
+                    "posteriorPWinRateGE90Pct": "61.8%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": true,
+                      "proof": false
+                    }
+                  },
+                  "test": {
+                    "trades": 13,
+                    "winRate": 0.5384615384615384,
+                    "winRatePct": "53.8%",
+                    "winRateLCB": 0.29143432431832045,
+                    "winRateLCBPct": "29.1%",
+                    "posteriorPWinRateGE90": 0.0016417988100896341,
+                    "posteriorPWinRateGE90Pct": "0.2%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": false,
+                      "proof": false
+                    }
+                  }
+                }
+              }
+            },
+            "SOL": {
+              "strategy": {
+                "entryMinute": 2,
+                "utcHour": 14,
+                "direction": "UP",
+                "priceBand": {
+                  "min": 0.6,
+                  "max": 0.75
+                }
+              },
+              "audit": {
+                "verdict": "FAIL",
+                "failures": [
+                  {
+                    "code": "testWinRate",
+                    "message": "Test win rate is below the minimum."
+                  },
+                  {
+                    "code": "valProof",
+                    "message": "Validation confidence proof failed (LCB and posterior are below thresholds)."
+                  },
+                  {
+                    "code": "testProof",
+                    "message": "Test confidence proof failed (LCB and posterior are below thresholds)."
+                  }
+                ],
+                "hard": {
+                  "passed": false,
+                  "failures": [
+                    "testWinRate"
+                  ]
+                },
+                "proof": {
+                  "passed": false,
+                  "failures": [
+                    "valProof",
+                    "testProof"
+                  ]
+                },
+                "stage1": {
+                  "enabled": false,
+                  "passed": true,
+                  "failures": []
+                },
+                "metrics": {
+                  "val": {
+                    "trades": 21,
+                    "winRate": 0.9047619047619048,
+                    "winRatePct": "90.5%",
+                    "winRateLCB": 0.7108541613925933,
+                    "winRateLCBPct": "71.1%",
+                    "posteriorPWinRateGE90": 0.3289845742138908,
+                    "posteriorPWinRateGE90Pct": "32.9%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": true,
+                      "proof": false
+                    }
+                  },
+                  "test": {
+                    "trades": 19,
+                    "winRate": 0.6842105263157895,
+                    "winRatePct": "68.4%",
+                    "winRateLCB": 0.4601001017506463,
+                    "winRateLCBPct": "46.0%",
+                    "posteriorPWinRateGE90": 0.010126211487378134,
+                    "posteriorPWinRateGE90Pct": "1.0%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": false,
+                      "proof": false
+                    }
+                  }
+                }
+              }
+            },
+            "XRP": {
+              "strategy": {
+                "entryMinute": 2,
+                "utcHour": 8,
+                "direction": "UP",
+                "priceBand": {
+                  "min": 0.65,
+                  "max": 0.8
+                }
+              },
+              "audit": {
+                "verdict": "FAIL",
+                "failures": [
+                  {
+                    "code": "testWinRate",
+                    "message": "Test win rate is below the minimum."
+                  },
+                  {
+                    "code": "valProof",
+                    "message": "Validation confidence proof failed (LCB and posterior are below thresholds)."
+                  },
+                  {
+                    "code": "testProof",
+                    "message": "Test confidence proof failed (LCB and posterior are below thresholds)."
+                  }
+                ],
+                "hard": {
+                  "passed": false,
+                  "failures": [
+                    "testWinRate"
+                  ]
+                },
+                "proof": {
+                  "passed": false,
+                  "failures": [
+                    "valProof",
+                    "testProof"
+                  ]
+                },
+                "stage1": {
+                  "enabled": false,
+                  "passed": true,
+                  "failures": []
+                },
+                "metrics": {
+                  "val": {
+                    "trades": 22,
+                    "winRate": 0.9090909090909091,
+                    "winRatePct": "90.9%",
+                    "winRateLCB": 0.7218461934161421,
+                    "winRateLCBPct": "72.2%",
+                    "posteriorPWinRateGE90": 0.35272855060762076,
+                    "posteriorPWinRateGE90Pct": "35.3%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": true,
+                      "proof": false
+                    }
+                  },
+                  "test": {
+                    "trades": 7,
+                    "winRate": 0.8571428571428571,
+                    "winRatePct": "85.7%",
+                    "winRateLCB": 0.4868654966809702,
+                    "winRateLCBPct": "48.7%",
+                    "posteriorPWinRateGE90": 0.17627105090862816,
+                    "posteriorPWinRateGE90Pct": "17.6%",
+                    "thresholds": {
+                      "minWinRate": 0.9,
+                      "minWinRateLCB": 0.9,
+                      "minPosteriorPWinRateGE90": 0.8
+                    },
+                    "passes": {
+                      "hard": false,
+                      "proof": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "goldenStrategy": {
+        "entryMinute": 9,
+        "utcHour": 2,
+        "direction": "UP",
+        "priceBand": {
+          "min": 0.7,
+          "max": 0.8
+        },
+        "trades": 84,
+        "winRate": 0.9166666666666666,
+        "winRatePct": "91.7%",
+        "winRateLCB": 0.8378409753848758,
+        "winRateLCBPct": "83.8%",
+        "posteriorPWinRateGE90": 0.5886354680350774,
+        "posteriorPWinRateGE90Pct": "58.9%",
+        "tradesPerDayEmpirical": 1.3644859813084111
+      },
+      "stage1Survival": {
+        "pReachTarget": 0.0679,
+        "pLossBeforeTarget": 0.9321,
+        "maxConsecLosses": 1,
+        "simulations": 10000,
+        "empiricalTrades": 31,
+        "empiricalWins": 24,
+        "empiricalLosses": 7,
+        "posteriorMeanWinRate": 0.7575757575757576,
+        "winRateLCB": 0.6018723994130262,
+        "pNoLossBeforeTarget": 0.06789999999999996
+      }
+    },
+    "eliteStrategies": [
+      {
+        "id": 1,
+        "name": "H09 m08 UP (75-80c)",
+        "asset": "ALL",
+        "utcHour": 9,
+        "entryMinute": 8,
+        "direction": "UP",
+        "priceMin": 0.75,
+        "priceMax": 0.8,
+        "tier": "PLATINUM",
+        "signature": "8|9|UP|0.75|0.8",
+        "historicalWins": 49,
+        "historicalTrades": 51,
+        "winRate": 0.9607843137254902,
+        "lossesPerTen": 0.39215686274509803,
+        "winRateLCB": 0.8678345101373474,
+        "oosTrades": 46,
+        "oosWins": 44,
+        "liveTrades": 5,
+        "liveWins": 5
+      },
+      {
+        "id": 2,
+        "name": "H20 m03 DOWN (72-80c)",
+        "asset": "ALL",
+        "utcHour": 20,
+        "entryMinute": 3,
+        "direction": "DOWN",
+        "priceMin": 0.72,
+        "priceMax": 0.8,
+        "tier": "PLATINUM",
+        "signature": "3|20|DOWN|0.72|0.8",
+        "historicalWins": 58,
+        "historicalTrades": 61,
+        "winRate": 0.9508196721311475,
+        "lossesPerTen": 0.4918032786885246,
+        "winRateLCB": 0.8650865720629856,
+        "oosTrades": 54,
+        "oosWins": 52,
+        "liveTrades": 7,
+        "liveWins": 6
+      },
+      {
+        "id": 3,
+        "name": "H11 m04 UP (75-80c)",
+        "asset": "ALL",
+        "utcHour": 11,
+        "entryMinute": 4,
+        "direction": "UP",
+        "priceMin": 0.75,
+        "priceMax": 0.8,
+        "tier": "GOLD",
+        "signature": "4|11|UP|0.75|0.8",
+        "historicalWins": 49,
+        "historicalTrades": 52,
+        "winRate": 0.9423076923076923,
+        "lossesPerTen": 0.5769230769230769,
+        "winRateLCB": 0.8435724442484082,
+        "oosTrades": 43,
+        "oosWins": 40,
+        "liveTrades": 9,
+        "liveWins": 9
+      },
+      {
+        "id": 4,
+        "name": "H10 m07 UP (75-80c)",
+        "asset": "ALL",
+        "utcHour": 10,
+        "entryMinute": 7,
+        "direction": "UP",
+        "priceMin": 0.75,
+        "priceMax": 0.8,
+        "tier": "GOLD",
+        "signature": "7|10|UP|0.75|0.8",
+        "historicalWins": 57,
+        "historicalTrades": 61,
+        "winRate": 0.9344262295081968,
+        "lossesPerTen": 0.6557377049180327,
+        "winRateLCB": 0.8431697859953278,
+        "oosTrades": 50,
+        "oosWins": 47,
+        "liveTrades": 11,
+        "liveWins": 10
+      },
+      {
+        "id": 5,
+        "name": "H08 m14 DOWN (60-80c)",
+        "asset": "ALL",
+        "utcHour": 8,
+        "entryMinute": 14,
+        "direction": "DOWN",
+        "priceMin": 0.6,
+        "priceMax": 0.8,
+        "tier": "GOLD",
+        "signature": "14|8|DOWN|0.6|0.8",
+        "historicalWins": 38,
+        "historicalTrades": 40,
+        "winRate": 0.95,
+        "lossesPerTen": 0.5,
+        "winRateLCB": 0.834958291820748,
+        "oosTrades": 35,
+        "oosWins": 33,
+        "liveTrades": 5,
+        "liveWins": 5
+      },
+      {
+        "id": 6,
+        "name": "H20 m01 DOWN (68-80c)",
+        "asset": "ALL",
+        "utcHour": 20,
+        "entryMinute": 1,
+        "direction": "DOWN",
+        "priceMin": 0.68,
+        "priceMax": 0.8,
+        "tier": "SILVER",
+        "signature": "1|20|DOWN|0.68|0.8",
+        "historicalWins": 51,
+        "historicalTrades": 55,
+        "winRate": 0.9272727272727272,
+        "lossesPerTen": 0.7272727272727273,
+        "winRateLCB": 0.827398219083632,
+        "oosTrades": 46,
+        "oosWins": 43,
+        "liveTrades": 9,
+        "liveWins": 8
+      },
+      {
+        "id": 7,
+        "name": "H00 m12 DOWN (65-78c)",
+        "asset": "ALL",
+        "utcHour": 0,
+        "entryMinute": 12,
+        "direction": "DOWN",
+        "priceMin": 0.65,
+        "priceMax": 0.78,
+        "tier": "SILVER",
+        "signature": "12|0|DOWN|0.65|0.78",
+        "historicalWins": 43,
+        "historicalTrades": 46,
+        "winRate": 0.9347826086956522,
+        "lossesPerTen": 0.6521739130434783,
+        "winRateLCB": 0.8249699089621864,
+        "oosTrades": 38,
+        "oosWins": 36,
+        "liveTrades": 8,
+        "liveWins": 7
+      },
+      {
+        "id": 8,
+        "name": "H10 m06 UP (75-80c)",
+        "asset": "ALL",
+        "utcHour": 10,
+        "entryMinute": 6,
+        "direction": "UP",
+        "priceMin": 0.75,
+        "priceMax": 0.8,
+        "tier": "SILVER",
+        "signature": "6|10|UP|0.75|0.8",
+        "historicalWins": 54,
+        "historicalTrades": 59,
+        "winRate": 0.9152542372881356,
+        "lossesPerTen": 0.847457627118644,
+        "winRateLCB": 0.8164797538583944,
+        "oosTrades": 41,
+        "oosWins": 39,
+        "liveTrades": 18,
+        "liveWins": 15
+      }
+    ],
+    "eliteStrategiesEnabled": true,
+    "elitePriceRange": {
+      "min": 0.6,
+      "max": 0.8
+    },
+    "eliteStats": {
+      "totalStrategies": 8,
+      "historicalTrades": 425,
+      "historicalWins": 399,
+      "aggregateWinRate": 0.9388235294117647,
+      "signalsPerDay": 8.366142,
+      "lossesPerTen": 0.6117647058823529,
+      "datasetDays": 50.8,
+      "oosTrades": 353,
+      "oosWins": 334,
+      "oosWinRate": 0.9461756373937678,
+      "liveDays": 10,
+      "liveTrades": 72,
+      "liveWins": 65,
+      "liveLosses": 7,
+      "liveWinRate": 0.9027777777777778
+    }
+  },
+  "_autoGoldenStrategyRefresh": {
+    "enabled": false,
+    "intervalHours": 24,
+    "notifyTelegram": false,
+    "lastRunEpoch": 0,
+    "lastResult": null,
+    "isRunning": false,
+    "runningSinceEpoch": 0,
+    "runningStep": null
+  }
+}

@@ -23,6 +23,7 @@ npm-debug.log*
 omega_state.json
 state.json
 deity_state.json
+telegram_config.json
 
 # Local script outputs (keep out of repo)
 backtest_results.json
@@ -45,6 +46,22 @@ nul
 
 # Debug exports (keep locally, don't commit)
 debug/
+# Whitelist runtime-critical debug files needed by server.js at startup
+!debug/strategy_set_top7_drop6.json
+!debug/analysis/
+!debug/analysis/expected_24h48h_compact.json
+!debug/analysis/stress_expected_compact.json
+!debug/analysis/strategy_window_summary_top3_top7_opt8.json
+!debug/stress_min1/
+!debug/stress_min1/top3_robust_min1_sb5_simulateBankrollPath_stress_matrix.csv
+!debug/stress_min1/top3_robust_min1_sb10_simulateBankrollPath_stress_matrix.csv
+!debug/stress_min1/optimized8_min1_sb5_simulateBankrollPath_stress_matrix.csv
+!debug/stress_min1/optimized8_min1_sb10_simulateBankrollPath_stress_matrix.csv
+!debug/final_set_scan/
+!debug/final_set_scan/top3_robust/
+!debug/final_set_scan/top3_robust/hybrid_replay_executed_ledger.json
+!debug/final_full_default/
+!debug/final_full_default/hybrid_replay_executed_ledger.json
 debg/
 debug_backtest/
 backtest-data/

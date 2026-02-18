@@ -304,6 +304,8 @@ Document:
 | `.agent/skills/DEITY/SKILL.md` | This file - unified agent protocol |
 | `implementation_plan.md` | Current blueprint |
 | `task.md` | Task tracking |
+| `.windsurf/workflows/atlas-build-app.md` | Standard build/change workflow (ATLAS) |
+| `.windsurf/workflows/oracle-certainty-audit.md` | Oracle correctness + frequency audit workflow (local) |
 
 ---
 

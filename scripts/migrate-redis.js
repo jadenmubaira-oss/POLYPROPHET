@@ -31,8 +31,12 @@ const POLYPROPHET_KEYS = [
     'deity:collector:*',
     'deity:enhanced-dataset:*',
     'deity:longterm-dataset:*',
+    'modelAccuracy:*',
+    'calibrationBuckets:*',
+    'polyprophet:trades:*',
     'polyprophet:manualJourney:*',
     'polyprophet:manualTradeIdempotency:*',
+    'telegramHistory',
     'patterns:*',
     'polyprophet:collector:*'
 ];

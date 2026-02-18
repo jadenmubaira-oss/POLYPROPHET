@@ -1,0 +1,93 @@
+{
+  "generatedAt": "2026-02-02T21:38:32.666Z",
+  "criteria": ">=85% train WR, >=90% test WR, min 6 test signals, M5-12 only",
+  "strategies": [
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 15,
+      "entryMinute": 11,
+      "trainWR": "87.5",
+      "testWR": "100.0",
+      "trainN": 24,
+      "testN": 9
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 0,
+      "entryMinute": 12,
+      "trainWR": "90.9",
+      "testWR": "100.0",
+      "trainN": 22,
+      "testN": 9
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 8,
+      "entryMinute": 8,
+      "trainWR": "85.2",
+      "testWR": "92.9",
+      "trainN": 27,
+      "testN": 14
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 23,
+      "entryMinute": 11,
+      "trainWR": "87.5",
+      "testWR": "91.7",
+      "trainN": 32,
+      "testN": 12
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 0,
+      "entryMinute": 10,
+      "trainWR": "86.4",
+      "testWR": "91.7",
+      "trainN": 22,
+      "testN": 12
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 4,
+      "entryMinute": 12,
+      "trainWR": "90.9",
+      "testWR": "90.9",
+      "trainN": 22,
+      "testN": 11
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 11,
+      "entryMinute": 5,
+      "trainWR": "86.7",
+      "testWR": "90.9",
+      "trainN": 30,
+      "testN": 22
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 20,
+      "entryMinute": 12,
+      "trainWR": "86.2",
+      "testWR": "90.0",
+      "trainN": 29,
+      "testN": 10
+    }
+  ],
+  "summary": {
+    "strategies": 8,
+    "testWins": 92,
+    "testLosses": 7,
+    "testWR": "92.9",
+    "signalsPerDay": "3.2"
+  }
+}

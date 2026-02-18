@@ -1,0 +1,127 @@
+﻿{
+    "status":  "ok",
+    "uptime":  4388.7049003,
+    "timestamp":  "2026-02-10T05:48:49.116Z",
+    "code":  {
+                 "configVersion":  139,
+                 "gitCommit":  null,
+                 "serverSha256":  "bf922cb8bbe88dcd07a1a38215931259bcb288d838b69ce00bdb37cffa08c7e4"
+             },
+    "tradingHalted":  false,
+    "dataFeed":  {
+                     "anyStale":  false,
+                     "staleAssets":  [
+
+                                     ],
+                     "tradingBlocked":  false,
+                     "perAsset":  {
+                                      "BTC":  {
+                                                  "stale":  false
+                                              },
+                                      "ETH":  {
+                                                  "stale":  false
+                                              },
+                                      "XRP":  {
+                                                  "stale":  false
+                                              },
+                                      "SOL":  {
+                                                  "stale":  false
+                                              }
+                                  }
+                 },
+    "balanceFloor":  {
+                         "enabled":  true,
+                         "baseFloor":  2,
+                         "effectiveFloor":  2,
+                         "currentBalance":  5,
+                         "belowFloor":  false,
+                         "tradingBlocked":  false
+                     },
+    "watchdog":  {
+                     "lastCycleAge":  229,
+                     "lastTradeAge":  null,
+                     "memoryMB":  53,
+                     "alertsPending":  0
+                 },
+    "circuitBreaker":  {
+                           "enabled":  true,
+                           "state":  "NORMAL",
+                           "dayStartBalance":  5,
+                           "currentBalance":  5,
+                           "drawdownPct":  "0.0%",
+                           "consecutiveLosses":  0,
+                           "streakSizeMultiplier":  1
+                       },
+    "tradingSuppression":  {
+                               "manualPause":  false,
+                               "circuitBreakerState":  "NORMAL",
+                               "driftAutoDisabledAssets":  [
+
+                                                           ],
+                               "feedStaleAssets":  [
+
+                                                   ]
+                           },
+    "pendingSettlements":  {
+                               "count":  0,
+                               "items":  [
+
+                                         ]
+                           },
+    "stalePending":  {
+                         "count":  0,
+                         "items":  [
+
+                                   ],
+                         "action":  null
+                     },
+    "crashRecovery":  {
+                          "unreconciledCount":  0,
+                          "recoveryQueueCount":  0,
+                          "totalMissingPrincipal":  0,
+                          "needsReconcile":  false,
+                          "action":  null
+                      },
+    "rollingAccuracy":  {
+                            "BTC":  {
+                                        "convictionWR":  "N/A",
+                                        "sampleSize":  0,
+                                        "driftWarning":  false,
+                                        "autoDisabled":  false,
+                                        "tradingHalted":  false,
+                                        "criticalErrors":  0
+                                    },
+                            "ETH":  {
+                                        "convictionWR":  "N/A",
+                                        "sampleSize":  0,
+                                        "driftWarning":  false,
+                                        "autoDisabled":  false,
+                                        "tradingHalted":  false,
+                                        "criticalErrors":  0
+                                    },
+                            "XRP":  {
+                                        "convictionWR":  "N/A",
+                                        "sampleSize":  0,
+                                        "driftWarning":  false,
+                                        "autoDisabled":  false,
+                                        "tradingHalted":  false,
+                                        "criticalErrors":  0
+                                    },
+                            "SOL":  {
+                                        "convictionWR":  "N/A",
+                                        "sampleSize":  0,
+                                        "driftWarning":  false,
+                                        "autoDisabled":  false,
+                                        "tradingHalted":  false,
+                                        "criticalErrors":  0
+                                    }
+                        },
+    "telegram":  {
+                     "configured":  true,
+                     "enabled":  true,
+                     "hasToken":  true,
+                     "hasChatId":  true,
+                     "reason":  null,
+                     "warning":  null
+                 }
+}

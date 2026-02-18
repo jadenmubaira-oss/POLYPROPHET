@@ -1,0 +1,10 @@
+﻿{
+    "configVersion":  139,
+    "gitCommit":  null,
+    "serverSha256":  "bf922cb8bbe88dcd07a1a38215931259bcb288d838b69ce00bdb37cffa08c7e4",
+    "nodeVersion":  "v20.18.0",
+    "uptime":  4388.2616341,
+    "timestamp":  "2026-02-10T05:48:48.672Z",
+    "tradeMode":  "PAPER",
+    "liveModeForced":  false
+}

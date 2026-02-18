@@ -1,0 +1,43 @@
+﻿{
+    "timestamp":  1770702529170,
+    "mode":  "PAPER",
+    "uptime":  4388.7595146,
+    "assets":  {
+                   "BTC":  {
+                               "prediction":  "DOWN",
+                               "confidence":  0.30175189583999007,
+                               "tier":  "NONE",
+                               "edge":  -40.24714933861583,
+                               "pWin":  0.7673555908850026,
+                               "recentAccuracy":  "70.0",
+                               "locked":  false
+                           },
+                   "ETH":  {
+                               "prediction":  "NEUTRAL",
+                               "confidence":  0.0024232828689247595,
+                               "tier":  "NONE",
+                               "edge":  -63.153188902413106,
+                               "pWin":  0.7744340878828229,
+                               "recentAccuracy":  "90.0",
+                               "locked":  false
+                           },
+                   "XRP":  {
+                               "prediction":  "NEUTRAL",
+                               "confidence":  0.0027722953049855777,
+                               "tier":  "NONE",
+                               "edge":  0,
+                               "pWin":  0.6974101479915433,
+                               "recentAccuracy":  "60.0",
+                               "locked":  false
+                           },
+                   "SOL":  {
+                               "prediction":  "NEUTRAL",
+                               "confidence":  0.11505726610813621,
+                               "tier":  "NONE",
+                               "edge":  -28.184629340605916,
+                               "pWin":  0.8010610079575596,
+                               "recentAccuracy":  "90.0",
+                               "locked":  false
+                           }
+               }
+}

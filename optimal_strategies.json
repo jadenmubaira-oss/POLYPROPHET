@@ -1,0 +1,101 @@
+{
+  "generatedAt": "2026-02-02T20:07:00.936Z",
+  "description": "Optimal strategies: 65-80c entry, M5-12 window, train>=80% test>=75%",
+  "entryMinuteRange": {
+    "min": 5,
+    "max": 12
+  },
+  "priceRange": {
+    "min": 0.65,
+    "max": 0.8
+  },
+  "strategies": [
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 0,
+      "trainWR": 80.7,
+      "testWR": 86.7,
+      "trainN": 270,
+      "testN": 120
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 20,
+      "trainWR": 82,
+      "testWR": 81.1,
+      "trainN": 283,
+      "testN": 95
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 7,
+      "trainWR": 80.4,
+      "testWR": 80.8,
+      "trainN": 281,
+      "testN": 130
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 9,
+      "trainWR": 80.9,
+      "testWR": 80.6,
+      "trainN": 350,
+      "testN": 124
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 11,
+      "trainWR": 81.3,
+      "testWR": 79.2,
+      "trainN": 315,
+      "testN": 130
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 3,
+      "trainWR": 81,
+      "testWR": 77.1,
+      "trainN": 347,
+      "testN": 118
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 4,
+      "trainWR": 83.8,
+      "testWR": 76.9,
+      "trainN": 290,
+      "testN": 147
+    },
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 1,
+      "trainWR": 80.9,
+      "testWR": 76.6,
+      "trainN": 356,
+      "testN": 167
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 7,
+      "trainWR": 80.2,
+      "testWR": 76.3,
+      "trainN": 257,
+      "testN": 118
+    }
+  ],
+  "summary": {
+    "count": 9,
+    "combinedTestSignals": 1149,
+    "combinedTestWR": "79.3",
+    "signalsPerDay": "37.1"
+  }
+}

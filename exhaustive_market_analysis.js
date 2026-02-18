@@ -21,7 +21,17 @@ const fs = require('fs');
 const path = require('path');
 
 // ============== CONFIGURATION ==============
-const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
+const DEFAULT_ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
+function parseAssetsOverride(raw) {
+    const s = String(raw || '').trim();
+    if (!s) return null;
+    const parts = s.split(',').map(v => String(v || '').trim()).filter(Boolean);
+    if (!parts.length) return null;
+    const normalized = parts.map(v => v.toUpperCase()).filter(v => DEFAULT_ASSETS.includes(v));
+    if (!normalized.length) return null;
+    return Array.from(new Set(normalized));
+}
+const ASSETS = parseAssetsOverride(process.env.ASSETS_OVERRIDE || process.env.ASSETS) || DEFAULT_ASSETS;
 const CYCLE_DURATION_SEC = 900; // 15 minutes
 const GAMMA_API = 'https://gamma-api.polymarket.com/markets';
 const CLOB_API = 'https://clob.polymarket.com/prices-history';
@@ -1337,6 +1347,10 @@ async function main() {
 
     const cacheFlag = String(process.env.USE_CACHED_DATA || '').toLowerCase();
     const useCachedData = (cacheFlag === '1' || cacheFlag === 'true' || cacheFlag === 'yes');
+    const extendFlag = String(process.env.EXTEND_CACHED_TO_NOW || '').toLowerCase();
+    const extendCachedToNow = (extendFlag === '1' || extendFlag === 'true' || extendFlag === 'yes');
+    const refreshOnlyFlag = String(process.env.ONLY_REFRESH_DATASET || '').toLowerCase();
+    const onlyRefreshDataset = (refreshOnlyFlag === '1' || refreshOnlyFlag === 'true' || refreshOnlyFlag === 'yes');
     let loadedFromCache = false;
 
     if (useCachedData) {
@@ -1344,6 +1358,9 @@ async function main() {
         const cachedAssets = (cachedFinal && cachedFinal.assets) ? cachedFinal.assets : tryReadJsonFile(path.join(OUTPUT_DIR, 'phase1_epochs.json'));
         const cachedManifest = tryReadJsonFile(path.join(OUTPUT_DIR, 'manifest_combined.json'));
         const cachedDataset = tryReadJsonFile(path.join(OUTPUT_DIR, 'decision_dataset.json'));
+        const cachedIntracycle = extendCachedToNow
+            ? tryReadJsonFile(path.join(OUTPUT_DIR, 'intracycle_data.json'))
+            : null;
 
         if (cachedAssets && typeof cachedAssets === 'object') {
             results.assets = cachedAssets;
@@ -1352,9 +1369,13 @@ async function main() {
         if (Array.isArray(cachedManifest) && Array.isArray(cachedDataset) && cachedDataset.length > 0) {
             results.combinedManifest = cachedManifest;
             results.dataset = cachedDataset;
-            for (const m of results.combinedManifest) {
-                if (m && m.slug) {
-                    results.intracycleData[m.slug] = null;
+            if (cachedIntracycle && typeof cachedIntracycle === 'object') {
+                results.intracycleData = cachedIntracycle;
+            } else {
+                for (const m of results.combinedManifest) {
+                    if (m && m.slug) {
+                        results.intracycleData[m.slug] = null;
+                    }
                 }
             }
             loadedFromCache = true;
@@ -1368,6 +1389,123 @@ async function main() {
             console.log('\n' + '='.repeat(60));
             console.log('CACHE: NOT AVAILABLE - RUNNING FULL FETCH');
             console.log('='.repeat(60));
+        }
+    }
+
+    if (loadedFromCache && extendCachedToNow) {
+        console.log('\n' + '='.repeat(60));
+        console.log('EXTEND: APPENDING NEW MARKETS FROM CUTOFF → NOW');
+        console.log('='.repeat(60));
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        const nowAligned = alignToEpoch(nowSec) - CYCLE_DURATION_SEC;
+
+        const manifestByAsset = Object.fromEntries(ASSETS.map(a => [a, []]));
+        for (const m of results.combinedManifest) {
+            const asset = String(m?.asset || '').toUpperCase();
+            if (manifestByAsset[asset]) manifestByAsset[asset].push(m);
+        }
+
+        const newMarketsAll = [];
+
+        for (const asset of ASSETS) {
+            const existing = manifestByAsset[asset] || [];
+            const existingEpochs = existing
+                .map(m => Number(m?.cycleStartEpochSec))
+                .filter(n => Number.isFinite(n) && n > 0);
+            const lastEpoch = existingEpochs.length ? Math.max(...existingEpochs) : null;
+            const earliestEpoch = Number(results.assets?.[asset]?.earliestEpoch);
+            const startEpoch = Number.isFinite(lastEpoch)
+                ? (lastEpoch + CYCLE_DURATION_SEC)
+                : (Number.isFinite(earliestEpoch) ? earliestEpoch : null);
+
+            if (!Number.isFinite(startEpoch)) {
+                const earliestFetched = await findEarliestEpoch(asset);
+                results.assets[asset] = {
+                    earliestEpoch: earliestFetched,
+                    earliestDate: earliestFetched ? new Date(earliestFetched * 1000).toISOString() : null
+                };
+            }
+
+            const startEpochResolved = Number.isFinite(startEpoch)
+                ? startEpoch
+                : Number(results.assets?.[asset]?.earliestEpoch);
+
+            if (!Number.isFinite(startEpochResolved) || startEpochResolved >= nowAligned) {
+                continue;
+            }
+
+            const newManifest = await buildMarketManifest(asset, startEpochResolved, nowAligned);
+            if (newManifest.length) {
+                existing.push(...newManifest);
+                results.assets[asset] = {
+                    ...(results.assets[asset] || {}),
+                    manifestCount: existing.length
+                };
+                newMarketsAll.push(...newManifest);
+            }
+        }
+
+        if (newMarketsAll.length) {
+            results.combinedManifest.push(...newMarketsAll);
+        }
+
+        for (const asset of ASSETS) {
+            const list = manifestByAsset[asset] || [];
+            if (list.length) {
+                fs.writeFileSync(
+                    path.join(OUTPUT_DIR, `manifest_${asset}.json`),
+                    JSON.stringify(list, null, 2)
+                );
+            }
+        }
+
+        fs.writeFileSync(
+            path.join(OUTPUT_DIR, 'manifest_combined.json'),
+            JSON.stringify(results.combinedManifest, null, 2)
+        );
+
+        if (newMarketsAll.length) {
+            const BATCH_SIZE = 100;
+            for (let i = 0; i < newMarketsAll.length; i += BATCH_SIZE) {
+                const batch = newMarketsAll.slice(i, i + BATCH_SIZE);
+                for (const market of batch) {
+                    if (!market?.slug) continue;
+                    if (results.intracycleData && results.intracycleData[market.slug]) continue;
+                    const ic = await fetchIntracycleData(market);
+                    if (ic) {
+                        results.intracycleData[market.slug] = ic;
+                    }
+                }
+
+                fs.writeFileSync(
+                    path.join(OUTPUT_DIR, 'intracycle_data.json'),
+                    JSON.stringify(results.intracycleData, null, 2)
+                );
+            }
+
+            const newRows = buildDecisionDataset(newMarketsAll, results.intracycleData);
+            if (Array.isArray(newRows) && newRows.length) {
+                let maxExistingEpoch = -Infinity;
+                for (const row of results.dataset) {
+                    const ep = Number(row?.cycleStartEpochSec);
+                    if (Number.isFinite(ep) && ep > maxExistingEpoch) maxExistingEpoch = ep;
+                }
+                const filtered = Number.isFinite(maxExistingEpoch)
+                    ? newRows.filter(r => Number(r?.cycleStartEpochSec) > maxExistingEpoch)
+                    : newRows;
+                results.dataset.push(...filtered);
+            }
+
+            fs.writeFileSync(
+                path.join(OUTPUT_DIR, 'decision_dataset.json'),
+                JSON.stringify(results.dataset, null, 2)
+            );
+        }
+
+        if (onlyRefreshDataset) {
+            console.log('\nDataset refresh complete (ONLY_REFRESH_DATASET enabled).');
+            return results;
         }
     }
 

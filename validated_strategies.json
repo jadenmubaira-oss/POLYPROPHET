@@ -1,0 +1,621 @@
+{
+  "generatedAt": "2026-02-02T19:46:37.452Z",
+  "description": "Validated strategies: train>=15, test>=5, both WR>=85%, entry 70-80c",
+  "strategies": [
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 6,
+      "entryMinute": 10,
+      "trainSamples": 31,
+      "trainWR": 87.1,
+      "testSamples": 5,
+      "testWR": 100
+    },
+    {
+      "asset": "BTC",
+      "direction": "DN",
+      "utcHour": 6,
+      "entryMinute": 11,
+      "trainSamples": 15,
+      "trainWR": 86.7,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 13,
+      "entryMinute": 2,
+      "trainSamples": 26,
+      "trainWR": 88.5,
+      "testSamples": 7,
+      "testWR": 85.7
+    },
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 15,
+      "entryMinute": 2,
+      "trainSamples": 28,
+      "trainWR": 85.7,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 15,
+      "entryMinute": 11,
+      "trainSamples": 17,
+      "trainWR": 88.2,
+      "testSamples": 6,
+      "testWR": 100
+    },
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 15,
+      "entryMinute": 12,
+      "trainSamples": 19,
+      "trainWR": 89.5,
+      "testSamples": 6,
+      "testWR": 100
+    },
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 19,
+      "entryMinute": 2,
+      "trainSamples": 27,
+      "trainWR": 85.2,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "BTC",
+      "direction": "DN",
+      "utcHour": 19,
+      "entryMinute": 2,
+      "trainSamples": 26,
+      "trainWR": 92.3,
+      "testSamples": 9,
+      "testWR": 100
+    },
+    {
+      "asset": "BTC",
+      "direction": "DN",
+      "utcHour": 19,
+      "entryMinute": 8,
+      "trainSamples": 30,
+      "trainWR": 86.7,
+      "testSamples": 17,
+      "testWR": 88.2
+    },
+    {
+      "asset": "BTC",
+      "direction": "DN",
+      "utcHour": 19,
+      "entryMinute": 9,
+      "trainSamples": 27,
+      "trainWR": 85.2,
+      "testSamples": 11,
+      "testWR": 90.9
+    },
+    {
+      "asset": "BTC",
+      "direction": "DN",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "trainSamples": 36,
+      "trainWR": 86.1,
+      "testSamples": 11,
+      "testWR": 100
+    },
+    {
+      "asset": "BTC",
+      "direction": "UP",
+      "utcHour": 20,
+      "entryMinute": 6,
+      "trainSamples": 35,
+      "trainWR": 88.6,
+      "testSamples": 11,
+      "testWR": 90.9
+    },
+    {
+      "asset": "BTC",
+      "direction": "DN",
+      "utcHour": 23,
+      "entryMinute": 8,
+      "trainSamples": 41,
+      "trainWR": 87.8,
+      "testSamples": 16,
+      "testWR": 87.5
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 0,
+      "entryMinute": 9,
+      "trainSamples": 25,
+      "trainWR": 92,
+      "testSamples": 10,
+      "testWR": 90
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 1,
+      "entryMinute": 13,
+      "trainSamples": 15,
+      "trainWR": 93.3,
+      "testSamples": 8,
+      "testWR": 100
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 2,
+      "entryMinute": 9,
+      "trainSamples": 27,
+      "trainWR": 88.9,
+      "testSamples": 12,
+      "testWR": 91.7
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 2,
+      "entryMinute": 11,
+      "trainSamples": 26,
+      "trainWR": 88.5,
+      "testSamples": 12,
+      "testWR": 91.7
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 3,
+      "entryMinute": 6,
+      "trainSamples": 42,
+      "trainWR": 90.5,
+      "testSamples": 9,
+      "testWR": 100
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 3,
+      "entryMinute": 8,
+      "trainSamples": 29,
+      "trainWR": 86.2,
+      "testSamples": 7,
+      "testWR": 85.7
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 4,
+      "entryMinute": 11,
+      "trainSamples": 24,
+      "trainWR": 100,
+      "testSamples": 10,
+      "testWR": 90
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 5,
+      "entryMinute": 4,
+      "trainSamples": 35,
+      "trainWR": 94.3,
+      "testSamples": 12,
+      "testWR": 91.7
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 6,
+      "entryMinute": 10,
+      "trainSamples": 26,
+      "trainWR": 92.3,
+      "testSamples": 10,
+      "testWR": 90
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 7,
+      "entryMinute": 9,
+      "trainSamples": 35,
+      "trainWR": 88.6,
+      "testSamples": 12,
+      "testWR": 91.7
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 9,
+      "entryMinute": 10,
+      "trainSamples": 25,
+      "trainWR": 92,
+      "testSamples": 10,
+      "testWR": 90
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 10,
+      "entryMinute": 13,
+      "trainSamples": 18,
+      "trainWR": 88.9,
+      "testSamples": 7,
+      "testWR": 85.7
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "trainSamples": 21,
+      "trainWR": 85.7,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 11,
+      "entryMinute": 5,
+      "trainSamples": 29,
+      "trainWR": 86.2,
+      "testSamples": 18,
+      "testWR": 88.9
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 11,
+      "entryMinute": 9,
+      "trainSamples": 24,
+      "trainWR": 87.5,
+      "testSamples": 15,
+      "testWR": 93.3
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 12,
+      "entryMinute": 13,
+      "trainSamples": 16,
+      "trainWR": 87.5,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 15,
+      "entryMinute": 9,
+      "trainSamples": 24,
+      "trainWR": 87.5,
+      "testSamples": 10,
+      "testWR": 90
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 17,
+      "entryMinute": 8,
+      "trainSamples": 27,
+      "trainWR": 85.2,
+      "testSamples": 9,
+      "testWR": 100
+    },
+    {
+      "asset": "ETH",
+      "direction": "UP",
+      "utcHour": 19,
+      "entryMinute": 9,
+      "trainSamples": 32,
+      "trainWR": 87.5,
+      "testSamples": 8,
+      "testWR": 100
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 19,
+      "entryMinute": 9,
+      "trainSamples": 29,
+      "trainWR": 89.7,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "trainSamples": 36,
+      "trainWR": 88.9,
+      "testSamples": 16,
+      "testWR": 93.8
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 20,
+      "entryMinute": 11,
+      "trainSamples": 15,
+      "trainWR": 86.7,
+      "testSamples": 9,
+      "testWR": 100
+    },
+    {
+      "asset": "ETH",
+      "direction": "DN",
+      "utcHour": 23,
+      "entryMinute": 11,
+      "trainSamples": 21,
+      "trainWR": 95.2,
+      "testSamples": 8,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 0,
+      "entryMinute": 12,
+      "trainSamples": 16,
+      "trainWR": 93.8,
+      "testSamples": 8,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 1,
+      "entryMinute": 8,
+      "trainSamples": 21,
+      "trainWR": 85.7,
+      "testSamples": 7,
+      "testWR": 85.7
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 3,
+      "entryMinute": 12,
+      "trainSamples": 20,
+      "trainWR": 85,
+      "testSamples": 5,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 4,
+      "entryMinute": 11,
+      "trainSamples": 19,
+      "trainWR": 89.5,
+      "testSamples": 9,
+      "testWR": 88.9
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 4,
+      "entryMinute": 12,
+      "trainSamples": 18,
+      "trainWR": 88.9,
+      "testSamples": 10,
+      "testWR": 90
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 8,
+      "entryMinute": 8,
+      "trainSamples": 19,
+      "trainWR": 89.5,
+      "testSamples": 7,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 10,
+      "entryMinute": 2,
+      "trainSamples": 21,
+      "trainWR": 85.7,
+      "testSamples": 12,
+      "testWR": 91.7
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 10,
+      "entryMinute": 3,
+      "trainSamples": 28,
+      "trainWR": 85.7,
+      "testSamples": 11,
+      "testWR": 90.9
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 10,
+      "entryMinute": 5,
+      "trainSamples": 29,
+      "trainWR": 86.2,
+      "testSamples": 13,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 10,
+      "entryMinute": 9,
+      "trainSamples": 21,
+      "trainWR": 90.5,
+      "testSamples": 12,
+      "testWR": 91.7
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 10,
+      "entryMinute": 10,
+      "trainSamples": 22,
+      "trainWR": 90.9,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "trainSamples": 15,
+      "trainWR": 86.7,
+      "testSamples": 5,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 11,
+      "entryMinute": 5,
+      "trainSamples": 18,
+      "trainWR": 94.4,
+      "testSamples": 17,
+      "testWR": 94.1
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 11,
+      "entryMinute": 8,
+      "trainSamples": 23,
+      "trainWR": 87,
+      "testSamples": 11,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 11,
+      "entryMinute": 12,
+      "trainSamples": 15,
+      "trainWR": 86.7,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 12,
+      "entryMinute": 4,
+      "trainSamples": 20,
+      "trainWR": 85,
+      "testSamples": 12,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 12,
+      "entryMinute": 6,
+      "trainSamples": 23,
+      "trainWR": 95.7,
+      "testSamples": 9,
+      "testWR": 88.9
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 13,
+      "entryMinute": 11,
+      "trainSamples": 16,
+      "trainWR": 93.8,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 18,
+      "entryMinute": 9,
+      "trainSamples": 24,
+      "trainWR": 91.7,
+      "testSamples": 11,
+      "testWR": 90.9
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "trainSamples": 22,
+      "trainWR": 90.9,
+      "testSamples": 14,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 20,
+      "entryMinute": 7,
+      "trainSamples": 30,
+      "trainWR": 90,
+      "testSamples": 8,
+      "testWR": 87.5
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 20,
+      "entryMinute": 12,
+      "trainSamples": 17,
+      "trainWR": 94.1,
+      "testSamples": 5,
+      "testWR": 100
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 21,
+      "entryMinute": 4,
+      "trainSamples": 29,
+      "trainWR": 89.7,
+      "testSamples": 10,
+      "testWR": 90
+    },
+    {
+      "asset": "SOL",
+      "direction": "UP",
+      "utcHour": 22,
+      "entryMinute": 8,
+      "trainSamples": 28,
+      "trainWR": 85.7,
+      "testSamples": 9,
+      "testWR": 88.9
+    },
+    {
+      "asset": "SOL",
+      "direction": "DN",
+      "utcHour": 23,
+      "entryMinute": 6,
+      "trainSamples": 24,
+      "trainWR": 87.5,
+      "testSamples": 14,
+      "testWR": 85.7
+    }
+  ],
+  "summary": {
+    "count": 61,
+    "avgTrainWR": "89.0",
+    "avgTestWR": "92.8"
+  }
+}
