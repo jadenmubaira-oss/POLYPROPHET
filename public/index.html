@@ -425,6 +425,8 @@
             // 🏆 v111: Clarify pWin is calibrated win probability (historical), not model confidence
             const pWin = Number.isFinite(sig.pWin) ? fmtPct01(sig.pWin, 1) : null;
             const ev = Number.isFinite(sig.evRoi) ? (sig.evRoi >= 0 ? '+' : '') + (sig.evRoi * 100).toFixed(1) + '%' : null;
+            const stakeUsd = Number.isFinite(sig.recommendedStakeUsd) ? `$${Number(sig.recommendedStakeUsd).toFixed(2)}` : null;
+            const stakePct = Number.isFinite(sig.recommendedStakeFraction) ? `${(Number(sig.recommendedStakeFraction) * 100).toFixed(0)}%` : null;
             const tLeft = Number.isFinite(sig.timeLeftSec) ? sig.timeLeftSec : null;
             const mm = tLeft !== null ? Math.floor(tLeft / 60) : null;
             const ss = tLeft !== null ? String(tLeft % 60).padStart(2, '0') : null;
@@ -439,6 +441,10 @@
             if (odds) line += ` @ ${odds}`;
             if (pWin) line += ` | Cal.Win ${pWin}`;  // "Cal.Win" = Calibrated Win probability
             if (ev) line += ` | EV ${ev}`;
+            if (stakeUsd || stakePct) {
+                line += ` | Stake ${stakeUsd || 'n/a'}`;
+                if (stakePct) line += ` (${stakePct})`;
+            }
             if (isLocked) line += ` ${lockIcon}`;
             const top7Active = sig?.concurrentSets?.top7Drop6?.active === true || sig?.primarySetActive === true;
             const top3Active = sig?.concurrentSets?.top3Robust?.active === true || sig?.top3RobustActive === true;
@@ -1242,6 +1248,8 @@
                             const pWin = Number.isFinite(sig.pWin) ? fmtPct01(sig.pWin, 1) : '--';
                             const tier = sig.tier || 'NONE';
                             const isLocked = sig.calibration?.isLocked === true;
+                            const stakeUsd = Number.isFinite(sig.recommendedStakeUsd) ? `$${Number(sig.recommendedStakeUsd).toFixed(2)}` : '--';
+                            const stakePct = Number.isFinite(sig.recommendedStakeFraction) ? `${(Number(sig.recommendedStakeFraction) * 100).toFixed(0)}%` : null;
                             const setBadges = renderConcurrentSetFlags(sig, true);
 
                             const signalDiv = document.createElement('div');
@@ -1249,7 +1257,7 @@
                             signalDiv.innerHTML = `
                                 <div class="signal-card-title">${name}: ${action} ${dir} ${setBadges}</div>
                                 <div class="signal-card-meta">
-                                    @ ${odds} | pWin: ${pWin} | Tier: ${tier} ${isLocked ? '🔒' : ''}
+                                    @ ${odds} | pWin: ${pWin} | Tier: ${tier} ${isLocked ? '🔒' : ''} | Stake: ${stakeUsd}${stakePct ? ` (${stakePct})` : ''}
                                 </div>
                             `;
                             signalsList.appendChild(signalDiv);

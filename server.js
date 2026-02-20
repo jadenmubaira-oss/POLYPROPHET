@@ -9120,6 +9120,9 @@ function emitUIUpdate() {
                         implied: oracleSignals[asset].implied,
                         pWin: oracleSignals[asset].pWin,
                         evRoi: oracleSignals[asset].evRoi,
+                        recommendedStakeUsd: oracleSignals[asset].recommendedStakeUsd,
+                        recommendedStakeFraction: oracleSignals[asset].recommendedStakeFraction,
+                        recommendedStakeBankrollUsd: oracleSignals[asset].recommendedStakeBankrollUsd,
                         mispricingEdge: oracleSignals[asset].mispricingEdge,
                         timeLeftSec: oracleSignals[asset].timeLeftSec,
                         marketUrl: oracleSignals[asset].marketUrl,
@@ -12400,8 +12403,14 @@ function formatMmSs(seconds) {
 // Based on the $1→$1M compounding tables (90%+ WR required, high stake %)
 // 🚀 v97 ULTRA: $1 start = ALL IN. $100 CAP at higher bankrolls.
 function getManualStakeRecommendation(entryPrice, pWin, currentBankroll = null, isUltraProphet = false) {
-    // Use manual journey balance as primary reference (for accurate stake recommendations)
-    const bankroll = currentBankroll || manualTradingJourney?.currentBalance || (tradeExecutor?.paperBalance || 1);
+    // Signals-only advisory sizing: use explicit caller bankroll or operator baseline bankroll.
+    const operatorBaseBankroll = parsePositiveEnvFloat(
+        'OPERATOR_BASE_BANKROLL',
+        Number.isFinite(Number(CONFIG?.PAPER_BALANCE)) ? Number(CONFIG.PAPER_BALANCE) : 10
+    );
+    const bankroll = Number.isFinite(Number(currentBankroll)) && Number(currentBankroll) > 0
+        ? Number(currentBankroll)
+        : operatorBaseBankroll;
 
     // Calculate potential ROI: buying at X¢ pays $1 if win
     const potentialRoi = Number.isFinite(entryPrice) && entryPrice > 0 ? ((1 / entryPrice) - 1) * 100 : 0;
@@ -12666,24 +12675,13 @@ function telegramOracleBuy(signal) {
     if (signal?.marketUrl) msg += `🔗 <a href="${signal.marketUrl}"><b>OPEN MARKET</b></a>\n`;
     msg += `🖥️ <a href="${DASHBOARD_URL}">Dashboard</a>\n`;
 
-    // 🏆 v121: Confirm links - stake entered on confirm page (not in message)
-    const entryPriceRounded = Math.round((signal?.implied || 0.50) * 100);
-    const clientTradeId = `${signal?.asset || 'X'}_${signal?.cycleStartEpochSec || 0}_${signal?.direction || 'X'}_${entryPriceRounded}`;
-    const confirmBaseUrl = `${DASHBOARD_URL}/api/oracle/confirm`;
-    const confirmParams = new URLSearchParams({
-        clientTradeId,
-        asset: signal?.asset || 'BTC',
-        slug: marketSlug,
-        direction: signal?.direction || 'UP',
-        price: String(signal?.implied || 0.50),
-        pWin: String(signal?.pWin || 0.50)
-        // 🏆 v121: stake omitted - user enters on confirm page
-    });
-
-    msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `📱 <b>Did you take this trade?</b>\n`;
-    msg += `<a href="${confirmBaseUrl}?decision=took&${confirmParams.toString()}">✅ I TOOK IT</a>  `;
-    msg += `<a href="${confirmBaseUrl}?decision=skipped&${confirmParams.toString()}">❌ SKIPPED</a>`;
+    const stakeUsd = Number.isFinite(Number(signal?.recommendedStakeUsd))
+        ? `$${Number(signal.recommendedStakeUsd).toFixed(2)}`
+        : 'n/a';
+    const stakePct = Number.isFinite(Number(signal?.recommendedStakeFraction))
+        ? `${(Number(signal.recommendedStakeFraction) * 100).toFixed(0)}%`
+        : 'n/a';
+    msg += `💡 Suggested stake: <code>${stakeUsd}</code> (<code>${stakePct}</code> of advisory bankroll)\n`;
 
     return msg;
 }
@@ -12842,21 +12840,9 @@ function orchestrateOracleNotifications() {
         }
 
         // ═══════════════════════════════════════════════════════════════════════════════
-        // 🛒 v105: PRIORITY 3 - Process BUY signals
-        // Don't send another BUY if shadow-book has an open position
+        // 🛒 v138: SIGNALS-ONLY MODE - Send ALL qualifying BUY signals
+        // Shadow position guard removed: bot is advisory-only, user trades externally
         // ═══════════════════════════════════════════════════════════════════════════════
-        if (shadowBook.position) {
-            // Already have position - don't send BUYs, just PREPARE for info
-            for (const sig of allSignals) {
-                if (sig.action === 'PREPARE' && sig.asset !== shadowBook.position.asset) {
-                    maybeSendOracleSignalTelegram(sig.asset, sig);
-                }
-            }
-            return;
-        }
-
-        // Cooldown: don't spam BUYs (at least 30s between primary BUYs)
-        if (now - primaryBuyState.lastPrimaryBuyAt < 30000) return;
 
         // Find all BUY signals
         let buySignals = allSignals.filter(s => s.action === 'BUY');
@@ -12912,116 +12898,59 @@ function orchestrateOracleNotifications() {
         primaryBuyState.currentPrimaryAsset = primaryBuy.signal.asset;
         primaryBuyState.otherCandidates = otherCandidates;
 
-        // Check if we already sent this BUY
-        const rt = oracleSignalRuntime?.[primaryBuy.signal.asset];
-        if (rt?.telegramBuySentAt) return;
+        const sendBuySignalNotification = (buySig) => {
+            if (!buySig?.asset || !buySig?.direction) return false;
 
-        // 💎 STRICT MODE PATCH: Silently block non-CONVICTION notifications if convictionOnlyMode is active
-        // This prevents ADVISORY signals from spamming Telegram (or inducing manual trades) when we want strict purity.
-        // We return EARLY so rt.telegramBuySentAt is NOT set, allowing a later CONVICTION signal to fire for this same cycle.
-        const primaryTier = String(primaryBuy.signal?.tier || 'ADVISORY').toUpperCase();
-        if (CONFIG.RISK.convictionOnlyMode && primaryTier !== 'CONVICTION') {
-            const advisoryPWin = Number.isFinite(Number(primaryBuy.signal?.pWin)) ? Number(primaryBuy.signal.pWin) : 0;
-            const advisoryEvRoi = Number.isFinite(Number(primaryBuy.signal?.evRoi)) ? Number(primaryBuy.signal.evRoi) : 0;
-            const floorDecision = (tradeExecutor && typeof tradeExecutor.shouldAllowAdvisoryTrade === 'function')
-                ? tradeExecutor.shouldAllowAdvisoryTrade(advisoryPWin, advisoryEvRoi)
-                : { allowed: false };
-            if (!floorDecision.allowed) return;
-        }
+            const buyRt = oracleSignalRuntime?.[buySig.asset];
+            if (!buyRt || buyRt.telegramBuySentAt) return false;
 
-        const slug = currentMarkets?.[primaryBuy.signal.asset]?.slug || '';
-
-        // Send the primary BUY notification
-        if (rt) rt.telegramBuySentAt = now;
-        primaryBuyState.lastPrimaryBuyAt = now;
-
-        if (primaryBuy.signal?.asset && primaryBuy.signal?.direction) {
-            const entryPxIsl = Number.isFinite(primaryBuy.signal?.implied) ? primaryBuy.signal.implied : 0.5;
-            const pWinIsl = Number.isFinite(primaryBuy.signal?.pWin) ? primaryBuy.signal.pWin : 0.5;
-            const cycleStartEpochIsl = Number.isFinite(primaryBuy.signal?.cycleStartEpochSec)
-                ? primaryBuy.signal.cycleStartEpochSec
+            const buySlug = currentMarkets?.[buySig.asset]?.slug || '';
+            const entryPxIsl = Number.isFinite(buySig?.implied) ? buySig.implied : 0.5;
+            const pWinIsl = Number.isFinite(buySig?.pWin) ? buySig.pWin : 0.5;
+            const cycleStartEpochIsl = Number.isFinite(buySig?.cycleStartEpochSec)
+                ? buySig.cycleStartEpochSec
                 : (Math.floor(now / 1000) - (Math.floor(now / 1000) % 900));
+
             recordIssuedSignal(
-                primaryBuy.signal.asset,
-                slug,
-                primaryBuy.signal.direction,
+                buySig.asset,
+                buySlug,
+                buySig.direction,
                 entryPxIsl,
                 pWinIsl,
-                primaryBuy.signal.tier || 'ADVISORY',
+                buySig.tier || 'ADVISORY',
                 cycleStartEpochIsl
             );
-        }
 
-        // 🏆 v112: Enhanced conviction notification with dedup + optional Web Push
-        const tier = String(primaryBuy.signal?.tier || '').toUpperCase();
-        const isConviction = tier === 'CONVICTION';
-        const isLocked = primaryBuy.signal?.calibration?.isLocked === true;
-        const direction = primaryBuy.signal?.direction || '';
+            buyRt.telegramBuySentAt = now;
 
-        if (isConviction) {
-            const eventType = isLocked ? 'LOCKED' : 'CONVICTION_BUY';
-            sendConvictionNotification(telegramOracleBuy(primaryBuy.signal), eventType, primaryBuy.signal.asset, slug, direction);
-        } else {
-            sendTelegramNotification(telegramOracleBuy(primaryBuy.signal), false);
-        }
-
-        // ═══════════════════════════════════════════════════════════════════════════════
-        // 🔒 v105: Set cycle commitment (no flip-flop)
-        // Lock this direction until cycle end or emergency exit
-        // ═══════════════════════════════════════════════════════════════════════════════
-        setCycleCommitment(
-            primaryBuy.signal.asset,
-            primaryBuy.signal.direction,
-            primaryBuy.signal.implied || 0.5
-        );
-
-        // 🏆 v116: Create pending call (no auto-open shadow position)
-        // Shadow position only opens when user confirms via Telegram link
-        createPendingCall(primaryBuy.signal);
-
-        // Send ULTRA notification too if applicable
-        if (primaryBuy.signal.ultraProphet?.isUltra) {
-            const ultraRt = oracleSignalRuntime?.[primaryBuy.signal.asset];
-            if (ultraRt && !ultraRt.telegramUltraSentAt) {
-                ultraRt.telegramUltraSentAt = now;
-                maybeSendUltraProphetTelegram(primaryBuy.signal.asset, primaryBuy.signal);
+            const buyTier = String(buySig?.tier || '').toUpperCase();
+            const buyIsLocked = buySig?.calibration?.isLocked === true;
+            if (buyTier === 'CONVICTION') {
+                const eventType = buyIsLocked ? 'LOCKED' : 'CONVICTION_BUY';
+                sendConvictionNotification(telegramOracleBuy(buySig), eventType, buySig.asset, buySlug, buySig.direction || '');
+            } else {
+                sendTelegramNotification(telegramOracleBuy(buySig), false);
             }
+
+            setCycleCommitment(buySig.asset, buySig.direction, buySig.implied || 0.5);
+
+            if (buySig.ultraProphet?.isUltra && !buyRt.telegramUltraSentAt) {
+                buyRt.telegramUltraSentAt = now;
+                maybeSendUltraProphetTelegram(buySig.asset, buySig);
+            }
+
+            return true;
+        };
+
+        const primarySent = sendBuySignalNotification(primaryBuy.signal);
+        if (primarySent) {
+            primaryBuyState.lastPrimaryBuyAt = now;
         }
 
         // 🏆 v137: MULTI-ASSET NOTIFICATIONS - Send separate Telegram for EACH qualifying BUY
         // User trades externally and wants to see ALL qualifying signals, not just the best one.
         for (const { signal: otherSig } of otherBuys) {
-            const otherRt = oracleSignalRuntime?.[otherSig.asset];
-            if (otherRt?.telegramBuySentAt) continue; // Already sent for this asset this cycle
-
-            // Record in ISL
-            if (otherSig?.asset && otherSig?.direction) {
-                const otherSlug = currentMarkets?.[otherSig.asset]?.slug || '';
-                const otherEntryPx = Number.isFinite(otherSig?.implied) ? otherSig.implied : 0.5;
-                const otherPWin = Number.isFinite(otherSig?.pWin) ? otherSig.pWin : 0.5;
-                const otherCycleStart = Number.isFinite(otherSig?.cycleStartEpochSec)
-                    ? otherSig.cycleStartEpochSec
-                    : (Math.floor(now / 1000) - (Math.floor(now / 1000) % 900));
-                recordIssuedSignal(
-                    otherSig.asset, otherSlug, otherSig.direction,
-                    otherEntryPx, otherPWin, otherSig.tier || 'ADVISORY', otherCycleStart
-                );
-            }
-
-            // Mark as sent and send Telegram notification
-            if (otherRt) otherRt.telegramBuySentAt = now;
-            const otherTier = String(otherSig?.tier || '').toUpperCase();
-            const otherIsLocked = otherSig?.calibration?.isLocked === true;
-            if (otherTier === 'CONVICTION') {
-                const otherSlug2 = currentMarkets?.[otherSig.asset]?.slug || '';
-                const eventType = otherIsLocked ? 'LOCKED' : 'CONVICTION_BUY';
-                sendConvictionNotification(telegramOracleBuy(otherSig), eventType, otherSig.asset, otherSlug2, otherSig.direction || '');
-            } else {
-                sendTelegramNotification(telegramOracleBuy(otherSig), false);
-            }
-
-            // Set cycle commitment for this asset too
-            setCycleCommitment(otherSig.asset, otherSig.direction, otherSig.implied || 0.5);
+            sendBuySignalNotification(otherSig);
         }
 
     } catch (e) {
@@ -13494,16 +13423,6 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         }
 
         if (action === 'BUY') {
-            // 💎 STRICT MODE PATCH: Silently block ADVISORY notifications
-            if (CONFIG.RISK.convictionOnlyMode && !isConviction) {
-                const advisoryPWin = Number.isFinite(Number(signal?.pWin)) ? Number(signal.pWin) : 0;
-                const advisoryEvRoi = Number.isFinite(Number(signal?.evRoi)) ? Number(signal.evRoi) : 0;
-                const floorDecision = (tradeExecutor && typeof tradeExecutor.shouldAllowAdvisoryTrade === 'function')
-                    ? tradeExecutor.shouldAllowAdvisoryTrade(advisoryPWin, advisoryEvRoi)
-                    : { allowed: false };
-                if (!floorDecision.allowed) return;
-            }
-
             if (rt.telegramBuySentAt) return;
             rt.telegramBuySentAt = now;
 
@@ -25127,8 +25046,8 @@ async function loadState() {
                     shadowBook.lastClosedAt = Number(sb.lastClosedAt) || 0;
                     shadowBook.totalPnl = Number(sb.totalPnl) || 0;
                     shadowBook.closedTrades = Array.isArray(sb.closedTrades) ? sb.closedTrades.slice(-10) : [];
-                    // Restore position (if any) so we don't spam a new BUY after restart mid-trade.
-                    shadowBook.position = (sb.position && typeof sb.position === 'object') ? sb.position : null;
+                    // Signals-only mode: never restore/open shadow positions from persisted state.
+                    shadowBook.position = null;
                 }
                 if (state.primaryBuyState && typeof state.primaryBuyState === 'object') {
                     const pbs = state.primaryBuyState;
@@ -25241,7 +25160,8 @@ async function loadState() {
                 shadowBook.lastClosedAt = Number(sb.lastClosedAt) || 0;
                 shadowBook.totalPnl = Number(sb.totalPnl) || 0;
                 shadowBook.closedTrades = Array.isArray(sb.closedTrades) ? sb.closedTrades.slice(-10) : [];
-                shadowBook.position = (sb.position && typeof sb.position === 'object') ? sb.position : null;
+                // Signals-only mode: never restore/open shadow positions from persisted state.
+                shadowBook.position = null;
             }
             if (state.primaryBuyState && typeof state.primaryBuyState === 'object') {
                 const pbs = state.primaryBuyState;
@@ -29189,33 +29109,9 @@ function computeOddsTrend(asset, direction, windowMs = 60000) {
 }
 
 function getMostRecentPositionForAsset(asset) {
-    try {
-        // 🔮 SHADOW-BOOK FIRST: Prefer shadow-book position for manual trading SELL logic
-        // This prevents PAPER auto-positions from polluting manual oracle SELLs
-        if (shadowBook.position &&
-            String(shadowBook.position.asset || '').toUpperCase() === String(asset).toUpperCase()) {
-            return {
-                id: `shadow_${shadowBook.position.cycleStartEpoch}`,
-                asset: shadowBook.position.asset,
-                side: shadowBook.position.direction,
-                entry: shadowBook.position.entry,
-                shares: shadowBook.position.shares,
-                time: shadowBook.position.openedAt,
-                isShadow: true
-            };
-        }
-
-        // Fallback: check tradeExecutor positions (for PAPER evaluation)
-        const positions = tradeExecutor?.positions || {};
-        const matches = Object.entries(positions)
-            .filter(([_, p]) => p && String(p.asset || '').toUpperCase() === String(asset).toUpperCase());
-        if (matches.length === 0) return null;
-        matches.sort((a, b) => Number(b[1]?.time || 0) - Number(a[1]?.time || 0));
-        const [id, pos] = matches[0];
-        return { id, ...pos };
-    } catch {
-        return null;
-    }
+    // Signals-only mode: oracle signal generation must remain independent
+    // from shadow/paper position tracking.
+    return null;
 }
 
 function updateOracleSignalForAsset(asset) {
@@ -29597,6 +29493,18 @@ function updateOracleSignalForAsset(asset) {
         // ═══════════════════════════════════════════════════════════════════════════════
         const ultraProphet = computeUltraProphetStatus(asset, brain, signal, entryPrice, pWin, evRoi, timeLeftSec, voteStability);
         signal.ultraProphet = ultraProphet;
+
+        // Signals-only advisory stake recommendation (dashboard/telegram visibility only).
+        const advisoryStake = getManualStakeRecommendation(entryPrice, pWin, null, ultraProphet.isUltra === true);
+        signal.recommendedStakeUsd = Number.isFinite(advisoryStake?.recommendedStake)
+            ? Number(advisoryStake.recommendedStake.toFixed(2))
+            : null;
+        signal.recommendedStakeFraction = Number.isFinite(advisoryStake?.stakePercent)
+            ? Number(advisoryStake.stakePercent)
+            : null;
+        signal.recommendedStakeBankrollUsd = Number.isFinite(advisoryStake?.bankroll)
+            ? Number(advisoryStake.bankroll.toFixed(2))
+            : null;
 
         // ═══════════════════════════════════════════════════════════════════════════════
         // 🎯 v105: ADAPTIVE GATE CHECK (replaces ULTRA-only mode)
@@ -30406,180 +30314,23 @@ app.post('/api/manual-journey/balance', async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// 🏆 v113: TELEGRAM TRADE CONFIRMATION LINKS
-// One-click links in Telegram to confirm/skip suggested trades.
-// Records decisions to manualTradingJourney with idempotency.
+// Signals-only mode: oracle confirm endpoint is informational only.
+// Manual trade confirmations and shadow-book writes are disabled.
 // ═══════════════════════════════════════════════════════════════════════════════
 app.get('/api/oracle/confirm', async (req, res) => {
     try {
-        const { decision, clientTradeId, asset, slug, direction, price, pWin, stake } = req.query;
-
-        // Validate required params
-        if (!decision || !clientTradeId || !asset) {
-            return res.status(400).send(`
-                <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:white;text-align:center;}</style></head>
-                <body><h2>❌ Missing parameters</h2><p>decision, clientTradeId, and asset are required.</p></body></html>
-            `);
-        }
-
-        // Check idempotency - have we already processed this trade?
-        const seenCheck = await checkManualTradeIdempotency(clientTradeId);
-        if (seenCheck.seen) {
-            return res.send(`
-                <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:#ffd700;text-align:center;}</style></head>
-                <body><h2>⚠️ Already recorded</h2><p>This trade decision was already logged.</p>
-                <p style="color:#888;font-size:0.9em;">ID: ${clientTradeId}</p></body></html>
-            `);
-        }
-
-        const decisionLower = (decision || '').toLowerCase();
-        const isTook = decisionLower === 'took' || decisionLower === 'yes' || decisionLower === 'buy';
-        const isSkipped = decisionLower === 'skipped' || decisionLower === 'no' || decisionLower === 'skip';
-
-        const entryPriceNum = Number(price) || 0.50;
-        const pWinNum = Number(pWin) || null;
-        const stakeNum = Number(stake);
-        const stakeValid = Number.isFinite(stakeNum) && stakeNum > 0;
-
-        // 🏆 v121: If TOOK but no stake provided, show stake entry page
-        if (isTook && !stakeValid) {
-            const currentBalance = manualTradingJourney?.currentBalance || 0;
-            const balanceDisplay = currentBalance > 0 ? `$${currentBalance.toFixed(2)}` : 'Not set';
-            const buyWhat = String(direction || 'UP').toUpperCase() === 'UP' ? 'YES' : 'NO';
-
-            return res.send(`
-                <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-                <style>
-                    body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:white;text-align:center;}
-                    .card{background:linear-gradient(145deg,#1f2937,#111827);border-radius:16px;padding:24px;margin:20px auto;max-width:420px;border:1px solid #374151;}
-                    .label{color:#9ca3af;font-size:0.85em;margin-bottom:6px;text-align:left;}
-                    .value{font-size:1.3em;font-weight:bold;margin-bottom:16px;color:#fbbf24;}
-                    input[type="number"]{width:100%;padding:14px;font-size:1.2em;border-radius:8px;border:2px solid #4b5563;background:#111827;color:#fff;margin-bottom:12px;text-align:center;}
-                    input[type="number"]:focus{outline:none;border-color:#10b981;}
-                    .quick-btns{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;justify-content:center;}
-                    .quick-btn{padding:10px 16px;border-radius:8px;border:1px solid #4b5563;background:#1f2937;color:#d1d5db;cursor:pointer;font-size:0.9em;transition:all 0.2s;}
-                    .quick-btn:hover{background:#374151;border-color:#10b981;color:#10b981;}
-                    .submit-btn{width:100%;padding:16px;font-size:1.1em;font-weight:bold;border-radius:10px;border:none;background:linear-gradient(135deg,#10b981,#059669);color:#fff;cursor:pointer;margin-top:8px;}
-                    .submit-btn:hover{background:linear-gradient(135deg,#059669,#047857);}
-                    .info{color:#6b7280;font-size:0.8em;margin-top:16px;}
-                </style></head>
-                <body>
-                    <div class="card">
-                        <h2 style="color:#10b981;margin-top:0;">✅ Confirm Trade</h2>
-                        <div class="label">Asset</div>
-                        <div class="value">${asset} • Buy ${buyWhat}</div>
-                        <div class="label">Entry Price</div>
-                        <div class="value">${(entryPriceNum * 100).toFixed(1)}¢</div>
-                        <div class="label">Your Bankroll</div>
-                        <div class="value" style="color:#60a5fa;">${balanceDisplay}</div>
-                        
-                        <form method="GET" action="${DASHBOARD_URL}/api/oracle/confirm">
-                            <input type="hidden" name="decision" value="took">
-                            <input type="hidden" name="clientTradeId" value="${clientTradeId}">
-                            <input type="hidden" name="asset" value="${asset}">
-                            <input type="hidden" name="slug" value="${slug || ''}">
-                            <input type="hidden" name="direction" value="${direction || 'UP'}">
-                            <input type="hidden" name="price" value="${price || '0.50'}">
-                            <input type="hidden" name="pWin" value="${pWin || '0.50'}">
-                            
-                            <div class="label" style="margin-top:8px;">Stake Amount ($)</div>
-                            <input type="number" name="stake" id="stakeInput" step="0.01" min="0.01" placeholder="Enter stake..." required>
-                            
-                            ${currentBalance > 0 ? `
-                            <div class="quick-btns">
-                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 0.10).toFixed(2)}'">10%</button>
-                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 0.25).toFixed(2)}'">25%</button>
-                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 0.50).toFixed(2)}'">50%</button>
-                                <button type="button" class="quick-btn" onclick="document.getElementById('stakeInput').value='${(currentBalance * 1.00).toFixed(2)}'">100%</button>
-                            </div>
-                            ` : ''}
-                            
-                            <button type="submit" class="submit-btn">📝 Record Trade</button>
-                        </form>
-                        
-                        <p class="info">This records the trade in your manual ledger for P/L tracking.</p>
-                    </div>
-                    <a href="${DASHBOARD_URL}" style="color:#6b7280;text-decoration:none;font-size:0.9em;">← Back to Dashboard</a>
-                </body></html>
-            `);
-        }
-
-        // 🏆 v121: Only mark idempotency AFTER we're actually recording (not on stake page)
-        await markManualTradeIdSeen(clientTradeId);
-
-        const tradeRecord = {
-            id: clientTradeId,
-            asset: String(asset).toUpperCase(),
-            slug: slug || null,
-            direction: String(direction || 'UP').toUpperCase(),
-            decision: isTook ? 'TOOK' : (isSkipped ? 'SKIPPED' : 'UNKNOWN'),
-            entryPrice: entryPriceNum,
-            stake: isTook && stakeValid ? stakeNum : null,
-            pWin: pWinNum,
-            recordedAt: Date.now(),
-            // If TOOK, this is pending resolution. If SKIPPED, it's informational.
-            status: isTook ? 'PENDING_RESOLUTION' : 'DECLINED',
-            // Will be updated later if outcome is known
-            exitPrice: null,
-            pnl: null,
-            won: null
-        };
-
-        // Add to manual journey trades
-        if (!Array.isArray(manualTradingJourney.trades)) {
-            manualTradingJourney.trades = [];
-        }
-        manualTradingJourney.trades.push(tradeRecord);
-        manualTradingJourney.lastUpdated = Date.now();
-
-        // Trim to last 100 trades
-        if (manualTradingJourney.trades.length > 100) {
-            manualTradingJourney.trades = manualTradingJourney.trades.slice(-100);
-        }
-
-        // Persist to Redis
-        await persistManualJourney();
-
-        // 🏆 v116: Also process pending call (opens shadow position only on confirm)
-        let callResult = { success: false, reason: 'No pending call' };
-        if (isTook) {
-            callResult = confirmPendingCall(clientTradeId);
-        } else if (isSkipped) {
-            callResult = skipPendingCall(clientTradeId);
-        }
-
-        // Log
-        log(`📱 TELEGRAM CONFIRM: ${tradeRecord.decision} ${asset} ${direction} @ ${(entryPriceNum * 100).toFixed(0)}¢ stake=$${stakeValid ? stakeNum.toFixed(2) : 'n/a'} (ID: ${clientTradeId}) | CallResult: ${callResult.reason}`);
-
-        // Return nice HTML confirmation
-        const emoji = isTook ? '✅' : (isSkipped ? '⏭️' : '❓');
-        const actionText = isTook ? 'Trade Recorded' : (isSkipped ? 'Skipped' : 'Unknown Decision');
-        const bgColor = isTook ? '#0f5132' : (isSkipped ? '#664d03' : '#495057');
-
+        const assetLabel = String(req.query?.asset || 'signal').toUpperCase();
         res.send(`
             <html><head><meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-                body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:white;text-align:center;}
-                .card{background:${bgColor};border-radius:12px;padding:20px;margin:20px auto;max-width:400px;}
-                .label{color:#888;font-size:0.8em;margin-bottom:4px;}
-                .value{font-size:1.2em;font-weight:bold;margin-bottom:12px;}
-            </style></head>
+            <style>body{font-family:sans-serif;padding:20px;background:#1a1a1a;color:white;text-align:center;}</style></head>
             <body>
-                <div class="card">
-                    <h1 style="font-size:3em;margin:0;">${emoji}</h1>
-                    <h2>${actionText}</h2>
-                    <div class="label">Asset</div>
-                    <div class="value">${asset} ${direction}</div>
-                    <div class="label">Entry Price</div>
-                    <div class="value">${(entryPriceNum * 100).toFixed(0)}¢</div>
-                    ${isTook && stakeValid ? `<div class="label">Stake</div><div class="value">$${stakeNum.toFixed(2)}</div>` : ''}
-                    <p style="color:#888;font-size:0.8em;margin-top:20px;">Synced to your manual ledger</p>
-                </div>
+                <h2>ℹ️ Signals-Only Mode</h2>
+                <p>Trade confirmations are disabled for this deployment.</p>
+                <p>${assetLabel} signals are advisory-only via Telegram + dashboard.</p>
                 <a href="${DASHBOARD_URL}" style="color:#00ff88;text-decoration:none;">← Back to Dashboard</a>
             </body></html>
         `);
+        return;
 
     } catch (e) {
         res.status(500).send(`
