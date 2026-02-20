@@ -6024,6 +6024,8 @@ app.get('/api/reconcile-pending', async (req, res) => {
 
 // POST: Actually reconcile pending positions (mutating action)
 app.post('/api/reconcile-pending', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/reconcile-pending')) return;
+
     try {
         const startTime = Date.now();
         const positions = tradeExecutor?.positions || {};
@@ -7175,6 +7177,8 @@ app.get('/api/circuit-breaker', (req, res) => {
 
 // 🎯 GOAT v3: Override CircuitBreaker (manual control)
 app.post('/api/circuit-breaker/override', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/circuit-breaker/override')) return;
+
     if (!tradeExecutor || !tradeExecutor.circuitBreaker) {
         return res.status(400).json({ error: 'TradeExecutor not initialized' });
     }
@@ -7332,6 +7336,8 @@ app.get('/api/trading-pause', (req, res) => {
 });
 
 app.post('/api/trading-pause', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/trading-pause')) return;
+
     try {
         if (!tradeExecutor) return res.status(500).json({ error: 'TradeExecutor not initialized' });
 
@@ -9290,22 +9296,15 @@ async function sendConvictionNotification(message, eventType = 'CONVICTION', ass
     // Dedup check
     if (asset && slug && direction) {
         if (!canSendConvictionNotify(asset, slug, eventType, direction)) {
-            return { sent: false, reason: 'DEDUP_BLOCKED' };
+            return { sent: false, reason: 'DEDUP_BLOCKED', telegramSent: false, webPushSent: 0 };
         }
-        markConvictionNotifySent(asset, slug, eventType, direction);
     }
 
     let telegramSent = false;
     let webPushSent = 0;
 
-    // 1. Telegram (primary)
-    try {
-        if (CONFIG?.TELEGRAM?.enabled) {
-            await sendTelegramNotification(message, false);
-            telegramSent = true;
-        }
-    } catch (e) {
-        // Non-fatal
+    if (CONFIG?.TELEGRAM?.enabled) {
+        telegramSent = await sendTelegramNotification(message, false);
     }
 
     // 2. Web Push (optional, best-effort)
@@ -9323,7 +9322,17 @@ async function sendConvictionNotification(message, eventType = 'CONVICTION', ass
         // Non-fatal
     }
 
-    return { sent: true, telegramSent, webPushSent };
+    const sent = telegramSent || webPushSent > 0;
+    if (telegramSent && asset && slug && direction) {
+        markConvictionNotifySent(asset, slug, eventType, direction);
+    }
+
+    return {
+        sent,
+        telegramSent,
+        webPushSent,
+        reason: sent ? null : 'DELIVERY_FAILED'
+    };
 }
 
 // ==================== POLYMARKET PROFILE TRADE SYNC (Data API) ====================
@@ -9370,8 +9379,14 @@ ASSETS.forEach(asset => {
         lastAction: 'WAIT',
         telegramPrepareSentAt: 0,
         telegramBuySentAt: 0,
+        telegramBuyRetryAt: 0,
+        telegramBuyRetryCount: 0,
+        telegramBuyRetryKey: null,
+        telegramBuyRecordedKey: null,
         telegramSellSentAt: 0,
+        telegramSellSignalKey: null,
         telegramPresellSentAt: 0,  // 🔒 v105: PRESELL warning tracking
+        telegramPresellSignalKey: null,
         telegramUltraSentAt: 0  // 🔮 ULTRA-PROPHET tracking
     };
 });
@@ -11776,7 +11791,7 @@ let telegramHistory = [];
 const TELEGRAM_HISTORY_MAX = 100; // Keep last 100 messages
 
 async function sendTelegramNotification(message, silent = false) {
-    if (!CONFIG.TELEGRAM.enabled || !CONFIG.TELEGRAM.botToken || !CONFIG.TELEGRAM.chatId) return;
+    if (!CONFIG.TELEGRAM.enabled || !CONFIG.TELEGRAM.botToken || !CONFIG.TELEGRAM.chatId) return false;
     try {
         const url = `https://api.telegram.org/bot${CONFIG.TELEGRAM.botToken}/sendMessage`;
         await axios.post(url, {
@@ -11804,9 +11819,69 @@ async function sendTelegramNotification(message, silent = false) {
         }
 
         log(`📱 Telegram notification sent (${historyEntry.type})`);
+        return true;
     } catch (e) {
         log(`⚠️ Telegram notification failed: ${e.message}`);
+        return false;
     }
+}
+
+function isSignalsOnlyMode() {
+    return CONFIG?.TELEGRAM?.signalsOnly === true;
+}
+
+function getTelegramBuyRetryDelayMs(attemptNumber) {
+    const n = Math.max(1, Number(attemptNumber) || 1);
+    return Math.min(30000, 1000 * Math.pow(2, Math.min(6, n - 1)));
+}
+
+function buildOracleSignalNotifyKey(signal, actionOverride = null) {
+    const action = String(actionOverride || signal?.action || '').toUpperCase() || 'UNKNOWN';
+    const asset = String(signal?.asset || 'UNK').toUpperCase();
+    const direction = String(signal?.direction || 'UNK').toUpperCase();
+    const cycleStart = Number.isFinite(Number(signal?.cycleStartEpochSec))
+        ? Number(signal.cycleStartEpochSec)
+        : 0;
+    return `${asset}:${cycleStart}:${action}:${direction}`;
+}
+
+function validateOracleSignalFreshness(signal, asset, rt, actionOverride = null) {
+    const action = String(actionOverride || signal?.action || '').toUpperCase() || 'UNKNOWN';
+    if (!signal || signal.asset !== asset || !rt) {
+        return { ok: false, reason: 'MISSING_SIGNAL_OR_RUNTIME' };
+    }
+
+    const market = currentMarkets?.[asset];
+    const signalSlug = signal?.marketUrl?.split('/').pop() || '';
+    const activeSlug = market?.slug || '';
+    const marketStatus = market?.marketStatus || '';
+
+    if (signal.timeLeftSec !== undefined && signal.timeLeftSec <= 0) {
+        log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (timeLeftSec=${signal.timeLeftSec} <= 0)`, asset);
+        return { ok: false, reason: 'TIME_LEFT_EXPIRED' };
+    }
+
+    if (signal.cycleStartEpochSec && rt.cycleStartEpochSec && signal.cycleStartEpochSec !== rt.cycleStartEpochSec) {
+        log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal cycle ${signal.cycleStartEpochSec} != runtime ${rt.cycleStartEpochSec})`, asset);
+        return { ok: false, reason: 'CYCLE_MISMATCH' };
+    }
+
+    if (signalSlug && activeSlug && signalSlug !== activeSlug) {
+        log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal slug ${signalSlug} != active ${activeSlug})`, asset);
+        return { ok: false, reason: 'SLUG_MISMATCH' };
+    }
+
+    if (marketStatus && marketStatus !== 'ACTIVE') {
+        log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (marketStatus=${marketStatus})`, asset);
+        return { ok: false, reason: 'MARKET_NOT_ACTIVE' };
+    }
+
+    if (!activeSlug) {
+        log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (no active slug available)`, asset);
+        return { ok: false, reason: 'NO_ACTIVE_SLUG' };
+    }
+
+    return { ok: true, activeSlug, market };
 }
 
 // Helper to detect message type from content
@@ -12692,10 +12767,11 @@ function telegramOracleSell(signal) {
     const tLeft = formatMmSs(signal?.timeLeftSec);
 
     const pos = signal?.position || null;
-    const posSide = tgEscape(pos?.side || '?');
+    const committedSideRaw = signal?.exitDirection || pos?.side || signal?.direction || '?';
+    const posSide = tgEscape(committedSideRaw);
     const prediction = tgEscape(signal?.direction || '?');
-    const curOdds = pos?.currentOdds;
-    const entryOdds = pos?.entry;
+    const curOdds = Number.isFinite(pos?.currentOdds) ? pos.currentOdds : (Number.isFinite(signal?.implied) ? signal.implied : null);
+    const entryOdds = Number.isFinite(pos?.entry) ? pos.entry : (Number.isFinite(signal?.exitEntryPrice) ? signal.exitEntryPrice : null);
     const cur = Number.isFinite(curOdds) ? `${(curOdds * 100).toFixed(1)}¢` : 'n/a';
     const entry = Number.isFinite(entryOdds) ? `${(entryOdds * 100).toFixed(1)}¢` : 'n/a';
     const pnlPct = Number.isFinite(pos?.pnlPercent) ? `${pos.pnlPercent >= 0 ? '+' : ''}${pos.pnlPercent.toFixed(1)}%` : 'n/a';
@@ -12705,7 +12781,8 @@ function telegramOracleSell(signal) {
     // Determine exit type
     const isProfit = Number.isFinite(pos?.pnlPercent) && pos.pnlPercent > 0;
     const isFlip = prediction && posSide && prediction !== '?' && posSide !== '?' && prediction !== posSide;
-    const sellWhat = posSide === 'UP' ? 'YES' : (posSide === 'DOWN' ? 'NO' : '?');
+    const sellWhat = committedSideRaw === 'UP' ? 'YES' : (committedSideRaw === 'DOWN' ? 'NO' : null);
+    const actionLine = sellWhat ? `Sell your ${sellWhat} shares` : 'Review exposure and reduce risk';
 
     let urgency = isFlip ? '⚠️ PREDICTION FLIPPED' : (isProfit ? '💰 TAKE PROFIT' : '🛑 CUT LOSS');
 
@@ -12713,7 +12790,7 @@ function telegramOracleSell(signal) {
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     msg += `📍 <b>${asset}</b> • ${urgency}\n`;
     msg += `\n`;
-    msg += `🎯 <b>ACTION: Sell your ${sellWhat} shares</b>\n`;
+    msg += `🎯 <b>ACTION: ${actionLine}</b>\n`;
     msg += `\n`;
     msg += `📊 Entry: <code>${entry}</code> → Now: <code>${cur}</code>\n`;
     msg += `💵 P/L: <code>${pnlUsd}</code> (<code>${pnlPct}</code>)\n`;
@@ -12737,24 +12814,23 @@ function telegramOracleSell(signal) {
 function telegramOraclePresell(signal) {
     const asset = tgEscape(signal?.asset || '?');
     const tLeft = formatMmSs(signal?.timeLeftSec);
+    const direction = tgEscape(signal?.direction || '?');
 
     // Extract warning reasons from signal
     const warningReasons = (signal?.reasons || [])
         .filter(r => r.includes('PRESELL WARNING'))
         .map(r => r.replace('⚠️ PRESELL WARNING: ', ''));
 
-    const pos = shadowBook.position || null;
-    const posSide = pos?.direction || '?';
-    const entry = Number.isFinite(pos?.entry) ? `${(pos.entry * 100).toFixed(1)}¢` : 'n/a';
+    const entry = Number.isFinite(signal?.implied) ? `${(signal.implied * 100).toFixed(1)}¢` : 'n/a';
 
     let msg = `⚠️ <b>PRESELL WARNING</b> ⚠️\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
-    msg += `📍 <b>${asset}</b> • Position: ${posSide}\n`;
+    msg += `📍 <b>${asset}</b> • Signal: ${direction}\n`;
     msg += `\n`;
     msg += `🔍 <b>Deterioration detected</b>\n`;
     msg += `<i>Not yet severe enough for emergency exit</i>\n`;
     msg += `\n`;
-    msg += `📊 Entry: <code>${entry}</code>\n`;
+    msg += `📊 Current odds: <code>${entry}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (warningReasons.length > 0) {
@@ -12802,7 +12878,7 @@ function computeBuyScore(signal) {
     return score;
 }
 
-function orchestrateOracleNotifications() {
+async function orchestrateOracleNotifications() {
     try {
         const now = Date.now();
 
@@ -12815,9 +12891,7 @@ function orchestrateOracleNotifications() {
         // ═══════════════════════════════════════════════════════════════════════════════
         const sellSignals = allSignals.filter(s => s.action === 'SELL');
         for (const sellSig of sellSignals) {
-            if (shadowBook.position && shadowBook.position.asset === sellSig.asset) {
-                maybeSendOracleSignalTelegram(sellSig.asset, sellSig);
-            }
+            maybeSendOracleSignalTelegram(sellSig.asset, sellSig);
         }
 
         // ═══════════════════════════════════════════════════════════════════════════════
@@ -12829,13 +12903,20 @@ function orchestrateOracleNotifications() {
             s.reasons.some(r => r.includes('PRESELL WARNING'))
         );
         for (const holdSig of holdWithWarning) {
-            if (shadowBook.position && shadowBook.position.asset === holdSig.asset) {
-                // Send PRESELL warning (only once per deterioration event)
-                const rt = oracleSignalRuntime?.[holdSig.asset];
-                if (rt && !rt.telegramPresellSentAt) {
-                    rt.telegramPresellSentAt = now;
-                    sendTelegramNotification(telegramOraclePresell(holdSig), false);
-                }
+            // Send PRESELL warning (only once per deterioration event)
+            const rt = oracleSignalRuntime?.[holdSig.asset];
+            if (!rt) continue;
+
+            const freshness = validateOracleSignalFreshness(holdSig, holdSig.asset, rt, 'PRESELL');
+            if (!freshness.ok) continue;
+
+            const presellNotifyKey = buildOracleSignalNotifyKey(holdSig, 'PRESELL');
+            if (rt.telegramPresellSignalKey === presellNotifyKey) continue;
+
+            const presellSent = await sendTelegramNotification(telegramOraclePresell(holdSig), false);
+            if (presellSent) {
+                rt.telegramPresellSentAt = now;
+                rt.telegramPresellSignalKey = presellNotifyKey;
             }
         }
 
@@ -12898,39 +12979,72 @@ function orchestrateOracleNotifications() {
         primaryBuyState.currentPrimaryAsset = primaryBuy.signal.asset;
         primaryBuyState.otherCandidates = otherCandidates;
 
-        const sendBuySignalNotification = (buySig) => {
+        const sendBuySignalNotification = async (buySig) => {
             if (!buySig?.asset || !buySig?.direction) return false;
 
             const buyRt = oracleSignalRuntime?.[buySig.asset];
             if (!buyRt || buyRt.telegramBuySentAt) return false;
 
-            const buySlug = currentMarkets?.[buySig.asset]?.slug || '';
+            const freshness = validateOracleSignalFreshness(buySig, buySig.asset, buyRt, 'BUY');
+            if (!freshness.ok) return false;
+
+            const buySlug = freshness.activeSlug;
+            const notifyKey = buildOracleSignalNotifyKey(buySig, 'BUY');
+            if (buyRt.telegramBuyRetryKey !== notifyKey) {
+                buyRt.telegramBuyRetryKey = notifyKey;
+                buyRt.telegramBuyRetryAt = 0;
+                buyRt.telegramBuyRetryCount = 0;
+            }
+            if (buyRt.telegramBuyRetryAt && now < buyRt.telegramBuyRetryAt) return false;
+
             const entryPxIsl = Number.isFinite(buySig?.implied) ? buySig.implied : 0.5;
             const pWinIsl = Number.isFinite(buySig?.pWin) ? buySig.pWin : 0.5;
             const cycleStartEpochIsl = Number.isFinite(buySig?.cycleStartEpochSec)
                 ? buySig.cycleStartEpochSec
                 : (Math.floor(now / 1000) - (Math.floor(now / 1000) % 900));
 
-            recordIssuedSignal(
-                buySig.asset,
-                buySlug,
-                buySig.direction,
-                entryPxIsl,
-                pWinIsl,
-                buySig.tier || 'ADVISORY',
-                cycleStartEpochIsl
-            );
-
-            buyRt.telegramBuySentAt = now;
+            if (buyRt.telegramBuyRecordedKey !== notifyKey) {
+                recordIssuedSignal(
+                    buySig.asset,
+                    buySlug,
+                    buySig.direction,
+                    entryPxIsl,
+                    pWinIsl,
+                    buySig.tier || 'ADVISORY',
+                    cycleStartEpochIsl
+                );
+                buyRt.telegramBuyRecordedKey = notifyKey;
+            }
 
             const buyTier = String(buySig?.tier || '').toUpperCase();
             const buyIsLocked = buySig?.calibration?.isLocked === true;
+            let telegramDelivered = false;
             if (buyTier === 'CONVICTION') {
                 const eventType = buyIsLocked ? 'LOCKED' : 'CONVICTION_BUY';
-                sendConvictionNotification(telegramOracleBuy(buySig), eventType, buySig.asset, buySlug, buySig.direction || '');
+                const convictionResult = await sendConvictionNotification(
+                    telegramOracleBuy(buySig),
+                    eventType,
+                    buySig.asset,
+                    buySlug,
+                    buySig.direction || ''
+                );
+                telegramDelivered = convictionResult?.telegramSent === true;
             } else {
-                sendTelegramNotification(telegramOracleBuy(buySig), false);
+                telegramDelivered = await sendTelegramNotification(telegramOracleBuy(buySig), false);
             }
+
+            if (!telegramDelivered) {
+                const nextAttempt = (Number(buyRt.telegramBuyRetryCount) || 0) + 1;
+                const delayMs = getTelegramBuyRetryDelayMs(nextAttempt);
+                buyRt.telegramBuyRetryCount = nextAttempt;
+                buyRt.telegramBuyRetryAt = now + delayMs;
+                log(`⚠️ BUY NOTIFY RETRY: ${buySig.asset} attempt=${nextAttempt} next=${Math.ceil(delayMs / 1000)}s`, buySig.asset);
+                return false;
+            }
+
+            buyRt.telegramBuySentAt = now;
+            buyRt.telegramBuyRetryAt = 0;
+            buyRt.telegramBuyRetryCount = 0;
 
             setCycleCommitment(buySig.asset, buySig.direction, buySig.implied || 0.5);
 
@@ -12942,7 +13056,7 @@ function orchestrateOracleNotifications() {
             return true;
         };
 
-        const primarySent = sendBuySignalNotification(primaryBuy.signal);
+        const primarySent = await sendBuySignalNotification(primaryBuy.signal);
         if (primarySent) {
             primaryBuyState.lastPrimaryBuyAt = now;
         }
@@ -12950,7 +13064,7 @@ function orchestrateOracleNotifications() {
         // 🏆 v137: MULTI-ASSET NOTIFICATIONS - Send separate Telegram for EACH qualifying BUY
         // User trades externally and wants to see ALL qualifying signals, not just the best one.
         for (const { signal: otherSig } of otherBuys) {
-            sendBuySignalNotification(otherSig);
+            await sendBuySignalNotification(otherSig);
         }
 
     } catch (e) {
@@ -13370,45 +13484,11 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         const action = String(signal.action || '').toUpperCase();
         if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return;
 
-        // 🏆 v114: STALE-CYCLE SUPPRESSION - Never send PREPARE/BUY for ended/stale cycles
-        // This prevents delayed/queued Telegram sends from firing after the market rolled
-        const market = currentMarkets?.[asset];
-        const signalSlug = signal?.marketUrl?.split('/').pop() || '';
-        const activeSlug = market?.slug || '';
-        const marketStatus = market?.marketStatus || '';
-
-        // Check 1: Time left must be positive (cycle not ended)
-        if (signal.timeLeftSec !== undefined && signal.timeLeftSec <= 0) {
-            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (timeLeftSec=${signal.timeLeftSec} <= 0)`, asset);
-            return;
-        }
-
-        // Check 2: Signal's cycle must match runtime's current cycle
-        if (signal.cycleStartEpochSec && rt.cycleStartEpochSec && signal.cycleStartEpochSec !== rt.cycleStartEpochSec) {
-            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal cycle ${signal.cycleStartEpochSec} != runtime ${rt.cycleStartEpochSec})`, asset);
-            return;
-        }
-
-        // Check 3: Signal's slug must match the current Gamma-active slug
-        if (signalSlug && activeSlug && signalSlug !== activeSlug) {
-            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (signal slug ${signalSlug} != active ${activeSlug})`, asset);
-            return;
-        }
-
-        // Check 4: Market must be ACTIVE (not CLOSED/ERROR/NO_LIQUIDITY)
-        if (marketStatus && marketStatus !== 'ACTIVE') {
-            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (marketStatus=${marketStatus})`, asset);
-            return;
-        }
-
-        // Check 5: Active slug must exist (market data must be available)
-        if (!activeSlug) {
-            log(`🚫 STALE_CYCLE_SUPPRESS: ${asset} ${action} blocked (no active slug available)`, asset);
-            return;
-        }
+        const freshness = validateOracleSignalFreshness(signal, asset, rt, action);
+        if (!freshness.ok) return;
 
         // 🏆 v112: Get slug for dedup
-        const slug = activeSlug;
+        const slug = freshness.activeSlug;
         const direction = signal?.direction || '';
         const tier = String(signal?.tier || '').toUpperCase();
         const isConviction = tier === 'CONVICTION';
@@ -13439,20 +13519,13 @@ function maybeSendOracleSignalTelegram(asset, signal) {
         if (action === 'SELL') {
             // Throttle SELL spam (at most once per 2 minutes per asset, per cycle)
             if (rt.telegramSellSentAt && (now - rt.telegramSellSentAt) < 120000) return;
+            const sellNotifyKey = buildOracleSignalNotifyKey(signal, 'SELL');
+            if (rt.telegramSellSignalKey === sellNotifyKey) return;
             rt.telegramSellSentAt = now;
+            rt.telegramSellSignalKey = sellNotifyKey;
 
             // 🏆 v112: Emergency exit notification with dedup + optional Web Push
             sendConvictionNotification(telegramOracleSell(signal), 'EMERGENCY_EXIT', asset, slug, direction);
-
-            // 🔮 SHADOW-BOOK: Close position on SELL signal
-            if (shadowBook.position && shadowBook.position.asset === asset) {
-                const pos = shadowBook.position;
-                const market = currentMarkets?.[asset];
-                const currentOdds = market ? (pos.direction === 'UP' ? market.yesPrice : market.noPrice) : pos.entry;
-                // Early-exit settle at current mark (best available proxy for exit price)
-                const isWin = Number.isFinite(currentOdds) && Number.isFinite(pos.entry) ? (currentOdds >= pos.entry) : false;
-                closeShadowPosition(currentOdds, isWin, 'SELL_SIGNAL');
-            }
             return;
         }
     } catch {
@@ -29134,8 +29207,14 @@ function updateOracleSignalForAsset(asset) {
                 lastAction: 'WAIT',
                 telegramPrepareSentAt: 0,
                 telegramBuySentAt: 0,
+                telegramBuyRetryAt: 0,
+                telegramBuyRetryCount: 0,
+                telegramBuyRetryKey: null,
+                telegramBuyRecordedKey: null,
                 telegramSellSentAt: 0,
+                telegramSellSignalKey: null,
                 telegramPresellSentAt: 0,  // 🔒 v105: PRESELL warning tracking
+                telegramPresellSignalKey: null,
                 telegramUltraSentAt: 0  // 🔮 ULTRA-PROPHET tracking
             };
         }
@@ -29149,8 +29228,14 @@ function updateOracleSignalForAsset(asset) {
             rt.lastAction = 'WAIT';
             rt.telegramPrepareSentAt = 0;
             rt.telegramBuySentAt = 0;
+            rt.telegramBuyRetryAt = 0;
+            rt.telegramBuyRetryCount = 0;
+            rt.telegramBuyRetryKey = null;
+            rt.telegramBuyRecordedKey = null;
             rt.telegramSellSentAt = 0;
+            rt.telegramSellSignalKey = null;
             rt.telegramPresellSentAt = 0;  // 🔒 v105: PRESELL warning reset
+            rt.telegramPresellSignalKey = null;
             rt.telegramUltraSentAt = 0;  // 🔮 ULTRA-PROPHET reset
 
             // 🔒 v105: Clear cycle commitment for new cycle
@@ -29615,6 +29700,8 @@ function updateOracleSignalForAsset(asset) {
             if (emergencyCheck.shouldEmergencyExit) {
                 // Emergency exit triggered after sustained deterioration
                 signal.action = 'SELL';
+                signal.exitDirection = existingCommit.direction;
+                signal.exitEntryPrice = Number.isFinite(existingCommit.buyPrice) ? existingCommit.buyPrice : null;
                 signal.reasons.unshift(emergencyCheck.reason);
                 clearCycleCommitment(asset);
             } else if (emergencyCheck.prewarning) {
@@ -30117,8 +30204,21 @@ function buildStateSnapshot() {
 // (manualTradingJourney object declared earlier for Telegram function access)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+function respondSignalsOnlyEndpointDisabled(res, endpointName) {
+    if (!isSignalsOnlyMode()) return false;
+    res.status(403).json({
+        success: false,
+        mode: 'SIGNALS_ONLY',
+        endpoint: endpointName,
+        error: 'Endpoint disabled in signals-only mode. Signals are advisory-only via Telegram + dashboard.'
+    });
+    return true;
+}
+
 // Get manual trading journey status
 app.get('/api/manual-journey', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/manual-journey')) return;
+
     const j = manualTradingJourney;
     const totalProfit = j.currentBalance - j.startingBalance;
     const profitPct = j.startingBalance > 0 ? ((j.currentBalance / j.startingBalance) - 1) * 100 : 0;
@@ -30177,6 +30277,8 @@ app.get('/api/manual-journey', (req, res) => {
 // Record a manual trade result
 // 🏆 v112: Now persists immediately to Redis and supports idempotency via clientTradeId
 app.post('/api/manual-journey/trade', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/manual-journey/trade')) return;
+
     try {
         const { asset, direction, entryPrice, exitPrice, stake, won, notes, clientTradeId } = req.body;
 
@@ -30273,6 +30375,8 @@ app.post('/api/manual-journey/trade', async (req, res) => {
 // Update manual bankroll (for stake calculations)
 // 🏆 v112: Now persists immediately to Redis for cross-device sync
 app.post('/api/manual-journey/balance', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/manual-journey/balance')) return;
+
     try {
         const { balance, reset } = req.body;
         const newBalance = Number(balance);
@@ -31189,6 +31293,8 @@ app.get('/api/profile-trades', async (req, res) => {
 });
 
 app.post('/api/profile-trades/sync', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/profile-trades/sync')) return;
+
     try {
         const limit = req.body?.limit ?? req.query.limit;
         const result = await syncProfileTrades({ limit });
@@ -31200,6 +31306,8 @@ app.post('/api/profile-trades/sync', async (req, res) => {
 
 // 🎯 GOAT v3: Reset trade history (with confirmation)
 app.post('/api/trades/reset', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/trades/reset')) return;
+
     const mode = req.body.mode || 'PAPER';
     const confirm = req.body.confirm === true;
 
@@ -31237,6 +31345,8 @@ app.post('/api/trades/reset', async (req, res) => {
 
 // Get pending sells that need manual intervention
 app.get('/api/pending-sells', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/pending-sells')) return;
+
     res.json({
         pendingSells: tradeExecutor.getPendingSells(),
         count: Object.keys(tradeExecutor.getPendingSells()).length
@@ -31246,6 +31356,8 @@ app.get('/api/pending-sells', (req, res) => {
 // Manual buy - place a trade manually via UI
 // v94 HARDENED: In LIVE mode, requires explicit ENABLE_MANUAL_TRADING=true env var
 app.post('/api/manual-buy', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/manual-buy')) return;
+
     // v94: Extra safety gate for LIVE mode manual trades
     if (tradeExecutor.mode === 'LIVE' && process.env.ENABLE_MANUAL_TRADING !== 'true') {
         return res.status(403).json({
@@ -31286,6 +31398,8 @@ app.post('/api/manual-buy', async (req, res) => {
 // Manual sell - close a position manually via UI
 // v94 HARDENED: In LIVE mode, requires explicit ENABLE_MANUAL_TRADING=true env var
 app.post('/api/manual-sell', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/manual-sell')) return;
+
     // v94: Extra safety gate for LIVE mode manual trades
     if (tradeExecutor.mode === 'LIVE' && process.env.ENABLE_MANUAL_TRADING !== 'true') {
         return res.status(403).json({
@@ -31312,6 +31426,8 @@ app.post('/api/manual-sell', async (req, res) => {
 
 // Retry a failed sell
 app.post('/api/retry-sell', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/retry-sell')) return;
+
     const { tokenId, asset } = req.body;
 
     const pendingSells = tradeExecutor.getPendingSells();
@@ -31353,6 +31469,8 @@ app.post('/api/retry-sell', async (req, res) => {
 
 // Get redemption queue
 app.get('/api/redemption-queue', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/redemption-queue')) return;
+
     const queue = tradeExecutor.getRedemptionQueue();
     res.json({
         success: true,
@@ -31370,6 +31488,8 @@ app.get('/api/redemption-queue', (req, res) => {
 
 // 🎯 GOAT v44.1: Get redemption events (history of all redemption attempts)
 app.get('/api/redemption-events', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/redemption-events')) return;
+
     const limit = parseInt(req.query.limit) || 50;
     const events = tradeExecutor.getRedemptionEvents(limit);
     res.json({
@@ -31386,6 +31506,8 @@ app.get('/api/redemption-events', (req, res) => {
 
 // Trigger redemption check
 app.post('/api/check-redemptions', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/check-redemptions')) return;
+
     try {
         const result = await tradeExecutor.checkAndRedeemPositions();
         res.json(result);
@@ -31396,6 +31518,8 @@ app.post('/api/check-redemptions', async (req, res) => {
 
 // Clear redemption queue
 app.post('/api/clear-redemption-queue', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/clear-redemption-queue')) return;
+
     const reason = req.body?.reason || 'manual_api_call';
     const result = tradeExecutor.clearRedemptionQueue(reason);
     res.json({ success: true, message: 'Queue cleared', ...result });
@@ -31403,6 +31527,8 @@ app.post('/api/clear-redemption-queue', (req, res) => {
 
 // 🔓 Toggle Global Stop Loss Override
 app.post('/api/toggle-stop-loss-override', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/toggle-stop-loss-override')) return;
+
     CONFIG.RISK.globalStopLossOverride = !CONFIG.RISK.globalStopLossOverride;
     const status = CONFIG.RISK.globalStopLossOverride ? 'BYPASSED' : 'ACTIVE';
     log(`🔓 Global Stop Loss Override: ${status}`);
@@ -31426,6 +31552,8 @@ app.post('/api/toggle-stop-loss-override', (req, res) => {
 
 // Get recovery queue (orphaned/crashed positions)
 app.get('/api/recovery-queue', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/recovery-queue')) return;
+
     const queue = tradeExecutor.recoveryQueue || [];
     res.json({
         success: true,
@@ -31446,6 +31574,8 @@ app.get('/api/recovery-queue', (req, res) => {
 
 // Acknowledge and clear a specific recovery item
 app.post('/api/recovery-acknowledge', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/recovery-acknowledge')) return;
+
     const { id } = req.body;
     if (!id) {
         return res.status(400).json({ success: false, error: 'Missing id parameter' });
@@ -31472,6 +31602,8 @@ app.post('/api/recovery-acknowledge', (req, res) => {
 
 // Clear entire recovery queue
 app.post('/api/clear-recovery-queue', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/clear-recovery-queue')) return;
+
     const count = (tradeExecutor.recoveryQueue || []).length;
     tradeExecutor.recoveryQueue = [];
     log(`🧹 RECOVERY QUEUE CLEARED: ${count} items removed`);
@@ -31485,6 +31617,8 @@ app.post('/api/clear-recovery-queue', (req, res) => {
 // 🏆 v80: Reconcile crash-recovered trades with Gamma outcomes
 // This is the critical fix for "trades not credited back" issue
 app.post('/api/reconcile-crash-trades', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/reconcile-crash-trades')) return;
+
     try {
         log(`🔄 CRASH RECONCILE: Manual trigger via API`);
         const results = await tradeExecutor.reconcileCrashRecoveredTrades();
@@ -31502,6 +31636,8 @@ app.post('/api/reconcile-crash-trades', async (req, res) => {
 
 // Get crash recovery statistics
 app.get('/api/crash-recovery-stats', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/crash-recovery-stats')) return;
+
     const crashRecoveredTrades = (tradeExecutor.tradeHistory || []).filter(t =>
         t && t.status === 'CRASH_RECOVERED' && !t.crashReconciled
     );
@@ -31553,6 +31689,8 @@ app.get('/api/crash-recovery-stats', (req, res) => {
 
 // Get pending sells (failed sell orders)
 app.get('/api/pending-sells', (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/pending-sells')) return;
+
     const pending = tradeExecutor.pendingSells || {};
     res.json({
         success: true,
@@ -31563,6 +31701,8 @@ app.get('/api/pending-sells', (req, res) => {
 
 // Retry pending sells
 app.post('/api/retry-pending-sells', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/retry-pending-sells')) return;
+
     const pending = tradeExecutor.pendingSells || {};
     const count = Object.keys(pending).length;
 
@@ -31750,6 +31890,8 @@ app.get('/api/wallet/balance', async (req, res) => {
 // Transfer USDC to external address
 // v94 HARDENED: Requires ENABLE_WALLET_TRANSFER=true env var AND LIVE mode
 app.post('/api/wallet/transfer', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/wallet/transfer')) return;
+
     try {
         // v94: Extra safety gate - must explicitly enable wallet transfers
         const transferEnabled = process.env.ENABLE_WALLET_TRANSFER === 'true';
@@ -31863,6 +32005,8 @@ app.get('/api/settings', (req, res) => {
 
 // Reset paper balance endpoint
 app.post('/api/reset-balance', async (req, res) => {
+    if (respondSignalsOnlyEndpointDisabled(res, '/api/reset-balance')) return;
+
     const { balance } = req.body;
     const parsed = parseFloat(balance);
     const newBalance = Number.isFinite(parsed)
@@ -33169,18 +33313,9 @@ async function startup() {
             });
 
             // Step 2: Orchestrate notifications (single primary BUY + other candidates)
-            orchestrateOracleNotifications();
+            orchestrateOracleNotifications().catch(() => { });
 
-            // Step 3: Check shadow-book position for SELL conditions
-            if (shadowBook.position) {
-                const posAsset = shadowBook.position.asset;
-                const sig = oracleSignals[posAsset];
-                if (sig?.action === 'SELL') {
-                    maybeSendOracleSignalTelegram(posAsset, sig);
-                }
-            }
-
-            // Step 4: Settle shadow-book position on cycle end
+            // Step 3: Settle shadow-book position on cycle end
             // 🏆 v118: Use the checkpoint captured at confirmation/open for correct settlement.
             // If price-based settlement is not possible at the boundary, fall back to Gamma resolution (never force-loss).
             const nowSec = Math.floor(Date.now() / 1000);
