@@ -255,6 +255,11 @@
     </div>
 
     <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">🗓️ Full Strategy Schedule (UTC)</div>
+        <div id="operator-schedule-panel" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card">
         <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">Top Block Reasons (Gate Telemetry)</div>
         <div id="gate-block-summary" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
         <div id="gate-block-by-asset" style="margin-top: 8px;"></div>
@@ -523,6 +528,103 @@
             const n = Number(x);
             if (!Number.isFinite(n)) return '--';
             return String(Math.round(n));
+        }
+
+        function escHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function fmtUtcTime(hour, minute) {
+            const h = Number(hour);
+            const m = Number(minute);
+            if (!Number.isInteger(h) || h < 0 || h > 23 || !Number.isInteger(m) || m < 0 || m > 14) return '--';
+            return `UTC ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function fmtBand(min, max) {
+            const lo = Number(min);
+            const hi = Number(max);
+            if (!Number.isFinite(lo) || !Number.isFinite(hi)) return '--';
+            return `${(lo * 100).toFixed(0)}-${(hi * 100).toFixed(0)}c`;
+        }
+
+        function renderScheduleRows(rows) {
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) {
+                return '<tr><td colspan="5" style="padding:6px;border-bottom:1px solid #333;color:var(--dim);">No rows</td></tr>';
+            }
+            return list.map(r => {
+                const wr = Number(r?.winRate);
+                const wrText = Number.isFinite(wr) ? `${(wr * 100).toFixed(1)}%` : '--';
+                const dir = escHtml(String(r?.direction || '--').toUpperCase());
+                const tier = escHtml(String(r?.tier || '--').toUpperCase());
+                return `<tr>
+                    <td style="padding:6px;border-bottom:1px solid #333;white-space:nowrap;">${fmtUtcTime(r?.utcHour, r?.entryMinute)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${dir}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${tier}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtBand(r?.priceMin, r?.priceMax)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${wrText}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderScheduleBlock(title, rows, subtitle = '') {
+            return `
+                <div style="margin-top:10px;border-top:1px solid #333;padding-top:10px;">
+                    <div style="font-weight:bold;color:#fff;">${escHtml(title)}</div>
+                    ${subtitle ? `<div style="font-size:11px;color:var(--dim);margin-top:2px;">${escHtml(subtitle)}</div>` : ''}
+                    <div style="overflow-x:auto;margin-top:8px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                            <thead>
+                                <tr style="text-align:left;color:var(--dim);">
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Time</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Dir</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Tier</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Band</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">WR</th>
+                                </tr>
+                            </thead>
+                            <tbody>${renderScheduleRows(rows)}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOperatorSchedulePanel(payload) {
+            const el = document.getElementById('operator-schedule-panel');
+            if (!el) return;
+
+            if (payload && payload.error) {
+                el.textContent = `Unavailable: ${String(payload.error)}`;
+                return;
+            }
+
+            const op = payload?.liveOperatorProfile || {};
+            const schedules = op?.strategySchedules || {};
+            const finalGolden = op?.finalGolden || {};
+            const finalStrategy = finalGolden?.strategy || null;
+            const verdict = String(finalGolden?.auditVerdict || '--').toUpperCase();
+            const finalDirection = String(finalStrategy?.direction || '--').toUpperCase();
+            const finalBand = fmtBand(finalStrategy?.priceBand?.min, finalStrategy?.priceBand?.max);
+            const finalTime = fmtUtcTime(finalStrategy?.utcHour, finalStrategy?.entryMinute);
+            const finalMode = finalGolden?.enforced === true ? 'ENFORCED' : 'ADVISORY';
+
+            el.innerHTML = `
+                <div style="padding:10px;border:1px solid rgba(255,215,0,0.35);border-radius:8px;background:rgba(255,215,0,0.08);">
+                    <div style="font-weight:bold;color:#ffd700;">⭐ Primary Final / Golden Strategy</div>
+                    <div style="margin-top:4px;color:#fff;">${finalTime} | ${escHtml(finalDirection)} | ${finalBand}</div>
+                    <div style="margin-top:4px;font-size:11px;color:var(--dim);">Status: ${escHtml(finalMode)} | Audit: ${escHtml(verdict)}</div>
+                </div>
+                ${renderScheduleBlock('TOP7 Primary Execution Set', schedules?.top7Primary, 'Hard-locked live execution schedule')}
+                ${renderScheduleBlock('TOP3 Monitor Set', schedules?.top3Monitor, 'Read-only concurrent monitor')}
+                ${renderScheduleBlock('TOP8 Reference Set', schedules?.top8Reference, 'Reference only (not primary execution)')}
+            `;
         }
 
         function calcDaysToTarget(startBankroll, endingBalance, spanDays, target) {
@@ -1124,6 +1226,7 @@
                 renderOptimized8StressSummary(json?.optimized8StressSummary);
                 renderOperatorWorksheet(json?.operatorWorksheet);
                 renderOperatorHandbook(json);
+                renderOperatorSchedulePanel(json);
                 renderGateSummary(json?.gates || null);
                 const enforced = rt?.enforced === true;
                 const loaded = rt?.loaded === true;
@@ -1152,6 +1255,7 @@
                 renderTop3StressSummary({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
                 renderOptimized8StressSummary({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
                 renderOperatorWorksheet({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
+                renderOperatorSchedulePanel({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
                 renderGateSummary(null);
             }
         }

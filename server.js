@@ -350,6 +350,36 @@ function pickOperatorStakeFractionDefault(baseBankroll) {
     return 0.20;
 }
 
+function buildStrategyScheduleRows(strategies) {
+    const rows = Array.isArray(strategies) ? strategies : [];
+    return rows
+        .map((s, idx) => {
+            const utcHour = Number(s?.utcHour);
+            const entryMinute = Number(s?.entryMinute);
+            const priceMin = Number(s?.priceMin ?? s?.priceBand?.min);
+            const priceMax = Number(s?.priceMax ?? s?.priceBand?.max);
+            return {
+                id: Number.isFinite(Number(s?.id)) ? Number(s.id) : (idx + 1),
+                name: String(s?.name || '').trim() || null,
+                utcHour,
+                entryMinute,
+                direction: String(s?.direction || '').trim().toUpperCase() || null,
+                tier: String(s?.tier || '').trim().toUpperCase() || null,
+                priceMin: Number.isFinite(priceMin) ? priceMin : null,
+                priceMax: Number.isFinite(priceMax) ? priceMax : null,
+                winRate: Number.isFinite(Number(s?.winRate)) ? Number(s.winRate) : null,
+                winRateLCB: Number.isFinite(Number(s?.winRateLCB)) ? Number(s.winRateLCB) : null,
+                signature: String(s?.signature || '').trim() || null
+            };
+        })
+        .filter(r => Number.isInteger(r.utcHour) && r.utcHour >= 0 && r.utcHour <= 23 && Number.isInteger(r.entryMinute) && r.entryMinute >= 0 && r.entryMinute <= 14)
+        .sort((a, b) => {
+            if (a.utcHour !== b.utcHour) return a.utcHour - b.utcHour;
+            if (a.entryMinute !== b.entryMinute) return a.entryMinute - b.entryMinute;
+            return String(a.direction || '').localeCompare(String(b.direction || ''));
+        });
+}
+
 function getLiveOperatorConfig() {
     const baseBankroll = parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
     const stakeFractionDefault = pickOperatorStakeFractionDefault(baseBankroll);
@@ -369,6 +399,31 @@ function getLiveOperatorConfig() {
         : [];
     const sb10OneMonth = sb10RiskRows.find(r => String(r.window) === '1m') || null;
     const sb10Full = sb10RiskRows.find(r => String(r.window) === 'full') || null;
+    const top7Schedule = buildStrategyScheduleRows(OPERATOR_STRATEGY_SET_RUNTIME.get()?.strategies);
+    const top3Schedule = buildStrategyScheduleRows(TOP3_ROBUST_CONCURRENT_RUNTIME?.strategies);
+    const top8Schedule = buildStrategyScheduleRows(TOP8_CURRENT_REFERENCE_RUNTIME?.strategies);
+
+    let finalGoldenReport = null;
+    try {
+        finalGoldenReport = buildFinalGoldenStrategyReportPayload();
+    } catch {
+        finalGoldenReport = null;
+    }
+
+    const finalGoldenRuntime = FINAL_GOLDEN_STRATEGY_RUNTIME?.goldenStrategy || null;
+    const finalGoldenStrategy = finalGoldenReport?.goldenStrategy || (finalGoldenRuntime
+        ? {
+            entryMinute: Number(finalGoldenRuntime.entryMinute),
+            utcHour: Number(finalGoldenRuntime.utcHour),
+            direction: String(finalGoldenRuntime.direction || '').trim().toUpperCase() || null,
+            priceBand: finalGoldenRuntime.priceBand
+                ? {
+                    min: Number.isFinite(Number(finalGoldenRuntime.priceBand.min)) ? Number(finalGoldenRuntime.priceBand.min) : null,
+                    max: Number.isFinite(Number(finalGoldenRuntime.priceBand.max)) ? Number(finalGoldenRuntime.priceBand.max) : null
+                }
+                : null
+        }
+        : null);
 
     return {
         profile: 'top7_drop6_primary_manual',
@@ -378,6 +433,17 @@ function getLiveOperatorConfig() {
         primarySignalSet: 'top7_drop6',
         top3TelemetryMode: 'READ_ONLY',
         strategySetPath: strategySetPath,
+        strategySchedules: {
+            top7Primary: top7Schedule,
+            top3Monitor: top3Schedule,
+            top8Reference: top8Schedule
+        },
+        finalGolden: {
+            enforced: finalGoldenReport?.enforced === true,
+            auditVerdict: finalGoldenReport?.audit?.overallVerdict || null,
+            laymanSummary: finalGoldenReport?.audit?.laymanSummary || null,
+            strategy: finalGoldenStrategy
+        },
         strategySetLock: {
             locked: true,
             requestedPath: requestedStrategySetPath || null,
@@ -30188,6 +30254,8 @@ function buildStateSnapshot() {
         strategySetPath: liveOp.strategySetPath,
         strategySetRuntime: getOperatorStrategySetRuntimeStatus(),
         top3ConcurrentRuntime: getTop3RobustConcurrentStrategyStatus(),
+        strategySchedules: liveOp.strategySchedules || null,
+        finalGolden: liveOp.finalGolden || null,
         baseBankroll: liveOp.bankroll.baseBankroll,
         stakeFraction: liveOp.bankroll.stakeFraction,
         stakePerSignal: liveOp.bankroll.stakePerSignal,
@@ -30879,6 +30947,8 @@ app.get('/api/state-public', (req, res) => {
             strategySetPath: liveOp.strategySetPath,
             strategySetRuntime: getOperatorStrategySetRuntimeStatus(),
             top3ConcurrentRuntime: getTop3RobustConcurrentStrategyStatus(),
+            strategySchedules: liveOp.strategySchedules || null,
+            finalGolden: liveOp.finalGolden || null,
             baseBankroll: liveOp.bankroll.baseBankroll,
             stakeFraction: liveOp.bankroll.stakeFraction,
             stakePerSignal: liveOp.bankroll.stakePerSignal,
