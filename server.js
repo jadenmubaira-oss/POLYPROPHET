@@ -346,7 +346,7 @@ function isOperatorPrimaryGatesEnforced() {
 }
 
 function pickOperatorStakeFractionDefault(baseBankroll) {
-    if (baseBankroll <= 10) return 0.10;
+    if (baseBankroll <= 10) return 0.30;
     return 0.20;
 }
 
@@ -389,6 +389,19 @@ function getLiveOperatorConfig() {
     const strategySetPath = OPERATOR_PRIMARY_STRATEGY_SET_PATH;
     const strategyPathLocked = requestedStrategySetPath !== '' && requestedStrategySetPath !== strategySetPath;
     const enforcePrimaryGates = isOperatorPrimaryGatesEnforced();
+    const operatorRuntimeSnapshot = OPERATOR_STRATEGY_SET_RUNTIME.get() || {};
+    const operatorConditions = operatorRuntimeSnapshot.conditions || {};
+    const disableMomentumGateEnv = ['1', 'true', 'yes', 'on'].includes(String(process.env.STRATEGY_DISABLE_MOMENTUM_GATE || '').trim().toLowerCase());
+    const disableVolumeGateEnv = ['1', 'true', 'yes', 'on'].includes(String(process.env.STRATEGY_DISABLE_VOLUME_GATE || '').trim().toLowerCase());
+    const signalGatePriceMin = Number.isFinite(Number(operatorConditions.priceMin)) ? Number(operatorConditions.priceMin) : 0.60;
+    const signalGatePriceMax = Number.isFinite(Number(operatorConditions.priceMax)) ? Number(operatorConditions.priceMax) : 0.80;
+    const signalGateMomentumMin = Number.isFinite(Number(operatorConditions.momentumMin)) ? Number(operatorConditions.momentumMin) : 0.03;
+    const signalGateVolumeMin = Number.isFinite(Number(operatorConditions.volumeMin)) ? Number(operatorConditions.volumeMin) : 500;
+    const signalGateMomentumApplied = enforcePrimaryGates && !disableMomentumGateEnv && operatorConditions.applyMomentumGate === true;
+    const signalGateVolumeApplied = enforcePrimaryGates && !disableVolumeGateEnv && operatorConditions.applyVolumeGate === true;
+    const maxGlobalTradesPerCycle = Number.isFinite(Number(CONFIG?.RISK?.maxGlobalTradesPerCycle))
+        ? Math.max(1, Math.floor(Number(CONFIG.RISK.maxGlobalTradesPerCycle)))
+        : 1;
 
     const setSummary = OPERATOR_WORKSHEET?.setSummary || {};
     const top7Summary = setSummary?.top7 || null;
@@ -399,7 +412,7 @@ function getLiveOperatorConfig() {
         : [];
     const sb10OneMonth = sb10RiskRows.find(r => String(r.window) === '1m') || null;
     const sb10Full = sb10RiskRows.find(r => String(r.window) === 'full') || null;
-    const top7Schedule = buildStrategyScheduleRows(OPERATOR_STRATEGY_SET_RUNTIME.get()?.strategies);
+    const top7Schedule = buildStrategyScheduleRows(operatorRuntimeSnapshot?.strategies);
     const top3Schedule = buildStrategyScheduleRows(TOP3_ROBUST_CONCURRENT_RUNTIME?.strategies);
     const top8Schedule = buildStrategyScheduleRows(TOP8_CURRENT_REFERENCE_RUNTIME?.strategies);
 
@@ -461,13 +474,13 @@ function getLiveOperatorConfig() {
             minOddsEntry: 0.35,
         },
         signalGates: {
-            priceMin: 0.60,
-            priceMax: 0.80,
-            momentumMin: 0.03,
-            volumeMin: 500,
-            applyMomentumGate: enforcePrimaryGates,
-            applyVolumeGate: enforcePrimaryGates,
-            maxGlobalTradesPerCycle: 1,
+            priceMin: signalGatePriceMin,
+            priceMax: signalGatePriceMax,
+            momentumMin: signalGateMomentumMin,
+            volumeMin: signalGateVolumeMin,
+            applyMomentumGate: signalGateMomentumApplied,
+            applyVolumeGate: signalGateVolumeApplied,
+            maxGlobalTradesPerCycle,
         },
         executionAssumptions: {
             slippagePct: 0.01,
@@ -26552,9 +26565,9 @@ app.get('/', (req, res) => {
             if (gridEl) {
                 let gridHtml = '';
 
-                // Always show the primary final golden strategy card so schedule is consistent
-                gridHtml += '<div class="golden-hour-slot" id="finalGoldenStrategySlot" style="background:rgba(255,215,0,0.12);border:2px solid rgba(255,215,0,0.65);border-radius:10px;padding:12px;text-align:center;">';
-                gridHtml += '<div style="font-size:0.7em;color:#ffd700;font-weight:bold;margin-bottom:4px;">⭐ PRIMARY FINAL</div>';
+                // Show primary final golden strategy card (dimmed — reference only, not for execution)
+                gridHtml += '<div class="golden-hour-slot" id="finalGoldenStrategySlot" style="background:rgba(80,80,80,0.15);border:1px dashed rgba(255,215,0,0.30);border-radius:10px;padding:12px;text-align:center;opacity:0.55;">';
+                gridHtml += '<div style="font-size:0.7em;color:#888;font-weight:bold;margin-bottom:4px;">REFERENCE ONLY</div>';
                 gridHtml += '<div id="finalGsAsset" style="font-size:1.3em;font-weight:bold;color:#00ff88;margin-bottom:4px;">--</div>';
                 gridHtml += '<div id="finalGsHour" style="font-size:1.1em;font-weight:bold;color:#ffd700;">--:--</div>';
                 gridHtml += '<div id="finalGsEntry" style="font-size:0.75em;color:#888;">Entry: --</div>';
