@@ -305,9 +305,6 @@
             style="margin-top: 12px; padding: 12px; background: rgba(0,255,136,0.15); border-radius: 8px; border: 1px solid #00ff88;">
             <div style="font-weight: bold; font-size: 16px; color: #00ff88;">CHECKING BTC...</div>
         </div>
-        <div style="font-size: 11px; color: #888; margin-top: 8px;">
-            93% Win Rate | 272 trades verified on 30 days data
-        </div>
     </div>
 
     <div class="card">
@@ -327,19 +324,18 @@
     <script>
         const socket = io();
         const goal = 100;
-
-        // 🏆 v136: GOLDEN STRATEGY - Premium Hour Detection
-        const GOLDEN_HOURS = {
-            // BTC DOWN → ETH DOWN (92.9%, 96.1%)
-            2: { condition: 'DOWN', wr: '92.9%' },
-            14: { condition: 'DOWN', wr: '96.1%' },
-            // BTC UP → ETH UP (93.1%, 91.5%, 91.7%)
-            3: { condition: 'UP', wr: '93.1%' },
-            4: { condition: 'UP', wr: '91.5%' },
-            8: { condition: 'UP', wr: '91.7%' }
+        const stateCache = {
+            liveOperatorProfile: null
         };
 
-        function updateGoldenHour(btcPrediction) {
+        function fmtRuntimePct(raw) {
+            const n = Number(raw);
+            if (Number.isFinite(n)) return `${(n * 100).toFixed(1)}%`;
+            const s = String(raw || '').trim();
+            return s || '--';
+        }
+
+        function updateGoldenHour() {
             const now = new Date();
             const utcHour = now.getUTCHours();
             const utcMin = now.getUTCMinutes();
@@ -348,60 +344,45 @@
             const signal = document.getElementById('golden-hour-signal');
 
             if (!card || !info || !signal) return;
-
-            const goldenConfig = GOLDEN_HOURS[utcHour];
+            const finalGolden = stateCache.liveOperatorProfile?.finalGolden || null;
+            const strategy = finalGolden?.strategy || null;
+            if (!strategy) {
+                card.style.display = 'none';
+                return;
+            }
 
             // Only show during premium hours AND first 12 mins of cycle
             const cycleMin = utcMin % 15;
             const inTradingWindow = cycleMin <= 12;
+            const strategyHour = Number(strategy?.utcHour);
+            const activeHour = Number.isInteger(strategyHour) && utcHour === strategyHour;
 
-            if (goldenConfig && inTradingWindow) {
+            if (activeHour && inTradingWindow) {
                 card.style.display = 'block';
 
-                const expectedBTC = goldenConfig.condition;
-                const actualBTC = btcPrediction?.toUpperCase() || 'UNKNOWN';
+                const mode = finalGolden?.enforced === true ? 'ENFORCED' : 'ADVISORY';
+                const verdict = String(finalGolden?.auditVerdict || '--').toUpperCase();
+                const direction = String(strategy?.direction || '--').toUpperCase();
+                const wr = fmtRuntimePct(strategy?.winRate);
+                const lcb = fmtRuntimePct(strategy?.winRateLCB);
 
                 info.innerHTML = `
-                    <div>Hour ${utcHour} UTC (${goldenConfig.wr} historical WR)</div>
+                    <div>Primary final strategy window is active (${mode})</div>
                     <div style="font-size:12px; color:#aaa; margin-top:4px;">
-                        Looking for: BTC ${expectedBTC}
+                        Audit: ${verdict}
                     </div>
                 `;
 
-                if (actualBTC === expectedBTC) {
-                    // SIGNAL: Trade ETH in same direction
-                    signal.innerHTML = `
-                        <div style="font-weight: bold; font-size: 18px; color: #00ff88;">
-                            🚀 BUY ETH ${expectedBTC} NOW
-                        </div>
-                        <div style="font-size:12px; color:#aaa; margin-top:6px;">
-                            Entry: 40-45¢ | Sizing: 20-30% | ${goldenConfig.wr} WR
-                        </div>
-                    `;
-                    signal.style.background = 'rgba(0,255,136,0.25)';
-                    signal.style.border = '2px solid #00ff88';
-                } else if (actualBTC === 'UP' || actualBTC === 'DOWN') {
-                    // Wrong direction
-                    signal.innerHTML = `
-                        <div style="font-weight: bold; font-size: 16px; color: #ff6b6b;">
-                            ❌ SKIP - BTC is ${actualBTC}, need ${expectedBTC}
-                        </div>
-                    `;
-                    signal.style.background = 'rgba(255,107,107,0.15)';
-                    signal.style.border = '1px solid #ff6b6b';
-                } else {
-                    // Waiting for BTC direction
-                    signal.innerHTML = `
-                        <div style="font-weight: bold; font-size: 16px; color: #ffd700;">
-                            ⏳ Waiting for BTC direction...
-                        </div>
-                        <div style="font-size:12px; color:#aaa; margin-top:4px;">
-                            Need BTC ${expectedBTC} to trigger signal
-                        </div>
-                    `;
-                    signal.style.background = 'rgba(255,215,0,0.1)';
-                    signal.style.border = '1px solid #ffd700';
-                }
+                signal.innerHTML = `
+                    <div style="font-weight: bold; font-size: 16px; color: #00ff88;">
+                        📌 ${fmtUtcTime(strategy?.utcHour, strategy?.entryMinute)} | ${direction}
+                    </div>
+                    <div style="font-size:12px; color:#aaa; margin-top:6px;">
+                        Band: ${fmtBand(strategy?.priceBand?.min, strategy?.priceBand?.max)} | WR: ${wr} | LCB: ${lcb}
+                    </div>
+                `;
+                signal.style.background = 'rgba(0,255,136,0.15)';
+                signal.style.border = '1px solid #00ff88';
             } else {
                 card.style.display = 'none';
             }
@@ -615,15 +596,19 @@
             const finalTime = fmtUtcTime(finalStrategy?.utcHour, finalStrategy?.entryMinute);
             const finalMode = finalGolden?.enforced === true ? 'ENFORCED' : 'ADVISORY';
 
-            el.innerHTML = `
-                <div style="padding:10px;border:1px solid rgba(255,215,0,0.35);border-radius:8px;background:rgba(255,215,0,0.08);">
+            const finalGoldenBlock = `
+                <div style="margin-top:10px;padding:10px;border:1px solid rgba(255,215,0,0.35);border-radius:8px;background:rgba(255,215,0,0.08);">
                     <div style="font-weight:bold;color:#ffd700;">⭐ Primary Final / Golden Strategy</div>
                     <div style="margin-top:4px;color:#fff;">${finalTime} | ${escHtml(finalDirection)} | ${finalBand}</div>
                     <div style="margin-top:4px;font-size:11px;color:var(--dim);">Status: ${escHtml(finalMode)} | Audit: ${escHtml(verdict)}</div>
                 </div>
+            `;
+
+            el.innerHTML = `
                 ${renderScheduleBlock('TOP7 Primary Execution Set', schedules?.top7Primary, 'Hard-locked live execution schedule')}
                 ${renderScheduleBlock('TOP3 Monitor Set', schedules?.top3Monitor, 'Read-only concurrent monitor')}
                 ${renderScheduleBlock('TOP8 Reference Set', schedules?.top8Reference, 'Reference only (not primary execution)')}
+                ${finalGoldenBlock}
             `;
         }
 
@@ -1219,6 +1204,7 @@
                 const res = await fetch(new URL('/api/state-public', window.location.origin).toString(), { cache: 'no-store' });
                 const json = await res.json();
                 const op = json?.liveOperatorProfile || {};
+                stateCache.liveOperatorProfile = op;
                 const rt = op?.strategySetRuntime || {};
                 const rtTop3 = op?.top3ConcurrentRuntime || {};
                 renderTop7StressSummary(json?.top7Drop6StressSummary);
@@ -1247,7 +1233,9 @@
                 if (Number.isFinite(Number(rtTop3?.strategies))) lines.push(`strategies: ${Number(rtTop3.strategies)}`);
                 if (rtTop3?.loadError) lines.push(`loadError: ${rtTop3.loadError}`);
                 details.textContent = lines.join('\n');
+                updateGoldenHour();
             } catch (e) {
+                stateCache.liveOperatorProfile = null;
                 title.textContent = 'UNAVAILABLE';
                 title.style.color = 'var(--red)';
                 details.textContent = e && e.message ? String(e.message) : 'Failed to fetch /api/state-public';
@@ -1257,6 +1245,7 @@
                 renderOperatorWorksheet({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
                 renderOperatorSchedulePanel({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
                 renderGateSummary(null);
+                updateGoldenHour();
             }
         }
 
@@ -1280,10 +1269,8 @@
             const progress = Math.min((bankroll / goal) * 100, 100);
             document.getElementById('goal-progress').style.width = `${progress}%`;
 
-            // 🏆 v136: Update Golden Hour signal with BTC direction
-            const btcAsset = data.assets?.BTC;
-            const btcPrediction = btcAsset?.prediction;
-            updateGoldenHour(btcPrediction);
+            // Golden hour card is now driven by liveOperatorProfile.finalGolden payload
+            updateGoldenHour();
 
             // Update Asset Rows
             const list = document.getElementById('assets-list');
