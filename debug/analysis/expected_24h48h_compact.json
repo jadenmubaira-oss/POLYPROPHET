@@ -1,0 +1,347 @@
+{
+  "generatedAt": "2026-02-15T23:29:03.497Z",
+  "windowsBySet": {
+    "SB5": {
+      "top3": {
+        "24h": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 5.916548159297341,
+            "medianEnd": 5.905162647360467,
+            "pBelowStart": 0,
+            "minEnd": 5.5311114979876645,
+            "stressEnd": 5.5311114979876645
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 5.916548159297341,
+            "medianEnd": 5.905162647360467,
+            "pBelowStart": 0,
+            "minEnd": 5.5311114979876645,
+            "stressEnd": 5.5311114979876645
+          }
+        },
+        "48h": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 6.292773989006409,
+            "medianEnd": 6.274369744474096,
+            "pBelowStart": 0,
+            "minEnd": 5.747398391650554,
+            "stressEnd": 5.747398391650554
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 6.292773989006409,
+            "medianEnd": 6.274369744474096,
+            "pBelowStart": 0,
+            "minEnd": 5.747398391650554,
+            "stressEnd": 5.747398391650554
+          }
+        }
+      },
+      "top7": {
+        "24h": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "pBelowStart": 0,
+            "minEnd": 5.875162509185021,
+            "stressEnd": 5.875162509185021
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "pBelowStart": 0,
+            "minEnd": 5.875162509185021,
+            "stressEnd": 5.875162509185021
+          }
+        },
+        "48h": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "pBelowStart": 0,
+            "minEnd": 7.018386953999938,
+            "stressEnd": 7.018386953999938
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "pBelowStart": 0,
+            "minEnd": 7.018386953999938,
+            "stressEnd": 7.018386953999938
+          }
+        }
+      },
+      "opt8": {
+        "24h": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "pBelowStart": 0,
+            "minEnd": 5.875162509185021,
+            "stressEnd": 5.875162509185021
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "pBelowStart": 0,
+            "minEnd": 5.875162509185021,
+            "stressEnd": 5.875162509185021
+          }
+        },
+        "48h": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "pBelowStart": 0,
+            "minEnd": 7.018386953999938,
+            "stressEnd": 7.018386953999938
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "pBelowStart": 0,
+            "minEnd": 7.018386953999938,
+            "stressEnd": 7.018386953999938
+          }
+        }
+      }
+    },
+    "SB10": {
+      "top3": {
+        "24h": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 11.833096318594682,
+            "medianEnd": 11.810325294720935,
+            "pBelowStart": 0,
+            "minEnd": 11.062222995975329,
+            "stressEnd": 11.062222995975329
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 11.833096318594682,
+            "medianEnd": 11.810325294720935,
+            "pBelowStart": 0,
+            "minEnd": 11.062222995975329,
+            "stressEnd": 11.062222995975329
+          }
+        },
+        "48h": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 12.585547978012817,
+            "medianEnd": 12.548739488948192,
+            "pBelowStart": 0,
+            "minEnd": 11.494796783301108,
+            "stressEnd": 11.494796783301108
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 12.585547978012817,
+            "medianEnd": 12.548739488948192,
+            "pBelowStart": 0,
+            "minEnd": 11.494796783301108,
+            "stressEnd": 11.494796783301108
+          }
+        }
+      },
+      "top7": {
+        "24h": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "pBelowStart": 0,
+            "minEnd": 11.750325018370042,
+            "stressEnd": 11.750325018370042
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "pBelowStart": 0,
+            "minEnd": 11.750325018370042,
+            "stressEnd": 11.750325018370042
+          }
+        },
+        "48h": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "pBelowStart": 0,
+            "minEnd": 14.036773907999876,
+            "stressEnd": 14.036773907999876
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "pBelowStart": 0,
+            "minEnd": 14.036773907999876,
+            "stressEnd": 14.036773907999876
+          }
+        }
+      },
+      "opt8": {
+        "24h": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "pBelowStart": 0,
+            "minEnd": 11.750325018370042,
+            "stressEnd": 11.750325018370042
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "pBelowStart": 0,
+            "minEnd": 11.750325018370042,
+            "stressEnd": 11.750325018370042
+          }
+        },
+        "48h": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "pBelowStart": 0,
+            "minEnd": 14.036773907999876,
+            "stressEnd": 14.036773907999876
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "pBelowStart": 0,
+            "minEnd": 14.036773907999876,
+            "stressEnd": 14.036773907999876
+          }
+        }
+      }
+    }
+  },
+  "winners": {
+    "SB5": {
+      "24h": {
+        "highestMean": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 6.448840914069578,
+          "medianEnd": 6.428824458782765,
+          "pBelowStart": 0,
+          "minEnd": 5.875162509185021,
+          "stressEnd": 5.875162509185021
+        },
+        "highestRiskAdjMedian": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 6.448840914069578,
+          "medianEnd": 6.428824458782765,
+          "pBelowStart": 0,
+          "minEnd": 5.875162509185021,
+          "stressEnd": 5.875162509185021
+        }
+      },
+      "48h": {
+        "highestMean": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 8.664587640139692,
+          "medianEnd": 8.573163637097286,
+          "pBelowStart": 0,
+          "minEnd": 7.018386953999938,
+          "stressEnd": 7.018386953999938
+        },
+        "highestRiskAdjMedian": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 8.664587640139692,
+          "medianEnd": 8.573163637097286,
+          "pBelowStart": 0,
+          "minEnd": 7.018386953999938,
+          "stressEnd": 7.018386953999938
+        }
+      }
+    },
+    "SB10": {
+      "24h": {
+        "highestMean": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 12.897681828139156,
+          "medianEnd": 12.85764891756553,
+          "pBelowStart": 0,
+          "minEnd": 11.750325018370042,
+          "stressEnd": 11.750325018370042
+        },
+        "highestRiskAdjMedian": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 12.897681828139156,
+          "medianEnd": 12.85764891756553,
+          "pBelowStart": 0,
+          "minEnd": 11.750325018370042,
+          "stressEnd": 11.750325018370042
+        }
+      },
+      "48h": {
+        "highestMean": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 17.329175280279383,
+          "medianEnd": 17.146327274194572,
+          "pBelowStart": 0,
+          "minEnd": 14.036773907999876,
+          "stressEnd": 14.036773907999876
+        },
+        "highestRiskAdjMedian": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 17.329175280279383,
+          "medianEnd": 17.146327274194572,
+          "pBelowStart": 0,
+          "minEnd": 14.036773907999876,
+          "stressEnd": 14.036773907999876
+        }
+      }
+    }
+  }
+}

@@ -45,14 +45,18 @@ nul
 # ============================================
 
 # Debug exports (keep locally, don't commit)
-debug/
+debug/*
 # Whitelist runtime-critical debug files needed by server.js at startup
 !debug/strategy_set_top7_drop6.json
+!debug/strategy_set_top3_robust.json
+!debug/strategy_set_top8_current.json
 !debug/analysis/
 !debug/analysis/expected_24h48h_compact.json
 !debug/analysis/stress_expected_compact.json
 !debug/analysis/strategy_window_summary_top3_top7_opt8.json
 !debug/stress_min1/
+!debug/stress_min1/top7_drop6_min1_sb5_simulateBankrollPath_stress_matrix.csv
+!debug/stress_min1/top7_drop6_min1_sb10_simulateBankrollPath_stress_matrix.csv
 !debug/stress_min1/top3_robust_min1_sb5_simulateBankrollPath_stress_matrix.csv
 !debug/stress_min1/top3_robust_min1_sb10_simulateBankrollPath_stress_matrix.csv
 !debug/stress_min1/optimized8_min1_sb5_simulateBankrollPath_stress_matrix.csv

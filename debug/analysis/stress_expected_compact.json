@@ -1,0 +1,1057 @@
+{
+  "generatedAt": "2026-02-15T23:27:42.681Z",
+  "windowsBySet": {
+    "SB5": {
+      "top3": {
+        "1w": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 8.579558829803805,
+            "medianEnd": 8.489954148470314,
+            "pBelowStart": 0,
+            "minEnd": 6.9565077240055935,
+            "stressEnd": 6.9565077240055935
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 8.579558829803805,
+            "medianEnd": 8.489954148470314,
+            "pBelowStart": 0,
+            "minEnd": 6.9565077240055935,
+            "stressEnd": 6.9565077240055935
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 8.579558829803805,
+            "medianEnd": 8.489954148470314,
+            "pBelowStart": 0,
+            "minEnd": 6.9565077240055935,
+            "stressEnd": 6.9565077240055935
+          }
+        },
+        "2w": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 15.455708168797841,
+            "medianEnd": 14.88674870640407,
+            "pBelowStart": 0,
+            "minEnd": 9.801340830630847,
+            "stressEnd": 9.801340830630847
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 15.455708168797841,
+            "medianEnd": 14.88674870640407,
+            "pBelowStart": 0,
+            "minEnd": 9.801340830630847,
+            "stressEnd": 9.801340830630847
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 15.455708168797841,
+            "medianEnd": 14.88674870640407,
+            "pBelowStart": 0,
+            "minEnd": 9.801340830630847,
+            "stressEnd": 9.801340830630847
+          }
+        },
+        "3w": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 16.39891179409827,
+            "medianEnd": 15.358213018236816,
+            "pBelowStart": 0,
+            "minEnd": 8.689002032926332,
+            "stressEnd": 8.689002032926332
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 16.39891179409827,
+            "medianEnd": 15.358213018236816,
+            "pBelowStart": 0,
+            "minEnd": 8.689002032926332,
+            "stressEnd": 8.689002032926332
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 16.39891179409827,
+            "medianEnd": 15.358213018236816,
+            "pBelowStart": 0,
+            "minEnd": 8.689002032926332,
+            "stressEnd": 8.689002032926332
+          }
+        },
+        "1m": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 28.640107602386408,
+            "medianEnd": 24.45413973300598,
+            "pBelowStart": 0,
+            "minEnd": 9.997345229219034,
+            "stressEnd": 9.997345229219034
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 28.640107602386408,
+            "medianEnd": 24.45413973300598,
+            "pBelowStart": 0,
+            "minEnd": 9.997345229219034,
+            "stressEnd": 9.997345229219034
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 28.640107602386408,
+            "medianEnd": 24.45413973300598,
+            "pBelowStart": 0,
+            "minEnd": 9.997345229219034,
+            "stressEnd": 9.997345229219034
+          }
+        },
+        "full": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 1699.3613466301786,
+            "medianEnd": 396.7745582423561,
+            "pBelowStart": 0.09090909090909091,
+            "minEnd": 1.792063196212245,
+            "stressEnd": 1.792063196212245
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 1699.3613466301786,
+            "medianEnd": 396.7745582423561,
+            "pBelowStart": 0.09090909090909091,
+            "minEnd": 1.792063196212245,
+            "stressEnd": 1.792063196212245
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.2,
+            "meanEnd": 256.92751174253203,
+            "medianEnd": 120.71985120537605,
+            "pBelowStart": 0,
+            "minEnd": 15.739592227182271,
+            "stressEnd": 15.739592227182271
+          }
+        }
+      },
+      "top7": {
+        "1w": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 29.62403926029517,
+            "medianEnd": 27.02095596851208,
+            "pBelowStart": 0,
+            "minEnd": 13.339576320767602,
+            "stressEnd": 13.339576320767602
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 29.62403926029517,
+            "medianEnd": 27.02095596851208,
+            "pBelowStart": 0,
+            "minEnd": 13.339576320767602,
+            "stressEnd": 13.339576320767602
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 29.62403926029517,
+            "medianEnd": 27.02095596851208,
+            "pBelowStart": 0,
+            "minEnd": 13.339576320767602,
+            "stressEnd": 13.339576320767602
+          }
+        },
+        "2w": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 289.23821876115807,
+            "medianEnd": 128.08194696001766,
+            "pBelowStart": 0,
+            "minEnd": 31.566825290285372,
+            "stressEnd": 31.566825290285372
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 289.23821876115807,
+            "medianEnd": 128.08194696001766,
+            "pBelowStart": 0,
+            "minEnd": 31.566825290285372,
+            "stressEnd": 31.566825290285372
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 289.23821876115807,
+            "medianEnd": 128.08194696001766,
+            "pBelowStart": 0,
+            "minEnd": 31.566825290285372,
+            "stressEnd": 31.566825290285372
+          }
+        },
+        "3w": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 1209.4897788241908,
+            "medianEnd": 331.7244096412573,
+            "pBelowStart": 0,
+            "minEnd": 40.92994679065349,
+            "stressEnd": 40.92994679065349
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 1209.4897788241908,
+            "medianEnd": 331.7244096412573,
+            "pBelowStart": 0,
+            "minEnd": 40.92994679065349,
+            "stressEnd": 40.92994679065349
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 1209.4897788241908,
+            "medianEnd": 331.7244096412573,
+            "pBelowStart": 0,
+            "minEnd": 40.92994679065349,
+            "stressEnd": 40.92994679065349
+          }
+        },
+        "1m": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 3811.823202290105,
+            "medianEnd": 2.45142651688597,
+            "pBelowStart": 0.5757575757575758,
+            "minEnd": 2.0120449064450443,
+            "stressEnd": 2.392390301720047
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.15,
+            "meanEnd": 169.0792122995531,
+            "medianEnd": 105.58565303059743,
+            "pBelowStart": 0.09090909090909091,
+            "minEnd": 2.1991477785392792,
+            "stressEnd": 2.1991477785392792
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.15,
+            "meanEnd": 169.0792122995531,
+            "medianEnd": 105.58565303059743,
+            "pBelowStart": 0.09090909090909091,
+            "minEnd": 2.1991477785392792,
+            "stressEnd": 2.1991477785392792
+          }
+        },
+        "full": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.2,
+            "meanEnd": 46623.97140680255,
+            "medianEnd": 2.039891375496231,
+            "pBelowStart": 0.9393939393939394,
+            "minEnd": 1.496174732149924,
+            "stressEnd": 2.157081856886459
+          },
+          "bestRiskAdj": null,
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.05,
+            "meanEnd": 80.2572451437072,
+            "medianEnd": 2.4181386673805703,
+            "pBelowStart": 0.5454545454545454,
+            "minEnd": 1.736019778738133,
+            "stressEnd": 2.249322616601591
+          }
+        }
+      },
+      "opt8": {
+        "1w": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 32.06567679695327,
+            "medianEnd": 29.069958598343028,
+            "pBelowStart": 0,
+            "minEnd": 14.017651693162147,
+            "stressEnd": 14.017651693162147
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 32.06567679695327,
+            "medianEnd": 29.069958598343028,
+            "pBelowStart": 0,
+            "minEnd": 14.017651693162147,
+            "stressEnd": 14.017651693162147
+          },
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 32.06567679695327,
+            "medianEnd": 29.069958598343028,
+            "pBelowStart": 0,
+            "minEnd": 14.017651693162147,
+            "stressEnd": 14.017651693162147
+          }
+        },
+        "2w": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 473.3005170518514,
+            "medianEnd": 194.78176087738717,
+            "pBelowStart": 0,
+            "minEnd": 42.440998813385995,
+            "stressEnd": 42.440998813385995
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 473.3005170518514,
+            "medianEnd": 194.78176087738717,
+            "pBelowStart": 0,
+            "minEnd": 42.440998813385995,
+            "stressEnd": 42.440998813385995
+          },
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 473.3005170518514,
+            "medianEnd": 194.78176087738717,
+            "pBelowStart": 0,
+            "minEnd": 42.440998813385995,
+            "stressEnd": 42.440998813385995
+          }
+        },
+        "3w": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 2208.3832217303175,
+            "medianEnd": 545.079553597842,
+            "pBelowStart": 0,
+            "minEnd": 58.05179972343825,
+            "stressEnd": 58.05179972343825
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 2208.3832217303175,
+            "medianEnd": 545.079553597842,
+            "pBelowStart": 0,
+            "minEnd": 58.05179972343825,
+            "stressEnd": 58.05179972343825
+          },
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 2208.3832217303175,
+            "medianEnd": 545.079553597842,
+            "pBelowStart": 0,
+            "minEnd": 58.05179972343825,
+            "stressEnd": 58.05179972343825
+          }
+        },
+        "1m": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.25,
+            "meanEnd": 1468.0710888619133,
+            "medianEnd": 2.381479248666738,
+            "pBelowStart": 0.696969696969697,
+            "minEnd": 1.9113620698617273,
+            "stressEnd": 2.4158005608371234
+          },
+          "bestRiskAdj": null,
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.2,
+            "meanEnd": 560.6496588414105,
+            "medianEnd": 253.70305691109655,
+            "pBelowStart": 0.3939393939393939,
+            "minEnd": 2.1205882604901705,
+            "stressEnd": 2.1205882604901705
+          }
+        },
+        "full": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.15,
+            "meanEnd": 2452.873354407924,
+            "medianEnd": 2.150769035529246,
+            "pBelowStart": 0.9393939393939394,
+            "minEnd": 1.5137727116570938,
+            "stressEnd": 2.150769035529246
+          },
+          "bestRiskAdj": null,
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.1,
+            "meanEnd": 305.7324758803134,
+            "medianEnd": 2.128565748879163,
+            "pBelowStart": 0.8787878787878788,
+            "minEnd": 1.6270890222440229,
+            "stressEnd": 2.150769035529246
+          }
+        }
+      }
+    },
+    "SB10": {
+      "top3": {
+        "1w": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 17.15911765960761,
+            "medianEnd": 16.97990829694063,
+            "pBelowStart": 0,
+            "minEnd": 13.913015448011187,
+            "stressEnd": 13.913015448011187
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 17.15911765960761,
+            "medianEnd": 16.97990829694063,
+            "pBelowStart": 0,
+            "minEnd": 13.913015448011187,
+            "stressEnd": 13.913015448011187
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 17.15911765960761,
+            "medianEnd": 16.97990829694063,
+            "pBelowStart": 0,
+            "minEnd": 13.913015448011187,
+            "stressEnd": 13.913015448011187
+          }
+        },
+        "2w": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 30.911416337595682,
+            "medianEnd": 29.77349741280814,
+            "pBelowStart": 0,
+            "minEnd": 19.602681661261695,
+            "stressEnd": 19.602681661261695
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 30.911416337595682,
+            "medianEnd": 29.77349741280814,
+            "pBelowStart": 0,
+            "minEnd": 19.602681661261695,
+            "stressEnd": 19.602681661261695
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 30.911416337595682,
+            "medianEnd": 29.77349741280814,
+            "pBelowStart": 0,
+            "minEnd": 19.602681661261695,
+            "stressEnd": 19.602681661261695
+          }
+        },
+        "3w": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 32.79782358819654,
+            "medianEnd": 30.71642603647363,
+            "pBelowStart": 0,
+            "minEnd": 17.378004065852664,
+            "stressEnd": 17.378004065852664
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 32.79782358819654,
+            "medianEnd": 30.71642603647363,
+            "pBelowStart": 0,
+            "minEnd": 17.378004065852664,
+            "stressEnd": 17.378004065852664
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 32.79782358819654,
+            "medianEnd": 30.71642603647363,
+            "pBelowStart": 0,
+            "minEnd": 17.378004065852664,
+            "stressEnd": 17.378004065852664
+          }
+        },
+        "1m": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 57.280215204772816,
+            "medianEnd": 48.90827946601196,
+            "pBelowStart": 0,
+            "minEnd": 19.99469045843807,
+            "stressEnd": 19.99469045843807
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 57.280215204772816,
+            "medianEnd": 48.90827946601196,
+            "pBelowStart": 0,
+            "minEnd": 19.99469045843807,
+            "stressEnd": 19.99469045843807
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 57.280215204772816,
+            "medianEnd": 48.90827946601196,
+            "pBelowStart": 0,
+            "minEnd": 19.99469045843807,
+            "stressEnd": 19.99469045843807
+          }
+        },
+        "full": {
+          "bestMean": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 3402.3886644239087,
+            "medianEnd": 793.5491164847122,
+            "pBelowStart": 0,
+            "minEnd": 34.87348755107901,
+            "stressEnd": 34.87348755107901
+          },
+          "bestRiskAdj": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 3402.3886644239087,
+            "medianEnd": 793.5491164847122,
+            "pBelowStart": 0,
+            "minEnd": 34.87348755107901,
+            "stressEnd": 34.87348755107901
+          },
+          "robust": {
+            "set": "top3",
+            "stakeFraction": 0.3,
+            "meanEnd": 3402.3886644239087,
+            "medianEnd": 793.5491164847122,
+            "pBelowStart": 0,
+            "minEnd": 34.87348755107901,
+            "stressEnd": 34.87348755107901
+          }
+        }
+      },
+      "top7": {
+        "1w": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 59.24807852059034,
+            "medianEnd": 54.04191193702416,
+            "pBelowStart": 0,
+            "minEnd": 26.679152641535204,
+            "stressEnd": 26.679152641535204
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 59.24807852059034,
+            "medianEnd": 54.04191193702416,
+            "pBelowStart": 0,
+            "minEnd": 26.679152641535204,
+            "stressEnd": 26.679152641535204
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 59.24807852059034,
+            "medianEnd": 54.04191193702416,
+            "pBelowStart": 0,
+            "minEnd": 26.679152641535204,
+            "stressEnd": 26.679152641535204
+          }
+        },
+        "2w": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 578.4764375223161,
+            "medianEnd": 256.1638939200353,
+            "pBelowStart": 0,
+            "minEnd": 63.133650580570745,
+            "stressEnd": 63.133650580570745
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 578.4764375223161,
+            "medianEnd": 256.1638939200353,
+            "pBelowStart": 0,
+            "minEnd": 63.133650580570745,
+            "stressEnd": 63.133650580570745
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 578.4764375223161,
+            "medianEnd": 256.1638939200353,
+            "pBelowStart": 0,
+            "minEnd": 63.133650580570745,
+            "stressEnd": 63.133650580570745
+          }
+        },
+        "3w": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 2418.9795576483816,
+            "medianEnd": 663.4488192825146,
+            "pBelowStart": 0,
+            "minEnd": 81.85989358130698,
+            "stressEnd": 81.85989358130698
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 2418.9795576483816,
+            "medianEnd": 663.4488192825146,
+            "pBelowStart": 0,
+            "minEnd": 81.85989358130698,
+            "stressEnd": 81.85989358130698
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 2418.9795576483816,
+            "medianEnd": 663.4488192825146,
+            "pBelowStart": 0,
+            "minEnd": 81.85989358130698,
+            "stressEnd": 81.85989358130698
+          }
+        },
+        "1m": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 7829.294244423312,
+            "medianEnd": 1131.479566006123,
+            "pBelowStart": 0,
+            "minEnd": 51.82453084653392,
+            "stressEnd": 51.82453084653392
+          },
+          "bestRiskAdj": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 7829.294244423312,
+            "medianEnd": 1131.479566006123,
+            "pBelowStart": 0,
+            "minEnd": 51.82453084653392,
+            "stressEnd": 51.82453084653392
+          },
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 7829.294244423312,
+            "medianEnd": 1131.479566006123,
+            "pBelowStart": 0,
+            "minEnd": 51.82453084653392,
+            "stressEnd": 51.82453084653392
+          }
+        },
+        "full": {
+          "bestMean": {
+            "set": "top7",
+            "stakeFraction": 0.3,
+            "meanEnd": 10895036.966243044,
+            "medianEnd": 2.1845522539433553,
+            "pBelowStart": 0.8181818181818182,
+            "minEnd": 1.5074852148589446,
+            "stressEnd": 2.4677554888389737
+          },
+          "bestRiskAdj": null,
+          "robust": {
+            "set": "top7",
+            "stakeFraction": 0.05,
+            "meanEnd": 123.74658640572142,
+            "medianEnd": 75.55407117905544,
+            "pBelowStart": 0.12121212121212122,
+            "minEnd": 1.636891444547013,
+            "stressEnd": 2.461477726279772
+          }
+        }
+      },
+      "opt8": {
+        "1w": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 64.13135359390654,
+            "medianEnd": 58.139917196686056,
+            "pBelowStart": 0,
+            "minEnd": 28.035303386324294,
+            "stressEnd": 28.035303386324294
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 64.13135359390654,
+            "medianEnd": 58.139917196686056,
+            "pBelowStart": 0,
+            "minEnd": 28.035303386324294,
+            "stressEnd": 28.035303386324294
+          },
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 64.13135359390654,
+            "medianEnd": 58.139917196686056,
+            "pBelowStart": 0,
+            "minEnd": 28.035303386324294,
+            "stressEnd": 28.035303386324294
+          }
+        },
+        "2w": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 946.6010341037028,
+            "medianEnd": 389.56352175477434,
+            "pBelowStart": 0,
+            "minEnd": 84.88199762677199,
+            "stressEnd": 84.88199762677199
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 946.6010341037028,
+            "medianEnd": 389.56352175477434,
+            "pBelowStart": 0,
+            "minEnd": 84.88199762677199,
+            "stressEnd": 84.88199762677199
+          },
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 946.6010341037028,
+            "medianEnd": 389.56352175477434,
+            "pBelowStart": 0,
+            "minEnd": 84.88199762677199,
+            "stressEnd": 84.88199762677199
+          }
+        },
+        "3w": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 4416.766443460635,
+            "medianEnd": 1090.159107195684,
+            "pBelowStart": 0,
+            "minEnd": 116.1035994468765,
+            "stressEnd": 116.1035994468765
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 4416.766443460635,
+            "medianEnd": 1090.159107195684,
+            "pBelowStart": 0,
+            "minEnd": 116.1035994468765,
+            "stressEnd": 116.1035994468765
+          },
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 4416.766443460635,
+            "medianEnd": 1090.159107195684,
+            "pBelowStart": 0,
+            "minEnd": 116.1035994468765,
+            "stressEnd": 116.1035994468765
+          }
+        },
+        "1m": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.3,
+            "meanEnd": 8610.541922680839,
+            "medianEnd": 1069.0627470183815,
+            "pBelowStart": 0.3333333333333333,
+            "minEnd": 1.754625944283738,
+            "stressEnd": 1.754625944283738
+          },
+          "bestRiskAdj": {
+            "set": "opt8",
+            "stakeFraction": 0.25,
+            "meanEnd": 3068.1485994297163,
+            "medianEnd": 908.5482326758471,
+            "pBelowStart": 0,
+            "minEnd": 42.590843460771346,
+            "stressEnd": 42.590843460771346
+          },
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.2,
+            "meanEnd": 1014.8138851770507,
+            "medianEnd": 416.60951358591035,
+            "pBelowStart": 0,
+            "minEnd": 44.15104526826923,
+            "stressEnd": 44.15104526826923
+          }
+        },
+        "full": {
+          "bestMean": {
+            "set": "opt8",
+            "stakeFraction": 0.2,
+            "meanEnd": 55290.76687671881,
+            "medianEnd": 2.1875324194159154,
+            "pBelowStart": 0.7878787878787878,
+            "minEnd": 1.5825893374648223,
+            "stressEnd": 2.1751745965429654
+          },
+          "bestRiskAdj": null,
+          "robust": {
+            "set": "opt8",
+            "stakeFraction": 0.05,
+            "meanEnd": 88.81207014036049,
+            "medianEnd": 54.952069916269735,
+            "pBelowStart": 0.3939393939393939,
+            "minEnd": 1.5979565204246988,
+            "stressEnd": 1.5979565204246988
+          }
+        }
+      }
+    }
+  },
+  "winners": {
+    "SB5": {
+      "1w": {
+        "highestMean": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 32.06567679695327,
+          "medianEnd": 29.069958598343028,
+          "pBelowStart": 0,
+          "minEnd": 14.017651693162147,
+          "stressEnd": 14.017651693162147
+        },
+        "highestRiskAdjMedian": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 32.06567679695327,
+          "medianEnd": 29.069958598343028,
+          "pBelowStart": 0,
+          "minEnd": 14.017651693162147,
+          "stressEnd": 14.017651693162147
+        }
+      },
+      "2w": {
+        "highestMean": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 473.3005170518514,
+          "medianEnd": 194.78176087738717,
+          "pBelowStart": 0,
+          "minEnd": 42.440998813385995,
+          "stressEnd": 42.440998813385995
+        },
+        "highestRiskAdjMedian": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 473.3005170518514,
+          "medianEnd": 194.78176087738717,
+          "pBelowStart": 0,
+          "minEnd": 42.440998813385995,
+          "stressEnd": 42.440998813385995
+        }
+      },
+      "3w": {
+        "highestMean": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 2208.3832217303175,
+          "medianEnd": 545.079553597842,
+          "pBelowStart": 0,
+          "minEnd": 58.05179972343825,
+          "stressEnd": 58.05179972343825
+        },
+        "highestRiskAdjMedian": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 2208.3832217303175,
+          "medianEnd": 545.079553597842,
+          "pBelowStart": 0,
+          "minEnd": 58.05179972343825,
+          "stressEnd": 58.05179972343825
+        }
+      },
+      "1m": {
+        "highestMean": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 3811.823202290105,
+          "medianEnd": 2.45142651688597,
+          "pBelowStart": 0.5757575757575758,
+          "minEnd": 2.0120449064450443,
+          "stressEnd": 2.392390301720047
+        },
+        "highestRiskAdjMedian": {
+          "set": "top7",
+          "stakeFraction": 0.15,
+          "meanEnd": 169.0792122995531,
+          "medianEnd": 105.58565303059743,
+          "pBelowStart": 0.09090909090909091,
+          "minEnd": 2.1991477785392792,
+          "stressEnd": 2.1991477785392792
+        }
+      },
+      "full": {
+        "highestMean": {
+          "set": "top7",
+          "stakeFraction": 0.2,
+          "meanEnd": 46623.97140680255,
+          "medianEnd": 2.039891375496231,
+          "pBelowStart": 0.9393939393939394,
+          "minEnd": 1.496174732149924,
+          "stressEnd": 2.157081856886459
+        },
+        "highestRiskAdjMedian": {
+          "set": "top3",
+          "stakeFraction": 0.3,
+          "meanEnd": 1699.3613466301786,
+          "medianEnd": 396.7745582423561,
+          "pBelowStart": 0.09090909090909091,
+          "minEnd": 1.792063196212245,
+          "stressEnd": 1.792063196212245
+        }
+      }
+    },
+    "SB10": {
+      "1w": {
+        "highestMean": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 64.13135359390654,
+          "medianEnd": 58.139917196686056,
+          "pBelowStart": 0,
+          "minEnd": 28.035303386324294,
+          "stressEnd": 28.035303386324294
+        },
+        "highestRiskAdjMedian": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 64.13135359390654,
+          "medianEnd": 58.139917196686056,
+          "pBelowStart": 0,
+          "minEnd": 28.035303386324294,
+          "stressEnd": 28.035303386324294
+        }
+      },
+      "2w": {
+        "highestMean": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 946.6010341037028,
+          "medianEnd": 389.56352175477434,
+          "pBelowStart": 0,
+          "minEnd": 84.88199762677199,
+          "stressEnd": 84.88199762677199
+        },
+        "highestRiskAdjMedian": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 946.6010341037028,
+          "medianEnd": 389.56352175477434,
+          "pBelowStart": 0,
+          "minEnd": 84.88199762677199,
+          "stressEnd": 84.88199762677199
+        }
+      },
+      "3w": {
+        "highestMean": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 4416.766443460635,
+          "medianEnd": 1090.159107195684,
+          "pBelowStart": 0,
+          "minEnd": 116.1035994468765,
+          "stressEnd": 116.1035994468765
+        },
+        "highestRiskAdjMedian": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 4416.766443460635,
+          "medianEnd": 1090.159107195684,
+          "pBelowStart": 0,
+          "minEnd": 116.1035994468765,
+          "stressEnd": 116.1035994468765
+        }
+      },
+      "1m": {
+        "highestMean": {
+          "set": "opt8",
+          "stakeFraction": 0.3,
+          "meanEnd": 8610.541922680839,
+          "medianEnd": 1069.0627470183815,
+          "pBelowStart": 0.3333333333333333,
+          "minEnd": 1.754625944283738,
+          "stressEnd": 1.754625944283738
+        },
+        "highestRiskAdjMedian": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 7829.294244423312,
+          "medianEnd": 1131.479566006123,
+          "pBelowStart": 0,
+          "minEnd": 51.82453084653392,
+          "stressEnd": 51.82453084653392
+        }
+      },
+      "full": {
+        "highestMean": {
+          "set": "top7",
+          "stakeFraction": 0.3,
+          "meanEnd": 10895036.966243044,
+          "medianEnd": 2.1845522539433553,
+          "pBelowStart": 0.8181818181818182,
+          "minEnd": 1.5074852148589446,
+          "stressEnd": 2.4677554888389737
+        },
+        "highestRiskAdjMedian": {
+          "set": "top3",
+          "stakeFraction": 0.3,
+          "meanEnd": 3402.3886644239087,
+          "medianEnd": 793.5491164847122,
+          "pBelowStart": 0,
+          "minEnd": 34.87348755107901,
+          "stressEnd": 34.87348755107901
+        }
+      }
+    }
+  }
+}
