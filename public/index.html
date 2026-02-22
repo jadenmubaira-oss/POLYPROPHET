@@ -190,6 +190,85 @@
             padding-top: 10px;
             border-top: 1px solid #333;
         }
+
+        .card-4h {
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f1729 100%);
+        }
+        .card-5m {
+            border: 1px solid rgba(251, 146, 60, 0.4);
+            background: linear-gradient(135deg, #1a1a1a 0%, #1c1410 100%);
+        }
+        .tf-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .tf-badge-4h {
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+        }
+        .tf-badge-5m {
+            background: rgba(251, 146, 60, 0.15);
+            color: #fb923c;
+            border: 1px solid rgba(251, 146, 60, 0.4);
+        }
+        .tf-badge-15m {
+            background: rgba(168, 85, 247, 0.15);
+            color: #a855f7;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+        }
+        .tf-progress {
+            height: 6px;
+            background: #222;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .tf-progress-fill-4h {
+            height: 100%;
+            background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+            transition: width 1s ease;
+        }
+        .tf-progress-fill-5m {
+            height: 100%;
+            background: linear-gradient(90deg, #fb923c, #f97316);
+            transition: width 1s ease;
+        }
+        .tf-signal-active {
+            padding: 8px 12px;
+            margin-top: 6px;
+            border-radius: 6px;
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            font-size: 12px;
+        }
+        .tf-signal-none {
+            padding: 8px 12px;
+            margin-top: 6px;
+            border-radius: 6px;
+            background: rgba(75, 85, 99, 0.12);
+            border: 1px solid rgba(75, 85, 99, 0.3);
+            font-size: 12px;
+            color: #888;
+        }
+        .strat-explain {
+            font-size: 11px;
+            color: #aaa;
+            line-height: 1.6;
+            padding: 8px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 6px;
+            margin-top: 6px;
+        }
+        .strat-explain b { color: #ddd; }
+        .tier-platinum { color: #38bdf8; }
+        .tier-gold { color: #fbbf24; }
+        .tier-silver { color: #9ca3af; }
     </style>
 </head>
 
@@ -257,6 +336,78 @@
     <div class="card">
         <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">🗓️ Full Strategy Schedule (UTC)</div>
         <div id="operator-schedule-panel" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card card-4h" id="multiframe-4h-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="tf-badge tf-badge-4h">4H ORACLE</span>
+                <span style="font-size:14px;font-weight:bold;">4-Hour Cycle Monitor</span>
+            </div>
+            <div id="mf-4h-status" style="font-size:11px;color:var(--dim);">Loading...</div>
+        </div>
+        <div id="mf-4h-cycle" style="font-size:12px;color:var(--dim);margin-bottom:4px;">--</div>
+        <div class="tf-progress"><div class="tf-progress-fill-4h" id="mf-4h-progress" style="width:0%"></div></div>
+        <div id="mf-4h-signals" style="margin-top:10px;">
+            <div class="tf-signal-none">No active 4h signals</div>
+        </div>
+        <div id="mf-4h-markets" style="margin-top:10px;"></div>
+        <details style="margin-top:10px;">
+            <summary style="cursor:pointer;color:#38bdf8;font-size:12px;font-weight:bold;">4H Strategy Schedule & Explanations</summary>
+            <div id="mf-4h-schedule" style="margin-top:8px;"></div>
+            <div class="strat-explain" style="margin-top:8px;">
+                <div style="font-weight:bold;color:#38bdf8;margin-bottom:6px;">What do these 4H strategies mean?</div>
+                <div style="margin-bottom:6px;"><b>How it works:</b> Every 4 hours, Polymarket opens a new UP/DOWN market for each crypto asset (BTC, ETH, SOL, XRP). The market asks: "Will this asset's price be higher or lower at the end of this 4-hour window?" Our strategies watch these markets and look for specific price patterns that historically predict the outcome with high accuracy.</div>
+                <div style="margin-bottom:6px;"><b>Entry Minute (e.g. m120, m180):</b> How many minutes into the 4-hour cycle we wait before entering. m120 = we wait 2 hours to see how the market is trending. m180 = we wait 3 hours. Later entries are more certain but have shorter time to resolution.</div>
+                <div style="margin-bottom:6px;"><b>Direction (UP/DOWN):</b> Which side we bet on. "DOWN 60-75c" means we buy the DOWN token when it costs 60-75 cents, expecting the asset price to drop by cycle end.</div>
+                <div style="margin-bottom:6px;"><b>Price Band (e.g. 60-75c):</b> We only enter when the token price is in this range. If the DOWN token is at 70c, the market is already ~70% confident it will go down - our strategy confirms this signal is reliable.</div>
+                <div style="margin-bottom:6px;">
+                    <b>Tiers:</b>
+                    <span class="tier-platinum">PLATINUM</span> = highest confidence (best backtest metrics) |
+                    <span class="tier-gold">GOLD</span> = strong confidence (validated out-of-sample)
+                </div>
+                <div><b>Win Rate / LCB:</b> Win Rate is how often the strategy won historically. LCB (Lower Confidence Bound) is the worst-case win rate with 95% statistical confidence - the more conservative measure we actually use for decisions.</div>
+            </div>
+        </details>
+        <details style="margin-top:8px;">
+            <summary style="cursor:pointer;color:#38bdf8;font-size:12px;">Recent 4H Signal History</summary>
+            <div id="mf-4h-history" style="margin-top:6px;font-size:11px;color:var(--dim);">No history yet</div>
+        </details>
+    </div>
+
+    <div class="card card-5m" id="multiframe-5m-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="tf-badge tf-badge-5m">5M MONITOR</span>
+                <span style="font-size:14px;font-weight:bold;">5-Minute Cycle Monitor</span>
+                <span style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,0.2);color:#fb923c;border:1px solid rgba(251,146,60,0.3);">OBSERVE ONLY</span>
+            </div>
+            <div id="mf-5m-status" style="font-size:11px;color:var(--dim);">Loading...</div>
+        </div>
+        <div id="mf-5m-cycle" style="font-size:12px;color:var(--dim);margin-bottom:4px;">--</div>
+        <div class="tf-progress"><div class="tf-progress-fill-5m" id="mf-5m-progress" style="width:0%"></div></div>
+        <div id="mf-5m-markets" style="margin-top:10px;"></div>
+        <div class="strat-explain" style="margin-top:8px;">
+            <div style="font-weight:bold;color:#fb923c;margin-bottom:4px;">Why is this monitor-only?</div>
+            <div>5-minute markets have only ~10 days of data (since Feb 2026). That's not enough to build reliable trading strategies - any patterns found would likely be noise. We display prices and outcomes for observation, but <b>no trading signals are generated</b>. Strategy search will be revisited when 60+ days of data are available (~May 2026).</div>
+        </div>
+        <details style="margin-top:8px;">
+            <summary style="cursor:pointer;color:#fb923c;font-size:12px;">Recent 5M Outcomes</summary>
+            <div id="mf-5m-history" style="margin-top:6px;font-size:11px;color:var(--dim);">No outcomes yet</div>
+        </details>
+    </div>
+
+    <div class="card" style="border:1px solid rgba(168,85,247,0.3);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span class="tf-badge tf-badge-15m">15M ORACLE</span>
+            <span style="font-size:14px;font-weight:bold;">Timeframe Overview</span>
+        </div>
+        <div class="strat-explain">
+            <div style="font-weight:bold;color:var(--accent);margin-bottom:6px;">How do the three timeframes work together?</div>
+            <div style="margin-bottom:6px;"><b><span class="tf-badge tf-badge-15m" style="font-size:10px;">15M</span> Primary Oracle (ACTIVE):</b> The main trading engine. Uses 7 walk-forward validated strategies on 15-minute Polymarket UP/DOWN cycles. This is what generates BUY signals and manages the shadow book. ~88% win rate across 500+ backtested trades.</div>
+            <div style="margin-bottom:6px;"><b><span class="tf-badge tf-badge-4h" style="font-size:10px;">4H</span> Secondary Oracle (ACTIVE):</b> Monitors 4-hour UP/DOWN cycles with 5 validated strategies. Fires independently from 15M - both can signal simultaneously. ~90% win rate across 200+ backtested trades. Signals fire 2-3 hours into each 4h window when price confirmation is strongest.</div>
+            <div><b><span class="tf-badge tf-badge-5m" style="font-size:10px;">5M</span> Data Monitor (OBSERVE ONLY):</b> Tracks 5-minute cycles for future analysis. No signals generated - insufficient historical data. Collecting data for strategy development (~May 2026 target).</div>
+        </div>
     </div>
 
     <div class="card">
@@ -1196,6 +1347,207 @@
             }
         }
 
+        // ==================== MULTIFRAME DASHBOARD ====================
+        let _mfCache = null;
+        let _mfStrategiesCache = null;
+
+        async function loadMultiframeStatus() {
+            try {
+                const [statusRes, stratRes] = await Promise.all([
+                    fetch('/api/multiframe/status', { cache: 'no-store' }),
+                    fetch('/api/multiframe/strategies', { cache: 'no-store' })
+                ]);
+                _mfCache = await statusRes.json();
+                _mfStrategiesCache = await stratRes.json();
+                renderMultiframe4h(_mfCache['4h']);
+                renderMultiframe5m(_mfCache['5m']);
+                renderMultiframe4hStrategies(_mfStrategiesCache['4h'] || []);
+            } catch (e) {
+                console.error('Multiframe fetch error:', e);
+                const el4h = document.getElementById('mf-4h-status');
+                const el5m = document.getElementById('mf-5m-status');
+                if (el4h) el4h.textContent = 'API error';
+                if (el5m) el5m.textContent = 'API error';
+            }
+        }
+
+        function renderMultiframe4h(data) {
+            if (!data) return;
+            const statusEl = document.getElementById('mf-4h-status');
+            const cycleEl = document.getElementById('mf-4h-cycle');
+            const progressEl = document.getElementById('mf-4h-progress');
+            const signalsEl = document.getElementById('mf-4h-signals');
+            const marketsEl = document.getElementById('mf-4h-markets');
+            const historyEl = document.getElementById('mf-4h-history');
+
+            // Status
+            const stratLoaded = data.strategySet?.loaded === true;
+            const stratCount = data.strategySet?.strategies || 0;
+            const lastPoll = data.lastPollAt ? new Date(data.lastPollAt).toLocaleTimeString() : 'never';
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color:${stratLoaded ? 'var(--green)' : 'var(--red)'};">${stratLoaded ? '●' : '○'}</span> ${stratCount} strategies | Poll: ${lastPoll}`;
+            }
+
+            // Cycle info
+            const utcH = data.utcHour;
+            const elapsed = data.elapsedMinutes || 0;
+            const remaining = data.timeRemaining || '--';
+            const progress = Math.min(100, (data.cycleProgress || 0) * 100);
+            const etHour = ((utcH - 5 + 24) % 24);
+            const etLabel = `${etHour > 12 ? etHour - 12 : etHour || 12}${etHour >= 12 ? 'PM' : 'AM'} ET`;
+            if (cycleEl) cycleEl.textContent = `Cycle: UTC ${String(utcH).padStart(2,'0')}:00 (${etLabel}) | ${elapsed}min elapsed | ${remaining} remaining`;
+            if (progressEl) progressEl.style.width = `${progress}%`;
+
+            // Active signals
+            if (signalsEl) {
+                const activeSignals = data.activeSignals || {};
+                const activePairs = Object.entries(activeSignals).filter(([_, s]) => s !== null);
+                if (activePairs.length > 0) {
+                    signalsEl.innerHTML = activePairs.map(([asset, sig]) => {
+                        const tierClass = sig.tier === 'PLATINUM' ? 'tier-platinum' : 'tier-gold';
+                        const tierIcon = sig.tier === 'PLATINUM' ? '💎' : '🥇';
+                        return `<div class="tf-signal-active">
+                            <div style="font-weight:bold;color:#22C55E;">${tierIcon} ${asset}: ${sig.direction} @ ${(sig.entryPrice * 100).toFixed(0)}c</div>
+                            <div style="font-size:11px;color:#aaa;margin-top:2px;">Strategy: ${escHtml(sig.strategy)} | <span class="${tierClass}">${sig.tier}</span> | WR: ${(sig.winRate * 100).toFixed(1)}% | Fired: ${new Date(sig.firedAt).toLocaleTimeString()}</div>
+                        </div>`;
+                    }).join('');
+                } else {
+                    const nextStrategyInfo = getNextStrategyWindow(utcH, elapsed);
+                    signalsEl.innerHTML = `<div class="tf-signal-none">No active 4h signals this cycle${nextStrategyInfo ? ` — ${nextStrategyInfo}` : ''}</div>`;
+                }
+            }
+
+            // Markets
+            if (marketsEl) {
+                const markets = data.markets || {};
+                const rows = Object.entries(markets).map(([asset, m]) => {
+                    if (m.status === 'NOT_POLLED') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--dim);">Not polled</span></div>`;
+                    if (m.status !== 'OK') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--red);">${m.status}</span></div>`;
+                    const yp = m.yesPrice !== null ? `${(m.yesPrice * 100).toFixed(1)}c` : '--';
+                    const np = m.noPrice !== null ? `${(m.noPrice * 100).toFixed(1)}c` : '--';
+                    const resolved = m.resolved ? ` | <b style="color:${m.resolvedOutcome === 'UP' ? 'var(--green)' : 'var(--red)'};">${m.resolvedOutcome}</b>` : '';
+                    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;font-size:12px;">
+                        <span>${asset}</span>
+                        <span>UP ${yp} | DOWN ${np}${resolved}</span>
+                    </div>`;
+                }).join('');
+                marketsEl.innerHTML = `<div style="font-size:11px;color:var(--dim);margin-bottom:4px;">Live 4H Market Prices</div>${rows}`;
+            }
+
+            // History
+            if (historyEl) {
+                const signals = data.recentSignals || [];
+                if (signals.length === 0) {
+                    historyEl.textContent = 'No signal history yet';
+                } else {
+                    historyEl.innerHTML = signals.map(s => {
+                        const time = new Date(s.firedAt).toLocaleString();
+                        return `<div style="margin-bottom:4px;">${time} — ${s.asset} ${s.direction} @ ${(s.entryPrice * 100).toFixed(0)}c (${s.strategy})</div>`;
+                    }).join('');
+                }
+            }
+        }
+
+        function renderMultiframe5m(data) {
+            if (!data) return;
+            const statusEl = document.getElementById('mf-5m-status');
+            const cycleEl = document.getElementById('mf-5m-cycle');
+            const progressEl = document.getElementById('mf-5m-progress');
+            const marketsEl = document.getElementById('mf-5m-markets');
+            const historyEl = document.getElementById('mf-5m-history');
+
+            const lastPoll = data.lastPollAt ? new Date(data.lastPollAt).toLocaleTimeString() : 'never';
+            if (statusEl) statusEl.textContent = `Monitor only | Poll: ${lastPoll}`;
+
+            const elapsedSec = data.elapsedSeconds || 0;
+            const remaining = data.timeRemaining || '--';
+            const progress = Math.min(100, (data.cycleProgress || 0) * 100);
+            if (cycleEl) cycleEl.textContent = `Cycle: ${elapsedSec}s elapsed | ${remaining} remaining`;
+            if (progressEl) progressEl.style.width = `${progress}%`;
+
+            if (marketsEl) {
+                const markets = data.markets || {};
+                const rows = Object.entries(markets).map(([asset, m]) => {
+                    if (m.status === 'NOT_POLLED') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--dim);">Not polled</span></div>`;
+                    if (m.status !== 'OK') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--red);">${m.status}</span></div>`;
+                    const yp = m.yesPrice !== null ? `${(m.yesPrice * 100).toFixed(1)}c` : '--';
+                    const np = m.noPrice !== null ? `${(m.noPrice * 100).toFixed(1)}c` : '--';
+                    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;font-size:12px;">
+                        <span>${asset}</span>
+                        <span>UP ${yp} | DOWN ${np}</span>
+                    </div>`;
+                }).join('');
+                marketsEl.innerHTML = `<div style="font-size:11px;color:var(--dim);margin-bottom:4px;">Live 5M Market Prices</div>${rows}`;
+            }
+
+            if (historyEl) {
+                const outcomes = data.recentOutcomes || [];
+                if (outcomes.length === 0) {
+                    historyEl.textContent = 'No resolved outcomes yet';
+                } else {
+                    historyEl.innerHTML = outcomes.map(o => {
+                        const time = new Date(o.timestamp).toLocaleString();
+                        const color = o.outcome === 'UP' ? 'var(--green)' : 'var(--red)';
+                        return `<div style="margin-bottom:3px;">${time} — ${o.asset} <span style="color:${color};font-weight:bold;">${o.outcome}</span></div>`;
+                    }).join('');
+                }
+            }
+        }
+
+        function renderMultiframe4hStrategies(strategies) {
+            const el = document.getElementById('mf-4h-schedule');
+            if (!el || !Array.isArray(strategies)) return;
+            if (strategies.length === 0) {
+                el.innerHTML = '<div style="color:var(--dim);font-size:12px;">No 4h strategies loaded</div>';
+                return;
+            }
+            const rows = strategies.map(s => {
+                const tierClass = s.tier === 'PLATINUM' ? 'tier-platinum' : s.tier === 'GOLD' ? 'tier-gold' : 'tier-silver';
+                const etHour = ((s.utcHour - 5 + 24) % 24);
+                const etLabel = `${etHour > 12 ? etHour - 12 : etHour || 12}${etHour >= 12 ? 'PM' : 'AM'}`;
+                return `<tr>
+                    <td style="padding:5px;border-bottom:1px solid #222;">UTC ${String(s.utcHour).padStart(2,'0')}:00 (${etLabel})</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">m${s.entryMinute}</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;font-weight:bold;">${s.direction}</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${s.priceBand}</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;"><span class="${tierClass}">${s.tier}</span></td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${(s.winRate * 100).toFixed(1)}%</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${(s.winRateLCB * 100).toFixed(1)}%</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${s.totalTrades}</td>
+                </tr>`;
+            }).join('');
+
+            el.innerHTML = `
+                <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                    <thead><tr style="text-align:left;color:var(--dim);">
+                        <th style="padding:5px;border-bottom:1px solid #333;">Window</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Entry</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Dir</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Band</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Tier</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">WR</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">LCB</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Trades</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        }
+
+        function getNextStrategyWindow(currentUtcHour, elapsedMin) {
+            if (!_mfStrategiesCache || !_mfStrategiesCache['4h']) return null;
+            const strats = _mfStrategiesCache['4h'];
+            // Find strategies for current hour that haven't fired yet
+            const upcoming = strats.filter(s => s.utcHour === currentUtcHour && s.entryMinute > elapsedMin);
+            if (upcoming.length > 0) {
+                const next = upcoming.sort((a, b) => a.entryMinute - b.entryMinute)[0];
+                return `Next check at m${next.entryMinute} (${next.direction} ${next.priceBand})`;
+            }
+            return 'All strategy windows passed for this cycle';
+        }
+
+        // Poll multiframe every 10 seconds
+        setInterval(loadMultiframeStatus, 10000);
+
         async function loadOperatorStatus() {
             const title = document.getElementById('operator-status-title');
             const details = document.getElementById('operator-status-details');
@@ -1254,6 +1606,7 @@
             document.getElementById('activity-list').innerText = 'Connected to server...';
             loadVersion();
             loadOperatorStatus();
+            loadMultiframeStatus();
             loadTelegramConfig();
         });
 

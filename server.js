@@ -23,6 +23,7 @@ const axios = require('axios');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const https = require('https');
 const crypto = require('crypto');
+const multiframe = require('./multiframe_engine');
 
 // ==================== LOCAL ARTIFACT PATHS (OOM-SAFE) ====================
 // Huge debug corpuses can crash IDE indexers. Keep them OUTSIDE the workspace and point the server at them.
@@ -7403,6 +7404,35 @@ app.get('/api/halts', (req, res) => {
     });
 });
 
+// ==================== 🔮 MULTIFRAME ENGINE API ====================
+app.get('/api/multiframe/status', (req, res) => {
+    try {
+        res.json(multiframe.getStatus());
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/multiframe/strategies', (req, res) => {
+    try {
+        res.json({
+            '4h': multiframe.getStrategySchedule(),
+            '5m': { note: 'Monitor only - no strategies yet (insufficient data)' }
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/multiframe/reload', (req, res) => {
+    try {
+        const result = multiframe.loadStrategySet4h();
+        res.json({ reloaded: true, ...result });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Manual pause/resume endpoint (soft-block automated trades; MANUAL trades still allowed)
 app.get('/api/trading-pause', (req, res) => {
     if (!tradeExecutor) return res.status(500).json({ error: 'TradeExecutor not initialized' });
@@ -10747,8 +10777,8 @@ function checkHybridStrategy(asset, direction, entryPrice, entryMinute, utcHour,
                 notLoadedBlockedReason: 'OPERATOR_STRATEGY_SET_NOT_LOADED',
                 noMatchReasonPrefix: 'NO_OPTIMIZED_STRATEGY',
                 noMatchBlockedReason: 'NO_OPTIMIZED_MATCH',
-                forceMomentumGate: enforceOperatorGates,
-                forceVolumeGate: enforceOperatorGates,
+                forceMomentumGate: enforceOperatorGates && (runtime.conditions?.applyMomentumGate !== false),
+                forceVolumeGate: enforceOperatorGates && (runtime.conditions?.applyVolumeGate === true),
                 warningMinutes: 3
             }
             : {
@@ -33461,6 +33491,16 @@ async function startup() {
 
         setInterval(saveState, 5000);
         setInterval(fetchCurrentMarketsGuarded, 2000);
+
+        // 🔮 MULTIFRAME ENGINE: Start 4h + 5m polling alongside 15min oracle
+        multiframe.startPolling(livePrices, (signal) => {
+            log(`🔮 [4H SIGNAL] ${signal.reason}`, signal.asset);
+            // Send Telegram notification for 4h signals
+            if (typeof sendTelegramNotification === 'function') {
+                sendTelegramNotification(`🔮 4H SIGNAL\n${signal.reason}\nEntry: ${(signal.entryPrice * 100).toFixed(0)}c | WR: ${(signal.winRate * 100).toFixed(1)}%`).catch(() => {});
+            }
+        });
+        log('🔮 Multi-timeframe engine started (4h strategies + 5m monitor)');
 
         // 👁️ PROFILE TRADE SYNC (optional): ingest your real Polymarket profile fills for learning/evaluation
         // Runs only when PROFILE_TRADE_SYNC_ENABLED=true AND a profile address/url is configured.
