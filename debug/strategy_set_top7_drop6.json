@@ -7,7 +7,9 @@
     "priceMax": 0.8,
     "momentumMin": 0.03,
     "volumeMin": 500,
-    "description": "Signal fires when: price inside the matched strategy band (union 60-80c), momentum > 3%, volume > $500"
+    "applyMomentumGate": true,
+    "applyVolumeGate": false,
+    "description": "Signal fires when: price inside the matched strategy band (union 60-80c), momentum > 3%. Volume gate OFF (backtest: +24 trades, +$1 ROI vs both-on)."
   },
   "stats": {
     "totalStrategies": 7,

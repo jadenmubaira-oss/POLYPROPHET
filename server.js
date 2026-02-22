@@ -25533,6 +25533,36 @@ app.get('/', (req, res) => {
         .status-msg.error { background: rgba(255,0,0,0.2); border: 1px solid #ff4466; display: block; }
         @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.7; } }
         @media (max-width: 768px) { .nav { flex-direction: column; gap: 10px; } .status-bar { flex-direction: column; text-align: center; } .predictions-grid { grid-template-columns: 1fr; } .form-grid, .wallet-balances { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+        /* ==================== MULTIFRAME ENGINE PANELS ==================== */
+        .mf-section { margin-top: 20px; }
+        .mf-section-title { font-size: 1.3em; font-weight: bold; margin-bottom: 12px; }
+        .mf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+        @media (max-width: 900px) { .mf-grid { grid-template-columns: 1fr; } }
+        .mf-card { border-radius: 14px; padding: 18px; border: 2px solid; }
+        .mf-card.card-4h { background: linear-gradient(145deg, rgba(10,25,60,0.95), rgba(5,15,40,0.98)); border-color: rgba(50,130,255,0.35); }
+        .mf-card.card-5m { background: linear-gradient(145deg, rgba(40,25,10,0.95), rgba(30,15,5,0.98)); border-color: rgba(255,150,50,0.35); }
+        .mf-card-title { font-size: 1.1em; font-weight: bold; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+        .mf-card.card-4h .mf-card-title { color: #5599ff; }
+        .mf-card.card-5m .mf-card-title { color: #ff9944; }
+        .mf-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.7em; font-weight: bold; }
+        .mf-badge.signals-on { background: rgba(0,255,100,0.2); color: #00ff88; border: 1px solid rgba(0,255,100,0.3); }
+        .mf-badge.monitor { background: rgba(255,150,0,0.2); color: #ff9944; border: 1px solid rgba(255,150,0,0.3); }
+        .mf-progress-bar { width: 100%; height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin: 6px 0 10px; overflow: hidden; }
+        .mf-progress-fill-4h { height: 100%; background: linear-gradient(90deg, #2266ff, #55aaff); border-radius: 4px; transition: width 0.5s; }
+        .mf-progress-fill-5m { height: 100%; background: linear-gradient(90deg, #ff8800, #ffbb44); border-radius: 4px; transition: width 0.5s; }
+        .mf-markets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+        .mf-market-chip { background: rgba(255,255,255,0.05); border-radius: 6px; padding: 6px 8px; text-align: center; font-size: 0.8em; }
+        .mf-market-chip .asset-name { font-weight: bold; color: #ffd700; }
+        .mf-market-chip .price-row { font-size: 0.85em; margin-top: 2px; }
+        .mf-signal-card { background: rgba(0,255,100,0.08); border: 1px solid rgba(0,255,100,0.25); border-radius: 8px; padding: 8px 10px; margin-top: 6px; font-size: 0.85em; }
+        .mf-signal-card .sig-header { font-weight: bold; color: #00ff88; }
+        .mf-strat-table { width: 100%; font-size: 0.78em; margin-top: 8px; border-collapse: collapse; }
+        .mf-strat-table th { color: #888; text-align: left; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .mf-strat-table td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .mf-overview { background: linear-gradient(145deg, rgba(30,15,50,0.95), rgba(15,10,30,0.98)); border: 2px solid rgba(150,80,255,0.3); border-radius: 14px; padding: 18px; margin-bottom: 15px; }
+        .mf-overview-title { color: #bb88ff; font-size: 1.1em; font-weight: bold; margin-bottom: 8px; }
+        .mf-overview p { font-size: 0.85em; color: #aaa; line-height: 1.5; margin-bottom: 6px; }
+        .mf-no-data { color: #666; font-style: italic; font-size: 0.85em; padding: 10px 0; }
     </style>
 </head>
 <body>
@@ -25657,6 +25687,36 @@ app.get('/', (req, res) => {
             <div class="panel-header"><span class="panel-title">🚧 Gate Trace (Why Not Trading?)</span><button onclick="loadGateTrace()" style="padding:4px 10px;background:#f59e0b;border:none;border-radius:4px;cursor:pointer;color:#000;font-size:0.75em;font-weight:bold;">🔄 Refresh</button></div>
             <div id="gateTraceSummary" style="padding:10px;background:rgba(0,0,0,0.3);border-radius:6px;margin-bottom:10px;font-size:0.85em;color:#888;">Click refresh to load gate trace data...</div>
             <div class="positions-list" id="gateTraceList" style="max-height:250px;"><div class="no-positions">Gate trace shows why trades were blocked</div></div>
+        </div>
+        <!-- ==================== MULTIFRAME ENGINE SECTION ==================== -->
+        <div class="mf-section" style="margin-top:20px;">
+            <div class="mf-section-title" style="color:#ffd700;">🔮 Multi-Timeframe Engine</div>
+            <div class="mf-overview">
+                <div class="mf-overview-title">🌐 Timeframe Overview</div>
+                <p><strong style="color:#00ff88;">15m Oracle</strong> — Primary signal engine. Walk-forward validated strategies (top7_drop6). Fires BUY/SELL signals via Telegram.</p>
+                <p><strong style="color:#5599ff;">4h Oracle</strong> — Secondary signal engine. 5 curated strategies with 90.2% aggregate WR. Fires independently from 15m.</p>
+                <p><strong style="color:#ff9944;">5m Monitor</strong> — Data collection only. No signals until ~May 2026 (insufficient historical data).</p>
+            </div>
+            <div class="mf-grid">
+                <div class="mf-card card-4h">
+                    <div class="mf-card-title">📊 4H Oracle <span class="mf-badge signals-on">SIGNALS ON</span></div>
+                    <div style="font-size:0.85em;color:#aaa;">Cycle: <span id="mf4h-cycle" style="color:#5599ff;">--</span> | Remaining: <span id="mf4h-remaining" style="color:#5599ff;">--</span></div>
+                    <div class="mf-progress-bar"><div class="mf-progress-fill-4h" id="mf4h-progress" style="width:0%"></div></div>
+                    <div style="font-size:0.8em;color:#888;margin-bottom:6px;">Live Markets:</div>
+                    <div class="mf-markets" id="mf4h-markets"><div class="mf-no-data">Polling...</div></div>
+                    <div id="mf4h-signals"></div>
+                    <div style="font-size:0.8em;color:#888;margin-top:10px;">Strategy Schedule:</div>
+                    <div id="mf4h-strategies"><div class="mf-no-data">Loading strategies...</div></div>
+                </div>
+                <div class="mf-card card-5m">
+                    <div class="mf-card-title">⚡ 5M Monitor <span class="mf-badge monitor">OBSERVE ONLY</span></div>
+                    <div style="font-size:0.85em;color:#aaa;">Cycle: <span id="mf5m-cycle" style="color:#ff9944;">--</span> | Remaining: <span id="mf5m-remaining" style="color:#ff9944;">--</span></div>
+                    <div class="mf-progress-bar"><div class="mf-progress-fill-5m" id="mf5m-progress" style="width:0%"></div></div>
+                    <div style="font-size:0.8em;color:#888;margin-bottom:6px;">Live Markets:</div>
+                    <div class="mf-markets" id="mf5m-markets"><div class="mf-no-data">Polling...</div></div>
+                    <div style="font-size:0.8em;color:#ff9944;margin-top:10px;">No signals — monitoring only (9.7 days historical data, need ~90+ days).</div>
+                </div>
+            </div>
         </div>
     </div>
     <!-- WALLET MODAL -->
@@ -28166,7 +28226,131 @@ app.get('/', (req, res) => {
         // Auto-load gate trace on page load
         setTimeout(loadGateTrace, 2000);
         setInterval(loadGateTrace, 30000); // Refresh every 30s
-        
+
+        // ==================== 🔮 MULTIFRAME ENGINE UI ====================
+        async function loadMultiframeStatus() {
+            try {
+                const res = await fetch('/api/multiframe/status');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                // 4H Oracle
+                if (data['4h']) {
+                    const h = data['4h'];
+                    const cycleEl = document.getElementById('mf4h-cycle');
+                    const remEl = document.getElementById('mf4h-remaining');
+                    const progEl = document.getElementById('mf4h-progress');
+                    const mktsEl = document.getElementById('mf4h-markets');
+                    const sigsEl = document.getElementById('mf4h-signals');
+                    if (cycleEl) cycleEl.textContent = h.currentCycle || h.cycle || '--';
+                    if (remEl) {
+                        const remMs = h.msUntilNext || h.remainingMs || 0;
+                        const remMin = Math.floor(remMs / 60000);
+                        const remSec = Math.floor((remMs % 60000) / 1000);
+                        remEl.textContent = remMin + 'm ' + remSec + 's';
+                    }
+                    if (progEl) {
+                        const pct = h.progressPct || h.progress || 0;
+                        progEl.style.width = Math.min(100, pct) + '%';
+                    }
+                    // Markets
+                    if (mktsEl && h.markets) {
+                        const mArr = Array.isArray(h.markets) ? h.markets : Object.keys(h.markets);
+                        if (mArr.length > 0) {
+                            mktsEl.innerHTML = mArr.map(m => '<span class="mf-market-tag">' + m + '</span>').join('');
+                        } else {
+                            mktsEl.innerHTML = '<div class="mf-no-data">No active markets</div>';
+                        }
+                    }
+                    // Recent signals
+                    if (sigsEl && h.recentSignals && h.recentSignals.length > 0) {
+                        let sHtml = '<div style="font-size:0.8em;color:#888;margin-top:8px;">Recent Signals:</div>';
+                        for (const s of h.recentSignals.slice(0, 5)) {
+                            const clr = s.direction === 'BUY' ? '#00ff88' : '#ff4466';
+                            const icon = s.direction === 'BUY' ? '🟢' : '🔴';
+                            const t = s.timestamp ? new Date(s.timestamp).toLocaleTimeString() : '';
+                            sHtml += '<div class="mf-signal-item"><span>' + icon + ' <strong style="color:' + clr + ';">' + (s.asset || s.market || '?') + '</strong> ' + s.direction + '</span><span style="color:#888;">' + t + '</span></div>';
+                        }
+                        sigsEl.innerHTML = sHtml;
+                    } else if (sigsEl) {
+                        sigsEl.innerHTML = '<div style="font-size:0.8em;color:#555;margin-top:6px;">No recent 4H signals</div>';
+                    }
+                }
+
+                // 5M Monitor
+                if (data['5m']) {
+                    const m = data['5m'];
+                    const cycleEl = document.getElementById('mf5m-cycle');
+                    const remEl = document.getElementById('mf5m-remaining');
+                    const progEl = document.getElementById('mf5m-progress');
+                    const mktsEl = document.getElementById('mf5m-markets');
+                    if (cycleEl) cycleEl.textContent = m.currentCycle || m.cycle || '--';
+                    if (remEl) {
+                        const remMs = m.msUntilNext || m.remainingMs || 0;
+                        const remMin = Math.floor(remMs / 60000);
+                        const remSec = Math.floor((remMs % 60000) / 1000);
+                        remEl.textContent = remMin + 'm ' + remSec + 's';
+                    }
+                    if (progEl) {
+                        const pct = m.progressPct || m.progress || 0;
+                        progEl.style.width = Math.min(100, pct) + '%';
+                    }
+                    if (mktsEl && m.markets) {
+                        const mArr = Array.isArray(m.markets) ? m.markets : Object.keys(m.markets);
+                        if (mArr.length > 0) {
+                            mktsEl.innerHTML = mArr.map(mk => '<span class="mf-market-tag">' + mk + '</span>').join('');
+                        } else {
+                            mktsEl.innerHTML = '<div class="mf-no-data">No active markets</div>';
+                        }
+                    }
+                }
+            } catch (e) { /* silent - multiframe may not be running */ }
+        }
+
+        async function loadMultiframeStrategies() {
+            try {
+                const res = await fetch('/api/multiframe/strategies');
+                if (!res.ok) return;
+                const data = await res.json();
+
+                const stratEl = document.getElementById('mf4h-strategies');
+                if (stratEl && data['4h']) {
+                    const strats = Array.isArray(data['4h']) ? data['4h'] : data['4h'].strategies || [];
+                    if (strats.length > 0) {
+                        let sHtml = '';
+                        for (const s of strats) {
+                            const name = s.name || s.strategy || 'Unknown';
+                            const wr = s.winRate || s.wr || s.win_rate;
+                            const wrStr = wr ? (wr > 1 ? wr.toFixed(1) : (wr * 100).toFixed(1)) + '%' : '--';
+                            const statusClr = s.active !== false ? '#00ff88' : '#888';
+                            sHtml += '<div style="display:flex;justify-content:space-between;padding:4px 8px;font-size:0.8em;border-bottom:1px solid rgba(255,255,255,0.05);">';
+                            sHtml += '<span style="color:' + statusClr + ';">' + name + '</span>';
+                            sHtml += '<span style="color:#5599ff;">WR: ' + wrStr + '</span>';
+                            sHtml += '</div>';
+                        }
+                        stratEl.innerHTML = sHtml;
+                    } else if (typeof data['4h'] === 'object' && !Array.isArray(data['4h'])) {
+                        // Could be key-value format
+                        let sHtml = '';
+                        for (const [k, v] of Object.entries(data['4h'])) {
+                            if (k === 'note') continue;
+                            sHtml += '<div style="display:flex;justify-content:space-between;padding:4px 8px;font-size:0.8em;border-bottom:1px solid rgba(255,255,255,0.05);">';
+                            sHtml += '<span style="color:#00ff88;">' + k + '</span>';
+                            sHtml += '<span style="color:#5599ff;">' + JSON.stringify(v).substring(0, 40) + '</span>';
+                            sHtml += '</div>';
+                        }
+                        stratEl.innerHTML = sHtml || '<div class="mf-no-data">No strategies loaded</div>';
+                    }
+                }
+            } catch (e) { /* silent */ }
+        }
+
+        // Multiframe polling: status every 5s, strategies every 60s
+        setTimeout(loadMultiframeStatus, 3000);
+        setTimeout(loadMultiframeStrategies, 4000);
+        setInterval(loadMultiframeStatus, 5000);
+        setInterval(loadMultiframeStrategies, 60000);
+
         // PENDING SELLS / RECOVERY FUNCTIONS
         async function loadPendingSells() {
             try {
