@@ -50,6 +50,7 @@ debug/*
 !debug/strategy_set_top7_drop6.json
 !debug/strategy_set_top3_robust.json
 !debug/strategy_set_top8_current.json
+!debug/strategy_set_4h_curated.json
 !debug/analysis/
 !debug/analysis/expected_24h48h_compact.json
 !debug/analysis/stress_expected_compact.json
@@ -62,6 +63,8 @@ debug/*
 !debug/stress_min1/optimized8_min1_sb5_simulateBankrollPath_stress_matrix.csv
 !debug/stress_min1/optimized8_min1_sb10_simulateBankrollPath_stress_matrix.csv
 !debug/final_set_scan/
+!debug/final_set_scan/top7_drop6/
+!debug/final_set_scan/top7_drop6/hybrid_replay_executed_ledger.json
 !debug/final_set_scan/top3_robust/
 !debug/final_set_scan/top3_robust/hybrid_replay_executed_ledger.json
 !debug/final_full_default/

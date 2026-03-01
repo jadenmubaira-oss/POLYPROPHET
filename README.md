@@ -62,7 +62,7 @@
 > ### Non-Negotiable Requirements
 >
 > | Requirement | Value | Consequence of Failure |
-> |-------------|-------|------------------------|
+> | ------------- | ----- | ---------------------- |
 > | **Win Rate** | ≥90% | BUST (see tables below) |
 > | **ROI per Trade** | 50-100% | Too slow / too risky |
 > | **Frequency** | ~1/hour minimum | Mission takes too long |

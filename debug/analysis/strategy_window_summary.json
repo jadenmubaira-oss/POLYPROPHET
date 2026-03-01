@@ -1,0 +1,161 @@
+{
+  "generatedAt": "2026-02-15T22:47:53.611Z",
+  "sets": {
+    "top3": {
+      "ledger": "debug/final_set_scan/top3_robust/hybrid_replay_executed_ledger.json",
+      "trades": 160,
+      "wins": 149,
+      "winRate": 0.93125,
+      "winRateLCB": 0.8810959503315198,
+      "tradesPerDay": 1.4546832086371817,
+      "windows": {
+        "24h": {
+          "trades": 3,
+          "wins": 3,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.4384939195509822
+        },
+        "48h": {
+          "trades": 4,
+          "wins": 4,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.5100999795960008
+        },
+        "1w": {
+          "trades": 9,
+          "wins": 9,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.7008472464490406
+        },
+        "2w": {
+          "trades": 19,
+          "wins": 19,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.8318156346315495
+        },
+        "1m": {
+          "trades": 46,
+          "wins": 44,
+          "losses": 2,
+          "winRate": 0.9565217391304348,
+          "winRateLCB": 0.8546747708094659
+        },
+        "full": {
+          "trades": 160,
+          "wins": 149,
+          "losses": 11,
+          "winRate": 0.93125,
+          "winRateLCB": 0.8810959503315198
+        }
+      }
+    },
+    "top5": {
+      "ledger": "debug/final_set_scan/top5_robust/hybrid_replay_executed_ledger.json",
+      "trades": 242,
+      "wins": 217,
+      "winRate": 0.8966942148760331,
+      "winRateLCB": 0.851947320958714,
+      "tradesPerDay": 2.2002083530637373,
+      "windows": {
+        "24h": {
+          "trades": 5,
+          "wins": 5,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.565508505247919
+        },
+        "48h": {
+          "trades": 6,
+          "wins": 6,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.6096569663469354
+        },
+        "1w": {
+          "trades": 16,
+          "wins": 16,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.8063865817272801
+        },
+        "2w": {
+          "trades": 32,
+          "wins": 32,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.8928172849426365
+        },
+        "1m": {
+          "trades": 74,
+          "wins": 71,
+          "losses": 3,
+          "winRate": 0.9594594594594594,
+          "winRateLCB": 0.8874510681944235
+        },
+        "full": {
+          "trades": 242,
+          "wins": 217,
+          "losses": 25,
+          "winRate": 0.8966942148760331,
+          "winRateLCB": 0.851947320958714
+        }
+      }
+    },
+    "opt8": {
+      "ledger": "debug/final_full_default/hybrid_replay_executed_ledger.json",
+      "trades": 522,
+      "wins": 453,
+      "winRate": 0.867816091954023,
+      "winRateLCB": 0.8360556418370404,
+      "tradesPerDay": 4.725318246110326,
+      "windows": {
+        "24h": {
+          "trades": 4,
+          "wins": 4,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.5100999795960008
+        },
+        "48h": {
+          "trades": 9,
+          "wins": 9,
+          "losses": 0,
+          "winRate": 1,
+          "winRateLCB": 0.7008472464490406
+        },
+        "1w": {
+          "trades": 35,
+          "wins": 34,
+          "losses": 1,
+          "winRate": 0.9714285714285714,
+          "winRateLCB": 0.8546659090672867
+        },
+        "2w": {
+          "trades": 77,
+          "wins": 75,
+          "losses": 2,
+          "winRate": 0.974025974025974,
+          "winRateLCB": 0.9101524452675265
+        },
+        "1m": {
+          "trades": 173,
+          "wins": 159,
+          "losses": 14,
+          "winRate": 0.9190751445086706,
+          "winRateLCB": 0.8687576040654788
+        },
+        "full": {
+          "trades": 522,
+          "wins": 453,
+          "losses": 69,
+          "winRate": 0.867816091954023,
+          "winRateLCB": 0.8360556418370404
+        }
+      }
+    }
+  }
+}

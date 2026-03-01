@@ -1,0 +1,32 @@
+{
+  "top3": {
+    "trades": 160,
+    "losses": 11,
+    "winRate": 0.93125,
+    "maxLossStreak": 2,
+    "runsGe2": 1,
+    "runsGe3": 0,
+    "iidExpectedGe2": 0.7562499999999995,
+    "iidExpectedGe3": 0.05199218749999995
+  },
+  "top5": {
+    "trades": 242,
+    "losses": 25,
+    "winRate": 0.8966942148760331,
+    "maxLossStreak": 2,
+    "runsGe2": 4,
+    "runsGe3": 0,
+    "iidExpectedGe2": 2.582644628099173,
+    "iidExpectedGe3": 0.26680213100198064
+  },
+  "opt8": {
+    "trades": 522,
+    "losses": 69,
+    "winRate": 0.867816091954023,
+    "maxLossStreak": 3,
+    "runsGe2": 9,
+    "runsGe3": 1,
+    "iidExpectedGe2": 9.120689655172415,
+    "iidExpectedGe3": 1.2056084026952043
+  }
+}

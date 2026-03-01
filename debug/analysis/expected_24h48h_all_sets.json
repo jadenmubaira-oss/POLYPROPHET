@@ -1,0 +1,1103 @@
+{
+  "generatedAt": "2026-02-15T23:29:03.497Z",
+  "windows": {
+    "SB5": {
+      "top3": {
+        "24h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 5.575618765016486,
+              "medianEnd": 5.570538540329944,
+              "minEnd": 5.342420990972537,
+              "maxEnd": 5.827496453046875,
+              "pBelowStart": 0,
+              "baseEnd": 5.827496453046875,
+              "stressEnd": 5.342420990972537
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 5.575618765016486,
+              "medianEnd": 5.570538540329944,
+              "minEnd": 5.342420990972537,
+              "maxEnd": 5.827496453046875,
+              "pBelowStart": 0,
+              "baseEnd": 5.827496453046875,
+              "stressEnd": 5.342420990972537
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 5.575618765016486,
+              "medianEnd": 5.570538540329944,
+              "minEnd": 5.342420990972537,
+              "maxEnd": 5.827496453046875,
+              "pBelowStart": 0,
+              "baseEnd": 5.827496453046875,
+              "stressEnd": 5.342420990972537
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 5.599066312185072,
+              "medianEnd": 5.592339523002957,
+              "minEnd": 5.350161560756492,
+              "maxEnd": 5.873753307765094,
+              "pBelowStart": 0,
+              "baseEnd": 5.873753307765094,
+              "stressEnd": 5.350161560756492
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 5.756286301028225,
+              "medianEnd": 5.747342289259593,
+              "minEnd": 5.440143007306908,
+              "maxEnd": 6.106970221459733,
+              "pBelowStart": 0,
+              "baseEnd": 6.106970221459733,
+              "stressEnd": 5.440143007306908
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 5.916548159297341,
+              "medianEnd": 5.905162647360467,
+              "minEnd": 5.5311114979876645,
+              "maxEnd": 6.3462537632895994,
+              "pBelowStart": 0,
+              "baseEnd": 6.3462537632895994,
+              "stressEnd": 5.5311114979876645
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 5.916548159297341,
+            "medianEnd": 5.905162647360467,
+            "minEnd": 5.5311114979876645,
+            "maxEnd": 6.3462537632895994,
+            "pBelowStart": 0,
+            "baseEnd": 6.3462537632895994,
+            "stressEnd": 5.5311114979876645
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 5.916548159297341,
+            "medianEnd": 5.905162647360467,
+            "minEnd": 5.5311114979876645,
+            "maxEnd": 6.3462537632895994,
+            "pBelowStart": 0,
+            "baseEnd": 6.3462537632895994,
+            "stressEnd": 5.5311114979876645
+          }
+        },
+        "48h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 5.7858163784408845,
+              "medianEnd": 5.778947757349936,
+              "minEnd": 5.472766638944364,
+              "maxEnd": 6.124124214280535,
+              "pBelowStart": 0,
+              "baseEnd": 6.124124214280535,
+              "stressEnd": 5.472766638944364
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 5.7858163784408845,
+              "medianEnd": 5.778947757349936,
+              "minEnd": 5.472766638944364,
+              "maxEnd": 6.124124214280535,
+              "pBelowStart": 0,
+              "baseEnd": 6.124124214280535,
+              "stressEnd": 5.472766638944364
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 5.7858163784408845,
+              "medianEnd": 5.778947757349936,
+              "minEnd": 5.472766638944364,
+              "maxEnd": 6.124124214280535,
+              "pBelowStart": 0,
+              "baseEnd": 6.124124214280535,
+              "stressEnd": 5.472766638944364
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 5.83579012680174,
+              "medianEnd": 5.825438543262758,
+              "minEnd": 5.489635615834648,
+              "maxEnd": 6.222216966509327,
+              "pBelowStart": 0,
+              "baseEnd": 6.222216966509327,
+              "stressEnd": 5.489635615834648
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 6.060911446127435,
+              "medianEnd": 6.046792065872213,
+              "minEnd": 5.617417748643614,
+              "maxEnd": 6.559844447637791,
+              "pBelowStart": 0,
+              "baseEnd": 6.559844447637791,
+              "stressEnd": 5.617417748643614
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 6.292773989006409,
+              "medianEnd": 6.274369744474096,
+              "minEnd": 5.747398391650554,
+              "maxEnd": 6.910996277097184,
+              "pBelowStart": 0,
+              "baseEnd": 6.910996277097184,
+              "stressEnd": 5.747398391650554
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 6.292773989006409,
+            "medianEnd": 6.274369744474096,
+            "minEnd": 5.747398391650554,
+            "maxEnd": 6.910996277097184,
+            "pBelowStart": 0,
+            "baseEnd": 6.910996277097184,
+            "stressEnd": 5.747398391650554
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 6.292773989006409,
+            "medianEnd": 6.274369744474096,
+            "minEnd": 5.747398391650554,
+            "maxEnd": 6.910996277097184,
+            "pBelowStart": 0,
+            "baseEnd": 6.910996277097184,
+            "stressEnd": 5.747398391650554
+          }
+        }
+      },
+      "top7": {
+        "24h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 5.872559739125151,
+              "medianEnd": 5.865222062796741,
+              "minEnd": 5.549031837021222,
+              "maxEnd": 6.223064098976678,
+              "pBelowStart": 0,
+              "baseEnd": 6.223064098976678,
+              "stressEnd": 5.549031837021222
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 5.872559739125151,
+              "medianEnd": 5.865222062796741,
+              "minEnd": 5.549031837021222,
+              "maxEnd": 6.223064098976678,
+              "pBelowStart": 0,
+              "baseEnd": 6.223064098976678,
+              "stressEnd": 5.549031837021222
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 5.872559739125151,
+              "medianEnd": 5.865222062796741,
+              "minEnd": 5.549031837021222,
+              "maxEnd": 6.223064098976678,
+              "pBelowStart": 0,
+              "baseEnd": 6.223064098976678,
+              "stressEnd": 5.549031837021222
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 5.933824007534939,
+              "medianEnd": 5.922624577037977,
+              "minEnd": 5.571768859147119,
+              "maxEnd": 6.339381153414937,
+              "pBelowStart": 0,
+              "baseEnd": 6.339381153414937,
+              "stressEnd": 5.571768859147119
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 6.18717174672669,
+              "medianEnd": 6.171854756855923,
+              "minEnd": 5.7219746260476185,
+              "maxEnd": 6.712400471303787,
+              "pBelowStart": 0,
+              "baseEnd": 6.712400471303787,
+              "stressEnd": 5.7219746260476185
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 6.448840914069578,
+              "medianEnd": 6.428824458782765,
+              "minEnd": 5.875162509185021,
+              "maxEnd": 7.101584573081993,
+              "pBelowStart": 0,
+              "baseEnd": 7.101584573081993,
+              "stressEnd": 5.875162509185021
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "minEnd": 5.875162509185021,
+            "maxEnd": 7.101584573081993,
+            "pBelowStart": 0,
+            "baseEnd": 7.101584573081993,
+            "stressEnd": 5.875162509185021
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "minEnd": 5.875162509185021,
+            "maxEnd": 7.101584573081993,
+            "pBelowStart": 0,
+            "baseEnd": 7.101584573081993,
+            "stressEnd": 5.875162509185021
+          }
+        },
+        "48h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 6.869279771772758,
+              "medianEnd": 6.853278196465196,
+              "minEnd": 6.152695165296122,
+              "maxEnd": 7.644699680588727,
+              "pBelowStart": 0,
+              "baseEnd": 7.644699680588727,
+              "stressEnd": 6.152695165296122
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 6.869279771772758,
+              "medianEnd": 6.853278196465196,
+              "minEnd": 6.152695165296122,
+              "maxEnd": 7.644699680588727,
+              "pBelowStart": 0,
+              "baseEnd": 7.644699680588727,
+              "stressEnd": 6.152695165296122
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 6.877782591341166,
+              "medianEnd": 6.853278196465196,
+              "minEnd": 6.152695165296122,
+              "maxEnd": 7.694140135489126,
+              "pBelowStart": 0,
+              "baseEnd": 7.694140135489126,
+              "stressEnd": 6.152695165296122
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 7.231307549627652,
+              "medianEnd": 7.188851099132871,
+              "minEnd": 6.277467375446052,
+              "maxEnd": 8.35824963775813,
+              "pBelowStart": 0,
+              "baseEnd": 8.35824963775813,
+              "stressEnd": 6.277467375446052
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 7.917994643579494,
+              "medianEnd": 7.853993720429273,
+              "minEnd": 6.638785708107006,
+              "maxEnd": 9.461182766197298,
+              "pBelowStart": 0,
+              "baseEnd": 9.461182766197298,
+              "stressEnd": 6.638785708107006
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 8.664587640139692,
+              "medianEnd": 8.573163637097286,
+              "minEnd": 7.018386953999938,
+              "maxEnd": 10.691450677072698,
+              "pBelowStart": 0,
+              "baseEnd": 10.691450677072698,
+              "stressEnd": 7.018386953999938
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "minEnd": 7.018386953999938,
+            "maxEnd": 10.691450677072698,
+            "pBelowStart": 0,
+            "baseEnd": 10.691450677072698,
+            "stressEnd": 7.018386953999938
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "minEnd": 7.018386953999938,
+            "maxEnd": 10.691450677072698,
+            "pBelowStart": 0,
+            "baseEnd": 10.691450677072698,
+            "stressEnd": 7.018386953999938
+          }
+        }
+      },
+      "opt8": {
+        "24h": {
+          "rows": [
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 5.872559739125151,
+              "medianEnd": 5.865222062796741,
+              "minEnd": 5.549031837021222,
+              "maxEnd": 6.223064098976678,
+              "pBelowStart": 0,
+              "baseEnd": 6.223064098976678,
+              "stressEnd": 5.549031837021222
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 5.872559739125151,
+              "medianEnd": 5.865222062796741,
+              "minEnd": 5.549031837021222,
+              "maxEnd": 6.223064098976678,
+              "pBelowStart": 0,
+              "baseEnd": 6.223064098976678,
+              "stressEnd": 5.549031837021222
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 5.933824007534939,
+              "medianEnd": 5.922624577037977,
+              "minEnd": 5.571768859147119,
+              "maxEnd": 6.339381153414937,
+              "pBelowStart": 0,
+              "baseEnd": 6.339381153414937,
+              "stressEnd": 5.571768859147119
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 6.18717174672669,
+              "medianEnd": 6.171854756855923,
+              "minEnd": 5.7219746260476185,
+              "maxEnd": 6.712400471303787,
+              "pBelowStart": 0,
+              "baseEnd": 6.712400471303787,
+              "stressEnd": 5.7219746260476185
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 6.448840914069578,
+              "medianEnd": 6.428824458782765,
+              "minEnd": 5.875162509185021,
+              "maxEnd": 7.101584573081993,
+              "pBelowStart": 0,
+              "baseEnd": 7.101584573081993,
+              "stressEnd": 5.875162509185021
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "minEnd": 5.875162509185021,
+            "maxEnd": 7.101584573081993,
+            "pBelowStart": 0,
+            "baseEnd": 7.101584573081993,
+            "stressEnd": 5.875162509185021
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 6.448840914069578,
+            "medianEnd": 6.428824458782765,
+            "minEnd": 5.875162509185021,
+            "maxEnd": 7.101584573081993,
+            "pBelowStart": 0,
+            "baseEnd": 7.101584573081993,
+            "stressEnd": 5.875162509185021
+          }
+        },
+        "48h": {
+          "rows": [
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 6.869279771772758,
+              "medianEnd": 6.853278196465196,
+              "minEnd": 6.152695165296122,
+              "maxEnd": 7.644699680588727,
+              "pBelowStart": 0,
+              "baseEnd": 7.644699680588727,
+              "stressEnd": 6.152695165296122
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 6.877782591341166,
+              "medianEnd": 6.853278196465196,
+              "minEnd": 6.152695165296122,
+              "maxEnd": 7.694140135489126,
+              "pBelowStart": 0,
+              "baseEnd": 7.694140135489126,
+              "stressEnd": 6.152695165296122
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 7.231307549627652,
+              "medianEnd": 7.188851099132871,
+              "minEnd": 6.277467375446052,
+              "maxEnd": 8.35824963775813,
+              "pBelowStart": 0,
+              "baseEnd": 8.35824963775813,
+              "stressEnd": 6.277467375446052
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 7.917994643579494,
+              "medianEnd": 7.853993720429273,
+              "minEnd": 6.638785708107006,
+              "maxEnd": 9.461182766197298,
+              "pBelowStart": 0,
+              "baseEnd": 9.461182766197298,
+              "stressEnd": 6.638785708107006
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 8.664587640139692,
+              "medianEnd": 8.573163637097286,
+              "minEnd": 7.018386953999938,
+              "maxEnd": 10.691450677072698,
+              "pBelowStart": 0,
+              "baseEnd": 10.691450677072698,
+              "stressEnd": 7.018386953999938
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "minEnd": 7.018386953999938,
+            "maxEnd": 10.691450677072698,
+            "pBelowStart": 0,
+            "baseEnd": 10.691450677072698,
+            "stressEnd": 7.018386953999938
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 8.664587640139692,
+            "medianEnd": 8.573163637097286,
+            "minEnd": 7.018386953999938,
+            "maxEnd": 10.691450677072698,
+            "pBelowStart": 0,
+            "baseEnd": 10.691450677072698,
+            "stressEnd": 7.018386953999938
+          }
+        }
+      }
+    },
+    "SB10": {
+      "top3": {
+        "24h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 10.575618765016486,
+              "medianEnd": 10.570538540329945,
+              "minEnd": 10.342420990972537,
+              "maxEnd": 10.827496453046875,
+              "pBelowStart": 0,
+              "baseEnd": 10.827496453046875,
+              "stressEnd": 10.342420990972537
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 10.587261865124493,
+              "medianEnd": 10.58137178147728,
+              "minEnd": 10.34627711375008,
+              "maxEnd": 10.850417955827476,
+              "pBelowStart": 0,
+              "baseEnd": 10.850417955827476,
+              "stressEnd": 10.34627711375008
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 10.889715880428565,
+              "medianEnd": 10.880258259539238,
+              "minEnd": 10.522323695087016,
+              "maxEnd": 11.293050850977485,
+              "pBelowStart": 0,
+              "baseEnd": 11.293050850977485,
+              "stressEnd": 10.522323695087016
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 11.198132624370144,
+              "medianEnd": 11.184679046005915,
+              "minEnd": 10.700323121512984,
+              "maxEnd": 11.747506615530188,
+              "pBelowStart": 0,
+              "baseEnd": 11.747506615530188,
+              "stressEnd": 10.700323121512984
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 11.51257260205645,
+              "medianEnd": 11.494684578519186,
+              "minEnd": 10.880286014613816,
+              "maxEnd": 12.213940442919466,
+              "pBelowStart": 0,
+              "baseEnd": 12.213940442919466,
+              "stressEnd": 10.880286014613816
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 11.833096318594682,
+              "medianEnd": 11.810325294720935,
+              "minEnd": 11.062222995975329,
+              "maxEnd": 12.692507526579199,
+              "pBelowStart": 0,
+              "baseEnd": 12.692507526579199,
+              "stressEnd": 11.062222995975329
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 11.833096318594682,
+            "medianEnd": 11.810325294720935,
+            "minEnd": 11.062222995975329,
+            "maxEnd": 12.692507526579199,
+            "pBelowStart": 0,
+            "baseEnd": 12.692507526579199,
+            "stressEnd": 11.062222995975329
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 11.833096318594682,
+            "medianEnd": 11.810325294720935,
+            "minEnd": 11.062222995975329,
+            "maxEnd": 12.692507526579199,
+            "pBelowStart": 0,
+            "baseEnd": 12.692507526579199,
+            "stressEnd": 11.062222995975329
+          }
+        },
+        "48h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 10.78581637844089,
+              "medianEnd": 10.778947757349936,
+              "minEnd": 10.472766638944364,
+              "maxEnd": 11.124124214280535,
+              "pBelowStart": 0,
+              "baseEnd": 11.124124214280535,
+              "stressEnd": 10.472766638944364
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 10.81044968001144,
+              "medianEnd": 10.801897322274792,
+              "minEnd": 10.481136333198865,
+              "maxEnd": 11.172271474496137,
+              "pBelowStart": 0,
+              "baseEnd": 11.172271474496137,
+              "stressEnd": 10.481136333198865
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 11.234546177206887,
+              "medianEnd": 11.220390175266118,
+              "minEnd": 10.728054560117831,
+              "maxEnd": 11.795525709690988,
+              "pBelowStart": 0,
+              "baseEnd": 11.795525709690988,
+              "stressEnd": 10.728054560117831
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 11.67158025360348,
+              "medianEnd": 11.650877086525515,
+              "minEnd": 10.979271231669296,
+              "maxEnd": 12.444433933018654,
+              "pBelowStart": 0,
+              "baseEnd": 12.444433933018654,
+              "stressEnd": 10.979271231669296
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 12.12182289225487,
+              "medianEnd": 12.093584131744427,
+              "minEnd": 11.234835497287229,
+              "maxEnd": 13.119688895275582,
+              "pBelowStart": 0,
+              "baseEnd": 13.119688895275582,
+              "stressEnd": 11.234835497287229
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 12.585547978012817,
+              "medianEnd": 12.548739488948192,
+              "minEnd": 11.494796783301108,
+              "maxEnd": 13.821992554194368,
+              "pBelowStart": 0,
+              "baseEnd": 13.821992554194368,
+              "stressEnd": 11.494796783301108
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 12.585547978012817,
+            "medianEnd": 12.548739488948192,
+            "minEnd": 11.494796783301108,
+            "maxEnd": 13.821992554194368,
+            "pBelowStart": 0,
+            "baseEnd": 13.821992554194368,
+            "stressEnd": 11.494796783301108
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 12.585547978012817,
+            "medianEnd": 12.548739488948192,
+            "minEnd": 11.494796783301108,
+            "maxEnd": 13.821992554194368,
+            "pBelowStart": 0,
+            "baseEnd": 13.821992554194368,
+            "stressEnd": 11.494796783301108
+          }
+        }
+      },
+      "top7": {
+        "24h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 10.87255973912515,
+              "medianEnd": 10.865222062796741,
+              "minEnd": 10.549031837021223,
+              "maxEnd": 11.223064098976677,
+              "pBelowStart": 0,
+              "baseEnd": 11.223064098976677,
+              "stressEnd": 10.549031837021223
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 10.902718241522582,
+              "medianEnd": 10.89351960531063,
+              "minEnd": 10.560299574953715,
+              "maxEnd": 11.28006745555711,
+              "pBelowStart": 0,
+              "baseEnd": 11.28006745555711,
+              "stressEnd": 10.560299574953715
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 11.37722748996995,
+              "medianEnd": 11.361955556795518,
+              "minEnd": 10.849013349727777,
+              "maxEnd": 11.964148468723476,
+              "pBelowStart": 0,
+              "baseEnd": 11.964148468723476,
+              "stressEnd": 10.849013349727777
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 11.867648015069879,
+              "medianEnd": 11.845249154075955,
+              "minEnd": 11.143537718294239,
+              "maxEnd": 12.678762306829874,
+              "pBelowStart": 0,
+              "baseEnd": 12.678762306829874,
+              "stressEnd": 11.143537718294239
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 12.37434349345338,
+              "medianEnd": 12.343709513711847,
+              "minEnd": 11.443949252095237,
+              "maxEnd": 13.424800942607574,
+              "pBelowStart": 0,
+              "baseEnd": 13.424800942607574,
+              "stressEnd": 11.443949252095237
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 12.897681828139156,
+              "medianEnd": 12.85764891756553,
+              "minEnd": 11.750325018370042,
+              "maxEnd": 14.203169146163987,
+              "pBelowStart": 0,
+              "baseEnd": 14.203169146163987,
+              "stressEnd": 11.750325018370042
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "minEnd": 11.750325018370042,
+            "maxEnd": 14.203169146163987,
+            "pBelowStart": 0,
+            "baseEnd": 14.203169146163987,
+            "stressEnd": 11.750325018370042
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "minEnd": 11.750325018370042,
+            "maxEnd": 14.203169146163987,
+            "pBelowStart": 0,
+            "baseEnd": 14.203169146163987,
+            "stressEnd": 11.750325018370042
+          }
+        },
+        "48h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 11.869279771772758,
+              "medianEnd": 11.853278196465196,
+              "minEnd": 11.152695165296123,
+              "maxEnd": 12.644699680588726,
+              "pBelowStart": 0,
+              "baseEnd": 12.644699680588726,
+              "stressEnd": 11.152695165296123
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 12.040745647380483,
+              "medianEnd": 12.013078778183573,
+              "minEnd": 11.213239715967855,
+              "maxEnd": 12.97726540517788,
+              "pBelowStart": 0,
+              "baseEnd": 12.97726540517788,
+              "stressEnd": 11.213239715967855
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 13.200270124352954,
+              "medianEnd": 13.148315029207982,
+              "minEnd": 11.86732012393743,
+              "maxEnd": 14.741961054697848,
+              "pBelowStart": 0,
+              "baseEnd": 14.741961054697848,
+              "stressEnd": 11.86732012393743
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 14.462615099255304,
+              "medianEnd": 14.377702198265743,
+              "minEnd": 12.554934750892103,
+              "maxEnd": 16.71649927551626,
+              "pBelowStart": 0,
+              "baseEnd": 16.71649927551626,
+              "stressEnd": 12.554934750892103
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 15.835989287158988,
+              "medianEnd": 15.707987440858545,
+              "minEnd": 13.277571416214013,
+              "maxEnd": 18.922365532394597,
+              "pBelowStart": 0,
+              "baseEnd": 18.922365532394597,
+              "stressEnd": 13.277571416214013
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 17.329175280279383,
+              "medianEnd": 17.146327274194572,
+              "minEnd": 14.036773907999876,
+              "maxEnd": 21.382901354145396,
+              "pBelowStart": 0,
+              "baseEnd": 21.382901354145396,
+              "stressEnd": 14.036773907999876
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "minEnd": 14.036773907999876,
+            "maxEnd": 21.382901354145396,
+            "pBelowStart": 0,
+            "baseEnd": 21.382901354145396,
+            "stressEnd": 14.036773907999876
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "minEnd": 14.036773907999876,
+            "maxEnd": 21.382901354145396,
+            "pBelowStart": 0,
+            "baseEnd": 21.382901354145396,
+            "stressEnd": 14.036773907999876
+          }
+        }
+      },
+      "opt8": {
+        "24h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 10.87255973912515,
+              "medianEnd": 10.865222062796741,
+              "minEnd": 10.549031837021223,
+              "maxEnd": 11.223064098976677,
+              "pBelowStart": 0,
+              "baseEnd": 11.223064098976677,
+              "stressEnd": 10.549031837021223
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 10.902718241522582,
+              "medianEnd": 10.89351960531063,
+              "minEnd": 10.560299574953715,
+              "maxEnd": 11.28006745555711,
+              "pBelowStart": 0,
+              "baseEnd": 11.28006745555711,
+              "stressEnd": 10.560299574953715
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 11.37722748996995,
+              "medianEnd": 11.361955556795518,
+              "minEnd": 10.849013349727777,
+              "maxEnd": 11.964148468723476,
+              "pBelowStart": 0,
+              "baseEnd": 11.964148468723476,
+              "stressEnd": 10.849013349727777
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 11.867648015069879,
+              "medianEnd": 11.845249154075955,
+              "minEnd": 11.143537718294239,
+              "maxEnd": 12.678762306829874,
+              "pBelowStart": 0,
+              "baseEnd": 12.678762306829874,
+              "stressEnd": 11.143537718294239
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 12.37434349345338,
+              "medianEnd": 12.343709513711847,
+              "minEnd": 11.443949252095237,
+              "maxEnd": 13.424800942607574,
+              "pBelowStart": 0,
+              "baseEnd": 13.424800942607574,
+              "stressEnd": 11.443949252095237
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 12.897681828139156,
+              "medianEnd": 12.85764891756553,
+              "minEnd": 11.750325018370042,
+              "maxEnd": 14.203169146163987,
+              "pBelowStart": 0,
+              "baseEnd": 14.203169146163987,
+              "stressEnd": 11.750325018370042
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "minEnd": 11.750325018370042,
+            "maxEnd": 14.203169146163987,
+            "pBelowStart": 0,
+            "baseEnd": 14.203169146163987,
+            "stressEnd": 11.750325018370042
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 12.897681828139156,
+            "medianEnd": 12.85764891756553,
+            "minEnd": 11.750325018370042,
+            "maxEnd": 14.203169146163987,
+            "pBelowStart": 0,
+            "baseEnd": 14.203169146163987,
+            "stressEnd": 11.750325018370042
+          }
+        },
+        "48h": {
+          "rows": [
+            {
+              "stakeFraction": 0.05,
+              "scenarios": 33,
+              "meanEnd": 11.869279771772758,
+              "medianEnd": 11.853278196465196,
+              "minEnd": 11.152695165296123,
+              "maxEnd": 12.644699680588726,
+              "pBelowStart": 0,
+              "baseEnd": 12.644699680588726,
+              "stressEnd": 11.152695165296123
+            },
+            {
+              "stakeFraction": 0.1,
+              "scenarios": 33,
+              "meanEnd": 12.040745647380483,
+              "medianEnd": 12.013078778183573,
+              "minEnd": 11.213239715967855,
+              "maxEnd": 12.97726540517788,
+              "pBelowStart": 0,
+              "baseEnd": 12.97726540517788,
+              "stressEnd": 11.213239715967855
+            },
+            {
+              "stakeFraction": 0.15,
+              "scenarios": 33,
+              "meanEnd": 13.200270124352954,
+              "medianEnd": 13.148315029207982,
+              "minEnd": 11.86732012393743,
+              "maxEnd": 14.741961054697848,
+              "pBelowStart": 0,
+              "baseEnd": 14.741961054697848,
+              "stressEnd": 11.86732012393743
+            },
+            {
+              "stakeFraction": 0.2,
+              "scenarios": 33,
+              "meanEnd": 14.462615099255304,
+              "medianEnd": 14.377702198265743,
+              "minEnd": 12.554934750892103,
+              "maxEnd": 16.71649927551626,
+              "pBelowStart": 0,
+              "baseEnd": 16.71649927551626,
+              "stressEnd": 12.554934750892103
+            },
+            {
+              "stakeFraction": 0.25,
+              "scenarios": 33,
+              "meanEnd": 15.835989287158988,
+              "medianEnd": 15.707987440858545,
+              "minEnd": 13.277571416214013,
+              "maxEnd": 18.922365532394597,
+              "pBelowStart": 0,
+              "baseEnd": 18.922365532394597,
+              "stressEnd": 13.277571416214013
+            },
+            {
+              "stakeFraction": 0.3,
+              "scenarios": 33,
+              "meanEnd": 17.329175280279383,
+              "medianEnd": 17.146327274194572,
+              "minEnd": 14.036773907999876,
+              "maxEnd": 21.382901354145396,
+              "pBelowStart": 0,
+              "baseEnd": 21.382901354145396,
+              "stressEnd": 14.036773907999876
+            }
+          ],
+          "bestMean": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "minEnd": 14.036773907999876,
+            "maxEnd": 21.382901354145396,
+            "pBelowStart": 0,
+            "baseEnd": 21.382901354145396,
+            "stressEnd": 14.036773907999876
+          },
+          "bestRiskAdj": {
+            "stakeFraction": 0.3,
+            "scenarios": 33,
+            "meanEnd": 17.329175280279383,
+            "medianEnd": 17.146327274194572,
+            "minEnd": 14.036773907999876,
+            "maxEnd": 21.382901354145396,
+            "pBelowStart": 0,
+            "baseEnd": 21.382901354145396,
+            "stressEnd": 14.036773907999876
+          }
+        }
+      }
+    }
+  }
+}

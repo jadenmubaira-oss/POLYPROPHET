@@ -2,8 +2,8 @@ services:
   - type: web
     name: polyprophet
     runtime: node
-    plan: starter
-    region: frankfurt
+    plan: free
+    region: oregon
     autoDeploy: true
     # 🏆 v79 FINAL (LOCKED) - Long-horizon datasets + rolling validation + all invariants verified
     buildCommand: npm ci
@@ -25,9 +25,9 @@ services:
       # 🏆 v70: Proven optimal starting balance (£5)
       - key: PAPER_BALANCE
         value: "5.00"
-      # 🏆 v80 SWEET SPOT: 32% max stake cap (max profit with lower ruin risk)
+      # 🏆 v141: Aggressive half-Kelly cap (92% WR → full Kelly=87%, half=43.5%, cap=45%)
       - key: MAX_POSITION_SIZE
-        value: "0.32"
+        value: "0.45"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"
@@ -50,6 +50,9 @@ services:
       # Without Redis, LIVE mode will be downgraded to PAPER for safety
       # - key: REDIS_URL
       #   value: "your-redis-url-here"
+      # 🏆 v141: 1 share minimum for $1 starting balance (default=2 requires ~$0.70 min)
+      - key: DEFAULT_MIN_ORDER_SHARES
+        value: "1"
       # 🏆 v70: Optional - Set if CLOB/Gamma requests are blocked by Cloudflare
       # - key: PROXY_URL
       #   value: "your-proxy-url-here"

@@ -11334,9 +11334,9 @@ const CONFIG = {
         // 🏆 v88: kellyMaxFraction=0.32 is OPTIMAL for $40+ start (0% ruin, +318% avg 7d)
         //   Evidence: 4 non-cherry-picked 7-day backtests, 0% ruin rate, $167.33 avg final
         kellyEnabled: true,               // Enable Kelly-based position sizing
-        kellyFraction: 0.25,              // k=0.25 (quarter-Kelly) - empirically improves BOTH worst+best across offset sweeps
+        kellyFraction: 0.75,              // C1.3: k=0.75 (three-quarter-Kelly) - aggressive compounding for 90%+ WR strategies
         kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
-        kellyMaxFraction: 0.32,           // 🏆 v88: EMPIRICAL OPTIMUM for $40+ start
+        kellyMaxFraction: 0.45,           // C1.3: raised from 0.32 to 0.45 - max 45% of bankroll per trade
 
         // 🏆 v89 AUTO-BANKROLL PROFILE (LIVE + PAPER):
         // Automatically chooses the best/fastest profile based on CURRENT bankroll.
@@ -11349,10 +11349,10 @@ const CONFIG = {
         autoBankrollProfileEnabled: true,
         autoBankrollMode: String(process.env.AUTO_BANKROLL_MODE || 'SPRINT').trim().toUpperCase(),
         autoBankrollCutover: 20,                 // <$20 => micro-safe, >=$20 => growth
-        autoBankrollKellyLow: 0.17,
-        autoBankrollKellyHigh: 0.32,
-        autoBankrollMaxPosLow: 0.17,
-        autoBankrollMaxPosHigh: 0.32,
+        autoBankrollKellyLow: 0.35,
+        autoBankrollKellyHigh: 0.45,
+        autoBankrollMaxPosLow: 0.35,
+        autoBankrollMaxPosHigh: 0.45,
         autoBankrollRiskEnvelopeLow: true,
         autoBankrollRiskEnvelopeHigh: false,
 
@@ -15899,24 +15899,37 @@ class TradeExecutor {
                     Number(buyWindowEnd) + extendedBlackoutSec
                 );
 
-                if (timeLeftSec <= effectiveBuyWindowEnd) {
-                    log(`🚫 ORACLE HARD BLOCK: Final ${effectiveBuyWindowEnd}s blackout - too late to enter (tLeft=${timeLeftSec}s)`, asset);
+                // C1.1: Strategy-aware blackout - validated strategies get tighter cutoff
+                const hasValidatedStrategy = !!(options.hybridStrategy || oracleSignals?.[asset]?.hybridStrategy);
+                const strategyBlackoutCutoffSec = Number.isFinite(Number(CONFIG?.ORACLE?.strategyBlackoutCutoffSec))
+                    ? Math.max(0, Number(CONFIG.ORACLE.strategyBlackoutCutoffSec))
+                    : 30;
+                const activeBlackoutEnd = hasValidatedStrategy ? strategyBlackoutCutoffSec : effectiveBuyWindowEnd;
+
+                if (timeLeftSec <= activeBlackoutEnd) {
+                    const blackoutType = hasValidatedStrategy ? 'STRATEGY_BLACKOUT' : 'EXTENDED_BLACKOUT';
+                    log(`🚫 ORACLE HARD BLOCK: Final ${activeBlackoutEnd}s ${blackoutType} - too late to enter (tLeft=${timeLeftSec}s)`, asset);
                     gateTrace.record(asset, {
                         decision: 'NO_TRADE',
-                        reason: 'EXTENDED_BLACKOUT',
-                        failedGates: ['extended_blackout'],
+                        reason: blackoutType,
+                        failedGates: [blackoutType.toLowerCase()],
                         inputs: {
                             timeLeftSec,
                             buyWindowStart,
                             buyWindowEnd,
                             extendedBlackoutSec,
                             effectiveBuyWindowEnd,
+                            activeBlackoutEnd,
+                            hasValidatedStrategy,
+                            strategyBlackoutCutoffSec,
                             entryPrice,
                             direction,
                             cycleStartEpochSec
                         }
                     });
-                    return { success: false, error: 'EXTENDED_BLACKOUT' };
+                    return { success: false, error: blackoutType };
+                } else if (hasValidatedStrategy && timeLeftSec <= effectiveBuyWindowEnd) {
+                    log(`✅ STRATEGY BYPASS: Validated strategy allows entry at tLeft=${timeLeftSec}s (general blackout=${effectiveBuyWindowEnd}s, strategy cutoff=${strategyBlackoutCutoffSec}s)`, asset);
                 }
 
                 const volatilityGuardEnabled = CONFIG?.ORACLE?.volatilityGuardEnabled !== false;
@@ -18355,12 +18368,24 @@ class TradeExecutor {
 
             // 🔴 CRITICAL: FORCE EXIT 30 SECONDS BEFORE CYCLE END
             // For LIVE trading: exit early to guarantee sell execution and avoid resolution edge cases
-            // ORACLE mode holds to resolution (binary win/loss), all other modes exit early
             // ILLIQUIDITY is true-arb and should hold to resolution (do not force-close at 30s).
             // 🔴 FIX v46: HEDGE legs should close WITH their main position, not independently at 30s
-            if (timeToEnd <= 30 && pos.mode !== 'ORACLE' && pos.mode !== 'ILLIQUIDITY' && pos.mode !== 'HEDGE' && !pos.isHedge) {
+            if (timeToEnd <= 30 && pos.mode !== 'ILLIQUIDITY' && pos.mode !== 'HEDGE' && !pos.isHedge) {
                 log(`⏰ PRE-RESOLUTION EXIT: ${pos.mode} ${pos.side} position closing at ${(currentOdds * 100).toFixed(1)}%`, pos.asset);
                 this.closePosition(id, currentOdds, 'PRE-RESOLUTION EXIT (30s)');
+                return;
+            }
+
+            // C1.4: SELL-BEFORE-RESOLUTION for ORACLE winning positions
+            // Instead of holding to binary resolution (requires CTF redemption + MATIC gas),
+            // sell winning positions at >=99c with 10-60s remaining. This:
+            // - Returns USDC instantly via CLOB (no redemption needed)
+            // - Avoids MATIC gas costs entirely
+            // - Loses only ~1c/share + negligible taker fee at 99c
+            // - Eliminates dependency on CTF contract + Polygon gas
+            if (pos.mode === 'ORACLE' && this.mode === 'LIVE' && timeToEnd <= 60 && timeToEnd > 10 && currentOdds >= 0.99) {
+                log(`💰 SELL-BEFORE-RESOLUTION: ${pos.side} @ ${(currentOdds * 100).toFixed(1)}¢ (${timeToEnd}s left) - avoiding redemption`, pos.asset);
+                this.closePosition(id, currentOdds, `SELL_BEFORE_RESOLUTION (${(currentOdds * 100).toFixed(0)}¢, ${timeToEnd}s left)`);
                 return;
             }
 
@@ -31984,17 +32009,7 @@ app.get('/api/crash-recovery-stats', (req, res) => {
     });
 });
 
-// Get pending sells (failed sell orders)
-app.get('/api/pending-sells', (req, res) => {
-    if (respondSignalsOnlyEndpointDisabled(res, '/api/pending-sells')) return;
-
-    const pending = tradeExecutor.pendingSells || {};
-    res.json({
-        success: true,
-        count: Object.keys(pending).length,
-        items: pending
-    });
-});
+// NOTE: /api/pending-sells is defined above (line ~31657). Duplicate removed by D1.1 audit.
 
 // Retry pending sells
 app.post('/api/retry-pending-sells', async (req, res) => {
@@ -33677,11 +33692,32 @@ async function startup() {
         setInterval(fetchCurrentMarketsGuarded, 2000);
 
         // 🔮 MULTIFRAME ENGINE: Start 4h + 5m polling alongside 15min oracle
+        // C1.2: 4h signals now fire executeTrade (not just advisory)
         multiframe.startPolling(livePrices, (signal) => {
             log(`🔮 [4H SIGNAL] ${signal.reason}`, signal.asset);
             // Send Telegram notification for 4h signals
             if (typeof sendTelegramNotification === 'function') {
                 sendTelegramNotification(`🔮 4H SIGNAL\n${signal.reason}\nEntry: ${(signal.entryPrice * 100).toFixed(0)}c | WR: ${(signal.winRate * 100).toFixed(1)}%`).catch(() => {});
+            }
+            // C1.2: Execute trade via the standard trade executor pipeline
+            // All existing gates (EV, blackout, spread, balance, circuit breaker) still apply
+            const market4h = currentMarkets[signal.asset];
+            if (market4h && tradeExecutor && signal.direction && signal.entryPrice > 0) {
+                const confidence4h = signal.winRate || 0.90;
+                tradeExecutor.executeTrade(signal.asset, signal.direction, 'ORACLE', confidence4h, signal.entryPrice, market4h, {
+                    tier: signal.tier || 'GOLD',
+                    pWin: signal.winRate || 0.90,
+                    hybridStrategy: { name: signal.strategy, id: signal.strategyId, timeframe: '4h', winRate: signal.winRate },
+                    source: '4H_MULTIFRAME'
+                }).then(result => {
+                    if (result.success) {
+                        log(`🔮 [4H TRADE] EXECUTED: ${signal.asset} ${signal.direction} @ ${(signal.entryPrice * 100).toFixed(0)}c`, signal.asset);
+                    } else {
+                        log(`🔮 [4H TRADE] BLOCKED: ${signal.asset} - ${result.error}`, signal.asset);
+                    }
+                }).catch(err => {
+                    log(`🔮 [4H TRADE] ERROR: ${signal.asset} - ${err.message}`, signal.asset);
+                });
             }
         });
         log('🔮 Multi-timeframe engine started (4h strategies + 5m monitor)');
