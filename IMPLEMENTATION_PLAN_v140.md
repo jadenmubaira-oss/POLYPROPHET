@@ -2937,3 +2937,107 @@ All critical patches applied. No remaining bugs or edge cases found. Micro-bankr
 ### Verdict: **GO** ✅
 
 The bot is code-complete for autonomous aggressive compounding from $1-$3.31 starting balance on Polymarket 15m + 4h crypto markets.
+
+---
+
+# Addendum I — GAS/MATIC INVESTIGATION & REDIS CONFIG (v140.8, 2 Mar 2026)
+
+> Full investigation of POL/MATIC gas requirements, Redis URL configuration, and the false "OUT OF GAS" Telegram alert.
+
+## I1) POL/MATIC GAS: NOT REQUIRED FOR TRADING
+
+### Polymarket CLOB is Gasless for Traders (March 2026)
+
+Per Polymarket official docs (docs.polymarket.com/trading/overview):
+> "Orders are EIP-712 signed messages, and matched trades settle atomically on Polygon."
+
+The CLOB flow is entirely gasless for the trader:
+
+| Step | Location | Gas Required? |
+|------|----------|---------------|
+| Sign order | Off-chain (EIP-712) | NO |
+| Submit order | HTTP POST to CLOB | NO |
+| Match orders | Polymarket operator | NO (operator pays) |
+| On-chain settlement | Polygon | NO (operator pays) |
+
+The bot uses `clobClient.createOrder()` + `clobClient.postOrder()` — both off-chain HTTP calls. Zero gas.
+
+### Live Proof (from /api/verify)
+
+- `MATIC=0.0000` — zero gas balance
+- `CLOB order signing works: OK` — signs orders fine with 0 MATIC
+- `collateralBalance=$3.31` — USDC available
+- `collateralAllowance=MAX` — spending approval already done (no gas needed for that either)
+
+### Gasless Relayer (Redemption)
+
+Polymarket also offers gasless redemption via their Relayer Client (docs.polymarket.com/trading/gasless):
+> "Polymarket's infrastructure pays all transaction fees. Users only need USDC.e to trade."
+
+Covers: wallet deployment, token approvals, CTF operations (split/merge/redeem), transfers.
+
+**Conclusion: No MATIC/POL needed. Not for trading, not for approval, not for redemption.**
+
+## I2) FALSE "OUT OF GAS" TELEGRAM ALERT
+
+### Root Cause
+
+The bot's `checkLowBalances()` function (line 15619-15625) sends a misleading Telegram notification:
+```
+🚫 OUT OF GAS
+Your MATIC/POL balance is 0.
+Trading is halted - no gas for transactions.
+```
+
+**This is a FALSE ALARM.** The notification says "halted" but:
+- It does NOT set any blocking flag
+- There is NO gas check gate in `executeTrade()`
+- Trading continues normally with 0 MATIC
+- The only real halt is `manualPause: true`
+
+### What Actually Blocks Trading
+
+| Gate | Status | Blocks? |
+|------|--------|---------|
+| `manualPause` | `true` | **YES — actual reason** |
+| LIVE_AUTOTRADING_ENABLED | `true` | No |
+| Circuit breaker | NORMAL | No |
+| Chainlink stale | `false` | No |
+| Gas balance (0.0000) | N/A | **NO — not a gate** |
+
+## I3) REDIS CONFIGURATION
+
+### Two Env Vars Required
+
+The bot uses `ioredis` (TCP) and requires both:
+
+| Env Var | Value |
+|---------|-------|
+| `REDIS_ENABLED` | `true` |
+| `REDIS_URL` | `rediss://default:PASSWORD@relevant-hedgehog-57462.upstash.io:6379` |
+
+Critical notes:
+- Use `rediss://` (double-s) for TLS — Upstash requires TLS
+- Do NOT use the REST URL (`https://...`) — the bot uses TCP Redis via ioredis
+- `REDIS_ENABLED` defaults to `false` — must be explicitly set
+
+### Why Redis Is Required for LIVE
+
+Without Redis, LIVE mode is forcibly downgraded to PAPER (line 33601-33607):
+```
+if (CONFIG.TRADE_MODE === 'LIVE' && !redisAvailable) {
+    CONFIG.TRADE_MODE = 'PAPER';  // Safety downgrade
+}
+```
+
+## I4) UPDATED DEPLOYMENT CHECKLIST
+
+| # | Env Var | Value | Priority |
+|---|---------|-------|----------|
+| 1 | `REDIS_ENABLED` | `true` | 🔴 CRITICAL |
+| 2 | `REDIS_URL` | `rediss://default:AeB2AA...57462@relevant-hedgehog-57462.upstash.io:6379` | 🔴 CRITICAL |
+| 3 | `TRADE_MODE` | `LIVE` | 🔴 When ready |
+| 4 | `PROXY_URL` | Webshare Japan proxy URL | 🟡 For CLOB geo-routing |
+| 5 | `CLOB_FORCE_PROXY` | `1` | 🟡 Routes CLOB through proxy |
+| 6 | `START_PAUSED` | `false` | 🟡 Prevents pause on restart |
+| 7 | MATIC/POL deposit | NOT NEEDED | ✅ Gasless trading confirmed |
