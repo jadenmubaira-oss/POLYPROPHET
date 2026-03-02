@@ -1,25 +1,56 @@
 {
-  "signals": [],
+  "signals": [
+    {
+      "id": "ISL_ETH_1771669800_1771670183739",
+      "asset": "ETH",
+      "slug": "eth-updown-15m-1771669800",
+      "direction": "UP",
+      "entryPrice": 0.76,
+      "pWin": 0.8764610019095158,
+      "tier": "CONVICTION",
+      "cycleStartEpoch": 1771669800,
+      "issuedAt": 1771670183739,
+      "resolvedAt": 1771670721236,
+      "outcome": "WIN",
+      "isWin": true
+    }
+  ],
   "stats": {
-    "total": 0,
-    "wins": 0,
+    "total": 1,
+    "wins": 1,
     "losses": 0,
     "pending": 0,
     "confirmed": 0,
     "skipped": 0,
-    "winRate": 0,
-    "currentWinStreak": 0,
+    "winRate": 1,
+    "currentWinStreak": 1,
     "currentLossStreak": 0,
-    "maxWinStreak": 0,
+    "maxWinStreak": 1,
     "maxLossStreak": 0,
-    "lastUpdated": 0
+    "lastUpdated": 1771670721236
   },
   "byAsset": {
-    "BTC": { "total": 0, "wins": 0, "losses": 0 },
-    "ETH": { "total": 0, "wins": 0, "losses": 0 },
-    "XRP": { "total": 0, "wins": 0, "losses": 0 },
-    "SOL": { "total": 0, "wins": 0, "losses": 0 }
+    "BTC": {
+      "total": 0,
+      "wins": 0,
+      "losses": 0
+    },
+    "ETH": {
+      "total": 1,
+      "wins": 1,
+      "losses": 0
+    },
+    "XRP": {
+      "total": 0,
+      "wins": 0,
+      "losses": 0
+    },
+    "SOL": {
+      "total": 0,
+      "wins": 0,
+      "losses": 0
+    }
   },
   "zeroSignalDays": [],
-  "lastSignalDate": null
+  "lastSignalDate": "2026-02-21"
 }

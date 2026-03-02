@@ -6724,7 +6724,7 @@ app.get('/api/debug-export', (req, res) => {
                 tradesThisCycle: tradeExecutor.tradesThisCycle,
                 assetCycleTradeCounts: tradeExecutor.assetCycleTradeCounts,
                 cachedLiveBalance: tradeExecutor.cachedLiveBalance,
-                cachedGasBalance: tradeExecutor.cachedGasBalance
+                cachedGasBalance: tradeExecutor.cachedMATICBalance
             } : null,
 
             // === OPPORTUNITY DETECTOR STATE ===
@@ -15593,21 +15593,11 @@ class TradeExecutor {
             ));
         }
 
-        // Check low MATIC (gas)
-        if (this.cachedMATICBalance < this.LOW_GAS_THRESHOLD &&
-            this.cachedMATICBalance > 0 &&
-            (now - this.lastLowGasAlert) > ONE_HOUR) {
+        // 🏆 v140.8: MATIC/POL gas alerts REMOVED - Polymarket CLOB is gasless
+        // Orders are EIP-712 signed off-chain, no on-chain gas needed for trading.
+        // See: docs.polymarket.com/trading/gasless
 
-            this.lastLowGasAlert = now;
-            const tradesLeft = this.getEstimatedTradesRemaining();
-            log(`⛽ LOW GAS BALANCE: ${this.cachedMATICBalance.toFixed(4)} MATIC (~${tradesLeft.gas} trades remaining)`);
-
-            sendTelegramNotification(telegramSystemAlert('⛽ LOW GAS BALANCE',
-                `MATIC/POL: ${this.cachedMATICBalance.toFixed(4)}\nEstimated Trades Left: ${tradesLeft.gas}\n\nDeposit more MATIC/POL for gas fees.`
-            ));
-        }
-
-        // Critical: Out of money entirely
+        // Critical: Out of USDC entirely
         if (this.cachedLiveBalance <= 0 && (now - this.lastLowBalanceAlert) > ONE_HOUR) {
             this.lastLowBalanceAlert = now;
             log(`🚫 OUT OF USDC: Trading halted!`);
@@ -15616,21 +15606,9 @@ class TradeExecutor {
             ));
         }
 
-        if (this.cachedMATICBalance <= 0 && (now - this.lastLowGasAlert) > ONE_HOUR) {
-            this.lastLowGasAlert = now;
-            log(`🚫 OUT OF GAS: Trading halted!`);
-            sendTelegramNotification(telegramSystemAlert('🚫 OUT OF GAS',
-                `Your MATIC/POL balance is 0.\nTrading is halted - no gas for transactions.`
-            ));
-        }
-
         // 🔄 RESET ALERTS: If balances recovered, allow new alerts after 1 hour
-        // This prevents "alert forever" after user funds the wallet
         if (this.cachedLiveBalance >= this.LOW_USDC_THRESHOLD * 2) {
-            this.lastLowBalanceAlert = 0; // Reset - can alert again if drops
-        }
-        if (this.cachedMATICBalance >= this.LOW_GAS_THRESHOLD * 2) {
-            this.lastLowGasAlert = 0; // Reset - can alert again if drops
+            this.lastLowBalanceAlert = 0;
         }
     }
 
@@ -16713,6 +16691,8 @@ class TradeExecutor {
                     tier: options.tier || 'UNKNOWN', // 🎯 GOAT: Store tier for exit policy
                     genesisAgree: options.genesisAgree || false, // 🎯 v47: Store genesis agreement for stop-loss bypass
                     slug: market?.slug || null,
+                    // 🏆 v140.9: 4H position flag — prevents premature 15m cycle exits
+                    is4h: options.source === '4H_MULTIFRAME',
                     // v32: DIAGNOSTIC FIELDS
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -16729,6 +16709,7 @@ class TradeExecutor {
                     time: Date.now(),
                     status: 'OPEN',
                     slug: market?.slug || null,
+                    is4h: options.source === '4H_MULTIFRAME',
                     // v37: DIAGNOSTIC FIELDS for forensics
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -16874,6 +16855,8 @@ class TradeExecutor {
                             status: 'LIVE_OPEN',
                             orderID: response.orderID,
                             tokenId: tokenId,
+                            // 🏆 v140.9: 4H position flag — prevents premature 15m cycle exits
+                            is4h: options.source === '4H_MULTIFRAME',
                             // ✅ Critical for truthful LIVE settlement + redemption
                             slug: market?.slug || null,
                             conditionId: market?.conditionId || null,
@@ -16894,6 +16877,7 @@ class TradeExecutor {
                             // CRITICAL: Distinguish execution mode from strategy mode (mode=ORACLE/etc)
                             isLive: true,
                             tradeMode: 'LIVE',
+                            is4h: options.source === '4H_MULTIFRAME',
                             tokenId: tokenId,
                             slug: market?.slug || null,
                             conditionId: market?.conditionId || null
@@ -28316,14 +28300,38 @@ app.get('/', (req, res) => {
                         const pct = h.progressPct || h.progress || 0;
                         progEl.style.width = Math.min(100, pct) + '%';
                     }
-                    // Markets
-                    if (mktsEl && h.markets) {
-                        const mArr = Array.isArray(h.markets) ? h.markets : Object.keys(h.markets);
-                        if (mArr.length > 0) {
-                            mktsEl.innerHTML = mArr.map(m => '<span class="mf-market-tag">' + m + '</span>').join('');
+                    // Markets - enhanced with YES/NO prices, volume, links
+                    if (mktsEl && h.markets && typeof h.markets === 'object') {
+                        const mEntries = Object.entries(h.markets);
+                        if (mEntries.length > 0) {
+                            let mHtml = '';
+                            for (const [asset, mkt] of mEntries) {
+                                const yesP = mkt.yesPrice != null ? (mkt.yesPrice * 100).toFixed(1) + '¢' : '--';
+                                const noP = mkt.noPrice != null ? (mkt.noPrice * 100).toFixed(1) + '¢' : '--';
+                                const vol = mkt.volume != null ? '$' + Number(mkt.volume).toLocaleString(undefined, {maximumFractionDigits:0}) : '--';
+                                const resolved = mkt.resolved ? ' ✅' : '';
+                                const outcome = mkt.resolvedOutcome ? ' → ' + mkt.resolvedOutcome : '';
+                                const slug = mkt.slug || '';
+                                const pmLink = slug ? 'https://polymarket.com/event/' + slug : '';
+                                mHtml += '<div class="mf-market-chip" style="background:rgba(50,130,255,0.08);border:1px solid rgba(50,130,255,0.2);border-radius:8px;padding:8px;margin-bottom:4px;">';
+                                mHtml += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+                                mHtml += '<span class="asset-name" style="font-size:1em;">' + asset + resolved + outcome + '</span>';
+                                mHtml += '<span style="color:#888;font-size:0.75em;">Vol: ' + vol + '</span>';
+                                mHtml += '</div>';
+                                mHtml += '<div style="display:flex;gap:12px;margin-top:5px;">';
+                                mHtml += '<span style="color:#00ff88;font-size:0.9em;">YES: <strong>' + yesP + '</strong></span>';
+                                mHtml += '<span style="color:#ff4466;font-size:0.9em;">NO: <strong>' + noP + '</strong></span>';
+                                mHtml += '</div>';
+                                if (pmLink) mHtml += '<a href="' + pmLink + '" target="_blank" style="color:#5599ff;font-size:0.7em;text-decoration:none;">View on Polymarket →</a>';
+                                mHtml += '</div>';
+                            }
+                            mktsEl.innerHTML = mHtml;
                         } else {
                             mktsEl.innerHTML = '<div class="mf-no-data">No active markets</div>';
                         }
+                    } else if (mktsEl && h.markets) {
+                        const mArr = Array.isArray(h.markets) ? h.markets : Object.keys(h.markets);
+                        mktsEl.innerHTML = mArr.length > 0 ? mArr.map(m => '<span class="mf-market-tag">' + m + '</span>').join('') : '<div class="mf-no-data">No active markets</div>';
                     }
                     // Recent signals
                     if (sigsEl && h.recentSignals && h.recentSignals.length > 0) {

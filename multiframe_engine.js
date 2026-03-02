@@ -281,13 +281,25 @@ function getStatus() {
 
     const ss = state['4h'].strategySet;
 
+    const utcHour4h = new Date(epoch4h * 1000).getUTCHours();
+    const endHour4h = (utcHour4h + 4) % 24;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const msUntil4h = Math.max(0, (epoch4h + 14400 - nowSec) * 1000);
+    const progress4h = Math.min(1, getElapsedMinutes(epoch4h, 14400) / 240);
+
     return {
         '4h': {
             currentEpoch: epoch4h,
-            utcHour: new Date(epoch4h * 1000).getUTCHours(),
+            currentCycle: `${String(utcHour4h).padStart(2,'0')}:00–${String(endHour4h).padStart(2,'0')}:00 UTC`,
+            cycle: `${String(utcHour4h).padStart(2,'0')}:00–${String(endHour4h).padStart(2,'0')}:00 UTC`,
+            utcHour: utcHour4h,
             elapsedMinutes: getElapsedMinutes(epoch4h, 14400),
             timeRemaining: getTimeRemaining(epoch4h, 14400),
-            cycleProgress: Math.min(1, getElapsedMinutes(epoch4h, 14400) / 240),
+            msUntilNext: msUntil4h,
+            remainingMs: msUntil4h,
+            cycleProgress: progress4h,
+            progressPct: Math.round(progress4h * 100),
+            progress: Math.round(progress4h * 100),
             markets: Object.fromEntries(
                 ASSETS.map(a => [a, state['4h'].markets[a] || { status: 'NOT_POLLED' }])
             ),
@@ -310,9 +322,15 @@ function getStatus() {
         },
         '5m': {
             currentEpoch: epoch5m,
-            elapsedSeconds: Math.floor(Date.now() / 1000) - epoch5m,
+            currentCycle: new Date(epoch5m * 1000).toISOString().substring(11,16) + ' UTC',
+            cycle: new Date(epoch5m * 1000).toISOString().substring(11,16) + ' UTC',
+            elapsedSeconds: nowSec - epoch5m,
             timeRemaining: getTimeRemaining(epoch5m, 300),
-            cycleProgress: Math.min(1, (Math.floor(Date.now() / 1000) - epoch5m) / 300),
+            msUntilNext: Math.max(0, (epoch5m + 300 - nowSec) * 1000),
+            remainingMs: Math.max(0, (epoch5m + 300 - nowSec) * 1000),
+            cycleProgress: Math.min(1, (nowSec - epoch5m) / 300),
+            progressPct: Math.round(Math.min(1, (nowSec - epoch5m) / 300) * 100),
+            progress: Math.round(Math.min(1, (nowSec - epoch5m) / 300) * 100),
             markets: Object.fromEntries(
                 ASSETS.map(a => [a, state['5m'].markets[a] || { status: 'NOT_POLLED' }])
             ),
