@@ -14759,6 +14759,7 @@ class TradeExecutor {
             currentBalance,
             reason,
             minOrderCostUsd: MIN_ORDER_COST,
+            bankrollPolicy,
             // 🏆 v77: Include profile info for debugging/logging
             profile: {
                 stage: profile.stage,
@@ -14799,12 +14800,15 @@ class TradeExecutor {
 
         // Survivability guard: do NOT allow a single loss to drop cash below the survival floor.
         // This is the hard constraint that enforces "max growth subject to no ruin".
-        const survivalFloor = floorEnabled
+        // C1.3 FIX: MICRO_SPRINT relaxes survival floor for $1-$20 bankrolls (user accepts bust risk)
+        const envelopeBankrollPolicy = envelope?.bankrollPolicy || (typeof getBankrollAdaptivePolicy === 'function' ? getBankrollAdaptivePolicy(actualBalance) : null);
+        const isEnvMicroSprint = envelopeBankrollPolicy?.profile === 'MICRO_SPRINT';
+        const survivalFloor = (floorEnabled && !isEnvMicroSprint)
             ? ((typeof this.getSurvivalFloor === 'function') ? this.getSurvivalFloor(cashBalanceForFloor) : Number(floor) || 0)
             : 0;
 
-        const canLose = (loss) => !floorEnabled || (actualBalance - Number(loss) >= Number(survivalFloor));
-        const maxSafeStake = floorEnabled ? Math.max(0, actualBalance - Number(survivalFloor)) : Infinity;
+        const canLose = (loss) => !floorEnabled || isEnvMicroSprint || (actualBalance - Number(loss) >= Number(survivalFloor));
+        const maxSafeStake = (floorEnabled && !isEnvMicroSprint) ? Math.max(0, actualBalance - Number(survivalFloor)) : Infinity;
 
         // 🏆 v78 FIX: The TRUE constraint is effectiveBudget, not maxTradeSize
         // maxTradeSize = effectiveBudget * perTradeLossCap is just a per-trade limit
@@ -15448,27 +15452,50 @@ class TradeExecutor {
 
         try {
             const result = await this.getUSDCBalance();
-            if (result.success && result.balance !== undefined) {
-                this.cachedLiveBalance = result.balance;
-                this.lastGoodBalance = result.balance; // Store as known good
+            let onChainBalance = (result.success && result.balance !== undefined) ? result.balance : 0;
+
+            // C1.5: If on-chain USDC is $0, try CLOB collateral balance (funds deposited into Polymarket exchange)
+            // This is the ACTUAL tradeable balance when user deposited via polymarket.com
+            if (onChainBalance < 0.01) {
+                try {
+                    const sel = await this.getTradeReadyClobClient({ ttlMs: 30000 });
+                    if (sel?.client && sel?.ok) {
+                        await sel.client.updateBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => {});
+                        const ba = await sel.client.getBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => null);
+                        if (ba && ba.balance) {
+                            const clobBal = parseFloat(ba.balance) / 1e6; // USDC has 6 decimals in raw
+                            if (Number.isFinite(clobBal) && clobBal > 0) {
+                                log(`💰 CLOB collateral balance: $${clobBal.toFixed(2)} (on-chain USDC: $${onChainBalance.toFixed(2)})`);
+                                onChainBalance = clobBal;
+                            }
+                        }
+                    }
+                } catch (clobErr) {
+                    log(`⚠️ CLOB balance fallback failed: ${clobErr.message}`);
+                }
+            }
+
+            if (onChainBalance > 0) {
+                this.cachedLiveBalance = onChainBalance;
+                this.lastGoodBalance = onChainBalance; // Store as known good
                 this.lastBalanceFetch = Date.now();
                 log(`💰 Live balance updated: $${this.cachedLiveBalance.toFixed(2)}`);
 
                 // 🏆 v96 BASELINE BANKROLL: Initialize on first successful LIVE fetch
                 // This ensures profit-lock and relative thresholds use real LIVE start, not paper default
-                if (this.mode === 'LIVE' && !this.baselineBankrollInitialized && result.balance > 0) {
-                    this.baselineBankroll = result.balance;
+                if (this.mode === 'LIVE' && !this.baselineBankrollInitialized && onChainBalance > 0) {
+                    this.baselineBankroll = onChainBalance;
                     this.baselineBankrollInitialized = true;
                     this.baselineBankrollSource = 'first_live_fetch';
                     // Also sync startingBalance for backward compat
-                    this.startingBalance = result.balance;
-                    log(`🏦 BASELINE BANKROLL: Initialized to $${result.balance.toFixed(2)} (first LIVE fetch)`);
+                    this.startingBalance = onChainBalance;
+                    log(`🏦 BASELINE BANKROLL: Initialized to $${onChainBalance.toFixed(2)} (first LIVE fetch)`);
 
                     // Initialize circuit breaker baselines too
                     if (this.circuitBreaker) {
-                        this.circuitBreaker.dayStartBalance = result.balance;
-                        this.circuitBreaker.peakBalance = result.balance;
-                        this.circuitBreaker.lifetimePeakBalance = result.balance;
+                        this.circuitBreaker.dayStartBalance = onChainBalance;
+                        this.circuitBreaker.peakBalance = onChainBalance;
+                        this.circuitBreaker.lifetimePeakBalance = onChainBalance;
                     }
                 }
             } else {
@@ -15673,7 +15700,7 @@ class TradeExecutor {
         // ==================== 🏆 FINAL GOLDEN STRATEGY (HARD GATE) ====================
         // Enforced Polymarket-only strategy. If enabled, block ANY automated ORACLE entry
         // that does not match the final golden strategy constraints.
-        if (mode === 'ORACLE' && mode !== 'MANUAL' && CONFIG?.FINAL_GOLDEN_STRATEGY?.enforced) {
+        if (mode === 'ORACLE' && mode !== 'MANUAL' && CONFIG?.FINAL_GOLDEN_STRATEGY?.enforced && options.source !== '4H_MULTIFRAME') {
             const fgs = CONFIG?.FINAL_GOLDEN_STRATEGY || null;
             const manualHighFrequencyMode = fgs?.manualHighFrequencyMode === true;
             const assetKey = String(asset || '').toUpperCase();
@@ -15899,6 +15926,13 @@ class TradeExecutor {
                     Number(buyWindowEnd) + extendedBlackoutSec
                 );
 
+                // C1.2 FIX: 4H signals have their own cycle timing - skip 15m blackout entirely
+                // (Volatility guard below still applies for manipulation protection)
+                const is4hSignal = options.source === '4H_MULTIFRAME';
+                if (is4hSignal) {
+                    log(`✅ 4H BYPASS: Skipping 15m blackout (tLeft=${timeLeftSec}s irrelevant for 4H)`, asset);
+                }
+
                 // C1.1: Strategy-aware blackout - validated strategies get tighter cutoff
                 const hasValidatedStrategy = !!(options.hybridStrategy || oracleSignals?.[asset]?.hybridStrategy);
                 const strategyBlackoutCutoffSec = Number.isFinite(Number(CONFIG?.ORACLE?.strategyBlackoutCutoffSec))
@@ -15906,7 +15940,7 @@ class TradeExecutor {
                     : 30;
                 const activeBlackoutEnd = hasValidatedStrategy ? strategyBlackoutCutoffSec : effectiveBuyWindowEnd;
 
-                if (timeLeftSec <= activeBlackoutEnd) {
+                if (!is4hSignal && timeLeftSec <= activeBlackoutEnd) {
                     const blackoutType = hasValidatedStrategy ? 'STRATEGY_BLACKOUT' : 'EXTENDED_BLACKOUT';
                     log(`🚫 ORACLE HARD BLOCK: Final ${activeBlackoutEnd}s ${blackoutType} - too late to enter (tLeft=${timeLeftSec}s)`, asset);
                     gateTrace.record(asset, {
@@ -16105,9 +16139,11 @@ class TradeExecutor {
             }
 
             // 📊 MAX TRADES PER CYCLE CHECK (per asset)
+            // C1.2 FIX: 4H signals use their own 4-hour cycle, skip 15m cycle counters
+            const skip15mCycleLimits = options.source === '4H_MULTIFRAME';
             const cycleTradeCount = this.getCycleTradeCount(asset);
             const maxTrades = this.getMaxTradesPerCycle(asset);
-            if (cycleTradeCount >= maxTrades) {
+            if (!skip15mCycleLimits && cycleTradeCount >= maxTrades) {
                 log(`⚠️ TRADE BLOCKED: Max trades (${maxTrades}) reached for ${asset} this cycle`, asset);
                 return { success: false, error: `Max trades (${maxTrades}) per cycle reached for ${asset}` };
             }
@@ -16116,7 +16152,7 @@ class TradeExecutor {
             // Prevents correlated losses when multiple assets move against predictions simultaneously
             const globalCycleCount = this.getGlobalCycleTradeCount();
             const maxGlobalTrades = CONFIG.RISK.maxGlobalTradesPerCycle || 1;
-            if (globalCycleCount >= maxGlobalTrades) {
+            if (!skip15mCycleLimits && globalCycleCount >= maxGlobalTrades) {
                 log(`⚠️ TRADE BLOCKED: Global max trades (${maxGlobalTrades}) reached across all assets this cycle`, asset);
                 return { success: false, error: `Global max trades (${maxGlobalTrades}) per cycle reached` };
             }
@@ -16451,12 +16487,14 @@ class TradeExecutor {
                 if (Number.isFinite(minOrderCost) && size < minOrderCost) {
                     const floorEnabled = !!CONFIG?.RISK?.minBalanceFloorEnabled && Number.isFinite(CONFIG?.RISK?.minBalanceFloor);
                     const cashBal = this.mode === 'PAPER' ? this.paperBalance : (this.cachedLiveBalance || 0);
-                    const survivalFloor = floorEnabled
+                    // C1.3 FIX: MICRO_SPRINT relaxes survival floor for $1-$20 bankrolls (user accepts bust risk)
+                    const isMicroSprint = bankrollPolicy?.profile === 'MICRO_SPRINT';
+                    const survivalFloor = (floorEnabled && !isMicroSprint)
                         ? ((typeof this.getSurvivalFloor === 'function') ? this.getSurvivalFloor(cashBal) : 0)
                         : 0;
                     // To place the min order without risking "ruin", we require that a worst-case loss
-                    // still leaves us >= survivalFloor.
-                    const minCashForMinOrder = floorEnabled ? (survivalFloor + minOrderCost) : (minOrderCost * 1.5);
+                    // still leaves us >= survivalFloor. MICRO_SPRINT skips this (all-in accepted).
+                    const minCashForMinOrder = (floorEnabled && !isMicroSprint) ? (survivalFloor + minOrderCost) : (minOrderCost * 1.05);
                     if (cashBal >= minCashForMinOrder) {
                         size = minOrderCost;
                         bumpedToMin = true;
