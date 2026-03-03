@@ -19044,10 +19044,12 @@ class TradeExecutor {
         const rpcEndpoints = (envRpcUrls
             ? envRpcUrls.split(',').map(s => s.trim()).filter(Boolean)
             : [
+                'https://polygon-bor-rpc.publicnode.com',
+                'https://polygon.llamarpc.com',
+                'https://polygon.drpc.org',
                 'https://polygon-rpc.com',
-                'https://rpc.ankr.com/polygon',
                 'https://1rpc.io/matic',
-                'https://polygon-mainnet.g.alchemy.com/v2/demo'
+                'https://rpc.ankr.com/polygon'
             ]).slice(0, 10);
 
         const timeoutMs = (() => {
@@ -19119,10 +19121,12 @@ class TradeExecutor {
         const rpcEndpoints = (envRpcUrls
             ? envRpcUrls.split(',').map(s => s.trim()).filter(Boolean)
             : [
+                'https://polygon-bor-rpc.publicnode.com',
+                'https://polygon.llamarpc.com',
+                'https://polygon.drpc.org',
                 'https://polygon-rpc.com',
-                'https://rpc.ankr.com/polygon',
                 'https://1rpc.io/matic',
-                'https://polygon-mainnet.g.alchemy.com/v2/demo'
+                'https://rpc.ankr.com/polygon'
             ]).slice(0, 10);
 
         const timeoutMs = (() => {
@@ -19293,7 +19297,19 @@ class TradeExecutor {
 
         try {
             // Use direct provider to avoid proxy issues
-            const provider = createDirectProvider('https://polygon-rpc.com');
+            const rpcUrl = (() => {
+                const envRpcUrls = String(process.env.POLYGON_RPC_URLS || '').trim();
+                const rpcEndpoints = (envRpcUrls
+                    ? envRpcUrls.split(',').map(s => s.trim()).filter(Boolean)
+                    : [
+                        'https://polygon-bor-rpc.publicnode.com',
+                        'https://polygon.llamarpc.com',
+                        'https://polygon.drpc.org',
+                        'https://polygon-rpc.com'
+                    ]).slice(0, 10);
+                return rpcEndpoints[0] || 'https://polygon-bor-rpc.publicnode.com';
+            })();
+            const provider = createDirectProvider(rpcUrl);
             const wallet = this.wallet.connect(provider);
             const ctfContract = new ethers.Contract(CTF_ADDRESS, CTF_ABI, wallet);
 
