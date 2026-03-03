@@ -7445,7 +7445,9 @@ app.get('/api/trading-pause', (req, res) => {
 });
 
 app.post('/api/trading-pause', async (req, res) => {
-    if (respondSignalsOnlyEndpointDisabled(res, '/api/trading-pause')) return;
+    if (tradeExecutor?.mode !== 'LIVE') {
+        if (respondSignalsOnlyEndpointDisabled(res, '/api/trading-pause')) return;
+    }
 
     try {
         if (!tradeExecutor) return res.status(500).json({ error: 'TradeExecutor not initialized' });
@@ -31916,7 +31918,9 @@ app.post('/api/trades/reset', async (req, res) => {
 
 // Get pending sells that need manual intervention
 app.get('/api/pending-sells', (req, res) => {
-    if (respondSignalsOnlyEndpointDisabled(res, '/api/pending-sells')) return;
+    if (tradeExecutor?.mode !== 'LIVE') {
+        if (respondSignalsOnlyEndpointDisabled(res, '/api/pending-sells')) return;
+    }
 
     res.json({
         pendingSells: tradeExecutor.getPendingSells(),
@@ -32040,7 +32044,9 @@ app.post('/api/retry-sell', async (req, res) => {
 
 // Get redemption queue
 app.get('/api/redemption-queue', (req, res) => {
-    if (respondSignalsOnlyEndpointDisabled(res, '/api/redemption-queue')) return;
+    if (tradeExecutor?.mode !== 'LIVE') {
+        if (respondSignalsOnlyEndpointDisabled(res, '/api/redemption-queue')) return;
+    }
 
     const queue = tradeExecutor.getRedemptionQueue();
     res.json({
