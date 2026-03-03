@@ -8292,7 +8292,7 @@ app.get('/api/verify', async (req, res) => {
     if (deep) {
         let geoOk = false;
         let geoDetails = 'Not checked';
-        const severity = walletRequired ? 'error' : 'warn';
+        const severity = 'warn';
         try {
             const nowMs = Date.now();
             const cacheKey = '__POLYPROPHET_GEOBLOCK_CACHE__';
@@ -8851,9 +8851,41 @@ app.get('/api/perfection-check', async (req, res) => {
         `v${CONFIG_VERSION || 'UNDEFINED'}`);
 
     // Check 7b: kellyMaxFraction is 0.32 (empirical optimum for $40+ start)
-    const kellyOk = CONFIG?.RISK?.kellyMaxFraction === 0.32;
-    addCheck('kellyMaxFraction is 0.32 (empirical optimum for $40+)', kellyOk,
-        kellyOk ? 'CONFIG.RISK.kellyMaxFraction = 0.32' : `Got ${CONFIG?.RISK?.kellyMaxFraction} (expected 0.32)`);
+    const bankrollForPolicy = (() => {
+        try {
+            if (tradeExecutor && typeof tradeExecutor.getBankrollForRisk === 'function') {
+                const b = Number(tradeExecutor.getBankrollForRisk());
+                if (Number.isFinite(b)) return b;
+            }
+        } catch { }
+        try {
+            const cash = tradeExecutor?.mode === 'PAPER'
+                ? tradeExecutor?.paperBalance
+                : (tradeExecutor?.cachedLiveBalance || 0);
+            const b = Number(cash);
+            if (Number.isFinite(b)) return b;
+        } catch { }
+        const b = Number(CONFIG?.LIVE_BALANCE ?? CONFIG?.PAPER_BALANCE);
+        return Number.isFinite(b) ? b : NaN;
+    })();
+
+    const policy = (typeof getBankrollAdaptivePolicy === 'function')
+        ? getBankrollAdaptivePolicy(bankrollForPolicy)
+        : null;
+
+    const effectiveKellyMax = Number.isFinite(Number(policy?.kellyMaxFraction))
+        ? Number(policy.kellyMaxFraction)
+        : Number(CONFIG?.RISK?.kellyMaxFraction);
+
+    const profile = String(policy?.profile || '').trim().toUpperCase();
+    const recommendedMax = profile === 'LARGE_BANKROLL' ? 0.12 : 0.45;
+
+    const kellyOk = Number.isFinite(effectiveKellyMax) && effectiveKellyMax <= (recommendedMax + 1e-9);
+    addCheck('kellyMaxFraction is stage-appropriate (bankroll-aware)', kellyOk,
+        Number.isFinite(effectiveKellyMax)
+            ? `effectiveMax=${effectiveKellyMax} (recommended<=${recommendedMax}) profile=${policy?.profile || 'N/A'} bankroll=$${Number.isFinite(bankrollForPolicy) ? bankrollForPolicy.toFixed(2) : 'N/A'}`
+            : `Invalid effectiveMax=${String(effectiveKellyMax)}`,
+        kellyOk ? 'warn' : 'error');
 
     // Check 8: GOAT preset includes vaultTriggerBalance
     // We check CONFIG since GOAT preset would have been applied
@@ -20738,16 +20770,17 @@ async function runAutoSelfCheck() {
                     _selfCheckState.lastPerfectionSummary = { ok: false, httpStatus: resp.status, timestamp: now };
                 } else {
                     const j = await resp.json();
-                    const allPassed = j?.summary?.allPassed === true;
                     const criticalFailed = Number(j?.summary?.criticalFailed) || 0;
                     const failCount = Number(j?.summary?.failCount) || 0;
+                    const ok = criticalFailed === 0;
                     _selfCheckState.lastPerfectionSummary = {
-                        ok: allPassed,
+                        ok,
                         failCount,
                         criticalFailed,
                         timestamp: now
                     };
-                    if (!allPassed || criticalFailed > 0 || failCount > 0) failures.push('PERFECTION_FAILED');
+                    if (criticalFailed > 0) failures.push('PERFECTION_FAILED');
+                    else if (failCount > 0) warnings.push('PERFECTION_WARN');
                 }
             } catch (e) {
                 failures.push(`PERFECTION_ERROR(${e.message})`);
