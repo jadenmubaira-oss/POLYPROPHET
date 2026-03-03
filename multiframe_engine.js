@@ -135,15 +135,20 @@ async function fetchMarketData(timeframe) {
 
             // Determine which index is UP/DOWN
             let yesPrice = null, noPrice = null;
+            let yesTokenId = null, noTokenId = null;
             const o0 = String(outcomes[0] || '').toLowerCase();
             const o1 = String(outcomes[1] || '').toLowerCase();
 
             if (o0 === 'up' || o0 === 'yes') {
                 yesPrice = parseFloat(prices[0]) || null;
                 noPrice = parseFloat(prices[1]) || null;
+                yesTokenId = clobTokenIds[0] || null;
+                noTokenId = clobTokenIds[1] || null;
             } else {
                 yesPrice = parseFloat(prices[1]) || null;
                 noPrice = parseFloat(prices[0]) || null;
+                yesTokenId = clobTokenIds[1] || null;
+                noTokenId = clobTokenIds[0] || null;
             }
 
             results[asset] = {
@@ -151,6 +156,9 @@ async function fetchMarketData(timeframe) {
                 conditionId: market.conditionId || null,
                 yesPrice,
                 noPrice,
+                // 🏆 v140.12: Store mapped YES/NO token IDs (same index swap as prices)
+                yesTokenId,
+                noTokenId,
                 outcomes,
                 clobTokenIds,
                 volume: Number(market.volume || 0),
@@ -237,7 +245,20 @@ function evaluate4hStrategies(livePrices) {
                 cycleEpoch: epoch,
                 utcHour,
                 elapsedMin,
-                slug: mkt.slug
+                slug: mkt.slug,
+                // 🏆 v140.12: Pass full 4H market data so executeTrade uses the correct market (not 15m)
+                market4hData: {
+                    slug: mkt.slug,
+                    conditionId: mkt.conditionId || null,
+                    yesPrice: mkt.yesPrice,
+                    noPrice: mkt.noPrice,
+                    // Use properly mapped YES/NO token IDs (index-swapped to match price mapping)
+                    yesTokenId: mkt.yesTokenId || null,
+                    noTokenId: mkt.noTokenId || null,
+                    clobTokenIds: mkt.clobTokenIds || null,
+                    volume: mkt.volume || 0,
+                    cycleEpoch: epoch
+                }
             };
 
             state['4h'].signals[asset] = signal;

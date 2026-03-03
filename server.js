@@ -16593,7 +16593,12 @@ class TradeExecutor {
                         shares: mainSize / entryPrice,
                         isHedged: true,
                         hedgeId: null, // Will be set below
+                        tier: options.tier || 'UNKNOWN',
+                        genesisAgree: options.genesisAgree || false,
                         slug: market?.slug || null,
+                        // 🏆 v140.14: 4H hedged positions MUST carry is4h flag
+                        is4h: options.source === '4H_MULTIFRAME',
+                        fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                         // v32: DIAGNOSTIC FIELDS
                         entryConfidence: confidence,
                         configVersion: CONFIG_VERSION,
@@ -16615,7 +16620,10 @@ class TradeExecutor {
                         shares: hedgeSize / hedgePrice,
                         isHedge: true,
                         slug: market?.slug || null,
-                        mainId: mainPositionId
+                        mainId: mainPositionId,
+                        // 🏆 v140.14: 4H hedged positions MUST carry is4h flag
+                        is4h: options.source === '4H_MULTIFRAME',
+                        fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null
                     };
 
                     // Link main to hedge
@@ -16633,6 +16641,8 @@ class TradeExecutor {
                         status: 'OPEN',
                         slug: market?.slug || null,
                         isHedged: true,
+                        is4h: options.source === '4H_MULTIFRAME',
+                        fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                         // v37+: DIAGNOSTIC FIELDS for forensics / backtests
                         entryConfidence: confidence,
                         configVersion: CONFIG_VERSION,
@@ -16651,6 +16661,8 @@ class TradeExecutor {
                         status: 'OPEN',
                         slug: market?.slug || null,
                         isHedge: true,
+                        is4h: options.source === '4H_MULTIFRAME',
+                        fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                         // v37+: keep same forensic fields so audits can attribute behaviour
                         entryConfidence: confidence,
                         configVersion: CONFIG_VERSION,
@@ -16693,6 +16705,7 @@ class TradeExecutor {
                     slug: market?.slug || null,
                     // 🏆 v140.9: 4H position flag — prevents premature 15m cycle exits
                     is4h: options.source === '4H_MULTIFRAME',
+                    fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                     // v32: DIAGNOSTIC FIELDS
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -16710,6 +16723,7 @@ class TradeExecutor {
                     status: 'OPEN',
                     slug: market?.slug || null,
                     is4h: options.source === '4H_MULTIFRAME',
+                    fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                     // v37: DIAGNOSTIC FIELDS for forensics
                     entryConfidence: confidence,
                     configVersion: CONFIG_VERSION,
@@ -16857,6 +16871,7 @@ class TradeExecutor {
                             tokenId: tokenId,
                             // 🏆 v140.9: 4H position flag — prevents premature 15m cycle exits
                             is4h: options.source === '4H_MULTIFRAME',
+                            fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                             // ✅ Critical for truthful LIVE settlement + redemption
                             slug: market?.slug || null,
                             conditionId: market?.conditionId || null,
@@ -16878,6 +16893,7 @@ class TradeExecutor {
                             isLive: true,
                             tradeMode: 'LIVE',
                             is4h: options.source === '4H_MULTIFRAME',
+                            fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                             tokenId: tokenId,
                             slug: market?.slug || null,
                             conditionId: market?.conditionId || null
@@ -16934,6 +16950,9 @@ class TradeExecutor {
                                         status: 'LIVE_OPEN',
                                         orderID: hedgeResponse.orderID,
                                         tokenId: hedgeTokenId,
+                                        // 🏆 v140.14: 4H hedged positions MUST carry is4h flag
+                                        is4h: options.source === '4H_MULTIFRAME',
+                                        fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                                         // ✅ Keep market identifiers for truthful settlement/recovery
                                         slug: market?.slug || null,
                                         conditionId: market?.conditionId || null,
@@ -16956,6 +16975,8 @@ class TradeExecutor {
                                         isHedge: true,
                                         isLive: true,
                                         tradeMode: 'LIVE',
+                                        is4h: options.source === '4H_MULTIFRAME',
+                                        fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                                         orderID: hedgeResponse.orderID,
                                         tokenId: hedgeTokenId,
                                         slug: market?.slug || null,
@@ -18304,6 +18325,9 @@ class TradeExecutor {
         Object.entries(this.positions).forEach(([id, pos]) => {
             if (pos.asset !== asset) return;
 
+            // 🏆 v140.10: 4H positions use their own 4-hour lifecycle — skip ALL 15m exit logic
+            if (pos.is4h) return;
+
             const currentOdds = pos.side === 'UP' ? yesPrice : noPrice;
 
             // Check mode-specific exits
@@ -18392,7 +18416,8 @@ class TradeExecutor {
             // For LIVE trading: exit early to guarantee sell execution and avoid resolution edge cases
             // ILLIQUIDITY is true-arb and should hold to resolution (do not force-close at 30s).
             // 🔴 FIX v46: HEDGE legs should close WITH their main position, not independently at 30s
-            if (timeToEnd <= 30 && pos.mode !== 'ILLIQUIDITY' && pos.mode !== 'HEDGE' && !pos.isHedge) {
+            // 🏆 v140.11: 4H positions are exempt from 15m pre-resolution exit
+            if (timeToEnd <= 30 && pos.mode !== 'ILLIQUIDITY' && pos.mode !== 'HEDGE' && !pos.isHedge && !pos.is4h) {
                 log(`⏰ PRE-RESOLUTION EXIT: ${pos.mode} ${pos.side} position closing at ${(currentOdds * 100).toFixed(1)}%`, pos.asset);
                 this.closePosition(id, currentOdds, 'PRE-RESOLUTION EXIT (30s)');
                 return;
@@ -18405,7 +18430,8 @@ class TradeExecutor {
             // - Avoids MATIC gas costs entirely
             // - Loses only ~1c/share + negligible taker fee at 99c
             // - Eliminates dependency on CTF contract + Polygon gas
-            if (pos.mode === 'ORACLE' && this.mode === 'LIVE' && timeToEnd <= 60 && timeToEnd > 10 && currentOdds >= 0.99) {
+            // 🏆 v140.11: 4H positions are exempt from 15m sell-before-resolution
+            if (pos.mode === 'ORACLE' && this.mode === 'LIVE' && !pos.is4h && timeToEnd <= 60 && timeToEnd > 10 && currentOdds >= 0.99) {
                 log(`💰 SELL-BEFORE-RESOLUTION: ${pos.side} @ ${(currentOdds * 100).toFixed(1)}¢ (${timeToEnd}s left) - avoiding redemption`, pos.asset);
                 this.closePosition(id, currentOdds, `SELL_BEFORE_RESOLUTION (${(currentOdds * 100).toFixed(0)}¢, ${timeToEnd}s left)`);
                 return;
@@ -18562,6 +18588,8 @@ class TradeExecutor {
     resolveOraclePositions(asset, finalOutcome, yesPrice, noPrice) {
         Object.entries(this.positions).forEach(([id, pos]) => {
             if (pos.asset !== asset || pos.mode !== 'ORACLE') return;
+            // 🏆 v140.10: 4H positions must NOT settle at 15m cycle end
+            if (pos.is4h) return;
 
             const won = (pos.side === finalOutcome);
             const exitPrice = won ? 1.0 : 0.0; // Binary resolution
@@ -18570,10 +18598,15 @@ class TradeExecutor {
     }
 
     // Close ALL positions at cycle end (not just ORACLE)
+    // 🏆 v140.10: 4H positions are EXCLUDED — they resolve on their own 4-hour timeline.
     resolveAllPositions(asset, finalOutcome, yesPrice, noPrice) {
         // IMPORTANT: Resolve non-hedge positions first.
         // Hedges are normally settled when their main position closes (to avoid double-counting).
-        const ids = Object.keys(this.positions).filter(id => this.positions[id] && this.positions[id].asset === asset);
+        // 🏆 v140.10: CRITICAL — skip is4h positions (they must NOT settle at 15m cycle end)
+        const ids = Object.keys(this.positions).filter(id => {
+            const p = this.positions[id];
+            return p && p.asset === asset && !p.is4h;
+        });
         if (ids.length === 0) return;
 
         // ✅ PAPER + LIVE: Prefer Polymarket Gamma resolution when we have the market slug.
@@ -18609,7 +18642,7 @@ class TradeExecutor {
                 // Close any remaining ORPHAN hedges only (do not touch hedges whose main is pending Polymarket resolution)
                 const remainingHedges = Object.keys(this.positions).filter(id => {
                     const p = this.positions[id];
-                    if (!p || p.asset !== asset || !p.isHedge) return false;
+                    if (!p || p.asset !== asset || !p.isHedge || p.is4h) return false;
                     return !p.mainId || !this.positions[p.mainId];
                 });
                 for (const id of remainingHedges) {
@@ -18641,7 +18674,7 @@ class TradeExecutor {
         // Pass 2: close any remaining hedges (orphaned hedges / missing linkage) deterministically
         const remainingHedges = Object.keys(this.positions).filter(id => {
             const p = this.positions[id];
-            return p && p.asset === asset && p.isHedge;
+            return p && p.asset === asset && p.isHedge && !p.is4h;
         });
         for (const id of remainingHedges) {
             const pos = this.positions[id];
@@ -18651,6 +18684,80 @@ class TradeExecutor {
             const reason = won ? `${pos.mode} WIN ✅ (orphan hedge)` : `${pos.mode} LOSS ❌ (orphan hedge)`;
             log(`🏁 CYCLE END: Orphan hedge resolved: ${pos.asset} ${pos.side} -> Outcome: ${finalOutcome}`, asset);
             this.closePosition(id, exitPrice, reason);
+        }
+    }
+
+    // 🏆 v140.11: 4H POSITION LIFECYCLE MANAGER
+    // 4H positions are protected from 15m cycle-end settlement (is4h guards).
+    // This method is their ONLY resolution path. Called every 30s alongside 4H polling.
+    // Logic:
+    //   1. Find all is4h positions whose fourHourEpoch !== current epoch (cycle ended)
+    //   2. LIVE positions with slug → schedulePolymarketResolution (same infra as 15m)
+    //   3. PAPER positions → check multiframe engine market data for resolved outcome
+    //   4. If no outcome available yet, wait (next poll will retry)
+    resolve4hPositions() {
+        const currentEpoch = multiframe.getCurrent4hEpoch();
+        const fourHourIds = Object.keys(this.positions).filter(id => {
+            const p = this.positions[id];
+            return p && p.is4h && p.fourHourEpoch && p.fourHourEpoch !== currentEpoch;
+        });
+
+        if (fourHourIds.length === 0) return;
+
+        log(`🔮 [4H RESOLVE] Found ${fourHourIds.length} 4H position(s) from ended cycle (epoch ${fourHourIds[0] ? this.positions[fourHourIds[0]]?.fourHourEpoch : '?'} → current ${currentEpoch})`);
+
+        // Group by slug for efficient resolution
+        const slugGroups = new Map(); // slug → [positionIds]
+        const noSlugIds = [];
+
+        for (const id of fourHourIds) {
+            const pos = this.positions[id];
+            if (!pos) continue;
+
+            // Skip positions already pending resolution
+            if (pos.status === 'PENDING_RESOLUTION') continue;
+
+            if (pos.slug) {
+                if (!slugGroups.has(pos.slug)) slugGroups.set(pos.slug, []);
+                slugGroups.get(pos.slug).push(id);
+            } else {
+                noSlugIds.push(id);
+            }
+        }
+
+        // LIVE positions with slugs: use Polymarket Gamma resolution (same infra as 15m)
+        for (const [slug, ids] of slugGroups) {
+            const firstPos = this.positions[ids[0]];
+            if (!firstPos) continue;
+            log(`🔮 [4H RESOLVE] Scheduling Polymarket resolution for ${firstPos.asset} slug=${slug} (${ids.length} positions)`);
+            this.schedulePolymarketResolution(slug, firstPos.asset, null);
+        }
+
+        // PAPER positions without slugs: resolve from multiframe engine market data
+        if (noSlugIds.length > 0) {
+            const mfStatus = multiframe.getStatus();
+            const markets4h = mfStatus?.['4h']?.markets || {};
+
+            for (const id of noSlugIds) {
+                const pos = this.positions[id];
+                if (!pos) continue;
+
+                const mkt = markets4h[pos.asset];
+                // Check if the multiframe engine has a resolved outcome for this asset's previous cycle
+                if (mkt && mkt.resolved && mkt.resolvedOutcome) {
+                    const outcome = mkt.resolvedOutcome;
+                    const won = pos.side === outcome;
+                    const exitPrice = won ? 1.0 : 0.0;
+                    const reason = won
+                        ? `4H ${pos.mode} WIN ✅ (multiframe resolved)`
+                        : `4H ${pos.mode} LOSS ❌ (multiframe resolved)`;
+                    log(`🏁 [4H RESOLVE] ${pos.asset} ${pos.side} → Outcome: ${outcome} (${reason})`, pos.asset);
+                    this.closePosition(id, exitPrice, reason);
+                } else {
+                    // Market not yet resolved — will retry on next poll (30s)
+                    log(`⏳ [4H RESOLVE] ${pos.asset} awaiting resolution (market not yet resolved)`, pos.asset);
+                }
+            }
         }
     }
 
@@ -18789,6 +18896,24 @@ class TradeExecutor {
                 // 🏆 v64 FIX: PAPER mode now uses fallback after extended wait
                 // Trade-off: 95%+ accuracy (Chainlink usually matches) vs trades staying pending forever
                 // User reported trades not resolving - this fixes that
+
+                // 🏆 v140.16 FIX: If fallbackOutcome is null (4H positions have no Chainlink fallback),
+                // do NOT force-close as losses. Instead, keep polling like LIVE mode.
+                if (fallbackOutcome === null || fallbackOutcome === undefined) {
+                    log(`⚠️ 4H RESOLUTION RETRY: ${asset} slug=${slug} after ${waitTimeMin}min - no fallback outcome, continuing to poll`, asset);
+                    for (const id of openMainIds) {
+                        const pos = this.positions[id];
+                        if (pos) {
+                            pos.stalePending = true;
+                            pos.staleSince = Date.now();
+                        }
+                    }
+                    // Continue polling at slower rate (every 5 min) - do NOT delete or force-close
+                    state.attempts = MAX_ATTEMPTS - 10; // Reset to keep polling
+                    setTimeout(tick, 5 * 60 * 1000);
+                    return;
+                }
+
                 this.pendingPolymarketResolutions.delete(slug);
 
                 log(`⚠️ RESOLUTION FALLBACK: ${asset} slug=${slug} after ${state.attempts} attempts (~${waitTimeMin}min)`, asset);
@@ -18833,6 +18958,12 @@ class TradeExecutor {
         Object.entries(this.positions).forEach(([id, pos]) => {
             // Skip PENDING_RESOLUTION - these are explicitly waiting for Gamma to resolve
             if (pos.status === 'PENDING_RESOLUTION') {
+                return;
+            }
+
+            // 🏆 v140.13: 4H positions have a 4-hour lifecycle — NEVER force-close via 15m stale cleanup
+            // They are resolved exclusively by resolve4hPositions() (called every 30s)
+            if (pos.is4h) {
                 return;
             }
 
@@ -25183,6 +25314,13 @@ async function loadState() {
                         const currentCycle = now - (now % 900);
 
                         Object.entries(te.positions).forEach(([posId, pos]) => {
+                            // 🏆 v140.15: 4H positions have a 4-hour lifecycle — NEVER orphan via 15m cycle check
+                            // They are resolved exclusively by resolve4hPositions() (called every 30s)
+                            if (pos.is4h) {
+                                log(`✅ 4H POSITION KEPT: ${posId} (4h epoch ${pos.fourHourEpoch}) - skipping 15m orphan check`);
+                                return;
+                            }
+
                             const posCycle = Math.floor(pos.time / 1000);
                             const posCycleStart = posCycle - (posCycle % 900);
 
@@ -25751,6 +25889,8 @@ app.get('/', (req, res) => {
                     <div class="mf-progress-bar"><div class="mf-progress-fill-4h" id="mf4h-progress" style="width:0%"></div></div>
                     <div style="font-size:0.8em;color:#888;margin-bottom:6px;">Live Markets:</div>
                     <div class="mf-markets" id="mf4h-markets"><div class="mf-no-data">Polling...</div></div>
+                    <div id="mf4h-active-signals"></div>
+                    <div id="mf4h-checkpoint" style="font-size:0.75em;color:#666;margin-top:4px;"></div>
                     <div id="mf4h-signals"></div>
                     <div style="font-size:0.8em;color:#888;margin-top:10px;">Strategy Schedule:</div>
                     <div id="mf4h-strategies"><div class="mf-no-data">Loading strategies...</div></div>
@@ -28332,6 +28472,36 @@ app.get('/', (req, res) => {
                     } else if (mktsEl && h.markets) {
                         const mArr = Array.isArray(h.markets) ? h.markets : Object.keys(h.markets);
                         mktsEl.innerHTML = mArr.length > 0 ? mArr.map(m => '<span class="mf-market-tag">' + m + '</span>').join('') : '<div class="mf-no-data">No active markets</div>';
+                    }
+                    // Active signals (current cycle)
+                    const activeEl = document.getElementById('mf4h-active-signals');
+                    if (activeEl && h.activeSignals) {
+                        const activeSigs = Object.entries(h.activeSignals).filter(([,v]) => v != null);
+                        if (activeSigs.length > 0) {
+                            let aHtml = '<div style="font-size:0.8em;color:#ffd700;margin-top:8px;font-weight:bold;">⚡ Active Signals (This Cycle):</div>';
+                            for (const [asset, sig] of activeSigs) {
+                                const clr = sig.direction === 'BUY' ? '#00ff88' : '#ff4466';
+                                const icon = sig.direction === 'BUY' ? '🟢' : '🔴';
+                                const strat = sig.strategy || sig.strategyName || '';
+                                const ep = sig.entryPrice != null ? (sig.entryPrice * 100).toFixed(1) + '¢' : '--';
+                                const tier = sig.tier || '';
+                                aHtml += '<div style="background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.25);border-radius:6px;padding:6px 8px;margin-top:4px;font-size:0.85em;">';
+                                aHtml += icon + ' <strong style="color:' + clr + ';">' + asset + ' ' + sig.direction + '</strong>';
+                                if (ep !== '--') aHtml += ' @ <code style="color:#fff;">' + ep + '</code>';
+                                if (strat) aHtml += ' <span style="color:#888;">(' + strat + ')</span>';
+                                if (tier) aHtml += ' <span style="color:#ffd700;font-size:0.8em;">[' + tier + ']</span>';
+                                aHtml += '</div>';
+                            }
+                            activeEl.innerHTML = aHtml;
+                        } else {
+                            activeEl.innerHTML = '<div style="font-size:0.8em;color:#555;margin-top:6px;">No active signals this cycle</div>';
+                        }
+                    }
+                    // Checkpoint epoch
+                    const cpEl = document.getElementById('mf4h-checkpoint');
+                    if (cpEl && h.currentEpoch) {
+                        const cpDate = new Date(h.currentEpoch * 1000);
+                        cpEl.textContent = 'Epoch: ' + cpDate.toISOString().substring(0,16).replace('T',' ') + ' UTC | Elapsed: ' + (h.elapsedMinutes || 0) + 'min';
                     }
                     // Recent signals
                     if (sigsEl && h.recentSignals && h.recentSignals.length > 0) {
@@ -33747,8 +33917,31 @@ async function startup() {
             }
             // C1.2: Execute trade via the standard trade executor pipeline
             // All existing gates (EV, blackout, spread, balance, circuit breaker) still apply
-            const market4h = currentMarkets[signal.asset];
+            // 🏆 v140.12 CRITICAL FIX: Use 4H market data (not 15m) for correct token routing
+            const fallbackMarket = currentMarkets[signal.asset];
+            const m4h = signal.market4hData || {};
+            const market4h = {
+                ...(fallbackMarket || {}),
+                // Override with 4H-specific data (slug, tokenIds, prices, conditionId)
+                slug: m4h.slug || signal.slug || (fallbackMarket?.slug || null),
+                conditionId: m4h.conditionId || (fallbackMarket?.conditionId || null),
+                yesPrice: m4h.yesPrice != null ? m4h.yesPrice : (fallbackMarket?.yesPrice || 0.5),
+                noPrice: m4h.noPrice != null ? m4h.noPrice : (fallbackMarket?.noPrice || 0.5),
+                // CRITICAL: Use 4H CLOB token IDs for order routing (not 15m token IDs)
+                // Use properly mapped YES/NO token IDs (index already swapped in multiframe_engine)
+                tokenIds: (m4h.yesTokenId || m4h.noTokenId) ? {
+                    yes: m4h.yesTokenId,
+                    no: m4h.noTokenId
+                } : (fallbackMarket?.tokenIds || null),
+                marketUrl: m4h.slug ? `https://polymarket.com/event/${m4h.slug}` : (fallbackMarket?.marketUrl || null),
+                is4hMarket: true
+            };
             if (market4h && tradeExecutor && signal.direction && signal.entryPrice > 0) {
+                if (m4h.slug) {
+                    log(`🔮 [4H TRADE] Using 4H market: slug=${m4h.slug} (NOT 15m market)`, signal.asset);
+                } else {
+                    log(`⚠️ [4H TRADE] No 4H market data available, falling back to 15m market object`, signal.asset);
+                }
                 const confidence4h = signal.winRate || 0.90;
                 tradeExecutor.executeTrade(signal.asset, signal.direction, 'ORACLE', confidence4h, signal.entryPrice, market4h, {
                     tier: signal.tier || 'GOLD',
@@ -33767,6 +33960,11 @@ async function startup() {
             }
         });
         log('🔮 Multi-timeframe engine started (4h strategies + 5m monitor)');
+
+        // 🏆 v140.11: 4H POSITION LIFECYCLE — resolve ended 4H cycles every 30s
+        setInterval(() => {
+            try { tradeExecutor.resolve4hPositions(); } catch (e) { log(`⚠️ [4H RESOLVE] Error: ${e.message}`); }
+        }, 30000);
 
         // 👁️ PROFILE TRADE SYNC (optional): ingest your real Polymarket profile fills for learning/evaluation
         // Runs only when PROFILE_TRADE_SYNC_ENABLED=true AND a profile address/url is configured.
