@@ -471,7 +471,7 @@ function getLiveOperatorConfig() {
             stakeFractionDefault,
             stakePerSignal,
             currency: 'USD',
-            minOrderShares: 1,
+            minOrderShares: Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5),
             minOddsEntry: 0.35,
         },
         signalGates: {
@@ -1718,8 +1718,8 @@ app.get('/api/backtest-polymarket', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.5: 2 shares (~$0.70) for $1 start
-            return (Number.isFinite(env) && env > 0) ? env : 2;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.5: 2 shares (~$0.70) for $1 start
+            return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
         })();
         // Reference min cost at the configured entry window's minimum (used for "can we keep trading?" survivability checks).
         const REFERENCE_MIN_ORDER_COST = orderMode === 'MANUAL' ? manualMinOrder : MIN_ORDER_SHARES * minOddsEntry;
@@ -3821,8 +3821,8 @@ app.get('/api/vault-projection', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.5
-            return (Number.isFinite(env) && env > 0) ? env : 2;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.5
+            return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
         })();
         const BALANCE_FLOOR = parseFloat(req.query.floor) || 2.0;
         const MAX_ABSOLUTE_STAKE = 100;
@@ -4114,8 +4114,8 @@ app.get('/api/vault-optimize', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.5
-            return (Number.isFinite(env) && env > 0) ? env : 2;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.5
+            return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
         })();
         const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
         const MAX_ABSOLUTE_STAKE = 100;
@@ -4657,8 +4657,8 @@ app.get('/api/backtest-dataset', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
-            return (Number.isFinite(env) && env > 0) ? env : 2;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
         })();
         const MIN_ORDER_COST = MIN_ORDER_SHARES * AVG_ENTRY_PRICE;
 
@@ -5473,8 +5473,8 @@ app.get('/api/backtest-signal-replay', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
-            return (Number.isFinite(env) && env > 0) ? env : 2;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
         })();
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
         // For safety/backtests we assume taker by default (configurable via env).
@@ -7152,7 +7152,7 @@ app.get('/api/risk-controls', (req, res) => {
             },
             // 🏆 v107: Order mode settings for manual vs CLOB trading
             orderMode: {
-                clobMinShares: Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2), // 🏆 v134.6
+                clobMinShares: Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5), // 🏆 v134.6
                 manualMinOrder: 1.00, // Flat $1 minimum for website manual orders
                 currentMode: 'CLOB', // Runtime always uses CLOB; MANUAL is for backtest simulation only
                 note: 'Use orderMode=MANUAL in backtest for $1-start manual trading simulation'
@@ -7566,7 +7566,7 @@ app.get('/api/telegram-history', (req, res) => {
         filtered: result.length,
         typeFilter: typeFilter || 'ALL',
         messages: result,
-        availableTypes: ['BUY_SIGNAL', 'SELL_SIGNAL', 'PREPARE_SIGNAL', 'PRESELL_SIGNAL', 'ULTRA_SIGNAL', 'RESULT_WIN', 'RESULT_LOSS', 'ALERT_BLIND', 'ALERT_HALT', 'OTHER']
+        availableTypes: ['BUY_SIGNAL', 'SELL_SIGNAL', 'PREPARE_SIGNAL', 'PRESELL_SIGNAL', 'ULTRA_SIGNAL', 'TRADE_OPEN', 'TRADE_CLOSE_WIN', 'TRADE_CLOSE_LOSS', 'RESULT_WIN', 'RESULT_LOSS', 'ALERT_BLIND', 'ALERT_HALT', 'OTHER']
     });
 });
 
@@ -7706,8 +7706,8 @@ app.get('/api/projection', async (req, res) => {
         const MIN_ORDER_SHARES = (() => {
             const q = Number(req.query.minShares);
             if (Number.isFinite(q) && q > 0) return q;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
-            return (Number.isFinite(env) && env > 0) ? env : 2;
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
         })();
         const MIN_ORDER_COST = MIN_ORDER_SHARES * avgEntryPrice;
         // Fee model: Polymarket 15m crypto taker fees (shares-based; maker fees are 0).
@@ -8096,13 +8096,13 @@ app.get('/api/verify', async (req, res) => {
     // CLOB-native min order is shares-based; for this check we use the same conservative
     // reference cost as the dynamic floor: (minOrderShares × ORACLE.minOdds).
     const MIN_ORDER = (() => {
-        let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+        let minShares = Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5); // 🏆 v134.6
         try {
             const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
             const shares = enabledAssets
                 .map(a => Number(currentMarkets?.[a]?.minOrderShares))
                 .filter(n => Number.isFinite(n) && n > 0);
-            if (shares.length) minShares = Math.max(...shares);
+            if (shares.length) minShares = Math.max(5, ...shares);
         } catch { }
         if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
         const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
@@ -9235,7 +9235,18 @@ function emitUIUpdate() {
     try {
         if (!io || !tradeExecutor || typeof Brains === 'undefined' || !ASSETS) return;
 
-        const bankroll = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (tradeExecutor.cachedLiveBalance || 0);
+        const balanceBreakdown = typeof tradeExecutor.getCachedBalanceBreakdown === 'function'
+            ? tradeExecutor.getCachedBalanceBreakdown()
+            : {
+                onChainUsdc: 0,
+                clobCollateralUsdc: 0,
+                tradingBalanceUsdc: tradeExecutor.cachedLiveBalance || 0,
+                source: 'UNKNOWN',
+                sourceLabel: 'Unknown',
+                updatedAt: 0,
+                updatedIso: null
+            };
+        const bankroll = tradeExecutor.mode === 'PAPER' ? tradeExecutor.paperBalance : (balanceBreakdown.tradingBalanceUsdc || tradeExecutor.cachedLiveBalance || 0);
         const assets = {};
 
         ASSETS.forEach(asset => {
@@ -9288,9 +9299,10 @@ function emitUIUpdate() {
 
         io.emit('omega_update', {
             bankroll: bankroll,
+            balanceBreakdown: balanceBreakdown,
             assets: assets,
             todayPnL: tradeExecutor.todayPnL || 0,
-            mode: CONFIG.TRADE_MODE,
+            mode: tradeExecutor.mode || CONFIG.TRADE_MODE,
             timestamp: Date.now()
         });
     } catch (e) {
@@ -11933,7 +11945,7 @@ function createSeededRng(seed) {
 let telegramHistory = [];
 const TELEGRAM_HISTORY_MAX = 100; // Keep last 100 messages
 
-async function sendTelegramNotification(message, silent = false) {
+async function sendTelegramNotification(message, silent = false, meta = null) {
     if (!CONFIG.TELEGRAM.enabled || !CONFIG.TELEGRAM.botToken || !CONFIG.TELEGRAM.chatId) return false;
     try {
         const url = `https://api.telegram.org/bot${CONFIG.TELEGRAM.botToken}/sendMessage`;
@@ -11949,7 +11961,7 @@ async function sendTelegramNotification(message, silent = false) {
             timestamp: new Date().toISOString(),
             message: message,
             silent: silent,
-            type: detectTelegramMessageType(message)
+            type: (meta && typeof meta === 'object' && meta.type) ? String(meta.type).toUpperCase() : detectTelegramMessageType(message)
         };
         telegramHistory.push(historyEntry);
         if (telegramHistory.length > TELEGRAM_HISTORY_MAX) {
@@ -12030,7 +12042,12 @@ function validateOracleSignalFreshness(signal, asset, rt, actionOverride = null)
 // Helper to detect message type from content
 function detectTelegramMessageType(message) {
     if (!message) return 'UNKNOWN';
-    const m = message.toUpperCase();
+    const raw = String(message);
+    const m = raw.toUpperCase();
+    if (m.includes('TRADE OPENED') || (m.includes('NEW ') && m.includes(' TRADE'))) return 'TRADE_OPEN';
+    if (m.includes(' CLOSED')) {
+        return raw.includes('💰 P/L:') || raw.includes('+$') ? 'TRADE_CLOSE_WIN' : 'TRADE_CLOSE_LOSS';
+    }
     if (m.includes('🟢') && m.includes('BUY')) return 'BUY_SIGNAL';
     if (m.includes('🔴') && m.includes('SELL')) return 'SELL_SIGNAL';
     if (m.includes('🟡') && m.includes('PREPARE')) return 'PREPARE_SIGNAL';
@@ -13679,7 +13696,7 @@ function maybeSendOracleSignalTelegram(asset, signal) {
 function telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market = null) {
     const emoji = direction === 'UP' ? '📈' : '📉';
     const modeEmoji = mode === 'ORACLE' ? '🔮' : mode === 'SCALP' ? '🎯' : mode === 'ARBITRAGE' ? '📊' : mode === 'MOMENTUM' ? '🚀' : '🌊';
-    let msg = `${modeEmoji} <b>NEW ${mode} TRADE</b> ${emoji}\n`;
+    let msg = `${modeEmoji} <b>${mode} TRADE OPENED</b> ${emoji}\n`;
     msg += `━━━━━━━━━━━━━━━━━\n`;
     msg += `📍 <b>${asset}</b> ${direction}\n`;
     msg += `💰 Entry: <code>${(entryPrice * 100).toFixed(1)}¢</code>\n`;
@@ -13772,6 +13789,9 @@ class TradeExecutor {
         this.cachedLiveBalance = 0;    // Cached USDC balance for LIVE mode
         this.lastGoodBalance = 0;      // Last known successful balance (prevents $0 flash)
         this.lastBalanceFetch = 0;     // Timestamp of last balance fetch
+        this.cachedOnChainBalance = 0; // Cached on-chain wallet USDC balance
+        this.cachedClobCollateralBalance = 0; // Cached Polymarket CLOB collateral balance
+        this.liveBalanceSource = 'UNINITIALIZED';
 
         // 🎯 GOAT v3: Portfolio accounting for truthful LIVE P/L
         this.portfolioAccounting = {
@@ -14322,15 +14342,15 @@ class TradeExecutor {
 
         const referenceMinOrderCost = (() => {
             // Prefer live per-market min order (shares) when known; fall back to 5 shares.
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            let minShares = Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
                     .map(a => Number(currentMarkets?.[a]?.minOrderShares))
                     .filter(n => Number.isFinite(n) && n > 0);
-                if (shares.length) minShares = Math.max(...shares);
+                if (shares.length) minShares = Math.max(5, ...shares);
             } catch { }
-            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 2;
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
             const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
             const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
             return minShares * minOdds;
@@ -14355,15 +14375,15 @@ class TradeExecutor {
     // This is the correct "can we keep trading autonomously?" boundary for micro-bankrolls.
     getRuinFloor() {
         const referenceMinOrderCost = (() => {
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            let minShares = Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
                     .map(a => Number(currentMarkets?.[a]?.minOrderShares))
                     .filter(n => Number.isFinite(n) && n > 0);
-                if (shares.length) minShares = Math.max(...shares);
+                if (shares.length) minShares = Math.max(5, ...shares);
             } catch { }
-            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 2;
+            if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
             const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
             const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
             return minShares * minOdds;
@@ -14758,13 +14778,13 @@ class TradeExecutor {
         // and fall back to a conservative reference cost when unknown.
         const perTradeCap = profile.perTradeLossCap;
         const referenceMinOrderCost = (() => {
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            let minShares = Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
                     .map(a => Number(currentMarkets?.[a]?.minOrderShares))
                     .filter(n => Number.isFinite(n) && n > 0);
-                if (shares.length) minShares = Math.max(...shares);
+                if (shares.length) minShares = Math.max(5, ...shares);
             } catch { }
             if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
             const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
@@ -15471,6 +15491,106 @@ class TradeExecutor {
         return { allowed: true, sizeMultiplier: this.getStateSizeMultiplier() };
     }
 
+    async getClobCollateralBalance() {
+        if (!this.wallet) {
+            return { success: false, error: 'No wallet loaded', balance: 0 };
+        }
+
+        try {
+            const sel = await this.getTradeReadyClobClient({ ttlMs: 30000 });
+            if (!(sel?.client && sel?.ok)) {
+                return {
+                    success: false,
+                    error: sel?.summary || sel?.reason || 'CLOB client unavailable',
+                    balance: 0,
+                    address: this.wallet.address,
+                    source: 'CLOB_COLLATERAL'
+                };
+            }
+
+            await sel.client.updateBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => { });
+            const ba = await sel.client.getBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => null);
+            const rawBalance = ba?.balance;
+            const balance = rawBalance != null ? parseFloat(rawBalance) / 1e6 : 0;
+
+            if (!Number.isFinite(balance)) {
+                throw new Error('Invalid CLOB collateral balance');
+            }
+
+            return {
+                success: true,
+                balance,
+                balanceRaw: rawBalance != null ? String(rawBalance) : '0',
+                address: this.wallet.address,
+                source: 'CLOB_COLLATERAL'
+            };
+        } catch (e) {
+            const msg = e?.message ? String(e.message) : String(e);
+            return {
+                success: false,
+                error: msg,
+                balance: 0,
+                address: this.wallet.address,
+                source: 'CLOB_COLLATERAL'
+            };
+        }
+    }
+
+    buildLiveBalanceBreakdown(usdcResult = null, clobResult = null) {
+        const sanitize = (n) => {
+            const val = Number(n);
+            return Number.isFinite(val) ? Math.max(0, val) : 0;
+        };
+
+        const onChainSuccess = !!(usdcResult && usdcResult.success && usdcResult.balance !== undefined);
+        const clobSuccess = !!(clobResult && clobResult.success && clobResult.balance !== undefined);
+        const onChainUsdc = onChainSuccess ? sanitize(usdcResult.balance) : sanitize(this.cachedOnChainBalance);
+        const clobCollateralUsdc = clobSuccess ? sanitize(clobResult.balance) : sanitize(this.cachedClobCollateralBalance);
+        const lastKnownTradingBalance = sanitize(this.cachedLiveBalance || this.lastGoodBalance);
+
+        let tradingBalanceUsdc = 0;
+        let source = 'UNKNOWN';
+
+        if (onChainSuccess && onChainUsdc > 0) {
+            tradingBalanceUsdc = onChainUsdc;
+            source = 'ON_CHAIN_USDC';
+        } else if (clobSuccess && clobCollateralUsdc > 0) {
+            tradingBalanceUsdc = clobCollateralUsdc;
+            source = 'CLOB_COLLATERAL_FALLBACK';
+        } else if (onChainSuccess && clobSuccess) {
+            tradingBalanceUsdc = 0;
+            source = 'ZERO_CONFIRMED';
+        } else if (lastKnownTradingBalance > 0) {
+            tradingBalanceUsdc = lastKnownTradingBalance;
+            source = 'LAST_KNOWN_GOOD';
+        }
+
+        const sourceLabel = source === 'ON_CHAIN_USDC'
+            ? 'On-chain USDC'
+            : source === 'CLOB_COLLATERAL_FALLBACK'
+                ? 'CLOB collateral fallback'
+                : source === 'ZERO_CONFIRMED'
+                    ? 'Confirmed zero balance'
+                    : source === 'LAST_KNOWN_GOOD'
+                        ? 'Last known good balance'
+                        : 'Unknown';
+
+        const updatedAt = this.lastBalanceFetch || 0;
+        return {
+            onChainUsdc,
+            clobCollateralUsdc,
+            tradingBalanceUsdc,
+            source,
+            sourceLabel,
+            updatedAt,
+            updatedIso: updatedAt ? new Date(updatedAt).toISOString() : null
+        };
+    }
+
+    getCachedBalanceBreakdown() {
+        return this.buildLiveBalanceBreakdown(null, null);
+    }
+
     // Refresh cached LIVE balance (call every 30s or before trades)
     // NOTE: Refreshes regardless of mode - user wants to see wallet balance even in PAPER mode
     async refreshLiveBalance() {
@@ -15485,51 +15605,56 @@ class TradeExecutor {
         const lastGoodBalance = this.cachedLiveBalance || this.lastGoodBalance || 0;
 
         try {
-            const result = await this.getUSDCBalance();
-            let onChainBalance = (result.success && result.balance !== undefined) ? result.balance : 0;
+            const [usdcResult, clobResult] = await Promise.all([
+                this.getUSDCBalance(),
+                this.getClobCollateralBalance()
+            ]);
 
-            // C1.5: If on-chain USDC is $0, try CLOB collateral balance (funds deposited into Polymarket exchange)
-            // This is the ACTUAL tradeable balance when user deposited via polymarket.com
-            if (onChainBalance < 0.01) {
-                try {
-                    const sel = await this.getTradeReadyClobClient({ ttlMs: 30000 });
-                    if (sel?.client && sel?.ok) {
-                        await sel.client.updateBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => {});
-                        const ba = await sel.client.getBalanceAllowance({ asset_type: 'COLLATERAL' }).catch(() => null);
-                        if (ba && ba.balance) {
-                            const clobBal = parseFloat(ba.balance) / 1e6; // USDC has 6 decimals in raw
-                            if (Number.isFinite(clobBal) && clobBal > 0) {
-                                log(`💰 CLOB collateral balance: $${clobBal.toFixed(2)} (on-chain USDC: $${onChainBalance.toFixed(2)})`);
-                                onChainBalance = clobBal;
-                            }
-                        }
-                    }
-                } catch (clobErr) {
-                    log(`⚠️ CLOB balance fallback failed: ${clobErr.message}`);
-                }
+            if (usdcResult?.success && usdcResult.balance !== undefined) {
+                this.cachedOnChainBalance = Math.max(0, Number(usdcResult.balance) || 0);
+            }
+            if (clobResult?.success && clobResult.balance !== undefined) {
+                this.cachedClobCollateralBalance = Math.max(0, Number(clobResult.balance) || 0);
             }
 
-            if (onChainBalance > 0) {
-                this.cachedLiveBalance = onChainBalance;
-                this.lastGoodBalance = onChainBalance; // Store as known good
+            const breakdown = this.buildLiveBalanceBreakdown(usdcResult, clobResult);
+            const tradingBalance = breakdown.tradingBalanceUsdc;
+
+            if (breakdown.source === 'CLOB_COLLATERAL_FALLBACK') {
+                log(`💰 CLOB collateral fallback: $${breakdown.clobCollateralUsdc.toFixed(2)} (on-chain USDC: $${breakdown.onChainUsdc.toFixed(2)})`);
+            }
+
+            if (breakdown.source === 'ZERO_CONFIRMED') {
+                this.cachedLiveBalance = 0;
+                this.lastGoodBalance = 0;
+                this.liveBalanceSource = 'ZERO_CONFIRMED';
                 this.lastBalanceFetch = Date.now();
-                log(`💰 Live balance updated: $${this.cachedLiveBalance.toFixed(2)}`);
+                log(`💰 Live balance updated: $0.00 (confirmed across on-chain + CLOB)`);
+                return;
+            }
+
+            if (tradingBalance > 0) {
+                this.cachedLiveBalance = tradingBalance;
+                this.lastGoodBalance = tradingBalance;
+                this.liveBalanceSource = breakdown.source;
+                this.lastBalanceFetch = Date.now();
+                log(`💰 Live balance updated: $${this.cachedLiveBalance.toFixed(2)} (${breakdown.sourceLabel})`);
 
                 // 🏆 v96 BASELINE BANKROLL: Initialize on first successful LIVE fetch
                 // This ensures profit-lock and relative thresholds use real LIVE start, not paper default
-                if (this.mode === 'LIVE' && !this.baselineBankrollInitialized && onChainBalance > 0) {
-                    this.baselineBankroll = onChainBalance;
+                if (this.mode === 'LIVE' && !this.baselineBankrollInitialized && tradingBalance > 0) {
+                    this.baselineBankroll = tradingBalance;
                     this.baselineBankrollInitialized = true;
                     this.baselineBankrollSource = 'first_live_fetch';
                     // Also sync startingBalance for backward compat
-                    this.startingBalance = onChainBalance;
-                    log(`🏦 BASELINE BANKROLL: Initialized to $${onChainBalance.toFixed(2)} (first LIVE fetch)`);
+                    this.startingBalance = tradingBalance;
+                    log(`🏦 BASELINE BANKROLL: Initialized to $${tradingBalance.toFixed(2)} (first LIVE fetch)`);
 
                     // Initialize circuit breaker baselines too
                     if (this.circuitBreaker) {
-                        this.circuitBreaker.dayStartBalance = onChainBalance;
-                        this.circuitBreaker.peakBalance = onChainBalance;
-                        this.circuitBreaker.lifetimePeakBalance = onChainBalance;
+                        this.circuitBreaker.dayStartBalance = tradingBalance;
+                        this.circuitBreaker.peakBalance = tradingBalance;
+                        this.circuitBreaker.lifetimePeakBalance = tradingBalance;
                     }
                 }
             } else {
@@ -15537,6 +15662,7 @@ class TradeExecutor {
                 log(`⚠️ Balance fetch returned failure, using last known: $${lastGoodBalance.toFixed(2)}`);
                 if (lastGoodBalance > 0) {
                     this.cachedLiveBalance = lastGoodBalance;
+                    this.liveBalanceSource = 'LAST_KNOWN_GOOD';
                 }
             }
         } catch (e) {
@@ -15544,6 +15670,7 @@ class TradeExecutor {
             // CRITICAL: Use last known good balance instead of leaving at 0
             if (lastGoodBalance > 0) {
                 this.cachedLiveBalance = lastGoodBalance;
+                this.liveBalanceSource = 'LAST_KNOWN_GOOD';
                 log(`   Using last known balance: $${lastGoodBalance.toFixed(2)}`);
             }
         }
@@ -15580,13 +15707,13 @@ class TradeExecutor {
             ? Math.floor(this.cachedMATICBalance / this.GAS_PER_TRADE)
             : 0;
         const referenceMinOrderCost = (() => {
-            let minShares = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
+            let minShares = Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5); // 🏆 v134.6
             try {
                 const enabledAssets = Array.isArray(ASSETS) ? ASSETS : [];
                 const shares = enabledAssets
                     .map(a => Number(currentMarkets?.[a]?.minOrderShares))
                     .filter(n => Number.isFinite(n) && n > 0);
-                if (shares.length) minShares = Math.max(...shares);
+                if (shares.length) minShares = Math.max(5, ...shares);
             } catch { }
             if (!Number.isFinite(minShares) || minShares <= 0) minShares = 5;
             const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
@@ -15655,9 +15782,9 @@ class TradeExecutor {
         // Minimum USDC therefore depends on entry price.
         const minOrderShares = (() => {
             const n = Number(market?.minOrderShares);
-            if (Number.isFinite(n) && n > 0) return n;
-            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
-            return (Number.isFinite(env) && env > 0) ? env : 2;
+            if (Number.isFinite(n) && n > 0) return Math.max(5, n);
+            const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.6
+            return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
         })();
         const minOddsCfg = Number(CONFIG?.ORACLE?.minOdds);
         const minOdds = Number.isFinite(minOddsCfg) ? Math.max(0.01, Math.min(0.99, minOddsCfg)) : 0.35;
@@ -15693,9 +15820,10 @@ class TradeExecutor {
 
         // 🔒 ORACLE MODE SAFETY: Never auto-execute LIVE trades unless explicitly enabled.
         // This keeps the bot as an advisory oracle in LIVE mode while still allowing PAPER auto-trading for evaluation.
-        if (this.mode === 'LIVE' && !CONFIG.LIVE_AUTOTRADING_ENABLED && mode !== 'MANUAL') {
-            log(`🛑 ADVISORY-ONLY: LIVE auto-trading disabled (set LIVE_AUTOTRADING_ENABLED=true to override)`, asset);
-            return { success: false, error: 'ADVISORY_ONLY: LIVE auto-trading disabled' };
+        if (this.mode === 'LIVE' && mode !== 'MANUAL' && (!CONFIG.LIVE_AUTOTRADING_ENABLED || isSignalsOnlyMode())) {
+            const why = !CONFIG.LIVE_AUTOTRADING_ENABLED ? 'LIVE auto-trading disabled' : 'signals-only mode';
+            log(`🛑 ADVISORY-ONLY: ${why}`, asset);
+            return { success: false, error: `ADVISORY_ONLY: ${why}` };
         }
 
         // 🏆 v77: CONVICTION-ONLY MODE with FREQUENCY FLOOR exception for ADVISORY
@@ -16580,11 +16708,7 @@ class TradeExecutor {
             if (stopLoss) log(`🎯 Stop: ${(stopLoss * 100).toFixed(1)}¢`, asset);
             log(`🎯 ═══════════════════════════════════════`, asset);
 
-            // 📱 TELEGRAM NOTIFICATION: Trade opened (with market links)
-            // In "signalsOnly" mode, suppress PAPER auto-trade spam (oracleSignals handle human advisories).
-            if (!CONFIG.TELEGRAM?.signalsOnly || this.mode === 'LIVE' || mode === 'MANUAL') {
-                sendTelegramNotification(telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market));
-            }
+            const shouldSendTradeOpenedTelegram = !CONFIG.TELEGRAM?.signalsOnly || this.mode === 'LIVE' || mode === 'MANUAL';
 
 
             if (this.mode === 'PAPER') {
@@ -16714,6 +16838,14 @@ class TradeExecutor {
                     // 📊 Track cycle trade count
                     this.incrementCycleTradeCount(asset);
 
+                    if (shouldSendTradeOpenedTelegram) {
+                        sendTelegramNotification(
+                            telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market),
+                            false,
+                            { type: 'TRADE_OPEN' }
+                        );
+                    }
+
                     return { success: true, positionId: mainPositionId, hedgeId: hedgePositionId, mode: 'PAPER', hedged: true };
                 }
 
@@ -16773,6 +16905,14 @@ class TradeExecutor {
 
                 // 📊 Track cycle trade count
                 this.incrementCycleTradeCount(asset);
+
+                if (shouldSendTradeOpenedTelegram) {
+                    sendTelegramNotification(
+                        telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market),
+                        false,
+                        { type: 'TRADE_OPEN' }
+                    );
+                }
 
                 return { success: true, positionId, mode: 'PAPER' };
             }
@@ -17024,6 +17164,14 @@ class TradeExecutor {
                             }
                         }
 
+                        if (shouldSendTradeOpenedTelegram) {
+                            sendTelegramNotification(
+                                telegramTradeOpen(asset, direction, mode, entryPrice, actualSize, stopLoss, target, market),
+                                false,
+                                { type: 'TRADE_OPEN' }
+                            );
+                        }
+
                         return { success: true, positionId, mode: 'LIVE', hedged: shouldLiveHedge };
                     } else {
                         const errorDetail = response ? JSON.stringify(response) : 'No response';
@@ -17122,9 +17270,9 @@ class TradeExecutor {
             // CLOB-native minimum order is shares-based.
             const minShares = (() => {
                 const n = Number(market?.minOrderShares);
-                if (Number.isFinite(n) && n > 0) return n;
-                const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 2); // 🏆 v134.6
-                return (Number.isFinite(env) && env > 0) ? env : 2;
+                if (Number.isFinite(n) && n > 0) return Math.max(5, n);
+                const env = Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5); // 🏆 v134.6
+                return (Number.isFinite(env) && env > 0) ? Math.max(5, env) : 5;
             })();
             // Pair uses the SAME share size on both legs, so the minimum total cost is:
             // (minShares * yesPrice) + (minShares * noPrice) = minShares * (yesPrice + noPrice)
@@ -17625,17 +17773,15 @@ class TradeExecutor {
         //
         // 🔒 ORACLE MODE SAFETY: If LIVE auto-trading is disabled, do NOT place automated LIVE sell orders.
         // We leave the position OPEN and record the suggested exit for UI/alerts.
-        if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit && !skipLiveSell && !CONFIG.LIVE_AUTOTRADING_ENABLED) {
+        if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit && !skipLiveSell && (!CONFIG.LIVE_AUTOTRADING_ENABLED || isSignalsOnlyMode())) {
             const now = Date.now();
             const last = Number(pos.exitSuggestedAt) || 0;
             // Throttle repeated suggestions (checkExits runs every second)
-            if ((now - last) > 15000) {
-                pos.exitSuggestedAt = now;
-                pos.exitSuggestedPrice = exitPrice;
-                pos.exitSuggestedReason = reason;
-                log(`🛑 ADVISORY-ONLY: LIVE sell blocked for ${pos.asset} ${pos.side} @ ${(Number(exitPrice) * 100).toFixed(1)}¢ (${reason})`, pos.asset);
-            }
-            return;
+            if ((now - last) < 15000) return; // 15s
+            pos.exitSuggestedAt = now;
+            pos.exitSuggestedPrice = exitPrice;
+            pos.exitSuggestedReason = reason;
+            log(`🛑 ADVISORY-ONLY: LIVE sell blocked for ${pos.asset} ${pos.side} @ ${(Number(exitPrice) * 100).toFixed(1)}¢ (${reason})`, pos.asset);
         }
         if (pos.isLive && this.mode === 'LIVE' && !isBinaryExit && !skipLiveSell) {
             // Avoid duplicate exit attempts
@@ -17780,6 +17926,12 @@ class TradeExecutor {
         }
         this.todayPnL += pnl;
 
+        const settledBalance = pos.isLive
+            ? ((typeof this.getCachedBalanceBreakdown === 'function'
+                ? this.getCachedBalanceBreakdown().tradingBalanceUsdc
+                : this.cachedLiveBalance) || this.cachedLiveBalance || 0)
+            : this.paperBalance;
+
         const emoji = pnl >= 0 ? '✅' : '❌';
         log(``, pos.asset);
         log(`${emoji} ═══════════════════════════════════════`, pos.asset);
@@ -17787,14 +17939,18 @@ class TradeExecutor {
         log(`${emoji} Direction: ${pos.side}`, pos.asset);
         log(`${emoji} Entry: ${(pos.entry * 100).toFixed(1)}¢ → Exit: ${(exitPrice * 100).toFixed(1)}¢`, pos.asset);
         log(`${emoji} P/L: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)} (${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(1)}%)`, pos.asset);
-        log(`${emoji} Balance: $${this.paperBalance.toFixed(2)}`, pos.asset);
+        log(`${emoji} Balance: $${settledBalance.toFixed(2)}`, pos.asset);
         log(`${emoji} ═══════════════════════════════════════`, pos.asset);
 
         // 📱 TELEGRAM NOTIFICATION: Trade closed (with market links)
         const market = currentMarkets[pos.asset];
         // In "signalsOnly" mode, suppress PAPER auto-trade spam (oracleSignals handle human advisories).
         if (!CONFIG.TELEGRAM?.signalsOnly || pos.isLive || pos.mode === 'MANUAL') {
-            sendTelegramNotification(telegramTradeClose(pos.asset, pos.side, pos.mode, pos.entry, exitPrice, pnl, pnlPercent, reason, this.paperBalance, market));
+            sendTelegramNotification(
+                telegramTradeClose(pos.asset, pos.side, pos.mode, pos.entry, exitPrice, pnl, pnlPercent, reason, settledBalance, market),
+                false,
+                { type: pnl >= 0 ? 'TRADE_CLOSE_WIN' : 'TRADE_CLOSE_LOSS' }
+            );
         }
 
         // Update trade history
@@ -18352,7 +18508,7 @@ class TradeExecutor {
 
         // 🔒 ORACLE MODE SAFETY: Never auto-exit LIVE positions when auto-trading is disabled.
         // (Prevents automated LIVE sell orders; user can exit manually in Polymarket UI.)
-        if (this.mode === 'LIVE' && !CONFIG.LIVE_AUTOTRADING_ENABLED) {
+        if (this.mode === 'LIVE' && (!CONFIG.LIVE_AUTOTRADING_ENABLED || isSignalsOnlyMode())) {
             return;
         }
 
@@ -24632,7 +24788,7 @@ async function fetchCurrentMarkets() {
                 const a = Number(yesBook?.min_order_size);
                 const b = Number(noBook?.min_order_size);
                 const cand = [a, b].filter(n => Number.isFinite(n) && n > 0);
-                return cand.length ? Math.max(...cand) : null;
+                return cand.length ? Math.max(5, ...cand) : null;
             })();
             const tickSize = (() => {
                 const a = Number(yesBook?.tick_size);
@@ -30614,10 +30770,26 @@ function buildStateSnapshot() {
         resumeCondition = 'Win a trade or wait 15 minutes';
     }
 
+    const tradingBalanceBreakdown = typeof tradeExecutor.getCachedBalanceBreakdown === 'function'
+        ? tradeExecutor.getCachedBalanceBreakdown()
+        : {
+            onChainUsdc: 0,
+            clobCollateralUsdc: 0,
+            tradingBalanceUsdc: tradeExecutor.cachedLiveBalance || 0,
+            source: 'UNKNOWN',
+            sourceLabel: 'Unknown',
+            updatedAt: 0,
+            updatedIso: null
+        };
+    const tradingBalance = tradeExecutor.mode === 'LIVE'
+        ? (tradingBalanceBreakdown.tradingBalanceUsdc || tradeExecutor.cachedLiveBalance || 0)
+        : tradeExecutor.paperBalance;
+
     response._trading = {
-        mode: CONFIG.TRADE_MODE,
-        balance: tradeExecutor.paperBalance,
+        mode: tradeExecutor.mode || CONFIG.TRADE_MODE,
+        balance: tradingBalance,
         liveBalance: tradeExecutor.cachedLiveBalance,
+        balanceBreakdown: tradingBalanceBreakdown,
         maticBalance: tradeExecutor.cachedMATICBalance,
         estimatedTradesRemaining: tradeExecutor.getEstimatedTradesRemaining(),
         todayPnL: tradeExecutor.todayPnL,
@@ -32437,17 +32609,26 @@ app.get('/api/wallet', async (req, res) => {
     try {
         const walletInfo = tradeExecutor.getWalletInfo();
 
-        // Fetch USDC and MATIC in parallel for maximum speed
-        const [usdcBalance, maticBalance] = await Promise.all([
+        const [usdcBalance, maticBalance, clobCollateral] = await Promise.all([
             tradeExecutor.getUSDCBalance(),
-            tradeExecutor.getMATICBalance()
+            tradeExecutor.getMATICBalance(),
+            tradeExecutor.getClobCollateralBalance()
         ]);
+        const balanceBreakdown = tradeExecutor.buildLiveBalanceBreakdown(usdcBalance, clobCollateral);
 
         res.json({
             loaded: walletInfo.loaded,
             address: walletInfo.address,
             mode: walletInfo.mode,
             usdc: usdcBalance,
+            clobCollateral,
+            tradingBalance: {
+                success: balanceBreakdown.source !== 'UNKNOWN',
+                balance: balanceBreakdown.tradingBalanceUsdc,
+                source: balanceBreakdown.source,
+                sourceLabel: balanceBreakdown.sourceLabel
+            },
+            balanceBreakdown,
             matic: maticBalance,
             depositAddress: walletInfo.address, // Same address to receive funds
             estimatedTradesRemaining: tradeExecutor.getEstimatedTradesRemaining()
@@ -32460,11 +32641,24 @@ app.get('/api/wallet', async (req, res) => {
 // Get just the balance (for frequent polling) - PARALLEL fetch
 app.get('/api/wallet/balance', async (req, res) => {
     try {
-        const [usdc, matic] = await Promise.all([
+        const [usdc, matic, clobCollateral] = await Promise.all([
             tradeExecutor.getUSDCBalance(),
-            tradeExecutor.getMATICBalance()
+            tradeExecutor.getMATICBalance(),
+            tradeExecutor.getClobCollateralBalance()
         ]);
-        res.json({ usdc, matic });
+        const balanceBreakdown = tradeExecutor.buildLiveBalanceBreakdown(usdc, clobCollateral);
+        res.json({
+            usdc,
+            clobCollateral,
+            tradingBalance: {
+                success: balanceBreakdown.source !== 'UNKNOWN',
+                balance: balanceBreakdown.tradingBalanceUsdc,
+                source: balanceBreakdown.source,
+                sourceLabel: balanceBreakdown.sourceLabel
+            },
+            balanceBreakdown,
+            matic
+        });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }

@@ -41,6 +41,7 @@ const state = {
         signals: {}, // asset -> { direction, entryPrice, strategy, tier, reason, firedAt, cycleEpoch }
         history: [],  // last 50 signals
         strategySet: null,
+        strategySetError: null,
         lastPollAt: 0,
         errors: [],
     },
@@ -58,15 +59,56 @@ function loadStrategySet4h() {
     try {
         if (!fs.existsSync(filePath)) {
             state['4h'].strategySet = null;
+            state['4h'].strategySetError = 'FILE_NOT_FOUND';
+            TIMEFRAME_CONFIG['4h'].signalEnabled = false;
             return { loaded: false, error: 'FILE_NOT_FOUND' };
         }
         const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
         state['4h'].strategySet = raw;
+        state['4h'].strategySetError = null;
+        TIMEFRAME_CONFIG['4h'].signalEnabled = true;
         return { loaded: true, strategies: raw.strategies?.length || 0 };
     } catch (e) {
         state['4h'].strategySet = null;
+        state['4h'].strategySetError = e.message;
+        TIMEFRAME_CONFIG['4h'].signalEnabled = false;
         return { loaded: false, error: e.message };
     }
+}
+
+function get4hSignalStatus() {
+    const ss = state['4h'].strategySet;
+    const loaded = !!(ss && Array.isArray(ss.strategies) && ss.strategies.length > 0);
+    const envRaw = String(process.env.MULTIFRAME_4H_ENABLED || process.env.ENABLE_4H_TRADING || 'true').trim().toLowerCase();
+    const configured = !['0', 'false', 'no', 'off'].includes(envRaw);
+
+    if (!configured) {
+        return {
+            enabled: false,
+            configured: false,
+            loaded,
+            reason: 'DISABLED_BY_ENV',
+            statusLabel: '4H execution disabled by environment flag'
+        };
+    }
+
+    if (!loaded) {
+        return {
+            enabled: false,
+            configured: true,
+            loaded: false,
+            reason: state['4h'].strategySetError || 'STRATEGY_SET_NOT_LOADED',
+            statusLabel: '4H execution disabled until the curated strategy set loads'
+        };
+    }
+
+    return {
+        enabled: true,
+        configured: true,
+        loaded: true,
+        reason: null,
+        statusLabel: '4H signal engine active'
+    };
 }
 
 // Load on module init
@@ -196,6 +238,11 @@ async function fetchMarketData(timeframe) {
 
 // ==================== 4H STRATEGY EVALUATION ====================
 function evaluate4hStrategies(livePrices) {
+    const signalStatus = get4hSignalStatus();
+    if (!signalStatus.enabled) {
+        return [];
+    }
+
     const ss = state['4h'].strategySet;
     if (!ss || !Array.isArray(ss.strategies) || ss.strategies.length === 0) {
         return [];
@@ -301,6 +348,7 @@ function getStatus() {
     const epoch5m = getCurrent5mEpoch();
 
     const ss = state['4h'].strategySet;
+    const signalStatus4h = get4hSignalStatus();
 
     const utcHour4h = new Date(epoch4h * 1000).getUTCHours();
     const endHour4h = (utcHour4h + 4) % 24;
@@ -336,10 +384,13 @@ function getStatus() {
                 source: ss.stats?.source || 'unknown',
                 aggregateWR: ss.stats?.aggregateWR || null,
                 aggregateLCB: ss.stats?.aggregateLCB || null
-            } : { loaded: false },
+            } : { loaded: false, error: state['4h'].strategySetError || 'STRATEGY_SET_NOT_LOADED' },
             recentSignals: state['4h'].history.slice(0, 20),
             lastPollAt: state['4h'].lastPollAt,
-            signalEnabled: true
+            signalEnabled: signalStatus4h.enabled,
+            configured: signalStatus4h.configured,
+            disableReason: signalStatus4h.reason,
+            statusLabel: signalStatus4h.statusLabel
         },
         '5m': {
             currentEpoch: epoch5m,
@@ -444,7 +495,8 @@ function startPolling(livePrices, onSignal) {
     });
     poll5m();
 
-    console.log('🔮 Multi-timeframe engine started: 4h (30s poll) + 5m (15s poll, monitor only)');
+    const signalStatus4h = get4hSignalStatus();
+    console.log(`🔮 Multi-timeframe engine started: 4h (30s poll, ${signalStatus4h.enabled ? 'signals enabled' : signalStatus4h.statusLabel}) + 5m (15s poll, monitor only)`);
 }
 
 function stopPolling() {

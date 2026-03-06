@@ -294,12 +294,13 @@
     </div>
 
     <div class="card">
-        <div style="color: var(--dim); font-size: 14px;">Total Bankroll (£)</div>
+        <div id="bankroll-label" style="color: var(--dim); font-size: 14px;">Total Bankroll (£)</div>
         <div class="bankroll" id="bankroll">£5.00</div>
         <div class="progress-container">
             <div class="progress-bar" id="goal-progress"></div>
         </div>
-        <div style="font-size: 12px; color: var(--dim); margin-top: 5px;">Target: £100.00</div>
+        <div id="bankroll-target" style="font-size: 12px; color: var(--dim); margin-top: 5px;">Target: £100.00</div>
+        <div id="bankroll-breakdown" style="font-size: 11px; color: var(--dim); margin-top: 8px; line-height: 1.4;">Waiting for balance feed...</div>
     </div>
 
     <div class="card">
@@ -660,6 +661,40 @@
             const n = Number(x);
             if (!Number.isFinite(n)) return '--';
             return String(Math.round(n));
+        }
+
+        function renderBankrollCard(balance, mode = 'PAPER', breakdown = null) {
+            const resolvedMode = String(mode || 'PAPER').toUpperCase();
+            const isLive = resolvedMode === 'LIVE';
+            const symbol = isLive ? '$' : '£';
+            const bankrollEl = document.getElementById('bankroll');
+            const labelEl = document.getElementById('bankroll-label');
+            const targetEl = document.getElementById('bankroll-target');
+            const breakdownEl = document.getElementById('bankroll-breakdown');
+            const value = Number.isFinite(Number(balance)) ? Number(balance) : 0;
+
+            if (labelEl) {
+                labelEl.textContent = isLive ? 'Trading Balance (USDC)' : 'Total Bankroll (£)';
+            }
+            if (bankrollEl) {
+                bankrollEl.innerText = `${symbol}${value.toFixed(2)}`;
+            }
+            if (targetEl) {
+                targetEl.textContent = `Target: ${symbol}${goal.toFixed(2)}`;
+            }
+            if (!breakdownEl) return;
+
+            if (!isLive) {
+                breakdownEl.textContent = 'PAPER mode balance shown above.';
+                return;
+            }
+
+            if (!breakdown) {
+                breakdownEl.textContent = 'Awaiting live wallet/CLOB balance breakdown...';
+                return;
+            }
+
+            breakdownEl.innerHTML = `Bot uses <b>$${fmtNum(breakdown.tradingBalanceUsdc, 2)}</b> (${escHtml(breakdown.sourceLabel || 'Unknown')})<br>On-chain USDC: $${fmtNum(breakdown.onChainUsdc, 2)} | CLOB collateral: $${fmtNum(breakdown.clobCollateralUsdc, 2)}`;
         }
 
         function escHtml(value) {
@@ -1384,8 +1419,10 @@
             const stratLoaded = data.strategySet?.loaded === true;
             const stratCount = data.strategySet?.strategies || 0;
             const lastPoll = data.lastPollAt ? new Date(data.lastPollAt).toLocaleTimeString() : 'never';
+            const signalEnabled = data.signalEnabled === true;
+            const statusLabel = data.statusLabel || (signalEnabled ? '4H signal engine active' : '4H signal engine disabled');
             if (statusEl) {
-                statusEl.innerHTML = `<span style="color:${stratLoaded ? 'var(--green)' : 'var(--red)'};">${stratLoaded ? '●' : '○'}</span> ${stratCount} strategies | Poll: ${lastPoll}`;
+                statusEl.innerHTML = `<span style="color:${signalEnabled ? 'var(--green)' : 'var(--red)'};">${signalEnabled ? '●' : '○'}</span> ${escHtml(statusLabel)} | ${stratCount} strategies | Poll: ${lastPoll}`;
             }
 
             // Cycle info
@@ -1395,14 +1432,17 @@
             const progress = Math.min(100, (data.cycleProgress || 0) * 100);
             const etHour = ((utcH - 5 + 24) % 24);
             const etLabel = `${etHour > 12 ? etHour - 12 : etHour || 12}${etHour >= 12 ? 'PM' : 'AM'} ET`;
-            if (cycleEl) cycleEl.textContent = `Cycle: UTC ${String(utcH).padStart(2,'0')}:00 (${etLabel}) | ${elapsed}min elapsed | ${remaining} remaining`;
+            if (cycleEl) cycleEl.textContent = `Cycle: UTC ${String(utcH).padStart(2,'0')}:00 (${etLabel}) | ${elapsed}min elapsed | ${remaining} remaining${signalEnabled ? '' : ` | ${statusLabel}`}`;
             if (progressEl) progressEl.style.width = `${progress}%`;
 
             // Active signals
             if (signalsEl) {
-                const activeSignals = data.activeSignals || {};
-                const activePairs = Object.entries(activeSignals).filter(([_, s]) => s !== null);
-                if (activePairs.length > 0) {
+                if (!signalEnabled) {
+                    signalsEl.innerHTML = `<div class="tf-signal-none">${escHtml(statusLabel)}</div>`;
+                } else {
+                    const activeSignals = data.activeSignals || {};
+                    const activePairs = Object.entries(activeSignals).filter(([_, s]) => s !== null);
+                    if (activePairs.length > 0) {
                     signalsEl.innerHTML = activePairs.map(([asset, sig]) => {
                         const tierClass = sig.tier === 'PLATINUM' ? 'tier-platinum' : 'tier-gold';
                         const tierIcon = sig.tier === 'PLATINUM' ? '💎' : '🥇';
@@ -1411,9 +1451,10 @@
                             <div style="font-size:11px;color:#aaa;margin-top:2px;">Strategy: ${escHtml(sig.strategy)} | <span class="${tierClass}">${sig.tier}</span> | WR: ${(sig.winRate * 100).toFixed(1)}% | Fired: ${new Date(sig.firedAt).toLocaleTimeString()}</div>
                         </div>`;
                     }).join('');
-                } else {
-                    const nextStrategyInfo = getNextStrategyWindow(utcH, elapsed);
-                    signalsEl.innerHTML = `<div class="tf-signal-none">No active 4h signals this cycle${nextStrategyInfo ? ` — ${nextStrategyInfo}` : ''}</div>`;
+                    } else {
+                        const nextStrategyInfo = getNextStrategyWindow(utcH, elapsed);
+                        signalsEl.innerHTML = `<div class="tf-signal-none">No active 4h signals this cycle${nextStrategyInfo ? ` — ${nextStrategyInfo}` : ''}</div>`;
+                    }
                 }
             }
 
@@ -1431,14 +1472,14 @@
                         <span>UP ${yp} | DOWN ${np}${resolved}</span>
                     </div>`;
                 }).join('');
-                marketsEl.innerHTML = `<div style="font-size:11px;color:var(--dim);margin-bottom:4px;">Live 4H Market Prices</div>${rows}`;
+                marketsEl.innerHTML = `<div style="font-size:11px;color:var(--dim);margin-bottom:4px;">${signalEnabled ? 'Live 4H Market Prices' : '4H Market Prices (monitor only)'}</div>${rows}`;
             }
 
             // History
             if (historyEl) {
                 const signals = data.recentSignals || [];
                 if (signals.length === 0) {
-                    historyEl.textContent = 'No signal history yet';
+                    historyEl.textContent = signalEnabled ? 'No signal history yet' : statusLabel;
                 } else {
                     historyEl.innerHTML = signals.map(s => {
                         const time = new Date(s.firedAt).toLocaleString();
@@ -1618,7 +1659,7 @@
         socket.on('omega_update', (data) => {
             // Update Bankroll
             const bankroll = data.bankroll || 5.00;
-            document.getElementById('bankroll').innerText = `£${bankroll.toFixed(2)}`;
+            renderBankrollCard(bankroll, data.mode, data.balanceBreakdown || null);
             const progress = Math.min((bankroll / goal) * 100, 100);
             document.getElementById('goal-progress').style.width = `${progress}%`;
 
