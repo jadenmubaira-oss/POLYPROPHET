@@ -338,7 +338,7 @@ function parseFractionEnv(name, fallback) {
     return Number.isFinite(raw) && raw > 0 && raw <= 1 ? raw : fallback;
 }
 
-const OPERATOR_PRIMARY_STRATEGY_SET_PATH = 'debug/strategy_set_top7_drop6.json';
+const OPERATOR_PRIMARY_STRATEGY_SET_PATH = 'debug/strategy_set_highfreq_unique12.json';
 
 function isOperatorPrimaryGatesEnforced() {
     const raw = String(process.env.OPERATOR_PRIMARY_GATES_ENFORCED || '').trim().toLowerCase();
@@ -347,8 +347,9 @@ function isOperatorPrimaryGatesEnforced() {
 }
 
 function pickOperatorStakeFractionDefault(baseBankroll) {
-    if (baseBankroll <= 10) return 0.30;
-    return 0.20;
+    if (baseBankroll <= 10) return 0.60;
+    if (baseBankroll <= 20) return 0.45;
+    return 0.30;
 }
 
 function buildStrategyScheduleRows(strategies) {
@@ -11473,7 +11474,7 @@ const CONFIG = {
     ASSET_CONTROLS: {
         BTC: { enabled: true, maxTradesPerCycle: 1 },  // 🔔 v134.9: Re-enabled for notifications (user manually filters SOL)
         ETH: { enabled: true, maxTradesPerCycle: 1 },  // 🔔 v134.9: Re-enabled for notifications (user manually filters SOL)
-        XRP: { enabled: false, maxTradesPerCycle: 1 },  // 💀 DISABLED: 40% historical WR causes ruin
+        XRP: { enabled: true, maxTradesPerCycle: 1 },  // 🏆 v142: Re-enabled for highfreq_unique12 (strategies apply to ALL assets)
         SOL: { enabled: true, maxTradesPerCycle: 1 }    // 🏆 v134.8: BEST ASSET - 83% WR in Golden Zone
     },
 
