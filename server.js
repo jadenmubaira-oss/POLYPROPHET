@@ -1257,10 +1257,30 @@ app.use((req, res, next) => {
 // (we want `/` to be the full-featured dashboard, like the original server.js UI)
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
+const DOC_FALLBACK_RAW_BASE_URL = String(process.env.DOC_FALLBACK_RAW_BASE_URL || 'https://raw.githubusercontent.com/jadenmubaira-oss/POLYPROPHET/main').trim().replace(/\/+$/, '');
+
+function resolveRepoDocPath(fileName) {
+    const candidates = [
+        path.join(__dirname, fileName),
+        path.join(process.cwd(), fileName),
+        path.join(__dirname, 'public', fileName),
+        path.join(process.cwd(), 'public', fileName)
+    ];
+    for (const candidate of candidates) {
+        try {
+            if (candidate && fs.existsSync(candidate)) return candidate;
+        } catch { }
+    }
+    return null;
+}
+
 function registerRepoMarkdownRoute(routePath, fileName) {
     app.get(routePath, (req, res) => {
-        const filePath = path.join(__dirname, fileName);
-        if (!fs.existsSync(filePath)) {
+        const filePath = resolveRepoDocPath(fileName);
+        if (!filePath) {
+            if (DOC_FALLBACK_RAW_BASE_URL) {
+                return res.redirect(`${DOC_FALLBACK_RAW_BASE_URL}/${fileName}`);
+            }
             return res.status(404).type('text/plain; charset=utf-8').send(`${fileName} not found`);
         }
         res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
