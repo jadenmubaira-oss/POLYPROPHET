@@ -338,7 +338,8 @@ function parseFractionEnv(name, fallback) {
     return Number.isFinite(raw) && raw > 0 && raw <= 1 ? raw : fallback;
 }
 
-const OPERATOR_PRIMARY_STRATEGY_SET_PATH = String(process.env.OPERATOR_STRATEGY_SET_PATH || '').trim() || 'debug/strategy_set_top7_drop6.json';
+const REQUESTED_OPERATOR_STRATEGY_SET_PATH = String(process.env.OPERATOR_STRATEGY_SET_PATH || '').trim();
+const OPERATOR_PRIMARY_STRATEGY_SET_PATH = REQUESTED_OPERATOR_STRATEGY_SET_PATH || 'debug/strategy_set_top7_drop6.json';
 
 function isOperatorPrimaryGatesEnforced() {
     const raw = String(process.env.OPERATOR_PRIMARY_GATES_ENFORCED || '').trim().toLowerCase();
@@ -468,7 +469,7 @@ function getLiveOperatorConfig() {
         },
         strategySetLock: {
             locked: true,
-            requestedPath: requestedStrategySetPath || null,
+            requestedPath: REQUESTED_OPERATOR_STRATEGY_SET_PATH || null,
             effectivePath: strategySetPath,
             overrideApplied: strategyPathLocked
         },

@@ -7524,3 +7524,151 @@ The discrepancy between IID Monte Carlo and replay evidence is NOT a bug — it'
 ---
 
 *End of Addendum W — Final Definitive Investigation, Server Fix, and GO Verdict, 9 March 2026*
+
+---
+
+## ADDENDUM X — FINAL OPERATOR PROCEDURE RECONCILIATION (9 March 2026)
+
+### X1) Why this addendum exists
+
+Addendum W finalized the strategy recommendation and the live-runtime GO verdict.
+
+This addendum closes the remaining operator-facing questions by reconciling the written guide against the verified runtime in `server.js`.
+
+It answers five practical questions:
+
+1. Is the current setup autonomous or still manual-only?
+2. What live gates must be true before execution is allowed?
+3. Which balance does the bot actually use for live sizing?
+4. What happens after deposits and withdrawals?
+5. Which document should now be treated as the clean operator procedure?
+
+### X2) Final reconciliation: the current target setup is autonomous `LIVE`, not manual-only
+
+The verified code path is **not** manual-only.
+
+The current runtime is capable of placing live trades autonomously when the live execution gates are satisfied, including:
+
+- `TRADE_MODE=LIVE`
+- wallet loaded successfully
+- `ENABLE_LIVE_TRADING=1`
+- `LIVE_AUTOTRADING_ENABLED=1`
+- signals-only mode disabled
+- feed freshness and risk gates satisfied
+- strategy/runtime gating aligned
+
+If any of those are false, the runtime intentionally falls back to advisory-only or blocks live execution.
+
+This means the older manual-only framing is stale and should no longer be treated as authoritative for the current production intent.
+
+### X3) Authoritative operator document
+
+`FINAL_OPERATOR_GUIDE.md` has now been rewritten as the clean operator procedure for the audited setup.
+
+That guide reflects the verified current truth:
+
+- primary set is `top7_drop6`
+- target stake is `45%` for bankrolls `<= $10`
+- target mode is autonomous `LIVE`
+- 4H markets remain disabled
+- pre-flight checks must include `/api/version`, `/api/health`, `/api/verify?deep=1`, `/api/live-op-config`, and `/api/state`
+
+Future reviewers should treat `FINAL_OPERATOR_GUIDE.md` plus the verified runtime in `server.js` as the operative source of truth for live operation.
+
+### X4) Verified live balance semantics
+
+The live runtime does **not** rely on a single generic balance field.
+
+The balance breakdown logic prefers, in order:
+
+1. on-chain USDC
+2. CLOB collateral fallback
+3. last known good balance
+
+Operationally, this means:
+
+- if on-chain USDC is present, it is treated as the live trading-balance source
+- if on-chain USDC is zero but CLOB collateral is available, the runtime can fall back to collateral balance
+- if fresh reads fail, the UI may still show a last-known-good value for visibility, but that should not be over-interpreted as guaranteed immediately spendable cash
+
+This hierarchy is important for operator interpretation, health checks, and bankroll-relative controls.
+
+### X5) Verified deposit and withdrawal behavior
+
+The current runtime includes explicit auto-transfer detection.
+
+Below `$1,000`, a transfer is classified only when all of the following are true:
+
+- balance delta is at least `$5`
+- balance delta is at least `15%`
+- there has been no recent trade activity within `120s`
+
+At `$1,000+`, the thresholds become:
+
+- at least `$20`
+- at least `5%`
+
+When a qualifying deposit or withdrawal is detected, the runtime resets:
+
+- lifetime peak balance
+- baseline bankroll
+- starting-balance compatibility field
+- day-start balance
+- peak balance
+
+This is correct behavior, because it prevents:
+
+- withdrawals from being misclassified as trading drawdown
+- deposits from falsely inflating profit-multiple logic
+- peak-drawdown braking from staying anchored to an obsolete cash baseline after external transfers
+
+Practical operator consequence:
+
+- deposits and withdrawals do **not** inherently break the bot
+- they do reset the bankroll-relative reference points used by risk logic
+- after any external transfer, the operator should wait for balance refresh, then re-check `/api/health` or `/api/state` before judging sizing behavior
+
+If a withdrawal leaves the account below minimum executable order size, the strategy can remain valid while live execution still becomes impossible due to market minimums.
+
+### X6) Minimum-order reality still matters at `$8-$10`
+
+The current live order mode is CLOB-based and effectively enforces a minimum of `5` shares.
+
+At tiny bankroll sizes, this can exceed the nominal `45%` fraction.
+
+Example:
+
+- near `77c`, `5` shares costs about `$3.85`
+- `$8 × 45% = $3.60`
+
+So at the very smallest bankrolls, the runtime can be forced upward toward minimum executable size, which is one reason the remaining bust risk is real even under the recommended configuration.
+
+### X7) Final operator checklist
+
+Before letting the bot run fully autonomous in production, the operator should verify:
+
+1. `/api/version` matches the intended build
+2. `/api/health` shows no stale-feed or suppression surprises
+3. `/api/verify?deep=1` confirms wallet/CLOB/live readiness
+4. `/api/live-op-config` shows `AUTO_LIVE`, `0.45`, and `debug/strategy_set_top7_drop6.json`
+5. `/api/state` shows live mode and a sane balance breakdown
+6. Redis is configured and persistent
+7. 4H remains disabled
+8. any deposit or withdrawal is followed by a balance-baseline re-check
+
+### X8) Final supersession note
+
+Addendum X does **not** replace Addendum W.
+
+Instead, it clarifies the last remaining operator-facing truths that W did not spell out in full detail.
+
+Together:
+
+- **Addendum W** = final strategy / staking / GO verdict
+- **Addendum X** = final operator procedure / balance semantics / deposit-withdraw behavior
+
+For production operation, use them together.
+
+---
+
+*End of Addendum X — Final Operator Procedure Reconciliation, 9 March 2026*

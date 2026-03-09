@@ -433,9 +433,10 @@
     </div>
     
     <div class="balance-card">
-        <div class="label">Balance</div>
+        <div class="label" id="balance-label">Balance</div>
         <div class="balance" id="balance">$0.00</div>
         <div class="pnl" id="pnl">+$0.00</div>
+        <div id="balance-breakdown" style="margin-top: 8px; font-size: 11px; color: #aaa; line-height: 1.4;">Waiting for balance feed...</div>
     </div>
     
     <div class="tabs">
@@ -575,6 +576,8 @@
         let appState = {
             connected: false,
             balance: 0,
+            mode: 'PAPER',
+            balanceBreakdown: null,
             todayPnL: 0,
             positions: [],
             trades: [],
@@ -710,6 +713,8 @@
         function handleStateUpdate(data) {
             if (data._trading) {
                 appState.balance = data._trading.balance || 0;
+                appState.mode = data._trading.mode || 'PAPER';
+                appState.balanceBreakdown = data._trading.balanceBreakdown || null;
                 appState.todayPnL = data._trading.todayPnL || 0;
                 appState.positions = Object.values(data._trading.positions || {});
                 appState.trades = data._trading.tradeHistory || [];
@@ -766,10 +771,30 @@
                 statusEl.textContent = appState.connected ? '🟢 Connected' : '🔴 Disconnected';
                 statusEl.style.color = appState.connected ? '#00ff88' : '#ff4466';
             }
+
+            const resolvedMode = String(appState.mode || 'PAPER').toUpperCase();
+            const isLive = resolvedMode === 'LIVE';
+
+            const balanceLabelEl = document.getElementById('balance-label');
+            if (balanceLabelEl) {
+                balanceLabelEl.textContent = isLive ? 'Trading Balance (USDC)' : 'Balance';
+            }
             
             const balanceEl = document.getElementById('balance');
             if (balanceEl) {
                 balanceEl.textContent = `$${appState.balance.toFixed(2)}`;
+            }
+
+            const breakdownEl = document.getElementById('balance-breakdown');
+            if (breakdownEl) {
+                if (!isLive) {
+                    breakdownEl.textContent = 'PAPER mode balance shown above.';
+                } else if (!appState.balanceBreakdown) {
+                    breakdownEl.textContent = 'Awaiting live wallet/CLOB balance breakdown...';
+                } else {
+                    const breakdown = appState.balanceBreakdown;
+                    breakdownEl.innerHTML = `Source: ${escapeHtml(breakdown.sourceLabel || 'Unknown')}<br>On-chain USDC: $${Number(breakdown.onChainUsdc || 0).toFixed(2)} | CLOB collateral: $${Number(breakdown.clobCollateralUsdc || 0).toFixed(2)}`;
+                }
             }
             
             const pnlEl = document.getElementById('pnl');

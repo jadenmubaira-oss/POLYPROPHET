@@ -28,6 +28,29 @@ telegram_config.json
 # Local script outputs (keep out of repo)
 backtest_results.json
 
+# Local scratch files
+.tmp_*
+.tmp_ignore
+
+# Local audit/report drafts
+AUTO_TRADE_IMPLEMENTATION_PLAN.md
+FINAL_AUDIT_REPORT.md
+FINAL_COMPREHENSIVE_AUDIT_*.md
+README_SUPER_EASY.md
+
+# Scratch investigation scripts
+addendum_s_*.js
+dedupe_and_stress.js
+dedupe_and_stress_fixed.js
+definitive_audit.js
+curate_8dollar_strategies.js
+realistic_8dollar_stress.js
+
+# Local network/proxy helpers
+ip_rotation_config.json
+quick_start.py
+test_ip_now.py
+
 exhaustive_analysis/
 
 # OS files
@@ -57,6 +80,7 @@ debug/*
 !debug/analysis/stress_expected_compact.json
 !debug/analysis/strategy_window_summary_top3_top7_opt8.json
 !debug/stress_min1/
+debug/stress_min1/**
 !debug/stress_min1/top7_drop6_min1_sb5_simulateBankrollPath_stress_matrix.csv
 !debug/stress_min1/top7_drop6_min1_sb10_simulateBankrollPath_stress_matrix.csv
 !debug/stress_min1/top3_robust_min1_sb5_simulateBankrollPath_stress_matrix.csv
@@ -64,11 +88,14 @@ debug/*
 !debug/stress_min1/optimized8_min1_sb5_simulateBankrollPath_stress_matrix.csv
 !debug/stress_min1/optimized8_min1_sb10_simulateBankrollPath_stress_matrix.csv
 !debug/final_set_scan/
+debug/final_set_scan/**
 !debug/final_set_scan/top7_drop6/
 !debug/final_set_scan/top7_drop6/hybrid_replay_executed_ledger.json
+debug/final_set_scan/top7_drop6/hybrid_replay_signal_ledger.json
 !debug/final_set_scan/top3_robust/
 !debug/final_set_scan/top3_robust/hybrid_replay_executed_ledger.json
 !debug/final_full_default/
+debug/final_full_default/**
 !debug/final_full_default/hybrid_replay_executed_ledger.json
 debg/
 debug_backtest/
