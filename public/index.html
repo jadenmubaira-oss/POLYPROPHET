@@ -584,10 +584,10 @@
                 if (stakePct) line += ` (${stakePct})`;
             }
             if (isLocked) line += ` ${lockIcon}`;
-            const top7Active = sig?.concurrentSets?.top7Drop6?.active === true || sig?.primarySetActive === true;
+            const primaryActive = sig?.concurrentSets?.primaryExecution?.active === true || sig?.concurrentSets?.top7Drop6?.active === true || sig?.primarySetActive === true;
             const top3Active = sig?.concurrentSets?.top3Robust?.active === true || sig?.top3RobustActive === true;
-            if (top7Active || top3Active) {
-                line += ` | sets ${top7Active ? 'TOP7' : ''}${top7Active && top3Active ? '+' : ''}${top3Active ? 'TOP3' : ''}`;
+            if (primaryActive || top3Active) {
+                line += ` | sets ${primaryActive ? 'PRIMARY' : ''}${primaryActive && top3Active ? '+' : ''}${top3Active ? 'TOP3' : ''}`;
             }
             if (tl) line += ` | tLeft ${tl}`;
             return line;
@@ -595,12 +595,12 @@
 
         function renderConcurrentSetFlags(sig, includeInactive = true) {
             if (!sig) return '';
-            const top7Active = sig?.concurrentSets?.top7Drop6?.active === true || sig?.primarySetActive === true;
+            const primaryActive = sig?.concurrentSets?.primaryExecution?.active === true || sig?.concurrentSets?.top7Drop6?.active === true || sig?.primarySetActive === true;
             const top3Active = sig?.concurrentSets?.top3Robust?.active === true || sig?.top3RobustActive === true;
             const chips = [];
 
-            if (top7Active || includeInactive) {
-                chips.push(`<span class="set-chip ${top7Active ? 'set-chip-top7-on' : 'set-chip-off'}">TOP7 ${top7Active ? 'ON' : 'OFF'}</span>`);
+            if (primaryActive || includeInactive) {
+                chips.push(`<span class="set-chip ${primaryActive ? 'set-chip-top7-on' : 'set-chip-off'}">PRIMARY ${primaryActive ? 'ON' : 'OFF'}</span>`);
             }
             if (top3Active || includeInactive) {
                 chips.push(`<span class="set-chip ${top3Active ? 'set-chip-top3-on' : 'set-chip-off'}">TOP3 ${top3Active ? 'ON' : 'OFF'}</span>`);
@@ -781,6 +781,8 @@
             const finalBand = fmtBand(finalStrategy?.priceBand?.min, finalStrategy?.priceBand?.max);
             const finalTime = fmtUtcTime(finalStrategy?.utcHour, finalStrategy?.entryMinute);
             const finalMode = finalGolden?.enforced === true ? 'ENFORCED' : 'ADVISORY';
+            const primarySetDisplay = String(op?.primarySignalSetDisplay || op?.primarySignalSet || 'PRIMARY').trim();
+            const primaryRows = schedules?.primaryExecution || schedules?.top7Primary;
 
             const finalGoldenBlock = `
                 <div style="margin-top:10px;padding:10px;border:1px solid rgba(255,215,0,0.35);border-radius:8px;background:rgba(255,215,0,0.08);">
@@ -791,7 +793,7 @@
             `;
 
             el.innerHTML = `
-                ${renderScheduleBlock('TOP7 Primary Execution Set', schedules?.top7Primary, 'Hard-locked live execution schedule')}
+                ${renderScheduleBlock('Primary Execution Set', primaryRows, `Hard-locked live execution schedule (${primarySetDisplay})`)}
                 ${renderScheduleBlock('TOP3 Monitor Set', schedules?.top3Monitor, 'Read-only concurrent monitor')}
                 ${renderScheduleBlock('TOP8 Reference Set', schedules?.top8Reference, 'Reference only (not primary execution)')}
                 ${finalGoldenBlock}
@@ -1170,7 +1172,8 @@
             const top7 = payload?.top7Drop6StressSummary || null;
             const top3 = payload?.top3RobustStressSummary || null;
             const op = payload?.liveOperatorProfile || {};
-            const top7Runtime = op?.strategySetRuntime || {};
+            const primarySetDisplay = String(op?.primarySignalSetDisplay || op?.primarySignalSet || 'PRIMARY').trim();
+            const primaryRuntime = op?.strategySetRuntime || {};
             const top3Runtime = op?.top3ConcurrentRuntime || {};
             const top7Ledger = top7?.ledgerSummary || {};
             const top3Ledger = top3?.ledgerSummary || {};
@@ -1186,15 +1189,16 @@
 
             el.innerHTML = `
                 <div style="color:#fff;font-size:12px;line-height:1.7;">
-                    <div style="margin-bottom:8px;color:var(--green);font-weight:bold;">Primary execution set: TOP7_DROP6 (enforced)</div>
+                    <div style="margin-bottom:8px;color:var(--green);font-weight:bold;">Primary execution set: ${primarySetDisplay} (enforced)</div>
                     <div style="margin-bottom:6px;">Concurrent monitor: TOP3_ROBUST (read-only telemetry).</div>
-                    <div style="margin-bottom:10px;color:var(--dim);">BUY decisions are driven by TOP7 only. TOP3 status is informational and does not gate entries.</div>
+                    <div style="margin-bottom:6px;color:var(--dim);">BUY decisions are driven by the enforced primary set only. TOP3 status is informational and does not gate entries.</div>
+                    <div style="margin-bottom:10px;color:var(--dim);">The stress rows below remain TOP7/TOP3 reference comparisons because an equivalent bundled full stress matrix is not present for the current primary set.</div>
 
                     <div style="font-weight:bold;margin-bottom:4px;border-bottom:1px solid #444;padding-bottom:4px;">RUNTIME STATUS</div>
-                    <div>TOP7 runtime: <b style="color:${top7Runtime.loaded ? 'var(--green)' : 'var(--red)'}">${top7Runtime.loaded ? 'LOADED' : 'NOT LOADED'}</b> (${fmtInt(top7Runtime.strategies)} strategies)</div>
+                    <div>Primary runtime: <b style="color:${primaryRuntime.loaded ? 'var(--green)' : 'var(--red)'}">${primaryRuntime.loaded ? 'LOADED' : 'NOT LOADED'}</b> (${fmtInt(primaryRuntime.strategies)} strategies)</div>
                     <div>TOP3 runtime: <b style="color:${top3Runtime.loaded ? 'var(--green)' : 'var(--red)'}">${top3Runtime.loaded ? 'LOADED' : 'NOT LOADED'}</b> (${fmtInt(top3Runtime.strategies)} strategies)</div>
 
-                    <div style="font-weight:bold;margin:8px 0 4px;border-bottom:1px solid #444;padding-bottom:4px;">SET QUALITY SNAPSHOT (EXECUTED LEDGER)</div>
+                    <div style="font-weight:bold;margin:8px 0 4px;border-bottom:1px solid #444;padding-bottom:4px;">REFERENCE SET QUALITY SNAPSHOT (EXECUTED LEDGER)</div>
                     <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
                         <thead><tr style="color:var(--dim);text-align:left;">
                             <th style="padding:4px;border-bottom:1px solid #333;">Set</th>
@@ -1204,16 +1208,16 @@
                             <th style="padding:4px;border-bottom:1px solid #333;">Trades/Day</th>
                         </tr></thead>
                         <tbody>
-                            <tr><td style="padding:4px;border-bottom:1px solid #222;">TOP7_DROP6</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtInt(top7Ledger.trades)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top7Ledger.winRatePct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top7Ledger.wilsonLCBPct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtNum(top7Ledger.tradesPerDay, 2)}</td></tr>
+                            <tr><td style="padding:4px;border-bottom:1px solid #222;">TOP7_DROP6 reference</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtInt(top7Ledger.trades)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top7Ledger.winRatePct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top7Ledger.wilsonLCBPct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtNum(top7Ledger.tradesPerDay, 2)}</td></tr>
                             <tr><td style="padding:4px;border-bottom:1px solid #222;">TOP3_ROBUST</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtInt(top3Ledger.trades)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top3Ledger.winRatePct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top3Ledger.wilsonLCBPct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtNum(top3Ledger.tradesPerDay, 2)}</td></tr>
                         </tbody>
                     </table>
 
-                    <div style="font-weight:bold;margin-bottom:4px;border-bottom:1px solid #444;padding-bottom:4px;">RECOMMENDED STAKE REFERENCE (FULL WINDOW, 1% SLIPPAGE)</div>
+                    <div style="font-weight:bold;margin-bottom:4px;border-bottom:1px solid #444;padding-bottom:4px;">REFERENCE STAKE ROWS (FULL WINDOW, 1% SLIPPAGE)</div>
                     <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
                         <thead><tr style="color:var(--dim);text-align:left;">
                             <th style="padding:4px;border-bottom:1px solid #333;">Bankroll</th>
-                            <th style="padding:4px;border-bottom:1px solid #333;">TOP7 best row</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">TOP7 reference row</th>
                             <th style="padding:4px;border-bottom:1px solid #333;">TOP3 best row</th>
                         </tr></thead>
                         <tbody>
@@ -1230,9 +1234,9 @@
                         </tbody>
                     </table>
 
-                    <div style="margin-top:6px;font-weight:bold;border-bottom:1px solid #444;padding-bottom:4px;">MANUAL DECISION RULES</div>
-                    <div>1) <b>Both TOP7 + TOP3 active:</b> highest-quality overlap; prioritize these signals.</div>
-                    <div>2) <b>TOP7 active only:</b> valid primary set signal; trade per your stake plan.</div>
+                    <div style="margin-top:6px;font-weight:bold;border-bottom:1px solid #444;padding-bottom:4px;">OPERATOR DECISION RULES</div>
+                    <div>1) <b>Both PRIMARY + TOP3 active:</b> highest-quality overlap; prioritize these signals.</div>
+                    <div>2) <b>PRIMARY active only:</b> valid primary set signal; trade per your stake plan.</div>
                     <div>3) <b>TOP3 active only:</b> conservative secondary context; optional/manual discretion.</div>
                     <div>4) <b>Neither active:</b> skip and wait for qualified window.</div>
                     <div>5) Keep one trade per 15m cycle and avoid late fills that exceed your slippage plan.</div>

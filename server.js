@@ -338,7 +338,7 @@ function parseFractionEnv(name, fallback) {
     return Number.isFinite(raw) && raw > 0 && raw <= 1 ? raw : fallback;
 }
 
-const OPERATOR_PRIMARY_STRATEGY_SET_PATH = 'debug/strategy_set_highfreq_unique12.json';
+const OPERATOR_PRIMARY_STRATEGY_SET_PATH = String(process.env.OPERATOR_STRATEGY_SET_PATH || '').trim() || 'debug/strategy_set_top7_drop6.json';
 
 function isOperatorPrimaryGatesEnforced() {
     const raw = String(process.env.OPERATOR_PRIMARY_GATES_ENFORCED || '').trim().toLowerCase();
@@ -347,7 +347,7 @@ function isOperatorPrimaryGatesEnforced() {
 }
 
 function pickOperatorStakeFractionDefault(baseBankroll) {
-    if (baseBankroll <= 10) return 0.60;
+    if (baseBankroll <= 10) return 0.45;
     if (baseBankroll <= 20) return 0.45;
     return 0.30;
 }
@@ -387,11 +387,15 @@ function getLiveOperatorConfig() {
     const stakeFractionDefault = pickOperatorStakeFractionDefault(baseBankroll);
     const stakeFraction = parseFractionEnv('OPERATOR_STAKE_FRACTION', stakeFractionDefault);
     const stakePerSignal = baseBankroll * stakeFraction;
-    const requestedStrategySetPath = String(process.env.OPERATOR_STRATEGY_SET_PATH || '').trim();
     const strategySetPath = OPERATOR_PRIMARY_STRATEGY_SET_PATH;
-    const strategyPathLocked = requestedStrategySetPath !== '' && requestedStrategySetPath !== strategySetPath;
+    const strategyPathLocked = false;
     const enforcePrimaryGates = isOperatorPrimaryGatesEnforced();
     const operatorRuntimeSnapshot = OPERATOR_STRATEGY_SET_RUNTIME.get() || {};
+    const primarySignalSet = String(
+        operatorRuntimeSnapshot?.stats?.source || path.basename(String(strategySetPath || ''), path.extname(String(strategySetPath || ''))) || 'operator_primary'
+    ).trim() || 'operator_primary';
+    const primarySignalSetDisplay = primarySignalSet.toUpperCase();
+    const operatorMode = (CONFIG?.LIVE_AUTOTRADING_ENABLED && !isSignalsOnlyMode()) ? 'AUTO_LIVE' : 'MANUAL_SIGNAL_ONLY';
     const operatorConditions = operatorRuntimeSnapshot.conditions || {};
     const disableMomentumGateEnv = ['1', 'true', 'yes', 'on'].includes(String(process.env.STRATEGY_DISABLE_MOMENTUM_GATE || '').trim().toLowerCase());
     const disableVolumeGateEnv = ['1', 'true', 'yes', 'on'].includes(String(process.env.STRATEGY_DISABLE_VOLUME_GATE || '').trim().toLowerCase());
@@ -441,14 +445,17 @@ function getLiveOperatorConfig() {
         : null);
 
     return {
-        profile: 'top7_drop6_primary_manual',
+        profile: operatorMode === 'AUTO_LIVE' ? 'operator_primary_auto' : 'operator_primary_manual',
         version: FINAL_OPERATOR_PROFILE_VERSION,
-        generatedAt: '2026-02-16T00:00:00.000Z',
-        mode: 'MANUAL_SIGNAL_ONLY',
-        primarySignalSet: 'top7_drop6',
+        generatedAt: new Date().toISOString(),
+        mode: operatorMode,
+        primarySignalSet,
+        primarySignalSetDisplay,
+        referenceSignalSet: 'top7_drop6',
         top3TelemetryMode: 'READ_ONLY',
         strategySetPath: strategySetPath,
         strategySchedules: {
+            primaryExecution: top7Schedule,
             top7Primary: top7Schedule,
             top3Monitor: top3Schedule,
             top8Reference: top8Schedule
@@ -517,30 +524,32 @@ function getLiveOperatorConfig() {
                 tradesPerDay: numOrNull(opt8Summary.tradesPerDay)
             } : null,
             decision: {
-                primarySet: 'top7_drop6',
+                primarySet: primarySignalSet,
                 fullWindowFallbackSet: sb10Full?.strategySet || 'top3',
                 primaryStakeFraction: sb10OneMonth?.stakeFraction ?? 0.30,
                 aggressiveStakeFraction: 0.30,
                 conservativeStakeFraction: 0.20,
                 microBankrollDefaultStakeFraction: stakeFractionDefault,
                 primaryGatesEnforced: enforcePrimaryGates,
-                rationale: 'TOP7_DROP6 is hard-locked for live signals. TOP3 is telemetry-only. For micro bankroll (5-10), default to smaller stake fraction to reduce near-zero balance risk.'
+                rationale: `${primarySignalSetDisplay} is the enforced primary signal set. TOP3 is telemetry-only. For micro bankroll (5-10), default to smaller stake fraction to reduce near-zero balance risk.`
             },
             worksheet: OPERATOR_WORKSHEET
         },
         manualRules: [
-            'Take only signals from TOP7_DROP6 (hard-locked operator strategy set).',
+            `Take only signals from the enforced primary strategy set (${primarySignalSetDisplay}).`,
             'Treat TOP3 status as read-only telemetry; it must not drive BUY decisions.',
             'Never exceed one trade per 15m cycle.',
             'Use operatorWorksheet.riskAdjusted row for your bankroll + horizon to choose stake fraction.',
-            'Skip trade if price moved outside strategy band before entry.',
+            'Skip fills that exceed your slippage plan or breach your max position discipline.',
             'Stop for the day after 3 consecutive losses or 15% intraday drawdown.',
         ],
         disclaimers: [
             'Backtests are historical and not guarantees.',
             'Worksheet metrics are derived from stress grids (fill bump 0-10c, slippage 0/1/2%).',
             'Liquidity, fills, and market impact can reduce realized performance.',
-            'This profile requires disciplined manual execution.',
+            operatorMode === 'AUTO_LIVE'
+                ? 'This profile is configured for autonomous live execution when the live trading gates remain enabled.'
+                : 'This profile requires disciplined manual execution.',
         ],
     };
 }
@@ -12754,10 +12763,10 @@ function telegramOraclePrepare(signal) {
     msg += `🎯 pWin: <code>${pWin}</code> | Edge: <code>${edgePp}</code> | EV: <code>${ev}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
     const setFlags = [];
-    if (signal?.primarySetActive) setFlags.push('TOP7 ✅');
+    if (signal?.primarySetActive) setFlags.push('PRIMARY ✅');
     if (signal?.top3RobustActive) setFlags.push('TOP3 🧪');
     if (setFlags.length) {
-        msg += `🧭 Set status (TOP7 drives BUY): <code>${setFlags.join(' | ')}</code>\n`;
+        msg += `🧭 Set status (PRIMARY drives BUY): <code>${setFlags.join(' | ')}</code>\n`;
     }
     msg += `━━━━━━━━━━━━━━━━━━━━━\n`;
     if (isTail && signal?.tailBuyBlocked) {
@@ -12848,10 +12857,10 @@ function telegramOracleBuy(signal) {
     msg += `🎯 pWin: <code>${pWin}</code> | EV: <code>${ev}</code> | Edge: <code>${edgePp}</code>\n`;
     msg += `⏳ Time left: <code>${tLeft}</code>\n`;
     const setFlags = [];
-    if (signal?.primarySetActive) setFlags.push('TOP7 ✅');
+    if (signal?.primarySetActive) setFlags.push('PRIMARY ✅');
     if (signal?.top3RobustActive) setFlags.push('TOP3 🧪');
     if (setFlags.length) {
-        msg += `🧭 Set status (TOP7 drives BUY): <code>${setFlags.join(' | ')}</code>\n`;
+        msg += `🧭 Set status (PRIMARY drives BUY): <code>${setFlags.join(' | ')}</code>\n`;
     }
     if (signal?.top3RobustActive && signal?.top3RobustStrategy?.name) {
         msg += `🛡️ Top3 telemetry hit: <code>${tgEscape(signal.top3RobustStrategy.name)}</code>\n`;
@@ -30094,12 +30103,21 @@ function updateOracleSignalForAsset(asset) {
         const concurrentVolume = Number.isFinite(market?.volume) ? market.volume : 0;
         const top7PrimaryCheck = checkHybridStrategy(asset, signal.direction, entryPrice, signal.entryMinute, signal.utcHour, signal.hybridMomentum, concurrentVolume);
         const top3TelemetryCheck = checkTop3RobustConcurrentStrategy(asset, signal.direction, entryPrice, signal.entryMinute, signal.utcHour, signal.hybridMomentum, concurrentVolume);
-        signal.primarySignalSource = 'top7_drop6';
+        const primarySignalSource = String(getOperatorStrategySetRuntimeStatus()?.stats?.source || 'operator_primary').trim() || 'operator_primary';
+        signal.primarySignalSource = primarySignalSource;
         signal.top3TelemetryMode = 'READ_ONLY';
         signal.primarySetActive = top7PrimaryCheck?.passes === true;
         signal.top3RobustActive = top3TelemetryCheck?.passes === true;
         signal.concurrentSets = {
+            primaryExecution: {
+                label: primarySignalSource,
+                active: top7PrimaryCheck?.passes === true,
+                tier: top7PrimaryCheck?.tier || null,
+                strategyName: top7PrimaryCheck?.strategy?.name || null,
+                blockedReason: top7PrimaryCheck?.passes ? null : (top7PrimaryCheck?.blockedReason || null)
+            },
             top7Drop6: {
+                label: primarySignalSource,
                 active: top7PrimaryCheck?.passes === true,
                 tier: top7PrimaryCheck?.tier || null,
                 strategyName: top7PrimaryCheck?.strategy?.name || null,

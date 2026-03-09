@@ -207,7 +207,7 @@
     <div class="topbar">
       <div>
         <h1 class="title">🎯 Final Operator Configuration</h1>
-        <p class="subtitle">Primary profile for top7_drop6 manual execution.</p>
+        <p class="subtitle" id="profileSubtitle">Primary live operator profile and execution assumptions.</p>
       </div>
       <div class="nav">
         <a href="/">Dashboard</a>
@@ -297,6 +297,12 @@
     function render(config) {
       currentConfig = config;
       document.getElementById('jsonOut').textContent = JSON.stringify(config, null, 2);
+      const primarySet = String(config.primarySignalSetDisplay || config.primarySignalSet || 'PRIMARY').trim();
+      const subtitle = document.getElementById('profileSubtitle');
+
+      if (subtitle) {
+        subtitle.textContent = `Primary live operator profile for ${primarySet} (${config.mode || '--'}).`;
+      }
 
       setKv('profileKv', [
         { label: 'Profile', value: config.profile || '--', className: 'mono' },
@@ -321,14 +327,14 @@
       ]);
 
       setKv('evidenceKv', [
-        { label: 'Trades / Wins / Losses', value: `${num(config.evidence?.top7Drop6?.trades, 0)} / ${num(config.evidence?.top7Drop6?.wins, 0)} / ${num(config.evidence?.top7Drop6?.losses, 0)}` },
-        { label: 'Win Rate', value: pct(config.evidence?.top7Drop6?.winRate, 2), className: 'good' },
-        { label: 'Wilson LCB', value: pct(config.evidence?.top7Drop6?.wilsonLCB, 2), className: 'good' },
-        { label: 'S20 Max Drawdown', value: pct(config.evidence?.top7Drop6?.start10_s20_maxDrawdownPct, 2), className: 'warn' },
+        { label: 'TOP7 Reference Trades / Wins / Losses', value: `${num(config.evidence?.top7Drop6?.trades, 0)} / ${num(config.evidence?.top7Drop6?.wins, 0)} / ${num(config.evidence?.top7Drop6?.losses, 0)}` },
+        { label: 'TOP7 Reference Win Rate', value: pct(config.evidence?.top7Drop6?.winRate, 2), className: 'good' },
+        { label: 'TOP7 Reference Wilson LCB', value: pct(config.evidence?.top7Drop6?.wilsonLCB, 2), className: 'good' },
+        { label: 'TOP7 Reference S20 Max Drawdown', value: pct(config.evidence?.top7Drop6?.start10_s20_maxDrawdownPct, 2), className: 'warn' },
         { label: 'Primary Stake', value: pct(config.evidence?.decision?.primaryStakeFraction, 0), className: 'good' },
         { label: 'Aggressive Stake', value: pct(config.evidence?.decision?.aggressiveStakeFraction, 0), className: 'danger' },
-        { label: 'S20 Ending Balance (start $10)', value: dollars(config.evidence?.top7Drop6?.start10_s20_endBalance, 2) },
-        { label: 'S30 Ending Balance (start $10)', value: dollars(config.evidence?.top7Drop6?.start10_s30_endBalance, 2) },
+        { label: 'TOP7 Reference S20 Ending Balance (start $10)', value: dollars(config.evidence?.top7Drop6?.start10_s20_endBalance, 2) },
+        { label: 'TOP7 Reference S30 Ending Balance (start $10)', value: dollars(config.evidence?.top7Drop6?.start10_s30_endBalance, 2) },
       ]);
 
       setList('manualRules', config.manualRules);
@@ -336,7 +342,7 @@
 
       const status = document.getElementById('profileStatus');
       if (status) {
-        status.textContent = `Loaded live profile ${config.version || '--'} from /api/live-op-config`;
+        status.textContent = `Loaded live profile ${config.version || '--'} for ${primarySet} from /api/live-op-config`;
       }
     }
 
