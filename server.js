@@ -1257,6 +1257,24 @@ app.use((req, res, next) => {
 // (we want `/` to be the full-featured dashboard, like the original server.js UI)
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
+function registerRepoMarkdownRoute(routePath, fileName) {
+    app.get(routePath, (req, res) => {
+        const filePath = path.join(__dirname, fileName);
+        if (!fs.existsSync(filePath)) {
+            return res.status(404).type('text/plain; charset=utf-8').send(`${fileName} not found`);
+        }
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+        if (String(req.query.download || '').trim() === '1') {
+            return res.download(filePath, fileName);
+        }
+        res.type('text/markdown; charset=utf-8');
+        return res.sendFile(filePath);
+    });
+}
+
+registerRepoMarkdownRoute('/docs/final-operator-guide', 'FINAL_OPERATOR_GUIDE.md');
+registerRepoMarkdownRoute('/docs/implementation-plan-v140', 'IMPLEMENTATION_PLAN_v140.md');
+
 // ==================== PROOF-QUALITY BACKTEST API ====================
 // 🎯 GOAT: Deterministic backtester using historical cycle data
 app.get('/api/backtest-proof', async (req, res) => {
@@ -26393,128 +26411,113 @@ app.get('/', (req, res) => {
             <div class="status-msg" id="settingsStatus"></div>
         </div>
     </div>
-    <!-- GUIDE MODAL (ENHANCED with Settings Explanations) -->
-    <div class="modal-overlay" id="guideModal">
-        <div class="modal" style="max-width:900px;max-height:90vh;overflow-y:auto;">
-            <div class="modal-header"><span class="modal-title">📚 Complete Guide & Settings Help</span><button class="modal-close" onclick="closeModal('guideModal')">×</button></div>
+     <!-- GUIDE MODAL (ENHANCED with Settings Explanations) -->
+     <div class="modal-overlay" id="guideModal">
+         <div class="modal" style="max-width:900px;max-height:90vh;overflow-y:auto;">
+            <div class="modal-header"><span class="modal-title">📚 Final Operator Guide</span><button class="modal-close" onclick="closeModal('guideModal')">×</button></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:15px;padding:12px;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.18);border-radius:10px;">
+                <a href="/docs/final-operator-guide" target="_blank" class="btn" style="text-decoration:none;">📄 Open Final Guide</a>
+                <a href="/docs/final-operator-guide?download=1" class="btn" style="text-decoration:none;">⬇️ Download Guide</a>
+                <a href="/docs/implementation-plan-v140" target="_blank" class="btn" style="text-decoration:none;">🧠 Open Implementation Plan</a>
+                <a href="/docs/implementation-plan-v140?download=1" class="btn" style="text-decoration:none;">⬇️ Download Plan</a>
+            </div>
             
             <!-- TAB NAVIGATION -->
             <div style="display:flex;gap:5px;margin-bottom:15px;border-bottom:1px solid #333;padding-bottom:10px;">
-                <button onclick="showGuideTab('basics')" class="guide-tab active" id="tab-basics">🎯 Basics</button>
-                <button onclick="showGuideTab('modes')" class="guide-tab" id="tab-modes">🔮 Trading Modes</button>
-                <button onclick="showGuideTab('settings')" class="guide-tab" id="tab-settings">⚙️ Settings Explained</button>
-                <button onclick="showGuideTab('risk')" class="guide-tab" id="tab-risk">⚠️ Risk Controls</button>
+                <button onclick="showGuideTab('basics')" class="guide-tab active" id="tab-basics">✅ Setup</button>
+                <button onclick="showGuideTab('modes')" class="guide-tab" id="tab-modes">🤖 Autonomy</button>
+                <button onclick="showGuideTab('settings')" class="guide-tab" id="tab-settings">⚙️ Runtime Truths</button>
+                <button onclick="showGuideTab('risk')" class="guide-tab" id="tab-risk">📄 Docs & Checks</button>
             </div>
             
             <!-- BASICS TAB -->
             <div id="guide-basics" class="guide-content active">
-                <div class="guide-section"><h3>🎯 What Is This Bot?</h3><p>An AI prediction bot for Polymarket's 15-minute crypto checkpoint markets. It predicts whether BTC, ETH, or XRP will go UP or DOWN in each 15-minute window.</p></div>
-                <div class="guide-section"><h3>📊 Reading the Dashboard</h3>
-                    <p><strong>Prediction:</strong> The direction the bot thinks the price will go (UP = 📈 green, DOWN = 📉 red)</p>
-                    <p><strong>Confidence:</strong> How sure the bot is (0-100%). Higher = more certain.</p>
-                    <p><strong>Tier:</strong> CONVICTION = best quality trade, ADVISORY = lower confidence</p>
-                    <p><strong>Edge:</strong> Your advantage over the market odds. +15% edge means you have 15% better odds than what the market offers.</p>
+                <div class="guide-section"><h3>✅ Audited operator setup</h3>
+                    <p><strong>Primary strategy set:</strong> <code>top7_drop6</code></p>
+                    <p><strong>Target micro-bankroll stake:</strong> <code>45%</code> for bankrolls <code>&lt;= $10</code></p>
+                    <p><strong>Code default strategy path:</strong> <code>debug/strategy_set_top7_drop6.json</code></p>
+                    <p><strong>Important fallback default:</strong> if <code>OPERATOR_BASE_BANKROLL</code> is unset, the operator config defaults the base bankroll to <code>$10</code>. The audited micro-bankroll guide assumes you explicitly set it to <code>$8</code>.</p>
                 </div>
-                <div class="guide-section"><h3>⚠️ Paper vs Live Mode</h3>
-                    <p><strong>📝 PAPER:</strong> Practice mode with fake money. Safe to experiment!</p>
-                    <p><strong>🔴 LIVE:</strong> Real money trading. Needs USDC (for trades) + MATIC (for gas fees) in your wallet.</p>
+                <div class="guide-section"><h3>📈 Evidence-backed expectation</h3>
+                    <p><strong>Best live evidence:</strong> <code>57/63 = 90.5% WR</code></p>
+                    <p><strong>Replay evidence:</strong> <code>432/489 = 88.3% WR</code></p>
+                    <p><strong>Reality at $8-$10:</strong> upside is meaningful, but bust risk is still real because the minimum executable order is large relative to bankroll.</p>
                 </div>
-                <div class="guide-section"><h3>🚀 Quick Start Presets</h3>
-                    <p>In Settings, use these presets instead of configuring manually:</p>
-                    <p>🛡️ <strong>Safe:</strong> Fewer trades, higher accuracy. Best for beginners.</p>
-                    <p>⚖️ <strong>Balanced:</strong> Mix of trades and accuracy. Good all-rounder.</p>
-                    <p>🔥 <strong>Aggressive:</strong> More trades, lower thresholds. Higher risk/reward.</p>
+                <div class="guide-section"><h3>🎯 Target state vs default state</h3>
+                    <p><strong>Target audited production state:</strong> autonomous <code>LIVE</code> execution using <code>top7_drop6</code> on 15-minute markets.</p>
+                    <p><strong>Default safety reality:</strong> the runtime remains advisory-only until <code>TRADE_MODE=LIVE</code>, <code>LIVE_AUTOTRADING_ENABLED=1</code>, and <code>TELEGRAM_SIGNALS_ONLY=false</code> are all true.</p>
+                    <p><strong>Operator truth source:</strong> use <code>/api/live-op-config</code> to confirm the effective strategy path, stake fraction, and whether the runtime currently reports <code>AUTO_LIVE</code> or <code>MANUAL_SIGNAL_ONLY</code>.</p>
                 </div>
             </div>
             
             <!-- TRADING MODES TAB -->
             <div id="guide-modes" class="guide-content">
                 <div class="guide-section" style="border-left:3px solid #9933ff;padding-left:12px;margin-bottom:15px;">
-                    <h3>🔮 ORACLE Mode (Recommended)</h3>
-                    <p><strong>What it does:</strong> Makes high-confidence predictions and holds until the market resolves.</p>
-                    <p><strong>Best for:</strong> Maximum accuracy. This is your main money-maker.</p>
-                    <p><strong>Settings explained:</strong></p>
+                    <h3>🤖 When the bot will auto-trade</h3>
+                    <p><strong>Autonomous LIVE entries require all of the following:</strong></p>
                     <ul style="color:#aaa;font-size:0.9em;">
-                        <li><strong>Min Consensus:</strong> What % of the 8 AI brains must agree (0.85 = 7 out of 8)</li>
-                        <li><strong>Min Confidence:</strong> How sure the bot must be (0.92 = 92% certainty)</li>
-                        <li><strong>Min Edge:</strong> The minimum profit advantage over market odds (15 = 15%)</li>
-                        <li><strong>Max Odds:</strong> Won't buy if shares cost more than this (0.70 = 70¢)</li>
-                        <li><strong>Aggression:</strong> 0% = very picky, 100% = more trades with lower thresholds</li>
+                        <li><strong>Mode:</strong> <code>TRADE_MODE=LIVE</code></li>
+                        <li><strong>Wallet:</strong> live wallet and Polymarket credentials loaded</li>
+                        <li><strong>Autonomy gate:</strong> <code>LIVE_AUTOTRADING_ENABLED=1</code></li>
+                        <li><strong>Signals-only disabled:</strong> <code>TELEGRAM_SIGNALS_ONLY=false</code></li>
+                        <li><strong>Runtime healthy:</strong> no stale feed, no manual pause, no blocking circuit-breaker state</li>
+                        <li><strong>Tradeability:</strong> bankroll and minimum order constraints still allow a real order</li>
                     </ul>
                 </div>
                 <div class="guide-section" style="border-left:3px solid #ff6600;padding-left:12px;margin-bottom:15px;">
-                    <h3>🎯 SCALP Mode</h3>
-                    <p><strong>What it does:</strong> Buys cheap shares and sells when they double in price.</p>
-                    <p><strong>Best for:</strong> Quick profits on volatile markets.</p>
+                    <h3>🛑 What keeps it in advisory-only mode</h3>
                     <ul style="color:#aaa;font-size:0.9em;">
-                        <li><strong>Max Entry (¢):</strong> Only buy shares cheaper than this (20 = 20 cents)</li>
-                        <li><strong>Target Multiple:</strong> Sell when price hits this multiple (2.0 = double your money)</li>
+                        <li><strong>Autotrading off:</strong> <code>LIVE_AUTOTRADING_ENABLED</code> is false</li>
+                        <li><strong>Signals-only on:</strong> <code>TELEGRAM_SIGNALS_ONLY=true</code></li>
+                        <li><strong>No wallet / bad credentials:</strong> deep verification fails</li>
+                        <li><strong>Feed health issue:</strong> stale Chainlink / market data blocks execution</li>
+                        <li><strong>Risk suppression:</strong> manual pause, circuit breaker, or balance too low to place minimum size</li>
                     </ul>
                 </div>
                 <div class="guide-section" style="border-left:3px solid #00ff88;padding-left:12px;margin-bottom:15px;">
-                    <h3>📊 ARBITRAGE Mode</h3>
-                    <p><strong>What it does:</strong> Exploits when the market price is "wrong" vs what the bot thinks.</p>
-                    <p><strong>Best for:</strong> Profiting from market inefficiencies.</p>
+                    <h3>✅ Pre-flight checks before letting LIVE run</h3>
                     <ul style="color:#aaa;font-size:0.9em;">
-                        <li><strong>Min Mispricing:</strong> How wrong the market must be (0.15 = 15% difference)</li>
-                        <li><strong>Target Profit:</strong> Sell when this much of the gap closes (0.50 = 50%)</li>
-                        <li><strong>Stop Loss:</strong> Exit if trade goes against you by this much</li>
+                        <li><strong>/api/version</strong> — confirm expected deploy identity</li>
+                        <li><strong>/api/health</strong> — confirm feed health, rolling accuracy, and no unexpected degradation</li>
+                        <li><strong>/api/verify?deep=1</strong> — confirm wallet, CLOB, and credentials are actually trade-ready</li>
+                        <li><strong>/api/live-op-config</strong> — confirm mode, stake fraction, and strategy path</li>
+                        <li><strong>/api/state</strong> — confirm <code>LIVE</code> mode and sensible balance/runtime state</li>
                     </ul>
                 </div>
                 <div class="guide-section" style="border-left:3px solid #3399ff;padding-left:12px;margin-bottom:15px;">
-                    <h3>🌊 UNCERTAINTY Mode</h3>
-                    <p><strong>What it does:</strong> Bets that extreme odds (80%+) will revert back toward 50/50.</p>
-                    <p><strong>Best for:</strong> Choppy, unpredictable markets.</p>
-                    <ul style="color:#aaa;font-size:0.9em;">
-                        <li><strong>Extreme Threshold:</strong> How lopsided odds must be (0.80 = 80%+ one way)</li>
-                        <li><strong>Target Reversion:</strong> Exit when odds return to this level (0.60 = 60%)</li>
-                        <li><strong>Stop Loss:</strong> Exit if odds keep going extreme</li>
-                    </ul>
-                </div>
-                <div class="guide-section" style="border-left:3px solid #ff33cc;padding-left:12px;">
-                    <h3>🚀 MOMENTUM Mode</h3>
-                    <p><strong>What it does:</strong> Rides strong price trends mid-cycle.</p>
-                    <p><strong>Best for:</strong> Trending markets with clear direction.</p>
-                    <ul style="color:#aaa;font-size:0.9em;">
-                        <li><strong>Min Elapsed (s):</strong> Wait this long before trading (300 = 5 minutes)</li>
-                        <li><strong>Min Consensus:</strong> Model agreement needed (0.75 = 75%)</li>
-                        <li><strong>Exit Before End (s):</strong> Sell this long before cycle ends (180 = 3 min)</li>
-                    </ul>
+                    <h3>📱 Operator usage note</h3>
+                    <p>Telegram and the dashboard are visibility layers. They help you monitor the bot, but autonomous execution still depends on the runtime gates above rather than message delivery.</p>
                 </div>
             </div>
             
             <!-- SETTINGS EXPLAINED TAB -->
             <div id="guide-settings" class="guide-content">
                 <div class="guide-section">
-                    <h3>💰 Core Parameters</h3>
-                    <p><strong>Paper Balance ($):</strong> Your fake practice money. Only used in PAPER mode.</p>
-                    <p><strong>Max Position (%):</strong> Maximum % of your money to risk on ONE trade. If you have $100 and this is 10%, the bot won't bet more than $10 on any single trade.</p>
+                    <h3>💰 Minimum order reality</h3>
+                    <p><strong>Effective minimum:</strong> about <code>5</code> shares, with actual USDC cost depending on entry price.</p>
+                    <p><strong>Example:</strong> at <code>77¢</code>, the minimum executable order is about <code>$3.85</code>.</p>
+                    <p><strong>Micro-bankroll implication:</strong> <code>$8 × 45% = $3.60</code>, so the runtime may need to clamp upward toward the minimum executable order size.</p>
                 </div>
                 <div class="guide-section">
-                    <h3>🎛️ Per-Asset Controls</h3>
-                    <p><strong>Enable/Disable:</strong> Turn trading on/off for each coin (BTC, ETH, XRP, SOL)</p>
-                    <p><strong>Max Trades /cycle:</strong> Limit how many trades per 15-minute period per coin. Default is 1 to prevent overtrading.</p>
-                    <p><strong>Min Wait Before Trading:</strong> How many seconds to wait after a cycle starts before allowing trades. Default 60s prevents premature trades from noisy early data.</p>
+                    <h3>📊 Live balance semantics</h3>
+                    <p><strong>Source priority:</strong> on-chain USDC first, then CLOB collateral fallback, then last known good balance.</p>
+                    <p><strong>Operational meaning:</strong> stale fallback balance can still appear in the UI for observability, but you should not treat it as guaranteed spendable cash until fresh reads succeed.</p>
                 </div>
                 <div class="guide-section">
-                    <h3>📱 Telegram Notifications</h3>
-                    <p>Get trade alerts on your phone! Setup:</p>
-                    <ol style="color:#aaa;font-size:0.9em;">
-                        <li>Message @BotFather on Telegram, send /newbot</li>
-                        <li>Copy the token it gives you → paste in "Bot Token" field</li>
-                        <li>Message @userinfobot → it replies with your ID number</li>
-                        <li>Paste that number in "Chat ID" field</li>
-                    </ol>
+                    <h3>🔄 Deposits and withdrawals</h3>
+                    <p><strong>Refresh cadence:</strong> live balances refresh roughly every <code>30s</code>.</p>
+                    <p><strong>Auto-detection:</strong> qualifying external transfers reset baseline and peak reference points so deposits are not misread as profits and withdrawals are not misread as trading drawdowns.</p>
+                    <p><strong>After changing bankroll externally:</strong> wait for refresh, then re-check <code>/api/health</code> or <code>/api/state</code> before judging sizing behavior.</p>
                 </div>
                 <div class="guide-section">
-                    <h3>📋 Settings Cheat Sheet</h3>
+                    <h3>📋 Runtime truth summary</h3>
                     <table style="width:100%;font-size:0.85em;border-collapse:collapse;">
-                        <tr style="background:rgba(0,0,0,0.3);"><th style="padding:8px;text-align:left;">Setting</th><th>Safe Value</th><th>Aggressive</th><th>What It Does</th></tr>
-                        <tr><td style="padding:6px;">Min Consensus</td><td>0.90</td><td>0.75</td><td>More agreement = fewer trades</td></tr>
-                        <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Min Confidence</td><td>0.92</td><td>0.70</td><td>More certainty = fewer trades</td></tr>
-                        <tr><td style="padding:6px;">Min Edge</td><td>20%</td><td>10%</td><td>Bigger edge = fewer trades</td></tr>
-                        <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Max Position</td><td>10%</td><td>25%</td><td>Larger = more $ per trade</td></tr>
-                        <tr><td style="padding:6px;">Daily Stop</td><td>15%</td><td>30%</td><td>Lower = stops losses earlier</td></tr>
+                        <tr style="background:rgba(0,0,0,0.3);"><th style="padding:8px;text-align:left;">Item</th><th>Verified value</th><th>Meaning</th></tr>
+                        <tr><td style="padding:6px;">Strategy path</td><td><code>debug/strategy_set_top7_drop6.json</code></td><td>Current operator default in code</td></tr>
+                        <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Stake default</td><td><code>0.45</code> at <code>&lt;= $20</code></td><td>Default operator stake fraction logic</td></tr>
+                        <tr><td style="padding:6px;">Operator base bankroll fallback</td><td><code>$10</code></td><td>Used when <code>OPERATOR_BASE_BANKROLL</code> is unset</td></tr>
+                        <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Autonomy mode label</td><td><code>AUTO_LIVE</code> or <code>MANUAL_SIGNAL_ONLY</code></td><td>Derived from live autotrading + signals-only gates</td></tr>
+                        <tr><td style="padding:6px;">Target market scope</td><td>15-minute markets</td><td>Audited live setup keeps focus on 15m execution</td></tr>
                     </table>
                 </div>
             </div>
@@ -26522,33 +26525,29 @@ app.get('/', (req, res) => {
             <!-- RISK CONTROLS TAB -->
             <div id="guide-risk" class="guide-content">
                 <div class="guide-section" style="border-left:3px solid #ff0066;padding-left:12px;margin-bottom:15px;">
-                    <h3>⚠️ Risk Management Settings</h3>
-                    <p><strong>Max Exposure (%):</strong> Maximum % of your money in active trades at once. If 30%, you can never have more than 30% at risk simultaneously.</p>
-                    <p><strong>Daily Stop (%):</strong> Stop trading if you lose this much in one day. At 20%, if your $100 drops to $80, trading halts to prevent further damage. This is your circuit breaker!</p>
-                    <p><strong>Loss Cooldown (s):</strong> Wait time after each loss before trading again. Prevents "revenge trading".</p>
+                    <h3>📄 Full docs from the dashboard</h3>
+                    <p><strong>Operator guide:</strong> concise audited operating procedure for the current live setup.</p>
+                    <p><strong>Implementation plan:</strong> full reasoning trail, simulations, reconciliations, and addendums behind the current recommendation.</p>
+                    <p><strong>Best practice:</strong> trust the verified runtime in <code>server.js</code> plus the final operator guide. Use the implementation plan when you need deeper audit context.</p>
                 </div>
                 <div class="guide-section">
-                    <h3>🛡️ Built-in Protections</h3>
-                    <p>The bot has 12 automatic failsafes:</p>
+                    <h3>🔎 Primary endpoints to check before trading</h3>
                     <ul style="color:#aaa;font-size:0.9em;">
-                        <li>✅ 3x retry on buy orders</li>
-                        <li>✅ 5x retry with increasing delays on sell orders</li>
-                        <li>✅ Failed sells saved with recovery info</li>
-                        <li>✅ Daily P/L reset at midnight</li>
-                        <li>✅ Low balance alerts (USDC + MATIC)</li>
-                        <li>✅ Stale data detection (auto-reconnects)</li>
-                        <li>✅ Conviction lock (prevents flip-flopping)</li>
-                        <li>✅ Reality check (nukes bad predictions)</li>
+                        <li><strong>/api/version</strong> — deploy identity</li>
+                        <li><strong>/api/health</strong> — health, rolling accuracy, suppression state</li>
+                        <li><strong>/api/verify?deep=1</strong> — live trade readiness</li>
+                        <li><strong>/api/live-op-config</strong> — effective operator config</li>
+                        <li><strong>/api/state</strong> — runtime state, balance, and live mode truth</li>
                     </ul>
                 </div>
                 <div class="guide-section">
-                    <h3>🔄 Failed Sells Recovery</h3>
-                    <p>If a sell fails after 5 retries:</p>
+                    <h3>🔄 Recovery reminder</h3>
+                    <p>If a live sell fails, the position is not treated as closed until the sell is actually confirmed.</p>
                     <ol style="color:#aaa;font-size:0.9em;">
-                        <li>Position saved with complete recovery info</li>
-                        <li>Use "Retry Sell" in Recovery modal</li>
-                        <li>Or manually sell at <a href="https://polymarket.com/portfolio" target="_blank" style="color:#4fc3f7;">polymarket.com/portfolio</a></li>
-                        <li>Or wait for market resolution and redeem</li>
+                        <li>Inspect the Recovery modal from the dashboard</li>
+                        <li>Review pending sell state and retry/reconcile flows</li>
+                        <li>Manually recover in <a href="https://polymarket.com/portfolio" target="_blank" style="color:#4fc3f7;">polymarket.com/portfolio</a> if needed</li>
+                        <li>Re-check health and state after any recovery action</li>
                     </ol>
                 </div>
             </div>
