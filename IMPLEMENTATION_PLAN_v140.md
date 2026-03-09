@@ -7844,7 +7844,7 @@ The `MAX_ABSOLUTE_POSITION_SIZE=100` ($100) is the hard cap. So at $222+ bankrol
 - Min order = 5 × ~$0.77 = $3.85 — far below the $45 stake
 - All strategies are fully affordable
 - Bot is well above the $0.50 balance floor
-- Bot continues in BOOTSTRAP profile (minOrderRiskOverride = true)
+- Under the current live thresholds (`vaultTriggerBalance=100`, `stage2Threshold=500`), the risk-envelope stage is `TRANSITION`, not `BOOTSTRAP`; minOrderRiskOverride is false there, but the $45 stake is still far above minimum order cost
 - Monte Carlo shows: 0.1% bust, median $828 in 14 days from $100
 
 ---
@@ -8080,25 +8080,27 @@ Everything else is already correctly set per your screenshot.
 
 ### Y14) FINAL VERDICT
 
-**GO — with `top7_drop6` at 45% stake, after topping up to $8 and enabling XRP.**
+**CONDITIONAL GO — with `top7_drop6` at 45% stake, after topping up to $8-$10, setting auth, and keeping proxy-routed CLOB access healthy. Enabling XRP remains recommended.**
 
 This is the right answer because:
 
 1. **Evidence-backed:** Only set with 63 live trades (90.5% WR). No other set has this.
 2. **Independently verified:** My Monte Carlo matches Addendum W within 1-2% on all metrics.
-3. **Env vars are correctly set:** Confirmed from screenshot + live API cross-check.
+3. **Core env/runtime path is correctly set:** Strategy file, autonomy gates, wallet, and deep CLOB readiness were confirmed live.
 4. **Strategy file loads on production:** Confirmed via `/api/live-op-config` (7 strategies loaded, AUTO_LIVE mode).
-5. **All autonomy gates pass:** signalsOnly=false, liveAutotrading=true, wallet loaded, CLOB ready.
+5. **All core autonomy gates pass:** signalsOnly=false, liveAutotrading=true, wallet loaded, CLOB ready.
 6. **Withdrawal handling is automatic:** Deposits/withdrawals reset baseline, bot keeps trading.
 7. **Risk is acceptable:** 16% bust from $8 (or 12% from $10), with 55-64% chance of reaching $100 in 14 days.
+8. **Remaining blockers are operational, not strategic:** auth must be set before public live use, and the proxy path must remain healthy because the host-region geoblock warning still exists.
 
 **Before first trade:**
 1. Top up wallet to $8-10
-2. Set `ASSET_XRP_ENABLED=true` on Render
-3. Set `AUTH_USERNAME` and `AUTH_PASSWORD` on Render
-4. Wait for next strategy hour (UTC H00, H08, H09, H10, H11, H20)
-5. Monitor first 3-5 trades to confirm CLOB fills
-6. After 20 trades, check `/api/health` → `rollingAccuracy` for real live WR
+2. Set `AUTH_USERNAME` and `AUTH_PASSWORD` on Render
+3. Confirm `PROXY_URL` remains set and `CLOB_FORCE_PROXY=1` remains enabled if you continue operating from a geoblocked host region
+4. Set `ASSET_XRP_ENABLED=true` on Render for the full opportunity set
+5. Wait for next strategy hour (UTC H00, H08, H09, H10, H11, H20)
+6. Monitor first 3-5 trades to confirm CLOB fills
+7. After 20 trades, check `/api/health` → `rollingAccuracy` for real live WR
 
 **After first withdrawal:**
 - The bot will automatically detect the withdrawal, reset its baseline, and continue trading optimally with whatever balance remains
@@ -8120,3 +8122,72 @@ Addendum Y does NOT supersede Addendum W. They agree on all material points. Tog
 ---
 
 *End of Addendum Y — Eighth & Final Independent Review, 9 March 2026*
+
+---
+
+## ADDENDUM Z — FINAL LIVE DEPLOYMENT RECONCILIATION (9 MARCH 2026, 18:20 UTC)
+
+> This addendum resolves the last remaining ambiguity between the live deployment diagnostics and the earlier unconditional wording in Addendum Y.
+> It is based on a fresh live re-check of the deployed app plus a direct code trace of the relevant runtime paths.
+
+---
+
+### Z1) FRESH LIVE RE-CHECK SUMMARY
+
+Fresh live checks against the deployed dashboard/API showed:
+- `/api/version`: `configVersion=139`, `tradeMode=LIVE`
+- `/api/health`: `status=ok`, no stale-feed block, no trading halt, balance floor healthy
+- `/api/live-op-config`: `mode=AUTO_LIVE`, `strategySetPath=debug/strategy_set_top7_drop6.json`, `primarySignalSet=top7_drop6`
+- `/api/settings`: auth still unset, XRP still disabled on live, UI metadata still exposed stale preset labeling before repo patch
+- `/api/verify?deep=1`: `status=WARN`, `criticalFailures=0`
+
+The WARN state came from three non-critical items: collector snapshot parity not yet populated, host-IP geoblock warning (`blocked=true`, Oregon/US), and auth still not configured.
+
+Crucially, the same deep verification also showed that the wallet is loaded, wallet RPC is reachable, CLOB client is available, Polymarket API credentials are present, CLOB trading permission and collateral allowance pass, and CLOB order signing works.
+
+### Z2) WHY HOST GEOBLOCK WARNING AND CLOB PASS ARE NOT A CONTRADICTION
+
+I re-read the geoblock check implementation in `server.js`.
+
+The important detail is that the official geoblock diagnostic calls `https://polymarket.com/api/geoblock` directly from the host IP, that direct host-IP check is intentionally proxy-bypassed, and the deep CLOB permission/allowance checks are the closer proxy-routed execution-readiness proof.
+
+Therefore the correct reading is: host region is geoblocked = true, while the current proxy-routed CLOB path appears trade-ready = true.
+
+That means the deployment is not a clean unconditional GO from the raw host environment.
+It is a conditional GO that depends on the proxy path remaining healthy.
+
+### Z3) FINAL CORRECTIONS TO ADDENDUM Y
+
+The following points from Addendum Y are now tightened.
+
+The bot absolutely does keep working when $100 is left after withdrawal. However, under the current live thresholds (`vaultTriggerBalance=100`, `stage2Threshold=500`), $100 is TRANSITION, not BOOTSTRAP. This does not hurt tradability because 45% of $100 = $45, far above minimum order cost.
+
+The final verdict wording was too loose. The accurate final verdict is conditional GO, not unconditional GO.
+
+XRP is still recommended to restore the full opportunity set, but XRP being disabled is not the core blocker. Auth and proxy health are the real deployment blockers.
+
+The live UI showing VALUE_HUNTER was a metadata/presentation problem, not an execution problem. The repo has now been patched so the settings-facing preset label prefers the live operator signal set when AUTO_LIVE is active.
+
+### Z4) FINAL SINGLE-TRUTH VERDICT
+
+**GO only if ALL of the following are true:**
+
+1. wallet topped up to at least $8-$10
+2. `AUTH_USERNAME` and `AUTH_PASSWORD` are set
+3. the proxy path remains active/healthy for CLOB access from the geoblocked host region
+4. `/api/verify?deep=1` continues to pass the deep `CLOB trading permission + collateral allowance` check
+5. `top7_drop6` remains the loaded primary set in `/api/live-op-config`
+
+**NO-GO if ANY of the following are true:**
+
+1. auth is still unset
+2. proxy routing breaks or is removed while the host region remains geoblocked
+3. deep CLOB permission/allowance check stops passing
+4. balance remains below minimum executable order size for the relevant entry band
+
+**Recommended but not strictly blocking:**
+
+1. enable XRP to restore the full 4-asset opportunity set
+2. set `OPERATOR_BASE_BANKROLL=8` for cleaner operator display semantics
+
+End of Addendum Z — Final Live Deployment Reconciliation, 9 March 2026

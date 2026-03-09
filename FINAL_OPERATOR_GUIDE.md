@@ -3,7 +3,7 @@
 **Generated:** 9 March 2026  
 **Primary strategy set:** `top7_drop6`  
 **Target mode:** Autonomous `LIVE` 15-minute crypto trading  
-**Verdict:** **GO**, with verified safeguards and realistic expectations
+**Verdict:** **CONDITIONAL GO**, with verified safeguards and explicit deployment caveats
 
 ---
 
@@ -62,10 +62,12 @@ TRADE_MODE=LIVE
 ENABLE_LIVE_TRADING=1
 LIVE_AUTOTRADING_ENABLED=1
 TELEGRAM_SIGNALS_ONLY=false
-OPERATOR_BASE_BANKROLL=8
 OPERATOR_STAKE_FRACTION=0.45
 OPERATOR_STRATEGY_SET_PATH=debug/strategy_set_top7_drop6.json
-ENABLE_4H_MARKETS=false
+MULTIFRAME_4H_ENABLED=false
+MAX_POSITION_SIZE=0.45
+MAX_ABSOLUTE_POSITION_SIZE=100
+DEFAULT_MIN_ORDER_SHARES=5
 ASSET_BTC_ENABLED=true
 ASSET_ETH_ENABLED=true
 ASSET_SOL_ENABLED=true
@@ -77,16 +79,21 @@ POLYMARKET_PRIVATE_KEY=...
 POLYMARKET_API_KEY=...
 POLYMARKET_SECRET=...
 POLYMARKET_PASSPHRASE=...
-POLYMARKET_ADDRESS=...
+POLYMARKET_SIGNATURE_TYPE=1
 ```
 
 ### Optional but often required
 
 ```env
+OPERATOR_BASE_BANKROLL=8
 PROXY_URL=...
+CLOB_FORCE_PROXY=1
+POLYMARKET_ADDRESS=...
 ```
 
-Use `PROXY_URL` if your hosting region is geoblocked by Polymarket.
+Use `OPERATOR_BASE_BANKROLL` if you want the operator dashboard's advisory `stakePerSignal` display to reflect your intended starting bankroll exactly.
+Use `PROXY_URL` plus `CLOB_FORCE_PROXY=1` if your hosting region is geoblocked by Polymarket.
+Use `POLYMARKET_ADDRESS` only when you need to force a separate funder/profile address for signature type `1`.
 
 ### Important notes
 
@@ -94,6 +101,10 @@ Use `PROXY_URL` if your hosting region is geoblocked by Polymarket.
 - `LIVE_AUTOTRADING_ENABLED` must also be on, or the runtime remains advisory-only.
 - `TELEGRAM_SIGNALS_ONLY=false` is required for autonomous execution. If signals-only mode is on, execution endpoints are intentionally blocked.
 - `REDIS_URL` is required for reliable live-state persistence.
+- `OPERATOR_BASE_BANKROLL` affects operator display sizing only; actual live sizing uses current live balance / equity, not this advisory baseline.
+- `MULTIFRAME_4H_ENABLED=false` should be set for the audited 15-minute-only production setup. The 4H engine is wired into startup and otherwise defaults to enabled when its curated file is present.
+- `DEFAULT_MIN_ORDER_SHARES` should remain `5` for truthful CLOB sizing. The runtime clamps 15-minute crypto orders to at least 5 shares even if a lower env value is supplied.
+- If the host IP is geoblocked, the proxy path is not optional. Removing it can break trading even when the rest of the deployment looks healthy.
 
 ---
 
@@ -140,7 +151,14 @@ It should confirm:
 - wallet RPC reachable
 - CLOB client present
 - Polymarket API credentials present
+- CLOB trading permission + collateral allowance pass
 - live prerequisites satisfied
+
+Interpretation rule:
+
+- the official Polymarket geoblock check reflects the host IP and can warn even while proxy-routed CLOB access still works
+- when you are using a proxy, the decisive execution-readiness check is the deep `CLOB trading permission + collateral allowance` result
+- if the host is geoblocked, treat proxy health as mandatory, not optional
 
 ### 4.4 Operator configuration
 
@@ -316,6 +334,7 @@ After a top-up or withdrawal:
 - wait for the next balance refresh
 - re-check `/api/health` or `/api/state`
 - confirm the new balance baseline has been recognized before judging sizing behavior
+- note that leaving `$100` is still comfortably tradable, but under the current live thresholds it sits in `TRANSITION`, not `BOOTSTRAP`; that is fine because a `45%` target stake is already far above minimum order cost
 
 ### Important micro-bankroll warning
 
@@ -389,18 +408,24 @@ For the current repo and evidence base:
 - use `45%` stake at `$8-$10`
 - keep 4H disabled
 - run only after deep verification passes
+- if the host region is geoblocked, keep proxy-routed CLOB access enabled and verified
+- set auth before exposing the dashboard publicly
 - accept that the setup is **high-upside but not bust-proof** at tiny bankrolls
 
 ### Honest bottom line
 
 This is the best verified aggressive setup currently in the repo.
 
-It is good enough for a **GO**.
+It is good enough for a **conditional GO**.
+
+It is **not** a clean unconditional GO from the raw host IP, because the official geoblock check can fail on the deployment region while proxy-routed CLOB access remains the real execution path.
 
 It is **not** a guarantee of turning `$8` into `$1,000` in two weeks.
 
-The realistic expectation is:
+The correct production reading is:
 
+- **GO** if `/api/verify?deep=1` passes the deep CLOB permission/allowance checks and your proxy path remains healthy
+- **NO-GO** if auth is unset or proxy/geoblock routing breaks
 - strong upside if live WR holds
 - meaningful bust risk at tiny bankroll size
 - much better survivability once bankroll is materially above the minimum order constraint
@@ -419,6 +444,8 @@ The realistic expectation is:
 - **Best live evidence:** `57/63` = `90.5% WR`
 - **$8 reality:** median about `$134` in 14 days, bust about `15.1%`
 - **Deposits/withdrawals:** detected automatically and reset baseline/peak references
+- **Auth:** must be set before public live operation
+- **Host geoblock:** host-IP warning can coexist with a working proxy; deep CLOB permission pass is the decisive readiness check
 
 ---
 

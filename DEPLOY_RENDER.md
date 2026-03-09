@@ -21,12 +21,16 @@ Render will automatically use:
 ## What is already preconfigured for first deploy
 
 - `TRADE_MODE=PAPER` (safe default)
-- `NO_AUTH=true` (dashboard opens without login)
+- `NO_AUTH=false` (dashboard auth stays enabled by default)
 - `START_PAUSED=false` (starts active in paper mode)
 - TOP7 operator lock enabled:
   - `OPERATOR_STRATEGY_SET_ENFORCED=true`
   - `OPERATOR_PRIMARY_GATES_ENFORCED=true`
   - `OPERATOR_STRATEGY_SET_PATH=debug/strategy_set_top7_drop6.json`
+- `MULTIFRAME_4H_ENABLED=false` (keeps the audited deployment 15m-only)
+- `DEFAULT_MIN_ORDER_SHARES=5` (matches the runtime-enforced 5-share CLOB floor)
+
+Render will also generate a random `AUTH_PASSWORD` and `API_KEY` for the first deploy.
 
 ## After deploy: quick verification
 

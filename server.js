@@ -9377,7 +9377,8 @@ setInterval(broadcastUpdate, 1000);
 let redis = null;
 let redisAvailable = false;
 const REDIS_RUNTIME_ENABLED = (() => {
-    const raw = String(process.env.REDIS_ENABLED || process.env.USE_REDIS || 'false').trim().toLowerCase();
+    const fallback = process.env.REDIS_URL ? 'true' : 'false';
+    const raw = String(process.env.REDIS_ENABLED || process.env.USE_REDIS || fallback).trim().toLowerCase();
     return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
 })();
 
@@ -15884,6 +15885,70 @@ class TradeExecutor {
         if (CONFIG.RISK.convictionOnlyMode && tradeTierCheck === 'ADVISORY') {
             log(`💎 CONVICTION-ONLY BLOCK: ADVISORY tier blocked (Strict Mode Active)`, asset);
             return { success: false, error: `CONVICTION-ONLY mode: ADVISORY blocked (Strict Enforcement)` };
+        }
+
+        if (mode === 'ORACLE' && mode !== 'MANUAL' && options.source !== '4H_MULTIFRAME' && isOperatorStrategySetEnforced()) {
+            const cycleStartEpochSec = getCurrentCheckpoint();
+            const nowSec = Math.floor(Date.now() / 1000);
+            const executionEntryMinute = Math.max(0, Math.min(14, Math.floor(Math.max(0, nowSec - cycleStartEpochSec) / 60)));
+            const executionUtcHour = new Date(cycleStartEpochSec * 1000).getUTCHours();
+
+            let executionHybridMomentum = Number(options?.hybridMomentum);
+            if (!Number.isFinite(executionHybridMomentum)) {
+                const hist = Array.isArray(marketOddsHistory?.[asset]) ? marketOddsHistory[asset] : [];
+                const cycleStartMs = cycleStartEpochSec * 1000;
+                const openWindowEndMs = cycleStartMs + 60000;
+                let openPx = null;
+                for (const h of hist) {
+                    const ts = Number(h?.timestamp);
+                    if (!Number.isFinite(ts) || ts < cycleStartMs || ts >= openWindowEndMs) continue;
+                    const candidatePx = direction === 'UP' ? Number(h?.yes) : Number(h?.no);
+                    if (!Number.isFinite(candidatePx) || candidatePx <= 0 || candidatePx >= 1) continue;
+                    openPx = candidatePx;
+                    break;
+                }
+                if (Number.isFinite(openPx) && openPx > 0) {
+                    executionHybridMomentum = (Number(entryPrice) - openPx) / openPx;
+                }
+            }
+
+            const executionVolume = Number.isFinite(Number(options?.strategyVolume))
+                ? Number(options.strategyVolume)
+                : (Number.isFinite(Number(market?.volume)) ? Number(market.volume) : null);
+
+            const operatorStrategyCheck = checkHybridStrategy(
+                asset,
+                direction,
+                entryPrice,
+                executionEntryMinute,
+                executionUtcHour,
+                executionHybridMomentum,
+                executionVolume
+            );
+
+            if (!operatorStrategyCheck.passes) {
+                log(`🛑 OPERATOR STRATEGY BLOCK: ${operatorStrategyCheck.reason}`, asset);
+                gateTrace.record(asset, {
+                    decision: 'NO_TRADE',
+                    reason: 'OPERATOR_STRATEGY_SET',
+                    failedGates: [operatorStrategyCheck.blockedReason || 'NO_OPTIMIZED_MATCH'],
+                    inputs: {
+                        mode,
+                        direction,
+                        entryPrice,
+                        executionEntryMinute,
+                        executionUtcHour,
+                        executionHybridMomentum,
+                        executionVolume,
+                        operatorStrategyReason: operatorStrategyCheck.reason
+                    }
+                });
+                return { success: false, error: `OPERATOR_STRATEGY_SET_BLOCK: ${operatorStrategyCheck.blockedReason || 'NO_OPTIMIZED_MATCH'}` };
+            }
+
+            if (operatorStrategyCheck.strategy && !options.hybridStrategy) {
+                options.hybridStrategy = operatorStrategyCheck.strategy;
+            }
         }
 
         // ==================== 🏆 FINAL GOLDEN STRATEGY (HARD GATE) ====================
@@ -32750,7 +32815,15 @@ app.get('/api/settings', (req, res) => {
     res.json({
         // Build fingerprint (tie UI + debug exports to exact deployed code/config)
         CODE: typeof CODE_FINGERPRINT !== 'undefined' ? CODE_FINGERPRINT : null,
-        ACTIVE_PRESET: CONFIG.ACTIVE_PRESET || 'CUSTOM',
+        ACTIVE_PRESET: (() => {
+            try {
+                const liveOperatorConfig = getLiveOperatorConfig();
+                if (liveOperatorConfig?.operatorMode === 'AUTO_LIVE' && liveOperatorConfig?.primarySignalSet) {
+                    return String(liveOperatorConfig.primarySignalSet).toUpperCase();
+                }
+            } catch { }
+            return CONFIG.ACTIVE_PRESET || 'CUSTOM';
+        })(),
 
         // Masked keys (show first/last 4 chars only)
         POLYMARKET_API_KEY: CONFIG.POLYMARKET_API_KEY ? `${CONFIG.POLYMARKET_API_KEY.substring(0, 8)}...${CONFIG.POLYMARKET_API_KEY.slice(-4)}` : '',

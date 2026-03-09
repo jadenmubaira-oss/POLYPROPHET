@@ -14,7 +14,7 @@ services:
         value: production
       # Runtime behavior defaults for easy first deploy
       - key: NO_AUTH
-        value: "true"
+        value: "false"
       - key: START_PAUSED
         value: "false"
       # 🏆 v70: TRADE_MODE - Set via Render dashboard for LIVE trading
@@ -37,7 +37,9 @@ services:
       - key: OPERATOR_PRIMARY_GATES_ENFORCED
         value: "true"
       - key: OPERATOR_STRATEGY_SET_PATH
-        value: debug/strategy_set_highfreq_unique12.json
+        value: debug/strategy_set_top7_drop6.json
+      - key: MULTIFRAME_4H_ENABLED
+        value: "false"
       # Auth - Set your own credentials in Render dashboard
       # These are just defaults - override in dashboard with your values
       - key: AUTH_USERNAME
@@ -50,9 +52,9 @@ services:
       # Without Redis, LIVE mode will be downgraded to PAPER for safety
       # - key: REDIS_URL
       #   value: "your-redis-url-here"
-      # 🏆 v141: 1 share minimum for $1 starting balance (default=2 requires ~$0.70 min)
+      # Runtime clamps CLOB orders to the 5-share market minimum on 15m crypto markets.
       - key: DEFAULT_MIN_ORDER_SHARES
-        value: "1"
+        value: "5"
       # 🏆 v70: Optional - Set if CLOB/Gamma requests are blocked by Cloudflare
       # - key: PROXY_URL
       #   value: "your-proxy-url-here"
