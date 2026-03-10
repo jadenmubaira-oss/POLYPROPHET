@@ -442,6 +442,10 @@ let _poll4hInterval = null;
 let _poll5mInterval = null;
 
 async function poll4h(livePrices) {
+    const signalStatus = get4hSignalStatus();
+    if (!signalStatus.configured) {
+        return [];
+    }
     if (_poll4hRunning) return;
     _poll4hRunning = true;
     try {
@@ -472,30 +476,34 @@ async function poll5m() {
 }
 
 function startPolling(livePrices, onSignal) {
-    // 4h: poll every 30s, evaluate strategies
-    _poll4hInterval = setInterval(async () => {
-        const signals = await poll4h(livePrices);
-        if (signals && signals.length > 0 && typeof onSignal === 'function') {
-            for (const sig of signals) {
-                onSignal(sig);
+    const signalStatus4h = get4hSignalStatus();
+
+    if (signalStatus4h.configured) {
+        // 4h: poll every 30s, evaluate strategies
+        _poll4hInterval = setInterval(async () => {
+            const signals = await poll4h(livePrices);
+            if (signals && signals.length > 0 && typeof onSignal === 'function') {
+                for (const sig of signals) {
+                    onSignal(sig);
+                }
             }
-        }
-    }, TIMEFRAME_CONFIG['4h'].pollIntervalMs);
+        }, TIMEFRAME_CONFIG['4h'].pollIntervalMs);
+
+        // Initial poll
+        poll4h(livePrices).then(signals => {
+            if (signals && signals.length > 0 && typeof onSignal === 'function') {
+                for (const sig of signals) onSignal(sig);
+            }
+        });
+    }
 
     // 5m: poll every 15s, monitor only
     _poll5mInterval = setInterval(() => {
         poll5m();
     }, TIMEFRAME_CONFIG['5m'].pollIntervalMs);
 
-    // Initial poll
-    poll4h(livePrices).then(signals => {
-        if (signals && signals.length > 0 && typeof onSignal === 'function') {
-            for (const sig of signals) onSignal(sig);
-        }
-    });
     poll5m();
 
-    const signalStatus4h = get4hSignalStatus();
     console.log(`🔮 Multi-timeframe engine started: 4h (30s poll, ${signalStatus4h.enabled ? 'signals enabled' : signalStatus4h.statusLabel}) + 5m (15s poll, monitor only)`);
 }
 

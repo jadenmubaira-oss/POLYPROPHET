@@ -102,7 +102,7 @@ Use `POLYMARKET_ADDRESS` only when you need to force a separate funder/profile a
 - `TELEGRAM_SIGNALS_ONLY=false` is required for autonomous execution. If signals-only mode is on, execution endpoints are intentionally blocked.
 - `REDIS_URL` is required for reliable live-state persistence.
 - `OPERATOR_BASE_BANKROLL` affects operator display sizing only; actual live sizing uses current live balance / equity, not this advisory baseline.
-- `MULTIFRAME_4H_ENABLED=false` should be set for the audited 15-minute-only production setup. The 4H engine is wired into startup and otherwise defaults to enabled when its curated file is present.
+- `MULTIFRAME_4H_ENABLED=false` should be set for the audited 15-minute-only production setup. In the current audited runtime, this now hard-disables 4H startup/polling rather than merely suppressing 4H signals.
 - `DEFAULT_MIN_ORDER_SHARES` should remain `5` for truthful CLOB sizing. The runtime clamps 15-minute crypto orders to at least 5 shares even if a lower env value is supplied.
 - If the host IP is geoblocked, the proxy path is not optional. Removing it can break trading even when the rest of the deployment looks healthy.
 
@@ -407,6 +407,7 @@ For the current repo and evidence base:
 - use `top7_drop6`
 - use `45%` stake at `$8-$10`
 - keep 4H disabled
+- keep `MULTIFRAME_4H_ENABLED=false` so 4H remains operationally off, not just hidden in status reporting
 - run only after deep verification passes
 - if the host region is geoblocked, keep proxy-routed CLOB access enabled and verified
 - set auth before exposing the dashboard publicly

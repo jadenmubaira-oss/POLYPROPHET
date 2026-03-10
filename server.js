@@ -353,6 +353,17 @@ function pickOperatorStakeFractionDefault(baseBankroll) {
     return 0.30;
 }
 
+function getOperatorStakeFractionForBankroll(bankroll) {
+    const bankrollValue = Number.isFinite(Number(bankroll)) && Number(bankroll) > 0
+        ? Number(bankroll)
+        : parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
+    return parseFractionEnv('OPERATOR_STAKE_FRACTION', pickOperatorStakeFractionDefault(bankrollValue));
+}
+
+function isDirectOperatorStrategyExecutionEnabled() {
+    return isOperatorStrategySetEnforced() === true;
+}
+
 function buildStrategyScheduleRows(strategies) {
     const rows = Array.isArray(strategies) ? strategies : [];
     return rows
@@ -386,11 +397,32 @@ function buildStrategyScheduleRows(strategies) {
 function getLiveOperatorConfig() {
     const baseBankroll = parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
     const stakeFractionDefault = pickOperatorStakeFractionDefault(baseBankroll);
-    const stakeFraction = parseFractionEnv('OPERATOR_STAKE_FRACTION', stakeFractionDefault);
-    const stakePerSignal = baseBankroll * stakeFraction;
+    const runtimeBankrollEstimate = (() => {
+        try {
+            if (typeof tradeExecutor !== 'undefined' && tradeExecutor) {
+                const runtimeBankroll = typeof tradeExecutor.getBankrollForRisk === 'function'
+                    ? Number(tradeExecutor.getBankrollForRisk())
+                    : Number(tradeExecutor.mode === 'LIVE' ? tradeExecutor.cachedLiveBalance : tradeExecutor.paperBalance);
+                if (Number.isFinite(runtimeBankroll) && runtimeBankroll > 0) {
+                    return runtimeBankroll;
+                }
+            }
+        } catch { }
+        return baseBankroll;
+    })();
+    const stakeFraction = getOperatorStakeFractionForBankroll(runtimeBankrollEstimate);
+    const stakePerSignal = runtimeBankrollEstimate * stakeFraction;
     const strategySetPath = OPERATOR_PRIMARY_STRATEGY_SET_PATH;
     const strategyPathLocked = false;
     const enforcePrimaryGates = isOperatorPrimaryGatesEnforced();
+    const directEntryEnabled = isDirectOperatorStrategyExecutionEnabled();
+    const activeBankrollPolicy = (() => {
+        try {
+            return getBankrollAdaptivePolicy(runtimeBankrollEstimate);
+        } catch {
+            return null;
+        }
+    })();
     const operatorRuntimeSnapshot = OPERATOR_STRATEGY_SET_RUNTIME.get() || {};
     const primarySignalSet = String(
         operatorRuntimeSnapshot?.stats?.source || path.basename(String(strategySetPath || ''), path.extname(String(strategySetPath || ''))) || 'operator_primary'
@@ -476,12 +508,14 @@ function getLiveOperatorConfig() {
         datasetWindow: '2025-10-10 to 2026-01-28',
         bankroll: {
             baseBankroll,
+            runtimeBankrollEstimate,
             stakeFraction,
             stakeFractionDefault,
             stakePerSignal,
+            stakeFractionSource: String(process.env.OPERATOR_STAKE_FRACTION || '').trim() ? 'ENV_FIXED' : 'BANKROLL_DEFAULT',
             currency: 'USD',
             minOrderShares: Math.max(5, Number(process.env.DEFAULT_MIN_ORDER_SHARES || process.env.MIN_ORDER_SHARES || 5) || 5),
-            minOddsEntry: 0.35,
+            minOddsEntry: Math.max(signalGatePriceMin, Number.isFinite(Number(CONFIG?.ORACLE?.minOdds)) ? Number(CONFIG.ORACLE.minOdds) : 0),
         },
         signalGates: {
             priceMin: signalGatePriceMin,
@@ -493,12 +527,14 @@ function getLiveOperatorConfig() {
             maxGlobalTradesPerCycle,
         },
         executionAssumptions: {
+            entryGenerator: directEntryEnabled ? 'DIRECT_OPERATOR_STRATEGY_SET' : 'ORACLE_FILTERED',
+            oracle15mRole: directEntryEnabled ? 'TELEMETRY_ONLY' : 'ENTRY_GENERATOR',
             slippagePct: 0.01,
             takerFeesMode: 'assumed',
             simulateHalts: false,
-            dynamicSizing: false,
-            riskEnvelope: false,
-            kelly: false,
+            dynamicSizing: true,
+            riskEnvelope: activeBankrollPolicy ? activeBankrollPolicy.riskEnvelopeEnabled !== false : (CONFIG?.RISK?.riskEnvelopeEnabled !== false),
+            kelly: activeBankrollPolicy ? activeBankrollPolicy.kellyEnabled !== false : (CONFIG?.RISK?.kellyEnabled !== false),
         },
         operatorWorksheet: OPERATOR_WORKSHEET,
         evidence: {
@@ -532,12 +568,14 @@ function getLiveOperatorConfig() {
                 conservativeStakeFraction: 0.20,
                 microBankrollDefaultStakeFraction: stakeFractionDefault,
                 primaryGatesEnforced: enforcePrimaryGates,
-                rationale: `${primarySignalSetDisplay} is the enforced primary signal set. TOP3 is telemetry-only. For micro bankroll (5-10), default to smaller stake fraction to reduce near-zero balance risk.`
+                directEntryEnabled,
+                entryGenerator: directEntryEnabled ? 'DIRECT_OPERATOR_STRATEGY_SET' : 'ORACLE_FILTERED',
+                rationale: `${primarySignalSetDisplay} is the enforced primary signal set. 15m autonomous entries are generated directly from the primary strategy set. TOP3 is telemetry-only.`
             },
             worksheet: OPERATOR_WORKSHEET
         },
         manualRules: [
-            `Take only signals from the enforced primary strategy set (${primarySignalSetDisplay}).`,
+            `15m autonomous BUY entry is generated directly from the enforced primary strategy set (${primarySignalSetDisplay}).`,
             'Treat TOP3 status as read-only telemetry; it must not drive BUY decisions.',
             'Never exceed one trade per 15m cycle.',
             'Use operatorWorksheet.riskAdjusted row for your bankroll + horizon to choose stake fraction.',
@@ -12185,6 +12223,11 @@ let primaryBuyState = {
     otherCandidates: []  // [{ asset, direction, price, pWin, evRoi, ultraGates, marketUrl }]
 };
 
+let directOperatorStrategyExecutionRuntime = {
+    cycleStartEpochSec: 0,
+    attemptedKeys: {}
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // 🎯 v105: ADAPTIVE FREQUENCY CONTROLLER
 // Targets ≤1 loss per 10 trades (~90% WR) while maximizing signal frequency.
@@ -13088,6 +13131,189 @@ function computeBuyScore(signal) {
     return score;
 }
 
+function resetDirectOperatorStrategyExecutionRuntime(cycleStartEpochSec) {
+    if (directOperatorStrategyExecutionRuntime.cycleStartEpochSec !== cycleStartEpochSec) {
+        directOperatorStrategyExecutionRuntime = {
+            cycleStartEpochSec,
+            attemptedKeys: {}
+        };
+    }
+}
+
+function buildDirectOperatorStrategyAttemptKey(asset, cycleStartEpochSec, strategy) {
+    const strategyId = Number.isFinite(Number(strategy?.id)) ? Number(strategy.id) : String(strategy?.signature || strategy?.name || 'strategy');
+    return `${String(asset || '').toUpperCase()}_${cycleStartEpochSec}_${strategyId}`;
+}
+
+function getDirectOperatorStrategyOpenPrice(asset, direction, cycleStartEpochSec) {
+    const rt = oracleSignalRuntime?.[asset];
+    if (rt?.cycleOpenOdds) {
+        const directPx = direction === 'UP' ? Number(rt.cycleOpenOdds.yes) : Number(rt.cycleOpenOdds.no);
+        if (Number.isFinite(directPx) && directPx > 0 && directPx < 1) {
+            return directPx;
+        }
+    }
+
+    const hist = Array.isArray(marketOddsHistory?.[asset]) ? marketOddsHistory[asset] : [];
+    const cycleStartMs = cycleStartEpochSec * 1000;
+    const openWindowEndMs = cycleStartMs + 60000;
+    for (const h of hist) {
+        const ts = Number(h?.timestamp);
+        if (!Number.isFinite(ts) || ts < cycleStartMs || ts >= openWindowEndMs) continue;
+        const px = direction === 'UP' ? Number(h?.yes) : Number(h?.no);
+        if (Number.isFinite(px) && px > 0 && px < 1) {
+            return px;
+        }
+    }
+    return null;
+}
+
+function getDirectOperatorStrategyPWinEstimate(strategy) {
+    const lcb = Number(strategy?.winRateLCB);
+    if (Number.isFinite(lcb) && lcb > 0 && lcb < 1) return lcb;
+
+    const winRate = Number(strategy?.winRate);
+    if (Number.isFinite(winRate) && winRate > 0 && winRate < 1) return winRate;
+
+    const liveTrades = Number(strategy?.liveTrades);
+    const liveWins = Number(strategy?.liveWins);
+    if (Number.isFinite(liveTrades) && liveTrades > 0 && Number.isFinite(liveWins) && liveWins >= 0) {
+        const liveRate = liveWins / liveTrades;
+        if (Number.isFinite(liveRate) && liveRate > 0 && liveRate < 1) return liveRate;
+    }
+
+    return null;
+}
+
+function getDirectOperatorStrategyTierWeight(tier) {
+    const tierKey = String(tier || '').trim().toUpperCase();
+    if (tierKey === 'PLATINUM') return 3;
+    if (tierKey === 'GOLD') return 2;
+    if (tierKey === 'SILVER') return 1;
+    return 0;
+}
+
+function scoreDirectOperatorStrategyCandidate(candidate) {
+    const pWin = Number.isFinite(candidate?.pWinEstimate) ? Number(candidate.pWinEstimate) : 0;
+    const lcb = Number.isFinite(Number(candidate?.strategy?.winRateLCB)) ? Number(candidate.strategy.winRateLCB) : pWin;
+    const winRate = Number.isFinite(Number(candidate?.strategy?.winRate)) ? Number(candidate.strategy.winRate) : pWin;
+    const price = Number.isFinite(Number(candidate?.entryPrice)) ? Number(candidate.entryPrice) : 1;
+    const liveTrades = Number.isFinite(Number(candidate?.strategy?.liveTrades)) ? Number(candidate.strategy.liveTrades) : 0;
+    return (lcb * 1000) + (winRate * 100) + (getDirectOperatorStrategyTierWeight(candidate?.strategy?.tier) * 10) + ((1 - price) * 5) + (liveTrades * 0.01);
+}
+
+async function orchestrateDirectOperatorStrategyEntries() {
+    try {
+        if (!tradeExecutor || !isDirectOperatorStrategyExecutionEnabled()) return;
+
+        const runtime = OPERATOR_STRATEGY_SET_RUNTIME.get();
+        if (!runtime || runtime.enabled !== true || !Array.isArray(runtime.strategies) || runtime.strategies.length === 0) return;
+
+        const nowSec = Math.floor(Date.now() / 1000);
+        const cycleStartEpochSec = getCurrentCheckpoint();
+        resetDirectOperatorStrategyExecutionRuntime(cycleStartEpochSec);
+
+        const elapsedSec = Math.max(0, nowSec - cycleStartEpochSec);
+        const entryMinute = Math.max(0, Math.min(14, Math.floor(elapsedSec / 60)));
+        const utcHour = new Date(cycleStartEpochSec * 1000).getUTCHours();
+        const matchingStrategies = runtime.strategies.filter(s => Number(s?.utcHour) === utcHour && Number(s?.entryMinute) === entryMinute);
+        if (matchingStrategies.length === 0) return;
+
+        const candidates = [];
+        for (const asset of ASSETS) {
+            if (typeof tradeExecutor.isAssetEnabled === 'function' && !tradeExecutor.isAssetEnabled(asset)) continue;
+            if (typeof tradeExecutor.getPositionCount === 'function' && tradeExecutor.getPositionCount(asset) > 0) continue;
+
+            const market = currentMarkets?.[asset] || null;
+            if (!market) continue;
+            if (market.marketStatus === 'CLOSED' || market.marketStatus === 'NO_LIQUIDITY' || market.marketStatus === 'ERROR') continue;
+
+            for (const strategy of matchingStrategies) {
+                const strategyAsset = String(strategy?.asset || '').trim().toUpperCase();
+                if (strategyAsset && !['*', 'ALL', 'ANY'].includes(strategyAsset) && strategyAsset !== asset) continue;
+
+                const direction = String(strategy?.direction || '').trim().toUpperCase();
+                if (direction !== 'UP' && direction !== 'DOWN') continue;
+
+                const entryPrice = direction === 'UP' ? Number(market?.yesPrice) : Number(market?.noPrice);
+                if (!Number.isFinite(entryPrice) || entryPrice <= 0 || entryPrice >= 1) continue;
+
+                const attemptKey = buildDirectOperatorStrategyAttemptKey(asset, cycleStartEpochSec, strategy);
+                if (directOperatorStrategyExecutionRuntime.attemptedKeys[attemptKey]) continue;
+
+                const openPx = getDirectOperatorStrategyOpenPrice(asset, direction, cycleStartEpochSec);
+                const hybridMomentum = Number.isFinite(openPx) && openPx > 0 ? ((entryPrice - openPx) / openPx) : null;
+                const volume = Number.isFinite(Number(market?.volume)) ? Number(market.volume) : null;
+                const strategyCheck = checkHybridStrategy(asset, direction, entryPrice, entryMinute, utcHour, hybridMomentum, volume);
+                if (!strategyCheck?.passes || !strategyCheck?.strategy) continue;
+
+                const pWinEstimate = getDirectOperatorStrategyPWinEstimate(strategyCheck.strategy);
+                const candidate = {
+                    asset,
+                    market,
+                    direction,
+                    entryPrice,
+                    hybridMomentum,
+                    volume,
+                    strategy: strategyCheck.strategy,
+                    pWinEstimate,
+                    attemptKey
+                };
+                candidate.score = scoreDirectOperatorStrategyCandidate(candidate);
+                candidates.push(candidate);
+            }
+        }
+
+        if (candidates.length === 0) return;
+
+        candidates.sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            if (Number(b.pWinEstimate || 0) !== Number(a.pWinEstimate || 0)) return Number(b.pWinEstimate || 0) - Number(a.pWinEstimate || 0);
+            if (Number(a.entryPrice || 1) !== Number(b.entryPrice || 1)) return Number(a.entryPrice || 1) - Number(b.entryPrice || 1);
+            return String(a.asset).localeCompare(String(b.asset));
+        });
+
+        for (const candidate of candidates) {
+            if ((CONFIG?.RISK?.maxGlobalTradesPerCycle || 1) <= (typeof tradeExecutor.getGlobalCycleTradeCount === 'function' ? tradeExecutor.getGlobalCycleTradeCount() : 0)) {
+                break;
+            }
+
+            directOperatorStrategyExecutionRuntime.attemptedKeys[candidate.attemptKey] = {
+                attemptedAt: Date.now(),
+                asset: candidate.asset,
+                strategyId: candidate.strategy?.id || null,
+                strategyName: candidate.strategy?.name || null
+            };
+
+            const bankrollForSizing = typeof tradeExecutor.getBankrollForRisk === 'function'
+                ? tradeExecutor.getBankrollForRisk()
+                : (tradeExecutor.mode === 'LIVE' ? tradeExecutor.cachedLiveBalance : tradeExecutor.paperBalance);
+            const operatorStakeFraction = getOperatorStakeFractionForBankroll(bankrollForSizing);
+            const confidence = Number.isFinite(candidate.pWinEstimate) ? candidate.pWinEstimate : 0.5;
+            const result = await tradeExecutor.executeTrade(candidate.asset, candidate.direction, 'ORACLE', confidence, candidate.entryPrice, candidate.market, {
+                tier: candidate.strategy?.tier || 'UNKNOWN',
+                pWin: candidate.pWinEstimate,
+                hybridMomentum: candidate.hybridMomentum,
+                strategyVolume: candidate.volume,
+                hybridStrategy: candidate.strategy,
+                source: 'OPERATOR_STRATEGY_SET_DIRECT',
+                entryOrigin: 'DIRECT_OPERATOR_STRATEGY_SET',
+                entryGenerator: 'DIRECT_OPERATOR_STRATEGY_SET',
+                strategyPWinEstimate: candidate.pWinEstimate,
+                operatorStakeFraction
+            });
+
+            directOperatorStrategyExecutionRuntime.attemptedKeys[candidate.attemptKey].result = result?.success === true
+                ? 'SUCCESS'
+                : String(result?.error || 'FAILED');
+
+            if (result?.success === true) {
+                break;
+            }
+        }
+    } catch { }
+}
+
 async function orchestrateOracleNotifications() {
     try {
         const now = Date.now();
@@ -13745,12 +13971,15 @@ function maybeSendOracleSignalTelegram(asset, signal) {
 
 function telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market = null) {
     const emoji = direction === 'UP' ? '📈' : '📉';
-    const modeEmoji = mode === 'ORACLE' ? '🔮' : mode === 'SCALP' ? '🎯' : mode === 'ARBITRAGE' ? '📊' : mode === 'MOMENTUM' ? '🚀' : '🌊';
-    let msg = `${modeEmoji} <b>${mode} TRADE OPENED</b> ${emoji}\n`;
+    const isDirectOperatorTrade = market?.tradeEntryOrigin === 'DIRECT_OPERATOR_STRATEGY_SET';
+    const modeLabel = isDirectOperatorTrade ? 'PRIMARY STRATEGY' : mode;
+    const modeEmoji = isDirectOperatorTrade ? '🧭' : (mode === 'ORACLE' ? '🔮' : mode === 'SCALP' ? '🎯' : mode === 'ARBITRAGE' ? '📊' : mode === 'MOMENTUM' ? '🚀' : '🌊');
+    let msg = `${modeEmoji} <b>${modeLabel} TRADE OPENED</b> ${emoji}\n`;
     msg += `━━━━━━━━━━━━━━━━━\n`;
     msg += `📍 <b>${asset}</b> ${direction}\n`;
     msg += `💰 Entry: <code>${(entryPrice * 100).toFixed(1)}¢</code>\n`;
     msg += `💵 Size: <code>$${size.toFixed(2)}</code>\n`;
+    if (isDirectOperatorTrade && market?.tradeStrategyName) msg += `🧭 Strategy: <code>${market.tradeStrategyName}</code>\n`;
     if (stopLoss) msg += `🛑 Stop: <code>${(stopLoss * 100).toFixed(1)}¢</code>\n`;
     if (target) msg += `🎯 Target: <code>${(target * 100).toFixed(1)}¢</code>\n`;
     msg += `━━━━━━━━━━━━━━━━━\n`;
@@ -15887,6 +16116,11 @@ class TradeExecutor {
             return { success: false, error: `CONVICTION-ONLY mode: ADVISORY blocked (Strict Enforcement)` };
         }
 
+        const isDirectOperatorPrimaryEntry = options.source === 'OPERATOR_STRATEGY_SET_DIRECT' || options.entryOrigin === 'DIRECT_OPERATOR_STRATEGY_SET';
+        if (mode === 'ORACLE' && mode !== 'MANUAL' && options.source !== '4H_MULTIFRAME' && isDirectOperatorStrategyExecutionEnabled() && !isDirectOperatorPrimaryEntry) {
+            return { success: false, error: 'DIRECT_OPERATOR_STRATEGY_ENTRY_ONLY' };
+        }
+
         if (mode === 'ORACLE' && mode !== 'MANUAL' && options.source !== '4H_MULTIFRAME' && isOperatorStrategySetEnforced()) {
             const cycleStartEpochSec = getCurrentCheckpoint();
             const nowSec = Math.floor(Date.now() / 1000);
@@ -16588,8 +16822,12 @@ class TradeExecutor {
                         // Mathematical basis: See uploaded chart (70% row, 1-2 Loss column)
                         const tradeTier = options.tier || 'ADVISORY';
                         const isVelocityMode = CONFIG.ORACLE.velocityMode && bankroll < 200; // $200 threshold
+                        const operatorDirectEntry = options.source === 'OPERATOR_STRATEGY_SET_DIRECT' || options.entryOrigin === 'DIRECT_OPERATOR_STRATEGY_SET';
 
-                        if (tradeTier === 'CONVICTION') {
+                        if (operatorDirectEntry && Number.isFinite(Number(options?.operatorStakeFraction))) {
+                            basePct = Math.max(0.01, Math.min(MAX_FRACTION, Number(options.operatorStakeFraction)));
+                            log(`🧭 PRIMARY STRATEGY sizing: ${(basePct * 100).toFixed(0)}% of bankroll cap`, asset);
+                        } else if (tradeTier === 'CONVICTION') {
                             basePct = MAX_FRACTION; // full allocation up to configured max
                             log(`💎 CONVICTION sizing: ${(basePct * 100).toFixed(0)}% of bankroll cap`, asset);
                         } else {
@@ -16823,6 +17061,9 @@ class TradeExecutor {
             log(`🎯 ═══════════════════════════════════════`, asset);
 
             const shouldSendTradeOpenedTelegram = !CONFIG.TELEGRAM?.signalsOnly || this.mode === 'LIVE' || mode === 'MANUAL';
+            const tradeOpenMarket = options.entryOrigin === 'DIRECT_OPERATOR_STRATEGY_SET'
+                ? { ...(market || {}), tradeEntryOrigin: options.entryOrigin, tradeStrategyName: options.hybridStrategy?.name || null }
+                : market;
 
 
             if (this.mode === 'PAPER') {
@@ -16868,6 +17109,13 @@ class TradeExecutor {
                         tier: options.tier || 'UNKNOWN',
                         genesisAgree: options.genesisAgree || false,
                         slug: market?.slug || null,
+                        entrySource: options.source || null,
+                        entryOrigin: options.entryOrigin || null,
+                        entryGenerator: options.entryGenerator || null,
+                        strategyName: options.hybridStrategy?.name || null,
+                        strategySignature: options.hybridStrategy?.signature || null,
+                        strategyPWinEstimate: Number.isFinite(Number(options.strategyPWinEstimate)) ? Number(options.strategyPWinEstimate) : null,
+                        operatorStakeFraction: Number.isFinite(Number(options.operatorStakeFraction)) ? Number(options.operatorStakeFraction) : null,
                         // 🏆 v140.14: 4H hedged positions MUST carry is4h flag
                         is4h: options.source === '4H_MULTIFRAME',
                         fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
@@ -16912,6 +17160,13 @@ class TradeExecutor {
                         time: Date.now(),
                         status: 'OPEN',
                         slug: market?.slug || null,
+                        entrySource: options.source || null,
+                        entryOrigin: options.entryOrigin || null,
+                        entryGenerator: options.entryGenerator || null,
+                        strategyName: options.hybridStrategy?.name || null,
+                        strategySignature: options.hybridStrategy?.signature || null,
+                        strategyPWinEstimate: Number.isFinite(Number(options.strategyPWinEstimate)) ? Number(options.strategyPWinEstimate) : null,
+                        operatorStakeFraction: Number.isFinite(Number(options.operatorStakeFraction)) ? Number(options.operatorStakeFraction) : null,
                         isHedged: true,
                         is4h: options.source === '4H_MULTIFRAME',
                         fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
@@ -16954,7 +17209,7 @@ class TradeExecutor {
 
                     if (shouldSendTradeOpenedTelegram) {
                         sendTelegramNotification(
-                            telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market),
+                            telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, tradeOpenMarket),
                             false,
                             { type: 'TRADE_OPEN' }
                         );
@@ -16983,6 +17238,13 @@ class TradeExecutor {
                     tier: options.tier || 'UNKNOWN', // 🎯 GOAT: Store tier for exit policy
                     genesisAgree: options.genesisAgree || false, // 🎯 v47: Store genesis agreement for stop-loss bypass
                     slug: market?.slug || null,
+                    entrySource: options.source || null,
+                    entryOrigin: options.entryOrigin || null,
+                    entryGenerator: options.entryGenerator || null,
+                    strategyName: options.hybridStrategy?.name || null,
+                    strategySignature: options.hybridStrategy?.signature || null,
+                    strategyPWinEstimate: Number.isFinite(Number(options.strategyPWinEstimate)) ? Number(options.strategyPWinEstimate) : null,
+                    operatorStakeFraction: Number.isFinite(Number(options.operatorStakeFraction)) ? Number(options.operatorStakeFraction) : null,
                     // 🏆 v140.9: 4H position flag — prevents premature 15m cycle exits
                     is4h: options.source === '4H_MULTIFRAME',
                     fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
@@ -17002,6 +17264,13 @@ class TradeExecutor {
                     time: Date.now(),
                     status: 'OPEN',
                     slug: market?.slug || null,
+                    entrySource: options.source || null,
+                    entryOrigin: options.entryOrigin || null,
+                    entryGenerator: options.entryGenerator || null,
+                    strategyName: options.hybridStrategy?.name || null,
+                    strategySignature: options.hybridStrategy?.signature || null,
+                    strategyPWinEstimate: Number.isFinite(Number(options.strategyPWinEstimate)) ? Number(options.strategyPWinEstimate) : null,
+                    operatorStakeFraction: Number.isFinite(Number(options.operatorStakeFraction)) ? Number(options.operatorStakeFraction) : null,
                     is4h: options.source === '4H_MULTIFRAME',
                     fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                     // v37: DIAGNOSTIC FIELDS for forensics
@@ -17022,7 +17291,7 @@ class TradeExecutor {
 
                 if (shouldSendTradeOpenedTelegram) {
                     sendTelegramNotification(
-                        telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, market),
+                        telegramTradeOpen(asset, direction, mode, entryPrice, size, stopLoss, target, tradeOpenMarket),
                         false,
                         { type: 'TRADE_OPEN' }
                     );
@@ -17163,7 +17432,14 @@ class TradeExecutor {
                             // ✅ Critical for truthful LIVE settlement + redemption
                             slug: market?.slug || null,
                             conditionId: market?.conditionId || null,
-                            marketUrl: market?.marketUrl || (market?.slug ? `https://polymarket.com/event/${market.slug}` : null)
+                            marketUrl: market?.marketUrl || (market?.slug ? `https://polymarket.com/event/${market.slug}` : null),
+                            entrySource: options.source || null,
+                            entryOrigin: options.entryOrigin || null,
+                            entryGenerator: options.entryGenerator || null,
+                            strategyName: options.hybridStrategy?.name || null,
+                            strategySignature: options.hybridStrategy?.signature || null,
+                            strategyPWinEstimate: Number.isFinite(Number(options.strategyPWinEstimate)) ? Number(options.strategyPWinEstimate) : null,
+                            operatorStakeFraction: Number.isFinite(Number(options.operatorStakeFraction)) ? Number(options.operatorStakeFraction) : null
                         };
 
                         this.tradeHistory.push({
@@ -17184,7 +17460,14 @@ class TradeExecutor {
                             fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
                             tokenId: tokenId,
                             slug: market?.slug || null,
-                            conditionId: market?.conditionId || null
+                            conditionId: market?.conditionId || null,
+                            entrySource: options.source || null,
+                            entryOrigin: options.entryOrigin || null,
+                            entryGenerator: options.entryGenerator || null,
+                            strategyName: options.hybridStrategy?.name || null,
+                            strategySignature: options.hybridStrategy?.signature || null,
+                            strategyPWinEstimate: Number.isFinite(Number(options.strategyPWinEstimate)) ? Number(options.strategyPWinEstimate) : null,
+                            operatorStakeFraction: Number.isFinite(Number(options.operatorStakeFraction)) ? Number(options.operatorStakeFraction) : null
                         });
 
                         // PINNACLE: Prevent memory leak - keep max 1000 trades in history
@@ -17280,7 +17563,7 @@ class TradeExecutor {
 
                         if (shouldSendTradeOpenedTelegram) {
                             sendTelegramNotification(
-                                telegramTradeOpen(asset, direction, mode, entryPrice, actualSize, stopLoss, target, market),
+                                telegramTradeOpen(asset, direction, mode, entryPrice, actualSize, stopLoss, target, tradeOpenMarket),
                                 false,
                                 { type: 'TRADE_OPEN' }
                             );
@@ -18569,6 +18852,7 @@ class TradeExecutor {
         for (const [positionId, trade] of Object.entries(this.positions)) {
             // Only pyramid ORACLE positions
             if (trade.mode !== 'ORACLE') continue;
+            if (trade.entryOrigin === 'DIRECT_OPERATOR_STRATEGY_SET' || trade.entryGenerator === 'DIRECT_OPERATOR_STRATEGY_SET') continue;
 
             // Only pyramid once per position
             if (trade.pyramided) continue;
@@ -22969,36 +23253,33 @@ class SupremeBrain {
                                     }
 
                                     if (isGodMode || isTrendMode) {
-                                        // BYPASS ALL STANDARD CHECKS (Consensus, Momentum, Regime, etc.)
-                                        this.convictionLocked = true;
-                                        this.lockedDirection = finalSignal;
-                                        this.lockTime = Date.now();
-                                        this.lockConfidence = finalConfidence;
+                                        if (!isDirectOperatorStrategyExecutionEnabled()) {
+                                            this.convictionLocked = true;
+                                            this.lockedDirection = finalSignal;
+                                            this.lockTime = Date.now();
+                                            this.lockConfidence = finalConfidence;
 
-                                        const modeName = isGodMode ? "GOD MODE (>90%) ⚡" : "TREND MODE (80-90% + Trend) 🌊";
-                                        log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
-                                        log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
+                                            const modeName = isGodMode ? "GOD MODE (>90%) ⚡" : "TREND MODE (80-90% + Trend) 🌊";
+                                            log(`🔮🔮🔮 ${modeName} ACTIVATED 🔮🔮🔮`, this.asset);
+                                            log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}% | Odds: ${currentOdds}`, this.asset);
 
-                                        // 🎯 v53: Capture entry-time prices for accurate backtesting
-                                        this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
-                                        this.tradeEntryReason = isGodMode ? 'GOD_MODE' : 'TREND_MODE';
-                                        this.tradeEntryTier = tier;
-                                        this.tradeEntryConfidence = finalConfidence;
+                                            this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
+                                            this.tradeEntryReason = isGodMode ? 'GOD_MODE' : 'TREND_MODE';
+                                            this.tradeEntryTier = tier;
+                                            this.tradeEntryConfidence = finalConfidence;
 
-                                        // 🎯 GOAT v44.1: Record successful trade
-                                        gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
+                                            gateTrace.record(this.asset, { decision: 'TRADE', reason: modeName, failedGates: [], inputs: gateInputs });
 
-                                        // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
-                                        // 🏆 v96: Pass lcbUsed for audit trail
-                                        const genesisAgree = modelVotes.genesis === finalSignal;
-                                        tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
-                                            tier: tier,
-                                            pWin: pWinEff,
-                                            genesisAgree,
-                                            lcbUsed,
-                                            driftProbeMultiplier: driftProbeMultiplier,
-                                            driftProbeReason: driftProbeReason
-                                        });
+                                            const genesisAgree = modelVotes.genesis === finalSignal;
+                                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
+                                                tier: tier,
+                                                pWin: pWinEff,
+                                                genesisAgree,
+                                                lcbUsed,
+                                                driftProbeMultiplier: driftProbeMultiplier,
+                                                driftProbeReason: driftProbeReason
+                                            });
+                                        }
                                     }
                                     else {
                                         // Safe to proceed with normal checks
@@ -23044,34 +23325,32 @@ class SupremeBrain {
 
 
                                         if (failedChecks.length === 0) {
-                                            this.convictionLocked = true;
-                                            this.lockedDirection = finalSignal;
-                                            this.lockTime = Date.now();
-                                            this.lockConfidence = finalConfidence;
+                                            if (!isDirectOperatorStrategyExecutionEnabled()) {
+                                                this.convictionLocked = true;
+                                                this.lockedDirection = finalSignal;
+                                                this.lockTime = Date.now();
+                                                this.lockConfidence = finalConfidence;
 
-                                            // 🎯 v53: Capture entry-time prices for accurate backtesting
-                                            this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
-                                            this.tradeEntryReason = 'STANDARD_ORACLE';
-                                            this.tradeEntryTier = tier;
-                                            this.tradeEntryConfidence = finalConfidence;
+                                                this.tradeEntryOdds = { yesPrice: market.yesPrice, noPrice: market.noPrice, timestamp: Date.now() };
+                                                this.tradeEntryReason = 'STANDARD_ORACLE';
+                                                this.tradeEntryTier = tier;
+                                                this.tradeEntryConfidence = finalConfidence;
 
-                                            log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
-                                            log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
+                                                log(`🔮🔮🔮 ORACLE MODE ACTIVATED 🔮🔮🔮`, this.asset);
+                                                log(`⚡ PROPHET SIGNAL: ${finalSignal} @ ${(finalConfidence * 100).toFixed(1)}% | Edge: ${edgePercent.toFixed(1)}%`, this.asset);
 
-                                            // 🎯 GOAT v44.1: Record successful trade
-                                            gateTrace.record(this.asset, { decision: 'TRADE', reason: 'ORACLE_ALL_GATES_PASSED', failedGates: [], inputs: gateInputs, checks: oracleChecks });
+                                                gateTrace.record(this.asset, { decision: 'TRADE', reason: 'ORACLE_ALL_GATES_PASSED', failedGates: [], inputs: gateInputs, checks: oracleChecks });
 
-                                            // 🎯 v47: Pass genesisAgree to position for stop-loss bypass
-                                            // 🏆 v96: Pass lcbUsed for audit trail
-                                            const genesisAgreeStd = modelVotes.genesis === finalSignal;
-                                            tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
-                                                tier: tier,
-                                                pWin: pWinEff,
-                                                genesisAgree: genesisAgreeStd,
-                                                lcbUsed,
-                                                driftProbeMultiplier: driftProbeMultiplier,
-                                                driftProbeReason: driftProbeReason
-                                            });
+                                                const genesisAgreeStd = modelVotes.genesis === finalSignal;
+                                                tradeExecutor.executeTrade(this.asset, finalSignal, 'ORACLE', finalConfidence, currentOdds, market, {
+                                                    tier: tier,
+                                                    pWin: pWinEff,
+                                                    genesisAgree: genesisAgreeStd,
+                                                    lcbUsed,
+                                                    driftProbeMultiplier: driftProbeMultiplier,
+                                                    driftProbeReason: driftProbeReason
+                                                });
+                                            }
                                         } else {
                                             log(`⏳ ORACLE: Missing ${failedChecks.join(', ')}`, this.asset);
                                             // 🎯 GOAT v44.1: Record blocked trade with specific gates that failed
@@ -23147,7 +23426,7 @@ class SupremeBrain {
                 // Check if we already have a position for this asset
                 const hasExistingPosition = tradeExecutor.getPositionCount(this.asset) > 0;
 
-                if (isNear5050 && hasStrongSignal && !hasExistingPosition) {
+                if (isNear5050 && hasStrongSignal && !hasExistingPosition && !isDirectOperatorStrategyExecutionEnabled()) {
                     const lateEntryPrice = finalSignal === 'UP' ? yesP : noP;
                     // BUG FIX #24: Use RELATIVE edge formula like all other edge calculations
                     const lateEdge = lateEntryPrice > 0 ? ((finalConfidence - lateEntryPrice) / lateEntryPrice) * 100 : 0;
@@ -34201,10 +34480,13 @@ async function startup() {
                 updateOracleSignalForAsset(a);
             });
 
-            // Step 2: Orchestrate notifications (single primary BUY + other candidates)
+            // Step 2: Execute direct operator strategy entries
+            orchestrateDirectOperatorStrategyEntries().catch(() => { });
+
+            // Step 3: Orchestrate notifications (single primary BUY + other candidates)
             orchestrateOracleNotifications().catch(() => { });
 
-            // Step 3: Settle shadow-book position on cycle end
+            // Step 4: Settle shadow-book position on cycle end
             // 🏆 v118: Use the checkpoint captured at confirmation/open for correct settlement.
             // If price-based settlement is not possible at the boundary, fall back to Gamma resolution (never force-loss).
             const nowSec = Math.floor(Date.now() / 1000);

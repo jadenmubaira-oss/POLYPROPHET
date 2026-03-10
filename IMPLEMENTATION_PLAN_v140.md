@@ -8191,3 +8191,166 @@ The live UI showing VALUE_HUNTER was a metadata/presentation problem, not an exe
 2. set `OPERATOR_BASE_BANKROLL=8` for cleaner operator display semantics
 
 End of Addendum Z — Final Live Deployment Reconciliation, 9 March 2026
+
+---
+
+## ADDENDUM AA — STRATEGY-NATIVE ENTRY CORRECTION (10 MARCH 2026)
+
+### AA1) Why this addendum exists
+
+One architectural misconception remained unresolved after the earlier audits:
+
+`top7_drop6` was being described as the primary autonomous trading system, but the verified 15-minute live entry path was still oracle-originated.
+
+That wording was materially misleading.
+
+The strategy set was enforced, but it was not the direct source of entry generation.
+
+### AA2) Verified pre-fix reality
+
+Before this correction, the verified 15-minute autonomous BUY path worked like this:
+
+1. each asset brain generated its own oracle-side candidate
+2. the oracle path decided whether to call `executeTrade(..., 'ORACLE', ...)`
+3. `executeTrade()` then applied the operator strategy set as a hard gate
+4. the trade only opened if both the oracle path and the strategy-set gate aligned
+
+So the operator strategy set was acting as a downstream execution filter, not as the upstream originator of the trade.
+
+Practical consequence:
+
+- a valid `top7_drop6` time/price window could still produce no trade if the oracle did not originate a BUY call
+- when a trade did open, the provenance still looked oracle-led even though the operator strategy set was the intended authority
+
+That was the core misconception.
+
+### AA3) Corrected architecture
+
+The 15-minute entry architecture has now been corrected to be strategy-native.
+
+The corrected flow is:
+
+1. the runtime evaluates the active operator strategy set directly for the current 15-minute cycle minute/hour
+2. candidate assets are matched against the live market, price band, momentum gate, and volume gate
+3. the best qualifying candidate is selected from the strategy-set matches
+4. the trade is executed with explicit direct-entry provenance:
+   - `entryOrigin = DIRECT_OPERATOR_STRATEGY_SET`
+   - `entryGenerator = DIRECT_OPERATOR_STRATEGY_SET`
+   - `source = OPERATOR_STRATEGY_SET_DIRECT`
+5. the legacy 15-minute oracle-originated auto-entry path is suppressed
+
+The oracle still exists, but for 15-minute entry it is no longer the authoritative trigger.
+
+Its remaining role is supportive/telemetry-oriented rather than the direct entry origin.
+
+### AA4) What did NOT change
+
+This correction was intentionally minimal in scope.
+
+The following systems remain intact:
+
+- `executeTrade()` as the central risk and execution gate
+- existing sell / exit lifecycle
+- hold-to-resolution behavior for these 15-minute positions
+- 4H multiframe entry path
+- duplicate-entry protection through cycle limits, position checks, and direct-entry attempt tracking
+
+This was not a rewrite of the execution engine.
+
+It was a correction of the entry-origin seam.
+
+### AA5) Secondary misconceptions found during the correction
+
+While implementing the strategy-native path, two additional reporting/semantics issues were identified and corrected:
+
+1. `OPERATOR_STAKE_FRACTION` was being surfaced in operator diagnostics more strongly than it was being used by the real 15-minute autonomous entry path
+2. `/api/live-op-config` was understating runtime execution behavior by reporting `dynamicSizing=false`, `riskEnvelope=false`, `kelly=false`, and a misleading `minOddsEntry`
+
+Those discrepancies were the same class of problem as the original misconception:
+
+the reporting surface implied one architecture, while the real execution path was still doing something narrower or different.
+
+The corrected runtime now aligns the direct-entry path and the operator-facing reporting surface more honestly.
+
+### AA6) Final authoritative statement after this correction
+
+After this patch, the correct 15-minute production description is:
+
+- `top7_drop6` is the direct autonomous entry generator
+- the oracle is not the authoritative 15-minute entry origin
+- the existing execution/risk/sell machinery remains the enforcement and lifecycle layer
+- trade records now carry explicit direct-entry provenance so future audits do not repeat the same misunderstanding
+
+This addendum supersedes any earlier wording that described the 15-minute autonomous entry path as oracle-originated with strategy-set filtering.
+
+End of Addendum AA — Strategy-Native Entry Correction, 10 March 2026
+
+---
+
+## ADDENDUM AB — 4H HARD-DISABLE RECONCILIATION (10 MARCH 2026)
+
+### AB1) Why this addendum exists
+
+One final runtime/documentation mismatch remained after Addendum AA:
+
+- the intended production setup was already documented as **15m only**
+- `render.yaml` already set `MULTIFRAME_4H_ENABLED=false`
+- but the runtime still started the 4H poll loop even when 4H was disabled by environment
+
+That meant 4H was **signal-disabled**, but not yet **operationally inactive**.
+
+### AB2) Verified pre-fix reality
+
+Before this correction:
+
+1. `multiframe_engine.js` correctly reported `enabled=false` when `MULTIFRAME_4H_ENABLED=false`
+2. `evaluate4hStrategies()` returned no signals in that state
+3. but `startPolling()` still started the 4H interval and still performed the initial `poll4h()` fetch
+
+So the runtime was still polling 4H markets every 30 seconds even though the intended operator posture was “4H off.”
+
+That was not aligned with the user's requested architecture of **15-minute markets only**.
+
+### AB3) Corrected runtime truth
+
+The multiframe runtime has now been tightened so that when `MULTIFRAME_4H_ENABLED=false`:
+
+1. `poll4h()` short-circuits immediately
+2. `startPolling()` does **not** create the 4H interval
+3. the initial 4H poll is **not** run
+4. the 5m monitor loop still starts normally
+
+This means the intended production posture is now materially true in code:
+
+- 15m strategy-native entry remains active
+- 5m remains monitor-only
+- 4H is not merely hidden or advisory-disabled
+- 4H is **operationally disabled at startup/runtime**
+
+### AB4) What remains true
+
+The 4H code path still exists in the repository:
+
+- the multiframe evaluator still exists
+- the 4H execution branch in `server.js` still exists
+- the 4H position lifecycle code still exists
+
+But with `MULTIFRAME_4H_ENABLED=false`, those paths are no longer started in the intended production configuration.
+
+This is the correct compromise for the current audited target:
+
+- preserve the code for future reactivation/re-audit
+- prevent any live 4H runtime activity in the current 15m-only deployment
+
+### AB5) Final authoritative statement
+
+For the final audited production setup:
+
+- `top7_drop6` is the direct 15m autonomous entry generator
+- 15m is the only active trading timeframe
+- 5m is monitor-only
+- 4H is hard-disabled by environment and no longer starts its polling/runtime loop
+
+This addendum supersedes any earlier wording that implied 4H could still be operational in the intended 15m-only production posture.
+
+End of Addendum AB — 4H Hard-Disable Reconciliation, 10 March 2026
