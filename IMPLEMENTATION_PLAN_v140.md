@@ -8354,3 +8354,721 @@ For the final audited production setup:
 This addendum supersedes any earlier wording that implied 4H could still be operational in the intended 15m-only production posture.
 
 End of Addendum AB — 4H Hard-Disable Reconciliation, 10 March 2026
+
+---
+
+## ADDENDUM AC — LIVE ENV RECONCILIATION AFTER `99c39bc` DEPLOY (10 MARCH 2026)
+
+### AC1) Why this addendum exists
+
+After the `99c39bc` deployment was confirmed live, one final contradiction remained between the intended 15m-only posture and the observed runtime:
+
+- the codebase and `render.yaml` both indicate that 4H should be disabled
+- but the live runtime still reported 4H as `configured=true`
+- at the same time, the live runtime honestly reported `signalEnabled=false` and `disableReason=FILE_NOT_FOUND`
+
+This addendum resolves that contradiction precisely.
+
+### AC2) Fresh live evidence
+
+Fresh live checks against `https://polyprophet-1-rr1g.onrender.com/` showed:
+
+- `/api/version`
+  - `gitCommit = 99c39bccbfe2dc8a7b6528941be6b4039f37e495`
+  - `configVersion = 139`
+  - `tradeMode = LIVE`
+- `/api/live-op-config`
+  - `mode = AUTO_LIVE`
+  - `strategySetPath = debug/strategy_set_top7_drop6.json`
+  - `primarySignalSet = top7_drop6`
+- `/api/settings`
+  - `LIVE_AUTOTRADING_ENABLED = true`
+  - `TELEGRAM.signalsOnly = false`
+  - `MAX_POSITION_SIZE = 0.45`
+- `/api/risk-controls`
+  - `orderMode.clobMinShares = 5`
+- `/api/verify?deep=1`
+  - `status = WARN`
+  - `criticalFailures = 0`
+  - Redis check = PASS (`Connected`)
+  - geoblock check = WARN (`blocked=true`, Oregon host IP)
+  - auth configured = WARN (defaults still active)
+- `/api/multiframe/status`
+  - `configured = true`
+  - `signalEnabled = false`
+  - `disableReason = FILE_NOT_FOUND`
+  - `statusLabel = 4H execution disabled until the curated strategy set loads`
+
+### AC3) Code-path truth
+
+The current `multiframe_engine.js` runtime resolves 4H configuration using:
+
+- `process.env.MULTIFRAME_4H_ENABLED || process.env.ENABLE_4H_TRADING || 'true'`
+
+This means:
+
+1. `render.yaml` setting `MULTIFRAME_4H_ENABLED=false` is only sufficient if there is no overriding live env state
+2. a legacy `ENABLE_4H_TRADING` value can still leave 4H `configured=true`
+3. if 4H remains configured but the curated strategy file is unavailable, the runtime truthfully shows:
+   - configured
+   - not signal-enabled
+   - disabled by missing file
+
+So the current live behavior is best explained by **environment drift / override**, not by the strategy-native 15m patch being wrong.
+
+### AC4) What is and is not fixed
+
+What is fixed:
+
+- 15m direct strategy-native entry is the authoritative live entry origin
+- non-direct oracle-originated 15m auto-entries are blocked by `DIRECT_OPERATOR_STRATEGY_ENTRY_ONLY`
+- Redis/readiness is healthy enough for conditional live operation
+- dashboard 4H status wording is now materially honest because it renders the live `statusLabel`
+
+What is not yet true:
+
+- the live service is not in a clean hard-disabled 4H posture yet, because it still reports `configured=true`
+- auth is still not configured on the live host
+
+### AC5) Final operator interpretation
+
+The correct production reading after `99c39bc` is:
+
+- **15m path:** active and strategy-native
+- **5m path:** monitor-only
+- **4H path:** not executing signals now, but still runtime-configured on the live host until the env chain is corrected
+
+Therefore the final 15m-only GO condition must require:
+
+1. `MULTIFRAME_4H_ENABLED=false`
+2. legacy `ENABLE_4H_TRADING` unset or `false`
+3. `/api/multiframe/status` no longer contradicting the intended posture
+4. auth configured before public live use
+
+### AC6) Final verdict after this reconciliation
+
+This is **not** a new code blocker in the strategy-native 15m architecture.
+
+It is an **ops/documentation blocker**:
+
+- if you want a strict 15m-only GO, correct the live env chain and re-check `/api/multiframe/status`
+- if you leave the current runtime as-is, 4H is still non-executing today because the curated file is absent, but the live service is not in the cleanest possible hard-disable posture
+
+End of Addendum AC — Live Env Reconciliation After `99c39bc` Deploy, 10 March 2026
+
+## ADDENDUM AD — Final Runtime Closure + README Authority Correction
+
+### AD1) Scope of this addendum
+
+This addendum records the final findings discovered after:
+
+1. re-reading `IMPLEMENTATION_PLAN_v140.md` in full
+2. re-reading `FINAL_OPERATOR_GUIDE.md` in full
+3. re-auditing `server.js`
+4. re-checking live endpoints
+5. rewriting the top of `README.md` so the authoritative documents are correctly represented
+
+This addendum is intentionally limited to findings that were either:
+
+- newly verified after Addendum AC
+- still materially important for final operator truth
+
+### AD2) Addendum AC's 4H env-drift concern is now resolved on the current live host
+
+The earlier Addendum AC concern was that the live host still showed 4H as runtime-configured even though the intended production posture was strict 15m-only.
+
+The later live re-check now shows:
+
+- `/api/multiframe/status`
+  - `configured = false`
+  - `signalEnabled = false`
+  - `disableReason = DISABLED_BY_ENV`
+
+Therefore the current live host is now in the intended hard-disabled 4H posture.
+
+This is important because it means the Addendum AC blocker was real at the time, but it is no longer the live truth after the subsequent env correction.
+
+### AD3) XRP does not need a code change
+
+Final code truth:
+
+- `server.js` default `ASSET_CONTROLS.XRP.enabled = true`
+- asset enablement is resolved through runtime config / persisted settings
+
+Therefore:
+
+- XRP is part of the active asset-control structure
+- there is no separate Render environment variable discovered in the audited runtime path that must be added just to make XRP exist
+- if XRP is disabled live, that is due to persisted settings overriding code defaults
+
+Operational fix:
+
+- use `POST /api/settings` to set `ASSET_CONTROLS.XRP.enabled=true`
+
+So XRP was a **control-plane state issue**, not a source-code blocker.
+
+### AD4) Auth is still the main remaining public-deployment blocker
+
+Final code truth:
+
+- `NO_AUTH` defaults to bypass mode unless explicitly set to `false` or `0`
+- fallback credentials remain `admin` / `changeme`
+
+Therefore the public deployment is still not in its intended protected posture unless the operator explicitly sets:
+
+1. `NO_AUTH=false`
+2. `AUTH_USERNAME=<real username>`
+3. `AUTH_PASSWORD=<real password>`
+
+This is not a theoretical concern; it is a current operator action item.
+
+### AD5) The golden-strategy runtime is inert and no longer authoritative
+
+Final code truth:
+
+- `FINAL_GOLDEN_STRATEGY_RUNTIME.enforced = false`
+
+That means:
+
+- the golden-strategy artifact still exists in the repository
+- it is not the active execution authority for current live 15m trading
+- the real live execution authority is the operator strategy set path, currently `debug/strategy_set_top7_drop6.json`
+
+This confirms the user's instruction was correct:
+
+- the golden strategy is obsolete for this final operating posture
+- it should be treated as legacy reference only
+
+### AD6) README authority has now been corrected
+
+The previous `README.md` still presented old oracle/manual/golden-strategy-era content as if it were current truth.
+
+That was a documentation mismatch.
+
+This has now been corrected by:
+
+- adding a new authoritative operator-facing front section to `README.md`
+- explicitly stating that `IMPLEMENTATION_PLAN_v140.md` and `FINAL_OPERATOR_GUIDE.md` are the authoritative documents
+- preserving the legacy README body below that front section as historical archive
+
+So the README now behaves as:
+
+- **front matter = current operational truth**
+- **body below archive divider = legacy historical context**
+
+### AD7) Final production reading after the full audit
+
+What is now true:
+
+- 15m autonomous entry is strategy-native
+- `top7_drop6` is the active authoritative strategy set
+- 4H is hard-disabled by env on the current live host
+- golden-strategy enforcement is inert
+- XRP is code-enabled by default
+
+What still requires operator action:
+
+- enable auth
+- re-enable XRP in persisted settings if desired for live use
+- top up bankroll to the intended `$8` micro-bankroll target
+- accumulate real live samples before presenting rolling live accuracy claims
+
+### AD8) Final verdict after Addendum AD
+
+There is no newly discovered source-code blocker in the final audited runtime path.
+
+The remaining issues are operational:
+
+1. auth configuration
+2. XRP persisted-setting enablement
+3. bankroll adequacy for 5-share minimum-order execution
+4. honest live-sample accumulation before making rolling-accuracy claims
+
+Accordingly, the correct final reading is:
+
+- **code posture:** conditionally ready
+- **ops posture:** not yet fully complete until auth and final runtime settings are operator-confirmed
+
+End of Addendum AD — Final Runtime Closure + README Authority Correction, 10 March 2026
+
+## ADDENDUM AE — Live XRP State + Bankroll-Specific Tradability Closure (10 March 2026)
+
+This addendum records one materially new live-runtime finding from the final re-audit:
+
+- XRP does **not** currently need re-enablement in persisted live settings
+- the practical blocker at the current live bankroll is **affordability against the active per-strategy 5-share entry bands**, not the XRP enable flag
+
+### AE1) Live persisted XRP state is already enabled
+
+Live verification on `https://polyprophet-1-rr1g.onrender.com` now shows:
+
+- `/api/settings` → `ASSET_CONTROLS.XRP.enabled = true`
+- `/api/health` → XRP is **not** drift-auto-disabled
+- `/api/risk-controls` → no current global block entries; XRP drift warning / auto-disable are both false
+
+So the previously outstanding operator action in Addendum AD around XRP persisted enablement is now resolved on the live host.
+
+### AE2) The live host is in the intended 15m direct-entry posture
+
+Live verification shows:
+
+- `/api/live-op-config` → `mode = AUTO_LIVE`
+- `primarySignalSet = top7_drop6`
+- `strategySetPath = debug/strategy_set_top7_drop6.json`
+- `directEntryEnabled = true`
+- `primaryGatesEnforced = true`
+- `entryGenerator = DIRECT_OPERATOR_STRATEGY_SET`
+- 4H remains env-disabled
+
+This matches the audited source path:
+
+- `orchestrateDirectOperatorStrategyEntries()` is called every second from the main loop
+- autonomous 15m entries are generated directly from the enforced operator strategy set
+- generic oracle BUYs are blocked by `DIRECT_OPERATOR_STRATEGY_ENTRY_ONLY`
+- `evaluateStrategySetMatch()` uses the **matched strategy's own price band**, not only the wider union defaults
+
+### AE3) The newly verified live blocker is current bankroll vs actual strategy bands
+
+Live `/api/risk-controls` currently reports approximately:
+
+- cash balance = bankroll-for-risk = `$3.313136`
+- bankroll profile = `MICRO_SPRINT`
+- dynamic risk stage = `BOOTSTRAP`
+- min-order override = `true`
+- reference min-order cost = `$3.00`
+
+However, the real execution path in `executeTrade()` enforces the **actual** min-order cost for the current entry:
+
+- `minOrderShares = 5`
+- actual minimum cost = `5 * entryPrice`
+- in `MICRO_SPRINT`, the pre-envelope bump-to-min check effectively requires about `1.05 * minOrderCost`
+
+That means the current live bankroll can safely bump into a 5-share trade only up to about:
+
+- `max affordable entry ≈ $3.313136 / 5 / 1.05 = 0.631074`
+
+So at the current live bankroll, the bot can only afford validated entries at roughly **60.0c to 63.1c**.
+
+### AE4) Why this matters specifically for `top7_drop6`
+
+The active `debug/strategy_set_top7_drop6.json` is not a flat `60-80c` system. It contains **per-strategy** bands:
+
+- one strategy at `60-80c`
+- one strategy at `65-78c`
+- one strategy at `72-80c`
+- several strategies at `75-80c`
+
+Accordingly:
+
+- the current live bankroll can only afford the `60-80c` strategy **when the actual matched entry is about `60.0c-63.1c`**
+- it **cannot** currently afford the `65-78c`, `72-80c`, or `75-80c` entries once the runtime reaches the min-order bump logic
+
+Approximate cash needed to satisfy the live bump-to-min path:
+
+1. `65c` band floor → about `$3.4125`
+2. `72c` band floor → about `$3.78`
+3. `75c` band floor → about `$3.9375`
+4. `80c` band ceiling → about `$4.20`
+
+### AE5) Final XRP tradability reading after this live audit
+
+The correct current reading is:
+
+- XRP is **enabled**
+- XRP is **not** drift-disabled
+- XRP is part of the enforced `top7_drop6` execution universe because the active strategies use `asset = ALL`
+- XRP **will** trade autonomously when all normal entry gates pass:
+  - matching validated hour/minute
+  - matching direction
+  - entry inside the matched strategy's price band
+  - momentum gate passes
+  - EV and price guards pass
+  - no blackout / stale feed / manual pause / circuit-breaker halt / exposure lock
+  - live CLOB execution remains available
+
+But with the **current** bankroll of about `$3.31`, XRP is only practically tradable for the lowest-band validated entries near `60-63c`.
+
+With a top-up to the intended micro-bankroll target:
+
+- around `$4.20+` → affordability no longer blocks any `top7_drop6` band up to `80c`
+- around `$8-$10` → the bankroll posture matches the intended operator regime materially better, and min-order affordability ceases to be the dominant blocker
+
+### AE6) Updated final verdict after Addendum AE
+
+There is still no newly discovered source-code blocker.
+
+What changed is the precision of the operational truth:
+
+- XRP enablement is already resolved live
+- the active remaining live constraints are:
+  1. auth still not configured
+  2. current bankroll is too small for most `top7_drop6` bands
+  3. live-sample accumulation is still required before making strong rolling-accuracy claims
+
+So the final live reading is:
+
+- **XRP status:** enabled and eligible
+- **current bankroll status:** only partially affordable for the lowest validated band
+- **after top-up:** XRP becomes genuinely tradeable under the normal strategy schedule, assuming the other runtime gates pass
+
+End of Addendum AE — Live XRP State + Bankroll-Specific Tradability Closure, 10 March 2026
+
+## ADDENDUM AF — `$6.95` Starting Bankroll Closure + Operator Stake Decision (11 March 2026)
+
+This addendum supersedes the earlier affordability reading that was based on the much smaller live cash balance around `$3.31`.
+
+The user has now clarified that the true maximum starting bankroll is:
+
+- `$6.95`
+
+The final audit questions for this pass were:
+
+1. does `$6.95` require an operator-stake change?
+2. does `$6.95` materially change live-operability status?
+3. what is the correct final profit projection boundary for this actual start?
+
+### AF1) Source-level operator stake truth
+
+The direct-entry runtime still works exactly as follows:
+
+- `pickOperatorStakeFractionDefault(baseBankroll)` returns `0.45` for bankrolls `<= 20`
+- `orchestrateDirectOperatorStrategyEntries()` passes `operatorStakeFraction` into `executeTrade()`
+- inside `executeTrade()`, direct operator trades use:
+  - `basePct = min(MAX_FRACTION, operatorStakeFraction)`
+- in the current runtime config:
+  - `kellyMaxFraction = 0.45`
+  - `autoBankrollMaxPosHigh = 0.45`
+  - `MICRO_SPRINT` therefore still permits a `45%` max-position regime before minimum-order bumping
+
+So the audited current operator intent remains:
+
+- sub-`$20` direct-entry bankrolls use a `45%` sizing target
+
+### AF2) Why the active strategy set matters more than the nominal stake fraction
+
+The active `debug/strategy_set_top7_drop6.json` contains these validated bands:
+
+- one `60-80c`
+- one `65-78c`
+- one `72-80c`
+- four effectively `75-80c`
+
+With a bankroll of `$6.95`, the raw `45%` target is:
+
+- `6.95 × 0.45 = $3.1275`
+
+That means:
+
+- `60c` entry is naturally funded by the operator fraction
+- `65c` and above are mostly controlled by the **venue minimum**, not the nominal operator fraction
+
+### AF3) Actual first-trade stake at `$6.95`
+
+The current runtime path for direct entries does this:
+
+1. compute base size from `operatorStakeFraction`
+2. apply Kelly / variance / peak-brake logic
+3. bump to the 5-share minimum when needed
+4. in `MICRO_SPRINT`, permit that bump whenever cash can cover roughly `1.05 × minOrderCost`
+
+At `$6.95`, approximate realized stake by entry band is:
+
+| Entry band | Realized stake | Percent of bankroll | Driver |
+| ---------- | -------------- | ------------------- | ------ |
+| `60c` | `$3.13` | `45.0%` | operator fraction |
+| `65c` | `$3.25` | `46.8%` | min-order bump |
+| `72c` | `$3.60` | `51.8%` | min-order bump |
+| `75c` | `$3.75` | `54.0%` | min-order bump |
+| `80c` | `$4.00` | `57.6%` | min-order bump |
+
+### AF4) Final operator-stake decision for `$6.95`
+
+After tracing the actual runtime, the correct answer is:
+
+- **do not lower `OPERATOR_STAKE_FRACTION`**
+
+Reason:
+
+- lowering from `0.45` to `0.35` or `0.32` would only shrink the lowest-band entries
+- it would **not** materially reduce realized dollar loss for most of the active `65-80c` schedule, because the bot would still be forced into the same 5-share venue minimum
+- it would reduce compounding on the one band (`60c`) where the current operator fraction is still naturally expressed
+
+So the stake-fraction question resolves as:
+
+- **no runtime operator-stake change justified**
+- the binding constraint at `$6.95` is **minimum-order discreteness**, not the configured `0.45` target
+
+### AF5) What a first loss actually does at `$6.95`
+
+Approximate bankroll remaining after one loss:
+
+| Losing entry | Post-loss bankroll |
+| ------------ | ------------------ |
+| `60c` | `$3.82` |
+| `65c` | `$3.70` |
+| `72c` | `$3.35` |
+| `75c` | `$3.20` |
+| `80c` | `$2.95` |
+
+This is the operationally important truth:
+
+- `$6.95` is enough to start
+- but a first high-band loss can quickly degrade the ability to keep executing the full strategy schedule
+
+This means the lower-bankroll problem is **not solved by changing stake fraction alone**.
+
+The only materially safer alternatives would be:
+
+1. use a lower-price strategy universe
+2. switch to a more survival-first micro mode
+3. increase bankroll toward `$8-$10`
+
+Those are architecture / posture changes, not a simple operator-stake tweak.
+
+### AF6) Updated live-operability reading at `$6.95`
+
+Relative to Addendum AE, the affordability picture changes materially:
+
+- at `$3.31`, most of the schedule was still effectively unaffordable
+- at `$6.95`, the full active `60-80c` price-band range is fundable under the current `MICRO_SPRINT` bump logic because the worst-case audited bump threshold is about `$4.20`
+
+Therefore:
+
+- **band affordability is no longer the primary blocker**
+
+The remaining blockers are now the same as in the broader final audit:
+
+1. public auth is still required for safe public deployment unless intentionally bypassed
+2. live buy/sell/redeem proof still requires one funded smoke cycle
+3. meaningful deployment-level live rolling accuracy still does not exist
+
+### AF7) Final performance evidence hierarchy
+
+For `top7_drop6`, the strongest currently documented evidence is:
+
+#### Source A — replay ledger evidence
+
+From the implementation plan's replay-evidence section:
+
+- `top7_drop6` replay ledger: `432/489 = 88.3%` WR
+- replay frequency: about `4.4 trades/day` over `110` days
+
+This is stronger than naive geometric assumptions because it reflects the replayed full-bot execution process.
+
+#### Source B — strategy artifact evidence
+
+From `debug/strategy_set_top7_drop6.json`:
+
+- historical composite: `348/370 = 94.1%`
+- OOS composite: `291/307 = 94.8%`
+- embedded per-strategy live sample aggregate: `57/63 = 90.5%`
+
+This is useful evidence, but it is still **artifact evidence**, not deployment-level live PnL proof.
+
+#### Source C — deployment-level live proof
+
+- still insufficient
+- live rolling accuracy remains effectively `N/A` for this final autonomous architecture
+
+### AF8) Final profit projection boundary for a `$6.95` start
+
+The correct projection style is **bounded and source-labeled**, not geometric fantasy.
+
+#### Immediate-path projection (most honest)
+
+At the current active bands:
+
+- a first win likely lifts bankroll to about `$7.95-$9.04`
+- a first loss likely cuts bankroll to about `$2.95-$3.82`
+
+So the first few trades still dominate the path.
+
+#### Medium-horizon reading
+
+Using the repo's more conservative evidence:
+
+- replay evidence says edge can be real (`88.3%` WR), but not perfect
+- artifact evidence says the strategy selection may be stronger than replay (`90-95%`), but that is still not final live proof
+
+So the honest 30-day expectation for `$6.95` is:
+
+- **not** “guaranteed explosive compounding”
+- **not** “safe enough to ignore variance”
+- **possibly positive and meaningful** if the strategy edge survives live and the first few trades go well
+
+As a rough order-of-magnitude boundary, it is more defensible to think in terms of:
+
+- **single-digit to low-double-digit bankrolls** after early turbulence if results are mixed
+- **high-single-digit to tens-of-dollars** if the early path is favorable
+
+and **not** to anchor on old six-figure or million-dollar compounding tables at this bankroll size.
+
+### AF9) Final code-change decision for this pass
+
+No runtime code change was made in this pass.
+
+Reason:
+
+- the user asked specifically whether operator stake should change
+- after source-level audit, the correct answer is **no**
+- the remaining fragility is structural to the active price bands plus the 5-share minimum, not to the configured `0.45` operator target
+
+So the correct implementation outcome is:
+
+- **docs updated**
+- **operator stake retained**
+- **final audit revised for the actual `$6.95` start**
+
+### AF10) Final verdict after Addendum AF
+
+For a true starting bankroll of `$6.95`:
+
+- the bot is **conditionally executable** across the active `top7_drop6` band range
+- `OPERATOR_STAKE_FRACTION` should **remain `0.45`**
+- the system is still **fragile to an early high-band loss**
+- no new code blocker was found
+- real performance remains **NOT VERIFIED** until funded live fills accumulate
+
+End of Addendum AF — `$6.95` Starting Bankroll Closure + Operator Stake Decision, 11 March 2026
+
+## ADDENDUM AG — `0.45` vs `0.50` vs `0.60` Re-Audit For `$6.95/$6.96` Mini-Bankroll (11 March 2026)
+
+This addendum was triggered by a correct operator challenge:
+
+- if `0.45 × 6.96 ≈ $3.13`
+- and `5 × 0.80 = $4.00`
+- how can the bot possibly buy `80c` entries?
+
+### AG1) The answer: `80c` buys are possible at `0.45`, but by the minimum-order bump path
+
+The direct-entry runtime works in this order:
+
+1. compute base size from `operatorStakeFraction`
+2. apply Kelly / variance / caps
+3. if size is below `minOrderCost`, bump to the 5-share minimum
+4. apply the risk-envelope logic
+
+For the current micro-bankroll path:
+
+- `$6.95` is below `vaultTriggerBalance` (default `$11`)
+- that means runtime stage = `BOOTSTRAP`
+- `BOOTSTRAP` sets `minOrderRiskOverride = true`
+- `MICRO_SPRINT` also relaxes the survival-floor guard for this bootstrap case
+
+So for an `80c` entry:
+
+- base operator size at `0.45` = about `$3.13`
+- min-order cost = `$4.00`
+- required audited bump cash = about `1.05 × $4.00 = $4.20`
+- bankroll = `$6.95`
+
+Therefore:
+
+- **yes, the bot can still buy `80c`**
+- **no, it is not buying because `45%` naturally funds the order**
+- it is buying because the code explicitly **bumps to the minimum order** and allows that in `BOOTSTRAP`
+
+### AG2) Natural funding thresholds by stake fraction
+
+At bankroll `$6.95`, the stake fraction naturally funds prices up to:
+
+| Stake fraction | Dollar size | Naturally funds up to |
+| -------------- | ----------- | --------------------- |
+| `0.45` | `$3.13` | about `62.6c` |
+| `0.50` | `$3.48` | about `69.5c` |
+| `0.60` | `$4.17` | about `83.4c` |
+
+This is the key comparison:
+
+- `0.45` naturally funds only the low end
+- `0.50` still does **not** naturally fund `72-80c`
+- `0.60` would naturally fund the whole active range, **if it were actually permitted**
+
+### AG3) Why `0.50` is not worth changing to
+
+At `$6.95`, changing to `0.50` would:
+
+- increase loss size on `60-69c` entries
+- do almost nothing for `72-80c`
+- still rely on the same minimum-order bump for the most important upper bands
+
+Approximate effect:
+
+| Band | Realized size at `0.45` | Realized size at `0.50` | Material execution improvement? |
+| ---- | ----------------------- | ----------------------- | ------------------------------- |
+| `60c` | `$3.13` | `$3.48` | No |
+| `65c` | `$3.25` | `$3.48` | Minor only |
+| `72c` | `$3.60` | `$3.60` | No |
+| `75c` | `$3.75` | `$3.75` | No |
+| `80c` | `$4.00` | `$4.00` | No |
+
+So `0.50` mostly adds downside without materially improving execution at the upper active bands.
+
+### AG4) Why `0.60` is not currently a valid runtime option
+
+The current code contains a hard cap:
+
+- `MAX_FRACTION = min(effectiveMaxPosFrac, 0.50)`
+
+So even if `OPERATOR_STAKE_FRACTION=0.60` were set, the live sizing path would still clamp it to:
+
+- `0.50`
+
+To make `0.60` real, I would have to change:
+
+1. the direct operator stake target
+2. the adaptive max-position configuration
+3. the hard `0.50` clamp in `executeTrade()`
+
+That would be a **real risk-policy rewrite**, not a small adjustment.
+
+### AG5) Why I am not raising the hard cap to support `0.60`
+
+The improvement would be marginal relative to the existing `BOOTSTRAP` bump path:
+
+- current `80c` buy already executes by bumping from `$3.13` to `$4.00`
+- `0.60` would only turn that into roughly `$4.17`
+
+But the downside gets worse:
+
+- post-loss bankroll at current `80c` path: about `$2.95`
+- post-loss bankroll at true `0.60` sizing: about `$2.78`
+
+So `0.60` would:
+
+- slightly reduce reliance on the bump path
+- materially worsen first-loss survivability
+- push the runtime beyond its current hard-cap safety architecture
+
+That is not justified by the real gain.
+
+### AG6) Final re-audit decision
+
+After this renewed full investigation:
+
+- keep `OPERATOR_STAKE_FRACTION = 0.45`
+- keep the current `0.50` hard cap unchanged
+- make **no runtime code change**
+
+Reason:
+
+- `0.45` already allows the bot to buy `80c` entries at `$6.95/$6.96` through the audited minimum-order bump path
+- `0.50` does not materially improve `72-80c` execution
+- `0.60` is currently impossible without code changes and is not worth the survivability cost
+
+### AG7) Operator-facing conclusion
+
+The correct mental model is:
+
+- **`45%` is the base sizing target**
+- **minimum-order bumping is what makes upper-band micro-bankroll trades executable**
+- the real risk is not “can the bot place the order?”
+- the real risk is “what happens to the bankroll after the first loss?”
+
+So the final verdict remains:
+
+- **buy path at `80c` is executable**
+- **raising to `0.50` is not worth it**
+- **raising to `0.60` is not justified and would require a hard-cap rewrite**
+
+End of Addendum AG — `0.45` vs `0.50` vs `0.60` Re-Audit For `$6.95/$6.96` Mini-Bankroll, 11 March 2026

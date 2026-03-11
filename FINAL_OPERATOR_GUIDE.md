@@ -407,7 +407,8 @@ For the current repo and evidence base:
 - use `top7_drop6`
 - use `45%` stake at `$8-$10`
 - keep 4H disabled
-- keep `MULTIFRAME_4H_ENABLED=false` so 4H remains operationally off, not just hidden in status reporting
+- keep `MULTIFRAME_4H_ENABLED=false` and ensure legacy `ENABLE_4H_TRADING` is also unset or `false`, because runtime 4H config resolves from `MULTIFRAME_4H_ENABLED || ENABLE_4H_TRADING || 'true'`
+- verify `/api/multiframe/status` before a final GO so the live service is not still showing 4H as runtime-configured
 - run only after deep verification passes
 - if the host region is geoblocked, keep proxy-routed CLOB access enabled and verified
 - set auth before exposing the dashboard publicly
@@ -440,7 +441,7 @@ The correct production reading is:
 - **Mode:** `LIVE`
 - **Autonomy:** on only when `LIVE_AUTOTRADING_ENABLED=1` and `TELEGRAM_SIGNALS_ONLY=false`
 - **Redis:** required
-- **4H:** off
+- **4H:** off only when `MULTIFRAME_4H_ENABLED=false` and legacy `ENABLE_4H_TRADING` is unset/false
 - **Min tradable size:** effectively `5` shares
 - **Best live evidence:** `57/63` = `90.5% WR`
 - **$8 reality:** median about `$134` in 14 days, bust about `15.1%`

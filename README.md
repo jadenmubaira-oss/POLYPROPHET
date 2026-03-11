@@ -1,3 +1,336 @@
+# POLYPROPHET — Autonomous Polymarket Trading Bot
+
+## Current Authoritative Status
+
+This README front matter is now the operator-facing summary for the current production architecture.
+
+The authoritative documents for this repository are:
+
+1. `IMPLEMENTATION_PLAN_v140.md`
+2. `FINAL_OPERATOR_GUIDE.md`
+
+If this README archive conflicts with those documents, trust:
+
+- `server.js` runtime truth
+- verified live endpoint output
+- the two documents above
+
+The legacy README content below is preserved as historical archive only.
+
+## Current Runtime Truth
+
+- **Primary strategy set**: `top7_drop6`
+- **15m entry origin**: Direct operator strategy-set execution
+- **Oracle role**: Telemetry / confidence context, not the 15m BUY trigger
+- **Top3 role**: Read-only telemetry
+- **4H role**: Hard-disabled for current 15m-only production posture
+- **Golden strategy**: Legacy/inert; present in code but `enforced=false`
+- **Min order reality**: Polymarket CLOB minimum is 5 shares
+- **Starting bankroll reality**: `$6.95` is sufficient to execute the full active `top7_drop6` price-band range, but `$8-$10` is still the smoother preferred micro-bankroll floor
+- **Operator stake fraction**: keep `0.45` for bankrolls `<= $20`; at `$6.95`, lowering it does not materially reduce realized risk on most `65-80c` entries because the 5-share minimum-order bump dominates
+
+## Data Source Transparency
+
+⚠️ DATA SOURCE: Live API + code analysis + `IMPLEMENTATION_PLAN_v140.md` + `FINAL_OPERATOR_GUIDE.md`  
+⚠️ LIVE ROLLING ACCURACY: BTC=`N/A`, ETH=`N/A`, XRP=`N/A`, SOL=`N/A`  
+⚠️ DISCREPANCIES: Legacy README content below is obsolete for current operations; `final_golden_strategy.json` is no longer the active execution authority, and strategy-artifact win rates remain stronger than deployment-level live proof because autonomous live fills are still not accumulated in size.
+
+The live rolling accuracy values are currently `N/A` because the deployment has not yet accumulated executed live autonomous trades in this final architecture.
+
+## What Is Actually Running
+
+POLYPROPHET is currently configured for autonomous Polymarket 15-minute crypto up/down trading using:
+
+- `top7_drop6` as the authoritative strategy set
+- strategy-native 15m entry generation
+- operator-directed `0.45` sizing in `MICRO_SPRINT`, with actual executed stake at `$6.95` often becoming minimum-order dominated on `65-80c` entries
+- Redis-backed persistence
+- proxy-backed CLOB routing when geoblocked
+- auto-sell / resolution / redemption lifecycle handling already present in runtime
+
+This is not the old manual oracle-only architecture documented below.
+
+## Verified Live Findings From Final Re-Audit
+
+### What is already correct
+
+- `TRADE_MODE=LIVE`
+- `ENABLE_LIVE_TRADING=1`
+- `LIVE_AUTOTRADING_ENABLED=true`
+- `TELEGRAM_SIGNALS_ONLY=false`
+- `OPERATOR_STRATEGY_SET_PATH=debug/strategy_set_top7_drop6.json`
+- `OPERATOR_STAKE_FRACTION=0.45`
+- `MAX_POSITION_SIZE=0.45`
+- `DEFAULT_MIN_ORDER_SHARES=5`
+- `REDIS_ENABLED=true`
+- `REDIS_URL` set
+- `PROXY_URL` set
+- `CLOB_FORCE_PROXY=1`
+- `POLYMARKET_PRIVATE_KEY` set
+- `POLYMARKET_SIGNATURE_TYPE=1`
+- both `MULTIFRAME_4H_ENABLED=false` and `ENABLE_4H_TRADING=false`
+
+### What the live APIs now confirm
+
+- `/api/live-op-config` reports `mode=AUTO_LIVE`
+- `/api/live-op-config` reports `primarySignalSet=top7_drop6`
+- `/api/live-op-config` reports `entryGenerator=DIRECT_OPERATOR_STRATEGY_SET`
+- `/api/live-op-config` reports strategy set runtime loaded with 7 strategies
+- `/api/multiframe/status` now reports 4H `configured=false`
+- `/api/multiframe/status` now reports 4H `disableReason=DISABLED_BY_ENV`
+
+This means the earlier env-drift concern documented in Addendum AC has been resolved on the current live host.
+
+## $6.95 Starting-Bankroll Closure
+
+With a starting bankroll of `$6.95`, the current active 5-share `top7_drop6` schedule is executable across the full `60-80c` range because the worst audited `MICRO_SPRINT` bump-to-min path is about:
+
+- `1.05 × 5 × 0.80 = $4.20`
+
+That is below `$6.95`, so **band affordability is no longer the blocker** it was at the earlier `$3.31` live balance.
+
+### What the actual first-trade stake looks like at `$6.95`
+
+Approximate dollar risk by entry band:
+
+- `60c` entry → base `0.45 × 6.95 = $3.13` (about `45.0%` of bankroll)
+- `65c` entry → minimum-order bump to about `$3.25` (about `46.8%`)
+- `72c` entry → minimum-order bump to about `$3.60` (about `51.8%`)
+- `75c` entry → minimum-order bump to about `$3.75` (about `54.0%`)
+- `80c` entry → minimum-order bump to about `$4.00` (about `57.6%`)
+
+### Operator stake decision for `$6.95`
+
+- keep `OPERATOR_STAKE_FRACTION=0.45`
+- do **not** lower it to `0.35` or `0.32` just to “be safer”
+- for the active `65-80c` schedule, the venue minimum still forces roughly the same 5-share order size, so a lower operator fraction would **not** materially reduce the realized dollar loss on most trades
+- lowering the fraction would mainly shrink only the very lowest-band `60c` entries and would reduce compounding more than it would reduce real first-loss damage
+
+### Why `80c` can still buy even though `0.45 × 6.95 = $3.13`
+
+Yes, your arithmetic is correct:
+
+- `0.45 × 6.95 = $3.13`
+- `5 × 0.80 = $4.00`
+
+But the runtime does **not** stop there. For direct operator entries, `executeTrade()` does this:
+
+1. size from operator fraction
+2. if that size is below the 5-share minimum, **bump to `minOrderCost`**
+3. in `MICRO_SPRINT` / `BOOTSTRAP`, allow that bump when cash is at least about `1.05 × minOrderCost`
+
+So for an `80c` entry:
+
+- base size at `0.45` = about `$3.13`
+- min-order cost = `$4.00`
+- required cash for the audited bump path = about `$4.20`
+- bankroll = `$6.95`
+
+Result:
+
+- **the bot can still buy**
+- it buys by using the **minimum-order bump path**, not by naturally funding the trade from the base `45%` stake
+
+### What `0.50` or `0.60` would actually change
+
+Natural price band that each stake fraction funds before any min-order bump:
+
+- `0.45` at `$6.95` → up to about `62.6c`
+- `0.50` at `$6.95` → up to about `69.5c`
+- `0.60` at `$6.95` → up to about `83.4c`
+
+That means:
+
+- moving to `0.50` would **not** solve `72-80c` entries; those would still rely on the same minimum-order bump
+- moving to `0.60` would naturally fund the whole active range, **but the current runtime hard-caps max fraction at `0.50`**, so `0.60` is not actually reachable without code changes
+
+### Why I am not raising to `0.50`
+
+At `$6.95`, a move from `0.45` to `0.50` would:
+
+- raise `60-69c` risk
+- leave `72-80c` behavior almost unchanged
+- not remove the bump dependency for the upper active bands
+
+So `0.50` adds more downside than practical execution benefit.
+
+### Why I am not raising to `0.60`
+
+To make `0.60` real, I would need to change:
+
+- the direct-operator stake target
+- the adaptive max-position settings
+- the hard `0.50` runtime cap in `executeTrade()`
+
+That is not justified because:
+
+- it only improves `80c` funding by a small amount beyond the existing bump path
+- it worsens first-loss survivability materially
+- an `80c` loss at `0.60` sizing would leave only about `$2.78`, versus about `$2.95` on the current audited path
+
+### The real fragility at `$6.95`
+
+The fragility is **not** the configured `0.45` operator fraction by itself. The fragility is the combination of:
+
+- micro-bankroll size
+- 5-share venue minimum
+- a strategy set concentrated in `65-80c`, especially `75-80c`
+
+Approximate bankroll remaining after a first loss:
+
+- lose a `60c` trade → about `$3.82` remains
+- lose a `65c` trade → about `$3.70` remains
+- lose a `72c` trade → about `$3.35` remains
+- lose a `75c` trade → about `$3.20` remains
+- lose an `80c` trade → about `$2.95` remains
+
+So `$6.95` is **workable but fragile**: one early high-band loss can materially reduce the bot's ability to keep executing the full schedule.
+
+## Remaining Required Actions Before Public GO
+
+### 1. Enable authentication
+
+The server currently defaults to auth bypass unless you explicitly set:
+
+```env
+NO_AUTH=false
+AUTH_USERNAME=<your-username>
+AUTH_PASSWORD=<your-strong-password>
+```
+
+Without `NO_AUTH=false`, the deployment remains publicly accessible with auth bypass active.
+
+### 2. Run one funded live smoke test
+
+The code and live control plane are consistent enough to call the engine **conditionally ready**, but real venue fills remain **NOT VERIFIED** until one funded buy/sell/redeem cycle succeeds.
+
+Minimum proof standard:
+
+- one live buy fills
+- one live sell fills or resolves cleanly
+- one resolved win redeems cleanly
+- wallet balance and pending-sell state reconcile correctly after the lifecycle
+
+### 3. Optional bankroll top-up toward `$8-$10`
+
+At `$6.95`, affordability is no longer the hard blocker. However, `$8-$10` still improves the operating posture because:
+
+- post-loss survivability is better
+- high-band losses are less likely to cripple future tradability
+- minimum-order discreteness becomes less dominant
+
+If `$6.95` is your true hard maximum, the correct response is **not** to lower `OPERATOR_STAKE_FRACTION`; it is to accept that the start is executable but still fragile.
+
+## Required Production Environment
+
+```env
+TRADE_MODE=LIVE
+ENABLE_LIVE_TRADING=1
+LIVE_AUTOTRADING_ENABLED=true
+TELEGRAM_SIGNALS_ONLY=false
+START_PAUSED=false
+
+OPERATOR_STRATEGY_SET_PATH=debug/strategy_set_top7_drop6.json
+OPERATOR_STAKE_FRACTION=0.45
+MAX_POSITION_SIZE=0.45
+DEFAULT_MIN_ORDER_SHARES=5
+AUTO_BANKROLL_MODE=SPRINT
+
+MULTIFRAME_4H_ENABLED=false
+ENABLE_4H_TRADING=false
+
+POLYMARKET_PRIVATE_KEY=<set>
+POLYMARKET_SIGNATURE_TYPE=1
+
+PROXY_URL=<set if geoblocked>
+CLOB_FORCE_PROXY=1
+
+REDIS_ENABLED=true
+REDIS_URL=<set>
+
+NO_AUTH=false
+AUTH_USERNAME=<set>
+AUTH_PASSWORD=<set>
+
+TELEGRAM_BOT_TOKEN=<recommended>
+TELEGRAM_CHAT_ID=<recommended>
+```
+
+## Operator Pre-Flight Checklist
+
+Before allowing autonomous operation, verify:
+
+1. `/api/version`
+2. `/api/health`
+3. `/api/verify?deep=1`
+4. `/api/live-op-config`
+5. `/api/multiframe/status`
+6. `/api/state`
+
+You want to see:
+
+- `AUTO_LIVE`
+- strategy set loaded with 7 rows
+- 4H disabled by env
+- Redis connected
+- wallet loaded
+- CLOB permission passing
+- no contradictory gating flags
+
+## Execution Boundary
+
+What is fixed:
+
+- 15m autonomous entry is strategy-native
+- 4H is cleanly hard-disabled on the current live host
+- `top7_drop6` is the authoritative strategy set
+- golden-strategy enforcement is inert
+
+What still requires operator action:
+
+- auth enablement
+- one funded live buy/sell/redeem smoke cycle
+- first live sample accumulation before claiming rolling live WR
+- optional bankroll top-up toward `$8-$10` for smoother post-loss survivability, not as a hard affordability requirement at `$6.95`
+
+## Final Audit Snapshot For `$6.95`
+
+- **Will it trade without auth set?** Yes. Auth is a security issue, not a trading-engine dependency.
+- **Is `$6.95` enough to start?** Yes, conditionally. It can fund the full active `60-80c` band range.
+- **Do we need to lower operator stake?** No. The 5-share venue minimum dominates realized risk on most active bands.
+- **Any new code blocker found?** No.
+- **Are buy / sell / emergency-exit mechanics present?** Yes: direct entry, sell retry queue, bounded resolution, redemption queue, and hysteresis-based emergency exit are all present in runtime.
+- **Is the system manipulation-proof?** No. It has meaningful spread / momentum / manipulation gates, but no venue microstructure system is immune.
+- **Is live profitability proven?** No. Deployment-level rolling live accuracy is still `N/A` because meaningful autonomous live fill history is not yet accumulated.
+
+### Profit Projection Boundary
+
+Use these sources in descending trust order:
+
+- **Replay evidence** from `IMPLEMENTATION_PLAN_v140.md`: `top7_drop6` replay ledger shows `432/489 = 88.3%` win rate over `110` days at about `4.4` trades/day
+- **Strategy artifact evidence** from `debug/strategy_set_top7_drop6.json`: historical composite `348/370 = 94.1%`, OOS composite `291/307 = 94.8%`, embedded per-strategy live sample `57/63 = 90.5%`
+- **Deployment-level live proof**: still `N/A` until funded autonomous fills accumulate
+
+What that means for a `$6.95` start:
+
+- a first win likely takes the bankroll to roughly `$7.95-$9.04`, depending on entry band
+- a first loss likely cuts it to roughly `$2.95-$3.82`, depending on entry band
+- if the edge holds, the bankroll can recover and compound
+- if one early high-band trade loses, the bankroll becomes operationally thin very quickly
+
+Do **not** use old simple geometric tables as the main expectation. At this bankroll, the real-world projection is still:
+
+- positive if the edge survives
+- highly path-dependent
+- very sensitive to the first few outcomes
+- not proven until live fills exist
+
+## Legacy README Archive
+
+Everything below this point is preserved verbatim as historical archive.
+
+It is no longer the authoritative source for the current deployment.
+
 # POLYPROPHET — THE ORACLE 🔮
 
 ## Adaptive Manual Trading Oracle for Polymarket 15-Min Crypto Markets
