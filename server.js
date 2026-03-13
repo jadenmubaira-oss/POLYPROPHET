@@ -10676,6 +10676,7 @@ function evaluateStrategySetMatch(runtime, asset, direction, entryPrice, entryMi
         defaultMomentumMin: 0.00,
         defaultVolumeMin: 100,
         forceMomentumGate: false,
+        skipMomentumGate: false,
         forceVolumeGate: false,
         warningMinutes: 3,
         ...options
@@ -10744,7 +10745,7 @@ function evaluateStrategySetMatch(runtime, asset, direction, entryPrice, entryMi
     // v140 FIX: Env override MUST take precedence over forceMomentumGate/forceVolumeGate.
     // Previously, forceMomentumGate=true (default when operator gates enforced) caused the || to
     // short-circuit, making STRATEGY_DISABLE_MOMENTUM_GATE env var completely ineffective.
-    const applyMomentumGate = !disableMomentumGateEnv && (opts.forceMomentumGate === true || cond.applyMomentumGate === true);
+    const applyMomentumGate = !opts.skipMomentumGate && !disableMomentumGateEnv && (opts.forceMomentumGate === true || cond.applyMomentumGate === true);
     const applyVolumeGate = !deferVolumeGate && !disableVolumeGateEnv && (opts.forceVolumeGate === true || cond.applyVolumeGate === true);
 
     if (applyMomentumGate) {
@@ -10934,8 +10935,9 @@ function checkHybridStrategy(asset, direction, entryPrice, entryMinute, utcHour,
                 notLoadedBlockedReason: 'OPERATOR_STRATEGY_SET_NOT_LOADED',
                 noMatchReasonPrefix: 'NO_OPTIMIZED_STRATEGY',
                 noMatchBlockedReason: 'NO_OPTIMIZED_MATCH',
-                forceMomentumGate: enforceOperatorGates && (runtime.conditions?.applyMomentumGate !== false),
-                forceVolumeGate: enforceOperatorGates && (runtime.conditions?.applyVolumeGate === true),
+                forceMomentumGate: false,
+                skipMomentumGate: true,
+                forceVolumeGate: false,
                 warningMinutes: 3
             }
             : {
@@ -32304,6 +32306,40 @@ app.get('/api/state-public', (req, res) => {
         top3RobustStressSummary: TOP3_ROBUST_STRESS_SUMMARY,
         optimized8StressSummary: OPTIMIZED8_STRESS_SUMMARY,
         operatorWorksheet: liveOp.operatorWorksheet || null,
+        _strategyWindowDiagnostics: snapshot._strategyWindowDiagnostics || null,
+        _currentMarketPrices: (() => {
+            const prices = {};
+            for (const a of ASSETS) {
+                const m = currentMarkets?.[a];
+                if (m) {
+                    prices[a] = {
+                        yesPrice: m.yesPrice ?? null,
+                        noPrice: m.noPrice ?? null,
+                        volume: m.volume ?? null,
+                        marketStatus: m.marketStatus ?? null,
+                        slug: m.slug ?? null
+                    };
+                } else {
+                    prices[a] = null;
+                }
+            }
+            return prices;
+        })(),
+        _orchestratorStatus: {
+            tradeExecutorExists: !!tradeExecutor,
+            directStrategyEnabled: isDirectOperatorStrategyExecutionEnabled(),
+            operatorGatesEnforced: isOperatorPrimaryGatesEnforced(),
+            runtimeLoaded: !!OPERATOR_STRATEGY_SET_RUNTIME?.get(),
+            runtimeEnabled: OPERATOR_STRATEGY_SET_RUNTIME?.get()?.enabled === true,
+            strategyCount: Array.isArray(OPERATOR_STRATEGY_SET_RUNTIME?.get()?.strategies) ? OPERATOR_STRATEGY_SET_RUNTIME.get().strategies.length : 0,
+            momentumGateActive: OPERATOR_STRATEGY_SET_RUNTIME?.get()?.conditions?.applyMomentumGate === true,
+            momentumMin: OPERATOR_STRATEGY_SET_RUNTIME?.get()?.conditions?.momentumMin ?? null,
+            volumeGateActive: OPERATOR_STRATEGY_SET_RUNTIME?.get()?.conditions?.applyVolumeGate === true,
+            currentUtcHour: new Date().getUTCHours(),
+            currentCycleMinute: Math.max(0, Math.min(14, Math.floor((Math.floor(Date.now() / 1000) - getCurrentCheckpoint()) / 60))),
+            nextStrategyWindows: (Array.isArray(OPERATOR_STRATEGY_SET_RUNTIME?.get()?.strategies) ? OPERATOR_STRATEGY_SET_RUNTIME.get().strategies : [])
+                .map(s => `H${String(s.utcHour).padStart(2,'0')}:m${String(s.entryMinute).padStart(2,'0')} ${s.direction} ${(s.priceMin*100).toFixed(0)}-${(s.priceMax*100).toFixed(0)}c`)
+        },
         liveOperatorProfile: {
             profile: liveOp.profile,
             version: liveOp.version,
