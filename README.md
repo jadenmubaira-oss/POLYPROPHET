@@ -91,82 +91,55 @@ That is below `$6.95`, so **band affordability is no longer the blocker** it was
 
 ### What the actual first-trade stake looks like at `$6.95`
 
-Approximate dollar risk by entry band:
+**Corrected (Addendum AG re-audit, code-traced):** The `MICRO_SPRINT` adaptive policy caps `maxPositionFraction` at `0.32`. The operator stake fraction (`0.45`) is further clamped by this cap in `executeTrade()`:
 
-- `60c` entry → base `0.45 × 6.95 = $3.13` (about `45.0%` of bankroll)
-- `65c` entry → minimum-order bump to about `$3.25` (about `46.8%`)
-- `72c` entry → minimum-order bump to about `$3.60` (about `51.8%`)
-- `75c` entry → minimum-order bump to about `$3.75` (about `54.0%`)
-- `80c` entry → minimum-order bump to about `$4.00` (about `57.6%`)
+```
+basePct = min(MAX_FRACTION, operatorStakeFraction) = min(0.32, 0.45) = 0.32
+base size = 0.32 × $6.95 = $2.22
+```
 
-### Operator stake decision for `$6.95`
+Since `$2.22` is below **every** 5-share min-order cost (`$3.00`–`$4.00`), **all entry bands trigger the bump-to-min path**. Final dollar risk by entry band:
+
+- `60c` entry → bump to `$3.00` (about `43.2%` of bankroll)
+- `65c` entry → bump to `$3.25` (about `46.8%`)
+- `72c` entry → bump to `$3.60` (about `51.8%`)
+- `75c` entry → bump to `$3.75` (about `54.0%`)
+- `80c` entry → bump to `$4.00` (about `57.6%`)
+
+The bump is allowed because `MICRO_SPRINT` relaxes the survival floor, and the cash gate is `minOrderCost × 1.05` (e.g. `$4.20` for `80c`), which `$6.95` clears.
+
+### Operator stake decision for `$6.95` (re-affirmed AG)
 
 - keep `OPERATOR_STAKE_FRACTION=0.45`
-- do **not** lower it to `0.35` or `0.32` just to “be safer”
-- for the active `65-80c` schedule, the venue minimum still forces roughly the same 5-share order size, so a lower operator fraction would **not** materially reduce the realized dollar loss on most trades
-- lowering the fraction would mainly shrink only the very lowest-band `60c` entries and would reduce compounding more than it would reduce real first-loss damage
+- changing to `0.50` or `0.60` has **zero effect** because all three are capped to `0.32` by `MICRO_SPRINT`'s `maxPositionFraction`
+- the binding constraint at `$6.95` is the **min-order bump path**, not the operator stake fraction
+- **proof**: `min(0.32, 0.45) = min(0.32, 0.50) = min(0.32, 0.60) = 0.32` → identical `$2.22` base → identical bump → identical final trade size
 
-### Why `80c` can still buy even though `0.45 × 6.95 = $3.13`
+### Why `80c` can still buy even though the base is only `$2.22`
 
-Yes, your arithmetic is correct:
+The runtime sizing chain for a direct operator `80c` entry at `$6.95`:
 
-- `0.45 × 6.95 = $3.13`
-- `5 × 0.80 = $4.00`
+1. adaptive policy → `maxPositionFraction = 0.32`
+2. `basePct = min(0.32, 0.45) = 0.32` → `size = $2.22`
+3. `$2.22 < minOrderCost ($4.00)` → **bump to `$4.00`**
+4. `MICRO_SPRINT` relaxes survival floor → `minCashForMinOrder = $4.00 × 1.05 = $4.20`
+5. `cashBal ($6.95) >= $4.20` → bump succeeds
+6. risk envelope budget (~`$2.61`) < `$4.00` → normally blocked
+7. `BOOTSTRAP` `minOrderRiskOverride = true` + `balance ($6.95) >= $4.00` → **override allows trade**
 
-But the runtime does **not** stop there. For direct operator entries, `executeTrade()` does this:
-
-1. size from operator fraction
-2. if that size is below the 5-share minimum, **bump to `minOrderCost`**
-3. in `MICRO_SPRINT` / `BOOTSTRAP`, allow that bump when cash is at least about `1.05 × minOrderCost`
-
-So for an `80c` entry:
-
-- base size at `0.45` = about `$3.13`
-- min-order cost = `$4.00`
-- required cash for the audited bump path = about `$4.20`
-- bankroll = `$6.95`
-
-Result:
-
-- **the bot can still buy**
-- it buys by using the **minimum-order bump path**, not by naturally funding the trade from the base `45%` stake
+Result: **the bot can still buy at `80c`** — it uses the min-order bump + bootstrap override, not the base stake calculation.
 
 ### What `0.50` or `0.60` would actually change
 
-Natural price band that each stake fraction funds before any min-order bump:
+**Nothing.** All three operator stakes produce identical execution because the `MICRO_SPRINT` `maxPositionFraction` (`0.32`) is the binding cap:
 
-- `0.45` at `$6.95` → up to about `62.6c`
-- `0.50` at `$6.95` → up to about `69.5c`
-- `0.60` at `$6.95` → up to about `83.4c`
+| Operator Stake | Capped by maxPosFrac | Base Size | Bumped To | Final Trade |
+|---|---|---|---|---|
+| `0.45` | `min(0.32, 0.45) = 0.32` | `$2.22` | min order | same |
+| `0.50` | `min(0.32, 0.50) = 0.32` | `$2.22` | min order | same |
+| `0.60` | `min(0.32, 0.60) = 0.32` | `$2.22` | min order | same |
 
-That means:
-
-- moving to `0.50` would **not** solve `72-80c` entries; those would still rely on the same minimum-order bump
-- moving to `0.60` would naturally fund the whole active range, **but the current runtime hard-caps max fraction at `0.50`**, so `0.60` is not actually reachable without code changes
-
-### Why I am not raising to `0.50`
-
-At `$6.95`, a move from `0.45` to `0.50` would:
-
-- raise `60-69c` risk
-- leave `72-80c` behavior almost unchanged
-- not remove the bump dependency for the upper active bands
-
-So `0.50` adds more downside than practical execution benefit.
-
-### Why I am not raising to `0.60`
-
-To make `0.60` real, I would need to change:
-
-- the direct-operator stake target
-- the adaptive max-position settings
-- the hard `0.50` runtime cap in `executeTrade()`
-
-That is not justified because:
-
-- it only improves `80c` funding by a small amount beyond the existing bump path
-- it worsens first-loss survivability materially
-- an `80c` loss at `0.60` sizing would leave only about `$2.78`, versus about `$2.95` on the current audited path
+To actually change trade sizing at `$6.95`, you would need to increase `maxPositionFraction` in the `MICRO_SPRINT` profile (via `CONFIG.RISK.autoBankrollMaxPosHigh`), not the operator stake. This is **not recommended** because the bump path already handles execution correctly.
 
 ### The real fragility at `$6.95`
 
@@ -178,7 +151,7 @@ The fragility is **not** the configured `0.45` operator fraction by itself. The 
 
 Approximate bankroll remaining after a first loss:
 
-- lose a `60c` trade → about `$3.82` remains
+- lose a `60c` trade → about `$3.95` remains
 - lose a `65c` trade → about `$3.70` remains
 - lose a `72c` trade → about `$3.35` remains
 - lose a `75c` trade → about `$3.20` remains

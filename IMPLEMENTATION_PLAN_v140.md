@@ -8939,136 +8939,836 @@ This addendum was triggered by a correct operator challenge:
 - and `5 × 0.80 = $4.00`
 - how can the bot possibly buy `80c` entries?
 
-### AG1) The answer: `80c` buys are possible at `0.45`, but by the minimum-order bump path
+### AG1) Critical correction: the effective base is `0.32`, not `0.45`
 
-The direct-entry runtime works in this order:
+**Previous analysis (AF and initial AG) incorrectly assumed `basePct = 0.45`.** A complete code trace reveals:
 
-1. compute base size from `operatorStakeFraction`
-2. apply Kelly / variance / caps
-3. if size is below `minOrderCost`, bump to the 5-share minimum
-4. apply the risk-envelope logic
+1. `POLYPROPHET.env` sets `AUTO_BANKROLL_MODE=SPRINT`
+2. `getBankrollAdaptivePolicy($6.95)` → profile = `MICRO_SPRINT` (bankroll < cutover $20)
+3. `MICRO_SPRINT` sets `maxPositionFraction = clampFrac(highMaxPos, fallback)` = `clampFrac(0.32, 0.20)` = **`0.32`**
+4. In `executeTrade()`: `MAX_FRACTION = min(effectiveMaxPosFrac, 0.50)` = `min(0.32, 0.50)` = **`0.32`**
+5. `basePct = min(MAX_FRACTION, operatorStakeFraction)` = `min(0.32, 0.45)` = **`0.32`**
 
-For the current micro-bankroll path:
+So the actual base size is `0.32 × $6.95 = $2.224`, NOT `0.45 × $6.95 = $3.13`.
 
-- `$6.95` is below `vaultTriggerBalance` (default `$11`)
-- that means runtime stage = `BOOTSTRAP`
-- `BOOTSTRAP` sets `minOrderRiskOverride = true`
-- `MICRO_SPRINT` also relaxes the survival-floor guard for this bootstrap case
+### AG2) All three stake fractions produce IDENTICAL execution
 
-So for an `80c` entry:
+Because `maxPositionFraction = 0.32` is the binding cap, the operator stake fraction is irrelevant:
 
-- base operator size at `0.45` = about `$3.13`
-- min-order cost = `$4.00`
-- required audited bump cash = about `1.05 × $4.00 = $4.20`
-- bankroll = `$6.95`
+| Stake fraction | Capped by maxPosFrac | Effective basePct | Base size | Bumped to min order? |
+| -------------- | -------------------- | ----------------- | --------- | -------------------- |
+| `0.45` | `min(0.32, 0.45)` | `0.32` | `$2.22` | **YES, all bands** |
+| `0.50` | `min(0.32, 0.50)` | `0.32` | `$2.22` | **YES, all bands** |
+| `0.60` | `min(0.32, 0.60)` | `0.32` | `$2.22` | **YES, all bands** |
 
-Therefore:
+Since `$2.22` is below every 5-share min-order cost (`$3.00`–`$4.00`), **all trades at all bands trigger the bump-to-min path regardless of operator stake**.
 
-- **yes, the bot can still buy `80c`**
-- **no, it is not buying because `45%` naturally funds the order**
-- it is buying because the code explicitly **bumps to the minimum order** and allows that in `BOOTSTRAP`
+### AG3) Complete `80c` execution trace at `$6.95`
 
-### AG2) Natural funding thresholds by stake fraction
+Step-by-step runtime path:
 
-At bankroll `$6.95`, the stake fraction naturally funds prices up to:
+1. `getBankrollAdaptivePolicy($6.95)` → `MICRO_SPRINT`, `maxPositionFraction = 0.32`
+2. `effectiveMaxPosFrac = 0.32` (exceptional sizing may lift to `0.45` for high-confidence trades)
+3. `MAX_FRACTION = min(0.32, 0.50) = 0.32`
+4. `basePct = min(0.32, 0.45) = 0.32`
+5. `size = $6.95 × 0.32 = $2.224`
+6. Kelly sizing may reduce further (irrelevant — bump follows)
+7. `minOrderCost = 5 × $0.80 = $4.00`
+8. `$2.22 < $4.00` → enters bump-to-min path
+9. `isMicroSprint = true` → survival floor relaxed to `$0`
+10. `minCashForMinOrder = $4.00 × 1.05 = $4.20`
+11. `cashBal ($6.95) >= $4.20` → **bump succeeds** → `size = $4.00`
+12. risk envelope: `effectiveBudget ≈ $6.95 × 0.50 × 0.75 ≈ $2.61`
+13. `$2.61 < $4.00` → would normally block
+14. `BOOTSTRAP` `minOrderRiskOverride = true` + `balance ($6.95) >= $4.00` → **override allows**
+15. Final trade size: **`$4.00`** (57.6% of bankroll)
 
-| Stake fraction | Dollar size | Naturally funds up to |
-| -------------- | ----------- | --------------------- |
-| `0.45` | `$3.13` | about `62.6c` |
-| `0.50` | `$3.48` | about `69.5c` |
-| `0.60` | `$4.17` | about `83.4c` |
+**Result: `80c` buy executes at `$4.00` via min-order bump + bootstrap override.**
 
-This is the key comparison:
+### AG4) Why changing operator stake to `0.50` or `0.60` has zero effect
 
-- `0.45` naturally funds only the low end
-- `0.50` still does **not** naturally fund `72-80c`
-- `0.60` would naturally fund the whole active range, **if it were actually permitted**
+The operator stake fraction sits DOWNSTREAM of the `maxPositionFraction` cap:
 
-### AG3) Why `0.50` is not worth changing to
+```
+basePct = min(MAX_FRACTION, operatorStakeFraction)
+        = min(min(maxPositionFraction, 0.50), operatorStakeFraction)
+        = min(0.32, operatorStakeFraction)
+```
 
-At `$6.95`, changing to `0.50` would:
+For any `operatorStakeFraction >= 0.32`, the result is always `0.32`. The three values `0.45`, `0.50`, `0.60` all exceed `0.32` and are clamped identically.
 
-- increase loss size on `60-69c` entries
-- do almost nothing for `72-80c`
-- still rely on the same minimum-order bump for the most important upper bands
+To actually change trade sizing at `$6.95`, one would need to increase `CONFIG.RISK.autoBankrollMaxPosHigh` (which controls `MICRO_SPRINT`'s `maxPositionFraction`). This is **not recommended** because:
 
-Approximate effect:
+- the bump path already handles execution correctly
+- increasing `maxPositionFraction` would raise base sizes on ALL trades once bankroll grows past the min-order crossover point, creating unnecessary risk
+- the current `0.32` cap is calibrated for optimal compounding vs drawdown
 
-| Band | Realized size at `0.45` | Realized size at `0.50` | Material execution improvement? |
-| ---- | ----------------------- | ----------------------- | ------------------------------- |
-| `60c` | `$3.13` | `$3.48` | No |
-| `65c` | `$3.25` | `$3.48` | Minor only |
-| `72c` | `$3.60` | `$3.60` | No |
-| `75c` | `$3.75` | `$3.75` | No |
-| `80c` | `$4.00` | `$4.00` | No |
+### AG5) Corrected final trade sizes by entry band
 
-So `0.50` mostly adds downside without materially improving execution at the upper active bands.
+All trades at `$6.95` trigger the bump-to-min path (base `$2.22` < all min-order costs):
 
-### AG4) Why `0.60` is not currently a valid runtime option
+| Band | Min order cost | Bump cash gate | Cash available | Executes? | Final risk |
+| ---- | -------------- | -------------- | -------------- | --------- | ---------- |
+| `60c` | `$3.00` | `$3.15` | `$6.95` | **YES** | `$3.00` (`43.2%`) |
+| `65c` | `$3.25` | `$3.41` | `$6.95` | **YES** | `$3.25` (`46.8%`) |
+| `72c` | `$3.60` | `$3.78` | `$6.95` | **YES** | `$3.60` (`51.8%`) |
+| `75c` | `$3.75` | `$3.94` | `$6.95` | **YES** | `$3.75` (`54.0%`) |
+| `80c` | `$4.00` | `$4.20` | `$6.95` | **YES** | `$4.00` (`57.6%`) |
 
-The current code contains a hard cap:
+### AG6) Final re-audit decision (corrected)
 
-- `MAX_FRACTION = min(effectiveMaxPosFrac, 0.50)`
-
-So even if `OPERATOR_STAKE_FRACTION=0.60` were set, the live sizing path would still clamp it to:
-
-- `0.50`
-
-To make `0.60` real, I would have to change:
-
-1. the direct operator stake target
-2. the adaptive max-position configuration
-3. the hard `0.50` clamp in `executeTrade()`
-
-That would be a **real risk-policy rewrite**, not a small adjustment.
-
-### AG5) Why I am not raising the hard cap to support `0.60`
-
-The improvement would be marginal relative to the existing `BOOTSTRAP` bump path:
-
-- current `80c` buy already executes by bumping from `$3.13` to `$4.00`
-- `0.60` would only turn that into roughly `$4.17`
-
-But the downside gets worse:
-
-- post-loss bankroll at current `80c` path: about `$2.95`
-- post-loss bankroll at true `0.60` sizing: about `$2.78`
-
-So `0.60` would:
-
-- slightly reduce reliance on the bump path
-- materially worsen first-loss survivability
-- push the runtime beyond its current hard-cap safety architecture
-
-That is not justified by the real gain.
-
-### AG6) Final re-audit decision
-
-After this renewed full investigation:
+After this code-traced re-investigation:
 
 - keep `OPERATOR_STAKE_FRACTION = 0.45`
+- changing to `0.50` or `0.60` has **zero effect** — all three produce identical `basePct = 0.32`
 - keep the current `0.50` hard cap unchanged
-- make **no runtime code change**
+- keep `MICRO_SPRINT` `maxPositionFraction = 0.32` unchanged
+- make **no runtime sizing change**
 
-Reason:
+The binding constraint chain at `$6.95`:
 
-- `0.45` already allows the bot to buy `80c` entries at `$6.95/$6.96` through the audited minimum-order bump path
-- `0.50` does not materially improve `72-80c` execution
-- `0.60` is currently impossible without code changes and is not worth the survivability cost
+```
+maxPositionFraction (0.32) → basePct (0.32) → base $2.22 → ALL bands bump to min order
+→ risk envelope would block → bootstrap override enables
+```
 
-### AG7) Operator-facing conclusion
+### AG7) Operator-facing conclusion (corrected)
 
 The correct mental model is:
 
-- **`45%` is the base sizing target**
-- **minimum-order bumping is what makes upper-band micro-bankroll trades executable**
-- the real risk is not “can the bot place the order?”
-- the real risk is “what happens to the bankroll after the first loss?”
+- **`0.32` is the effective base sizing cap** (from `MICRO_SPRINT` adaptive policy)
+- **`0.45` operator stake is already above this cap** — it has no effect on actual sizing
+- **minimum-order bumping + bootstrap override** is what makes every trade executable at `$6.95`
+- the real risk is not "can the bot place the order?" (it can, at every band)
+- the real risk is "what happens to the bankroll after the first loss?"
 
-So the final verdict remains:
+Post-loss bankroll estimates:
 
-- **buy path at `80c` is executable**
-- **raising to `0.50` is not worth it**
-- **raising to `0.60` is not justified and would require a hard-cap rewrite**
+- lose a `60c` trade → about `$3.95` remains
+- lose a `65c` trade → about `$3.70` remains
+- lose a `72c` trade → about `$3.35` remains
+- lose a `75c` trade → about `$3.20` remains
+- lose an `80c` trade → about `$2.95` remains
 
-End of Addendum AG — `0.45` vs `0.50` vs `0.60` Re-Audit For `$6.95/$6.96` Mini-Bankroll, 11 March 2026
+**Verdict: no stake change justified. The question is moot because `maxPositionFraction` (`0.32`) is the binding cap, not the operator stake fraction.**
+
+End of Addendum AG (corrected) — `0.45` vs `0.50` vs `0.60` Re-Audit For `$6.95/$6.96` Mini-Bankroll, 11 March 2026
+
+## ADDENDUM AH — Full Direct-Execution Re-Audit, Blocker Inventory, and `$5` Smoke-Test Verdict (12 March 2026)
+
+This addendum re-audits the **actual direct operator execution path** end-to-end after the momentum-gate investigation.
+
+The key question was not merely:
+
+- “was momentum the reason it did not trade?”
+
+It was:
+
+- “was that answer complete?”
+- “will `$5` actually trade?”
+- “what else can still stop trading or create loss risk?”
+
+### AH1) Corrected top-line answer
+
+The earlier “momentum gate is the blocker” answer was **directionally true but incomplete**.
+
+Code-traced conclusion:
+
+- the strategy-set momentum gate **was a real primary blocker**
+- the env-precedence bug meant `STRATEGY_DISABLE_MOMENTUM_GATE=true` could be silently ignored under operator enforcement
+- the missing-open-price path could also hard-block with `NO_MOMENTUM_BASELINE`
+- those two issues made the momentum explanation materially correct for the observed no-trade behavior
+
+However, momentum is **not the only possible blocker** in the current architecture.
+
+There are additional hard and conditional blockers in:
+
+- strategy-set matching
+- final-seconds blackout
+- state/pause/circuit-breaker logic
+- bankroll/min-order survivability
+- LIVE readiness and CLOB permission
+- fill verification
+
+So the correct answer is:
+
+- **momentum was a major real blocker**
+- **but it is not the sole blocker class**
+
+### AH2) What is currently true about the active `top7_drop6` set
+
+Active strategy-set file:
+
+- `debug/strategy_set_top7_drop6.json`
+
+Current conditions in that file:
+
+- `priceMin = 0.60`
+- `priceMax = 0.80`
+- `momentumMin = 0.03`
+- `volumeMin = 500`
+- `applyMomentumGate = true`
+- `applyVolumeGate = false`
+
+Current local workspace env:
+
+- `AUTO_BANKROLL_MODE=SPRINT`
+- `STRATEGY_DISABLE_MOMENTUM_GATE=true`
+- `PAPER_BALANCE=5.00`
+- `START_PAUSED=false`
+- `TRADE_MODE=PAPER`
+
+So, **in the checked workspace**, the direct operator path is currently:
+
+- still using the `top7_drop6` schedule
+- still carrying a momentum gate in the JSON artifact
+- but locally **overriding that gate off** via env
+- and still running in **`PAPER`**, not `LIVE`
+
+That means a local run from this env can paper-trade, but it **cannot prove live autonomous trading**.
+
+### AH3) Full blocker inventory — direct operator path
+
+Below is the full blocker inventory in actual path order.
+
+#### AH3.1 Strategy-runtime and schedule blockers
+
+The direct operator orchestrator hard-requires:
+
+- operator strategy-set enforcement enabled
+- strategy runtime loaded successfully
+- at least one strategy row matching the **current UTC hour + entry minute**
+
+Hard blocker reasons at this layer:
+
+- `OPERATOR_STRATEGY_SET_NOT_LOADED`
+- no row for the current hour/minute/direction
+- market object missing for the asset
+- market status `CLOSED`, `NO_LIQUIDITY`, or `ERROR`
+- entry price invalid (`<= 0` or `>= 1`)
+
+Important architectural caveat:
+
+- when operator strategy-set execution is enforced, normal ORACLE auto-entry is intentionally blocked with `DIRECT_OPERATOR_STRATEGY_ENTRY_ONLY`
+- therefore there is **no legacy oracle-entry fallback**
+- if direct operator orchestration fails, autonomous 15m entry does not “fall back” to old oracle BUY behavior
+
+#### AH3.2 Strategy-match blockers
+
+Even when a strategy row exists for the current minute, the candidate can still fail the strategy match because of:
+
+- wrong asset/direction/hour/minute
+- price outside the strategy row’s band
+- momentum below threshold
+- missing/low volume if the volume gate is active
+
+Current truth for `top7_drop6`:
+
+- **price band is active**
+- **momentum gate exists in the JSON**
+- **volume gate is currently OFF in the strategy file**
+
+Therefore:
+
+- price band mismatch remains a normal hard blocker
+- volume is **not** the current blocker in this set
+- momentum is only blocked if the env override is absent/false or the live host differs from the checked local env
+
+#### AH3.3 Final-seconds blackout blocker
+
+`executeTrade()` still applies a timing cutoff.
+
+For validated strategies:
+
+- general blackout is reduced
+- but a strategy-specific cutoff still defaults to **30 seconds**
+
+So strategy entries are **not** allowed all the way to expiry.
+
+This matters most for:
+
+- `H08 m14 DOWN (60-80c)`
+
+That row is **not fully dead anymore**, but it is still only tradable during the earlier part of minute 14:
+
+- roughly `tLeft = 60s → 31s` can pass
+- `tLeft <= 30s` is still blocked with `STRATEGY_BLACKOUT`
+
+Corrected conclusion:
+
+- the old “minute-14 row is fully blocked by the extended blackout” answer is no longer true
+- but the row is still **partially constrained** by the 30-second strategy blackout
+
+#### AH3.4 Execution-time entry blockers after strategy match
+
+Even after a valid candidate is selected, `executeTrade()` can still hard-block for:
+
+- volatility/manipulation guard
+- entry price below `minOdds`
+- entry price above EV-derived max
+- real-time price drift above EV-derived max between signal and execution
+- asset disabled
+- manual pause active
+- state-machine disallowing trade
+- per-asset cycle limit hit
+- global cycle limit hit
+- loss cooldown active
+- max positions per asset reached
+- max total exposure reached
+- global stop loss triggered
+- live daily loss cap triggered
+
+Important caveat:
+
+- `CONFIG.RISK.maxGlobalTradesPerCycle` is `1`
+- so only **one** trade can be opened across all assets in a cycle
+- this does not prevent trading entirely, but it suppresses concurrent valid candidates in the same cycle
+
+#### AH3.5 State-machine blockers
+
+The state machine is not theoretical; it can hard-block.
+
+Key thresholds:
+
+- `HARVEST` requires `pWin >= 0.55`
+- `STRIKE` requires `pWin >= 0.65`
+- `OBSERVE` requires `pWin >= 0.60`
+- `OBSERVE` also enforces a minimum cooldown duration
+
+So, if runtime state downgrades:
+
+- trades can be blocked even when the strategy row itself is valid
+
+Given the current `top7_drop6` pWin estimates, this is **not the primary expected blocker** in normal operation, but it is a real conditional blocker after loss-state transitions.
+
+#### AH3.6 Manual pause and auto self-check blockers
+
+Automated entries are blocked if:
+
+- `tradeExecutor.tradingPaused === true`
+
+This can happen from:
+
+- manual pause
+- restored persisted pause
+- self-check auto-halt
+
+The code also contains an auto self-check in LIVE mode that can pause trading on failures such as:
+
+- stale feeds
+- balance below floor
+- no Redis in LIVE
+- no wallet in LIVE
+- failing `/api/verify?deep=1`
+- failing `/api/perfection-check`
+
+When these fail in LIVE:
+
+- trading is paused with `AUTO_SELFCHECK: ...`
+- no autonomous entries occur until recovery / auto-resume
+
+This is a real “it looks healthy but still will not trade” blocker class.
+
+#### AH3.7 Bankroll / min-order / risk-envelope blockers
+
+For micro-bankrolls the key path is:
+
+- base stake is capped by `MICRO_SPRINT`
+- base size is then bumped to the 5-share minimum order if cash is sufficient
+- risk envelope would normally block
+- bootstrap `minOrderRiskOverride` can allow the min order anyway
+
+This means:
+
+- “base fraction too small” is **not** the reason a first trade fails at `$5-$6.95`
+- the first trade lives or dies on **minimum-order cash gate + bootstrap override**
+
+#### AH3.8 LIVE-only readiness blockers
+
+Even a valid paper trade path can still fail in LIVE if any of the following are missing or broken:
+
+- `TRADE_MODE=LIVE`
+- `ENABLE_LIVE_TRADING=1`
+- `LIVE_AUTOTRADING_ENABLED=true`
+- `TELEGRAM_SIGNALS_ONLY=false`
+- wallet loaded
+- Polymarket credentials present or auto-derived successfully
+- market token IDs available
+- trade-ready CLOB client selection succeeds
+- account is **not** `closed_only`
+- collateral balance is non-zero
+- collateral allowance is non-zero
+- order can be signed
+- order receives matched shares within the fill-check window
+
+Important fill caveat:
+
+- the engine does **not** treat a resting/unmatched live order as a successful trade
+- if matched shares remain `0` after the retry window, the order is cancelled and the trade is treated as failed
+
+So in LIVE, “signal fired” does **not** guarantee “position opened”.
+
+### AH4) Newly identified conditional blocker: LIVE minimum-balance check references `paperBalance`
+
+This re-audit found a real conditional code blocker that was not previously documented:
+
+Inside `executeTrade()` the hard minimum-balance gate is:
+
+- `const MIN_TRADING_BALANCE = 2.00`
+- `if (this.paperBalance < MIN_TRADING_BALANCE) { ... block ... }`
+
+This check does **not** branch by mode.
+
+That means:
+
+- in `PAPER`, it behaves as intended
+- in `LIVE`, it still checks `paperBalance` instead of live cash
+
+Implication:
+
+- a LIVE account can be sufficiently funded
+- but if `paperBalance` is stale / restored / low, the trade can still be blocked incorrectly
+
+This is **not proven to be the reason for the prior no-trade event**, because the checked local env has `PAPER_BALANCE=5.00`.
+
+But it is a real latent LIVE blocker and should now be considered part of the blocker inventory.
+
+### AH5) `$5` bankroll verdict — can it actually place the first trade?
+
+Yes — **conditionally, for the first trade**.
+
+At `$5.00` in `MICRO_SPRINT`:
+
+- effective base cap = `0.32`
+- base size = `0.32 × $5.00 = $1.60`
+
+That base is below every 5-share crypto min-order cost, so all active bands use the bump-to-min path.
+
+#### AH5.1 First-trade affordability at `$5`
+
+| Band | Min order cost | Bump cash gate (`×1.05`) | `$5` clears? |
+| ---- | -------------- | ------------------------ | ------------ |
+| `60c` | `$3.00` | `$3.15` | **YES** |
+| `65c` | `$3.25` | `$3.41` | **YES** |
+| `72c` | `$3.60` | `$3.78` | **YES** |
+| `75c` | `$3.75` | `$3.94` | **YES** |
+| `80c` | `$4.00` | `$4.20` | **YES** |
+
+Risk-envelope logic still underfunds these trades on paper, but in Stage 0 bootstrap:
+
+- `minOrderRiskOverride = true`
+
+So the first `$5` trade is still allowed.
+
+#### AH5.2 Correct `$5` answer
+
+For the first entry, `$5` is:
+
+- **enough to execute all active `60-80c` bands**
+- **not enough to provide post-loss resilience**
+
+So the correct answer is:
+
+- **yes, `$5` can trade**
+- **but only in a very fragile one-shot bootstrap posture**
+
+### AH6) `$5` post-loss survivability — the real danger
+
+Approximate bankroll after one full loss:
+
+- lose a `60c` trade → about `$2.00` remains
+- lose a `65c` trade → about `$1.75` remains
+- lose a `72c` trade → about `$1.40` remains
+- lose a `75c` trade → about `$1.25` remains
+- lose an `80c` trade → about `$1.00` remains
+
+That means:
+
+- after **any** first loss, the bankroll is effectively crippled for another 5-share crypto trade
+- after a `65c-80c` first loss, even the static `$2.00` minimum balance gate fails
+- after a `60c` first loss, the balance is still only `$2.00`, which is below the next-trade min-order cash requirement (`$3.15+`)
+
+So `$5` is not a robust autonomous bankroll.
+
+It is a bankroll that can:
+
+- place the first trade
+- survive if the first trade wins
+- become effectively non-tradable if the first trade loses
+
+### AH7) `$5` post-win survivability
+
+Approximate bankroll after one first win:
+
+- win a `60c` trade → about `$7.00`
+- win a `65c` trade → about `$6.75`
+- win a `72c` trade → about `$6.40`
+- win a `75c` trade → about `$6.25`
+- win an `80c` trade → about `$6.00`
+
+So the `$5` path is highly path-dependent:
+
+- first win → tradability improves materially
+- first loss → tradability is largely over
+
+### AH8) Final smoke-test verdict
+
+#### AH8.1 Was momentum the only reason it would not trade?
+
+No.
+
+Correct final answer:
+
+- momentum was a **real major blocker**
+- but not the only possible blocker
+- the direct-entry path still has multiple additional blocker classes
+
+#### AH8.2 Will it trade with `$5`?
+
+Yes, **for the first trade**, if:
+
+- the strategy row matches current hour/minute
+- price is inside the row band
+- strategy blackout has not closed the window
+- no pause/state/volatility/cooldown blocker is active
+- and, in LIVE, the CLOB account is actually trade-ready
+
+#### AH8.3 Is `$5` a safe autonomous bankroll?
+
+No.
+
+It is:
+
+- executable for the first trade
+- extremely fragile after a first loss
+- acceptable only if the operator explicitly accepts “first loss can end autonomous continuity”
+
+#### AH8.4 Is there any newly found blocker/caveat beyond the momentum findings?
+
+Yes:
+
+- the full blocker inventory above
+- especially the LIVE-only trade-readiness requirements
+- the self-check auto-halt path
+- the minute-14 partial blackout
+- and the newly identified conditional bug where the hard `$2` minimum check references `paperBalance` even in LIVE
+
+### AH9) Operator-facing final conclusion
+
+The correct operator-level truth after the full re-audit is:
+
+- the bot did **not** merely have “one momentum problem”
+- it had a major momentum problem **plus** several other blocker classes that can still stop autonomous entry
+- `$5` is **first-trade executable**
+- `$5` is **not resilient**
+- if the first `$5` trade loses, continued autonomous operation is unlikely without an additional deposit
+- the active local workspace env is still `PAPER`, so a local run from this file is **not** a live smoke test
+
+Therefore the right production statement is:
+
+- **`$5` can place the first trade**
+- **`$5` should not be described as comfortably autonomous**
+- **momentum was a major blocker, but not the whole story**
+- **the direct operator path is now much better understood, but still has real LIVE operational dependencies and a latent conditional LIVE balance-gate bug**
+
+End of Addendum AH — Full Direct-Execution Re-Audit, Blocker Inventory, and `$5` Smoke-Test Verdict, 12 March 2026
+
+---
+
+## ADDENDUM AI — DATASET-BACKED PROJECTION VERIFICATION + FINAL TRADEABILITY VERDICT (12 March 2026)
+
+This addendum supersedes any conflicting projection claims that were based on:
+
+- stale local snapshot-corpus windowing
+- pre-fix replay assumptions that did not match current `MICRO_SPRINT` min-order behavior
+
+### AI0) DATA SOURCE DISCLOSURE
+
+⚠️ **DATA SOURCE**: local runtime endpoints (`/api/health`, `/api/risk-controls`), authoritative dataset replay via `scripts/hybrid_replay_backtest.js`, `exhaustive_analysis/decision_dataset.json`, `debug/strategy_set_top7_drop6.json`
+
+⚠️ **LIVE ROLLING ACCURACY**:
+- BTC: `N/A`
+- ETH: `N/A`
+- XRP: `N/A`
+- SOL: `N/A`
+
+⚠️ **DISCREPANCIES**:
+- local `/api/backtest-polymarket` window projections were not authoritative for this audit because the local snapshot corpus was stale relative to the requested now-relative windows
+- the replay simulator initially underreported tradability because it still enforced the survival-floor path in places where current live/runtime `MICRO_SPRINT` behavior explicitly relaxes it
+- after correcting replay/runtime parity in `scripts/hybrid_replay_backtest.js`, the windows were rerun and the results below are the authoritative audit outputs for this session
+
+### AI1) LIVE RUNTIME HEALTH SNAPSHOT AT AUDIT TIME
+
+Local runtime `GET /api/health` at audit time reported:
+
+- `status = ok`
+- `tradingHalted = false`
+- all 4 data feeds fresh (`dataFeed.anyStale = false`)
+- balance floor enabled with `baseFloor = $2`, `effectiveFloor = $2`
+- `currentBalance = $5.80`
+- circuit breaker state = `NORMAL`
+- pending settlements = `0`
+- stale pending = `0`
+- crash recovery queue = `0`
+- rolling accuracy sample size still `0` on all assets
+
+Interpretation:
+
+- the currently running local runtime is **operational**
+- there is **no current feed-staleness, pause, pending-sell, or recovery-queue emergency**
+- however, there is still **no executed-trade rolling accuracy sample**, so the bot does **not** yet have live statistical proof of a sustained 90%+ edge
+
+### AI2) VERIFIED REPLAY METHODOLOGY USED FOR THIS AUDIT
+
+Authoritative replay inputs:
+
+- dataset start: `1760028300` (`2025-10-09T16:45:00Z`)
+- dataset end: `1772952300` (`2026-03-08T06:45:00Z`)
+- strategy set: `debug/strategy_set_top7_drop6.json`
+- starting balance: `$5`
+- max exposure: `0.50`
+- `AUTO_BANKROLL_MODE = SPRINT`
+- `kellyFraction = 0.75`
+- `kellyMaxFraction = 0.45`
+- `autoBankrollMaxPosLow = 0.35`
+- `autoBankrollMaxPosHigh = 0.45`
+- `minOrderShares = 5`
+- `minBalanceFloor = 2`
+- momentum gate forced OFF for parity with current local operator env
+- volume gate OFF (matching current strategy file)
+
+Replay windows executed:
+
+- full history
+- last 14 days
+- last 7 days
+
+### AI3) AUTHORITATIVE REPLAY RESULTS
+
+#### AI3.1 Full history window
+
+Window:
+
+- `2025-10-09T16:45:00Z` → `2026-03-08T06:45:00Z`
+
+Signal-layer strategy stats:
+
+- total qualifying strategy trades: `688`
+- wins: `591`
+- losses: `97`
+- signal win rate: `85.90%`
+- Wilson LCB: `83.10%`
+- avg ROI/trade: `13.81%`
+- days with trades: `148`
+- trades/day: `4.65`
+
+Bankroll-path stats from `$5`:
+
+- executed trades: `15`
+- blocked trades: `673`
+- wins: `13`
+- losses: `2`
+- ending balance: `$11.9551`
+- bankroll ROI: `+139.10%`
+- max drawdown: `46.19%`
+- max realized loss streak: `1`
+
+Blocked reasons:
+
+- `RISK_ENVELOPE = 670`
+- `GLOBAL_STOP_LOSS = 3`
+
+#### AI3.2 Last 14 days window
+
+Window:
+
+- `2026-02-22T06:45:00Z` → `2026-03-08T06:45:00Z`
+
+Signal-layer strategy stats:
+
+- total qualifying strategy trades: `64`
+- wins: `50`
+- losses: `14`
+- signal win rate: `78.13%`
+- Wilson LCB: `66.57%`
+- avg ROI/trade: `4.02%`
+- days with trades: `14`
+- trades/day: `4.57`
+
+Bankroll-path stats from `$5`:
+
+- executed trades: `5`
+- blocked trades: `59`
+- wins: `5`
+- losses: `0`
+- ending balance: `$11.6042`
+- bankroll ROI: `+132.08%`
+- max drawdown: `0.00%`
+
+Blocked reasons:
+
+- `RISK_ENVELOPE = 59`
+
+#### AI3.3 Last 7 days window
+
+Window:
+
+- `2026-03-01T06:45:00Z` → `2026-03-08T06:45:00Z`
+
+Signal-layer strategy stats:
+
+- total qualifying strategy trades: `35`
+- wins: `28`
+- losses: `7`
+- signal win rate: `80.00%`
+- Wilson LCB: `64.11%`
+- avg ROI/trade: `6.30%`
+- days with trades: `7`
+- trades/day: `5.00`
+
+Bankroll-path stats from `$5`:
+
+- executed trades: `6`
+- blocked trades: `29`
+- wins: `4`
+- losses: `2`
+- ending balance: `$2.2905`
+- bankroll ROI: `-54.19%`
+- max drawdown: `69.20%`
+
+Blocked reasons:
+
+- `MIN_ORDER_UNAFFORDABLE = 22`
+- `GLOBAL_STOP_LOSS = 7`
+
+### AI4) WHAT THESE RESULTS MEAN
+
+The critical distinction is:
+
+- the **signal-layer strategy set** remains materially profitable in aggregate
+- the **micro-bankroll bankroll path** is much harsher, because only a small subset of those opportunities can actually be funded/executed under real min-order, exposure, floor, and stop constraints
+
+This session's projection audit shows:
+
+- the bot is **not “dead” at `$5`**
+- the bot **can compound from `$5`** in some windows
+- but the bot is **not robustly protected against a bad early sequence**
+
+Most important observation:
+
+- the last 14 days looked strong from a `$5` start
+- the last 7 days did **not**
+
+So the correct statement is **not**:
+
+- “the adjustments proved the bot cannot lose the first few trades”
+
+The correct statement is:
+
+- “the adjusted bot is executable and sometimes profitable from `$5`, but short-window path dependency remains severe”
+
+### AI5) TRADEABILITY VERDICT
+
+#### AI5.1 Can the patched bot trade autonomously with about `$5`?
+
+**Yes, conditionally.**
+
+The current runtime + corrected replay evidence shows:
+
+- the first trade is executable at current 5-share min-order costs
+- there are real windows where `$5` grows materially
+- the execution pipeline is no longer blocked by the previously identified min-order parity issue in the replay audit
+
+#### AI5.2 Is `$5` a safe “cannot lose early” bankroll?
+
+**No.**
+
+This audit does **not** support claiming that a `$5` bankroll satisfies the user's “first few trades cannot lose” standard.
+
+Reasons:
+
+- last 7-day replay from `$5` ended at `$2.29`
+- max drawdown in that 7-day window reached `69.20%`
+- after early losses, many subsequent opportunities become `MIN_ORDER_UNAFFORDABLE`
+- the runtime still has no live rolling-accuracy sample proving real-world edge stability
+
+#### AI5.3 Is bust/cripple risk still real after the implemented adjustments?
+
+**Yes.**
+
+The adjustments improved real executability and removed false blockers, but they did **not** eliminate the core micro-bankroll fragility:
+
+- one or two early losses can still collapse tradable capacity
+- once balance approaches the min-order boundary, the opportunity set shrinks sharply
+- the bankroll path can diverge materially from the underlying signal win rate
+
+### AI6) CHANGE IN PROFIT PROJECTIONS VS EARLIER OPTIMISM
+
+This audit materially weakens earlier “$5 → highly reliable early compounding” narratives.
+
+Corrected conclusion:
+
+- full-history and 14-day windows support **possible profitability**
+- the 7-day window proves **meaningful downside remains**
+- therefore earlier projections that implied near-assured early compounding from `$5` were too optimistic for the actual current bankroll constraints
+
+In practical terms:
+
+- **profitability potential remains**
+- **certainty does not**
+
+### AI7) FINAL OPERATOR JUDGMENT
+
+If the question is:
+
+- “Will the patched bot actually be able to place trades around `$5`?”
+
+the answer is:
+
+- **Yes, it is tradeable.**
+
+If the question is:
+
+- “Has this audit proved `$5` is safe enough that the first few trades effectively cannot fail?”
+
+the answer is:
+
+- **No.**
+
+If the question is:
+
+- “Has bust/continuity risk disappeared after the fixes?”
+
+the answer is:
+
+- **No.**
+
+### AI8) FINAL GO / NO-GO STATEMENT FOR THIS SESSION
+
+**Tradeability verdict:** `GO, WITH STRONG CAUTION`
+
+Meaning:
+
+- **GO** for “the patched bot can now actually trade and the execution path is materially more truthful/operational than before”
+- **NOT GO** for any claim that `$5` now has low early-ruin risk
+- **NOT GO** for claiming live 90%+ performance without real rolling-accuracy evidence
+
+### AI9) Session-close conclusion
+
+The authoritative result of this session is:
+
+- the bot is **technically tradeable** at approximately `$5`
+- the bot is **not yet statistically proven live**
+- the bot is **not safe enough to describe as protected from an early-loss derailment**
+- the projection record must now be read as:
+  - **full history: positive**
+  - **14 days: positive**
+  - **7 days: negative / fragile**
+
+Therefore the honest final production statement is:
+
+- **The bot can trade.**
+- **The bot can still get crippled from a `$5` start.**
+- **The fixes improved executability, not certainty.**
+
+End of Addendum AI — Dataset-Backed Projection Verification + Final Tradeability Verdict, 12 March 2026

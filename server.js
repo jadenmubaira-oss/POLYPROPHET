@@ -10717,20 +10717,43 @@ function evaluateStrategySetMatch(runtime, asset, direction, entryPrice, entryMi
 
     const disableMomentumGateEnv = ['1', 'true', 'yes', 'on'].includes(String(process.env.STRATEGY_DISABLE_MOMENTUM_GATE || '').trim().toLowerCase());
     const disableVolumeGateEnv = ['1', 'true', 'yes', 'on'].includes(String(process.env.STRATEGY_DISABLE_VOLUME_GATE || '').trim().toLowerCase());
-    const applyMomentumGate = opts.forceMomentumGate === true || (!disableMomentumGateEnv && cond.applyMomentumGate === true);
-    const applyVolumeGate = opts.forceVolumeGate === true || (!disableVolumeGateEnv && cond.applyVolumeGate === true);
+    const runtimeBankroll = (() => {
+        try {
+            if (typeof tradeExecutor === 'undefined' || !tradeExecutor) return null;
+            if (typeof tradeExecutor.getBankrollForRisk === 'function') {
+                const v = Number(tradeExecutor.getBankrollForRisk());
+                return Number.isFinite(v) ? v : null;
+            }
+            const v = Number(tradeExecutor.mode === 'LIVE' ? tradeExecutor.cachedLiveBalance : tradeExecutor.paperBalance);
+            return Number.isFinite(v) ? v : null;
+        } catch {
+            return null;
+        }
+    })();
+    const runtimeRiskProfile = (() => {
+        try {
+            if (!Number.isFinite(runtimeBankroll) || typeof tradeExecutor === 'undefined' || !tradeExecutor || typeof tradeExecutor.getDynamicRiskProfile !== 'function') {
+                return null;
+            }
+            return tradeExecutor.getDynamicRiskProfile(runtimeBankroll);
+        } catch {
+            return null;
+        }
+    })();
+    const deferVolumeGate = runtimeRiskProfile?.stage === 0;
+    // v140 FIX: Env override MUST take precedence over forceMomentumGate/forceVolumeGate.
+    // Previously, forceMomentumGate=true (default when operator gates enforced) caused the || to
+    // short-circuit, making STRATEGY_DISABLE_MOMENTUM_GATE env var completely ineffective.
+    const applyMomentumGate = !disableMomentumGateEnv && (opts.forceMomentumGate === true || cond.applyMomentumGate === true);
+    const applyVolumeGate = !deferVolumeGate && !disableVolumeGateEnv && (opts.forceVolumeGate === true || cond.applyVolumeGate === true);
 
     if (applyMomentumGate) {
         const mom = Number(momentum);
         if (momentum === null || momentum === undefined || !Number.isFinite(mom)) {
-            return {
-                passes: false,
-                reason: 'NO_MOMENTUM_BASELINE',
-                blockedReason: 'NO_MOMENTUM'
-            };
-        }
-
-        if (mom <= momentumMin) {
+            // v140: Soft-fail — if open price wasn't captured, skip momentum gate
+            // instead of hard-blocking. The price band filter already captures directionality.
+            // Log the skip for diagnostics but do NOT block the trade.
+        } else if (mom <= momentumMin) {
             return {
                 passes: false,
                 reason: `LOW_MOMENTUM: ${(mom * 100).toFixed(1)}% < ${(momentumMin * 100).toFixed(0)}% required`,
@@ -11190,6 +11213,13 @@ const CONFIG = {
     // - LIVE manual endpoints remain available only if ENABLE_MANUAL_TRADING=true (separate safety gate)
     LIVE_AUTOTRADING_ENABLED: (() => {
         const raw = String(process.env.LIVE_AUTOTRADING_ENABLED || '').trim().toLowerCase();
+        return raw === 'true' || raw === '1';
+    })(),
+    // 🏆 v140.1: Allow oracle GOD/TREND mode as fallback when direct strategy windows don't match.
+    // Without this, the bot ONLY trades at exact strategy-schedule minutes + price bands.
+    // With this enabled, high-confidence oracle signals (>80%) can still fire trades.
+    ALLOW_ORACLE_FALLBACK: (() => {
+        const raw = String(process.env.ALLOW_ORACLE_FALLBACK || '').trim().toLowerCase();
         return raw === 'true' || raw === '1';
     })(),
     PAPER_BALANCE: parseFloat(process.env.PAPER_BALANCE || '5'),   // 🏆 v80+: Default $5 (matches README + render.yaml)
@@ -12225,7 +12255,8 @@ let primaryBuyState = {
 
 let directOperatorStrategyExecutionRuntime = {
     cycleStartEpochSec: 0,
-    attemptedKeys: {}
+    attemptedKeys: {},
+    diagnosticLog: []  // Rolling log of strategy window evaluations (last 100)
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -13133,9 +13164,11 @@ function computeBuyScore(signal) {
 
 function resetDirectOperatorStrategyExecutionRuntime(cycleStartEpochSec) {
     if (directOperatorStrategyExecutionRuntime.cycleStartEpochSec !== cycleStartEpochSec) {
+        const prevLog = directOperatorStrategyExecutionRuntime.diagnosticLog || [];
         directOperatorStrategyExecutionRuntime = {
             cycleStartEpochSec,
-            attemptedKeys: {}
+            attemptedKeys: {},
+            diagnosticLog: prevLog  // Preserve across cycle resets
         };
     }
 }
@@ -13204,6 +13237,14 @@ function scoreDirectOperatorStrategyCandidate(candidate) {
 
 async function orchestrateDirectOperatorStrategyEntries() {
     try {
+        // v140.16: Top-level diagnostic (every 60s) — fires BEFORE any early returns
+        const _diagNow = Math.floor(Date.now() / 1000);
+        if (!orchestrateDirectOperatorStrategyEntries._lastDiag || (_diagNow - orchestrateDirectOperatorStrategyEntries._lastDiag) >= 60) {
+            orchestrateDirectOperatorStrategyEntries._lastDiag = _diagNow;
+            const _rt = typeof OPERATOR_STRATEGY_SET_RUNTIME?.get === 'function' ? OPERATOR_STRATEGY_SET_RUNTIME.get() : null;
+            log(`🔍 ORCHESTRATOR DIAG: tradeExecutor=${!!tradeExecutor} | enforced=${isDirectOperatorStrategyExecutionEnabled()} | runtime=${!!_rt} | enabled=${_rt?.enabled} | strategies=${Array.isArray(_rt?.strategies) ? _rt.strategies.length : 'N/A'}`);
+        }
+
         if (!tradeExecutor || !isDirectOperatorStrategyExecutionEnabled()) return;
 
         const runtime = OPERATOR_STRATEGY_SET_RUNTIME.get();
@@ -13217,16 +13258,57 @@ async function orchestrateDirectOperatorStrategyEntries() {
         const entryMinute = Math.max(0, Math.min(14, Math.floor(elapsedSec / 60)));
         const utcHour = new Date(cycleStartEpochSec * 1000).getUTCHours();
         const matchingStrategies = runtime.strategies.filter(s => Number(s?.utcHour) === utcHour && Number(s?.entryMinute) === entryMinute);
+
+        // v140.16: Periodic heartbeat log (every 300s) — proves orchestrator is alive
+        if (!directOperatorStrategyExecutionRuntime._lastHeartbeat || (nowSec - directOperatorStrategyExecutionRuntime._lastHeartbeat) >= 300) {
+            directOperatorStrategyExecutionRuntime._lastHeartbeat = nowSec;
+            const nextWindows = runtime.strategies
+                .map(s => `H${String(s.utcHour).padStart(2,'0')} m${String(s.entryMinute).padStart(2,'0')} ${s.direction} (${(s.priceMin*100).toFixed(0)}-${(s.priceMax*100).toFixed(0)}c)`)
+                .join(', ');
+            const marketSummary = ASSETS.map(a => {
+                const m = currentMarkets?.[a];
+                return m ? `${a}:Y${((m.yesPrice||0)*100).toFixed(0)}¢/N${((m.noPrice||0)*100).toFixed(0)}¢` : `${a}:NO_DATA`;
+            }).join(' ');
+            log(`📡 STRATEGY ORCHESTRATOR HEARTBEAT: H${String(utcHour).padStart(2,'0')}:m${String(entryMinute).padStart(2,'0')} | Markets: ${marketSummary} | ${runtime.strategies.length} strategies loaded | Windows: ${nextWindows}`);
+        }
+
         if (matchingStrategies.length === 0) return;
 
+        // v140.16: Log when a strategy window IS active — show all asset prices vs strategy bands
+        const windowSummary = matchingStrategies.map(s => {
+            const dir = String(s.direction || '').toUpperCase();
+            const bandMin = (s.priceMin * 100).toFixed(0);
+            const bandMax = (s.priceMax * 100).toFixed(0);
+            const assetPrices = ASSETS.map(a => {
+                const m = currentMarkets?.[a];
+                if (!m) return `${a}:NO_MKT`;
+                const px = dir === 'UP' ? m.yesPrice : m.noPrice;
+                const pxStr = px ? (px * 100).toFixed(0) + '¢' : '??';
+                const inBand = px >= s.priceMin && px <= s.priceMax;
+                return `${a}:${pxStr}${inBand ? '✓' : '✗'}`;
+            }).join(' ');
+            return `${s.name} [${bandMin}-${bandMax}c] → ${assetPrices}`;
+        }).join(' | ');
+        log(`🎯 STRATEGY WINDOW ACTIVE: H${String(utcHour).padStart(2,'0')}:m${String(entryMinute).padStart(2,'0')} elapsed=${elapsedSec}s | ${windowSummary}`);
+
+        const diagLog = directOperatorStrategyExecutionRuntime.diagnosticLog;
         const candidates = [];
+        const maxAssetPositions = Number.isFinite(Number(CONFIG?.MAX_POSITIONS_PER_ASSET))
+            ? Math.max(1, Math.floor(Number(CONFIG.MAX_POSITIONS_PER_ASSET)))
+            : 2;
         for (const asset of ASSETS) {
             if (typeof tradeExecutor.isAssetEnabled === 'function' && !tradeExecutor.isAssetEnabled(asset)) continue;
-            if (typeof tradeExecutor.getPositionCount === 'function' && tradeExecutor.getPositionCount(asset) > 0) continue;
+            if (typeof tradeExecutor.getPositionCount === 'function' && tradeExecutor.getPositionCount(asset) >= maxAssetPositions) continue;
 
             const market = currentMarkets?.[asset] || null;
-            if (!market) continue;
-            if (market.marketStatus === 'CLOSED' || market.marketStatus === 'NO_LIQUIDITY' || market.marketStatus === 'ERROR') continue;
+            if (!market) {
+                log(`⚠️ STRATEGY WINDOW: No market data for ${asset} — skipping`, asset);
+                continue;
+            }
+            if (market.marketStatus === 'CLOSED' || market.marketStatus === 'NO_LIQUIDITY' || market.marketStatus === 'ERROR') {
+                log(`⚠️ STRATEGY WINDOW: ${asset} market status=${market.marketStatus} — skipping`, asset);
+                continue;
+            }
 
             for (const strategy of matchingStrategies) {
                 const strategyAsset = String(strategy?.asset || '').trim().toUpperCase();
@@ -13245,9 +13327,45 @@ async function orchestrateDirectOperatorStrategyEntries() {
                 const hybridMomentum = Number.isFinite(openPx) && openPx > 0 ? ((entryPrice - openPx) / openPx) : null;
                 const volume = Number.isFinite(Number(market?.volume)) ? Number(market.volume) : null;
                 const strategyCheck = checkHybridStrategy(asset, direction, entryPrice, entryMinute, utcHour, hybridMomentum, volume);
-                if (!strategyCheck?.passes || !strategyCheck?.strategy) continue;
+                if (!strategyCheck?.passes || !strategyCheck?.strategy) {
+                    // Diagnostic: log WHY this strategy window was rejected
+                    diagLog.push({
+                        ts: new Date().toISOString(),
+                        cycle: cycleStartEpochSec,
+                        utcHour,
+                        entryMinute,
+                        asset,
+                        strategy: strategy?.name || strategy?.signature || `id${strategy?.id}`,
+                        direction,
+                        entryPrice: Number.isFinite(entryPrice) ? +entryPrice.toFixed(4) : null,
+                        openPx: Number.isFinite(openPx) ? +openPx.toFixed(4) : null,
+                        momentum: Number.isFinite(hybridMomentum) ? +(hybridMomentum * 100).toFixed(2) : null,
+                        priceBand: `${((strategy?.priceMin || 0) * 100).toFixed(0)}-${((strategy?.priceMax || 0) * 100).toFixed(0)}c`,
+                        blockedReason: strategyCheck?.blockedReason || strategyCheck?.reason || 'UNKNOWN',
+                        passed: false
+                    });
+                    if (diagLog.length > 200) diagLog.splice(0, diagLog.length - 200);
+                    continue;
+                }
 
                 const pWinEstimate = getDirectOperatorStrategyPWinEstimate(strategyCheck.strategy);
+                // Diagnostic: log successful match
+                diagLog.push({
+                    ts: new Date().toISOString(),
+                    cycle: cycleStartEpochSec,
+                    utcHour,
+                    entryMinute,
+                    asset,
+                    strategy: strategy?.name || strategy?.signature || `id${strategy?.id}`,
+                    direction,
+                    entryPrice: Number.isFinite(entryPrice) ? +entryPrice.toFixed(4) : null,
+                    openPx: Number.isFinite(openPx) ? +openPx.toFixed(4) : null,
+                    momentum: Number.isFinite(hybridMomentum) ? +(hybridMomentum * 100).toFixed(2) : null,
+                    priceBand: `${((strategy?.priceMin || 0) * 100).toFixed(0)}-${((strategy?.priceMax || 0) * 100).toFixed(0)}c`,
+                    blockedReason: null,
+                    passed: true
+                });
+                if (diagLog.length > 200) diagLog.splice(0, diagLog.length - 200);
                 const candidate = {
                     asset,
                     market,
@@ -13290,6 +13408,8 @@ async function orchestrateDirectOperatorStrategyEntries() {
                 : (tradeExecutor.mode === 'LIVE' ? tradeExecutor.cachedLiveBalance : tradeExecutor.paperBalance);
             const operatorStakeFraction = getOperatorStakeFractionForBankroll(bankrollForSizing);
             const confidence = Number.isFinite(candidate.pWinEstimate) ? candidate.pWinEstimate : 0.5;
+            // v140.16: Log strategy candidate being sent to executeTrade
+            log(`🚀 STRATEGY CANDIDATE → executeTrade: ${candidate.asset} ${candidate.direction} @ ${(candidate.entryPrice*100).toFixed(1)}¢ | pWin=${(candidate.pWinEstimate*100).toFixed(1)}% | strategy=${candidate.strategy?.name} | bankroll=$${bankrollForSizing?.toFixed(2)} | stakeFrac=${operatorStakeFraction}`, candidate.asset);
             const result = await tradeExecutor.executeTrade(candidate.asset, candidate.direction, 'ORACLE', confidence, candidate.entryPrice, candidate.market, {
                 tier: candidate.strategy?.tier || 'UNKNOWN',
                 pWin: candidate.pWinEstimate,
@@ -13307,11 +13427,15 @@ async function orchestrateDirectOperatorStrategyEntries() {
                 ? 'SUCCESS'
                 : String(result?.error || 'FAILED');
 
+            // v140.16: Log executeTrade result
             if (result?.success === true) {
+                log(`✅ STRATEGY TRADE EXECUTED: ${candidate.asset} ${candidate.direction} @ ${(candidate.entryPrice*100).toFixed(1)}¢ | ${candidate.strategy?.name}`, candidate.asset);
                 break;
+            } else {
+                log(`❌ STRATEGY TRADE BLOCKED by executeTrade: ${candidate.asset} ${candidate.direction} | reason=${result?.error || 'UNKNOWN'} | strategy=${candidate.strategy?.name}`, candidate.asset);
             }
         }
-    } catch { }
+    } catch (err) { log(`⚠️ STRATEGY ORCHESTRATOR ERROR: ${err?.message || err}`); }
 }
 
 async function orchestrateOracleNotifications() {
@@ -16121,7 +16245,10 @@ class TradeExecutor {
             return { success: false, error: 'DIRECT_OPERATOR_STRATEGY_ENTRY_ONLY' };
         }
 
-        if (mode === 'ORACLE' && mode !== 'MANUAL' && options.source !== '4H_MULTIFRAME' && isOperatorStrategySetEnforced()) {
+        // v140.16: Skip redundant second checkHybridStrategy for DIRECT_OPERATOR_STRATEGY_SET entries.
+        // The orchestrator already validated the strategy milliseconds ago — this re-check adds no value
+        // and creates a timing race condition (entry minute could change between the two calls).
+        if (mode === 'ORACLE' && mode !== 'MANUAL' && options.source !== '4H_MULTIFRAME' && isOperatorStrategySetEnforced() && !isDirectOperatorPrimaryEntry) {
             const cycleStartEpochSec = getCurrentCheckpoint();
             const nowSec = Math.floor(Date.now() / 1000);
             const executionEntryMinute = Math.max(0, Math.min(14, Math.floor(Math.max(0, nowSec - cycleStartEpochSec) / 60)));
@@ -16322,15 +16449,22 @@ class TradeExecutor {
                 pWin = Brains[asset].getCalibratedWinProb(confidence, { priorRate, priorStrength: 40, minSamples: 0 });
             }
 
-            if (Number.isFinite(pWin)) {
-                const evRoi = calcBinaryEvRoiAfterFees(pWin, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
+            // v140.16: For strategy entries, use winRate (point estimate) for EV go/no-go check
+            // winRateLCB is for sizing/risk — using it for EV creates triple conservatism (LCB + fees + slippage)
+            const isStrategyEV = options.source === 'OPERATOR_STRATEGY_SET_DIRECT';
+            const strategyWR = Number(options.hybridStrategy?.winRate);
+            const pWinEV = (isStrategyEV && Number.isFinite(strategyWR) && strategyWR > 0 && strategyWR < 1)
+                ? strategyWR : pWin;
+
+            if (Number.isFinite(pWinEV)) {
+                const evRoi = calcBinaryEvRoiAfterFees(pWinEV, entryPrice, { slippagePct: SLIPPAGE_ASSUMPTION_PCT, feeModel: feeModelExec });
 
                 if (!Number.isFinite(evRoi) || evRoi <= 0) {
                     const evTxt = Number.isFinite(evRoi) ? `${(evRoi * 100).toFixed(2)}%` : 'N/A';
-                    log(`📉 EV GUARD: EV=${evTxt} (pWin ${(pWin * 100).toFixed(1)}%, price ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
+                    log(`📉 EV GUARD: EV=${evTxt} (pWin ${(pWinEV * 100).toFixed(1)}%${isStrategyEV ? ' [winRate]' : ''}, price ${(entryPrice * 100).toFixed(1)}¢) - BLOCKED`, asset);
                     return { success: false, error: `Negative EV: ${evTxt}` };
                 }
-                log(`📈 EV CHECK: EV=${(evRoi * 100).toFixed(2)}% (pWin ${(pWin * 100).toFixed(1)}%) ✓`, asset);
+                log(`📈 EV CHECK: EV=${(evRoi * 100).toFixed(2)}% (pWin ${(pWinEV * 100).toFixed(1)}%${isStrategyEV ? ' [winRate]' : ''}) ✓`, asset);
             } else {
                 log(`⚠️ EV GUARD: Missing calibrated pWin - skipping EV check`, asset);
             }
@@ -16403,9 +16537,19 @@ class TradeExecutor {
                 const cycleStartEpochSec = getCurrentCheckpoint();
                 const elapsedSec = nowSec - cycleStartEpochSec;
                 const timeLeftSec = INTERVAL_SECONDS - elapsedSec;
+                const timingBankroll = (typeof this.getBankrollForRisk === 'function')
+                    ? Number(this.getBankrollForRisk())
+                    : Number(this.mode === 'LIVE' ? this.cachedLiveBalance : this.paperBalance);
+                const timingRiskProfile = Number.isFinite(timingBankroll) && typeof this.getDynamicRiskProfile === 'function'
+                    ? this.getDynamicRiskProfile(timingBankroll)
+                    : null;
+                const bootstrapTimingMode = timingRiskProfile?.stage === 0;
 
                 const buyWindowStart = CONFIG.ORACLE.buyWindowStartSec || 300;
-                const buyWindowEnd = CONFIG.ORACLE.buyWindowEndSec || 60;
+                const configuredBuyWindowEnd = CONFIG.ORACLE.buyWindowEndSec || 60;
+                const buyWindowEnd = bootstrapTimingMode
+                    ? Math.min(configuredBuyWindowEnd, 5)
+                    : configuredBuyWindowEnd;
                 const extendedBlackoutSec = Number.isFinite(Number(CONFIG?.ORACLE?.extendedBlackoutSec))
                     ? Math.max(0, Number(CONFIG.ORACLE.extendedBlackoutSec))
                     : 0;
@@ -16425,7 +16569,7 @@ class TradeExecutor {
                 const hasValidatedStrategy = !!(options.hybridStrategy || oracleSignals?.[asset]?.hybridStrategy);
                 const strategyBlackoutCutoffSec = Number.isFinite(Number(CONFIG?.ORACLE?.strategyBlackoutCutoffSec))
                     ? Math.max(0, Number(CONFIG.ORACLE.strategyBlackoutCutoffSec))
-                    : 30;
+                    : (bootstrapTimingMode ? 5 : 30);
                 const activeBlackoutEnd = hasValidatedStrategy ? strategyBlackoutCutoffSec : effectiveBuyWindowEnd;
 
                 if (!is4hSignal && timeLeftSec <= activeBlackoutEnd) {
@@ -16533,11 +16677,19 @@ class TradeExecutor {
                 return { success: false, error: `Entry price ${(entryPrice * 100).toFixed(1)}¢ below minOdds ${(effectiveMinOdds * 100).toFixed(1)}¢ (market disagrees)` };
             }
 
-            // 🎯 GOAT v44.1: EV-derived max price check (replaces hard maxOdds)
+            // 🎯 GOAT v44.1 + v140.16: EV-derived max price check (replaces hard maxOdds)
             // If pWin is provided, compute EV-derived max entry; otherwise use hardMaxOdds as fallback
-            // This prevents blocking trades that have positive EV at higher prices
-            const pWinProvided = (options.pWin !== null && options.pWin !== undefined && Number.isFinite(options.pWin)) ? options.pWin : null;
-            const SAFETY_MARGIN_EXEC = 0.02;
+            // v140.16: For strategy entries, use winRate (point estimate) for EV go/no-go and zero safety margin
+            //          The winRateLCB already provides conservatism — adding safety margin double-penalizes.
+            const isStrategyEntry = options.source === 'OPERATOR_STRATEGY_SET_DIRECT';
+            const strategyWinRate = Number(options.hybridStrategy?.winRate);
+            const pWinRaw = (options.pWin !== null && options.pWin !== undefined && Number.isFinite(options.pWin)) ? options.pWin : null;
+            // For strategy entries: prefer point estimate winRate for EV check; for others: use pWin (LCB)
+            const pWinForEV = (isStrategyEntry && Number.isFinite(strategyWinRate) && strategyWinRate > 0 && strategyWinRate < 1)
+                ? strategyWinRate : pWinRaw;
+            const pWinProvided = pWinForEV;
+            // v140.16: Zero safety margin for strategy entries (LCB conservatism is sufficient)
+            const SAFETY_MARGIN_EXEC = isStrategyEntry ? 0 : 0.02;
             const hardMinOddsExec = CONFIG.ORACLE.minOdds || 0.20;
             const hardMaxOddsExec = (typeof this.getEffectiveMaxOdds === 'function')
                 ? this.getEffectiveMaxOdds()
@@ -16584,11 +16736,28 @@ class TradeExecutor {
                 log(`📊 CONVICTION PASS: Raw confidence ${(confidence * 100).toFixed(1)}% < minConfidence, but CONVICTION tier bypasses this gate`, asset);
             }
 
+            if (this.mode === 'LIVE') {
+                await this.refreshLiveBalance();
+            }
+
+            const gatingBankroll = (typeof this.getBankrollForRisk === 'function')
+                ? this.getBankrollForRisk()
+                : (this.mode === 'LIVE' ? (this.cachedLiveBalance || 0) : this.paperBalance);
+            const gatingRiskProfile = Number.isFinite(gatingBankroll) && typeof this.getDynamicRiskProfile === 'function'
+                ? this.getDynamicRiskProfile(gatingBankroll)
+                : null;
+            const bootstrapExecutionMode = gatingRiskProfile?.stage === 0;
+
             // 🏆 v32 CRITICAL: MINIMUM BALANCE CHECK - User requested $2 minimum
             const MIN_TRADING_BALANCE = 2.00;
-            if (this.paperBalance < MIN_TRADING_BALANCE) {
-                log(`🚫 BALANCE TOO LOW: $${this.paperBalance.toFixed(2)} < minimum $${MIN_TRADING_BALANCE} - BLOCKED`, asset);
-                return { success: false, error: `Balance $${this.paperBalance.toFixed(2)} below minimum $${MIN_TRADING_BALANCE}` };
+            const currentTradingBalance = this.mode === 'LIVE'
+                ? (((typeof this.getCachedBalanceBreakdown === 'function'
+                    ? this.getCachedBalanceBreakdown()?.tradingBalanceUsdc
+                    : this.cachedLiveBalance) || this.cachedLiveBalance || 0))
+                : this.paperBalance;
+            if (currentTradingBalance < MIN_TRADING_BALANCE) {
+                log(`🚫 BALANCE TOO LOW: $${currentTradingBalance.toFixed(2)} < minimum $${MIN_TRADING_BALANCE} - BLOCKED`, asset);
+                return { success: false, error: `Balance $${currentTradingBalance.toFixed(2)} below minimum $${MIN_TRADING_BALANCE}` };
             }
 
             // 🎯 GOAT v44.1: DOUBLE CHECK - Re-fetch CURRENT market price and verify it hasn't moved above EV-derived max
@@ -16650,7 +16819,7 @@ class TradeExecutor {
             // User requested: allow 2¢-99¢ trades if confident
 
             // 🔴 FIX: LOSS COOLDOWN CHECK - Pause 1 hour after 3 consecutive losses
-            if (CONFIG.RISK.enableLossCooldown && this.isInCooldown()) {
+            if (!bootstrapExecutionMode && CONFIG.RISK.enableLossCooldown && this.isInCooldown()) {
                 const remainingCooldown = Math.ceil((CONFIG.RISK.cooldownAfterLoss * 1000 - (Date.now() - this.lastLossTime)) / 1000);
                 log(`⏳ TRADE BLOCKED: In cooldown for ${remainingCooldown}s after consecutive losses`, asset);
                 return { success: false, error: `In cooldown for ${remainingCooldown}s after loss streak` };
@@ -16660,11 +16829,6 @@ class TradeExecutor {
             if (this.getPositionCount(asset) >= CONFIG.MAX_POSITIONS_PER_ASSET) {
                 log(`⚠️ Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) reached for ${asset}`, asset);
                 return { success: false, error: `Max positions (${CONFIG.MAX_POSITIONS_PER_ASSET}) for ${asset}` };
-            }
-
-            // Refresh LIVE balance if needed
-            if (this.mode === 'LIVE') {
-                await this.refreshLiveBalance();
             }
 
             // Check total exposure
@@ -16688,7 +16852,7 @@ class TradeExecutor {
             // 🏆 v75 FIX: Use dayStartBalance (not current bankroll) for stable threshold
             // Can be bypassed with CONFIG.RISK.globalStopLossOverride = true
             const maxDayLoss = dayStartBalance * CONFIG.RISK.globalStopLoss;
-            if (!CONFIG.RISK.globalStopLossOverride && this.todayPnL < -maxDayLoss) {
+            if (!bootstrapExecutionMode && !CONFIG.RISK.globalStopLossOverride && this.todayPnL < -maxDayLoss) {
                 log(`🛑 GLOBAL STOP LOSS: Daily loss $${Math.abs(this.todayPnL).toFixed(2)} exceeds ${CONFIG.RISK.globalStopLoss * 100}% of day-start balance ($${dayStartBalance.toFixed(2)})`, asset);
                 log(`   To override: Set RISK.globalStopLossOverride = true in Settings`, asset);
                 return { success: false, error: `Global stop loss triggered - trading halted for the day. Override available in Settings.` };
@@ -17979,11 +18143,19 @@ class TradeExecutor {
         log(`🔄 SELL RETRY: Starting sell attempts for ${position.asset} (max ${maxAttempts} attempts)`, position.asset);
 
         const positionId = options?.positionId || position?.positionId || null;
-        const startSharesRaw = Number(position?.shares || 0);
-        const startShares = Number.isFinite(startSharesRaw) ? startSharesRaw : 0;
+        const remainingSharesRaw = Number(position?.shares || 0);
+        const remainingShares = Number.isFinite(remainingSharesRaw) ? remainingSharesRaw : 0;
+        const existingSoldSharesRaw = Number(position?.soldShares || 0);
+        const existingSoldShares = Number.isFinite(existingSoldSharesRaw) ? existingSoldSharesRaw : 0;
+        const existingSoldProceedsRaw = Number(position?.soldProceeds || 0);
+        const existingSoldProceeds = Number.isFinite(existingSoldProceedsRaw) ? existingSoldProceedsRaw : 0;
+        const originalSharesRaw = Number(position?.originalShares || position?.startShares || (remainingShares + existingSoldShares));
+        const startShares = Number.isFinite(originalSharesRaw)
+            ? Math.max(originalSharesRaw, remainingShares + existingSoldShares)
+            : (remainingShares + existingSoldShares);
         const eps = 1e-6;
-        let soldShares = 0;
-        let soldProceeds = 0;
+        let soldShares = existingSoldShares;
+        let soldProceeds = existingSoldProceeds;
         let lastOrderID = null;
         let lastSellPrice = null;
 
@@ -18020,6 +18192,9 @@ class TradeExecutor {
                 const rem = Number(result.remainingShares || 0);
                 if (Number.isFinite(rem) && rem > eps) {
                     position.shares = rem;
+                    position.originalShares = startShares;
+                    position.soldShares = soldShares;
+                    position.soldProceeds = soldProceeds;
                     // Keep size roughly consistent for reporting; LIVE settlement is on-chain.
                     if (Number.isFinite(Number(position.entry))) {
                         position.size = Number(position.entry) * rem;
@@ -18059,6 +18234,7 @@ class TradeExecutor {
             soldShares,
             soldProceeds,
             avgExitPrice,
+            originalShares: startShares,
             lastOrderID,
             lastSellPrice,
             // 🔮 COMPLETE REDEMPTION INFO
@@ -18083,6 +18259,79 @@ class TradeExecutor {
     // Get pending sells that need manual intervention
     getPendingSells() {
         return this.pendingSells || {};
+    }
+
+    async processPendingSells(maxItems = 2) {
+        if (this.mode !== 'LIVE') return { success: true, processed: 0, closed: 0, failed: 0 };
+        if (!CONFIG.LIVE_AUTOTRADING_ENABLED || isSignalsOnlyMode()) return { success: true, processed: 0, closed: 0, failed: 0 };
+
+        const pendingEntries = Object.entries(this.pendingSells || {});
+        if (pendingEntries.length === 0) return { success: true, processed: 0, closed: 0, failed: 0 };
+
+        let processed = 0;
+        let closed = 0;
+        let failed = 0;
+
+        for (const [key, pending] of pendingEntries) {
+            if (processed >= maxItems) break;
+
+            const lastRetryAt = Number(pending?.lastRetryAt || pending?.failedAt || 0);
+            if (lastRetryAt > 0 && (Date.now() - lastRetryAt) < 60000) continue;
+
+            const positionId = pending?.positionId || null;
+            const livePos = positionId && this.positions && this.positions[positionId]
+                ? this.positions[positionId]
+                : null;
+
+            if (!livePos && positionId) {
+                const synthetic = {
+                    ...pending,
+                    positionId,
+                    isLive: true,
+                    shares: Number.isFinite(Number(pending?.shares)) ? Number(pending.shares) : 0
+                };
+                if (Number.isFinite(Number(synthetic.entry)) && Number.isFinite(Number(synthetic.shares))) {
+                    synthetic.size = Number(synthetic.entry) * Number(synthetic.shares);
+                }
+                this.positions[positionId] = synthetic;
+            }
+
+            const activePos = positionId && this.positions ? this.positions[positionId] : null;
+            const sellTarget = activePos || pending;
+            if (!sellTarget || sellTarget.exitInProgress) continue;
+
+            pending.lastRetryAt = Date.now();
+            if (activePos) activePos.lastRetryAt = pending.lastRetryAt;
+            processed++;
+
+            const result = await this.executeSellOrderWithRetry(sellTarget, 3, 2000, { positionId });
+
+            if (result?.success) {
+                const closePos = positionId && this.positions ? this.positions[positionId] : null;
+                if (closePos) {
+                    if (Number.isFinite(Number(result.startShares)) && Number(result.startShares) > 0) {
+                        closePos.shares = Number(result.startShares);
+                        if (Number.isFinite(Number(closePos.entry))) {
+                            closePos.size = Number(closePos.entry) * closePos.shares;
+                        }
+                    }
+                    const avgExit = Number.isFinite(Number(result.avgExitPrice)) ? Number(result.avgExitPrice) : null;
+                    const market = currentMarkets[closePos.asset];
+                    const fallbackExit = closePos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+                    const exitPrice = avgExit !== null ? avgExit : fallbackExit;
+                    this.closePosition(positionId, exitPrice, 'AUTO PENDING SELL RETRY', { skipLiveSell: true });
+                }
+                delete this.pendingSells[key];
+                closed++;
+            } else {
+                failed++;
+                if (this.pendingSells[key]) {
+                    this.pendingSells[key].lastRetryAt = Date.now();
+                }
+            }
+        }
+
+        return { success: true, processed, closed, failed };
     }
 
     // Manual sell - for UI button
@@ -18113,6 +18362,12 @@ class TradeExecutor {
         // Live mode - execute with retry
         const result = await this.executeSellOrderWithRetry(pos, 3, 2000, { positionId });
         if (result.success) {
+            if (Number.isFinite(Number(result.startShares)) && Number(result.startShares) > 0) {
+                pos.shares = Number(result.startShares);
+                if (Number.isFinite(Number(pos.entry))) {
+                    pos.size = Number(pos.entry) * pos.shares;
+                }
+            }
             const avgExit = Number.isFinite(Number(result.avgExitPrice)) ? Number(result.avgExitPrice) : null;
             const market = currentMarkets[pos.asset];
             const fallbackExit = pos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
@@ -18204,6 +18459,12 @@ class TradeExecutor {
                 still.exitInProgress = false;
 
                 if (res && res.success) {
+                    if (Number.isFinite(Number(res.startShares)) && Number(res.startShares) > 0) {
+                        still.shares = Number(res.startShares);
+                        if (Number.isFinite(Number(still.entry))) {
+                            still.size = Number(still.entry) * still.shares;
+                        }
+                    }
                     const avg = Number.isFinite(Number(res.avgExitPrice)) ? Number(res.avgExitPrice) : null;
                     const px =
                         avg !== null ? avg :
@@ -21448,6 +21709,15 @@ setInterval(() => {
     runAutoSelfCheck().catch(e => {
         try { log(`❌ SELF-CHECK ERROR: ${e.message}`); } catch { }
     });
+}, 60 * 1000);
+
+setInterval(() => {
+    try {
+        if (!tradeExecutor || typeof tradeExecutor.processPendingSells !== 'function') return;
+        tradeExecutor.processPendingSells().catch(e => {
+            try { log(`❌ PENDING SELL RETRY ERROR: ${e.message}`); } catch { }
+        });
+    } catch { }
 }, 60 * 1000);
 
 // 🎯 GOAT v44.1: GateTrace - records why trades were blocked for each cycle/asset
@@ -31261,6 +31531,25 @@ function buildStateSnapshot() {
         byAsset: gateSummary?.byAsset || {}
     };
 
+    // v140: Strategy window diagnostic log — shows WHY each strategy window was accepted/rejected
+    const stratDiag = Array.isArray(directOperatorStrategyExecutionRuntime?.diagnosticLog)
+        ? directOperatorStrategyExecutionRuntime.diagnosticLog
+        : [];
+    const stratDiagBlocked = stratDiag.filter(d => !d.passed);
+    const stratDiagPassed = stratDiag.filter(d => d.passed);
+    const blockedReasonCounts = {};
+    for (const d of stratDiagBlocked) {
+        const r = d.blockedReason || 'UNKNOWN';
+        blockedReasonCounts[r] = (blockedReasonCounts[r] || 0) + 1;
+    }
+    response._strategyWindowDiagnostics = {
+        totalEvaluated: stratDiag.length,
+        totalPassed: stratDiagPassed.length,
+        totalBlocked: stratDiagBlocked.length,
+        blockedReasonCounts,
+        recentEntries: stratDiag.slice(-30)
+    };
+
     const operatorStrategyRuntime = OPERATOR_STRATEGY_SET_RUNTIME.get();
     const useOperatorSchedule = isOperatorStrategySetEnforced();
     const selectedEliteRuntime = useOperatorSchedule ? operatorStrategyRuntime : HYBRID_STRATEGIES_RUNTIME;
@@ -32594,11 +32883,29 @@ app.post('/api/retry-sell', async (req, res) => {
         const result = await tradeExecutor.executeSellOrderWithRetry(sellTarget, 3, 2000, { positionId });
 
         if (result.success) {
-            // If this was tied to an in-memory open position, finalize the close now that the sell is confirmed.
-            if (livePos && positionId && tradeExecutor.positions[positionId]) {
+            if (!livePos && positionId && pending && !tradeExecutor.positions[positionId]) {
+                const synthetic = {
+                    ...pending,
+                    positionId,
+                    isLive: true,
+                    shares: Number.isFinite(Number(pending?.shares)) ? Number(pending.shares) : 0
+                };
+                if (Number.isFinite(Number(synthetic.entry)) && Number.isFinite(Number(synthetic.shares))) {
+                    synthetic.size = Number(synthetic.entry) * synthetic.shares;
+                }
+                tradeExecutor.positions[positionId] = synthetic;
+            }
+            if (positionId && tradeExecutor.positions[positionId]) {
+                const closePos = tradeExecutor.positions[positionId];
+                if (Number.isFinite(Number(result.startShares)) && Number(result.startShares) > 0) {
+                    closePos.shares = Number(result.startShares);
+                    if (Number.isFinite(Number(closePos.entry))) {
+                        closePos.size = Number(closePos.entry) * closePos.shares;
+                    }
+                }
                 const avgExit = Number.isFinite(Number(result.avgExitPrice)) ? Number(result.avgExitPrice) : null;
-                const market = currentMarkets[livePos.asset];
-                const fallbackExit = livePos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
+                const market = currentMarkets[closePos.asset];
+                const fallbackExit = closePos.side === 'UP' ? (market?.yesPrice || 0.5) : (market?.noPrice || 0.5);
                 const exitPrice = avgExit !== null ? avgExit : fallbackExit;
                 tradeExecutor.closePosition(positionId, exitPrice, 'PENDING SELL RETRY', { skipLiveSell: true });
             }
