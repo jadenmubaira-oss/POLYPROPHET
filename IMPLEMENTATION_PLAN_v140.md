@@ -10813,3 +10813,27 @@ The required fix was to:
 - push again so Render includes the file in the deploy bundle
 
 Until that artifact is present and `strategySetRuntime.loaded = true`, the live switch cannot be considered complete.
+
+### AM10) Container build context blocker discovered after the artifact commit
+
+After committing `debug/strategy_set_union_validated_top12.json`, the live host still reported:
+
+- `strategySetRuntime.loaded = false`
+- `loadError = STRATEGY_SET_FILE_NOT_FOUND`
+
+That ruled out git tracking as the only blocker.
+
+The next root cause was found in `.dockerignore`:
+
+- `debug/*` was excluded from the build context
+- only selected strategy files were whitelisted
+- `debug/strategy_set_union_validated_top12.json` was still missing from that whitelist
+
+This exactly fit the live symptom:
+
+- `top7_drop6` and `top3_robust` artifacts were available in `/app/debug/`
+- `union_validated_top12` was not
+
+So even though the file was now committed, the container build context could still drop it before the live runtime started.
+
+The required fix was to whitelist `debug/strategy_set_union_validated_top12.json` in `.dockerignore` as well.
