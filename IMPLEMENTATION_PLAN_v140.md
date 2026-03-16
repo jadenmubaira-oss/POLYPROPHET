@@ -10837,3 +10837,870 @@ This exactly fit the live symptom:
 So even though the file was now committed, the container build context could still drop it before the live runtime started.
 
 The required fix was to whitelist `debug/strategy_set_union_validated_top12.json` in `.dockerignore` as well.
+
+### AM11) Final post-deployment audit verdict for live `union_validated_top12`
+
+#### AM11.1) Live verification snapshot
+
+Fresh live verification was run against the deployed Render host on `2026-03-16T13:56Z`.
+
+Verified live results:
+
+- `/api/version`
+  - `configVersion = 140`
+  - `gitCommit = 07f2626f8ef651302084b77cac1be04b730a27a4`
+  - `tradeMode = LIVE`
+
+- `/api/health`
+  - `status = ok`
+  - `tradingHalted = false`
+  - `manualPause = false`
+  - `dataFeed.anyStale = false`
+  - `balanceFloor.belowFloor = false`
+  - current balance about `$6.949209`
+
+- `/api/live-op-config`
+  - `mode = AUTO_LIVE`
+  - `strategySetPath = debug/strategy_set_union_validated_top12.json`
+  - `strategySetRuntime.loaded = true`
+  - `strategySetRuntime.strategies = 12`
+  - `strategySetRuntime.loadError = null`
+  - effective runtime path resolves to `/app/debug/strategy_set_union_validated_top12.json`
+
+- `/api/risk-controls`
+  - `vaultTriggerBalance = 100`
+  - `stage2Threshold = 500`
+  - `autoOptimizer.enabled = false`
+  - current adaptive profile is `MICRO_SPRINT`
+  - `maxPositionFraction = 0.32`
+  - `kellyMaxFraction = 0.32`
+  - `riskEnvelope` is active
+
+- `/api/verify?deep=1`
+  - `status = WARN`
+  - `passed = 24`
+  - `failed = 4`
+  - `criticalFailures = 0`
+  - wallet loaded
+  - Polymarket API credentials present
+  - `closedOnly = false`
+  - collateral allowance is present
+  - deep order signing check passed
+  - orderbook fetch check passed
+
+- `/api/perfection-check`
+  - verdict: `VAULT SYSTEM OK - Minor warnings only`
+  - `criticalFailed = 0`
+
+Required data transparency for this audit:
+
+- `DATA SOURCE`
+  - live API from the deployed Render host
+  - repo code audit in `server.js`
+  - committed implementation-plan and strategy-set artifacts
+
+- `LIVE ROLLING ACCURACY`
+  - `BTC = N/A` (`sampleSize = 0`)
+  - `ETH = N/A` (`sampleSize = 0`)
+  - `XRP = N/A` (`sampleSize = 0`)
+  - `SOL = N/A` (`sampleSize = 0`)
+
+- `DISCREPANCIES`
+  - `/api/live-op-config` still reports `strategySetLock.requestedPath = debug/strategy_set_top7_drop6.json` while `effectivePath = debug/strategy_set_union_validated_top12.json`
+  - `/api/live-op-config` reports `signalGates.applyMomentumGate = false` even though the loaded strategy file condition has `applyMomentumGate = true`
+  - this means the live host is trade-ready, but not yet perfectly clean from an env/reporting-parity standpoint
+
+#### AM11.2) Final readiness verdict
+
+The live bot is now **trade-ready with caveats**, but it is **not accurate to call it perfect**.
+
+What is now conclusively true:
+
+- the intended `union_validated_top12` artifact is present on the live host
+- the live runtime is actually loading that 12-strategy file
+- the enforced effective runtime path is correct
+- `vaultTriggerBalance = 100` and `stage2Threshold = 500` are live
+- `autoOptimizerEnabled = false` is live
+- the executor is in `LIVE` mode and `AUTO_LIVE`
+- no new hidden code blocker was found in the direct operator execution path
+
+What is still not true:
+
+- the deployment is not "perfectly clean" because verification is `WARN`, not full `PASS`
+- live trading performance is not yet verified because rolling conviction accuracy still has zero live samples
+
+#### AM11.3) Will the bot actually trade now?
+
+Yes — if a scheduled `union_validated_top12` candidate appears and the normal live safety gates still pass, the bot should place a real live order.
+
+Critically, the current code no longer lies about fills:
+
+- in `LIVE` mode, a submitted order is only treated as a successful trade if `matchedShares > 0`
+- zero-match orders are canceled and returned as failure
+- partial fills are recorded truthfully using actual matched shares
+
+So the correct operational statement is:
+
+- the bot is now capable of taking autonomous live trades
+- but a strategy signal still does **not** guarantee a recorded fill
+- the venue must still match shares within the retry window
+
+The remaining legitimate runtime blockers are the intended safety/venue gates, not hidden misconfiguration:
+
+- `LIVE_AUTOTRADING_ENABLED` must remain on
+- the bot must not be manually paused
+- the auto self-check must not have escalated to an auto-halt
+- Chainlink feeds must remain fresh
+- wallet, CLOB client, credentials, allowance, and trade-ready client selection must all remain valid
+- entry must pass EV/price-cap checks
+- entry must pass min-balance, min-order survivability, exposure, and cycle-limit checks
+- the order must actually receive matched shares
+
+#### AM11.4) Observe / Harvest / Strike interaction with `union_validated_top12`
+
+The `OBSERVE/HARVEST/STRIKE` path does **not** replace or compete with `union_validated_top12`.
+
+It is a downstream risk overlay, not a separate signal source:
+
+- direct autonomous entries are still generated by `DIRECT_OPERATOR_STRATEGY_SET`
+- `TOP3` remains telemetry-only
+- `OBSERVE/HARVEST/STRIKE` sits inside `executeTrade()` after the strategy candidate is selected
+
+Exact behavior from code:
+
+- the executor starts in `HARVEST`
+- after `3` consecutive losses: `HARVEST -> OBSERVE`
+- `OBSERVE` enforces a `15` minute minimum cooldown
+- after that cooldown, `OBSERVE` only allows probe trades with `pWin >= 0.60`
+- `OBSERVE` uses `0.25x` size multiplier
+- after `3` consecutive wins: `HARVEST -> STRIKE`
+- `STRIKE` uses `2.0x` state multiplier
+
+Important nuance:
+
+- for direct operator entries, base sizing is already capped by `MAX_FRACTION`
+- that means `STRIKE` does **not** let the bot bypass the `0.32` sizing cap
+- `OBSERVE` can reduce cadence and size after a loss streak, but it does not hijack the strategy set
+
+Conclusion:
+
+- `observe/strike` paths will not interfere with the chosen strategy set in the sense of changing what strategy fires
+- they **can** still reduce frequency and size after losses, which is intentional safety behavior
+
+#### AM11.5) Remaining caveats versus true perfection
+
+The final audit found four non-critical caveat classes:
+
+1. **stale requested-path reporting**
+   - the effective path is correctly forced to `union_validated_top12`
+   - but the live diagnostics still expose a stale requested path of `top7_drop6`
+   - this is not blocking trades because the effective path is already overridden correctly
+
+2. **momentum-gate parity mismatch**
+   - the loaded strategy file still says `applyMomentumGate = true`
+   - but the live operator config reports effective `applyMomentumGate = false`
+   - code tracing shows this happens when `STRATEGY_DISABLE_MOMENTUM_GATE=true`
+   - that is a behavior mismatch, not a hidden failure to trade
+
+3. **verify warnings**
+   - `deity:settings` persistence key not present yet
+   - no collector snapshots yet
+   - auth env vars not set
+   - geo endpoint warns the Render IP appears blocked
+
+4. **live edge still unproven**
+   - there are still zero live conviction samples
+   - so no one should claim live 90%+ WR yet
+
+#### AM11.6) How to interpret the geo warning
+
+`/api/verify?deep=1` returned a geo warning:
+
+- `blocked=true; country=US; region=OR`
+
+But the same deep verify also passed the more important trading checks:
+
+- `closedOnly = false`
+- collateral balance present
+- allowance present
+- deep order signing works
+- orderbook fetch works
+
+So the correct conclusion is:
+
+- the geo endpoint is a real caution flag
+- but **it is not currently behaving like a hard execution blocker**
+- the trading-permission checks that matter for actual order placement are currently passing
+
+This should be treated as a watch item, not as the primary blocker.
+
+#### AM11.7) High-cap probe assessment: why the higher-profit `risk-envelope-off` path is not preferred
+
+The user-highlighted high-cap probe was:
+
+- `union_validated_top12`
+- `100/500`
+- `risk-envelope-off`
+- ending about `$2411.41`
+- avg/day about `$15.78`
+- max drawdown `57.49%`
+
+The exact committed ruin table for that single probe is not surfaced in this implementation plan, so a precise Monte Carlo bust percentage for that exact row cannot honestly be claimed from the current artifact set.
+
+However, the live audit still gives a strong and decision-relevant answer.
+
+At the live bankroll actually shown by `/api/health` and `/api/risk-controls`:
+
+- current balance is about `$6.95`
+- current strategy band is `65-80c`
+- minimum order is `5` shares
+- practical min-order cost is therefore about:
+  - `5 * 0.65 = $3.25`
+  - up to `5 * 0.80 = $4.00`
+
+If a path experiences `57.49%` drawdown from `$6.95`, bankroll falls to about:
+
+- `$6.95 * (1 - 0.5749) ≈ $2.95`
+
+That is below the practical `union_validated_top12` min-order range.
+
+So even without literal zero balance, a replay-consistent drawdown of that size would already imply **effective freeze / functional ruin** at the current bankroll:
+
+- too little cash to reliably place another 5-share order in the live band
+- too close to the balance floor
+- directly conflicts with the user's requirement that the first few trades must not lose
+
+By contrast, the chosen audited live configuration in this plan:
+
+- `union_validated_top12`
+- `100/500`
+- cap/envelope-on path
+- max drawdown `24.38%`
+
+would leave about:
+
+- `$6.95 * (1 - 0.2438) ≈ $5.26`
+
+That is still above the relevant live min-order range.
+
+That is the core reason the high-cap probe is not preferred:
+
+- it chases much higher terminal upside
+- but it does so by moving into a drawdown regime that is incompatible with micro-bankroll survivability and tradability
+
+#### AM11.8) Slightly safer variants of the high-cap idea
+
+If the goal is "keep more upside than the most conservative path, but reduce bust/freeze risk," the correct safer sequence is:
+
+1. **keep `100/500`, but keep the risk envelope on**
+   - this is already the current live choice
+   - it preserves the better threshold structure while avoiding the worst tail-risk behavior of the probe
+
+2. **if still too aggressive, reduce the micro-bankroll cap**
+   - lower `MAX_POSITION_SIZE` / effective `MICRO_SPRINT` cap from `0.32` toward about `0.25-0.28`
+   - this is the cleanest way to reduce early-path freeze risk
+
+3. **do not make it safer by weakening strategy quality**
+   - do not widen the bands
+   - do not weaken the validated set
+   - do not turn weaker signals back on just to raise frequency
+
+The repo evidence does **not** support switching the live bot to the `risk-envelope-off` probe at the current bankroll.
+
+#### AM11.9) Environment variable recommendation
+
+Final env recommendation from this audit:
+
+- **no mandatory env change is required for the bot to trade now**
+
+Recommended cleanup only if the goal is exact parity / cleaner diagnostics:
+
+- align or clear the stale live `OPERATOR_STRATEGY_SET_PATH` so requested-path reporting no longer says `top7_drop6`
+- explicitly choose whether `STRATEGY_DISABLE_MOMENTUM_GATE=true` should remain live
+  - keeping it preserves current live behavior
+  - unsetting it restores strict momentum-gate parity with the committed strategy file
+- set `AUTH_USERNAME` / `AUTH_PASSWORD` only if dashboard auth posture matters
+
+No urgent change is needed for:
+
+- `MAX_POSITION_SIZE`
+- `OPERATOR_STAKE_FRACTION`
+- `vaultTriggerBalance`
+- `stage2Threshold`
+
+at the current audited deployment
+
+#### AM11.10) Final go / no-go
+
+Final operational answer:
+
+- **GO** for monitored live validation of the current `union_validated_top12` + `100/500` + `0.32 cap` deployment
+- **NO** for calling the system perfect
+- **NO** for switching to the `risk-envelope-off` high-cap probe at the current bankroll
+
+The deployment is now good enough to trade.
+
+It is not perfect, but the remaining issues are:
+
+- warning-level parity / diagnostics items
+- live-edge uncertainty due to zero live sample
+- normal venue/safety gates that are supposed to exist
+
+### AM12) Final housekeeping audit: fills, EV/edge, `15:12 UTC`, and what can safely be disabled
+
+#### AM12.1) Current live runtime snapshot used for this housekeeping audit
+
+Fresh live `/api/state` inspection was performed on `2026-03-16T17:05Z`.
+
+Important current findings:
+
+- live mode is still `LIVE`
+- current strategy set is still `debug/strategy_set_union_validated_top12.json`
+- runtime reports the strategy artifact loaded successfully
+- current trading state is `HARVEST`
+- no open positions
+- no halt / pause / cooldown active
+- momentum gate is effectively off in live behavior because `STRATEGY_DISABLE_MOMENTUM_GATE=true`
+
+Important forensic limitation:
+
+- the live runtime reports `strategySetRuntime.lastLoadedAt = 2026-03-16T16:41:18Z`
+- `_strategyWindowDiagnostics.totalEvaluated = 0`
+- `_strategyWindowDiagnostics.recentEntries = []`
+
+This means the current live process was reloaded **after** the earlier `15:12 UTC` window.
+
+So:
+
+- the current host cannot now directly prove the exact historical blocker for that earlier `15:12` window
+- any answer about that exact past cycle must therefore distinguish between:
+  - what is **proven from current code + current runtime**
+  - what is the **highest-probability historical cause**
+
+#### AM12.2) Partial fills and delayed fills — does the bot account for them correctly?
+
+Yes, for partial fills the bot now accounts for them correctly enough to keep internal position accounting truthful.
+
+Verified live-entry behavior from `executeTrade()`:
+
+- after order submission, the bot polls order status up to `3` times with `2s` spacing
+- a trade is only considered successful if `matchedShares > 0`
+- if `matchedShares = 0` after the retry window, the order is treated as failed
+- the bot then attempts a best-effort cancel to avoid later surprise fills
+- if shares are partially matched, the bot records the **actual matched shares**, not the requested shares
+- if the fill is partial, it also cancels the remainder
+
+Correct conclusion:
+
+- **partial fills are handled and recorded**
+- **resting / unmatched orders are not falsely counted as trades**
+
+Delayed-fill caveat:
+
+- the engine is **not** designed to treat a fill that occurs well after the `~6s` retry window as normal expected behavior
+- instead, it tries to cancel anything not matched in time
+- so if the venue were to fill an order later despite cancellation attempts, that would be an abnormal edge case and could still create state drift
+
+This is still the correct design choice for truthful micro-bankroll accounting.
+
+#### AM12.3) Is edge being calculated properly, and is it actually a factor in trades?
+
+Yes, but it is important to distinguish **which edge number** matters.
+
+There are two different concepts in the live runtime:
+
+1. **generic oracle dashboard edge**
+   - visible in `/api/state` as fields like `edge`, `mispricingEdge`, `evRoi`
+   - used by the broader oracle/advisory logic and `gateTrace`
+
+2. **direct operator strategy execution edge**
+   - this is the path used for `union_validated_top12`
+   - it does **not** require the dashboard `brain.edge` field to be active
+   - it requires:
+     - strategy window match
+     - band match
+     - direct strategy candidate creation
+     - EV-positive execution
+
+For direct strategy entries specifically:
+
+- `getDirectOperatorStrategyPWinEstimate()` prefers `winRateLCB`, then `winRate`
+- that `pWinEstimate` is passed into execution and affects:
+  - state-machine gating
+  - Kelly sizing / risk logic
+
+But the actual **EV go/no-go guard** for direct strategy entries intentionally uses:
+
+- `strategy.winRate` (point estimate)
+
+not:
+
+- `winRateLCB`
+
+That means current direct strategy behavior is:
+
+- **EV decision** uses strategy point-estimate win rate
+- **some sizing/risk logic** still uses the more conservative `pWinEstimate` (`LCB` when available)
+
+So the honest answer is:
+
+- edge is being used
+- EV is a real factor
+- but the direct operator path is **not** trading off the generic dashboard `edge` field
+- it is trading off **strategy-set match + strategy EV**
+
+#### AM12.4) Why it probably did not trade at `15:12 UTC`
+
+The live strategy set **does** contain a matching row:
+
+- `VAL12 H15 m12 UP (72-80c)`
+
+Therefore the reason was **not**:
+
+- “there was no schedule row”
+
+What is now proven from code:
+
+- the row requires `UP`
+- it requires the live `YES` price to be inside `72-80c`
+- momentum was likely **not** the blocker if `STRATEGY_DISABLE_MOMENTUM_GATE=true` was already live
+- current-state thresholds were likely **not** the blocker for that row:
+  - that row’s `winRateLCB` is about `0.807`
+  - `HARVEST` requires `0.55`
+  - `OBSERVE` requires `0.60`
+  - `STRIKE` requires `0.65`
+
+So the highest-probability historical explanation is:
+
+- **no asset actually had an in-band `YES` price in `72-80c` during that `15:12` cycle**
+
+Other still-possible causes:
+
+- market missing / invalid for one or more assets
+- market status not tradeable
+- later execution-time block after a candidate existed
+
+But given the row’s strong `LCB`, the most likely blocker was simple:
+
+- **no valid candidate survived the price-band match**
+
+The current live host cannot now prove that exact earlier cycle because it reloaded after `16:41Z`.
+
+#### AM12.5) Is the high-cap probe drawdown guaranteed, or only if the path is unlucky?
+
+The replay drawdown figure is **not guaranteed**.
+
+`57.49%` max drawdown means:
+
+- in that replay path, at some point, balance fell `57.49%` from a prior peak
+- it is a historical worst peak-to-trough path statistic
+- it is **not** a promise that the live bot must hit that drawdown
+
+So yes:
+
+- it happens only on an unfavorable path
+- it is path-dependent, not deterministic
+
+However, for the current micro-bankroll, this can be misunderstood in a dangerous way.
+
+At about `$6.95` live cash with current 5-share crypto markets:
+
+- `72c` min-order cost is about `$3.60`
+- `80c` min-order cost is about `$4.00`
+
+Approximate bankroll after one full first loss:
+
+- lose a `72c` min-order trade → about `$3.35`
+- lose an `80c` min-order trade → about `$2.95`
+
+That means:
+
+- the bot can become **effectively non-tradable after a single early high-band loss**
+- this can happen **before** a long-run portfolio drawdown like `57.49%` ever has a chance to fully unfold
+
+So the correct answer is:
+
+- the replay max drawdown is **not guaranteed**
+- but the **early freeze risk is real even without reaching the full replay max drawdown**
+
+This is why “I only care if the 57.49% DD is guaranteed” is too weak a decision rule for a `$6.95` bankroll.
+
+#### AM12.6) What currently still blocks a valid strategy trade, and do we really need all of it?
+
+The blocker classes split into two groups.
+
+##### A) Correctness-critical — should generally **NOT** be disabled
+
+These are not “annoying architecture”; they are required for truthful live trading:
+
+- wallet/CLOB/account readiness
+- stale Chainlink hard block
+- token-id / market validity checks
+- invalid entry price guard
+- minimum order enforcement
+- matched-shares verification
+- mutex / race protection
+
+Reason:
+
+- disabling these can create false trades, broken accounting, or orders the engine cannot safely track
+
+##### B) Optional aggressiveness gates — can be disabled if the user explicitly accepts the tradeoff
+
+These are the real “profit/frequency throttles”:
+
+- `OBSERVE/HARVEST/STRIKE` state machine
+- variance controls / circuit-breaker sizing throttles
+- auto self-check live auto-halt
+- strategy blackout timing cutoff
+- volatility / manipulation guard
+- risk envelope
+- one-trade-per-cycle global cap
+- warmup size reduction
+
+These are the gates that most directly reduce:
+
+- frequency
+- exact-minute execution probability
+- upside capture
+
+These are also the gates most aligned with the user’s latest request to remove architecture-level throttles.
+
+#### AM12.7) What is true right now about the live host versus the requested “high-cap probe”
+
+The screenshot/env change does confirm:
+
+- `OPERATOR_STRATEGY_SET_PATH=debug/strategy_set_union_validated_top12.json`
+
+That part is now aligned.
+
+However, the live host is **still not actually the full high-cap probe**.
+
+Why:
+
+- the live environment still shows `MAX_POSITION_SIZE=0.45`
+- but the audited code path hard-clamps runtime exposure to `0.32`
+- live `/api/state` still reports operator profile stake fraction `0.45`, but that does **not** remove the `0.32` cap
+- the current risk profile still reports `riskEnvelope` active
+
+So the current host is still effectively:
+
+- `union_validated_top12`
+- momentum off
+- but **not** the full uncapped / risk-envelope-off high-cap probe
+
+#### AM12.8) Final disablement recommendation
+
+If the user wants an aggressive live mode that removes the main non-essential blockers **without breaking truthful accounting**, the correct disablement scope is:
+
+- disable state-machine gating/sizing
+- disable variance-control throttles
+- disable auto self-check trading pause
+- disable strategy blackout cutoff
+- disable volatility/manipulation hard block
+- disable risk envelope
+- raise or bypass the per-cycle trade cap if desired
+- keep momentum gate off
+
+But still keep:
+
+- stale-feed hard block
+- wallet / CLOB / allowance / closed-only readiness checks
+- market/token validity checks
+- min-order enforcement
+- matched-shares verification
+- mutex protection
+
+That is the clean split between:
+
+- “remove architecture friction”
+- and
+- “do not destroy execution correctness”
+
+---
+
+# Addendum AN — Aggressiveness Frontier Re-Audit + Delayed Entry-Fill Parity Gate (v140.16, 16 Mar 2026)
+
+> Purpose: extend the `union_validated_top12` aggressiveness investigation beyond Addendum AM without drifting away from the plan-authoritative live baseline.
+> Scope: `$6.95` bankroll, `5` shares minimum, `union_validated_top12`, replay-to-runtime applicability, credible `xxxx+` search, and whether delayed buy-fill reconciliation must be implemented before any live aggressiveness increase.
+
+## AN1) Authority + methodology contract
+
+For this phase, the controlling source is:
+
+- this implementation plan, including Addendum AM and the live verification it documents
+
+The audit was intentionally re-anchored to:
+
+- `debug/strategy_set_union_validated_top12.json`
+- `vaultTriggerBalance = 100`
+- `stage2Threshold = 500`
+- `DEFAULT_MIN_ORDER_SHARES = 5`
+- active growth sizing capped at `0.32`
+- live balance reference about `$6.95`
+
+The replay horizon used for the authoritative comparison remains:
+
+- `2025-10-10` to `2026-01-28`
+- about `111` days
+
+## AN2) Deterministic frontier re-check
+
+Using the ordered replay ledger from:
+
+- `debug/micro_6p95_5shares_stage1_v20_50/replay/union_validated_top12/hybrid_replay_executed_ledger.json`
+
+and `simulateBankrollPath()` with the plan-aligned runtime settings:
+
+### AN2.1) Confirmed baseline control
+
+- `union_validated_top12`, `100/500`, `$100` cap, `0.32` aggressive sizing cap
+  - ending: `$619.82`
+  - net: `$612.87`
+  - max drawdown: `24.38%`
+  - executed trades: `793`
+
+This reproduces Addendum AM's live-choice baseline and is still the correct deterministic control.
+
+### AN2.2) Mild aggressiveness probes that did **not** change the deterministic path
+
+The following probes produced the **same** deterministic result as the baseline above on this ordered replay:
+
+- raising `maxAbsoluteStake` from `$100` to `$250`
+- raising `maxAbsoluteStake` from `$100` to `$1000`
+- changing high-bankroll Kelly / max-position knobs to `0.45` while leaving the rest of the path intact
+
+This means those knobs were **not** the active bottleneck on this exact ordered replay path.
+
+### AN2.3) Out-of-envelope `xxxx+` frontier
+
+Credible `xxxx+` replay endpoints do exist, but only after leaving the low-bust envelope and relaxing multiple safety-aligned controls together.
+
+Deterministic examples:
+
+- `probe_fixed032_noKelly_noEnv`
+  - interpretation: fixed `32%` stake, no Kelly sizing, no risk envelope, high absolute cap
+  - ending: `$14102.23`
+  - max drawdown: `68.06%`
+
+- `probe_fixed045_noKelly_noEnv`
+  - interpretation: fixed `45%` stake, no Kelly sizing, no risk envelope, high absolute cap
+  - ending: `$35563.28`
+  - max drawdown: `43.68%`
+
+- `probe_kelly045_noEnv`
+  - interpretation: full-Kelly-style `0.45` cap, no risk envelope, high absolute cap
+  - ending: `$3811.62`
+  - max drawdown: `81.91%`
+
+These runs prove the repo still contains mathematically credible `xxxx+` and even `xxxxx+` deterministic paths.
+
+They do **not** qualify as the recommended live setting because:
+
+- they relax the same protections that keep the baseline closer to the user's low-bust objective
+- their replay endpoint depends heavily on path luck
+- their drawdown / early-freeze exposure rises sharply
+
+## AN3) Risk-model reconciliation — which Monte Carlo should be trusted?
+
+An important methodology mismatch was found during this re-audit.
+
+### AN3.1) The over-optimistic model
+
+A naive bootstrap that resamples completed trade rows with replacement produced survival distributions that were far too optimistic for continuation of the earlier freeze-risk work.
+
+That model is **not** the right continuation model for this investigation because it destroys the real trade schedule structure.
+
+### AN3.2) The correct continuation model for this task
+
+The correct continuation model is the schedule-preserving model used in the earlier freeze-risk analysis:
+
+- keep the real ordered replay schedule
+- randomize each trade outcome on that schedule
+- use either:
+  - per-strategy empirical win rate
+  - or `strategyWinRateLCB`
+
+This model reproduced the earlier baseline numbers closely:
+
+- baseline `100/500`, empirical model
+  - median ending balance: `$434.12`
+  - `P(end < $20) = 46.3%`
+  - `P(end < start) = 46.3%`
+  - `P(end >= $1000) = 0.1%`
+
+- baseline `100/500`, LCB model
+  - median ending balance: `$3.22`
+  - `P(end < $20) = 59.4%`
+  - `P(end < start) = 59.4%`
+  - `P(end >= $1000) = 0%`
+
+So this addendum treats the schedule-preserving empirical / LCB model as the authoritative risk-continuation method for the current question.
+
+## AN4) Probabilistic stress test of the aggressive probes
+
+Using the same schedule-preserving empirical / LCB model:
+
+### AN4.1) Baseline live recommendation (control)
+
+- `baseline_live_100_500_032`
+  - empirical:
+    - median: `$434.12`
+    - `P(end < $20) = 46.3%`
+    - `P(end >= $1000) = 0.1%`
+  - LCB:
+    - median: `$3.22`
+    - `P(end < $20) = 59.4%`
+    - `P(end >= $1000) = 0%`
+
+### AN4.2) Out-of-envelope fixed-size probes
+
+- `probe_fixed032_noKelly_noEnv`
+  - empirical:
+    - median: `$5.27`
+    - `P(end < $20) = 61.0%`
+    - `P(end >= $1000) = 37.8%`
+    - `P(end >= $10000) = 17.9%`
+  - LCB:
+    - median: `$5.20`
+    - `P(end < $20) = 70.8%`
+    - `P(end >= $1000) = 18.1%`
+    - `P(end >= $10000) = 2.1%`
+
+- `probe_fixed045_noKelly_noEnv`
+  - empirical:
+    - median: `$5.27`
+    - `P(end < $20) = 62.5%`
+    - `P(end >= $1000) = 36.8%`
+    - `P(end >= $10000) = 30.4%`
+  - LCB:
+    - median: `$4.93`
+    - `P(end < $20) = 72.7%`
+    - `P(end >= $1000) = 22.6%`
+    - `P(end >= $10000) = 9.8%`
+
+### AN4.3) Out-of-envelope Kelly probe
+
+- `probe_kelly045_noEnv`
+  - empirical:
+    - median: `$5.27`
+    - `P(end < $20) = 63.1%`
+    - `P(end >= $1000) = 34.4%`
+    - `P(end >= $10000) = 6.0%`
+  - LCB:
+    - median: `$4.93`
+    - `P(end < $20) = 73.0%`
+    - `P(end >= $1000) = 15.8%`
+    - `P(end >= $10000) = 0.5%`
+
+## AN5) What this changes — and what it does not
+
+### AN5.1) What is now proven
+
+- credible `xxxx+` upside is real in this repo
+- the main `xxxx+` frontier requires leaving the low-bust envelope
+- the baseline `100/500`, `0.32`, `$100` cap choice remains the best evidence-backed frontier **inside** the low-bust objective set
+
+### AN5.2) What is **not** proven
+
+These aggressive probes do **not** prove a better live recommendation because:
+
+- their deterministic upside comes with materially worse modeled freeze / fragility exposure
+- their median outcomes collapse back near micro-bankroll territory under the schedule-preserving stress test
+- they are even less live-proven than the current baseline
+
+So the correct recommendation remains:
+
+- keep `union_validated_top12`
+- keep `100 / 500`
+- keep `$100` absolute cap
+- keep the `0.32` aggressive sizing cap
+- do **not** promote any of the `xxxx+` probes into the live default
+
+## AN6) Delayed entry-fill parity gate
+
+This re-audit also re-confirmed a live-correctness caveat that matters before any further aggressiveness increase.
+
+### AN6.1) What is already robust
+
+Exit-side handling is strong:
+
+- failed / partial sells go through `pendingSells`
+- retries are explicit
+- partial fill accounting on the sell side is already part of the runtime truth path
+
+### AN6.2) What still remains incomplete
+
+Entry-side handling is still weaker than exit-side handling:
+
+- the engine requires matched shares within the live fill-check window
+- unmatched orders are treated as failed and cancellation is attempted
+- the engine is **not** designed to normalize a materially late post-cancel fill as normal expected behavior
+
+So while this is the correct safety-first design for truthful accounting, it also means:
+
+- delayed buy fills remain the main remaining replay/live parity gap for aggressive micro-bankroll operation
+- raising live aggressiveness before reconciling that edge case would weaken trust in the bankroll path math
+
+## AN7) Proposed next implementation scope
+
+Before any live aggressiveness increase or optional throttle disablement is considered, the next code task should be:
+
+- explicit delayed buy-fill reconciliation / pending-buy state recovery
+
+The split should remain:
+
+### Keep correctness-critical protections
+
+- stale-feed hard block
+- wallet / CLOB / allowance / closed-only readiness
+- market / token validity checks
+- min-order enforcement
+- matched-shares verification
+- mutex protection
+
+### Only revisit optional aggressiveness gates after entry-fill reconciliation
+
+- state-machine gating
+- variance throttles
+- auto self-check pause behavior
+- blackout cutoff
+- volatility / manipulation hard block
+- risk envelope
+- per-cycle trade cap
+
+## AN8) Final operator verdict from this re-audit
+
+For the current `$6.95` / `5`-share objective:
+
+- Addendum AM's live baseline remains the correct default
+- the extended frontier search found real `xxxx+` upside, but only outside the low-bust envelope
+- delayed buy-fill reconciliation is the correct next implementation step before any attempt to operationalize a more aggressive mode
+
+## AN9) AN7 implementation completion status
+
+The AN7 entry-fill work has now been implemented in the runtime.
+
+What was added:
+
+- explicit `pendingBuys` state in `server.js`
+- persistence / restore of `pendingBuys` through the normal state save/load path
+- periodic reconciliation of delayed entry fills using direct order-status checks
+- recovery only when `size_matched > 0` is verifiable
+
+What was intentionally not changed:
+
+- stale-feed hard block
+- wallet / CLOB / allowance / closed-only readiness checks
+- market / token validation
+- min-order enforcement
+- matched-shares verification
+- mutex / duplicate-position protections
+
+Operator meaning:
+
+- the engine still treats unmatched entry orders as failed during the initial live fill window
+- cancellation is still attempted immediately after that window
+- but if a late post-cancel match is later verifiable from the venue, the runtime can now recover it truthfully instead of silently losing parity
+
+This closes the main remaining entry-side parity gap identified in AN6/AN7 without promoting any new aggressive runtime setting by itself.

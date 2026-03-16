@@ -14189,6 +14189,7 @@ class TradeExecutor {
         this.pendingPolymarketResolutions = new Map();
         // 🚀 PINNACLE v28: CRASH RECOVERY - Initialize recovery queues
         this.pendingSells = {};         // Failed sell orders awaiting retry
+        this.pendingBuys = {};          // Late-fill buy orders awaiting reconciliation
         this.redemptionQueue = [];      // Winning positions to claim
         this.recoveryQueue = [];        // Orphaned/crashed positions needing attention
         this.redemptionEvents = [];     // 🏆 v95: Track redemption events for /api/verify
@@ -17562,9 +17563,44 @@ class TradeExecutor {
                             }
                         }
                         if (actualShares <= 0) {
-                            // Best-effort cancel to avoid surprise later fills that the engine won't track.
+                            const pendingBuyKey = `${asset}_${tokenId}_${response.orderID}`;
+                            this.pendingBuys[pendingBuyKey] = {
+                                positionId,
+                                asset,
+                                mode,
+                                side: direction,
+                                tokenType,
+                                entry: entryPrice,
+                                target,
+                                stopLoss,
+                                time: Date.now(),
+                                requestedSize: size,
+                                requestedShares: shares,
+                                orderID: response.orderID,
+                                tokenId: tokenId,
+                                tier: options.tier || 'UNKNOWN',
+                                genesisAgree: options.genesisAgree || false,
+                                is4h: options.source === '4H_MULTIFRAME',
+                                fourHourEpoch: options.source === '4H_MULTIFRAME' ? multiframe.getCurrent4hEpoch() : null,
+                                slug: market?.slug || null,
+                                conditionId: market?.conditionId || null,
+                                marketUrl: market?.marketUrl || (market?.slug ? `https://polymarket.com/event/${market.slug}` : null),
+                                entrySource: options.source || null,
+                                entryOrigin: options.entryOrigin || null,
+                                entryGenerator: options.entryGenerator || null,
+                                strategyName: options.hybridStrategy?.name || null,
+                                strategySignature: options.hybridStrategy?.signature || null,
+                                strategyPWinEstimate: Number.isFinite(Number(options.strategyPWinEstimate)) ? Number(options.strategyPWinEstimate) : null,
+                                operatorStakeFraction: Number.isFinite(Number(options.operatorStakeFraction)) ? Number(options.operatorStakeFraction) : null,
+                                entryConfidence: confidence,
+                                configVersion: CONFIG_VERSION,
+                                cycleStartEpochSec: cycleStart,
+                                cycleElapsed
+                            };
                             try { await clobClient.cancelOrder({ orderID: response.orderID }); } catch { }
+                            try { await saveState(); } catch { }
                             log(`❌ Order not filled (0 matched) after 6s - cancelled`, asset);
+                            log(`🧾 Pending buy queued for reconciliation: ${response.orderID}`, asset);
                             return { success: false, error: 'Order not filled (0 matched shares)' };
                         }
 
@@ -18265,6 +18301,194 @@ class TradeExecutor {
     // Get pending sells that need manual intervention
     getPendingSells() {
         return this.pendingSells || {};
+    }
+
+    getPendingBuys() {
+        return this.pendingBuys || {};
+    }
+
+    findOpenPositionByOrderId(orderID) {
+        if (!orderID) return null;
+        for (const [positionId, pos] of Object.entries(this.positions || {})) {
+            if (pos?.orderID === orderID) return { positionId, position: pos };
+        }
+        return null;
+    }
+
+    recordRecoveredPendingBuy(pendingBuy, actualShares, orderStatus = null) {
+        if (!pendingBuy || !pendingBuy.orderID) return { recovered: false, reason: 'INVALID_PENDING_BUY' };
+
+        const existing = this.findOpenPositionByOrderId(pendingBuy.orderID);
+        if (existing) {
+            return { recovered: false, reason: 'POSITION_ALREADY_EXISTS', positionId: existing.positionId };
+        }
+
+        const entryPrice = Number(pendingBuy.entry);
+        const matchedSharesRaw = Number(actualShares);
+        const matchedShares = Number.isFinite(matchedSharesRaw) ? matchedSharesRaw : 0;
+        if (!(matchedShares > 0) || !(entryPrice > 0)) {
+            return { recovered: false, reason: 'NO_VERIFIED_MATCH' };
+        }
+
+        const actualSize = matchedShares * entryPrice;
+        const positionId = pendingBuy.positionId || `${pendingBuy.asset}_${Date.now()}`;
+        const positionTime = Number(pendingBuy.time) || Date.now();
+
+        this.positions[positionId] = {
+            asset: pendingBuy.asset,
+            mode: pendingBuy.mode,
+            side: pendingBuy.side,
+            tokenType: pendingBuy.tokenType,
+            size: actualSize,
+            entry: entryPrice,
+            time: positionTime,
+            target: pendingBuy.target,
+            stopLoss: pendingBuy.stopLoss,
+            shares: matchedShares,
+            isLive: true,
+            status: 'LIVE_OPEN_RECOVERED',
+            orderID: pendingBuy.orderID,
+            tokenId: pendingBuy.tokenId || null,
+            tier: pendingBuy.tier || 'UNKNOWN',
+            genesisAgree: !!pendingBuy.genesisAgree,
+            is4h: !!pendingBuy.is4h,
+            fourHourEpoch: pendingBuy.fourHourEpoch || null,
+            slug: pendingBuy.slug || null,
+            conditionId: pendingBuy.conditionId || null,
+            marketUrl: pendingBuy.marketUrl || null,
+            entrySource: pendingBuy.entrySource || null,
+            entryOrigin: pendingBuy.entryOrigin || null,
+            entryGenerator: pendingBuy.entryGenerator || null,
+            strategyName: pendingBuy.strategyName || null,
+            strategySignature: pendingBuy.strategySignature || null,
+            strategyPWinEstimate: Number.isFinite(Number(pendingBuy.strategyPWinEstimate)) ? Number(pendingBuy.strategyPWinEstimate) : null,
+            operatorStakeFraction: Number.isFinite(Number(pendingBuy.operatorStakeFraction)) ? Number(pendingBuy.operatorStakeFraction) : null,
+            entryConfidence: Number.isFinite(Number(pendingBuy.entryConfidence)) ? Number(pendingBuy.entryConfidence) : null,
+            configVersion: pendingBuy.configVersion || CONFIG_VERSION,
+            cycleElapsed: Number.isFinite(Number(pendingBuy.cycleElapsed)) ? Number(pendingBuy.cycleElapsed) : null,
+            recoveredFromPendingBuy: true,
+            recoveredAt: Date.now(),
+            recoveredOrderStatus: orderStatus?.status || null
+        };
+
+        const existingTrade = (this.tradeHistory || []).find(t => t?.orderID === pendingBuy.orderID && (t?.status === 'LIVE_OPEN' || t?.status === 'LIVE_OPEN_RECOVERED'));
+        if (!existingTrade) {
+            this.tradeHistory.push({
+                id: positionId,
+                asset: pendingBuy.asset,
+                mode: pendingBuy.mode,
+                side: pendingBuy.side,
+                entry: entryPrice,
+                size: actualSize,
+                shares: matchedShares,
+                time: positionTime,
+                status: 'LIVE_OPEN_RECOVERED',
+                orderID: pendingBuy.orderID,
+                isLive: true,
+                tradeMode: 'LIVE',
+                tokenId: pendingBuy.tokenId || null,
+                slug: pendingBuy.slug || null,
+                conditionId: pendingBuy.conditionId || null,
+                entrySource: pendingBuy.entrySource || null,
+                entryOrigin: pendingBuy.entryOrigin || null,
+                entryGenerator: pendingBuy.entryGenerator || null,
+                strategyName: pendingBuy.strategyName || null,
+                strategySignature: pendingBuy.strategySignature || null,
+                strategyPWinEstimate: Number.isFinite(Number(pendingBuy.strategyPWinEstimate)) ? Number(pendingBuy.strategyPWinEstimate) : null,
+                operatorStakeFraction: Number.isFinite(Number(pendingBuy.operatorStakeFraction)) ? Number(pendingBuy.operatorStakeFraction) : null,
+                is4h: !!pendingBuy.is4h,
+                fourHourEpoch: pendingBuy.fourHourEpoch || null,
+                entryConfidence: Number.isFinite(Number(pendingBuy.entryConfidence)) ? Number(pendingBuy.entryConfidence) : null,
+                configVersion: pendingBuy.configVersion || CONFIG_VERSION,
+                cycleElapsed: Number.isFinite(Number(pendingBuy.cycleElapsed)) ? Number(pendingBuy.cycleElapsed) : null,
+                tier: pendingBuy.tier || 'UNKNOWN',
+                recoveredFromPendingBuy: true,
+                recoveredAt: Date.now()
+            });
+            if (this.tradeHistory.length > 1000) this.tradeHistory.shift();
+        }
+
+        const pendingCycle = Number(pendingBuy.cycleStartEpochSec) || 0;
+        const currentCycle = Math.floor(Date.now() / 1000) - (Math.floor(Date.now() / 1000) % INTERVAL_SECONDS);
+        if (pendingCycle > 0 && pendingCycle === currentCycle) {
+            this.incrementCycleTradeCount(pendingBuy.asset);
+        }
+
+        return { recovered: true, positionId, actualSize, actualShares: matchedShares };
+    }
+
+    async processPendingBuys(maxItems = 2) {
+        if (this.mode !== 'LIVE') return { success: true, processed: 0, recovered: 0, failed: 0 };
+        if (!CONFIG.LIVE_AUTOTRADING_ENABLED || isSignalsOnlyMode()) return { success: true, processed: 0, recovered: 0, failed: 0 };
+
+        const pendingEntries = Object.entries(this.pendingBuys || {});
+        if (pendingEntries.length === 0) return { success: true, processed: 0, recovered: 0, failed: 0 };
+
+        let processed = 0;
+        let recovered = 0;
+        let failed = 0;
+
+        const sel = await this.getTradeReadyClobClient().catch(() => null);
+        const clobClient = sel?.client;
+        if (!clobClient || !sel?.ok) {
+            return { success: false, processed, recovered, failed, error: sel?.summary || sel?.reason || 'CLOB_NOT_READY' };
+        }
+
+        for (const [key, pendingBuy] of pendingEntries.slice(0, Math.max(1, maxItems))) {
+            processed++;
+            try {
+                const existing = this.findOpenPositionByOrderId(pendingBuy?.orderID);
+                if (existing) {
+                    delete this.pendingBuys[key];
+                    continue;
+                }
+
+                const orderStatus = await clobClient.getOrder(pendingBuy.orderID);
+                const fillStatus = String(orderStatus?.status || 'UNKNOWN').toUpperCase();
+                const matchedSharesRaw = Number(orderStatus?.size_matched || 0);
+                const matchedShares = Number.isFinite(matchedSharesRaw) ? matchedSharesRaw : 0;
+
+                if (matchedShares > 0) {
+                    if (Number.isFinite(Number(pendingBuy.requestedShares)) && matchedShares + 1e-6 < Number(pendingBuy.requestedShares)) {
+                        try { await clobClient.cancelOrder({ orderID: pendingBuy.orderID }); } catch { }
+                    }
+
+                    const res = this.recordRecoveredPendingBuy(pendingBuy, matchedShares, orderStatus);
+                    delete this.pendingBuys[key];
+                    if (res?.recovered) {
+                        recovered++;
+                        log(`✅ PENDING BUY RECOVERED: ${pendingBuy.asset} order=${pendingBuy.orderID} matched=${matchedShares.toFixed(4)} status=${fillStatus}`, pendingBuy.asset);
+                    } else {
+                        log(`ℹ️ PENDING BUY ALREADY ACCOUNTED FOR: ${pendingBuy.asset} order=${pendingBuy.orderID} reason=${res?.reason || 'UNKNOWN'}`, pendingBuy.asset);
+                    }
+                    try { await saveState(); } catch { }
+                    continue;
+                }
+
+                const ageMs = Date.now() - (Number(pendingBuy.time) || Date.now());
+                const isFinalZeroFill = ['CANCELLED', 'EXPIRED', 'REJECTED'].includes(fillStatus);
+                const isTooOld = ageMs > (15 * 60 * 1000);
+
+                if (isFinalZeroFill || isTooOld) {
+                    delete this.pendingBuys[key];
+                    failed++;
+                    log(`🧹 PENDING BUY CLEARED: ${pendingBuy.asset} order=${pendingBuy.orderID} status=${fillStatus} matched=0 ageMs=${ageMs}`, pendingBuy.asset);
+                    try { await saveState(); } catch { }
+                } else if (this.pendingBuys[key]) {
+                    this.pendingBuys[key].lastRetryAt = Date.now();
+                    this.pendingBuys[key].lastKnownStatus = fillStatus;
+                    this.pendingBuys[key].lastKnownMatchedShares = matchedShares;
+                }
+            } catch (e) {
+                failed++;
+                if (this.pendingBuys[key]) {
+                    this.pendingBuys[key].lastRetryAt = Date.now();
+                    this.pendingBuys[key].lastRetryError = e?.message || String(e);
+                }
+            }
+        }
+
+        return { success: true, processed, recovered, failed };
     }
 
     async processPendingSells(maxItems = 2) {
@@ -21725,6 +21949,15 @@ setInterval(() => {
         });
     } catch { }
 }, 60 * 1000);
+
+setInterval(() => {
+    try {
+        if (!tradeExecutor || typeof tradeExecutor.processPendingBuys !== 'function') return;
+        tradeExecutor.processPendingBuys().catch(e => {
+            try { log(`❌ PENDING BUY RECONCILE ERROR: ${e.message}`); } catch { }
+        });
+    } catch { }
+}, 20 * 1000);
 
 // 🎯 GOAT v44.1: GateTrace - records why trades were blocked for each cycle/asset
 const gateTrace = {
@@ -25718,6 +25951,7 @@ async function saveState() {
             positions: tradeExecutor.positions || {},
             // 🚀 PINNACLE v27: Persist pending sells (failed sell orders)
             pendingSells: tradeExecutor.pendingSells || {},
+            pendingBuys: tradeExecutor.pendingBuys || {},
             // 🚀 PINNACLE v27: Persist redemption queue (winning positions to claim)
             redemptionQueue: tradeExecutor.redemptionQueue || [],
             // 🚀 PINNACLE v27: Persist recovery queue (orphaned/crashed positions)
@@ -26254,6 +26488,11 @@ async function loadState() {
                     if (te.pendingSells && Object.keys(te.pendingSells).length > 0) {
                         tradeExecutor.pendingSells = te.pendingSells;
                         log(`🔄 CRASH RECOVERY: Restored ${Object.keys(te.pendingSells).length} pending sells`);
+                    }
+
+                    if (te.pendingBuys && Object.keys(te.pendingBuys).length > 0) {
+                        tradeExecutor.pendingBuys = te.pendingBuys;
+                        log(`🔄 CRASH RECOVERY: Restored ${Object.keys(te.pendingBuys).length} pending buys`);
                     }
 
                     // 🚀 PINNACLE v27: Restore redemption queue
