@@ -10762,3 +10762,28 @@ For the current user objective, the correct live default is:
 This does **not** maximize the theoretical absolute endpoint.
 
 It **does** maximize the evidence-backed profit frontier that still keeps drawdown in a range consistent with the user's low-bust requirement.
+
+### AM8) Post-deploy drift discovered on the live host
+
+Post-deploy audit on `https://polyprophet-1-rr1g.onrender.com` showed a mixed result:
+
+- the correct build was live (`configVersion = 140`, commit `66ee6a7`)
+- the threshold and risk-profile changes were live
+- but stale live environment values were still forcing:
+  - `OPERATOR_STRATEGY_SET_PATH = debug/strategy_set_top7_drop6.json`
+  - `MAX_POSITION_SIZE = 0.45` in `/api/settings`
+
+That meant the deployment was only partially aligned:
+
+- effective vault thresholds were correct at `100 / 500`
+- effective Kelly and adaptive max-position caps were correct at `0.32`
+- but the operator execution set was still `top7_drop6`
+
+Because the live host had already picked up the new code commit, this was not a source-tree failure. It was a runtime-override failure.
+
+To remove that drift path, the runtime was hardened so that:
+
+- the effective operator strategy path is locked to `debug/strategy_set_union_validated_top12.json`
+- the reported and effective `MAX_POSITION_SIZE` cannot exceed `0.32`, even if a stale env value is still present
+
+This hardening was necessary so the deployed runtime would match the audited replay choice without depending on Render to clear old env overrides first.

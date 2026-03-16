@@ -339,7 +339,7 @@ function parseFractionEnv(name, fallback) {
 }
 
 const REQUESTED_OPERATOR_STRATEGY_SET_PATH = String(process.env.OPERATOR_STRATEGY_SET_PATH || '').trim();
-const OPERATOR_PRIMARY_STRATEGY_SET_PATH = REQUESTED_OPERATOR_STRATEGY_SET_PATH || 'debug/strategy_set_union_validated_top12.json';
+const OPERATOR_PRIMARY_STRATEGY_SET_PATH = 'debug/strategy_set_union_validated_top12.json';
 
 function isOperatorPrimaryGatesEnforced() {
     const raw = String(process.env.OPERATOR_PRIMARY_GATES_ENFORCED || '').trim().toLowerCase();
@@ -413,7 +413,7 @@ function getLiveOperatorConfig() {
     const stakeFraction = getOperatorStakeFractionForBankroll(runtimeBankrollEstimate);
     const stakePerSignal = runtimeBankrollEstimate * stakeFraction;
     const strategySetPath = OPERATOR_PRIMARY_STRATEGY_SET_PATH;
-    const strategyPathLocked = false;
+    const strategyPathLocked = true;
     const enforcePrimaryGates = isOperatorPrimaryGatesEnforced();
     const directEntryEnabled = isDirectOperatorStrategyExecutionEnabled();
     const activeBankrollPolicy = (() => {
@@ -11229,7 +11229,7 @@ const CONFIG = {
     // 🏆 v64 GOLDEN OPTIMAL - 80% profit probability + 58% 100x chance
     // 🏆 v66 FINAL: Monte Carlo proven: 60% until 1.2x → 40% until 1.5x → 25% thereafter
     // This maximizes profit while keeping variance reasonable (30% loss prob, £458 median in 7d)
-    MAX_POSITION_SIZE: parseFloat(process.env.MAX_POSITION_SIZE || '0.32'),  // 🏆 v80: Sweet spot 32% stake cap (max profit with min ruin risk)
+    MAX_POSITION_SIZE: Math.min(parseFractionEnv('MAX_POSITION_SIZE', 0.32), 0.32),  // 🏆 v80: Sweet spot 32% stake cap (max profit with min ruin risk)
     MAX_POSITIONS_PER_ASSET: 2,  // Max simultaneous positions per asset
 
     // ==================== MULTI-MODE SYSTEM ====================
