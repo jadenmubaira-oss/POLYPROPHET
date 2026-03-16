@@ -10787,3 +10787,29 @@ To remove that drift path, the runtime was hardened so that:
 - the reported and effective `MAX_POSITION_SIZE` cannot exceed `0.32`, even if a stale env value is still present
 
 This hardening was necessary so the deployed runtime would match the audited replay choice without depending on Render to clear old env overrides first.
+
+### AM9) Deployed artifact blocker discovered after the anti-drift fix
+
+The next live re-audit exposed a second deployment blocker:
+
+- `/api/live-op-config` now reported the correct effective path:
+  - `debug/strategy_set_union_validated_top12.json`
+- but `strategySetRuntime.loaded = false`
+- and `loadError = STRATEGY_SET_FILE_NOT_FOUND`
+
+Root cause:
+
+- the runtime fix successfully forced the correct path
+- but the JSON artifact itself had never been deployed
+- `.gitignore` was still ignoring `debug/*`
+- unlike `top7_drop6` and other runtime-critical artifacts, `debug/strategy_set_union_validated_top12.json` had not been whitelisted
+
+So the live host had the correct runtime pointer, but no corresponding file on disk at `/app/debug/strategy_set_union_validated_top12.json`.
+
+The required fix was to:
+
+- whitelist `debug/strategy_set_union_validated_top12.json` in `.gitignore`
+- add the JSON artifact to git
+- push again so Render includes the file in the deploy bundle
+
+Until that artifact is present and `strategySetRuntime.loaded = true`, the live switch cannot be considered complete.
