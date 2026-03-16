@@ -9772,3 +9772,993 @@ Therefore the honest final production statement is:
 - **The fixes improved executability, not certainty.**
 
 End of Addendum AI — Dataset-Backed Projection Verification + Final Tradeability Verdict, 12 March 2026
+
+---
+
+## ADDENDUM AJ — LIVE RE-AUDIT AFTER `948dbb6` DEPLOY + 20:03 UTC READINESS BOUNDARY (13 March 2026)
+
+This addendum records a fresh re-audit performed **after** the deploy of commit:
+
+- `948dbb6d70ce0a72c675fb15e5229a8927ab17e8`
+
+The purpose of this addendum is to answer a narrower and more operationally important question:
+
+- after the momentum-gate bypass patch, **is there any other currently-proven persistent blocker that should still prevent a valid 20:03 UTC direct strategy entry from firing?**
+
+This addendum does **not** claim certainty where only a real-time market check can prove the answer.
+
+### AJ1) DATA SOURCE DISCLOSURE
+
+⚠️ **DATA SOURCE**:
+- live deployment endpoints at `https://polyprophet-1-rr1g.onrender.com`
+- current deployed code fingerprint from `/api/health`
+- current `server.js` code in workspace
+- current `IMPLEMENTATION_PLAN_v140.md`
+
+⚠️ **LIVE ROLLING ACCURACY**:
+- BTC: `N/A`
+- ETH: `N/A`
+- XRP: `N/A`
+- SOL: `N/A`
+
+⚠️ **DISCREPANCIES / CORRECTIONS INTRODUCED HERE**:
+- Addendum AH's documented latent LIVE minimum-balance bug is **no longer current** in deployed code
+- `_orchestratorStatus.momentumGateActive=true` is a **raw strategy-file diagnostic**, not the effective live gate truth
+- the effective live gate truth is exposed by `/api/live-op-config.signalGates`, which currently shows `applyMomentumGate=false`
+
+### AJ2) FRESH LIVE DEPLOYMENT TRUTH AT AUDIT TIME
+
+Fresh live endpoint results:
+
+- `/api/health`
+  - `status = ok`
+  - `gitCommit = 948dbb6d70ce0a72c675fb15e5229a8927ab17e8`
+  - `tradingHalted = false`
+  - all feeds fresh
+  - `currentBalance = 6.949209`
+  - balance floor not breached
+  - manual pause false
+  - circuit breaker `NORMAL`
+
+- `/api/live-op-config`
+  - `mode = AUTO_LIVE`
+  - `primarySignalSet = top7_drop6`
+  - `entryGenerator = DIRECT_OPERATOR_STRATEGY_SET`
+  - strategy runtime loaded with 7 rows
+  - `signalGates.applyMomentumGate = false`
+  - `signalGates.applyVolumeGate = false`
+  - bankroll runtime estimate `= 6.949209`
+
+- `/api/trading-pause`
+  - `paused = false`
+
+- `/api/risk-controls`
+  - `autoBankrollMode = SPRINT`
+  - bankroll profile = `MICRO_SPRINT`
+  - dynamic risk profile stage = `BOOTSTRAP`
+  - `minOrderRiskOverride = true`
+  - risk envelope enabled and active
+  - no current blocking entries in `blocks`
+
+- `/api/verify?deep=1`
+  - `status = WARN`
+  - `criticalFailures = 0`
+  - trade readiness checks pass:
+    - wallet loaded
+    - CLOB permission passes
+    - collateral balance present
+    - collateral allowance present
+    - order signing works
+    - orderbook fetch works
+    - `closedOnly = false`
+  - warnings only:
+    - collector snapshot parity not populated yet
+    - geoblock endpoint warning for host IP
+    - auth not configured
+
+### AJ3) What this proves about the current live host
+
+At audit time, the currently deployed host is **not** blocked by:
+
+- stale feeds
+- manual pause
+- auto self-check halt
+- balance floor breach
+- missing wallet
+- zero collateral allowance
+- `closed_only`
+- missing strategy runtime
+- momentum gate on the effective live operator path
+- volume gate on the effective live operator path
+- non-`SPRINT` bankroll mode
+
+This materially strengthens the earlier readiness posture.
+
+### AJ4) Correction to Addendum AH: the LIVE minimum-balance `paperBalance` bug is fixed
+
+Addendum AH documented a then-important caveat:
+
+- `executeTrade()` checked `paperBalance` for the hard `$2` minimum even in LIVE
+
+Current code no longer does that.
+
+Current `executeTrade()` logic now computes:
+
+- `currentTradingBalance = live tradingBalanceUsdc / cachedLiveBalance` in LIVE
+- `currentTradingBalance = paperBalance` in PAPER
+
+and only then applies:
+
+- `if (currentTradingBalance < 2.00) block`
+
+Therefore:
+
+- the earlier LIVE `paperBalance` blocker should be treated as **historical**, not current
+- it should **not** be listed as an active blocker for the deployed `948dbb6` runtime
+
+### AJ5) Important diagnostic nuance: apparent momentum-gate mismatch
+
+There is a diagnostic nuance that can mislead an audit if not reconciled:
+
+- `/api/state-public._orchestratorStatus.momentumGateActive = true`
+- `/api/live-op-config.signalGates.applyMomentumGate = false`
+
+This is **not** evidence that the live host is still effectively blocking on momentum.
+
+Reason:
+
+- `_orchestratorStatus.momentumGateActive` is derived from the raw strategy runtime condition:
+  - `OPERATOR_STRATEGY_SET_RUNTIME.get().conditions.applyMomentumGate === true`
+- `/api/live-op-config.signalGates.applyMomentumGate` is derived from the **effective** gate logic:
+  - operator enforcement
+  - env overrides
+  - current runtime conditions
+
+So the correct interpretation is:
+
+- the strategy JSON still contains a momentum gate
+- but the effective live operator gate is currently **disabled**
+
+For operational truth, trust:
+
+- `/api/live-op-config.signalGates.applyMomentumGate`
+
+not the raw `_orchestratorStatus.momentumGateActive` field alone.
+
+### AJ6) What can still block a 20:03 UTC trade even after this re-audit
+
+After current code + live-host verification, the remaining blocker classes are **runtime-conditional**, not currently-proven persistent code blockers.
+
+#### AJ6.1 A strategy candidate must still actually exist
+
+For the upcoming `H20 m03 DOWN (72-80c)` row, a live direct entry still requires:
+
+- the current UTC hour/minute to reach `20:03`
+- at least one active market candidate to match the strategy row
+- the relevant DOWN entry price (NO price) to be inside `72c-80c`
+
+If no market is inside the strategy band, no trade should fire.
+
+That is normal strategy selection behavior, not a bug.
+
+#### AJ6.2 Execution-time guards can still block a matched candidate
+
+A candidate that matches the schedule can still be blocked at execution time by:
+
+- market status invalid / token IDs unavailable
+- price drifting out of band or above the effective execution cap before send
+- volatility/manipulation guard
+- state-machine or cooldown restrictions if runtime state worsens before the window
+- cycle/global trade caps if another trade opens first in the same cycle
+- circuit-breaker / daily-loss / exposure protections if they become active before the entry
+
+At audit time, none of these are currently active as persistent blockers.
+
+#### AJ6.3 Live order placement is not the same as a filled position
+
+Even if the bot attempts the trade, LIVE execution can still fail if:
+
+- the order does not receive matched shares within the fill-check window
+
+The engine treats zero matched shares as a failed trade attempt, not a successful opened position.
+
+So:
+
+- **“valid signal exists” does not imply “filled position definitely opens”**
+
+#### AJ6.4 Self-check warnings are present, but not currently blocking
+
+Current `/api/verify?deep=1` is `WARN`, not `FAIL`.
+
+Current `/api/risk-controls.autoSelfCheck.lastResult` shows:
+
+- `passed = true`
+- `failures = []`
+- `warnings = ["VERIFY_WARN"]`
+- `tradingAllowed = true`
+
+Therefore the current warning-level findings:
+
+- do **not** currently auto-pause trading
+
+Most important example:
+
+- the geoblock endpoint warns because the host IP is in Oregon
+- but the trade-readiness checks that actually matter for execution currently pass:
+  - permission
+  - allowance
+  - signing
+  - orderbook fetch
+
+So, at audit time, the geoblock warning is a **warning**, not a proven live trade blocker.
+
+### AJ7) 20:03 UTC answer — what can honestly be said
+
+#### AJ7.1 What I can say with high confidence
+
+There is **no newly discovered persistent code-level blocker** currently proven on the live `948dbb6` deployment that should categorically prevent a valid 20:03 direct operator strategy candidate from being attempted.
+
+In particular, the following previously-suspected blockers are **not currently active blockers** on the live host:
+
+- effective momentum gate
+- effective volume gate
+- LIVE auto-pause
+- stale feeds
+- balance floor
+- missing wallet / missing trading permission / missing allowance
+- non-`SPRINT` bankroll mode
+- the old LIVE `paperBalance` minimum-balance bug
+
+#### AJ7.2 What I cannot honestly say
+
+I cannot honestly say:
+
+- **“it will definitely trade at 20:03”**
+
+because that would require the actual 20:03 window to satisfy all real-time conditions:
+
+- a market must line up with the row
+- price must be inside band at the moment of execution
+- no guard may become active before send
+- the live order must receive matched shares
+
+Those facts are not knowable with certainty before the window happens.
+
+#### AJ7.3 Honest operator verdict for the 20:03 question
+
+The correct statement is:
+
+- **If the 20:03 strategy genuinely lines up and the host remains in the same healthy state shown by the live endpoints, the bot should attempt one live direct trade.**
+
+But the correct statement is **not**:
+
+- **“it is guaranteed to fill / guaranteed to trade no matter what else happens.”**
+
+### AJ8) Best verification target for the actual 20:03 window
+
+For the real proof at the window, the most useful surfaces are:
+
+- `/api/state-public`
+  - especially `_strategyWindowDiagnostics`
+- server logs
+- `/api/health`
+- `/api/trading-pause`
+
+Important note:
+
+- `/api/gates` currently reflects mostly ORACLE/telemetry gate traces
+- it is **not** by itself a clean proof that the direct operator path is still blocked
+- the direct operator path should be judged at the actual window using strategy diagnostics + execution logs
+
+### AJ9) Final re-audit conclusion
+
+After the live re-audit performed on the deployed `948dbb6` host:
+
+- the momentum fix is live
+- the live host is currently healthy and not paused
+- direct operator execution is live and strategy-native
+- micro-bankroll runtime is confirmed to be `MICRO_SPRINT` / `BOOTSTRAP`
+- min-order override is currently available
+- the earlier LIVE `paperBalance` blocker is no longer current
+- no additional persistent code blocker has now been proven that should categorically stop a valid 20:03 candidate
+
+The honest boundary remains:
+
+- **the bot now appears operationally capable of attempting the 20:03 trade if the row truly lines up**
+- **but the actual 20:03 fill cannot be guaranteed in advance**
+
+End of Addendum AJ — Live Re-Audit After `948dbb6` Deploy + 20:03 UTC Readiness Boundary, 13 March 2026
+
+## Addendum AK — Post-Smoke-Test Reinvestigation of Missed `20:03 UTC` Strategy Window, 14 March 2026
+
+### AK1) Scope and evidence used for the reinvestigation
+
+This reinvestigation was run against the deployed host still reporting:
+
+- git commit `948dbb6d70ce0a72c675fb15e5229a8927ab17e8`
+- config version `139`
+- server SHA `071b16c83a509b87b9ce75a3dd44544ec7cac981272de15abe469d5044c03a24`
+
+Evidence sources used:
+
+- `server.js` direct-operator execution path
+- `server.js` strategy diagnostic retention logic
+- live `/api/state-public`
+- live `/api/health`
+- live `/api/live-op-config`
+- live `/api/gates`
+- live `/api/risk-controls`
+- live `/api/trading-pause`
+- live `/api/audit`
+- live `/api/verify?deep=1`
+
+This addendum is specifically about the question:
+
+- **why the last `20:03 UTC` direct operator row did not trade after several days of smoke test**
+
+### AK2) First verified facts: the host is not presently showing a broad trading halt
+
+At reinvestigation time, the live host showed:
+
+- `tradeExecutor` exists
+- direct operator execution enabled
+- `AUTO_LIVE` mode active
+- `primarySignalSet=top7_drop6`
+- `entryGenerator=DIRECT_OPERATOR_STRATEGY_SET`
+- `manualPause=false`
+- `tradingHalted=false`
+- feed freshness healthy (`anyStale=false`)
+- balance floor clear (`currentBalance=$6.949209`, effective floor `$2.00`)
+- circuit breaker `NORMAL`
+- auto self-check had `criticalFailures=0`
+
+So the miss was **not** explained by a broad host-wide stop condition like:
+
+- manual pause
+- stale feed lockdown
+- balance floor halt
+- circuit breaker halt
+- auto self-check critical shutdown
+
+### AK3) The direct-operator diagnostic retention limit matters
+
+The most important code-trace finding from this reinvestigation is that the direct-operator miss evidence is **not permanently retained**.
+
+The relevant runtime object is:
+
+- `directOperatorStrategyExecutionRuntime.diagnosticLog`
+
+Code-traced behavior:
+
+- diagnostics are preserved across cycle resets
+- but the array is hard-capped to `200` entries
+- older entries are evicted as new ones arrive
+- `/api/state-public` exposes only `recentEntries: stratDiag.slice(-30)`
+
+That means:
+
+- the host can directly show the missed `20:03` row only for a limited time
+- if inspected later, the visible `recentEntries` may show a newer window such as `H00 m12`
+- absence of the old `20:03` row later does **not** mean the row never existed
+
+This explains why the current live payload now shows only newer retained rows while earlier inspection during the reinvestigation showed the `20:03` row directly.
+
+### AK4) What the direct operator path does before any trade execution attempt
+
+The direct operator path is:
+
+- `orchestrateDirectOperatorStrategyEntries()`
+- `checkHybridStrategy(...)`
+- if a row passes, then `executeTrade(...)`
+
+Critical behavior:
+
+- strategy rows are checked against hour/minute/direction/price-band conditions first
+- if the row fails there, the candidate never reaches `executeTrade()`
+- when the failure is price-band related, the diagnostic log records:
+  - `blockedReason: "PRICE_RANGE"`
+
+This is upstream of all later execution-layer gates.
+
+So if the row fails as `PRICE_RANGE`, it is **not** a later blocker like:
+
+- EV guard
+- balance floor
+- min trading balance
+- loss cooldown
+- max trades per cycle
+- max exposure
+- mutex lock
+- live daily stop
+
+### AK5) Strongest evidence-based explanation for the missed `20:03 UTC` row
+
+The strongest defensible conclusion from this reinvestigation is:
+
+- **the missed last `20:03 UTC` direct-entry row was blocked at the strategy-match stage by `PRICE_RANGE`, before `executeTrade()` was reached**
+
+Why this is the strongest conclusion:
+
+- during the reinvestigation, the live `_strategyWindowDiagnostics` surface showed the `H20 m03 DOWN (72-80c)` row with `blockedReason: "PRICE_RANGE"`
+- after additional elapsed time, the exact `20:03` row rolled out of the capped diagnostic buffer, which is consistent with the retention model above
+- the currently retained strategy diagnostics are still fully dominated by the same pre-execution failure class:
+  - `totalEvaluated: 200`
+  - `totalPassed: 0`
+  - `totalBlocked: 200`
+  - `blockedReasonCounts: { "PRICE_RANGE": 200 }`
+- the current host state does not show an active runtime halt that would better explain the miss
+
+Therefore the missed trade is best classified as:
+
+- **market-condition miss**
+- **not an execution-stack malfunction**
+
+### AK6) What this means about the previously suspected blockers
+
+For the missed last `20:03` window, the following were **not** the observed cause:
+
+- momentum gate
+- volume gate
+- balance floor
+- old LIVE `paperBalance` / min-trading-balance bug
+- manual pause
+- stale feed
+- circuit breaker halt
+- auto self-check critical shutdown
+
+The most important distinction is:
+
+- the row did not trade because the candidate did not qualify as an in-band strategy match at that time
+- not because a valid candidate later got killed inside execution
+
+### AK7) `/api/gates` is not the primary proof surface for this question
+
+This reinvestigation re-confirmed:
+
+- `/api/gates` is mostly showing ORACLE / telemetry gate traces
+- recent failures there include `negative_EV`, `edge_floor`, `confidence_75`, `consensus`, and `odds`
+- those traces are **not** by themselves proof that the direct operator `20:03` row was blocked by those same gates
+
+For this specific question, the authoritative surfaces are:
+
+- `_strategyWindowDiagnostics`
+- direct operator logs
+- the direct-operator code path itself
+
+### AK8) Remaining runtime-conditional risks are real, but they do not explain this miss
+
+The reinvestigation did surface a few live warnings that should be tracked honestly:
+
+- `/api/verify?deep=1` warns that auth is not configured
+- `/api/verify?deep=1` warns the geoblock endpoint reports `blocked=true`
+- collector snapshot parity warning can appear when there are not yet fresh collector snapshots
+
+But for this missed `20:03` event:
+
+- auth is a security issue, not the cause of the miss
+- the geoblock warning is not the best explanation here because deep CLOB permission, signing, and orderbook checks were still passing
+- collector parity warning is not the direct operator strategy-match blocker seen on `_strategyWindowDiagnostics`
+
+So these remain **environment warnings**, not the best-supported explanation for the missed last strategy hour.
+
+### AK9) Honest final verdict from the reinvestigation
+
+The most accurate statement is:
+
+- **the last missed `20:03 UTC` trade was blocked by `PRICE_RANGE` at the direct strategy-match stage, based on the strongest live evidence collected during the reinvestigation**
+
+The important precision boundary is:
+
+- the exact `20:03` row is no longer directly visible now because the host only retains a capped rolling diagnostic buffer
+- so the final statement is based on:
+  - the direct `20:03` observation captured during the reinvestigation
+  - the code-traced retention model
+  - the current host health state
+  - the absence of a better competing blocker
+
+What is newly verified with high confidence:
+
+- there is still **no newly proven persistent code-level blocker** in the direct operator path
+- the missed last strategy hour is best explained by **price not entering the `72-80c` DOWN band at the time the row was evaluated**
+- if a future `20:03` row truly enters band and the host remains in the same healthy state, the bot should move past this specific pre-match blocker
+
+What still cannot be guaranteed in advance:
+
+- that price will line up with the band
+- that no other runtime-conditional guard will activate after a genuine pass
+- that a live venue order will necessarily fill
+
+End of Addendum AK — Post-Smoke-Test Reinvestigation of Missed `20:03 UTC` Strategy Window, 14 March 2026
+
+---
+
+# Addendum AL — Constrained Strategy Re-Optimization Contract for `$6.95` + `5` Shares (v140.15, 14 Mar 2026)
+
+> Purpose: define the exact objective function and artifact set required for a fresh constrained pass before any runtime trading-code changes.
+> Scope: 15m strategy-generation / selection for the user's current need:
+> micro-bankroll, `5`-share Polymarket minimum, current live structure, aggressive growth.
+
+## AL1) What is true right now
+
+### AL1.1 Fresh raw analysis data exists, but the root selector artifact is stale
+
+- `exhaustive_analysis/final_results.json`
+  - `startedAt = 2026-03-08T07:22:45.247Z`
+  - `completedAt = 2026-03-08T20:42:21.765Z`
+  - `runtimeMinutes = 799.6`
+  - `totalMarkets = 53,704`
+  - `datasetRows = 805,305`
+
+- Root `final_golden_strategy.json`
+  - `generatedAt = 2026-02-06T09:52:16.147Z`
+  - this is older than the March exhaustive dataset
+  - this file must **not** be treated as the authoritative answer for the current re-optimization task
+
+- Runtime strategy file `debug/strategy_set_top7_drop6.json`
+  - `generatedAt = 2026-02-13T11:36:35.371Z`
+  - newer than the stale root `final_golden_strategy.json`
+  - still not a direct March-8 constrained micro-bankroll optimization artifact
+
+### AL1.2 The current pipeline objective is still certainty-first, not bankroll-first
+
+Verified from `exhaustive_market_analysis.js`:
+
+- candidate score is:
+  - `score = winRateLCB * 1000 + tradesPerDay`
+- ranking is:
+  - first by `winRateLCB`
+  - then by `tradesPerDay`
+
+Verified from `final_golden_strategy.js`:
+
+- final selection is still driven by:
+  - LCB
+  - posterior probability of `WR >= 90%`
+  - trades/day
+  - win rate
+- optional soft mode changes weights, but still does **not** optimize for:
+  - `$6.95` starting bankroll
+  - `5`-share affordability
+  - risk-envelope freezes
+  - BOOTSTRAP / TRANSITION threshold behavior
+  - micro-bankroll executed-trade frequency
+  - replay ending balance under current live structure
+
+### AL1.3 Stage-1 survival in the current pipeline is misaligned with the present task
+
+Verified from `calculateStage1Survival()`:
+
+- it models `$1 -> $20`
+- all-in growth
+- balance goes to `0` on first loss
+- it is post-selection analysis, not the main search objective
+
+That means:
+
+- it is useful as a historical fragility diagnostic
+- it is **not** the correct optimization target for the user's current `$6.95`, `5`-share, aggressive-growth requirement
+
+## AL2) What the current replay tooling can already do without touching runtime code
+
+Verified from `scripts/hybrid_replay_backtest.js`:
+
+- it can replay a chosen strategy file against `exhaustive_analysis/decision_dataset.json`
+- it can model:
+  - `startingBalance`
+  - `minOrderShares`
+  - Kelly on/off
+  - `kellyFraction`
+  - `kellyMaxFraction`
+  - adaptive bankroll policy
+  - `autoBankrollMode`
+  - risk envelope
+  - cooldown / halt logic
+  - min-balance floor
+  - `vaultTriggerBalance`
+  - `stage2Threshold`
+  - slippage
+  - max absolute stake
+- it outputs:
+  - signal ledger
+  - executed ledger
+  - bankroll simulation summary
+  - blocked reasons
+  - halt counts
+  - ending balance
+  - ROI
+  - executed trade count
+  - win rate
+  - max drawdown
+
+This means:
+
+- we do **not** need to change runtime trading code first
+- we can build the correct decision artifacts first
+- then decide whether strategy selection alone is enough or whether blocker relaxation is required
+
+## AL3) Exact constrained objective function to use before touching runtime code
+
+### AL3.1 Fixed replay configuration for this pass
+
+All candidate sets must be replayed with the same fixed baseline config:
+
+- `startingBalance = 6.95`
+- `minOrderShares = 5`
+- `simulateBankroll = true`
+- `kellyEnabled = true`
+- `kellyFraction = 0.75`
+- `kellyMaxFraction = 0.45`
+- `autoProfileEnabled = true`
+- `adaptiveMode = true`
+- `autoBankrollMode = SPRINT`
+- `autoBankrollCutover = 20`
+- `autoBankrollLargeCutover = 1000`
+- `riskEnvelopeEnabled = true`
+- `simulateHalts = true`
+- `maxConsecutiveLosses = 3`
+- `cooldownSeconds = 1200`
+- `globalStopLoss = 0.20`
+- `minBalanceFloorEnabled = true`
+- `minBalanceFloor = 2.0`
+- `minBalanceFloorDynamicEnabled = true`
+- `minBalanceFloorDynamicFraction = 0.40`
+- `minBalanceFloorDynamicMin = 0.50`
+- `maxAbsoluteStake = 100`
+- `slippagePct = 0.01`
+- `vaultTriggerBalance = 11`
+- `stage2Threshold = 20`
+
+Why these values:
+
+- they reflect the current live-structure baseline more honestly than the old `$1 -> $20` certainty-first selector
+- they preserve the existing execution-survival model for the **first** constrained pass
+- they let the re-optimization answer the correct question:
+  - "what wins under current structure?"
+  - not:
+  - "what had the highest Wilson bound in isolation?"
+
+### AL3.2 Candidate-set objective
+
+For each candidate strategy set `S`, define replay result `R(S)` from `hybrid_replay_backtest.js`.
+
+Use the following exact lexicographic objective:
+
+`J(S) = (`
+
+- `endingBalance`
+- `executedTrades`
+- `- blockedMinOrder`
+- `- blockedRiskEnvelope`
+- `winRate`
+- `- maxDrawdownPct`
+
+`)`
+
+Where:
+
+- `endingBalance = R(S).stats.bankroll.endingBalance`
+- `executedTrades = R(S).stats.bankroll.executed`
+- `blockedMinOrder = R(S).stats.bankroll.haltCounts.minOrder`
+- `blockedRiskEnvelope = R(S).stats.bankroll.haltCounts.riskEnvelope`
+- `winRate = R(S).stats.winRate`
+- `maxDrawdownPct = R(S).stats.bankroll.maxDrawdownPct`
+
+Comparison rule:
+
+- maximize `endingBalance` first
+- if tied, maximize `executedTrades`
+- if tied, minimize `blockedMinOrder`
+- if tied, minimize `blockedRiskEnvelope`
+- if tied, maximize `winRate`
+- if tied, minimize `maxDrawdownPct`
+
+Reasoning:
+
+- this explicitly prioritizes bankroll growth
+- then trade frequency
+- then reduction of micro-bankroll freeze failure modes
+- then correctness quality
+- then drawdown control
+
+This is a better match for the user's stated need than the current certainty-first selector.
+
+## AL4) Exact artifact set that must be built before touching runtime code
+
+### AL4.1 Source freshness artifacts
+
+These must be refreshed first:
+
+- `exhaustive_analysis/final_results.json`
+- `exhaustive_analysis/decision_dataset.json`
+- `exhaustive_analysis/strategies_ranked.json`
+- `exhaustive_analysis/strategies_validated.json`
+
+Freshness requirement:
+
+- extend the dataset to the current completed cycle before using it for the constrained pass
+- the March-8 artifacts are fresher than old root summaries, but they are still not "today"
+
+### AL4.2 Candidate manifest artifacts
+
+Build a candidate manifest in runtime-compatible strategy-file shape.
+
+Required artifacts:
+
+- `debug/micro_6p95_5shares/candidate_manifest.json`
+- `debug/micro_6p95_5shares/candidates/baseline_top7_drop6.json`
+- `debug/micro_6p95_5shares/candidates/*.json`
+
+Each candidate file must contain:
+
+- `version`
+- `generatedAt`
+- `description`
+- `conditions`
+- `strategies`
+
+Candidate families to include:
+
+- current baseline:
+  - `top7_drop6`
+- validated singles:
+  - top validation candidates one-at-a-time
+- validated pairs / triplets:
+  - highest-frequency combinations from the validated set
+- constrained union sets:
+  - top `N` by certainty-first input ranking, then re-scored by replay objective
+
+### AL4.3 Replay output artifacts
+
+For every candidate set:
+
+- `debug/micro_6p95_5shares/replay/<candidate>/hybrid_replay_signal_ledger.json`
+- `debug/micro_6p95_5shares/replay/<candidate>/hybrid_replay_executed_ledger.json`
+
+Required consolidated artifact:
+
+- `debug/micro_6p95_5shares/replay/summary.json`
+
+The consolidated summary must include, per candidate:
+
+- ending balance
+- ROI
+- executed trades
+- blocked trades
+- win rate
+- Wilson LCB
+- trades/day
+- `haltCounts.minOrder`
+- `haltCounts.riskEnvelope`
+- `haltCounts.cooldown`
+- `haltCounts.globalStop`
+- max drawdown
+- first loss trade
+- rank under `J(S)`
+
+### AL4.4 Decision artifact
+
+Build one final decision artifact:
+
+- `debug/micro_6p95_5shares/winner.json`
+
+It must record:
+
+- winning candidate id
+- runner-up candidate id
+- exact replay config used
+- objective tuple values
+- whether the winner beats `top7_drop6`
+- whether the winner still freezes too often on min-order or risk-envelope constraints
+
+## AL5) Can a genuinely better strategy be produced today?
+
+### AL5.1 Honest answer
+
+Not from the current selector **as-is**.
+
+Why:
+
+- the current exhaustive selector is certainty-first
+- the root summary artifact is stale
+- the current selector does not optimize for micro-bankroll executed growth
+- the current selector does not price in `5`-share affordability or envelope freeze risk
+
+### AL5.2 Better answer
+
+Yes, a materially better **decision process** can be produced today without touching runtime trading code, if done in this order:
+
+1. refresh source artifacts to the current completed cycle
+2. build replay-ready candidate sets
+3. replay all candidates under the fixed `$6.95` / `5`-share config
+4. choose the winner by `J(S)`
+
+So the correct statement is:
+
+- **better strategy selection can be produced today**
+- but **not** by simply trusting the current certainty-first selector output
+
+## AL6) Should blocker relaxation start now?
+
+### AL6.1 Decision
+
+Not yet.
+
+First do the constrained replay-ranked pass above.
+
+Reason:
+
+- otherwise we would be relaxing blockers without first proving that the current strategy set is actually optimal for the user's bankroll
+- that would mix two separate questions:
+  - bad strategy selection
+  - bad runtime constraints
+
+### AL6.2 If the constrained pass still fails, the least-harmful relaxation order is:
+
+1. **Stage-threshold relaxation first**
+   - test `vaultTriggerBalance = 20`
+   - test `stage2Threshold = 50`
+   - reason:
+     - this preserves signal quality
+     - it only keeps BOOTSTRAP override alive longer
+     - it directly targets the micro-bankroll freeze problem
+
+2. **Then compare risk-envelope variants**
+   - only after the stage-threshold test
+   - reason:
+     - this is more invasive than threshold extension
+
+3. **Only after that consider broader trade-quality relaxations**
+   - wider price gating
+   - weaker strategy filters
+   - weaker momentum filters
+
+That order is important:
+
+- first preserve quality and reduce premature freeze
+- only later weaken quality gates if the constrained pass still underperforms
+
+## AL7) Updated operational conclusion
+
+Before any runtime code change, the correct next deliverable is:
+
+- a refreshed candidate universe
+- replay-ranked under the exact `$6.95`, `5`-share, current-structure objective above
+
+Until that artifact set exists:
+
+- the repo does **not** yet contain the authoritative answer to the user's current re-optimization request
+
+End of Addendum AL — Constrained Strategy Re-Optimization Contract for `$6.95` + `5` Shares, 14 March 2026
+
+## Addendum AM) Final live-runtime switch audit for `union_validated_top12`
+
+### AM1) Final implementation choice
+
+The live default operator setup is now aligned to:
+
+- `debug/strategy_set_union_validated_top12.json`
+- `vaultTriggerBalance = 100`
+- `stage2Threshold = 500`
+- `MAX_ABSOLUTE_POSITION_SIZE = 100`
+- `DEFAULT_MIN_ORDER_SHARES = 5`
+- `SPRINT` auto-bankroll sizing capped at `0.32` in the active growth regime
+- `autoOptimizerEnabled = false`
+
+### AM2) Final replay frontier used for the decision
+
+Verified replay horizon:
+
+- `2025-10-10` to `2026-01-28`
+- about `111` days
+
+Final comparison used for the live decision:
+
+- `union_validated_top12`, `20/50`, `$100` cap
+  - ending: `$292.58`
+  - net: `$285.63`
+  - avg/day: `$1.87`
+  - max drawdown: `24.82%`
+  - trades: `789`
+  - freeze block rate: `0.50%`
+
+- `union_validated_top12`, `100/500`, `$100` cap
+  - ending: `$619.82`
+  - net: `$612.87`
+  - avg/day: `$4.02`
+  - max drawdown: `24.38%`
+  - trades: `793`
+
+- `top7_drop6`, `100/500`, `$100` cap
+  - ending: `$672.58`
+  - net: `$665.63`
+  - avg/day: `$4.37`
+  - max drawdown: `71.75%`
+  - trades: `671`
+
+Conclusion:
+
+- `top7_drop6` stayed slightly ahead on raw ending balance
+- `union_validated_top12` stayed far better on drawdown control
+- the selected live choice is therefore `union_validated_top12` under the `100/500` regime because it preserves most of the upside while staying materially closer to the user's low-bust objective
+
+### AM3) `xxxx+` investigation outcome
+
+A credible `xxxx+` replay path appeared only outside the low-bust envelope:
+
+- `union_validated_top12`, `100/500`, risk-envelope-off / high-cap probe
+  - ending: about `$2411.41`
+  - avg/day: about `$15.78`
+  - max drawdown: `57.49%`
+
+This proves `xxxx+` is not mathematically impossible in this repo.
+
+It does **not** qualify as the recommended live setting for the current goal because:
+
+- drawdown rises sharply
+- bankroll-path fragility rises sharply
+- it no longer matches the requirement to maximize growth while keeping bust risk low
+
+### AM4) Replay-to-runtime applicability audit
+
+The final audit confirmed:
+
+- live threshold resolution comes from `CONFIG.RISK.vaultTriggerBalance` and `CONFIG.RISK.stage2Threshold`
+- persisted Redis settings can override code defaults, so `CONFIG_VERSION` was bumped to invalidate stale settings on deploy
+- a stable live operator strategy file was created outside the transient replay folder
+- the live runtime still keeps the `$100` absolute stake cap
+- the live runtime still enforces the `5`-share minimum
+- the live runtime still keeps its real protection stack, including:
+  - volatility/manipulation checks
+  - blackout handling
+  - balance floor
+  - global stop loss
+  - circuit breaker
+  - peak-drawdown brake
+  - max exposure and max-trades-per-cycle controls
+
+### AM5) Critical parity fix discovered during the audit
+
+An important replay/live mismatch was found and corrected:
+
+- the runtime `SPRINT` defaults were still more aggressive than the audited replay path
+- below the large-bankroll regime, the live runtime would otherwise have used `0.45`-style caps while the audited `union_validated_top12` path relied on `0.32`
+
+Therefore the live defaults were aligned to:
+
+- `kellyMaxFraction = 0.32`
+- `autoBankrollKellyHigh = 0.32`
+- `autoBankrollMaxPosHigh = 0.32`
+- `autoBankrollKellyLow = 0.17`
+- `autoBankrollMaxPosLow = 0.17`
+- `autoBankrollLargeCutover = 1000`
+- `autoBankrollKellyLarge = 0.12`
+- `autoBankrollMaxPosLarge = 0.07`
+- `autoBankrollRiskEnvelopeLarge = true`
+
+Without that correction, changing only the strategy path and stage thresholds would have left the live bot more aggressive than the replay being relied on.
+
+### AM6) Honest remaining caveat
+
+`union_validated_top12` remains replay-backed rather than live-proven.
+
+The chosen JSON artifact contains strategies whose per-strategy `liveTrades` counts are still `0`.
+
+So the honest status is:
+
+- replay evidence is strong enough to justify the switch as the lower-drawdown candidate
+- live fills, slippage, and selection drift can still reduce realized results
+- the post-deploy re-audit remains mandatory before calling this proven in real trading
+
+### AM7) Final operational recommendation
+
+For the current user objective, the correct live default is:
+
+- `union_validated_top12`
+- `100/500` stage thresholds
+- `$100` absolute position cap
+- `0.32` aggressive sizing cap
+- auto-optimizer disabled
+
+This does **not** maximize the theoretical absolute endpoint.
+
+It **does** maximize the evidence-backed profit frontier that still keeps drawdown in a range consistent with the user's low-bust requirement.

@@ -339,7 +339,7 @@ function parseFractionEnv(name, fallback) {
 }
 
 const REQUESTED_OPERATOR_STRATEGY_SET_PATH = String(process.env.OPERATOR_STRATEGY_SET_PATH || '').trim();
-const OPERATOR_PRIMARY_STRATEGY_SET_PATH = REQUESTED_OPERATOR_STRATEGY_SET_PATH || 'debug/strategy_set_top7_drop6.json';
+const OPERATOR_PRIMARY_STRATEGY_SET_PATH = REQUESTED_OPERATOR_STRATEGY_SET_PATH || 'debug/strategy_set_union_validated_top12.json';
 
 function isOperatorPrimaryGatesEnforced() {
     const raw = String(process.env.OPERATOR_PRIMARY_GATES_ENFORCED || '').trim().toLowerCase();
@@ -484,7 +484,7 @@ function getLiveOperatorConfig() {
         mode: operatorMode,
         primarySignalSet,
         primarySignalSetDisplay,
-        referenceSignalSet: 'top7_drop6',
+        referenceSignalSet: primarySignalSet,
         top3TelemetryMode: 'READ_ONLY',
         strategySetPath: strategySetPath,
         strategySchedules: {
@@ -10273,7 +10273,7 @@ app.get('/api/collector/status', async (req, res) => {
 // ==================== SUPREME MULTI-MODE TRADING CONFIG ====================
 // 🔴 CONFIG_VERSION: Increment this when making changes to hardcoded settings!
 // This ensures Redis cache is invalidated and new values are used.
-const CONFIG_VERSION = 139;  // v139: FINAL GOLDEN STRATEGY JSON (enforced)
+const CONFIG_VERSION = 140;
 
 // Code fingerprint for forensic consistency (ties debug exports to exact code/config)
 const CODE_FINGERPRINT = (() => {
@@ -11502,7 +11502,7 @@ const CONFIG = {
         kellyEnabled: true,               // Enable Kelly-based position sizing
         kellyFraction: 0.75,              // C1.3: k=0.75 (three-quarter-Kelly) - aggressive compounding for 90%+ WR strategies
         kellyMinPWin: 0.55,               // Minimum pWin to apply Kelly (below this, use minimum stake)
-        kellyMaxFraction: 0.45,           // C1.3: raised from 0.32 to 0.45 - max 45% of bankroll per trade
+        kellyMaxFraction: 0.32,
 
         // 🏆 v89 AUTO-BANKROLL PROFILE (LIVE + PAPER):
         // Automatically chooses the best/fastest profile based on CURRENT bankroll.
@@ -11515,12 +11515,16 @@ const CONFIG = {
         autoBankrollProfileEnabled: true,
         autoBankrollMode: String(process.env.AUTO_BANKROLL_MODE || 'SPRINT').trim().toUpperCase(),
         autoBankrollCutover: 20,                 // <$20 => micro-safe, >=$20 => growth
-        autoBankrollKellyLow: 0.35,
-        autoBankrollKellyHigh: 0.45,
-        autoBankrollMaxPosLow: 0.35,
-        autoBankrollMaxPosHigh: 0.45,
+        autoBankrollLargeCutover: 1000,
+        autoBankrollKellyLow: 0.17,
+        autoBankrollKellyHigh: 0.32,
+        autoBankrollKellyLarge: 0.12,
+        autoBankrollMaxPosLow: 0.17,
+        autoBankrollMaxPosHigh: 0.32,
+        autoBankrollMaxPosLarge: 0.07,
         autoBankrollRiskEnvelopeLow: true,
         autoBankrollRiskEnvelopeHigh: false,
+        autoBankrollRiskEnvelopeLarge: true,
 
         // 🏆 v92 PEAK DRAWNDOWN "SIZE BRAKE" (high-balance safety):
         // If equity is down >= X% from ALL-TIME peak, keep trading BUT cap size hard.
@@ -11537,7 +11541,7 @@ const CONFIG = {
         autoTransferQuiescentSec: 120,            // Seconds of no trade activity before a balance change counts as transfer
 
         // 🏆 v93 GUARDED AUTO-OPTIMIZER: Periodically search for better settings and auto-apply if safe
-        autoOptimizerEnabled: true,
+        autoOptimizerEnabled: false,
         autoOptimizerIntervalHours: 24,           // Run optimizer every N hours (min 1)
         autoOptimizerMinImprovementPct: 10,       // Only apply if speed score improves by at least this %
         autoOptimizerRequireZeroRuin: true,       // Hard filter: candidate must have 0% ruin across all tested windows
@@ -11560,9 +11564,9 @@ const CONFIG = {
         // This is the "vault trigger" - when balance exceeds this, aggressive bootstrap mode ends.
         // Optimized range: $6.10–$15.00. Default $11 balances P($100@7d) vs variance.
         // Use /api/vault-optimize to find optimal for your goals.
-        vaultTriggerBalance: 11,          // Stage0→Stage1 boundary (Bootstrap → Transition)
-        stage1Threshold: 11,              // Legacy alias for vaultTriggerBalance (backward compat)
-        stage2Threshold: 20               // Stage1→Stage2 boundary (Transition → Lock-in)
+        vaultTriggerBalance: 100,
+        stage1Threshold: 100,
+        stage2Threshold: 500
     },
 
     // ==================== TELEGRAM NOTIFICATIONS ====================
@@ -28079,10 +28083,14 @@ app.get('/', (req, res) => {
                 || data?._finalGoldenStrategy?.eliteSource
                 || ''
             ).trim().toLowerCase();
-            const primaryLabel = primarySourceRaw.includes('top8')
-                ? 'OPTIMIZED8'
-                : (primarySourceRaw.includes('top3') ? 'TOP3_ROBUST' : 'TOP7_DROP6');
-            const primaryTag = primaryLabel === 'OPTIMIZED8' ? 'OP8' : (primaryLabel === 'TOP3_ROBUST' ? 'TOP3' : 'TOP7');
+            const primaryLabel = primarySourceRaw.includes('union')
+                ? 'UNION_VALIDATED_TOP12'
+                : (primarySourceRaw.includes('top8')
+                    ? 'OPTIMIZED8'
+                    : (primarySourceRaw.includes('top3') ? 'TOP3_ROBUST' : 'TOP7_DROP6'));
+            const primaryTag = primaryLabel === 'UNION_VALIDATED_TOP12'
+                ? 'UNION12'
+                : (primaryLabel === 'OPTIMIZED8' ? 'OP8' : (primaryLabel === 'TOP3_ROBUST' ? 'TOP3' : 'TOP7'));
 
             runtimeEl.innerHTML = 'Primary: <b style="color:#00ff88;">' + primaryLabel + '</b> (execution set) | Concurrent: <b style="color:#60a5fa;">TOP3_ROBUST</b> (confirmation overlay).';
             if (primaryTag === 'TOP3') {

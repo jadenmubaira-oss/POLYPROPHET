@@ -27,7 +27,7 @@ services:
         value: "5.00"
       # 🏆 v141: Aggressive half-Kelly cap (92% WR → full Kelly=87%, half=43.5%, cap=45%)
       - key: MAX_POSITION_SIZE
-        value: "0.45"
+        value: "0.32"
       # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
       - key: MAX_ABSOLUTE_POSITION_SIZE
         value: "100"
@@ -37,7 +37,7 @@ services:
       - key: OPERATOR_PRIMARY_GATES_ENFORCED
         value: "true"
       - key: OPERATOR_STRATEGY_SET_PATH
-        value: debug/strategy_set_top7_drop6.json
+        value: debug/strategy_set_union_validated_top12.json
       - key: MULTIFRAME_4H_ENABLED
         value: "false"
       # Auth - Set your own credentials in Render dashboard
