@@ -339,7 +339,128 @@ function parseFractionEnv(name, fallback) {
 }
 
 const REQUESTED_OPERATOR_STRATEGY_SET_PATH = String(process.env.OPERATOR_STRATEGY_SET_PATH || '').trim();
-const OPERATOR_PRIMARY_STRATEGY_SET_PATH = 'debug/strategy_set_union_validated_top12.json';
+const OPERATOR_STRATEGY_STAGE_PROFILES = Object.freeze([
+    {
+        key: 'survival_top3',
+        label: 'SURVIVAL',
+        signalSet: 'top3_robust',
+        signalSetDisplay: 'TOP3_ROBUST',
+        strategySetPath: 'debug/strategy_set_top3_robust.json',
+        objective: 'Lowest practical untradability risk while the bankroll is still dominated by the 5-share minimum order.',
+        rangeLabel: '< $8.00',
+        promoteAtBankroll: 8.00,
+        demoteBelowBankroll: null
+    },
+    {
+        key: 'balanced_top5',
+        label: 'BALANCED',
+        signalSet: 'top5_robust',
+        signalSetDisplay: 'TOP5_ROBUST',
+        strategySetPath: 'debug/strategy_set_top5_robust.json',
+        objective: 'Best compromise between lower freeze risk and still-meaningful growth during the bootstrap phase.',
+        rangeLabel: '$8.00 - $19.99',
+        promoteAtBankroll: 20.00,
+        demoteBelowBankroll: 7.00
+    },
+    {
+        key: 'growth_top7',
+        label: 'GROWTH',
+        signalSet: 'top7_drop6',
+        signalSetDisplay: 'TOP7_DROP6',
+        strategySetPath: 'debug/strategy_set_top7_drop6.json',
+        objective: 'Fastest profit-seeking stage once the bankroll is no longer dominated by minimum-order fragility.',
+        rangeLabel: '>= $20.00',
+        promoteAtBankroll: null,
+        demoteBelowBankroll: 18.00
+    }
+]);
+const OPERATOR_STRATEGY_STAGE_PROFILE_BY_KEY = OPERATOR_STRATEGY_STAGE_PROFILES.reduce((acc, profile) => {
+    acc[profile.key] = profile;
+    return acc;
+}, Object.create(null));
+let operatorPrimaryStageRuntime = {
+    currentStageKey: null,
+    lastChangedAt: null,
+    lastBankroll: null
+};
+
+function getOperatorRuntimeBankrollEstimate(fallback = null) {
+    try {
+        if (typeof tradeExecutor !== 'undefined' && tradeExecutor) {
+            if (typeof tradeExecutor.getBankrollForRisk === 'function') {
+                const v = Number(tradeExecutor.getBankrollForRisk());
+                if (Number.isFinite(v) && v > 0) return v;
+            }
+            const v = Number(tradeExecutor.mode === 'LIVE' ? tradeExecutor.cachedLiveBalance : tradeExecutor.paperBalance);
+            if (Number.isFinite(v) && v > 0) return v;
+        }
+    } catch { }
+
+    if (Number.isFinite(Number(fallback)) && Number(fallback) > 0) {
+        return Number(fallback);
+    }
+    return parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
+}
+
+function chooseOperatorPrimaryStageKey(bankroll, previousStageKey = null) {
+    const b = Number.isFinite(Number(bankroll)) && Number(bankroll) > 0
+        ? Number(bankroll)
+        : parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
+
+    if (previousStageKey === 'growth_top7') {
+        return b >= 18 ? 'growth_top7' : (b >= 8 ? 'balanced_top5' : 'survival_top3');
+    }
+    if (previousStageKey === 'balanced_top5') {
+        if (b >= 20) return 'growth_top7';
+        if (b >= 7) return 'balanced_top5';
+        return 'survival_top3';
+    }
+    if (previousStageKey === 'survival_top3') {
+        return b >= 8 ? (b >= 20 ? 'growth_top7' : 'balanced_top5') : 'survival_top3';
+    }
+
+    if (b >= 20) return 'growth_top7';
+    if (b >= 8) return 'balanced_top5';
+    return 'survival_top3';
+}
+
+function getActiveOperatorStrategyStage(bankroll = null) {
+    const runtimeBankroll = getOperatorRuntimeBankrollEstimate(bankroll);
+    const prevKey = operatorPrimaryStageRuntime.currentStageKey;
+    const nextKey = chooseOperatorPrimaryStageKey(runtimeBankroll, prevKey);
+    const profile = OPERATOR_STRATEGY_STAGE_PROFILE_BY_KEY[nextKey] || OPERATOR_STRATEGY_STAGE_PROFILES[0];
+    const changed = prevKey !== profile.key;
+
+    if (changed) {
+        operatorPrimaryStageRuntime.currentStageKey = profile.key;
+        operatorPrimaryStageRuntime.lastChangedAt = new Date().toISOString();
+    } else if (!operatorPrimaryStageRuntime.currentStageKey) {
+        operatorPrimaryStageRuntime.currentStageKey = profile.key;
+        operatorPrimaryStageRuntime.lastChangedAt = new Date().toISOString();
+    }
+
+    operatorPrimaryStageRuntime.lastBankroll = runtimeBankroll;
+
+    const nextTransition = profile.key === 'survival_top3'
+        ? { direction: 'promote', atBankroll: 8.00, toStageKey: 'balanced_top5' }
+        : profile.key === 'balanced_top5'
+            ? { direction: runtimeBankroll >= 20 ? 'promote' : 'promote', atBankroll: 20.00, toStageKey: 'growth_top7', fallbackBelowBankroll: 7.00, fallbackToStageKey: 'survival_top3' }
+            : { direction: 'fallback', atBankroll: 18.00, toStageKey: 'balanced_top5' };
+
+    return {
+        ...profile,
+        bankroll: runtimeBankroll,
+        previousStageKey: prevKey,
+        changed,
+        lastChangedAt: operatorPrimaryStageRuntime.lastChangedAt,
+        nextTransition,
+        source: Number.isFinite(Number(bankroll)) && Number(bankroll) > 0 ? 'CALLER_HINT' : 'RUNTIME_BALANCE'
+    };
+}
+
+function getOperatorPrimaryStrategySetPath(bankroll = null) {
+    return getActiveOperatorStrategyStage(bankroll).strategySetPath;
+}
 
 function isOperatorPrimaryGatesEnforced() {
     const raw = String(process.env.OPERATOR_PRIMARY_GATES_ENFORCED || '').trim().toLowerCase();
@@ -397,28 +518,27 @@ function buildStrategyScheduleRows(strategies) {
 function getLiveOperatorConfig() {
     const baseBankroll = parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
     const stakeFractionDefault = pickOperatorStakeFractionDefault(baseBankroll);
-    const runtimeBankrollEstimate = (() => {
-        try {
-            if (typeof tradeExecutor !== 'undefined' && tradeExecutor) {
-                const runtimeBankroll = typeof tradeExecutor.getBankrollForRisk === 'function'
-                    ? Number(tradeExecutor.getBankrollForRisk())
-                    : Number(tradeExecutor.mode === 'LIVE' ? tradeExecutor.cachedLiveBalance : tradeExecutor.paperBalance);
-                if (Number.isFinite(runtimeBankroll) && runtimeBankroll > 0) {
-                    return runtimeBankroll;
-                }
-            }
-        } catch { }
-        return baseBankroll;
-    })();
+    const runtimeBankrollEstimate = getOperatorRuntimeBankrollEstimate(baseBankroll);
     const stakeFraction = getOperatorStakeFractionForBankroll(runtimeBankrollEstimate);
     const stakePerSignal = runtimeBankrollEstimate * stakeFraction;
-    const strategySetPath = OPERATOR_PRIMARY_STRATEGY_SET_PATH;
+    const activeStage = getActiveOperatorStrategyStage(runtimeBankrollEstimate);
+    const strategySetPath = activeStage.strategySetPath;
     const strategyPathLocked = true;
     const enforcePrimaryGates = isOperatorPrimaryGatesEnforced();
     const directEntryEnabled = isDirectOperatorStrategyExecutionEnabled();
     const activeBankrollPolicy = (() => {
         try {
             return getBankrollAdaptivePolicy(runtimeBankrollEstimate);
+        } catch {
+            return null;
+        }
+    })();
+    const activeExecutionRiskProfile = (() => {
+        try {
+            if (!Number.isFinite(runtimeBankrollEstimate) || typeof tradeExecutor === 'undefined' || !tradeExecutor || typeof tradeExecutor.getDynamicRiskProfile !== 'function') {
+                return null;
+            }
+            return tradeExecutor.getDynamicRiskProfile(runtimeBankrollEstimate);
         } catch {
             return null;
         }
@@ -436,8 +556,12 @@ function getLiveOperatorConfig() {
     const signalGatePriceMax = Number.isFinite(Number(operatorConditions.priceMax)) ? Number(operatorConditions.priceMax) : 0.80;
     const signalGateMomentumMin = Number.isFinite(Number(operatorConditions.momentumMin)) ? Number(operatorConditions.momentumMin) : 0.03;
     const signalGateVolumeMin = Number.isFinite(Number(operatorConditions.volumeMin)) ? Number(operatorConditions.volumeMin) : 500;
-    const signalGateMomentumApplied = enforcePrimaryGates && !disableMomentumGateEnv && operatorConditions.applyMomentumGate === true;
-    const signalGateVolumeApplied = enforcePrimaryGates && !disableVolumeGateEnv && operatorConditions.applyVolumeGate === true;
+    const signalGateMomentumApplied = directEntryEnabled
+        ? false
+        : (enforcePrimaryGates && !disableMomentumGateEnv && operatorConditions.applyMomentumGate === true);
+    const signalGateVolumeApplied = directEntryEnabled
+        ? (!disableVolumeGateEnv && operatorConditions.applyVolumeGate === true && activeExecutionRiskProfile?.stage !== 0)
+        : (enforcePrimaryGates && !disableVolumeGateEnv && operatorConditions.applyVolumeGate === true);
     const maxGlobalTradesPerCycle = Number.isFinite(Number(CONFIG?.RISK?.maxGlobalTradesPerCycle))
         ? Math.max(1, Math.floor(Number(CONFIG.RISK.maxGlobalTradesPerCycle)))
         : 1;
@@ -451,8 +575,10 @@ function getLiveOperatorConfig() {
         : [];
     const sb10OneMonth = sb10RiskRows.find(r => String(r.window) === '1m') || null;
     const sb10Full = sb10RiskRows.find(r => String(r.window) === 'full') || null;
-    const top7Schedule = buildStrategyScheduleRows(operatorRuntimeSnapshot?.strategies);
+    const activePrimarySchedule = buildStrategyScheduleRows(operatorRuntimeSnapshot?.strategies);
     const top3Schedule = buildStrategyScheduleRows(TOP3_ROBUST_CONCURRENT_RUNTIME?.strategies);
+    const top5Schedule = buildStrategyScheduleRows(TOP5_ROBUST_REFERENCE_RUNTIME?.strategies);
+    const top7GrowthSchedule = buildStrategyScheduleRows(TOP7_DROP6_REFERENCE_RUNTIME?.strategies);
     const top8Schedule = buildStrategyScheduleRows(TOP8_CURRENT_REFERENCE_RUNTIME?.strategies);
 
     let finalGoldenReport = null;
@@ -487,9 +613,41 @@ function getLiveOperatorConfig() {
         referenceSignalSet: primarySignalSet,
         top3TelemetryMode: 'READ_ONLY',
         strategySetPath: strategySetPath,
+        strategyStages: {
+            active: {
+                key: activeStage.key,
+                label: activeStage.label,
+                signalSet: activeStage.signalSet,
+                signalSetDisplay: activeStage.signalSetDisplay,
+                strategySetPath: activeStage.strategySetPath,
+                objective: activeStage.objective,
+                rangeLabel: activeStage.rangeLabel,
+                bankroll: activeStage.bankroll,
+                promoteAtBankroll: activeStage.promoteAtBankroll ?? null,
+                demoteBelowBankroll: activeStage.demoteBelowBankroll ?? null,
+                previousStageKey: activeStage.previousStageKey || null,
+                changed: activeStage.changed === true,
+                lastChangedAt: activeStage.lastChangedAt || null,
+                nextTransition: activeStage.nextTransition || null
+            },
+            ladder: OPERATOR_STRATEGY_STAGE_PROFILES.map(profile => ({
+                key: profile.key,
+                label: profile.label,
+                signalSet: profile.signalSet,
+                signalSetDisplay: profile.signalSetDisplay,
+                strategySetPath: profile.strategySetPath,
+                objective: profile.objective,
+                rangeLabel: profile.rangeLabel,
+                promoteAtBankroll: profile.promoteAtBankroll ?? null,
+                demoteBelowBankroll: profile.demoteBelowBankroll ?? null
+            }))
+        },
         strategySchedules: {
-            primaryExecution: top7Schedule,
-            top7Primary: top7Schedule,
+            primaryExecution: activePrimarySchedule,
+            top3Survival: top3Schedule,
+            top5Bootstrap: top5Schedule,
+            top7Growth: top7GrowthSchedule,
+            top7Primary: top7GrowthSchedule,
             top3Monitor: top3Schedule,
             top8Reference: top8Schedule
         },
@@ -501,9 +659,12 @@ function getLiveOperatorConfig() {
         },
         strategySetLock: {
             locked: true,
+            mode: 'BANKROLL_STAGED',
             requestedPath: REQUESTED_OPERATOR_STRATEGY_SET_PATH || null,
             effectivePath: strategySetPath,
-            overrideApplied: strategyPathLocked
+            overrideApplied: strategyPathLocked,
+            activeStageKey: activeStage.key,
+            activeStageLabel: activeStage.label
         },
         datasetWindow: '2025-10-10 to 2026-01-28',
         bankroll: {
@@ -524,11 +685,17 @@ function getLiveOperatorConfig() {
             volumeMin: signalGateVolumeMin,
             applyMomentumGate: signalGateMomentumApplied,
             applyVolumeGate: signalGateVolumeApplied,
+            volumeDeferredInBootstrap: directEntryEnabled && activeExecutionRiskProfile?.stage === 0,
+            matcherMode: directEntryEnabled ? 'DIRECT_OPERATOR_RUNTIME' : 'ORACLE_FILTERED_RUNTIME',
             maxGlobalTradesPerCycle,
         },
         executionAssumptions: {
             entryGenerator: directEntryEnabled ? 'DIRECT_OPERATOR_STRATEGY_SET' : 'ORACLE_FILTERED',
             oracle15mRole: directEntryEnabled ? 'TELEMETRY_ONLY' : 'ENTRY_GENERATOR',
+            strategyMatcher: directEntryEnabled ? 'ENFORCED_OPERATOR_SET' : 'HYBRID_STRATEGY_RUNTIME',
+            momentumGateExecution: signalGateMomentumApplied ? 'ON' : 'OFF',
+            volumeGateExecution: signalGateVolumeApplied ? 'ON' : 'OFF',
+            volumeDeferredInBootstrap: directEntryEnabled && activeExecutionRiskProfile?.stage === 0,
             slippagePct: 0.01,
             takerFeesMode: 'assumed',
             simulateHalts: false,
@@ -570,12 +737,16 @@ function getLiveOperatorConfig() {
                 primaryGatesEnforced: enforcePrimaryGates,
                 directEntryEnabled,
                 entryGenerator: directEntryEnabled ? 'DIRECT_OPERATOR_STRATEGY_SET' : 'ORACLE_FILTERED',
-                rationale: `${primarySignalSetDisplay} is the enforced primary signal set. 15m autonomous entries are generated directly from the primary strategy set. TOP3 is telemetry-only.`
+                stagedPrimarySet: activeStage.signalSet,
+                stagedPrimaryLabel: activeStage.label,
+                rationale: `${primarySignalSetDisplay} is active because bankroll is ${runtimeBankrollEstimate.toFixed(2)}. Staged primary ladder: TOP3 below $8, TOP5 from $8 to under $20, TOP7 from $20+ with hysteresis fallback at $18 and $7.`
             },
             worksheet: OPERATOR_WORKSHEET
         },
         manualRules: [
             `15m autonomous BUY entry is generated directly from the enforced primary strategy set (${primarySignalSetDisplay}).`,
+            `Active bankroll stage: ${activeStage.label} (${activeStage.rangeLabel}).`,
+            'Automatic staged switching: TOP3 below $8, TOP5 from $8 to under $20, TOP7 from $20+.',
             'Treat TOP3 status as read-only telemetry; it must not drive BUY decisions.',
             'Never exceed one trade per 15m cycle.',
             'Use operatorWorksheet.riskAdjusted row for your bankroll + horizon to choose stake fraction.',
@@ -10461,6 +10632,8 @@ function loadStaticStrategySet(configuredPath, fallbackSource) {
     };
 }
 
+const TOP3_ROBUST_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top3_robust.json', 'top3_robust');
+const TOP5_ROBUST_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top5_robust.json', 'top5_robust');
 const TOP7_DROP6_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top7_drop6.json', 'top7_drop6');
 const TOP8_CURRENT_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top8_current.json', 'top8_current');
 
@@ -10495,7 +10668,7 @@ const OPERATOR_STRATEGY_SET_RUNTIME = (() => {
 
     const reload = (nextConfiguredPath) => {
         const requested = String(nextConfiguredPath || '').trim();
-        const desired = OPERATOR_PRIMARY_STRATEGY_SET_PATH;
+        const desired = getOperatorPrimaryStrategySetPath();
         configuredPath = desired;
         resolvedPath = resolveOperatorStrategySetPath(configuredPath);
         lastReloadAttemptAt = new Date().toISOString();
@@ -10540,7 +10713,7 @@ const OPERATOR_STRATEGY_SET_RUNTIME = (() => {
     };
 
     const ensureLoaded = () => {
-        const desired = OPERATOR_PRIMARY_STRATEGY_SET_PATH;
+        const desired = getOperatorPrimaryStrategySetPath();
         if (desired !== String(configuredPath || '')) {
             reload(desired);
             return;
@@ -10582,7 +10755,7 @@ const OPERATOR_STRATEGY_SET_RUNTIME = (() => {
         };
     };
 
-    reload(OPERATOR_PRIMARY_STRATEGY_SET_PATH);
+    reload(getOperatorPrimaryStrategySetPath());
     return { get, status, reload };
 })();
 
@@ -10590,65 +10763,7 @@ function getOperatorStrategySetRuntimeStatus() {
     return OPERATOR_STRATEGY_SET_RUNTIME.status();
 }
 
-const TOP3_ROBUST_CONCURRENT_RUNTIME = (() => {
-    const configuredPath = 'debug/strategy_set_top3_robust.json';
-    const resolvedPath = resolveOperatorStrategySetPath(configuredPath);
-    let strategies = [];
-    let loadError = null;
-    let conditions = { priceMin: 0.60, priceMax: 0.80, momentumMin: 0.00, volumeMin: 100, applyMomentumGate: false, applyVolumeGate: false };
-    let stats = null;
-
-    const computePriceRange = (conds, strats) => {
-        const defaultMin = Number(conds?.priceMin);
-        const defaultMax = Number(conds?.priceMax);
-        let minPx = Number.isFinite(defaultMin) ? defaultMin : Infinity;
-        let maxPx = Number.isFinite(defaultMax) ? defaultMax : -Infinity;
-        if (Array.isArray(strats)) {
-            for (const s of strats) {
-                const sMin = Number(s?.priceMin ?? s?.priceBand?.min);
-                const sMax = Number(s?.priceMax ?? s?.priceBand?.max);
-                if (Number.isFinite(sMin)) minPx = Math.min(minPx, sMin);
-                if (Number.isFinite(sMax)) maxPx = Math.max(maxPx, sMax);
-            }
-        }
-        if (!Number.isFinite(minPx)) minPx = 0;
-        if (!Number.isFinite(maxPx)) maxPx = 1;
-        return { min: minPx, max: maxPx };
-    };
-
-    if (!resolvedPath) {
-        loadError = configuredPath ? 'INVALID_STRATEGY_SET_PATH' : 'NO_STRATEGY_SET_PATH';
-    } else {
-        try {
-            if (!fs.existsSync(resolvedPath)) {
-                loadError = 'STRATEGY_SET_FILE_NOT_FOUND';
-            } else {
-                const raw = fs.readFileSync(resolvedPath, 'utf8');
-                const parsed = JSON.parse(raw);
-                strategies = Array.isArray(parsed?.strategies) ? parsed.strategies : [];
-                conditions = parsed?.conditions || conditions;
-                stats = parsed?.stats || null;
-                loadError = null;
-            }
-        } catch (e) {
-            strategies = [];
-            stats = null;
-            loadError = (e && e.message) ? e.message : String(e);
-        }
-    }
-
-    const priceRange = computePriceRange(conditions, strategies);
-    return {
-        configuredPath,
-        resolvedPath,
-        strategies,
-        loadError,
-        conditions,
-        priceRange,
-        stats,
-        enabled: Array.isArray(strategies) && strategies.length > 0
-    };
-})();
+const TOP3_ROBUST_CONCURRENT_RUNTIME = TOP3_ROBUST_REFERENCE_RUNTIME;
 
 function getTop3RobustConcurrentStrategyStatus() {
     return {
@@ -31866,6 +31981,7 @@ function buildStateSnapshot() {
         strategySetPath: liveOp.strategySetPath,
         strategySetRuntime: getOperatorStrategySetRuntimeStatus(),
         top3ConcurrentRuntime: getTop3RobustConcurrentStrategyStatus(),
+        strategyStages: liveOp.strategyStages || null,
         strategySchedules: liveOp.strategySchedules || null,
         finalGolden: liveOp.finalGolden || null,
         baseBankroll: liveOp.bankroll.baseBankroll,
@@ -32593,6 +32709,7 @@ app.get('/api/state-public', (req, res) => {
             strategySetPath: liveOp.strategySetPath,
             strategySetRuntime: getOperatorStrategySetRuntimeStatus(),
             top3ConcurrentRuntime: getTop3RobustConcurrentStrategyStatus(),
+            strategyStages: liveOp.strategyStages || null,
             strategySchedules: liveOp.strategySchedules || null,
             finalGolden: liveOp.finalGolden || null,
             baseBankroll: liveOp.bankroll.baseBankroll,

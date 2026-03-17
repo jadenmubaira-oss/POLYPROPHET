@@ -782,7 +782,30 @@
             const finalTime = fmtUtcTime(finalStrategy?.utcHour, finalStrategy?.entryMinute);
             const finalMode = finalGolden?.enforced === true ? 'ENFORCED' : 'ADVISORY';
             const primarySetDisplay = String(op?.primarySignalSetDisplay || op?.primarySignalSet || 'PRIMARY').trim();
+            const stageInfo = op?.strategyStages || {};
+            const activeStage = stageInfo?.active || null;
+            const stageLadder = Array.isArray(stageInfo?.ladder) ? stageInfo.ladder : [];
             const primaryRows = schedules?.primaryExecution || schedules?.top7Primary;
+            const nextTransition = activeStage?.nextTransition || null;
+            const nextTransitionLine = nextTransition && Number.isFinite(Number(nextTransition.atBankroll))
+                ? `${String(nextTransition.direction || 'switch').toUpperCase()} @ $${fmtNum(nextTransition.atBankroll, 2)} → ${escHtml(String(nextTransition.toStageKey || '--').toUpperCase())}`
+                : 'No pending switch threshold';
+            const ladderHtml = stageLadder.length
+                ? `
+                    <div style="margin-bottom:10px;padding:10px;border:1px solid rgba(79,195,247,0.25);border-radius:8px;background:rgba(79,195,247,0.08);">
+                        <div style="font-weight:bold;color:#4fc3f7;">Bankroll Stage Ladder</div>
+                        <div style="margin-top:6px;display:grid;gap:6px;">
+                            ${stageLadder.map(stage => `
+                                <div style="padding:8px;border-radius:6px;border:1px solid ${stage.key === activeStage?.key ? 'rgba(16,185,129,0.45)' : 'rgba(255,255,255,0.08)'};background:${stage.key === activeStage?.key ? 'rgba(16,185,129,0.10)' : 'rgba(255,255,255,0.03)'};">
+                                    <div style="font-weight:bold;color:${stage.key === activeStage?.key ? '#34d399' : '#fff'};">${escHtml(stage.label || '--')} · ${escHtml(stage.signalSetDisplay || '--')}</div>
+                                    <div style="font-size:11px;color:var(--dim);margin-top:2px;">Range: ${escHtml(stage.rangeLabel || '--')} | Path: ${escHtml(stage.strategySetPath || '--')}</div>
+                                    <div style="font-size:11px;color:var(--dim);margin-top:2px;">${escHtml(stage.objective || '--')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `
+                : '';
 
             const finalGoldenBlock = `
                 <div style="margin-top:10px;padding:10px;border:1px solid rgba(255,215,0,0.35);border-radius:8px;background:rgba(255,215,0,0.08);">
@@ -793,7 +816,11 @@
             `;
 
             el.innerHTML = `
-                ${renderScheduleBlock('Primary Execution Set', primaryRows, `Hard-locked live execution schedule (${primarySetDisplay})`)}
+                ${ladderHtml}
+                ${renderScheduleBlock('Active Primary Execution Set', primaryRows, `${primarySetDisplay} | ${escHtml(activeStage?.label || '--')} | ${nextTransitionLine}`)}
+                ${renderScheduleBlock('Stage Set · TOP3 Survival', schedules?.top3Survival || schedules?.top3Monitor, 'Primary execution when bankroll is below $8.00')}
+                ${renderScheduleBlock('Stage Set · TOP5 Balanced', schedules?.top5Bootstrap, 'Primary execution from $8.00 to under $20.00')}
+                ${renderScheduleBlock('Stage Set · TOP7 Growth', schedules?.top7Growth || schedules?.top7Primary, 'Primary execution from $20.00+ (fallback below $18.00)')}
                 ${renderScheduleBlock('TOP3 Monitor Set', schedules?.top3Monitor, 'Read-only concurrent monitor')}
                 ${renderScheduleBlock('TOP8 Reference Set', schedules?.top8Reference, 'Reference only (not primary execution)')}
                 ${finalGoldenBlock}
@@ -1172,9 +1199,13 @@
             const top7 = payload?.top7Drop6StressSummary || null;
             const top3 = payload?.top3RobustStressSummary || null;
             const op = payload?.liveOperatorProfile || {};
+            const signalGates = op?.signalGates || {};
             const primarySetDisplay = String(op?.primarySignalSetDisplay || op?.primarySignalSet || 'PRIMARY').trim();
             const primaryRuntime = op?.strategySetRuntime || {};
             const top3Runtime = op?.top3ConcurrentRuntime || {};
+            const stageInfo = op?.strategyStages || {};
+            const activeStage = stageInfo?.active || null;
+            const stageLadder = Array.isArray(stageInfo?.ladder) ? stageInfo.ladder : [];
             const top7Ledger = top7?.ledgerSummary || {};
             const top3Ledger = top3?.ledgerSummary || {};
             const top7Sb5 = top7?.sb5 || null;
@@ -1186,17 +1217,47 @@
             const top3Pref5 = pickPreferredStakeRow(top3Sb5, 0.01);
             const top7Pref10 = pickPreferredStakeRow(top7Sb10, 0.01);
             const top3Pref10 = pickPreferredStakeRow(top3Sb10, 0.01);
+            const nextTransition = activeStage?.nextTransition || null;
+            const nextTransitionLine = nextTransition && Number.isFinite(Number(nextTransition.atBankroll))
+                ? `${String(nextTransition.direction || 'switch').toUpperCase()} @ $${fmtNum(nextTransition.atBankroll, 2)} → ${String(nextTransition.toStageKey || '--').toUpperCase()}`
+                : '--';
+            const executionGateLine = `Execution gates: price ${fmtBand(signalGates?.priceMin, signalGates?.priceMax)} | momentum ${signalGates?.applyMomentumGate ? 'ON' : 'OFF'} | volume ${signalGates?.applyVolumeGate ? 'ON' : 'OFF'}${signalGates?.volumeDeferredInBootstrap ? ' (bootstrap defers volume)' : ''} | max global/cycle ${fmtInt(signalGates?.maxGlobalTradesPerCycle)}`;
+            const stageRows = stageLadder.length
+                ? stageLadder.map(stage => `
+                    <tr>
+                        <td style="padding:4px;border-bottom:1px solid #222;">${escHtml(stage.label || '--')}</td>
+                        <td style="padding:4px;border-bottom:1px solid #222;">${escHtml(stage.signalSetDisplay || '--')}</td>
+                        <td style="padding:4px;border-bottom:1px solid #222;">${escHtml(stage.rangeLabel || '--')}</td>
+                        <td style="padding:4px;border-bottom:1px solid #222;color:${stage.key === activeStage?.key ? '#34d399' : 'var(--dim)'};">${escHtml(stage.objective || '--')}</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="4" style="padding:4px;border-bottom:1px solid #222;color:var(--dim);">No staged ladder data</td></tr>';
 
             el.innerHTML = `
                 <div style="color:#fff;font-size:12px;line-height:1.7;">
-                    <div style="margin-bottom:8px;color:var(--green);font-weight:bold;">Primary execution set: ${primarySetDisplay} (enforced)</div>
+                    <div style="margin-bottom:8px;color:var(--green);font-weight:bold;">Primary execution set: ${primarySetDisplay} (${escHtml(activeStage?.label || 'ACTIVE')} stage)</div>
+                    <div style="margin-bottom:6px;">Runtime bankroll: $${fmtNum(activeStage?.bankroll, 2)} | Stage band: ${escHtml(activeStage?.rangeLabel || '--')} | Next switch: ${escHtml(nextTransitionLine)}</div>
+                    <div style="margin-bottom:6px;">${escHtml(executionGateLine)}</div>
                     <div style="margin-bottom:6px;">Concurrent monitor: TOP3_ROBUST (read-only telemetry).</div>
                     <div style="margin-bottom:6px;color:var(--dim);">BUY decisions are driven by the enforced primary set only. TOP3 status is informational and does not gate entries.</div>
-                    <div style="margin-bottom:10px;color:var(--dim);">The stress rows below remain TOP7/TOP3 reference comparisons because an equivalent bundled full stress matrix is not present for the current primary set.</div>
+                    <div style="margin-bottom:10px;color:var(--dim);">The stress rows below remain TOP7/TOP3 reference comparisons because an equivalent bundled full stress matrix is not present for TOP5 in the current payload bundle.</div>
 
                     <div style="font-weight:bold;margin-bottom:4px;border-bottom:1px solid #444;padding-bottom:4px;">RUNTIME STATUS</div>
                     <div>Primary runtime: <b style="color:${primaryRuntime.loaded ? 'var(--green)' : 'var(--red)'}">${primaryRuntime.loaded ? 'LOADED' : 'NOT LOADED'}</b> (${fmtInt(primaryRuntime.strategies)} strategies)</div>
                     <div>TOP3 runtime: <b style="color:${top3Runtime.loaded ? 'var(--green)' : 'var(--red)'}">${top3Runtime.loaded ? 'LOADED' : 'NOT LOADED'}</b> (${fmtInt(top3Runtime.strategies)} strategies)</div>
+
+                    <div style="font-weight:bold;margin:8px 0 4px;border-bottom:1px solid #444;padding-bottom:4px;">BANKROLL STAGE LADDER</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
+                        <thead><tr style="color:var(--dim);text-align:left;">
+                            <th style="padding:4px;border-bottom:1px solid #333;">Stage</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Set</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Range</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Why</th>
+                        </tr></thead>
+                        <tbody>
+                            ${stageRows}
+                        </tbody>
+                    </table>
 
                     <div style="font-weight:bold;margin:8px 0 4px;border-bottom:1px solid #444;padding-bottom:4px;">REFERENCE SET QUALITY SNAPSHOT (EXECUTED LEDGER)</div>
                     <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
@@ -1604,6 +1665,8 @@
                 stateCache.liveOperatorProfile = op;
                 const rt = op?.strategySetRuntime || {};
                 const rtTop3 = op?.top3ConcurrentRuntime || {};
+                const activeStage = op?.strategyStages?.active || {};
+                const signalGates = op?.signalGates || {};
                 renderTop7StressSummary(json?.top7Drop6StressSummary);
                 renderTop3StressSummary(json?.top3RobustStressSummary);
                 renderOptimized8StressSummary(json?.optimized8StressSummary);
@@ -1616,14 +1679,22 @@
                 const top3Loaded = rtTop3?.loaded === true;
                 const strategyCount = Number(rt?.strategies);
                 const status = loaded ? 'LOADED' : 'NOT LOADED';
-                title.textContent = `${status}${enforced ? ' (TOP7 ENFORCED)' : ''}${top3Loaded ? ' + TOP3 MONITOR' : ''}`;
+                const activeStageLabel = String(activeStage?.label || 'STAGED').trim().toUpperCase();
+                const activeSetLabel = String(activeStage?.signalSetDisplay || op?.primarySignalSetDisplay || 'PRIMARY').trim().toUpperCase();
+                title.textContent = `${status} (${activeStageLabel} · ${activeSetLabel})${enforced ? ' ENFORCED' : ''}${top3Loaded ? ' + TOP3 MONITOR' : ''}`;
                 title.style.color = loaded ? 'var(--green)' : 'var(--red)';
 
                 const lines = [];
-                lines.push(`[TOP7 primary] strategySetPath: ${op.strategySetPath || '--'}`);
+                lines.push(`[active stage] ${activeStage?.label || '--'} | bankroll=$${fmtNum(activeStage?.bankroll, 2)} | range=${activeStage?.rangeLabel || '--'}`);
+                lines.push(`[active primary] strategySetPath: ${op.strategySetPath || '--'}`);
                 if (rt?.resolvedPath) lines.push(`resolvedPath: ${rt.resolvedPath}`);
                 if (Number.isFinite(strategyCount)) lines.push(`strategies: ${strategyCount}`);
                 if (rt?.loadError) lines.push(`loadError: ${rt.loadError}`);
+                if (activeStage?.objective) lines.push(`objective: ${activeStage.objective}`);
+                if (activeStage?.nextTransition?.atBankroll) {
+                    lines.push(`nextSwitch: ${String(activeStage.nextTransition.direction || 'switch').toUpperCase()} @ $${fmtNum(activeStage.nextTransition.atBankroll, 2)} -> ${String(activeStage.nextTransition.toStageKey || '--').toUpperCase()}`);
+                }
+                lines.push(`executionGates: price=${fmtBand(signalGates?.priceMin, signalGates?.priceMax)} | momentum=${signalGates?.applyMomentumGate ? 'ON' : 'OFF'} | volume=${signalGates?.applyVolumeGate ? 'ON' : 'OFF'}${signalGates?.volumeDeferredInBootstrap ? ' (bootstrap defers volume)' : ''} | maxGlobal=${fmtInt(signalGates?.maxGlobalTradesPerCycle)}`);
                 lines.push('');
                 lines.push(`[TOP3 concurrent] loaded: ${rtTop3?.loaded === true ? 'YES' : 'NO'}`);
                 if (rtTop3?.resolvedPath) lines.push(`resolvedPath: ${rtTop3.resolvedPath}`);

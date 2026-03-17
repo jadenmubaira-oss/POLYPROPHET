@@ -11704,3 +11704,478 @@ Operator meaning:
 - but if a late post-cancel match is later verifiable from the venue, the runtime can now recover it truthfully instead of silently losing parity
 
 This closes the main remaining entry-side parity gap identified in AN6/AN7 without promoting any new aggressive runtime setting by itself.
+
+## AN10) Post-deploy corrected frontier recheck (live-style, 16 Mar 2026)
+
+Purpose of this addendum:
+
+- continue the post-deploy search for a configuration that preserves as much upside as truthfully possible while reducing early-stage freeze / bust risk
+- correct an important continuation-model pitfall discovered during the recheck
+- determine whether the current `union_validated_top12` live preference is still on the best risk/upside frontier
+
+### AN10.1) Data source + parity statement
+
+⚠️ DATA SOURCE:
+
+- live runtime verification from `https://polyprophet-1-rr1g.onrender.com/api/risk-controls`
+- verified deploy commit: `e6c07c3e19fa6768a2b402d2e313d1f57f6dd6b0`
+- replay ledgers from `debug/micro_6p95_5shares_stage1_v20_50/replay/*/hybrid_replay_executed_ledger.json`
+- runtime simulator: `simulateBankrollPath()` in `scripts/hybrid_replay_backtest.js`
+
+Fresh recheck settings:
+
+- starting balance: `$6.95`
+- `5`-share minimum
+- live-style bankroll settings centered on:
+  - `MAX_POSITION_SIZE = 0.32`
+  - `vaultTriggerBalance = 100`
+  - `stage2Threshold = 500`
+  - `kellyFraction = 0.75`
+  - risk envelope ON
+  - live halts / cooldown / circuit breaker ON
+  - peak drawdown brake ON
+
+Parity confirmation:
+
+- on this fresh recheck, `union_validated_top12` reproduced the Addendum AN deterministic control exactly:
+  - ending balance: `$619.82`
+  - max drawdown: `24.4%`
+  - executed trades: `793`
+
+So the shortlist comparison below is anchored to the correct live-style deterministic control.
+
+### AN10.2) Methodology correction
+
+The replay ledger stores:
+
+- `pWin = strategyWinRateLCB`
+
+That means any continuation model that treats ledger `pWin` as the empirical probability is wrong; it silently turns "empirical" into another LCB-style run.
+
+For this corrected recheck:
+
+- empirical continuation = replay-derived per-strategy empirical win rate calculated from the ordered replay ledger itself
+- conservative continuation = replay row `strategyWinRateLCB`
+- schedule is preserved in both cases
+- only outcomes are randomized
+
+This corrected method brings the fresh `union_validated_top12` empirical result back near the Addendum AN control rather than the over-optimistic historical-win-rate version.
+
+### AN10.3) Important interpretation: `< $20` vs true "cannot trade again"
+
+For the current live `5`-share mode, a more practical freeze proxy is:
+
+- `P(end < $3.25)` for ~`65c` entry sets
+- `P(end < $4.00)` for the more expensive `70c+` / `72c+` sets
+
+This matters because "`P(end < $20)`" and "cannot place another live trade" are not always the same event.
+
+However, for `union_validated_top12` on this fresh recheck they are very close:
+
+- empirical:
+  - `P(end < $20) = 45.0%`
+  - `P(end < $3.25) = 40.6%`
+- LCB:
+  - `P(end < $20) = 57.2%`
+  - `P(end < $3.25) = 50.2%`
+
+So the user's objection remains valid: under current live-style assumptions, `union_validated_top12` still carries a materially high chance of ending near or below practical tradability.
+
+### AN10.4) Shortlist results
+
+Fresh shortlist:
+
+- `union_validated_top12`
+- `baseline_top7_drop6`
+- `legacy_top5_robust`
+- `legacy_top3_robust`
+- `legacy_top8_current`
+
+#### A) Current `union_validated_top12` control
+
+- deterministic:
+  - ending: `$619.82`
+  - max drawdown: `24.4%`
+  - executed: `793`
+- empirical schedule-preserving:
+  - mean: `$347.80`
+  - median: `$526.77`
+  - `P(end < $20) = 45.0%`
+  - `P(end < $3.25) = 40.6%`
+  - `P(end >= $100) = 55.0%`
+- LCB schedule-preserving:
+  - mean: `$188.20`
+  - median: `$3.22`
+  - `P(end < $20) = 57.2%`
+  - `P(end < $3.25) = 50.2%`
+  - `P(end >= $100) = 42.2%`
+
+#### B) `baseline_top7_drop6` — strongest upside-improving challenger
+
+- deterministic:
+  - ending: `$672.58`
+  - max drawdown: `71.8%`
+  - executed: `671`
+- empirical:
+  - mean: `$410.13`
+  - median: `$605.73`
+  - `P(end < $20) = 40.4%`
+  - `P(end < $3.25) = 36.1%`
+  - `P(end >= $100) = 59.6%`
+- LCB:
+  - mean: `$306.75`
+  - median: `$378.52`
+  - `P(end < $20) = 47.1%`
+  - `P(end < $3.25) = 42.8%`
+  - `P(end >= $100) = 52.9%`
+
+Interpretation:
+
+- on this corrected recheck, `baseline_top7_drop6` beats `union_validated_top12` on both upside and downside continuation metrics
+- but it does so with a much uglier realized-path deterministic drawdown (`71.8%` vs `24.4%`)
+- so it is the strongest profit-seeking challenger, not an automatic "strictly safer in every sense" replacement
+
+#### C) `legacy_top5_robust` — strongest middle-ground low-freeze compromise
+
+- deterministic:
+  - ending: `$214.93`
+  - max drawdown: `43.1%`
+  - executed: `324`
+- empirical:
+  - mean: `$217.99`
+  - median: `$239.30`
+  - `P(end < $20) = 31.2%`
+  - `P(end < $3.25) = 23.9%`
+  - `P(end >= $100) = 68.7%`
+- LCB:
+  - mean: `$93.47`
+  - median: `$87.89`
+  - `P(end < $20) = 46.8%`
+  - `P(end < $3.25) = 36.3%`
+  - `P(end >= $100) = 48.9%`
+
+Interpretation:
+
+- this is the cleanest compromise found between the current high-freeze `union_validated_top12` profile and the much slower ultra-robust sets
+- downside improves materially versus `union_validated_top12`
+- upside falls materially versus `baseline_top7_drop6` and also versus the `union_validated_top12` deterministic control
+
+#### D) `legacy_top3_robust` — safest practical tradability result found
+
+- deterministic:
+  - ending: `$176.31`
+  - max drawdown: `33.1%`
+  - executed: `213`
+- empirical:
+  - mean: `$147.87`
+  - median: `$172.34`
+  - `P(end < $20) = 31.4%`
+  - `P(end < $3.25) = 14.8%`
+  - `P(end < $4.00) = 18.7%`
+  - `P(end >= $100) = 67.8%`
+- LCB:
+  - mean: `$84.65`
+  - median: `$100.61`
+  - `P(end < $20) = 41.9%`
+  - `P(end < $3.25) = 23.5%`
+  - `P(end < $4.00) = 28.9%`
+  - `P(end >= $100) = 50.1%`
+
+Interpretation:
+
+- this was the best genuine freeze-reduction result found in the existing candidate universe
+- it is meaningfully safer than `union_validated_top12`
+- but it trades much less and gives up substantial upside
+
+#### E) `legacy_top8_current` — reject for live applicability
+
+- deterministic:
+  - ending: `$2.95`
+  - max drawdown: `82.8%`
+  - executed: `59`
+  - blocked: `671`
+- empirical continuation looked superficially competitive, but deterministic live-style replay applicability failed badly
+
+Interpretation:
+
+- this set should not be promoted despite some Monte Carlo outputs looking decent
+- the deterministic live-style replay collapses too hard to treat it as a credible operator candidate
+
+### AN10.5) What did **not** work
+
+Simple cap trimming inside `union_validated_top12` was not enough.
+
+Fresh probes reducing the active `0.32` cap to around `0.25` / `0.20` changed the Monte Carlo results only marginally and did not solve the high early-stage freeze exposure by themselves.
+
+So on this recheck, candidate-set selection mattered more than mild cap reduction.
+
+### AN10.6) Updated operator hierarchy from this post-deploy recheck
+
+If the priority is:
+
+- maximum upside while still improving downside materially versus the current `union_validated_top12` baseline:
+  - `baseline_top7_drop6` is now the strongest challenger found
+- best compromise between reduced freeze risk and still-meaningful growth:
+  - `legacy_top5_robust`
+- lowest practical untradability risk found in the current candidate universe:
+  - `legacy_top3_robust`
+
+### AN10.7) Final verdict from this corrected recheck
+
+The fresh post-deploy frontier search does **not** support keeping `union_validated_top12` as the uniquely best answer for the user's stated preference.
+
+What is now true:
+
+- `union_validated_top12` still has attractive deterministic upside
+- but its corrected schedule-preserving continuation risk remains too high to describe as comfortably low-bust
+- `baseline_top7_drop6` is the best upside-preserving improvement found, with the important caveat of much worse realized-path drawdown
+- `legacy_top5_robust` and `legacy_top3_robust` are the honest answers if the user wants materially lower freeze risk rather than maximum endpoint
+
+Operationally, the next step should be:
+
+- do **not** change live runtime immediately from this addendum alone
+- if maximizing profit remains primary, re-audit `baseline_top7_drop6` specifically for live applicability and whether its higher realized-path drawdown is acceptable
+- if reducing early freeze risk is the dominant objective, prefer `legacy_top5_robust` or `legacy_top3_robust` over `union_validated_top12`
+
+### AN11) Staged runtime blocker audit + bankroll-stage projection
+
+This addendum documents the follow-up audit for the new staged primary strategy runtime in `server.js` and the matching main-dashboard updates in `public/index.html`.
+
+### AN11.1) Data-source transparency for this addendum
+
+This section is based on:
+
+- direct code-path audit of `server.js`
+- replay ledgers in:
+  - `debug/final_set_scan/top3_robust/hybrid_replay_executed_ledger.json`
+  - `debug/final_set_scan/top5_robust/hybrid_replay_executed_ledger.json`
+  - `debug/final_set_scan/top7_drop6/hybrid_replay_executed_ledger.json`
+- the exported simulator `simulateBankrollPath()` from `scripts/hybrid_replay_backtest.js`
+
+The staged projection in this addendum used the current live-style assumptions:
+
+- starting bankroll `6.95`
+- `5`-share minimum order handling
+- `1%` slippage assumption
+- `0.32` Kelly/position cap
+- `kellyFraction=0.75`
+- vault thresholds `100 / 500`
+- `SPRINT` auto-bankroll mode
+- risk envelope, cooldown, circuit breaker, and peak-drawdown brake enabled
+- staged primary thresholds:
+  - promote to `top5_robust` at `8`
+  - promote to `top7_drop6` at `20`
+  - demote from `top5_robust` below `7`
+  - demote from `top7_drop6` below `18`
+
+Local live API note:
+
+- attempted local `/api/health` verification at `http://127.0.0.1:3000/api/health`
+- no server was listening during this pass, so this addendum is a code/replay-backed audit, not a fresh live API snapshot
+
+### AN11.2) What the staged direct runtime is actually doing
+
+The important runtime finding is that the staged direct entry path is looser than the raw strategy JSON conditions alone suggest.
+
+The enforced staged path is:
+
+- `orchestrateDirectOperatorStrategyEntries()`
+- `checkHybridStrategy()`
+- `evaluateStrategySetMatch()`
+- `executeTrade()`
+
+For enforced operator-set trading, `checkHybridStrategy()` currently passes:
+
+- `skipMomentumGate: true`
+- `forceMomentumGate: false`
+- `forceVolumeGate: false`
+
+That means:
+
+- direct staged execution currently skips the momentum gate entirely
+- volume is only applied if the strategy conditions request it and the runtime is not in bootstrap deferral
+
+Under the current staged sets, the practical result is:
+
+- `top3_robust`: momentum OFF, volume OFF
+- `top5_robust`: momentum OFF, volume OFF
+- `top7_drop6`: momentum OFF in direct execution, volume OFF
+
+This is materially different from reading `debug/strategy_set_top7_drop6.json` in isolation, because that file says `applyMomentumGate=true` / `applyVolumeGate=false`, but the direct staged matcher currently skips momentum before the strategy conditions can enforce it.
+
+The dashboard payload was therefore corrected so the main dashboard reports the actual execution truth instead of the raw JSON condition flags.
+
+One more important nuance:
+
+- `OPERATOR_PRIMARY_GATES_ENFORCED` is not currently what determines the direct staged matcher behavior in practice
+- the direct matcher’s actual behavior is driven by the hardcoded `checkHybridStrategy()` options above
+
+So if someone reads the old payload literally, they could wrongly conclude that momentum was still an active direct-entry blocker when it was not.
+
+### AN11.3) What still can block staged direct trades
+
+The direct staged path does bypass the old 15m oracle signal generator as the source of BUY entries, but it does **not** bypass every runtime safety gate.
+
+These still remain real blockers for staged direct execution:
+
+- `FINAL_GOLDEN_STRATEGY_BLOCK` if final-golden enforcement is turned on
+- missing market data / missing token IDs
+- invalid direction or invalid entry price
+- ORACLE timing blackout / strategy blackout near cycle end
+- volatility / manipulation guard
+- tail-bet minimum-odds block
+- EV-derived max-price block
+- real-time repricing block if the market moves above EV-max before execution
+- minimum balance block (`< $2`)
+- asset disabled
+- state-machine block
+- per-asset max-trades-per-cycle block
+- global max-trades-per-cycle block
+- loss cooldown
+- max positions per asset
+- max total exposure
+- global stop-loss
+- live daily loss cap
+- variance-control block
+- min-order affordability / survival-floor block
+- risk-envelope block
+- final min-order-size block
+- live execution failures further downstream at market/order/CLOB level
+
+So the honest answer is:
+
+- **no**, the old oracle signal engine is no longer the direct BUY generator while staged operator execution is enabled
+- **yes**, several old ORACLE-mode execution safeties still remain in force after the staged strategy chooses a trade
+
+That is why repeated `EV` failures are real and still matter:
+
+- they are not proof that the legacy oracle model is selecting the trade
+- but they are proof that the final execution guard can still veto the staged direct candidate on value grounds
+
+Current final-golden state nuance:
+
+- `FINAL_GOLDEN_STRATEGY_RUNTIME.enforced` is currently initialized as disabled by default
+- so this is only a live blocker if the final-golden runtime is explicitly enforced
+
+### AN11.4) What is **not** currently a direct staged blocker
+
+The audit did **not** find code showing these as direct hard blockers for staged operator BUY generation itself:
+
+- legacy conviction-lock / oracle-lock entry generation
+- legacy oracle direction chooser acting as the BUY source
+- momentum gate, in the current direct staged matcher
+- volume gate, for the current staged set mix
+
+Feed-staleness nuance:
+
+- `/api/health` and `/api/state-public` expose Chainlink/feed-staleness as degraded-health information
+- but the staged direct execution path audited here does not contain a simple `anyFeedStale => block buy` check in `executeTrade()`
+- this means feed staleness is still operationally important, but it is not currently wired as the same kind of direct staged entry hard gate as EV / blackout / exposure / cooldown
+
+### AN11.5) Deterministic staged replay result
+
+Using the staged thresholds and live-style bankroll configuration above, the deterministic staged replay produced:
+
+- ending balance: `594.11`
+- ROI: `8448.40%`
+- max drawdown: `48.61%`
+- executed: `429`
+- blocked: `7`
+- wins: `384`
+- losses: `45`
+- win rate: `89.51%`
+
+Stage usage in that deterministic staged path was:
+
+- `top3_robust`: `2` executed trades
+- `top5_robust`: `36` executed trades
+- `top7_drop6`: `398` executed trades
+
+Threshold timing in that deterministic staged replay:
+
+- first reach `8`: after trade `2`, about `0.47` calendar days from start
+- first reach `20`: after trade `13`, about `6.47` calendar days from start
+
+Important path nuance:
+
+- the path first promoted to `top5_robust` immediately after the second executed trade
+- it first promoted to `top7_drop6` after reaching `20.94`
+- it then suffered two early hysteresis reversions back below `18`, briefly returning to `top5_robust`
+- it did not settle into a durable `top7_drop6` phase until early November in the replay timeline
+
+So the staged system does what it was designed to do:
+
+- `top3_robust` protects the first couple of trades
+- `top5_robust` carries the bankroll through the still-fragile bootstrap region
+- `top7_drop6` becomes dominant only once the bankroll is materially larger
+
+### AN11.6) Staged Monte Carlo projection
+
+I also ran schedule-preserving staged Monte Carlo using the same staged ladder and runtime assumptions.
+
+Two views were computed:
+
+- empirical win-rate view using the strategy-set `winRate`
+- conservative view using `winRateLCB`
+
+Empirical staged Monte Carlo (`200` sims):
+
+- mean ending balance: `805.72`
+- median ending balance: `846.21`
+- `P(end < 20) = 5.5%`
+- `P(end < 3.25) = 5.0%`
+- `P(end < 4.00) = 5.5%`
+- mean max drawdown: `26.49%`
+- median max drawdown: `21.55%`
+- `P(hit 8) = 96.0%`
+- `P(hit 20) = 94.5%`
+- median time to `8`: `0.47` days
+- median time to `20`: `6.47` days
+- median trades to `8`: `2`
+- median trades to `20`: `13`
+
+Conservative staged Monte Carlo (`200` sims, LCB):
+
+- mean ending balance: `177.49`
+- median ending balance: `153.47`
+- `P(end < 20) = 47.5%`
+- `P(end < 3.25) = 41.5%`
+- `P(end < 4.00) = 47.0%`
+- mean max drawdown: `60.29%`
+- median max drawdown: `57.18%`
+- `P(hit 8) = 79.0%`
+- `P(hit 20) = 55.5%`
+- median time to `8`: `0.47` days
+- median time to `20`: `15.47` days
+- median trades to `8`: `2`
+- median trades to `20`: `24`
+
+Interpretation:
+
+- the staged ladder materially improves the early bankroll path versus jumping straight into a growth-first profile
+- but the conservative view is still harsh enough that this cannot be described as “risk free”
+- the first switch to `top5_robust` is fast if the first couple of trades cooperate
+- the second switch to `top7_drop6` is the real uncertainty point under conservative assumptions
+
+### AN11.7) Operational verdict from this staged audit
+
+The new staged runtime is feasible and internally coherent.
+
+The most important corrected facts are:
+
+- direct staged BUY generation is coming from the enforced strategy set, not the old oracle chooser
+- EV remains a real execution veto
+- momentum and volume are currently **not** the active blockers on the direct staged path
+- the main dashboard needed to be corrected to show that actual gate truth
+
+Operationally, this means:
+
+- if the bot skips a staged direct trade right now, the first suspects should be EV, timing blackout, exposure/state limits, cooldown, risk envelope, or min-order survivability
+- momentum and volume should **not** be blamed first under the current staged direct runtime
+- the staged ladder does improve the early bankroll path, but the conservative continuation-risk numbers are still high enough that live discipline remains necessary
+
+So the honest deployment stance is:
+
+- staged switching is valid to ship
+- the dashboard should reflect the real gate state
+- live monitoring should focus on EV/blackout/exposure/floor blocks rather than momentum/volume explanations
