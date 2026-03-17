@@ -33,6 +33,7 @@ backtest_results.json
 debug/*
 !debug/strategy_set_top7_drop6.json
 !debug/strategy_set_top3_robust.json
+!debug/strategy_set_top5_robust.json
 !debug/strategy_set_top8_current.json
 !debug/strategy_set_union_validated_top12.json
 !debug/analysis/
