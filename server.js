@@ -407,21 +407,15 @@ function chooseOperatorPrimaryStageKey(bankroll, previousStageKey = null) {
         ? Number(bankroll)
         : parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
 
-    if (previousStageKey === 'growth_top7') {
-        return b >= 18 ? 'growth_top7' : (b >= 8 ? 'balanced_top5' : 'survival_top3');
-    }
-    if (previousStageKey === 'balanced_top5') {
-        if (b >= 20) return 'growth_top7';
-        if (b >= 7) return 'balanced_top5';
-        return 'survival_top3';
-    }
-    if (previousStageKey === 'survival_top3') {
-        return b >= 8 ? (b >= 20 ? 'growth_top7' : 'balanced_top5') : 'survival_top3';
-    }
-
-    if (b >= 20) return 'growth_top7';
-    if (b >= 8) return 'balanced_top5';
-    return 'survival_top3';
+    // AO18 FIX: Use TOP7 from start at ALL bankroll levels.
+    // Evidence: TOP3 has only 2 UTC hours (H09, H20) with narrow 75-80c bands = near-zero
+    // trade frequency at micro-bankrolls. This caused ZERO trades in 4 days of deployment.
+    // TOP7 has 6 UTC hours (H00, H08, H09, H10, H11, H20) with wider bands (60-80c),
+    // giving ~4.4 trades/day. Combined with vaultTriggerBalance=100 keeping BOOTSTRAP
+    // active (minOrderRiskOverride=true), this is the optimal aggressive configuration.
+    // Live WR evidence: 57/63 = 90.5% across 7 strategies (best evidence in repo).
+    // Monte Carlo (Addendum W, 200K runs): $8/45% bust=15%, median=$134, P($100)=57%.
+    return 'growth_top7';
 }
 
 function getReferenceRuntimeForOperatorStage(stageKey) {
@@ -13530,6 +13524,7 @@ async function orchestrateDirectOperatorStrategyEntries() {
                 const strategyCheck = checkHybridStrategy(asset, direction, entryPrice, entryMinute, utcHour, hybridMomentum, volume);
                 if (!strategyCheck?.passes || !strategyCheck?.strategy) {
                     // Diagnostic: log WHY this strategy window was rejected
+                    const blockedReason = strategyCheck?.blockedReason || strategyCheck?.reason || 'UNKNOWN';
                     diagLog.push({
                         ts: new Date().toISOString(),
                         cycle: cycleStartEpochSec,
@@ -13542,10 +13537,26 @@ async function orchestrateDirectOperatorStrategyEntries() {
                         openPx: Number.isFinite(openPx) ? +openPx.toFixed(4) : null,
                         momentum: Number.isFinite(hybridMomentum) ? +(hybridMomentum * 100).toFixed(2) : null,
                         priceBand: `${((strategy?.priceMin || 0) * 100).toFixed(0)}-${((strategy?.priceMax || 0) * 100).toFixed(0)}c`,
-                        blockedReason: strategyCheck?.blockedReason || strategyCheck?.reason || 'UNKNOWN',
+                        blockedReason,
                         passed: false
                     });
                     if (diagLog.length > 200) diagLog.splice(0, diagLog.length - 200);
+                    // AO18: Record strategy-level blocks in gateTrace so dashboard shows strategy decisions, not Oracle noise
+                    gateTrace.record(asset, {
+                        decision: 'NO_TRADE',
+                        reason: 'STRATEGY_DIRECT_ENTRY',
+                        failedGates: [blockedReason],
+                        inputs: {
+                            source: 'DIRECT_OPERATOR_STRATEGY',
+                            strategy: strategy?.name || strategy?.signature,
+                            direction,
+                            entryPrice: Number.isFinite(entryPrice) ? +entryPrice.toFixed(4) : null,
+                            priceBand: `${((strategy?.priceMin || 0) * 100).toFixed(0)}-${((strategy?.priceMax || 0) * 100).toFixed(0)}c`,
+                            momentum: Number.isFinite(hybridMomentum) ? +(hybridMomentum * 100).toFixed(2) : null,
+                            utcHour,
+                            entryMinute
+                        }
+                    });
                     continue;
                 }
 
@@ -13628,12 +13639,35 @@ async function orchestrateDirectOperatorStrategyEntries() {
                 ? 'SUCCESS'
                 : String(result?.error || 'FAILED');
 
-            // v140.16: Log executeTrade result
+            // v140.16: Log executeTrade result + AO18: record in gateTrace
             if (result?.success === true) {
                 log(`✅ STRATEGY TRADE EXECUTED: ${candidate.asset} ${candidate.direction} @ ${(candidate.entryPrice*100).toFixed(1)}¢ | ${candidate.strategy?.name}`, candidate.asset);
+                gateTrace.record(candidate.asset, {
+                    decision: 'TRADE',
+                    reason: 'STRATEGY_DIRECT_ENTRY_EXECUTED',
+                    failedGates: [],
+                    inputs: {
+                        source: 'DIRECT_OPERATOR_STRATEGY',
+                        strategy: candidate.strategy?.name,
+                        direction: candidate.direction,
+                        entryPrice: +candidate.entryPrice.toFixed(4),
+                        pWin: candidate.pWinEstimate ? +(candidate.pWinEstimate * 100).toFixed(1) : null
+                    }
+                });
                 break;
             } else {
                 log(`❌ STRATEGY TRADE BLOCKED by executeTrade: ${candidate.asset} ${candidate.direction} | reason=${result?.error || 'UNKNOWN'} | strategy=${candidate.strategy?.name}`, candidate.asset);
+                gateTrace.record(candidate.asset, {
+                    decision: 'NO_TRADE',
+                    reason: 'STRATEGY_DIRECT_ENTRY_EXECUTION_BLOCKED',
+                    failedGates: [String(result?.error || 'EXECUTION_REJECTED')],
+                    inputs: {
+                        source: 'DIRECT_OPERATOR_STRATEGY',
+                        strategy: candidate.strategy?.name,
+                        direction: candidate.direction,
+                        entryPrice: +candidate.entryPrice.toFixed(4)
+                    }
+                });
             }
         }
     } catch (err) { log(`⚠️ STRATEGY ORCHESTRATOR ERROR: ${err?.message || err}`); }

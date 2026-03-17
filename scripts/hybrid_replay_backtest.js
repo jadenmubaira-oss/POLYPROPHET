@@ -1012,6 +1012,7 @@ function applyRiskEnvelopeToStake(proposedStakeUsd, context = {}) {
     const floorCfg = context.floorCfg || {};
     const referenceMinOrderCost = Number(context.referenceMinOrderCost);
     const thresholdOverrides = context.thresholdOverrides || {};
+    const bankrollPolicy = context.bankrollPolicy || null;
 
     const profile = getDynamicRiskProfile(balance, thresholdOverrides);
 
@@ -1025,8 +1026,9 @@ function applyRiskEnvelopeToStake(proposedStakeUsd, context = {}) {
     }
 
     const floorEnabled = !!floorCfg.minBalanceFloorEnabled;
-    const survivalFloor = floorEnabled ? getSurvivalFloor(balance, floorCfg, referenceMinOrderCost) : 0;
-    const maxSafeStake = floorEnabled ? Math.max(0, balance - survivalFloor) : Infinity;
+    const isEnvMicroSprint = bankrollPolicy?.profile === 'MICRO_SPRINT';
+    const survivalFloor = (floorEnabled && !isEnvMicroSprint) ? getSurvivalFloor(balance, floorCfg, referenceMinOrderCost) : 0;
+    const maxSafeStake = (floorEnabled && !isEnvMicroSprint) ? Math.max(0, balance - survivalFloor) : Infinity;
 
     if (Number.isFinite(minOrderCost) && effectiveBudget < minOrderCost) {
         if (profile.minOrderRiskOverride && balance >= minOrderCost && minOrderCost <= maxSafeStake) {
@@ -1254,7 +1256,6 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
             : computeReferenceMinOrderCost(minOrderShares, effectiveEntryForMin);
         const effectiveFloor = getEffectiveBalanceFloor(balance, floorCfg, referenceMinOrderCost);
         const ruinFloor = getRuinFloor(floorCfg, referenceMinOrderCost);
-        const survivalFloor = getSurvivalFloor(balance, floorCfg, referenceMinOrderCost);
 
         let blockedReason = null;
         let cbAllowance = { allowed: true, sizeMultiplier: 1.0, reason: 'CircuitBreaker disabled' };
@@ -1318,6 +1319,10 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
 
         const balanceBefore = balance;
         const policy = autoProfileEnabled ? getBankrollAdaptivePolicy(balanceBefore, options) : null;
+        const isMicroSprint = policy?.profile === 'MICRO_SPRINT';
+        const survivalFloor = (floorCfg.minBalanceFloorEnabled && !isMicroSprint)
+            ? getSurvivalFloor(balanceBefore, floorCfg, referenceMinOrderCost)
+            : 0;
 
         let effectiveStakeFraction = stakeFraction;
         if (!stakeProvided && allowDynamicStake && policy && Number.isFinite(Number(policy.maxPositionFraction))) {
@@ -1388,7 +1393,9 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
         }
 
         if (stake < minOrderCost) {
-            const minBankrollForMinOrder = floorCfg.minBalanceFloorEnabled ? (survivalFloor + minOrderCost) : minOrderCost;
+            const minBankrollForMinOrder = (floorCfg.minBalanceFloorEnabled && !isMicroSprint)
+                ? (survivalFloor + minOrderCost)
+                : (minOrderCost * 1.05);
             if (balanceBefore >= minBankrollForMinOrder) {
                 stake = minOrderCost;
                 envelopeCaps += 1;
@@ -1400,7 +1407,7 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
             }
         }
 
-        if (floorCfg.minBalanceFloorEnabled) {
+        if (floorCfg.minBalanceFloorEnabled && !isMicroSprint) {
             const maxSafeStake = Math.max(0, balanceBefore - survivalFloor);
             if (stake > maxSafeStake) {
                 stake = maxSafeStake;
@@ -1426,6 +1433,7 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
                 minOrderCost,
                 floorCfg,
                 referenceMinOrderCost,
+                bankrollPolicy: policy,
                 thresholdOverrides: {
                     ...thresholdOverrides,
                     vaultTriggerBalance: vaultThresholds.vaultTriggerBalance,
