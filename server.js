@@ -424,11 +424,64 @@ function chooseOperatorPrimaryStageKey(bankroll, previousStageKey = null) {
     return 'survival_top3';
 }
 
+function getReferenceRuntimeForOperatorStage(stageKey) {
+    if (stageKey === 'survival_top3') return TOP3_ROBUST_REFERENCE_RUNTIME;
+    if (stageKey === 'balanced_top5') return TOP5_ROBUST_REFERENCE_RUNTIME;
+    if (stageKey === 'growth_top7') return TOP7_DROP6_REFERENCE_RUNTIME;
+    return null;
+}
+
+function getOperatorStageArtifactStatus(stageKey) {
+    const profile = OPERATOR_STRATEGY_STAGE_PROFILE_BY_KEY[stageKey] || null;
+    const runtime = getReferenceRuntimeForOperatorStage(stageKey);
+    return {
+        key: profile?.key || String(stageKey || '').trim() || null,
+        configuredPath: runtime?.configuredPath || profile?.strategySetPath || null,
+        resolvedPath: runtime?.resolvedPath || null,
+        available: runtime?.enabled === true,
+        strategies: Array.isArray(runtime?.strategies) ? runtime.strategies.length : 0,
+        loadError: runtime?.loadError || null,
+        source: runtime?.source || null
+    };
+}
+
+function resolveAvailableOperatorPrimaryStageKey(requestedStageKey) {
+    const requested = String(requestedStageKey || '').trim();
+    const top3Available = getOperatorStageArtifactStatus('survival_top3').available === true;
+    const top5Available = getOperatorStageArtifactStatus('balanced_top5').available === true;
+    const top7Available = getOperatorStageArtifactStatus('growth_top7').available === true;
+
+    if (requested === 'growth_top7') {
+        if (top7Available) return 'growth_top7';
+        if (top5Available) return 'balanced_top5';
+        if (top3Available) return 'survival_top3';
+    }
+
+    if (requested === 'balanced_top5') {
+        if (top5Available) return 'balanced_top5';
+        if (top3Available) return 'survival_top3';
+        if (top7Available) return 'growth_top7';
+    }
+
+    if (requested === 'survival_top3') {
+        if (top3Available) return 'survival_top3';
+        if (top5Available) return 'balanced_top5';
+        if (top7Available) return 'growth_top7';
+    }
+
+    if (top3Available) return 'survival_top3';
+    if (top5Available) return 'balanced_top5';
+    if (top7Available) return 'growth_top7';
+    return requested || 'survival_top3';
+}
+
 function getActiveOperatorStrategyStage(bankroll = null) {
     const runtimeBankroll = getOperatorRuntimeBankrollEstimate(bankroll);
     const prevKey = operatorPrimaryStageRuntime.currentStageKey;
-    const nextKey = chooseOperatorPrimaryStageKey(runtimeBankroll, prevKey);
+    const requestedStageKey = chooseOperatorPrimaryStageKey(runtimeBankroll, prevKey);
+    const nextKey = resolveAvailableOperatorPrimaryStageKey(requestedStageKey);
     const profile = OPERATOR_STRATEGY_STAGE_PROFILE_BY_KEY[nextKey] || OPERATOR_STRATEGY_STAGE_PROFILES[0];
+    const requestedProfile = OPERATOR_STRATEGY_STAGE_PROFILE_BY_KEY[requestedStageKey] || null;
     const changed = prevKey !== profile.key;
 
     if (changed) {
@@ -451,6 +504,11 @@ function getActiveOperatorStrategyStage(bankroll = null) {
         ...profile,
         bankroll: runtimeBankroll,
         previousStageKey: prevKey,
+        requestedStageKey,
+        requestedStageLabel: requestedProfile?.label || null,
+        requestedStageRangeLabel: requestedProfile?.rangeLabel || null,
+        degradedFromRequestedStage: requestedStageKey !== profile.key,
+        requestedStageStatus: getOperatorStageArtifactStatus(requestedStageKey),
         changed,
         lastChangedAt: operatorPrimaryStageRuntime.lastChangedAt,
         nextTransition,
@@ -522,6 +580,9 @@ function getLiveOperatorConfig() {
     const stakeFraction = getOperatorStakeFractionForBankroll(runtimeBankrollEstimate);
     const stakePerSignal = runtimeBankrollEstimate * stakeFraction;
     const activeStage = getActiveOperatorStrategyStage(runtimeBankrollEstimate);
+    const stageArtifactStatus = Object.fromEntries(
+        OPERATOR_STRATEGY_STAGE_PROFILES.map(profile => [profile.key, getOperatorStageArtifactStatus(profile.key)])
+    );
     const strategySetPath = activeStage.strategySetPath;
     const strategyPathLocked = true;
     const enforcePrimaryGates = isOperatorPrimaryGatesEnforced();
@@ -611,7 +672,9 @@ function getLiveOperatorConfig() {
         primarySignalSet,
         primarySignalSetDisplay,
         referenceSignalSet: primarySignalSet,
-        top3TelemetryMode: 'READ_ONLY',
+        top3TelemetryMode: activeStage.key === 'survival_top3' && activeStage.degradedFromRequestedStage !== true
+            ? 'PRIMARY_EXECUTION'
+            : 'READ_ONLY',
         strategySetPath: strategySetPath,
         strategyStages: {
             active: {
@@ -626,6 +689,11 @@ function getLiveOperatorConfig() {
                 promoteAtBankroll: activeStage.promoteAtBankroll ?? null,
                 demoteBelowBankroll: activeStage.demoteBelowBankroll ?? null,
                 previousStageKey: activeStage.previousStageKey || null,
+                requestedStageKey: activeStage.requestedStageKey || activeStage.key,
+                requestedStageLabel: activeStage.requestedStageLabel || activeStage.label,
+                requestedStageRangeLabel: activeStage.requestedStageRangeLabel || activeStage.rangeLabel,
+                degradedFromRequestedStage: activeStage.degradedFromRequestedStage === true,
+                requestedStageStatus: activeStage.requestedStageStatus || null,
                 changed: activeStage.changed === true,
                 lastChangedAt: activeStage.lastChangedAt || null,
                 nextTransition: activeStage.nextTransition || null
@@ -639,8 +707,12 @@ function getLiveOperatorConfig() {
                 objective: profile.objective,
                 rangeLabel: profile.rangeLabel,
                 promoteAtBankroll: profile.promoteAtBankroll ?? null,
-                demoteBelowBankroll: profile.demoteBelowBankroll ?? null
-            }))
+                demoteBelowBankroll: profile.demoteBelowBankroll ?? null,
+                available: stageArtifactStatus[profile.key]?.available === true,
+                strategies: stageArtifactStatus[profile.key]?.strategies ?? 0,
+                loadError: stageArtifactStatus[profile.key]?.loadError || null
+            })),
+            artifacts: stageArtifactStatus
         },
         strategySchedules: {
             primaryExecution: activePrimarySchedule,
@@ -739,15 +811,23 @@ function getLiveOperatorConfig() {
                 entryGenerator: directEntryEnabled ? 'DIRECT_OPERATOR_STRATEGY_SET' : 'ORACLE_FILTERED',
                 stagedPrimarySet: activeStage.signalSet,
                 stagedPrimaryLabel: activeStage.label,
-                rationale: `${primarySignalSetDisplay} is active because bankroll is ${runtimeBankrollEstimate.toFixed(2)}. Staged primary ladder: TOP3 below $8, TOP5 from $8 to under $20, TOP7 from $20+ with hysteresis fallback at $18 and $7.`
+                rationale: activeStage.degradedFromRequestedStage === true
+                    ? `${primarySignalSetDisplay} is active because bankroll is ${runtimeBankrollEstimate.toFixed(2)} and the requested stage (${activeStage.requestedStageLabel || activeStage.requestedStageKey}) is unavailable${activeStage.requestedStageStatus?.loadError ? `: ${activeStage.requestedStageStatus.loadError}` : ''}. Staged primary ladder remains TOP3 below $8, TOP5 from $8 to under $20, TOP7 from $20+ with hysteresis fallback at $18 and $7.`
+                    : `${primarySignalSetDisplay} is active because bankroll is ${runtimeBankrollEstimate.toFixed(2)}. Staged primary ladder: TOP3 below $8, TOP5 from $8 to under $20, TOP7 from $20+ with hysteresis fallback at $18 and $7.`
             },
             worksheet: OPERATOR_WORKSHEET
         },
         manualRules: [
             `15m autonomous BUY entry is generated directly from the enforced primary strategy set (${primarySignalSetDisplay}).`,
-            `Active bankroll stage: ${activeStage.label} (${activeStage.rangeLabel}).`,
+            activeStage.degradedFromRequestedStage === true
+                ? `Requested bankroll stage: ${activeStage.requestedStageLabel || activeStage.requestedStageKey} (${activeStage.requestedStageRangeLabel || 'unavailable range'}); running fallback stage ${activeStage.label} because the requested artifact is unavailable${activeStage.requestedStageStatus?.loadError ? ` (${activeStage.requestedStageStatus.loadError})` : ''}.`
+                : `Active bankroll stage: ${activeStage.label} (${activeStage.rangeLabel}).`,
             'Automatic staged switching: TOP3 below $8, TOP5 from $8 to under $20, TOP7 from $20+.',
-            'Treat TOP3 status as read-only telemetry; it must not drive BUY decisions.',
+            activeStage.key === 'survival_top3' && activeStage.degradedFromRequestedStage !== true
+                ? 'TOP3 is currently the active BUY driver because the bankroll is still in SURVIVAL stage.'
+                : activeStage.key === 'survival_top3'
+                    ? 'TOP3 is currently the active BUY driver as the safest available fallback stage.'
+                : 'Treat TOP3 status as read-only telemetry outside SURVIVAL stage.',
             'Never exceed one trade per 15m cycle.',
             'Use operatorWorksheet.riskAdjusted row for your bankroll + horizon to choose stake fraction.',
             'Skip fills that exceed your slippage plan or breach your max position discipline.',

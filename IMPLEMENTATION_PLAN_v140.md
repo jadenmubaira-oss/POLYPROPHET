@@ -12179,3 +12179,551 @@ So the honest deployment stance is:
 - staged switching is valid to ship
 - the dashboard should reflect the real gate state
 - live monitoring should focus on EV/blackout/exposure/floor blocks rather than momentum/volume explanations
+
+### AN12) Full Plan Reaudit — Code-Verified Cross-Check of All 34 Addenda (17 Mar 2026)
+
+This addendum is the result of reading the **entire** 12,182-line implementation plan (addenda A through AN11), then cross-checking every material claim against the actual `server.js` codebase, strategy artifacts, replay ledgers, and `render.yaml`.
+
+### AN12.1) Data-source transparency
+
+⚠️ **DATA SOURCE**: Code analysis of `server.js` (35,636 lines), `render.yaml`, all strategy JSONs in `debug/`, replay ledgers in `debug/final_set_scan/`, and `scripts/hybrid_replay_backtest.js`.
+
+⚠️ **LIVE ROLLING ACCURACY**: Not freshly queried. No local server was listening on `127.0.0.1:3000` during this pass.
+
+⚠️ **DISCREPANCIES FOUND**: Listed in AN12.3 below.
+
+### AN12.2) What the plan now says vs what the code now does — verified correct
+
+| Plan claim | Code evidence | Status |
+|---|---|---|
+| Staged primary switching: TOP3 < $8, TOP5 $8-$20, TOP7 $20+ | `OPERATOR_STRATEGY_STAGE_PROFILES` at line 342-376 with hysteresis at $7/$18 | ✅ Verified |
+| Staged primary is the direct entry generator | `getOperatorPrimaryStrategySetPath()` called by `OPERATOR_STRATEGY_SET_RUNTIME.reload()` and `ensureLoaded()` | ✅ Verified |
+| `FINAL_GOLDEN_STRATEGY.enforced = false` | `Object.defineProperty(runtime, 'enforced', { value: false, writable: false })` at line 10570 | ✅ Verified — immutably false |
+| `convictionOnlyMode = false` | `CONFIG.RISK.convictionOnlyMode: false` at line 11578 | ✅ Verified |
+| `kellyFraction = 0.75` | `CONFIG.RISK.kellyFraction: 0.75` at line 11618 | ✅ Verified |
+| `kellyMaxFraction = 0.32` | `CONFIG.RISK.kellyMaxFraction: 0.32` at line 11620 | ✅ Verified |
+| `autoBankrollMaxPosHigh = 0.32` | `CONFIG.RISK.autoBankrollMaxPosHigh: 0.32` at line 11638 | ✅ Verified |
+| `autoBankrollKellyHigh = 0.32` | `CONFIG.RISK.autoBankrollKellyHigh: 0.32` at line 11635 | ✅ Verified |
+| `vaultTriggerBalance = 100` | `CONFIG.RISK.vaultTriggerBalance: 100` at line 11682 | ✅ Verified |
+| `stage2Threshold = 500` | `CONFIG.RISK.stage2Threshold: 500` at line 11684 | ✅ Verified |
+| `pickOperatorStakeFractionDefault` returns 0.45 for ≤$10 | Function at line 471-474 | ✅ Verified |
+| Direct operator entries skip momentum gate | `checkHybridStrategy()` passes `skipMomentumGate: true` at line 11034 | ✅ Verified |
+| Volume gate is OFF for all current staged sets | Strategy JSONs all have `applyVolumeGate: false` or skipped by direct path | ✅ Verified |
+| `MICRO_SPRINT` has `minOrderRiskOverride = true` | `getDynamicRiskProfile()` returns `minOrderRiskOverride: true` for stage 0 (BOOTSTRAP) at line 15201 | ✅ Verified |
+| 4H is env-disabled in `render.yaml` | `render.yaml` line 41: `MULTIFRAME_4H_ENABLED=false` | ✅ Verified |
+| `DEFAULT_MIN_ORDER_SHARES = 5` in `render.yaml` | `render.yaml` line 56-57 | ✅ Verified |
+| `OPERATOR_STRATEGY_SET_PATH` in render.yaml points to `union_validated_top12` | `render.yaml` line 39-40 | ✅ Verified — but this is **overridden** by staged runtime logic |
+| `TOP3_ROBUST_REFERENCE_RUNTIME` and `TOP5_ROBUST_REFERENCE_RUNTIME` exist | Lines 10635-10636 | ✅ Verified |
+| EV gate uses strategy `winRate` (point estimate), not LCB | Lines 16786-16794 | ✅ Verified |
+| Direct operator entry blocks legacy oracle auto-entry | `DIRECT_OPERATOR_STRATEGY_ENTRY_ONLY` gate at line 16346-16348 | ✅ Verified |
+
+### AN12.3) Material discrepancies found between plan and current code
+
+#### AN12.3.1) `render.yaml` says `union_validated_top12` but staged runtime overrides it
+
+The plan's Addendum AM established `union_validated_top12` as the live primary set. `render.yaml` line 39-40 still points to it.
+
+But the staged runtime at lines 342-462 now **overrides** the env-var path entirely. `getOperatorPrimaryStrategySetPath()` ignores `OPERATOR_STRATEGY_SET_PATH` and returns the stage-appropriate path based on bankroll thresholds.
+
+This means:
+
+- at bankroll < $8: the live primary is `debug/strategy_set_top3_robust.json`
+- at bankroll $8-$20: the live primary is `debug/strategy_set_top5_robust.json`
+- at bankroll ≥ $20: the live primary is `debug/strategy_set_top7_drop6.json`
+
+`union_validated_top12` is **no longer the active live primary set under the staged runtime**. The `render.yaml` env var is effectively dead letter.
+
+This is not a bug — it is the intended staged architecture from AN11. But the plan's earlier addenda (AM, AN through AN10) still discuss `union_validated_top12` as if it is the live primary. That language is now stale.
+
+#### AN12.3.2) Earlier addenda's strategy recommendation hierarchy is superseded
+
+The plan contains **seven distinct strategy recommendations** across addenda:
+
+| Addendum | Recommendation | Status after staged runtime |
+|---|---|---|
+| P | `highfreq_unique12` | ❌ Withdrawn by Q |
+| Q | `top3_robust` | ⚠️ Now only used for < $8 stage |
+| R | `top8_unique_golden` | ❌ Withdrawn by T |
+| S | `down5_golden` | ❌ Withdrawn by T/U |
+| T | `top3_robust` / `top7_drop6` | ⚠️ Partially correct — now used as stages |
+| U | `highfreq_unique12` | ❌ Withdrawn by V |
+| W/X/Y/Z | `top7_drop6` at 45% | ⚠️ Now only the ≥ $20 stage |
+
+The staged runtime makes the single-set recommendation debate moot. The current architecture uses **all three validated sets** in a bankroll-dependent ladder.
+
+#### AN12.3.3) `MAX_POSITION_SIZE = 0.32` in render.yaml, not 0.45
+
+`render.yaml` line 29-30 shows `MAX_POSITION_SIZE=0.32`.
+
+This is consistent with the current runtime defaults (`autoBankrollMaxPosHigh = 0.32`). But several earlier addenda (C1.3, D, E, F, G, etc.) claimed `MAX_POSITION_SIZE=0.45` and treated 45% as the active sizing cap.
+
+Current code truth: the **effective** max position fraction for MICRO_SPRINT is `0.32`, not `0.45`. The `pickOperatorStakeFractionDefault()` returns `0.45`, but that is clamped by `maxPositionFraction = 0.32` from the adaptive policy.
+
+This was already documented in Addendum AG but the earlier addenda's 45%-based projections (C4, D4, E8, G5, K5, L3, N2) remain in the plan and are **overstated** relative to the current `0.32` cap.
+
+#### AN12.3.4) Profit projections throughout the plan are mutually contradictory
+
+The plan contains at least **eight distinct projection tables** that disagree on the same starting conditions:
+
+| Source | $5-$8 start, 14 days | Method |
+|---|---|---|
+| Section 6.3 | $107 | Simple geometric, no envelope |
+| Addendum E8 | $4.50-$16 | Geometric with caveats |
+| Addendum K8.3 | $12-$27 (p50 @ 30d) | Vault-aware Monte Carlo |
+| Addendum N2 | $950-$1,207 (p50 @ 30d) | Vault MC with vT=100/s2=500 |
+| Addendum T5 | $27-$86 median | Historical 14-day replay windows |
+| Addendum W6 | $133-$174 median | IID MC with live WR |
+| Addendum Y3 | $133-$184 median | Independent IID MC |
+| AN11.5-6 | $594 deterministic, $846 empirical median | Staged replay + staged MC |
+
+The AN11 staged projection is the **newest** and uses the current staged architecture. It is the only one that models the actual staged switching behavior.
+
+All earlier projections should be treated as **historical scenario analysis under superseded configurations**, not as the current system's expected performance.
+
+#### AN12.3.5) Earlier addenda's "NO-GO" verdicts are stale
+
+Addenda O, T, V all issued "NO-GO" verdicts based on:
+
+- missing strategy files on live deployment
+- `highfreq_unique12` being the hardcoded primary
+- `signalsOnly=true` blocking live trades
+- 4H strategy file not found
+
+The staged runtime, dashboard truth fixes, and gate corrections in AN11 have addressed the architectural issues those verdicts were based on. However, the NO-GO verdicts in the plan text remain unmodified and could mislead a new reader.
+
+#### AN12.3.6) `isSignalsOnlyMode()` still exists as a potential live blocker
+
+Code at line 12223-12224 shows `isSignalsOnlyMode()` returns `true` when `CONFIG.TELEGRAM.signalsOnly === true`.
+
+If the Render environment still has `TELEGRAM_SIGNALS_ONLY=true`, or if persisted Redis settings carry that value, the bot will block **all** autonomous LIVE trades (line 16348).
+
+This was documented in Addendum L as a critical blocker and later fixed by the user. But it remains a latent reactivation risk if settings drift.
+
+### AN12.4) What the staged runtime actually does now — authoritative description
+
+After reading every addendum and cross-checking the code:
+
+1. **Entry generation**: `orchestrateDirectOperatorStrategyEntries()` runs every second, selects the active staged strategy set based on bankroll thresholds with hysteresis, and generates autonomous BUY candidates directly from the matched strategy schedule.
+
+2. **Strategy matching**: `checkHybridStrategy()` validates candidates against the active stage's strategy set, with momentum gate **skipped** and volume gate **OFF** for all current staged sets.
+
+3. **Execution gating**: `executeTrade()` applies the full safety stack: EV check, blackout, volatility guard, balance floor, circuit breaker, risk envelope, min-order enforcement, exposure limits, and CLOB fill verification.
+
+4. **Stage switching**: Bankroll thresholds control which strategy set is active: TOP3 below $8, TOP5 from $8 to under $20, TOP7 from $20+. Hysteresis prevents oscillation: demotion from TOP5 requires dropping below $7, demotion from TOP7 requires dropping below $18.
+
+5. **Sizing**: At micro-bankroll, `MICRO_SPRINT` profile caps `maxPositionFraction` at `0.32`. Base stake is usually below the 5-share minimum order cost, so trades execute at the min-order-bump path. `BOOTSTRAP` `minOrderRiskOverride=true` allows this even when the risk envelope budget is too small.
+
+### AN12.5) What is still NOT verified
+
+| Claim | Status |
+|---|---|
+| Live WR of 90%+ for any strategy set | ❌ Zero live rolling-accuracy samples exist |
+| CLOB fill quality at micro-bankroll | ❌ No live fill evidence in the repo |
+| Sell-before-resolution at 99¢ | ❌ Untested in live |
+| 4H auto-trade integration | ❌ Disabled by env; strategy file may not be deployed |
+| Staged switching behavior in live | ❌ Only replay-verified, not live-proven |
+| `union_validated_top12` live performance | ❌ That set is no longer the active primary |
+
+### AN12.6) Addendum supersession map
+
+For any future reader, here is the authoritative supersession chain:
+
+- **Strategy set selection**: AN11 staged ladder supersedes all single-set recommendations (P, Q, R, S, T, U, W, Y)
+- **Profit projections**: AN11.5-6 staged replay/MC supersedes all earlier projection tables
+- **Gate truth**: AN11.2-4 gate audit supersedes all earlier momentum/volume gate claims
+- **Sizing**: AG + current code (`0.32` cap) supersedes all `0.45` sizing claims
+- **4H status**: AB + render.yaml `MULTIFRAME_4H_ENABLED=false` is authoritative
+- **DOWN economics**: U's correction (selected-side pricing, ~30% ROI, not 300%+) is authoritative; S is withdrawn
+- **Live readiness verdicts**: The staged runtime is conditionally ready; earlier NO-GO verdicts (O, T, V) were based on now-resolved issues
+
+### AN12.7) Remaining operational blockers
+
+| Blocker | Severity | Fix |
+|---|---|---|
+| Auth not configured | 🟡 HIGH | Set `AUTH_USERNAME` + `AUTH_PASSWORD` before public deployment |
+| `signalsOnly` latent risk | 🟡 MEDIUM | Verify `TELEGRAM_SIGNALS_ONLY=false` is set; check persisted Redis settings |
+| Zero live trade evidence | 🟡 INFO | Cannot be resolved until funded live fills accumulate |
+| `render.yaml` env var mismatch | 🟢 LOW | `OPERATOR_STRATEGY_SET_PATH=union_validated_top12` is dead letter; staged runtime overrides it |
+
+### AN12.8) Final verdict from this full reaudit
+
+The implementation plan is **internally coherent after AN11**, but the 34-addendum history contains substantial contradictory material that could mislead a new reader.
+
+The current codebase state is:
+
+- **staged primary switching is implemented and verified**
+- **direct strategy-native entry is the live BUY generator**
+- **momentum and volume gates are effectively OFF on the direct staged path**
+- **EV remains the primary real execution veto**
+- **0.32 is the effective sizing cap, not 0.45**
+- **union_validated_top12 is no longer the active primary set**
+- **all three staged sets (top3, top5, top7) are loaded as reference runtimes**
+- **live performance remains entirely unverified**
+
+The honest deployment stance is:
+
+- the staged runtime is architecturally sound
+- the earlier addenda's profit projections are stale relative to the current staged configuration
+- the AN11 staged projection is the newest and most relevant
+- live proof is still required before any performance claim can be promoted from "replay-backed" to "live-verified"
+
+End of Addendum AN12 — Full Plan Reaudit, 17 March 2026
+
+## Addendum AN13 - Live Runtime Verification, Dashboard Truth Check, and Final Tradeability Verdict (17 March 2026)
+
+### AN13.1) Data-source transparency
+
+⚠️ DATA SOURCE: Live deployment API + live dashboard verification at `https://polyprophet-1-rr1g.onrender.com/` on 2026-03-17 around 08:00-08:12 UTC, plus local code analysis from this repo.
+
+⚠️ LIVE ROLLING ACCURACY: BTC=`N/A` (sampleSize=0), ETH=`N/A` (sampleSize=0), XRP=`N/A` (sampleSize=0), SOL=`N/A` (sampleSize=0)
+
+⚠️ DISCREPANCIES:
+
+- The previously observed `strategies=7` orchestrator log is **not authoritative for the current live process**.
+- The current live runtime now reports `strategyCount=3`, `strategySetPath=debug/strategy_set_top3_robust.json`, and active stage `SURVIVAL`.
+- The current live process uptime was only ~4 hours during verification, so it does **not** provide multi-day continuity proof by itself.
+
+### AN13.2) Live deployment truth - what is actually true right now
+
+From live `GET /api/health`, `GET /api/live-op-config`, `GET /api/gates?limit=20`, `GET /api/state-public`, and `GET /api/multiframe/status`:
+
+1. **Deployment mode**
+   - Live host is in `LIVE` mode.
+   - Operator mode is `AUTO_LIVE`.
+   - Telegram is configured and enabled.
+
+2. **Balance / floor / breaker**
+   - Verified live balance: `$6.949209`
+   - Effective floor: `$2.00`
+   - `belowFloor=false`
+   - Circuit breaker state: `NORMAL`
+   - No drawdown-triggered suppression was active.
+
+3. **Feed health**
+   - `dataFeed.anyStale=false`
+   - No stale assets were reported.
+   - `tradingBlocked=false` at the health layer.
+
+4. **Staged runtime**
+   - Active stage: `SURVIVAL`
+   - Active primary set: `top3_robust`
+   - Active runtime path: `debug/strategy_set_top3_robust.json`
+   - Loaded strategy count: `3`
+   - Momentum gate execution: `OFF`
+   - Volume gate execution: `OFF`
+   - Volume deferral in bootstrap: `true`
+
+5. **4H / 5M multiframe**
+   - 4H is **disabled by environment flag** on the live host.
+   - 5M remains monitor-only.
+   - This matches the intended production posture; 4H was **not** a live trade blocker.
+
+### AN13.3) The earlier `strategies=7` concern is resolved
+
+This specific concern was valid to investigate, but current live verification resolves it:
+
+- `top3_robust.json` contains exactly `3` strategies.
+- `top5_robust.json` contains `5`.
+- `top7_drop6.json` contains `7`.
+- The current live host reports:
+  - active stage bankroll `< $8`
+  - active set `top3_robust`
+  - runtime `loaded=true`
+  - runtime `strategies=3`
+
+Therefore:
+
+- the live deployment is **not currently stuck on TOP7**
+- the current staged switching/dashboard truth is consistent with the verified bankroll
+- the older `strategies=7` log should be treated as stale/previous-process evidence, not current truth
+
+### AN13.4) What the live dashboard verification proved
+
+After the live page fully loaded, the dashboard matched runtime/API truth:
+
+- top nav showed `LIVE`
+- balance line showed approximately `$6.95`
+- next strategy entry showed `H09 m08 UP (75-80c)` when verified
+- strategy hints showed `TOP3_ROBUST`
+- live runtime matched `SURVIVAL` stage
+- 4H card reflected disabled-by-env state from the API
+
+So the dashboard is now broadly truthful **after data load**.
+
+### AN13.5) Why the bot is still not trading
+
+The critical finding is that the current live drought is **not** explained by feed staleness, floor block, manual pause, circuit breaker, or wrong-stage loading.
+
+Instead, the live evidence shows two separate truths:
+
+#### A) Oracle-path evaluations are all being vetoed
+
+Live `/api/gates` and `/api/state-public` reported:
+
+- `totalEvaluations=200`
+- `totalBlocked=200`
+- top blocked reasons dominated by:
+  - `negative_EV`
+  - `edge_floor`
+  - then smaller counts from `confidence_75`, `odds`, and `consensus`
+
+This means the ordinary oracle-style evaluation flow is currently producing **zero executable trades**.
+
+#### B) The direct staged operator path has not evaluated any live strategy windows in the current process
+
+Live `_strategyWindowDiagnostics` reported:
+
+- `totalEvaluated=0`
+- `totalPassed=0`
+- `totalBlocked=0`
+
+Live `_orchestratorStatus` simultaneously reported:
+
+- `directStrategyEnabled=true`
+- `operatorGatesEnforced=true`
+- `runtimeEnabled=true`
+- `strategyCount=3`
+
+So the direct staged engine is loaded and enabled, but in the currently running live process it had not yet reached a matching strategy window during the verification period.
+
+At verification time the next windows were:
+
+- `H09:m08 UP 75-80c`
+- `H20:m03 DOWN 72-80c`
+- `H20:m03 DOWN 75-80c`
+
+This is the key operational reality:
+
+- the live bot is currently configured to trade from a **very narrow TOP3 survival schedule**
+- those windows are infrequent
+- they also require the matched token price band
+- and any direct candidate still must pass `executeTrade()` safety checks, including EV
+
+Therefore the system can remain alive, healthy, funded, and correctly staged **while still producing zero trades**.
+
+### AN13.6) Why I did not apply a runtime trading-policy change
+
+I found a code flag:
+
+- `ALLOW_ORACLE_FALLBACK`
+
+Code comments say that without it:
+
+- the bot only trades at exact strategy-schedule minutes and price bands
+
+With it enabled:
+
+- high-confidence oracle fallback trades can also execute when direct windows do not match
+
+However:
+
+- this flag is not documented in `README.md`, `FINAL_OPERATOR_GUIDE.md`, `render.yaml`, or prior plan addenda
+- enabling it would materially widen execution behavior
+- that is a **strategy change**, not a neutral housekeeping fix
+
+So I did **not** flip it in code/config during this reaudit.
+
+### AN13.7) Final blocker list after live verification
+
+What is **not** blocking right now:
+
+- wrong strategy stage
+- stale Chainlink/data feed
+- balance floor
+- live balance resolution
+- circuit breaker
+- manual pause
+- 4H enablement confusion
+
+What **is** still blocking the claim "the bot will definitely trade":
+
+1. **No proven executable oracle flow**
+   - Live oracle evaluations are 200/200 blocked.
+
+2. **Narrow TOP3 survival schedule**
+   - Current live runtime only has 3 staged strategies.
+   - If live price never enters those exact bands during those hours, no direct candidate exists.
+
+3. **No direct-window evidence yet in current process**
+   - `_strategyWindowDiagnostics.totalEvaluated=0` during verification.
+
+4. **Zero live rolling-accuracy sample**
+   - Live WR is still unverified across all assets.
+
+### AN13.8) Final verdict
+
+**Final verdict: CONDITIONAL NO-GO for the statement "the bot will definitely trade."**
+
+More precisely:
+
+- **GO** for: "the live bot is currently healthy, funded, in AUTO_LIVE, correctly staged to TOP3, and ready to evaluate the next scheduled direct strategy window."
+- **NO-GO** for: "the bot is guaranteed to place a trade soon under the current policy."
+
+Why this is the honest verdict:
+
+- the deployment is no longer blocked by broken runtime plumbing
+- but the current live policy is narrow enough that it may still produce zero trades if:
+  - scheduled windows do not occur during uptime
+  - band match does not occur
+  - or EV/safety checks still veto the candidate
+
+### AN13.9) Operational decision rule from this addendum
+
+If the objective is:
+
+- **maximum safety / no policy widening**, keep the current live setup and accept that trades may remain sparse or absent.
+
+If the objective is:
+
+- **higher probability of an actual live trade occurring soon**, then a deliberate policy decision is required, such as:
+  - enabling oracle fallback
+  - widening the active stage set
+  - or explicitly changing thresholds/gates
+
+Those are **not** bug fixes. They are trading-policy changes and should be treated as such.
+
+End of Addendum AN13 — Live Runtime Verification and Final Tradeability Verdict, 17 March 2026
+
+---
+
+# Addendum AO14 — Staged Non-Oracle TOP5 Deployment Gap + Safe Fallback Patch (v140.13, 17 March 2026)
+
+## AO14.1) What was verified
+
+I verified a real staged-runtime defect, not a strategy-theory dispute:
+
+- `server.js` defines the intended staged 15m non-Oracle ladder as:
+  - `TOP3` below `$8`
+  - `TOP5` from `$8` to under `$20`
+  - `TOP7` from `$20+`
+- local repo contains `debug/strategy_set_top5_robust.json`
+- production live config previously exposed `top5Bootstrap: []`
+- `.gitignore` whitelisted:
+  - `debug/strategy_set_top3_robust.json`
+  - `debug/strategy_set_top7_drop6.json`
+  - `debug/strategy_set_top8_current.json`
+- but **did not whitelist** `debug/strategy_set_top5_robust.json`
+
+That means the documented middle stage existed in code and analysis artifacts, but the actual deployable source set omitted its runtime JSON.
+
+## AO14.2) Why this mattered operationally
+
+The runtime loader behavior was verified directly in `server.js`:
+
+- `loadStaticStrategySet()` returns `loadError='STRATEGY_SET_FILE_NOT_FOUND'` and `enabled=false` when the strategy JSON is missing
+- `OPERATOR_STRATEGY_SET_RUNTIME.reload()` does the same for the active primary set
+- direct operator execution depends on a loaded strategy set
+
+Therefore, before this patch, if bankroll promoted into the `$8-$20` stage while `top5_robust` was absent in deployment:
+
+- the requested stage would become `balanced_top5`
+- the active strategy file would fail to load
+- the direct staged engine would have no valid primary schedule for that stage
+- the system could silently enter a **dead no-trade middle stage**
+
+This exactly matched the previously observed live symptom `top5Bootstrap: []`.
+
+## AO14.3) Code/config changes applied
+
+### 1. Deploy packaging fix
+
+I added this whitelist entry to `.gitignore`:
+
+- `!debug/strategy_set_top5_robust.json`
+
+This makes the intended `TOP5` runtime artifact deployable alongside the already-whitelisted `TOP3` and `TOP7` files.
+
+### 2. Safe staged fallback in `server.js`
+
+I patched staged selection so the runtime now degrades safely if a requested stage artifact is unavailable.
+
+Fallback order implemented:
+
+- requested `growth_top7`:
+  - use `growth_top7` if available
+  - else `balanced_top5`
+  - else `survival_top3`
+- requested `balanced_top5`:
+  - use `balanced_top5` if available
+  - else `survival_top3`
+  - else `growth_top7`
+- requested `survival_top3`:
+  - use `survival_top3` if available
+  - else `balanced_top5`
+  - else `growth_top7`
+
+This prevents a missing staged JSON from silently disabling direct execution.
+
+### 3. Runtime exposure fix
+
+I also updated `/api/live-op-config` reporting to expose staged artifact truth directly:
+
+- active stage now includes:
+  - `requestedStageKey`
+  - `requestedStageLabel`
+  - `requestedStageRangeLabel`
+  - `degradedFromRequestedStage`
+  - `requestedStageStatus`
+- ladder rows now include:
+  - `available`
+  - `strategies`
+  - `loadError`
+- `strategyStages.artifacts` now exposes per-stage artifact status
+
+This removes the previous hidden failure mode where a stage could be "configured" in theory but unusable in practice.
+
+### 4. Runtime wording correction
+
+I corrected the live-config narration so it no longer incorrectly states that `TOP3` is always read-only telemetry.
+
+Now:
+
+- if `TOP3` is the true active survival stage, runtime reports it as primary execution
+- if `TOP3` is only being used as a fallback because another staged artifact is unavailable, runtime says so explicitly
+- otherwise it remains telemetry/read-only outside survival usage
+
+## AO14.4) Local verification completed
+
+Local verification performed after patch:
+
+- `.gitignore` now whitelists `debug/strategy_set_top5_robust.json`
+- `server.js` syntax check passed via:
+  - `node --check server.js`
+
+No runtime syntax errors were introduced by the staged fallback patch.
+
+## AO14.5) What still requires redeploy for live confirmation
+
+The code/config fix is complete locally, but live confirmation of the restored `TOP5` stage still requires redeploy of the updated source.
+
+Expected post-redeploy checks:
+
+1. `GET /api/live-op-config`
+   - `strategyStages.ladder` should show `balanced_top5.available=true`
+   - `strategyStages.artifacts.balanced_top5.loadError` should be `null`
+   - `strategySchedules.top5Bootstrap` should no longer be empty
+2. If bankroll is in the `$8-$20` band:
+   - `strategyStages.active.requestedStageKey` should be `balanced_top5`
+   - `degradedFromRequestedStage` should be `false`
+3. If a future stage artifact ever goes missing again:
+   - runtime should remain tradeable on the safest available fallback instead of entering a dead stage
+
+## AO14.6) Final non-backtracking verdict
+
+**Final verdict: keep the staged non-Oracle recommendation as `TOP3 -> TOP5 -> TOP7`.**
+
+Reason:
+
+- the evidence did **not** disprove the intended middle `TOP5` stage
+- the blocking issue was a deployment omission, not a finding that `TOP5` was the wrong design
+- the correct fix was to restore `top5_robust` to the deployable artifact set and harden runtime fallback behavior
+
+So the authoritative recommendation after this audit is:
+
+- **Below `$8`**: `TOP3` survival stage remains the correct low-bust execution set
+- **`$8` to under `$20`**: `TOP5` remains the intended balanced bridge stage
+- **`$20+`**: `TOP7` remains the growth stage
+
+The previous live `top5Bootstrap: []` state was a **real defect**. It is now fixed in source and guarded against recurrence by fallback logic, pending redeploy.
+
+End of Addendum AO14 — Staged Non-Oracle TOP5 Deployment Gap + Safe Fallback Patch, 17 March 2026

@@ -72,6 +72,7 @@ debug/*
 # Whitelist runtime-critical debug files needed by server.js at startup
 !debug/strategy_set_top7_drop6.json
 !debug/strategy_set_top3_robust.json
+!debug/strategy_set_top5_robust.json
 !debug/strategy_set_top8_current.json
 !debug/strategy_set_4h_curated.json
 !debug/strategy_set_highfreq_unique12.json
