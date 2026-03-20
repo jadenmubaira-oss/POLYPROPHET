@@ -37,7 +37,7 @@ services:
       - key: OPERATOR_PRIMARY_GATES_ENFORCED
         value: "true"
       - key: OPERATOR_STRATEGY_SET_PATH
-        value: debug/strategy_set_union_validated_top12.json
+        value: debug/strategy_set_union_validated_top12_max95.json
       - key: MULTIFRAME_4H_ENABLED
         value: "false"
       # Auth - Set your own credentials in Render dashboard

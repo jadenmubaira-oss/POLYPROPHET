@@ -10667,41 +10667,96 @@ function resolveOperatorStrategySetPath(strategySetPath) {
     }
 }
 
-function loadStaticStrategySet(configuredPath, fallbackSource) {
-    const resolvedPath = resolveOperatorStrategySetPath(configuredPath);
-    let strategies = [];
+const UNION_VALIDATED_TOP12_PATH = 'debug/strategy_set_union_validated_top12.json';
+const UNION_VALIDATED_TOP12_MAX95_PATH = 'debug/strategy_set_union_validated_top12_max95.json';
+
+function buildUnionValidatedTop12Max95RuntimeFallback(parsed) {
+    if (!parsed || typeof parsed !== 'object') return null;
+    const cloned = JSON.parse(JSON.stringify(parsed));
+    const nextStrategies = Array.isArray(cloned?.strategies)
+        ? cloned.strategies.map(strategy => ({
+            ...strategy,
+            priceMax: 0.95
+        }))
+        : [];
+    const nextConditions = {
+        ...(cloned?.conditions || {}),
+        priceMax: 0.95,
+        description: 'Signal fires when: price inside the matched strategy band (union 65-80c widened to 95c runtime cap), momentum > 3%. Volume gate OFF for current live-structure parity.'
+    };
+    const nextStats = {
+        ...(cloned?.stats || {}),
+        totalStrategies: nextStrategies.length,
+        source: 'union_validated_top12_max95'
+    };
+    return {
+        ...cloned,
+        version: `${String(cloned?.version || 'unknown')}-runtime-max95-fallback`,
+        description: 'Runtime-synthesized union_validated_top12 with priceMax widened to 0.95 when the dedicated max95 artifact is unavailable on deployment.',
+        conditions: nextConditions,
+        stats: nextStats,
+        strategies: nextStrategies
+    };
+}
+
+function loadOperatorStrategySetArtifact(configuredPath, fallbackSource) {
+    const requestedPath = String(configuredPath || '').trim();
+    let resolvedPath = resolveOperatorStrategySetPath(requestedPath);
+    let parsed = null;
     let loadError = null;
-    let stats = null;
 
     if (!resolvedPath) {
-        loadError = configuredPath ? 'INVALID_STRATEGY_SET_PATH' : 'NO_STRATEGY_SET_PATH';
+        loadError = requestedPath ? 'INVALID_STRATEGY_SET_PATH' : 'NO_STRATEGY_SET_PATH';
     } else {
         try {
-            if (!fs.existsSync(resolvedPath)) {
-                loadError = 'STRATEGY_SET_FILE_NOT_FOUND';
+            if (fs.existsSync(resolvedPath)) {
+                parsed = JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
+            } else if (requestedPath === UNION_VALIDATED_TOP12_MAX95_PATH) {
+                const fallbackResolvedPath = resolveOperatorStrategySetPath(UNION_VALIDATED_TOP12_PATH);
+                if (fallbackResolvedPath && fs.existsSync(fallbackResolvedPath)) {
+                    const fallbackParsed = JSON.parse(fs.readFileSync(fallbackResolvedPath, 'utf8'));
+                    parsed = buildUnionValidatedTop12Max95RuntimeFallback(fallbackParsed);
+                    resolvedPath = fallbackResolvedPath;
+                } else {
+                    loadError = 'STRATEGY_SET_FILE_NOT_FOUND';
+                }
             } else {
-                const raw = fs.readFileSync(resolvedPath, 'utf8');
-                const parsed = JSON.parse(raw);
-                strategies = Array.isArray(parsed?.strategies) ? parsed.strategies : [];
-                stats = parsed?.stats || null;
-                loadError = null;
+                loadError = 'STRATEGY_SET_FILE_NOT_FOUND';
             }
         } catch (e) {
-            strategies = [];
-            stats = null;
+            parsed = null;
             loadError = (e && e.message) ? e.message : String(e);
         }
     }
 
+    const strategies = Array.isArray(parsed?.strategies) ? parsed.strategies : [];
+    const stats = parsed?.stats || null;
+    const conditions = parsed?.conditions || null;
     const source = String(stats?.source || fallbackSource || '').trim();
+
     return {
-        configuredPath,
+        configuredPath: requestedPath || null,
         resolvedPath,
+        parsed,
         strategies,
         loadError,
         stats,
+        conditions,
         source,
         enabled: Array.isArray(strategies) && strategies.length > 0
+    };
+}
+
+function loadStaticStrategySet(configuredPath, fallbackSource) {
+    const artifact = loadOperatorStrategySetArtifact(configuredPath, fallbackSource);
+    return {
+        configuredPath: artifact.configuredPath,
+        resolvedPath: artifact.resolvedPath,
+        strategies: artifact.strategies,
+        loadError: artifact.loadError,
+        stats: artifact.stats,
+        source: artifact.source,
+        enabled: artifact.enabled
     };
 }
 
@@ -10764,19 +10819,15 @@ const OPERATOR_STRATEGY_SET_RUNTIME = (() => {
         }
 
         try {
-            if (!fs.existsSync(resolvedPath)) {
-                loadError = 'STRATEGY_SET_FILE_NOT_FOUND';
-                priceRange = computePriceRange(conditions, strategies);
-                return;
+            const artifact = loadOperatorStrategySetArtifact(configuredPath, 'operator_strategy_set');
+            resolvedPath = artifact.resolvedPath;
+            strategies = artifact.strategies;
+            conditions = artifact.conditions || conditions;
+            stats = artifact.stats || null;
+            loadError = artifact.loadError;
+            if (artifact.enabled) {
+                lastLoadedAt = lastReloadAttemptAt;
             }
-
-            const raw = fs.readFileSync(resolvedPath, 'utf8');
-            const parsed = JSON.parse(raw);
-            strategies = Array.isArray(parsed?.strategies) ? parsed.strategies : [];
-            conditions = parsed?.conditions || conditions;
-            stats = parsed?.stats || null;
-            loadError = null;
-            lastLoadedAt = lastReloadAttemptAt;
         } catch (e) {
             strategies = [];
             stats = null;
