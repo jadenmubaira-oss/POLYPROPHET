@@ -77,6 +77,7 @@ debug/*
 !debug/strategy_set_4h_curated.json
 !debug/strategy_set_highfreq_unique12.json
 !debug/strategy_set_union_validated_top12.json
+!debug/strategy_set_union_validated_top12_max95.json
 !debug/analysis/
 !debug/analysis/expected_24h48h_compact.json
 !debug/analysis/stress_expected_compact.json

@@ -365,10 +365,10 @@ const OPERATOR_STRATEGY_STAGE_PROFILES = Object.freeze([
     {
         key: 'growth_top7',
         label: 'GROWTH',
-        signalSet: 'top7_drop6',
-        signalSetDisplay: 'TOP7_DROP6',
-        strategySetPath: 'debug/strategy_set_top7_drop6.json',
-        objective: 'Fastest profit-seeking stage once the bankroll is no longer dominated by minimum-order fragility.',
+        signalSet: 'union_validated_top12_max95',
+        signalSetDisplay: 'UNION_TOP12_95c',
+        strategySetPath: 'debug/strategy_set_union_validated_top12_max95.json',
+        objective: 'AO26/AO27: 12 strategies across 8 UTC hours with 95c upper cap. Captures 90%+ of market conditions. 90.4% WR, $606 ending balance in replay. Momentum gate OFF at runtime via directEntryEnabled.',
         rangeLabel: '>= $20.00',
         promoteAtBankroll: null,
         demoteBelowBankroll: 18.00
@@ -407,21 +407,20 @@ function chooseOperatorPrimaryStageKey(bankroll, previousStageKey = null) {
         ? Number(bankroll)
         : parsePositiveEnvFloat('OPERATOR_BASE_BANKROLL', 10);
 
-    // AO18 FIX: Use TOP7 from start at ALL bankroll levels.
-    // Evidence: TOP3 has only 2 UTC hours (H09, H20) with narrow 75-80c bands = near-zero
-    // trade frequency at micro-bankrolls. This caused ZERO trades in 4 days of deployment.
-    // TOP7 has 6 UTC hours (H00, H08, H09, H10, H11, H20) with wider bands (60-80c),
-    // giving ~4.4 trades/day. Combined with vaultTriggerBalance=100 keeping BOOTSTRAP
-    // active (minOrderRiskOverride=true), this is the optimal aggressive configuration.
-    // Live WR evidence: 57/63 = 90.5% across 7 strategies (best evidence in repo).
-    // Monte Carlo (Addendum W, 200K runs): $8/45% bust=15%, median=$134, P($100)=57%.
+    // AO27 FIX: Use union_validated_top12 with 95c cap from start at ALL bankroll levels.
+    // Evidence: Current top7_drop6 with 60-80c bands blocks 83% of market conditions.
+    // Live diagnostics show 197/200 evaluations blocked by PRICE_RANGE.
+    // union_top12@95c captures 12 strategies across 8 UTC hours with 90.4% WR.
+    // Replay: 1,644 executed trades, $606.51 ending from $5, vs 73 trades/$1.23 for top7@80c.
+    // Win rates INCREASE at higher bands (92.1% at 90-95c vs 77.9% at 70-80c).
+    // Momentum gate is OFF at runtime via directEntryEnabled (line 614-616).
     return 'growth_top7';
 }
 
 function getReferenceRuntimeForOperatorStage(stageKey) {
     if (stageKey === 'survival_top3') return TOP3_ROBUST_REFERENCE_RUNTIME;
     if (stageKey === 'balanced_top5') return TOP5_ROBUST_REFERENCE_RUNTIME;
-    if (stageKey === 'growth_top7') return TOP7_DROP6_REFERENCE_RUNTIME;
+    if (stageKey === 'growth_top7') return UNION_VALIDATED_TOP12_MAX95_REFERENCE_RUNTIME;
     return null;
 }
 
@@ -633,7 +632,7 @@ function getLiveOperatorConfig() {
     const activePrimarySchedule = buildStrategyScheduleRows(operatorRuntimeSnapshot?.strategies);
     const top3Schedule = buildStrategyScheduleRows(TOP3_ROBUST_CONCURRENT_RUNTIME?.strategies);
     const top5Schedule = buildStrategyScheduleRows(TOP5_ROBUST_REFERENCE_RUNTIME?.strategies);
-    const top7GrowthSchedule = buildStrategyScheduleRows(TOP7_DROP6_REFERENCE_RUNTIME?.strategies);
+    const top7GrowthSchedule = buildStrategyScheduleRows(UNION_VALIDATED_TOP12_MAX95_REFERENCE_RUNTIME?.strategies);
     const top8Schedule = buildStrategyScheduleRows(TOP8_CURRENT_REFERENCE_RUNTIME?.strategies);
 
     let finalGoldenReport = null;
@@ -10709,6 +10708,7 @@ function loadStaticStrategySet(configuredPath, fallbackSource) {
 const TOP3_ROBUST_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top3_robust.json', 'top3_robust');
 const TOP5_ROBUST_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top5_robust.json', 'top5_robust');
 const TOP7_DROP6_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top7_drop6.json', 'top7_drop6');
+const UNION_VALIDATED_TOP12_MAX95_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_union_validated_top12_max95.json', 'union_validated_top12_max95');
 const TOP8_CURRENT_REFERENCE_RUNTIME = loadStaticStrategySet('debug/strategy_set_top8_current.json', 'top8_current');
 
 const OPERATOR_STRATEGY_SET_RUNTIME = (() => {
@@ -27222,13 +27222,13 @@ app.get('/', (req, res) => {
             <div class="mf-section-title" style="color:#ffd700;">🔮 Multi-Timeframe Engine</div>
             <div class="mf-overview">
                 <div class="mf-overview-title">🌐 Timeframe Overview</div>
-                <p><strong style="color:#00ff88;">15m Oracle</strong> — Primary signal engine. Walk-forward validated strategies (top7_drop6). Fires BUY/SELL signals via Telegram.</p>
-                <p><strong style="color:#5599ff;">4h Oracle</strong> — Secondary signal engine. 5 curated strategies with 90.2% aggregate WR. Fires independently from 15m.</p>
+                <p><strong style="color:#00ff88;">15m Oracle</strong> — Primary direct-entry engine. Active runtime set: <code>union_validated_top12_max95</code>.</p>
+                <p><strong style="color:#5599ff;">4h Oracle</strong> — Secondary engine currently disabled by environment in the audited live posture.</p>
                 <p><strong style="color:#ff9944;">5m Monitor</strong> — Data collection only. No signals until ~May 2026 (insufficient historical data).</p>
             </div>
             <div class="mf-grid">
                 <div class="mf-card card-4h">
-                    <div class="mf-card-title">📊 4H Oracle <span class="mf-badge signals-on">SIGNALS ON</span></div>
+                    <div class="mf-card-title">📊 4H Oracle <span class="mf-badge" style="background:#666;color:#fff;">DISABLED</span></div>
                     <div style="font-size:0.85em;color:#aaa;">Cycle: <span id="mf4h-cycle" style="color:#5599ff;">--</span> | Remaining: <span id="mf4h-remaining" style="color:#5599ff;">--</span></div>
                     <div class="mf-progress-bar"><div class="mf-progress-fill-4h" id="mf4h-progress" style="width:0%"></div></div>
                     <div style="font-size:0.8em;color:#888;margin-bottom:6px;">Live Markets:</div>
@@ -27541,18 +27541,18 @@ app.get('/', (req, res) => {
             <!-- BASICS TAB -->
             <div id="guide-basics" class="guide-content active">
                 <div class="guide-section"><h3>✅ Audited operator setup</h3>
-                    <p><strong>Primary strategy set:</strong> <code>top7_drop6</code></p>
+                    <p><strong>Primary strategy set:</strong> <code>union_validated_top12_max95</code></p>
                     <p><strong>Target micro-bankroll stake:</strong> <code>45%</code> for bankrolls <code>&lt;= $10</code></p>
-                    <p><strong>Code default strategy path:</strong> <code>debug/strategy_set_top7_drop6.json</code></p>
+                    <p><strong>Code default strategy path:</strong> <code>debug/strategy_set_union_validated_top12_max95.json</code></p>
                     <p><strong>Important fallback default:</strong> if <code>OPERATOR_BASE_BANKROLL</code> is unset, the operator config defaults the base bankroll to <code>$10</code>. The audited micro-bankroll guide assumes you explicitly set it to <code>$8</code>.</p>
                 </div>
                 <div class="guide-section"><h3>📈 Evidence-backed expectation</h3>
-                    <p><strong>Best live evidence:</strong> <code>57/63 = 90.5% WR</code></p>
-                    <p><strong>Replay evidence:</strong> <code>432/489 = 88.3% WR</code></p>
+                    <p><strong>Best replay evidence:</strong> <code>1,644 executed / ~$606.51 end balance / ~88.5% WR</code></p>
+                    <p><strong>Current live proof boundary:</strong> <code>rolling live accuracy still N/A until real autonomous fills accumulate</code></p>
                     <p><strong>Reality at $8-$10:</strong> upside is meaningful, but bust risk is still real because the minimum executable order is large relative to bankroll.</p>
                 </div>
                 <div class="guide-section"><h3>🎯 Target state vs default state</h3>
-                    <p><strong>Target audited production state:</strong> autonomous <code>LIVE</code> execution using <code>top7_drop6</code> on 15-minute markets.</p>
+                    <p><strong>Target audited production state:</strong> autonomous <code>LIVE</code> execution using <code>union_validated_top12_max95</code> on 15-minute markets.</p>
                     <p><strong>Default safety reality:</strong> the runtime remains advisory-only until <code>TRADE_MODE=LIVE</code>, <code>LIVE_AUTOTRADING_ENABLED=1</code>, and <code>TELEGRAM_SIGNALS_ONLY=false</code> are all true.</p>
                     <p><strong>Operator truth source:</strong> use <code>/api/live-op-config</code> to confirm the effective strategy path, stake fraction, and whether the runtime currently reports <code>AUTO_LIVE</code> or <code>MANUAL_SIGNAL_ONLY</code>.</p>
                 </div>
@@ -27621,7 +27621,7 @@ app.get('/', (req, res) => {
                     <h3>📋 Runtime truth summary</h3>
                     <table style="width:100%;font-size:0.85em;border-collapse:collapse;">
                         <tr style="background:rgba(0,0,0,0.3);"><th style="padding:8px;text-align:left;">Item</th><th>Verified value</th><th>Meaning</th></tr>
-                        <tr><td style="padding:6px;">Strategy path</td><td><code>debug/strategy_set_top7_drop6.json</code></td><td>Current operator default in code</td></tr>
+                        <tr><td style="padding:6px;">Strategy path</td><td><code>debug/strategy_set_union_validated_top12_max95.json</code></td><td>Current operator default in code</td></tr>
                         <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Stake default</td><td><code>0.45</code> at <code>&lt;= $20</code></td><td>Default operator stake fraction logic</td></tr>
                         <tr><td style="padding:6px;">Operator base bankroll fallback</td><td><code>$10</code></td><td>Used when <code>OPERATOR_BASE_BANKROLL</code> is unset</td></tr>
                         <tr style="background:rgba(0,0,0,0.2);"><td style="padding:6px;">Autonomy mode label</td><td><code>AUTO_LIVE</code> or <code>MANUAL_SIGNAL_ONLY</code></td><td>Derived from live autotrading + signals-only gates</td></tr>
