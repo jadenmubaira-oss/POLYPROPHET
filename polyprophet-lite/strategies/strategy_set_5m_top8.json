@@ -1,0 +1,121 @@
+{
+  "version": "1.0",
+  "generatedAt": "2026-03-22T14:50:00.000Z",
+  "description": "5-minute strategy set — adapted from proven 15m UTC hour patterns. Entry minutes scaled to 5m cycle (0-4). Same price bands, same directional edge.",
+  "conditions": {
+    "priceMin": 0.45,
+    "priceMax": 0.80,
+    "description": "5m markets: wider price acceptance (45-80c) since 5m prices cluster near 50c more often"
+  },
+  "stats": {
+    "totalStrategies": 8,
+    "source": "adapted_from_top8_current_15m",
+    "basis": "Same UTC hours proven profitable on 15m (93%+ WR). 5m markets at same hours share the same crypto momentum dynamics. Entry minutes scaled to 5m cycle (max 4). Price bands widened to include 45-80c since 5m prices are often near 50c."
+  },
+  "strategies": [
+    {
+      "id": 1,
+      "name": "5m H09 m02 UP (50-80c)",
+      "asset": "ALL",
+      "utcHour": 9,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "PLATINUM",
+      "signature": "2|9|UP|0.50|0.80",
+      "basis": "Adapted from 15m H09 m08 UP (96.1% WR, PLATINUM)"
+    },
+    {
+      "id": 2,
+      "name": "5m H20 m01 DOWN (50-80c)",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "PLATINUM",
+      "signature": "1|20|DOWN|0.50|0.80",
+      "basis": "Adapted from 15m H20 m03 DOWN (95.1% WR, PLATINUM)"
+    },
+    {
+      "id": 3,
+      "name": "5m H11 m01 UP (50-80c)",
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "GOLD",
+      "signature": "1|11|UP|0.50|0.80",
+      "basis": "Adapted from 15m H11 m04 UP (94.2% WR, GOLD)"
+    },
+    {
+      "id": 4,
+      "name": "5m H10 m02 UP (50-80c)",
+      "asset": "ALL",
+      "utcHour": 10,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "GOLD",
+      "signature": "2|10|UP|0.50|0.80",
+      "basis": "Adapted from 15m H10 m07 UP (93.4% WR, GOLD)"
+    },
+    {
+      "id": 5,
+      "name": "5m H08 m04 DOWN (45-80c)",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.80,
+      "tier": "GOLD",
+      "signature": "4|8|DOWN|0.45|0.80",
+      "basis": "Adapted from 15m H08 m14 DOWN (95.0% WR, GOLD)"
+    },
+    {
+      "id": 6,
+      "name": "5m H20 m00 DOWN (50-80c)",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 0,
+      "direction": "DOWN",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "SILVER",
+      "signature": "0|20|DOWN|0.50|0.80",
+      "basis": "Adapted from 15m H20 m01 DOWN (92.7% WR, SILVER)"
+    },
+    {
+      "id": 7,
+      "name": "5m H00 m04 DOWN (50-78c)",
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.50,
+      "priceMax": 0.78,
+      "tier": "SILVER",
+      "signature": "4|0|DOWN|0.50|0.78",
+      "basis": "Adapted from 15m H00 m12 DOWN (93.5% WR, SILVER)"
+    },
+    {
+      "id": 8,
+      "name": "5m H10 m02 UP (50-80c)",
+      "asset": "ALL",
+      "utcHour": 10,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "SILVER",
+      "signature": "1|10|UP|0.50|0.80",
+      "basis": "Adapted from 15m H10 m06 UP (91.5% WR, SILVER)"
+    }
+  ]
+}

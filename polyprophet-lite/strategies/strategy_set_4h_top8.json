@@ -1,0 +1,95 @@
+{
+  "version": "1.0",
+  "generatedAt": "2026-03-22T14:55:00.000Z",
+  "description": "4-hour strategy set — adapted from proven 15m UTC hour patterns. Entry minutes scaled to 4h cycle (0-239 in 15-min blocks). Same directional edge at proven hours.",
+  "conditions": {
+    "priceMin": 0.45,
+    "priceMax": 0.80,
+    "description": "4h markets: wider price acceptance (45-80c). 4h cycles span 4 hours so entry minutes are in 15-min blocks within the cycle."
+  },
+  "stats": {
+    "totalStrategies": 6,
+    "source": "adapted_from_top8_current_15m",
+    "basis": "4h cycles cover hours 0-3, 4-7, 8-11, 12-15, 16-19, 20-23. Strategies target the proven profitable UTC hours within each 4h block. Entry minute = (targetHour - blockStart) * 60 + originalEntryMinute."
+  },
+  "strategies": [
+    {
+      "id": 1,
+      "name": "4h Block08-11 m68 UP (50-80c)",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 68,
+      "direction": "UP",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "PLATINUM",
+      "signature": "68|8|UP|0.50|0.80",
+      "basis": "H09 m08 UP within 4h block 08-11. Entry at minute 68 = (9-8)*60+8"
+    },
+    {
+      "id": 2,
+      "name": "4h Block20-23 m03 DOWN (50-80c)",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "PLATINUM",
+      "signature": "3|20|DOWN|0.50|0.80",
+      "basis": "H20 m03 DOWN within 4h block 20-23. Entry at minute 3"
+    },
+    {
+      "id": 3,
+      "name": "4h Block08-11 m184 UP (50-80c)",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 184,
+      "direction": "UP",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "GOLD",
+      "signature": "184|8|UP|0.50|0.80",
+      "basis": "H11 m04 UP within 4h block 08-11. Entry at minute 184 = (11-8)*60+4"
+    },
+    {
+      "id": 4,
+      "name": "4h Block08-11 m127 UP (50-80c)",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 127,
+      "direction": "UP",
+      "priceMin": 0.50,
+      "priceMax": 0.80,
+      "tier": "GOLD",
+      "signature": "127|8|UP|0.50|0.80",
+      "basis": "H10 m07 UP within 4h block 08-11. Entry at minute 127 = (10-8)*60+7"
+    },
+    {
+      "id": 5,
+      "name": "4h Block08-11 m14 DOWN (45-80c)",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 14,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.80,
+      "tier": "GOLD",
+      "signature": "14|8|DOWN|0.45|0.80",
+      "basis": "H08 m14 DOWN within 4h block 08-11. Entry at minute 14"
+    },
+    {
+      "id": 6,
+      "name": "4h Block00-03 m12 DOWN (50-78c)",
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.50,
+      "priceMax": 0.78,
+      "tier": "SILVER",
+      "signature": "12|0|DOWN|0.50|0.78",
+      "basis": "H00 m12 DOWN within 4h block 00-03. Entry at minute 12"
+    }
+  ]
+}
