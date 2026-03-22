@@ -17811,3 +17811,153 @@ After applying the change:
 - Every reasonable config variant has been tested and none outperform this combination on BOTH full history AND recent window
 
 End of Addendum AO30.15 — Exhaustive all-artifact sweep + config optimization, 22 March 2026
+
+## AO30.16) DEPLOYMENT + GO/NO-GO VERDICT — FULL AUTONOMOUS TRADING READINESS AUDIT
+
+Date: 22 March 2026
+
+### AO30.16.1) Deployment status
+
+- Code committed: `AO30.15: Optimized config — top8_current + 2 trades/cycle`
+- Pushed to `origin/main`: YES (commit `77b4db9`)
+- Render auto-deploy: triggered on push to main
+
+### AO30.16.2) Strategy schedule — when the bot will attempt trades
+
+The `top8_current` artifact contains 8 strategies. Each fires at a specific UTC hour and entry minute within the 15-minute cycle. Since cycles start at :00, :15, :30, :45, each strategy fires 4 times per hour window:
+
+| Strategy | UTC Hour | Entry Min | Fire Times (UTC) | Direction | Price Band |
+|---|:---:|:---:|---|:---:|---|
+| H00 m12 DOWN | 0 | 12 | 0:12, 0:27, 0:42, 0:57 | DOWN | 65-78c |
+| H08 m14 DOWN | 8 | 14 | 8:14, 8:29, 8:44, 8:59 | DOWN | 60-80c |
+| H09 m08 UP | 9 | 8 | 9:08, 9:23, 9:38, 9:53 | UP | 75-80c |
+| H10 m06 UP | 10 | 6 | 10:06, 10:21, 10:36, 10:51 | UP | 75-80c |
+| H10 m07 UP | 10 | 7 | 10:07, 10:22, 10:37, 10:52 | UP | 75-80c |
+| H11 m04 UP | 11 | 4 | 11:04, 11:19, 11:34, 11:49 | UP | 75-80c |
+| H20 m01 DOWN | 20 | 1 | 20:01, 20:16, 20:31, 20:46 | DOWN | 68-80c |
+| H20 m03 DOWN | 20 | 3 | 20:03, 20:18, 20:33, 20:48 | DOWN | 72-80c |
+
+**Total daily trade windows**: 32 (8 strategies × 4 cycles each)
+
+**First available trade window** (from 07:03 UTC today): **H08 m14 DOWN at 8:14 UTC** (~71 minutes from deployment). After that, windows fire every 15 minutes through H11.
+
+**For a trade to actually execute at a window, the market YES/NO price must be inside the strategy's band** (e.g., 75-80c for UP strategies). If BTC/ETH/SOL/XRP YES price is at 50c or 90c, no trade fires — this is by design.
+
+### AO30.16.3) Complete live trading gate chain — every condition that must be TRUE
+
+Traced and verified in `server.js` line by line:
+
+| # | Gate | Code Location | Default | Required Value | Status |
+|---|---|---|---|---|---|
+| 1 | `TRADE_MODE` | line 11436 | `PAPER` | `LIVE` | **⚠️ Must set env var** |
+| 2 | `ENABLE_LIVE_TRADING` | line 11432 | `false` | `true` or `1` | **⚠️ Must set env var** |
+| 3 | `LIVE_AUTOTRADING_ENABLED` | line 11456 | `false` | `true` or `1` | **⚠️ Must set env var** |
+| 4 | `TELEGRAM_SIGNALS_ONLY` | line 11828 | `true` (!) | `false` | **⚠️ Must set env var** |
+| 5 | `isOperatorStrategySetEnforced()` | line 10647 | `true` | `true` | ✅ Default OK |
+| 6 | `convictionOnlyMode` | line 11703 | `false` | `false` | ✅ Default OK |
+| 7 | `tradingPaused` | line 16502 | `false` | `false` | ✅ Default OK |
+| 8 | Polymarket wallet loaded | runtime | — | Valid wallet | **⚠️ Must have USDC** |
+| 9 | Market data feed | runtime | — | Not stale | ✅ Auto-managed |
+| 10 | Price in strategy band | runtime | — | 60-80c range | ✅ Market-dependent |
+| 11 | No active globalStop/cooldown/circuit breaker | runtime | — | No halt | ✅ Auto-resets daily |
+
+**Gate #4 is the hidden killer**: `TELEGRAM_SIGNALS_ONLY` defaults to `true` because `fileSignalsOnly` on line 11814 is `true`. Unless the env var is explicitly set to `false`, `isSignalsOnlyMode()` returns `true` and EVERY trade is blocked with `ADVISORY_ONLY: signals-only mode`. This is almost certainly why the bot has historically refused to trade.
+
+### AO30.16.4) Required environment variables — the EXACT 4 that must be set
+
+On your Render deployment dashboard → Environment → Environment Variables:
+
+```
+TRADE_MODE=LIVE
+ENABLE_LIVE_TRADING=1
+LIVE_AUTOTRADING_ENABLED=true
+TELEGRAM_SIGNALS_ONLY=false
+```
+
+If ANY of these 4 is missing or wrong, the bot will NOT place a single trade. It will run, generate signals, log diagnostics, but never execute an order.
+
+### AO30.16.5) Autonomous trading readiness
+
+| Feature | Status | Evidence |
+|---|:---:|---|
+| Strategy loading | ✅ | `top8_current` loads via `OPERATOR_STRATEGY_SET_RUNTIME` at startup |
+| Orchestrator loop | ✅ | `orchestrateDirectOperatorStrategyEntries()` runs every tick (~1s) |
+| Heartbeat logging | ✅ | Logs every 300s even when no strategies match |
+| GlobalStopLoss recovery | ✅ | Resets daily — bot resumes next day automatically |
+| CircuitBreaker recovery | ✅ | `resumeOnNewDay: true` — auto-resets at midnight UTC |
+| Cooldown expiry | ✅ | Expires after `cooldownSeconds` (1200s = 20 min) |
+| PeakDrawdownBrake | ✅ | Not a halt — reduces size but keeps trading |
+| Min balance floor | ✅ | Dynamic floor at 40% of bankroll, min $0.50 |
+| Error recovery | ✅ | Failed CLOB orders logged but don't halt the bot |
+| Feed staleness | ✅ | Auto-managed; stale feeds block execution until refreshed |
+| Manual pause/resume | ✅ | `/api/trading-pause` endpoint available |
+| Gate trace diagnostics | ✅ | `/api/gate-trace` shows exact reason for every blocked trade |
+
+**The bot CAN be left to trade autonomously** once the 4 env vars are set and a funded wallet is connected. All halts are temporary and self-recovering.
+
+### AO30.16.6) Will the bot follow the predicted profit simulation?
+
+**What the simulation predicts vs what live will actually do:**
+
+The simulation predicts $10 → $1,194 over ~150 days with `top8_current` + 2 trades/cycle. In live trading, the bot will:
+
+1. ✅ Load the same `top8_current` strategy artifact
+2. ✅ Use the same `maxGlobalTradesPerCycle=2`
+3. ✅ Apply the same Kelly/bankroll-adaptive sizing
+4. ✅ Enforce the same globalStopLoss/peakBrake safety mechanisms
+5. ✅ Trade at the same UTC hours and entry minutes
+
+**What COULD cause divergence from simulation:**
+
+- Live market prices may not be in the 60-80c band as often as historical data
+- Live rolling WR may differ from historical 78-80% WR
+- Slippage on CLOB orders (simulation assumes 1% slippage, real may vary)
+- Network/API latency causing missed windows
+- Polymarket market availability (markets must exist and have liquidity)
+
+**Bottom line**: The bot will trade the EXACT same strategy with the EXACT same risk controls. Whether the OUTCOMES match the simulation depends on whether live market conditions resemble historical conditions. The first 20 trades will reveal whether the live WR tracks the simulated WR.
+
+### AO30.16.7) Expected first trade
+
+**If env vars are set and Render deploys by ~07:30 UTC today:**
+
+- First strategy window: **H08 m14 DOWN at 8:14 UTC** (about 8:14 AM UTC)
+- This is a DOWN strategy with 60-80c band — requires NO price (= 1 - YES price) to be 60-80c
+- If no asset's price is in band at 8:14, next window is 8:29, then 8:44, then 8:59
+- If H08 produces no trade, next batch is H09 at 9:08, 9:23, 9:38, 9:53
+
+**Realistic expectation**: The bot should attempt its first trade within the H08-H11 block today (8:14 — 11:49 UTC), which is **24 possible trade windows over ~3.5 hours**. If prices are in band for even a few of those, a trade will fire.
+
+**If no trade fires in the entire H08-H11 block**, check `/api/gate-trace` to see exactly why each window was blocked (price out of band, no market data, env var issue, etc.).
+
+### AO30.16.8) GO / NO-GO VERDICT
+
+**CONDITIONAL GO** — the bot is code-ready for autonomous live trading. The code is deployed, the strategy is optimal, and the execution chain is verified.
+
+**The GO is conditional on these operator actions:**
+
+1. ✅ Code deployed to Render (pushed to `origin/main`)
+2. ⚠️ **Set the 4 required env vars** on Render:
+   - `TRADE_MODE=LIVE`
+   - `ENABLE_LIVE_TRADING=1`
+   - `LIVE_AUTOTRADING_ENABLED=true`
+   - `TELEGRAM_SIGNALS_ONLY=false`
+3. ⚠️ **Ensure wallet has $10+ USDC** (minimum viable balance)
+4. ⚠️ **Verify after deploy** by checking these endpoints:
+   - `/api/live-op-config` → should show `mode: AUTO_LIVE`
+   - `/api/gate-trace` → should show strategy decisions, not just `ADVISORY_ONLY` blocks
+   - `/api/health` → should show `status: ok`
+
+**Once all 4 conditions are met → FULL GO for autonomous trading.**
+
+### AO30.16.9) Monitoring checklist for first 24 hours
+
+1. Check `/api/gate-trace` after 8:14 UTC — confirm strategy windows are being evaluated
+2. Check `/api/health` — confirm rolling accuracy is tracking
+3. If first trade fires, check `/api/risk-controls` — confirm bankroll tracking
+4. If NO trade fires by 12:00 UTC, the most likely cause is:
+   - Missing env var (check `/api/live-op-config` for `MANUAL_SIGNAL_ONLY`)
+   - Prices outside 60-80c band (check gate-trace for `PRICE_OUT_OF_BAND`)
+   - Balance too low (check `/api/risk-controls` for current balance)
+
+End of Addendum AO30.16 — Deployment + GO/NO-GO verdict, 22 March 2026
