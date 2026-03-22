@@ -17091,8 +17091,10 @@ class TradeExecutor {
 
             // 📊 FIX #21: GLOBAL MAX TRADES PER CYCLE CHECK (all assets combined)
             // Prevents correlated losses when multiple assets move against predictions simultaneously
+            // AO30.17: Bankroll-adaptive — micro-bankrolls (<$10) use 1 trade/cycle to avoid ruin cascade
             const globalCycleCount = this.getGlobalCycleTradeCount();
-            const maxGlobalTrades = CONFIG.RISK.maxGlobalTradesPerCycle || 1;
+            const maxGlobalTradesCfg = CONFIG.RISK.maxGlobalTradesPerCycle || 1;
+            const maxGlobalTrades = (bankroll < 10) ? Math.min(maxGlobalTradesCfg, 1) : maxGlobalTradesCfg;
             if (!skip15mCycleLimits && globalCycleCount >= maxGlobalTrades) {
                 log(`⚠️ TRADE BLOCKED: Global max trades (${maxGlobalTrades}) reached across all assets this cycle`, asset);
                 return { success: false, error: `Global max trades (${maxGlobalTrades}) per cycle reached` };
