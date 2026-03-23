@@ -1,0 +1,223 @@
+{
+  "generatedAt": "2026-03-23T08:33:55.741Z",
+  "timeframe": "4h",
+  "label": "4-Hour",
+  "dataset": {
+    "totalMarkets": 2219,
+    "totalRows": 532560,
+    "spanDays": 108.7,
+    "assets": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "XRP"
+    ],
+    "perAsset": {
+      "BTC": {
+        "train": 105,
+        "test": 166,
+        "total": 271
+      },
+      "ETH": {
+        "train": 484,
+        "test": 166,
+        "total": 650
+      },
+      "SOL": {
+        "train": 482,
+        "test": 167,
+        "total": 649
+      },
+      "XRP": {
+        "train": 482,
+        "test": 167,
+        "total": 649
+      }
+    },
+    "trainMarkets": 1553,
+    "testMarkets": 666,
+    "trainRatio": 0.7
+  },
+  "strategySet": {
+    "path": "debug/strategy_set_4h_maxprofit.json",
+    "strategies": 8,
+    "aggregateWR": 0.847032,
+    "aggregateLCB": 0.810315,
+    "totalTrades": 438,
+    "totalTradesPerDay": 4.0864
+  },
+  "replay": {
+    "$20_start": {
+      "startBalance": 20,
+      "endBalance": 7617.88,
+      "roi": 37989.41,
+      "totalTrades": 430,
+      "wins": 368,
+      "losses": 62,
+      "winRate": 85.58,
+      "maxDrawdown": 54.61,
+      "maxConsecutiveLosses": 3,
+      "globalStopBlocks": 0,
+      "executed": 430,
+      "skipped": 1789,
+      "tradesPerDay": 3.96,
+      "spanDays": 108.7,
+      "profitMultiple": 380.89
+    },
+    "$7_start": {
+      "startBalance": 7,
+      "endBalance": 7358.61,
+      "roi": 105023.04,
+      "totalTrades": 430,
+      "wins": 368,
+      "losses": 62,
+      "winRate": 85.58,
+      "maxDrawdown": 60.7,
+      "maxConsecutiveLosses": 3,
+      "globalStopBlocks": 0,
+      "executed": 430,
+      "skipped": 1789,
+      "tradesPerDay": 3.96,
+      "spanDays": 108.7,
+      "profitMultiple": 1051.23
+    }
+  },
+  "stressTest": [
+    {
+      "entryBump": "+0c",
+      "startBalance": 20,
+      "endBalance": 7617.88,
+      "roi": 37989.41,
+      "totalTrades": 430,
+      "wins": 368,
+      "losses": 62,
+      "winRate": 85.58,
+      "maxDrawdown": 54.61,
+      "maxConsecutiveLosses": 3,
+      "globalStopBlocks": 0,
+      "executed": 430,
+      "skipped": 1789,
+      "tradesPerDay": 3.96,
+      "spanDays": 108.7,
+      "profitMultiple": 380.89
+    },
+    {
+      "entryBump": "+3c",
+      "startBalance": 20,
+      "endBalance": 61.83,
+      "roi": 209.16,
+      "totalTrades": 91,
+      "wins": 72,
+      "losses": 19,
+      "winRate": 79.12,
+      "maxDrawdown": 81.17,
+      "maxConsecutiveLosses": 3,
+      "globalStopBlocks": 1787,
+      "executed": 91,
+      "skipped": 2128,
+      "tradesPerDay": 0.84,
+      "spanDays": 108.7,
+      "profitMultiple": 3.09
+    },
+    {
+      "entryBump": "+5c",
+      "startBalance": 20,
+      "endBalance": 63.87,
+      "roi": 219.35,
+      "totalTrades": 132,
+      "wins": 101,
+      "losses": 31,
+      "winRate": 76.52,
+      "maxDrawdown": 84.47,
+      "maxConsecutiveLosses": 3,
+      "globalStopBlocks": 1763,
+      "executed": 132,
+      "skipped": 2087,
+      "tradesPerDay": 1.21,
+      "spanDays": 108.7,
+      "profitMultiple": 3.19
+    },
+    {
+      "entryBump": "+10c",
+      "startBalance": 20,
+      "endBalance": 6.92,
+      "roi": -65.39,
+      "totalTrades": 11,
+      "wins": 6,
+      "losses": 5,
+      "winRate": 54.55,
+      "maxDrawdown": 84.72,
+      "maxConsecutiveLosses": 3,
+      "globalStopBlocks": 2183,
+      "executed": 11,
+      "skipped": 2208,
+      "tradesPerDay": 0.1,
+      "spanDays": 108.7,
+      "profitMultiple": 0.35
+    }
+  ],
+  "projection": {
+    "$20_14d": {
+      "days": 14,
+      "simulations": 10000,
+      "startBal": 20,
+      "median": 296.31,
+      "mean": 410.15,
+      "p10": 57.29,
+      "p25": 108.17,
+      "p75": 635.76,
+      "p90": 890.53,
+      "bustRate": 0.8,
+      "avgMaxDD": 56.4,
+      "medianMultiple": 14.82
+    },
+    "$20_30d": {
+      "days": 30,
+      "simulations": 10000,
+      "startBal": 20,
+      "median": 1581.2,
+      "mean": 1521.38,
+      "p10": 523.55,
+      "p25": 1095.54,
+      "p75": 2010.99,
+      "p90": 2353.26,
+      "bustRate": 1.12,
+      "avgMaxDD": 58.6,
+      "medianMultiple": 79.06
+    },
+    "$20_60d": {
+      "days": 60,
+      "simulations": 10000,
+      "startBal": 20,
+      "median": 3965.96,
+      "mean": 3842.2,
+      "p10": 2667.79,
+      "p25": 3341.01,
+      "p75": 4539.23,
+      "p90": 5046.15,
+      "bustRate": 1.09,
+      "avgMaxDD": 58.5,
+      "medianMultiple": 198.3
+    },
+    "$7_30d": {
+      "days": 30,
+      "simulations": 10000,
+      "startBal": 7,
+      "median": 961.46,
+      "mean": 918.57,
+      "p10": 3.43,
+      "p25": 3.85,
+      "p75": 1588.08,
+      "p90": 1998.05,
+      "bustRate": 8.08,
+      "avgMaxDD": 60.1,
+      "medianMultiple": 137.35
+    }
+  },
+  "verdict": {
+    "executeReady": true,
+    "bestFeature": "STRONG_PROFIT",
+    "bustRisk30d": "LOW",
+    "summary": "4-Hour: 8 strategies, 85.58% WR, $20→$7617.88 (380.89x), 54.61% maxDD, 3.96 trades/day"
+  }
+}

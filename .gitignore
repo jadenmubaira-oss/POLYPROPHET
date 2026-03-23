@@ -75,6 +75,10 @@ debug/*
 !debug/strategy_set_top5_robust.json
 !debug/strategy_set_top8_current.json
 !debug/strategy_set_4h_curated.json
+!debug/strategy_set_4h_maxprofit.json
+!debug/strategy_set_5m_maxprofit.json
+!debug/4h_maxprofit_full_analysis.json
+!debug/5m_maxprofit_full_analysis.json
 !debug/strategy_set_highfreq_unique12.json
 !debug/strategy_set_union_validated_top12.json
 !debug/strategy_set_union_validated_top12_max95.json

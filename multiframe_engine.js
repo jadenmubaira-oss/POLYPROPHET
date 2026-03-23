@@ -55,7 +55,7 @@ const state = {
 
 // ==================== STRATEGY SET LOADER ====================
 function loadStrategySet4h() {
-    const filePath = path.join(__dirname, 'debug', 'strategy_set_4h_curated.json');
+    const filePath = path.join(__dirname, 'debug', 'strategy_set_4h_maxprofit.json');
     try {
         if (!fs.existsSync(filePath)) {
             state['4h'].strategySet = null;
