@@ -1,37 +1,42 @@
 ---
-description: Oracle Certainty + Frequency Audit (Local, 15m Polymarket Cycles)
+description: Strategy Certainty + Frequency Audit (Lite Runtime, Polymarket Cycles)
 ---
 
-# Oracle Certainty + Frequency Audit (Local, 15m Polymarket Cycles)
+# Strategy Certainty + Frequency Audit (Lite Runtime)
 
 ## Scope
 
-This workflow is ONLY about:
+This workflow audits the **strategy-native execution** pipeline of `polyprophet-lite`:
 
-- 15-minute Polymarket Up/Down markets (BTC/ETH/SOL/XRP)
-- Oracle issuing **BUY** signals (UP or DOWN) with maximum correctness
-- Measuring **win rate** and **frequency** of issued BUY signals
-- Ensuring **no flip-flop** behavior and **anti-manipulation** guards are active
+- Polymarket crypto Up/Down markets (15m primary, 4h/5m when enabled)
+- Strategy set matching and trade candidate generation
+- Win rate and frequency of executed trades
+- Risk management (adaptive sizing, min-order handling)
+- Trade lifecycle (entry → hold → resolution → redemption)
 
-It intentionally ignores LIVE auto-trading.
+It also requires:
+
+- Dashboard/UI inspection for any surfaced strategy/runtime state
+- Lite-vs-legacy comparison if the audit touches runtime, execution, safeguards, or UX decisions
+- Truthful disclosure when a desired live metric is unavailable from the lite runtime
+
+**Note**: The old oracle/ensemble system is LEGACY. The lite runtime uses **strategy-native entry generation**, not oracle signals.
 
 ## Definitions
 
-- **A “trade / signal”** in this workflow means an **issued BUY oracle signal**.
-- The authoritative tracking source is:
-  - `GET /api/issued-signal-ledger`
+- **A "trade"** = a strategy-matched entry that passes risk checks and is placed on the CLOB
+- **Authoritative tracking**: `GET /api/status` → `strategies`, `executor`
+- **Strategy sets**: `debug/strategy_set_*.json` (validated walk-forward artifacts)
 
-## Acceptance Criteria (practical)
+## Acceptance Criteria
 
-- **Correctness**: Issued BUY win rate is **>= 0.90** after **>= 20 resolved** BUY signals.
-  - If WR is 0.87-0.89, that is “NEAR-PASS” and requires explicit decision.
-- **Frequency**: Aim for **~1 BUY/hour total** across all enabled assets.
-  - If correctness target is met but frequency is lower, do NOT relax thresholds without documenting the tradeoff.
-- **No flip-flop**:
-  - After a BUY is issued for an asset+cycle, direction must not oscillate within that cycle.
-  - Locks (`oracleLocked` / `convictionLocked` / cycle commitment) must prevent contradictory signals.
-- **Manipulation resistance**:
-  - Volatility/spike guard must be enabled and block entries when manipulation conditions trigger.
+- **Correctness**: Strategy-matched trade win rate >= 85% after >= 30 resolved trades
+  - 15m target: 88%+ (per top7_drop6 evidence)
+  - 4h target: 84%+ (per 4h_maxprofit evidence)
+- **Frequency**: ~4 trades/day for 15m, ~4 trades/day for 4h
+- **Risk**: No trade exceeds adaptive profile limits; min-order bump path works correctly
+- **Lifecycle**: Sells queue properly, resolution detection works, redemption fires for wins
+- **Truthfulness**: Any unavailable live metric is explicitly marked unavailable rather than guessed
 
 ## Step 0 — Preconditions
 
@@ -51,7 +56,7 @@ npm test
 
 ## Step 2 — Start the server (local)
 
-Recommended: PAPER + oracle signals.
+Recommended: PAPER + strategy signals.
 
 ```bash
 npm start
@@ -62,83 +67,114 @@ Open:
 - `http://localhost:3000/`
 - `http://localhost:3000/tools.html`
 
+Inspect any dashboard area relevant to enabled timeframes, strategy paths, balance state, or execution state.
+
 ## Step 3 — Baseline API verification (local)
 
 Run these while the server is running:
 
 ```bash
-curl "http://localhost:3000/api/version"
 curl "http://localhost:3000/api/health"
-curl "http://localhost:3000/api/state-public"
-curl "http://localhost:3000/api/state"
+curl "http://localhost:3000/api/status"
+curl "http://localhost:3000/api/wallet/balance"
+curl "http://localhost:3000/api/diagnostics"
 ```
 
-If auth blocks requests, append `?apiKey=<API_KEY>` or set `NO_AUTH=true` in your env.
+If auth blocks requests, set `NO_AUTH=true` in your env.
 
-## Step 4 — Prove no-flip-flop + see why signals are blocked
+## Step 4 — Verify strategy loading and matching
 
-These endpoints are the “truth layer” for behavior:
+Check `GET /api/health` response for:
 
-```bash
-curl "http://localhost:3000/api/gates?limit=50"
-curl "http://localhost:3000/api/issued-signal-ledger"
-```
+- `strategySets` — are the correct `debug/` artifacts loaded?
+- `timeframes` — are the intended timeframes enabled?
+- `configuredTimeframes` — does 15m/4h/5m match expected state?
 
-Interpretation:
+Check `GET /api/status` response for:
 
-- If frequency is low, `/api/gates` must explain which gate is suppressing BUY.
-- If win rate is low, `/api/issued-signal-ledger` will show it (independent of manual confirmation).
+- `strategies` — match counts, last match time
+- `executor` — active positions, sell queue state
+- `risk` — current profile (MICRO_SPRINT/SPRINT_GROWTH/LARGE_BANKROLL)
+- `markets` — discovered markets per timeframe
+
+Then check the dashboard/UI and confirm it tells the same story as the API.
 
 ## Step 5 — Measure frequency + win rate over real cycles
 
-Let the bot run and periodically record:
+Let the bot run and periodically record from `GET /api/status`:
 
-- Current issued-signal stats:
-  - `GET /api/issued-signal-ledger`
-- Recent blocked reasons:
-  - `GET /api/gates?limit=200`
+- Strategy match count and frequency
+- Trade execution count
+- Win/loss resolution count
+- Redemption success count
 
 Compute:
 
-- Signals/hour = `resolved_total / elapsed_hours`
+- Trades/day = `executed_trades / elapsed_days`
 - Win rate = `wins / (wins + losses)`
 
-Do not trust < 20 resolved signals for final conclusions.
+Do not trust < 30 resolved trades for final conclusions.
 
-## Step 6 — Offline backtest to tune the pWin threshold (maximize frequency for a target WR)
+## Step 6 — Strategy artifact validation (offline)
 
-This uses the repo’s debug corpus (if present):
-
-```bash
-node scripts/backtest-manual-strategy.js --data=debg --target-wr=0.90
-```
-
-Optional:
+Validate strategy sets against historical data:
 
 ```bash
-node scripts/backtest-manual-strategy.js --data=debg --target-wr=0.85
+node scripts/strategy-scan.js
 ```
 
-## Step 7 — Polymarket-only strategy artifact regeneration (optional but recommended)
+Or collect fresh historical data:
 
 ```bash
-npm run analysis
-node final_golden_strategy.js
-node -e "const r=require('./final_golden_strategy.json'); console.log({auditVerdict:r.auditVerdict,auditAllPassed:r.auditAllPassed,gs:r.goldenStrategy});"
+node scripts/collect-historical.js
 ```
+
+When reporting any backtest or simulation result, explicitly state:
+
+- data source
+- date span / coverage
+- bankroll assumptions
+- min-order behavior
+- fees / execution realism assumptions
+- whether risk envelopes / freezes / gating affected the result
+
+## Step 7 — Live deployment verification
+
+Query the production endpoint:
+
+```bash
+curl "https://polyprophet-1-rr1g.onrender.com/api/health"
+curl "https://polyprophet-1-rr1g.onrender.com/api/status"
+```
+
+Verify:
+
+- Strategy sets loaded match intended `debug/` artifacts (not fallback)
+- Mode is LIVE
+- Orchestrator is running
+- Balance is sufficient for trading
+
+If the audit is about changing runtime behavior, also compare the touched behavior against `legacy-root-runtime/` and note whether any old mechanic should be ported into lite.
 
 ## Outputs to capture (paste into chat)
 
-- `/api/health`
-- `/api/state-public`
-- `/api/gates?limit=50`
-- `/api/issued-signal-ledger`
-- Offline backtest result summary (from backtest-manual-strategy.js)
+- `GET /api/health` response
+- `GET /api/status` response (strategies + executor sections)
+- `GET /api/wallet/balance` response
+- Dashboard findings
+- Any discrepancies between local and live
+
+If the audit is substantial, update the README addendum / Current Session State with methodology, assumptions, findings, and next actions.
 
 ## Decision Rules
 
-- If correctness is below target, do NOT “turn up aggression” blindly.
-  - First identify which part is wrong: pWin calibration, timing window, flip-flop/lock, manipulation guard false negatives, or strategy constraints.
-- If correctness is high but frequency is low, increase frequency only by:
-  - adding assets (if you were running a subset), or
-  - lowering the pWin threshold **minimally**, validated by offline backtest.
+- If win rate is below target, investigate:
+  - Strategy set quality (check evidence in IMPLEMENTATION_PLAN_v140.md)
+  - Entry price band alignment
+  - Market condition changes
+  - Min-order bump path issues at micro bankrolls
+- If frequency is below target:
+  - Check if markets are being discovered (`GET /api/status` → `markets`)
+  - Check if strategy conditions are matching
+  - Consider enabling additional timeframes (4h, 5m) if bankroll permits
+- NEVER relax strategy matching criteria without walk-forward validation evidence
