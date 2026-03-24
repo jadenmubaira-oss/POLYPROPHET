@@ -301,7 +301,11 @@
                 }
 
                 const balanceBreakdown = wallet.balanceBreakdown || health.balanceBreakdown || {};
-                document.getElementById('tradingBalance').textContent = fmtUsd(balanceBreakdown.tradingBalanceUsdc || health.balance || 0);
+                const tradingBalanceSource = String(balanceBreakdown.source || '').trim().toUpperCase();
+                const tradingBalanceKnown = !!tradingBalanceSource && tradingBalanceSource !== 'UNKNOWN';
+                document.getElementById('tradingBalance').textContent = tradingBalanceKnown
+                    ? fmtUsd(balanceBreakdown.tradingBalanceUsdc || 0)
+                    : '—';
                 document.getElementById('balanceSource').textContent = status.executor.liveBalanceSource || balanceBreakdown.source || 'PAPER';
                 document.getElementById('onChainBalance').textContent = fmtUsd(balanceBreakdown.onChainUsdc || 0);
                 document.getElementById('clobBalance').textContent = fmtUsd(balanceBreakdown.clobCollateralUsdc || 0);
