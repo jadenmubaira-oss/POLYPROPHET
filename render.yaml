@@ -5,57 +5,35 @@ services:
     plan: free
     region: oregon
     autoDeploy: true
-    # 🏆 v79 FINAL (LOCKED) - Long-horizon datasets + rolling validation + all invariants verified
     buildCommand: npm ci
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      # Runtime behavior defaults for easy first deploy
-      - key: NO_AUTH
-        value: "false"
-      - key: START_PAUSED
-        value: "false"
-      # 🏆 v70: TRADE_MODE - Set via Render dashboard for LIVE trading
-      # Keep PAPER here for safety - override in dashboard for LIVE
-      # NOTE: LIVE mode REQUIRES REDIS_URL to be set!
       - key: TRADE_MODE
         value: PAPER
-      # 🏆 v70: Proven optimal starting balance (£5)
+      - key: ENABLE_LIVE_TRADING
+        value: "false"
+      - key: LIVE_AUTOTRADING_ENABLED
+        value: "false"
       - key: PAPER_BALANCE
         value: "5.00"
-      # 🏆 v141: Aggressive half-Kelly cap (92% WR → full Kelly=87%, half=43.5%, cap=45%)
       - key: MAX_POSITION_SIZE
         value: "0.32"
-      # 🏆 v61: Liquidity cap - prevents unrealistic backtest sizes
-      - key: MAX_ABSOLUTE_POSITION_SIZE
-        value: "100"
-      # Operator runtime lock: TOP7 primary, gates ON
-      - key: OPERATOR_STRATEGY_SET_ENFORCED
+      - key: ASSETS
+        value: BTC,ETH,SOL,XRP
+      - key: TIMEFRAME_15M_ENABLED
         value: "true"
-      - key: OPERATOR_PRIMARY_GATES_ENFORCED
-        value: "true"
-      - key: OPERATOR_STRATEGY_SET_PATH
-        value: debug/strategy_set_union_validated_top12_max95.json
+      - key: TIMEFRAME_5M_ENABLED
+        value: "false"
       - key: MULTIFRAME_4H_ENABLED
         value: "false"
-      # Auth - Set your own credentials in Render dashboard
-      # These are just defaults - override in dashboard with your values
-      - key: AUTH_USERNAME
-        value: admin
-      - key: AUTH_PASSWORD
-        generateValue: true
-      - key: API_KEY
-        generateValue: true
-      # 🏆 v70: REQUIRED FOR LIVE MODE - Set in Render dashboard
-      # Without Redis, LIVE mode will be downgraded to PAPER for safety
-      # - key: REDIS_URL
-      #   value: "your-redis-url-here"
-      # Runtime clamps CLOB orders to the 5-share market minimum on 15m crypto markets.
+      - key: STRATEGY_SET_15M_PATH
+        value: debug/strategy_set_top7_drop6.json
+      - key: STRATEGY_SET_4H_PATH
+        value: debug/strategy_set_4h_maxprofit.json
+      - key: STRATEGY_SET_5M_PATH
+        value: debug/strategy_set_5m_maxprofit.json
       - key: DEFAULT_MIN_ORDER_SHARES
         value: "5"
-      # 🏆 v70: Optional - Set if CLOB/Gamma requests are blocked by Cloudflare
-      # - key: PROXY_URL
-      #   value: "your-proxy-url-here"
-

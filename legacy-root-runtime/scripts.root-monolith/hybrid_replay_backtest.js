@@ -313,6 +313,13 @@ function clampFraction(value, fallback = 0.20) {
     return Math.max(0.01, Math.min(0.50, n));
 }
 
+function pickOperatorStakeFractionDefault(baseBankroll) {
+    const b = Number(baseBankroll);
+    if (!Number.isFinite(b) || b <= 0) return 0.45;
+    if (b <= 20) return 0.45;
+    return 0.30;
+}
+
 function createSeededRng(seed) {
     let s;
     if (Number.isFinite(seed)) {
@@ -834,7 +841,7 @@ function updateCircuitBreakerState(cb, context = {}) {
     const dayChanged = context.dayChanged === true;
 
     if (dayChanged || !Number.isFinite(Number(cb.dayStartBalance)) || Number(cb.dayStartBalance) <= 0) {
-        cb.dayStartBalance = Number.isFinite(currentBalance) && currentBalance > 0
+        cb.dayStartBalance = Number.isFinite(currentBalance)
             ? currentBalance
             : (Number(cb.dayStartBalance) || 0);
         cb.dayStartTime = nowMs;
@@ -1097,6 +1104,10 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
         ? Math.max(0.01, Number(options.startingBalance))
         : 5;
     const stakeFraction = clampFraction(options.stakeFraction, 0.20);
+    const operatorStakeFractionOverride = Number.isFinite(Number(options.operatorStakeFractionOverride)) && Number(options.operatorStakeFractionOverride) > 0
+        ? clampFraction(options.operatorStakeFractionOverride, stakeFraction)
+        : null;
+    const operatorStakeFractionBankrollAware = options.operatorStakeFractionBankrollAware === true;
     const maxExposure = clamp01(options.maxExposure, 0.60);
     const maxAbsoluteStake = Number.isFinite(Number(options.maxAbsoluteStake))
         ? Math.max(0.01, Number(options.maxAbsoluteStake))
@@ -1324,7 +1335,17 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
             ? getSurvivalFloor(balanceBefore, floorCfg, referenceMinOrderCost)
             : 0;
 
-        let effectiveStakeFraction = stakeFraction;
+        let effectiveStakeFraction = Number.isFinite(Number(t?.operatorStakeFraction)) && Number(t?.operatorStakeFraction) > 0
+            ? clampFraction(t.operatorStakeFraction, stakeFraction)
+            : stakeFraction;
+        if (!stakeProvided && !(Number.isFinite(Number(t?.operatorStakeFraction)) && Number(t?.operatorStakeFraction) > 0)) {
+            if (operatorStakeFractionOverride !== null) {
+                effectiveStakeFraction = operatorStakeFractionOverride;
+            } else if (operatorStakeFractionBankrollAware) {
+                effectiveStakeFraction = clampFraction(pickOperatorStakeFractionDefault(balanceBefore), effectiveStakeFraction);
+            }
+        }
+
         if (!stakeProvided && allowDynamicStake && policy && Number.isFinite(Number(policy.maxPositionFraction))) {
             effectiveStakeFraction = clampFraction(policy.maxPositionFraction, effectiveStakeFraction);
         }
@@ -1511,6 +1532,8 @@ function simulateBankrollPath(executedTradesInput, options = {}) {
         config: {
             startingBalance,
             stakeFraction,
+            operatorStakeFractionOverride,
+            operatorStakeFractionBankrollAware,
             maxExposure,
             maxAbsoluteStake,
             tieredAbsEnabled,

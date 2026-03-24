@@ -1,0 +1,1874 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE IMMUTABLE PROPHET | Atomic System</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            --bg: #0A0A0A;
+            --surface: #1A1A1A;
+            --accent: #A855F7;
+            --text: #FFFFFF;
+            --dim: #888888;
+            --green: #22C55E;
+            --red: #EF4444;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #333;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--accent);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--accent);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                opacity: 0.4;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0.4;
+            }
+        }
+
+        .bankroll {
+            font-size: 32px;
+            font-weight: bold;
+        }
+
+        .asset-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .asset-row:last-child {
+            border-bottom: none;
+        }
+
+        .tag {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .tag-harvest {
+            background: #3B82F6;
+        }
+
+        .tag-strike {
+            background: var(--accent);
+        }
+
+        .tag-observe {
+            background: #4B5563;
+        }
+
+        .progress-container {
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .set-chip {
+            display: inline-block;
+            padding: 2px 7px;
+            border-radius: 999px;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            margin-left: 6px;
+            border: 1px solid transparent;
+            text-transform: uppercase;
+        }
+
+        .set-chip-top7-on {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border-color: rgba(16, 185, 129, 0.5);
+        }
+
+        .set-chip-top3-on {
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border-color: rgba(59, 130, 246, 0.5);
+        }
+
+        .set-chip-off {
+            background: rgba(107, 114, 128, 0.16);
+            color: #9ca3af;
+            border-color: rgba(107, 114, 128, 0.35);
+        }
+
+        .signal-card {
+            padding: 10px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+        }
+
+        .signal-card-title {
+            font-weight: bold;
+            color: #00ff88;
+        }
+
+        .signal-card-meta {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 4px;
+        }
+
+        .assets-title {
+            font-size: 14px;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        .asset-link {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .asset-no-data {
+            color: var(--dim);
+            font-size: 13px;
+        }
+
+        .activity-item {
+            margin-bottom: 5px;
+        }
+
+        .activity-pnl {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #333;
+        }
+
+        .card-4h {
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f1729 100%);
+        }
+        .card-5m {
+            border: 1px solid rgba(251, 146, 60, 0.4);
+            background: linear-gradient(135deg, #1a1a1a 0%, #1c1410 100%);
+        }
+        .tf-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+        .tf-badge-4h {
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+        }
+        .tf-badge-5m {
+            background: rgba(251, 146, 60, 0.15);
+            color: #fb923c;
+            border: 1px solid rgba(251, 146, 60, 0.4);
+        }
+        .tf-badge-15m {
+            background: rgba(168, 85, 247, 0.15);
+            color: #a855f7;
+            border: 1px solid rgba(168, 85, 247, 0.4);
+        }
+        .tf-progress {
+            height: 6px;
+            background: #222;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 6px;
+        }
+        .tf-progress-fill-4h {
+            height: 100%;
+            background: linear-gradient(90deg, #38bdf8, #0ea5e9);
+            transition: width 1s ease;
+        }
+        .tf-progress-fill-5m {
+            height: 100%;
+            background: linear-gradient(90deg, #fb923c, #f97316);
+            transition: width 1s ease;
+        }
+        .tf-signal-active {
+            padding: 8px 12px;
+            margin-top: 6px;
+            border-radius: 6px;
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            font-size: 12px;
+        }
+        .tf-signal-none {
+            padding: 8px 12px;
+            margin-top: 6px;
+            border-radius: 6px;
+            background: rgba(75, 85, 99, 0.12);
+            border: 1px solid rgba(75, 85, 99, 0.3);
+            font-size: 12px;
+            color: #888;
+        }
+        .strat-explain {
+            font-size: 11px;
+            color: #aaa;
+            line-height: 1.6;
+            padding: 8px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 6px;
+            margin-top: 6px;
+        }
+        .strat-explain b { color: #ddd; }
+        .tier-platinum { color: #38bdf8; }
+        .tier-gold { color: #fbbf24; }
+        .tier-silver { color: #9ca3af; }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <div>
+            <h1 style="font-size: 18px; margin: 0; color: var(--accent);">THE IMMUTABLE PROPHET</h1>
+            <div style="font-size:11px;color:var(--dim);margin-top:4px;display:flex;gap:8px;">
+                <a href="/tools.html" style="color:var(--dim);text-decoration:none;">Tools</a>
+                <span style="opacity:0.3">|</span>
+                <a href="/operator-config.html" style="color:var(--dim);text-decoration:none;">Config</a>
+                <span style="opacity:0.3">|</span>
+                <a href="/mobile.html" style="color:var(--dim);text-decoration:none;">Mobile</a>
+                <span style="opacity:0.3">|</span>
+                <a href="/api/health" style="color:var(--dim);text-decoration:none;">Health</a>
+            </div>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px;">
+            <div class="status-dot"></div>
+            <div id="version" style="font-size: 11px; color: var(--dim); white-space: nowrap;"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div id="bankroll-label" style="color: var(--dim); font-size: 14px;">Total Bankroll (£)</div>
+        <div class="bankroll" id="bankroll">£5.00</div>
+        <div class="progress-container">
+            <div class="progress-bar" id="goal-progress"></div>
+        </div>
+        <div id="bankroll-target" style="font-size: 12px; color: var(--dim); margin-top: 5px;">Target: £100.00</div>
+        <div id="bankroll-breakdown" style="font-size: 11px; color: var(--dim); margin-top: 8px; line-height: 1.4;">Waiting for balance feed...</div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">Operator Strategy Set</div>
+        <div id="operator-status-title" style="font-size: 13px; font-weight: bold;">Loading...</div>
+        <div id="operator-status-details" style="font-size: 12px; color: var(--dim); white-space: pre-wrap; margin-top: 6px;"></div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">Top7 Drop6 Stress Snapshot (+10c)</div>
+        <div id="top7-stress-summary" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">Top3 Robust Stress Snapshot (+10c)</div>
+        <div id="top3-stress-summary" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">Optimized8 Stress Snapshot (+10c)</div>
+        <div id="opt8-stress-summary" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">Operator Worksheet (Risk-Adjusted Winners)</div>
+        <div id="operator-worksheet-summary" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">📋 Operator Handbook — Adaptive Stake Guide</div>
+        <div id="operator-handbook" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">🗓️ Full Strategy Schedule (UTC)</div>
+        <div id="operator-schedule-panel" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+    </div>
+
+    <div class="card card-4h" id="multiframe-4h-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="tf-badge tf-badge-4h">4H ORACLE</span>
+                <span style="font-size:14px;font-weight:bold;">4-Hour Cycle Monitor</span>
+            </div>
+            <div id="mf-4h-status" style="font-size:11px;color:var(--dim);">Loading...</div>
+        </div>
+        <div id="mf-4h-cycle" style="font-size:12px;color:var(--dim);margin-bottom:4px;">--</div>
+        <div class="tf-progress"><div class="tf-progress-fill-4h" id="mf-4h-progress" style="width:0%"></div></div>
+        <div id="mf-4h-signals" style="margin-top:10px;">
+            <div class="tf-signal-none">No active 4h signals</div>
+        </div>
+        <div id="mf-4h-markets" style="margin-top:10px;"></div>
+        <details style="margin-top:10px;">
+            <summary style="cursor:pointer;color:#38bdf8;font-size:12px;font-weight:bold;">4H Strategy Schedule & Explanations</summary>
+            <div id="mf-4h-schedule" style="margin-top:8px;"></div>
+            <div class="strat-explain" style="margin-top:8px;">
+                <div style="font-weight:bold;color:#38bdf8;margin-bottom:6px;">What do these 4H strategies mean?</div>
+                <div style="margin-bottom:6px;"><b>How it works:</b> Every 4 hours, Polymarket opens a new UP/DOWN market for each crypto asset (BTC, ETH, SOL, XRP). The market asks: "Will this asset's price be higher or lower at the end of this 4-hour window?" Our strategies watch these markets and look for specific price patterns that historically predict the outcome with high accuracy.</div>
+                <div style="margin-bottom:6px;"><b>Entry Minute (e.g. m120, m180):</b> How many minutes into the 4-hour cycle we wait before entering. m120 = we wait 2 hours to see how the market is trending. m180 = we wait 3 hours. Later entries are more certain but have shorter time to resolution.</div>
+                <div style="margin-bottom:6px;"><b>Direction (UP/DOWN):</b> Which side we bet on. "DOWN 60-75c" means we buy the DOWN token when it costs 60-75 cents, expecting the asset price to drop by cycle end.</div>
+                <div style="margin-bottom:6px;"><b>Price Band (e.g. 60-75c):</b> We only enter when the token price is in this range. If the DOWN token is at 70c, the market is already ~70% confident it will go down - our strategy confirms this signal is reliable.</div>
+                <div style="margin-bottom:6px;">
+                    <b>Tiers:</b>
+                    <span class="tier-platinum">PLATINUM</span> = highest confidence (best backtest metrics) |
+                    <span class="tier-gold">GOLD</span> = strong confidence (validated out-of-sample)
+                </div>
+                <div><b>Win Rate / LCB:</b> Win Rate is how often the strategy won historically. LCB (Lower Confidence Bound) is the worst-case win rate with 95% statistical confidence - the more conservative measure we actually use for decisions.</div>
+            </div>
+        </details>
+        <details style="margin-top:8px;">
+            <summary style="cursor:pointer;color:#38bdf8;font-size:12px;">Recent 4H Signal History</summary>
+            <div id="mf-4h-history" style="margin-top:6px;font-size:11px;color:var(--dim);">No history yet</div>
+        </details>
+    </div>
+
+    <div class="card card-5m" id="multiframe-5m-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span class="tf-badge tf-badge-5m">5M MONITOR</span>
+                <span style="font-size:14px;font-weight:bold;">5-Minute Cycle Monitor</span>
+                <span style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(251,146,60,0.2);color:#fb923c;border:1px solid rgba(251,146,60,0.3);">OBSERVE ONLY</span>
+            </div>
+            <div id="mf-5m-status" style="font-size:11px;color:var(--dim);">Loading...</div>
+        </div>
+        <div id="mf-5m-cycle" style="font-size:12px;color:var(--dim);margin-bottom:4px;">--</div>
+        <div class="tf-progress"><div class="tf-progress-fill-5m" id="mf-5m-progress" style="width:0%"></div></div>
+        <div id="mf-5m-markets" style="margin-top:10px;"></div>
+        <div class="strat-explain" style="margin-top:8px;">
+            <div style="font-weight:bold;color:#fb923c;margin-bottom:4px;">Why is this monitor-only?</div>
+            <div>5-minute markets have only ~10 days of data (since Feb 2026). That's not enough to build reliable trading strategies - any patterns found would likely be noise. We display prices and outcomes for observation, but <b>no trading signals are generated</b>. Strategy search will be revisited when 60+ days of data are available (~May 2026).</div>
+        </div>
+        <details style="margin-top:8px;">
+            <summary style="cursor:pointer;color:#fb923c;font-size:12px;">Recent 5M Outcomes</summary>
+            <div id="mf-5m-history" style="margin-top:6px;font-size:11px;color:var(--dim);">No outcomes yet</div>
+        </details>
+    </div>
+
+    <div class="card" style="border:1px solid rgba(168,85,247,0.3);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span class="tf-badge tf-badge-15m">15M ORACLE</span>
+            <span style="font-size:14px;font-weight:bold;">Timeframe Overview</span>
+        </div>
+        <div class="strat-explain">
+            <div style="font-weight:bold;color:var(--accent);margin-bottom:6px;">How do the three timeframes work together?</div>
+            <div style="margin-bottom:6px;"><b><span class="tf-badge tf-badge-15m" style="font-size:10px;">15M</span> Primary Oracle (ACTIVE):</b> The main trading engine. Uses 7 walk-forward validated strategies on 15-minute Polymarket UP/DOWN cycles. This is what generates BUY signals and manages the shadow book. ~88% win rate across 500+ backtested trades.</div>
+            <div style="margin-bottom:6px;"><b><span class="tf-badge tf-badge-4h" style="font-size:10px;">4H</span> Secondary Oracle (ACTIVE):</b> Monitors 4-hour UP/DOWN cycles with 5 validated strategies. Fires independently from 15M - both can signal simultaneously. ~90% win rate across 200+ backtested trades. Signals fire 2-3 hours into each 4h window when price confirmation is strongest.</div>
+            <div><b><span class="tf-badge tf-badge-5m" style="font-size:10px;">5M</span> Data Monitor (OBSERVE ONLY):</b> Tracks 5-minute cycles for future analysis. No signals generated - insufficient historical data. Collecting data for strategy development (~May 2026 target).</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">Top Block Reasons (Gate Telemetry)</div>
+        <div id="gate-block-summary" style="font-size: 12px; color: var(--dim); white-space: pre-wrap;">Loading...</div>
+        <div id="gate-block-by-asset" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="card" id="telegram-settings-card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">📱 Telegram Notifications</div>
+        <div id="telegram-status" style="font-size: 12px; color: var(--dim); margin-bottom: 10px;">Loading...</div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+            <div>
+                <label style="font-size:11px;color:var(--dim);display:block;margin-bottom:2px;">Bot Token</label>
+                <input id="tg-bot-token" type="password" placeholder="123456:ABC-DEF..." style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;font-size:12px;font-family:monospace;">
+            </div>
+            <div>
+                <label style="font-size:11px;color:var(--dim);display:block;margin-bottom:2px;">Chat ID</label>
+                <input id="tg-chat-id" type="text" placeholder="-100123456789" style="width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #444;background:#111;color:#fff;font-size:12px;font-family:monospace;">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <input id="tg-signals-only" type="checkbox" checked>
+                <label for="tg-signals-only" style="font-size:12px;color:var(--dim);cursor:pointer;">Signals only (suppress paper trade spam)</label>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:4px;">
+                <button id="tg-save-btn" onclick="saveTelegramConfig()" style="padding:8px 16px;border-radius:6px;border:none;background:var(--accent);color:#fff;font-weight:bold;font-size:12px;cursor:pointer;">Save & Test</button>
+                <button onclick="document.getElementById('tg-bot-token').type = document.getElementById('tg-bot-token').type === 'password' ? 'text' : 'password'" style="padding:8px 12px;border-radius:6px;border:1px solid #444;background:transparent;color:var(--dim);font-size:11px;cursor:pointer;">👁 Show/Hide</button>
+            </div>
+            <div id="tg-result" style="font-size:11px;color:var(--dim);display:none;margin-top:4px;padding:8px;border-radius:6px;background:#111;"></div>
+        </div>
+    </div>
+
+    <div class="card" id="assets-list">
+        <!-- Asset rows will be injected here -->
+    </div>
+
+    <div class="card" id="golden-hour-card"
+        style="display:none; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 2px solid #ffd700;">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold; color: #ffd700;">
+            🏆 GOLDEN HOUR ACTIVE
+        </div>
+        <div id="golden-hour-info" style="font-size: 15px;">
+            <!-- Will be populated by JavaScript -->
+        </div>
+        <div id="golden-hour-signal"
+            style="margin-top: 12px; padding: 12px; background: rgba(0,255,136,0.15); border-radius: 8px; border: 1px solid #00ff88;">
+            <div style="font-weight: bold; font-size: 16px; color: #00ff88;">CHECKING BTC...</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px; font-weight: bold;">🚨 Active Signals</div>
+        <div id="signals-list" style="font-size: 13px;">
+            Loading signals...
+        </div>
+    </div>
+
+    <div class="card">
+        <div style="font-size: 14px; margin-bottom: 10px;">Recent Activity</div>
+        <div id="activity-list" style="font-size: 13px; color: var(--dim);">
+            Syncing with server...
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const goal = 100;
+        const stateCache = {
+            liveOperatorProfile: null
+        };
+
+        function fmtRuntimePct(raw) {
+            const n = Number(raw);
+            if (Number.isFinite(n)) return `${(n * 100).toFixed(1)}%`;
+            const s = String(raw || '').trim();
+            return s || '--';
+        }
+
+        function updateGoldenHour() {
+            const now = new Date();
+            const utcHour = now.getUTCHours();
+            const utcMin = now.getUTCMinutes();
+            const card = document.getElementById('golden-hour-card');
+            const info = document.getElementById('golden-hour-info');
+            const signal = document.getElementById('golden-hour-signal');
+
+            if (!card || !info || !signal) return;
+            const finalGolden = stateCache.liveOperatorProfile?.finalGolden || null;
+            const strategy = finalGolden?.strategy || null;
+            if (!strategy) {
+                card.style.display = 'none';
+                return;
+            }
+
+            // Only show during premium hours AND first 12 mins of cycle
+            const cycleMin = utcMin % 15;
+            const inTradingWindow = cycleMin <= 12;
+            const strategyHour = Number(strategy?.utcHour);
+            const activeHour = Number.isInteger(strategyHour) && utcHour === strategyHour;
+
+            if (activeHour && inTradingWindow) {
+                card.style.display = 'block';
+
+                const mode = finalGolden?.enforced === true ? 'ENFORCED' : 'ADVISORY';
+                const verdict = String(finalGolden?.auditVerdict || '--').toUpperCase();
+                const direction = String(strategy?.direction || '--').toUpperCase();
+                const wr = fmtRuntimePct(strategy?.winRate);
+                const lcb = fmtRuntimePct(strategy?.winRateLCB);
+
+                info.innerHTML = `
+                    <div>Primary final strategy window is active (${mode})</div>
+                    <div style="font-size:12px; color:#aaa; margin-top:4px;">
+                        Audit: ${verdict}
+                    </div>
+                `;
+
+                signal.innerHTML = `
+                    <div style="font-weight: bold; font-size: 16px; color: #00ff88;">
+                        📌 ${fmtUtcTime(strategy?.utcHour, strategy?.entryMinute)} | ${direction}
+                    </div>
+                    <div style="font-size:12px; color:#aaa; margin-top:6px;">
+                        Band: ${fmtBand(strategy?.priceBand?.min, strategy?.priceBand?.max)} | WR: ${wr} | LCB: ${lcb}
+                    </div>
+                `;
+                signal.style.background = 'rgba(0,255,136,0.15)';
+                signal.style.border = '1px solid #00ff88';
+            } else {
+                card.style.display = 'none';
+            }
+        }
+
+
+        function fmtPct01(x, digits = 0) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            return (n * 100).toFixed(digits) + '%';
+        }
+
+        function fmtCents01(x, digits = 1) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            return (n * 100).toFixed(digits) + '¢';
+        }
+
+        function renderOracleLine(asset) {
+            const sig = asset?.oracleSignal;
+            if (!sig || !sig.action) return 'Next: WAIT';
+            const action = String(sig.action || '').toUpperCase();
+            if (!action || action === 'WAIT' || action === 'HOLD' || action === 'AVOID') return 'Next: WAIT';
+            const dir = sig.direction || asset.prediction || 'WAIT';
+            const odds = Number.isFinite(sig.implied) ? fmtCents01(sig.implied, 1) : null;
+            // 🏆 v111: Clarify pWin is calibrated win probability (historical), not model confidence
+            const pWin = Number.isFinite(sig.pWin) ? fmtPct01(sig.pWin, 1) : null;
+            const ev = Number.isFinite(sig.evRoi) ? (sig.evRoi >= 0 ? '+' : '') + (sig.evRoi * 100).toFixed(1) + '%' : null;
+            const stakeUsd = Number.isFinite(sig.recommendedStakeUsd) ? `$${Number(sig.recommendedStakeUsd).toFixed(2)}` : null;
+            const stakePct = Number.isFinite(sig.recommendedStakeFraction) ? `${(Number(sig.recommendedStakeFraction) * 100).toFixed(0)}%` : null;
+            const tLeft = Number.isFinite(sig.timeLeftSec) ? sig.timeLeftSec : null;
+            const mm = tLeft !== null ? Math.floor(tLeft / 60) : null;
+            const ss = tLeft !== null ? String(tLeft % 60).padStart(2, '0') : null;
+            const tl = (mm !== null && ss !== null) ? `${mm}:${ss}` : null;
+
+            // 🏆 v112: Lock diagnostics
+            const cal = sig?.calibration;
+            const isLocked = cal?.isLocked === true;
+            const lockIcon = isLocked ? '🔒' : '';
+
+            let line = `Next: ${action} ${dir}`;
+            if (odds) line += ` @ ${odds}`;
+            if (pWin) line += ` | Cal.Win ${pWin}`;  // "Cal.Win" = Calibrated Win probability
+            if (ev) line += ` | EV ${ev}`;
+            if (stakeUsd || stakePct) {
+                line += ` | Stake ${stakeUsd || 'n/a'}`;
+                if (stakePct) line += ` (${stakePct})`;
+            }
+            if (isLocked) line += ` ${lockIcon}`;
+            const primaryActive = sig?.concurrentSets?.primaryExecution?.active === true || sig?.concurrentSets?.top7Drop6?.active === true || sig?.primarySetActive === true;
+            const top3Active = sig?.concurrentSets?.top3Robust?.active === true || sig?.top3RobustActive === true;
+            if (primaryActive || top3Active) {
+                line += ` | sets ${primaryActive ? 'PRIMARY' : ''}${primaryActive && top3Active ? '+' : ''}${top3Active ? 'TOP3' : ''}`;
+            }
+            if (tl) line += ` | tLeft ${tl}`;
+            return line;
+        }
+
+        function renderConcurrentSetFlags(sig, includeInactive = true) {
+            if (!sig) return '';
+            const primaryActive = sig?.concurrentSets?.primaryExecution?.active === true || sig?.concurrentSets?.top7Drop6?.active === true || sig?.primarySetActive === true;
+            const top3Active = sig?.concurrentSets?.top3Robust?.active === true || sig?.top3RobustActive === true;
+            const chips = [];
+
+            if (primaryActive || includeInactive) {
+                chips.push(`<span class="set-chip ${primaryActive ? 'set-chip-top7-on' : 'set-chip-off'}">PRIMARY ${primaryActive ? 'ON' : 'OFF'}</span>`);
+            }
+            if (top3Active || includeInactive) {
+                chips.push(`<span class="set-chip ${top3Active ? 'set-chip-top3-on' : 'set-chip-off'}">TOP3 ${top3Active ? 'ON' : 'OFF'}</span>`);
+            }
+
+            return chips.join('');
+        }
+
+        function renderCallCounter(asset) {
+            // Display last 10 BUY call outcomes: ✓ for wins, ✗ for losses
+            const outcomes = asset?.callOutcomes || [];
+            const total = asset?.callTotal || 0;
+            const accuracy = asset?.callAccuracy;
+
+            if (total === 0) {
+                return '<span style="color: var(--dim);">📊 Calls: No data yet</span>';
+            }
+
+            // Build outcome string with colored checkmarks
+            let outcomesHtml = '';
+            outcomes.forEach((isWin, idx) => {
+                if (isWin === true) {
+                    outcomesHtml += '<span style="color: #22C55E;">✓</span>';
+                } else if (isWin === false) {
+                    outcomesHtml += '<span style="color: #EF4444;">✗</span>';
+                } else {
+                    outcomesHtml += '<span style="color: var(--dim);">?</span>';
+                }
+                if (idx < outcomes.length - 1) outcomesHtml += ' ';
+            });
+
+            // Calculate wins from outcomes
+            const wins = outcomes.filter(o => o === true).length;
+            const pct = total > 0 ? ((wins / total) * 100).toFixed(0) : '--';
+
+            // Color the accuracy based on win rate
+            let accColor = 'var(--dim)';
+            if (Number(pct) >= 80) accColor = '#22C55E';  // Green for 80%+
+            else if (Number(pct) >= 60) accColor = '#ffd700';  // Gold for 60-79%
+            else if (Number(pct) < 60) accColor = '#EF4444';  // Red for <60%
+
+            return `<span style="color: var(--dim);">📊 Calls:</span> ${outcomesHtml} <span style="color: ${accColor}; font-weight: bold;">(${wins}/${total} = ${pct}%)</span>`;
+        }
+
+        function fmtNum(x, digits = 2) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            return n.toFixed(digits);
+        }
+
+        function fmtPctValue(x, digits = 1) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            return `${n.toFixed(digits)}%`;
+        }
+
+        function fmtInt(x) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            return String(Math.round(n));
+        }
+
+        function renderBankrollCard(balance, mode = 'PAPER', breakdown = null) {
+            const resolvedMode = String(mode || 'PAPER').toUpperCase();
+            const isLive = resolvedMode === 'LIVE';
+            const symbol = isLive ? '$' : '£';
+            const bankrollEl = document.getElementById('bankroll');
+            const labelEl = document.getElementById('bankroll-label');
+            const targetEl = document.getElementById('bankroll-target');
+            const breakdownEl = document.getElementById('bankroll-breakdown');
+            const value = Number.isFinite(Number(balance)) ? Number(balance) : 0;
+
+            if (labelEl) {
+                labelEl.textContent = isLive ? 'Trading Balance (USDC)' : 'Total Bankroll (£)';
+            }
+            if (bankrollEl) {
+                bankrollEl.innerText = `${symbol}${value.toFixed(2)}`;
+            }
+            if (targetEl) {
+                targetEl.textContent = `Target: ${symbol}${goal.toFixed(2)}`;
+            }
+            if (!breakdownEl) return;
+
+            if (!isLive) {
+                breakdownEl.textContent = 'PAPER mode balance shown above.';
+                return;
+            }
+
+            if (!breakdown) {
+                breakdownEl.textContent = 'Awaiting live wallet/CLOB balance breakdown...';
+                return;
+            }
+
+            breakdownEl.innerHTML = `Bot uses <b>$${fmtNum(breakdown.tradingBalanceUsdc, 2)}</b> (${escHtml(breakdown.sourceLabel || 'Unknown')})<br>On-chain USDC: $${fmtNum(breakdown.onChainUsdc, 2)} | CLOB collateral: $${fmtNum(breakdown.clobCollateralUsdc, 2)}`;
+        }
+
+        function escHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function fmtUtcTime(hour, minute) {
+            const h = Number(hour);
+            const m = Number(minute);
+            if (!Number.isInteger(h) || h < 0 || h > 23 || !Number.isInteger(m) || m < 0 || m > 14) return '--';
+            return `UTC ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        }
+
+        function fmtBand(min, max) {
+            const lo = Number(min);
+            const hi = Number(max);
+            if (!Number.isFinite(lo) || !Number.isFinite(hi)) return '--';
+            return `${(lo * 100).toFixed(0)}-${(hi * 100).toFixed(0)}c`;
+        }
+
+        function renderScheduleRows(rows) {
+            const list = Array.isArray(rows) ? rows : [];
+            if (!list.length) {
+                return '<tr><td colspan="5" style="padding:6px;border-bottom:1px solid #333;color:var(--dim);">No rows</td></tr>';
+            }
+            return list.map(r => {
+                const wr = Number(r?.winRate);
+                const wrText = Number.isFinite(wr) ? `${(wr * 100).toFixed(1)}%` : '--';
+                const dir = escHtml(String(r?.direction || '--').toUpperCase());
+                const tier = escHtml(String(r?.tier || '--').toUpperCase());
+                return `<tr>
+                    <td style="padding:6px;border-bottom:1px solid #333;white-space:nowrap;">${fmtUtcTime(r?.utcHour, r?.entryMinute)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${dir}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${tier}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtBand(r?.priceMin, r?.priceMax)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${wrText}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderScheduleBlock(title, rows, subtitle = '') {
+            return `
+                <div style="margin-top:10px;border-top:1px solid #333;padding-top:10px;">
+                    <div style="font-weight:bold;color:#fff;">${escHtml(title)}</div>
+                    ${subtitle ? `<div style="font-size:11px;color:var(--dim);margin-top:2px;">${escHtml(subtitle)}</div>` : ''}
+                    <div style="overflow-x:auto;margin-top:8px;">
+                        <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                            <thead>
+                                <tr style="text-align:left;color:var(--dim);">
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Time</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Dir</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Tier</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Band</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">WR</th>
+                                </tr>
+                            </thead>
+                            <tbody>${renderScheduleRows(rows)}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderOperatorSchedulePanel(payload) {
+            const el = document.getElementById('operator-schedule-panel');
+            if (!el) return;
+
+            if (payload && payload.error) {
+                el.textContent = `Unavailable: ${String(payload.error)}`;
+                return;
+            }
+
+            const op = payload?.liveOperatorProfile || {};
+            const schedules = op?.strategySchedules || {};
+            const finalGolden = op?.finalGolden || {};
+            const finalStrategy = finalGolden?.strategy || null;
+            const verdict = String(finalGolden?.auditVerdict || '--').toUpperCase();
+            const finalDirection = String(finalStrategy?.direction || '--').toUpperCase();
+            const finalBand = fmtBand(finalStrategy?.priceBand?.min, finalStrategy?.priceBand?.max);
+            const finalTime = fmtUtcTime(finalStrategy?.utcHour, finalStrategy?.entryMinute);
+            const finalMode = finalGolden?.enforced === true ? 'ENFORCED' : 'ADVISORY';
+            const primarySetDisplay = String(op?.primarySignalSetDisplay || op?.primarySignalSet || 'PRIMARY').trim();
+            const stageInfo = op?.strategyStages || {};
+            const activeStage = stageInfo?.active || null;
+            const stageLadder = Array.isArray(stageInfo?.ladder) ? stageInfo.ladder : [];
+            const primaryRows = schedules?.primaryExecution || schedules?.top7Primary;
+            const nextTransition = activeStage?.nextTransition || null;
+            const nextTransitionLine = nextTransition && Number.isFinite(Number(nextTransition.atBankroll))
+                ? `${String(nextTransition.direction || 'switch').toUpperCase()} @ $${fmtNum(nextTransition.atBankroll, 2)} → ${escHtml(String(nextTransition.toStageKey || '--').toUpperCase())}`
+                : 'No pending switch threshold';
+            const ladderHtml = stageLadder.length
+                ? `
+                    <div style="margin-bottom:10px;padding:10px;border:1px solid rgba(79,195,247,0.25);border-radius:8px;background:rgba(79,195,247,0.08);">
+                        <div style="font-weight:bold;color:#4fc3f7;">Bankroll Stage Ladder</div>
+                        <div style="margin-top:6px;display:grid;gap:6px;">
+                            ${stageLadder.map(stage => `
+                                <div style="padding:8px;border-radius:6px;border:1px solid ${stage.key === activeStage?.key ? 'rgba(16,185,129,0.45)' : 'rgba(255,255,255,0.08)'};background:${stage.key === activeStage?.key ? 'rgba(16,185,129,0.10)' : 'rgba(255,255,255,0.03)'};">
+                                    <div style="font-weight:bold;color:${stage.key === activeStage?.key ? '#34d399' : '#fff'};">${escHtml(stage.label || '--')} · ${escHtml(stage.signalSetDisplay || '--')}</div>
+                                    <div style="font-size:11px;color:var(--dim);margin-top:2px;">Range: ${escHtml(stage.rangeLabel || '--')} | Path: ${escHtml(stage.strategySetPath || '--')}</div>
+                                    <div style="font-size:11px;color:var(--dim);margin-top:2px;">${escHtml(stage.objective || '--')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `
+                : '';
+
+            const finalGoldenBlock = `
+                <div style="margin-top:10px;padding:10px;border:1px solid rgba(255,215,0,0.35);border-radius:8px;background:rgba(255,215,0,0.08);">
+                    <div style="font-weight:bold;color:#ffd700;">⭐ Primary Final / Golden Strategy</div>
+                    <div style="margin-top:4px;color:#fff;">${finalTime} | ${escHtml(finalDirection)} | ${finalBand}</div>
+                    <div style="margin-top:4px;font-size:11px;color:var(--dim);">Status: ${escHtml(finalMode)} | Audit: ${escHtml(verdict)}</div>
+                </div>
+            `;
+
+            el.innerHTML = `
+                ${ladderHtml}
+                ${renderScheduleBlock('Active Primary Execution Set', primaryRows, `${primarySetDisplay} | ${escHtml(activeStage?.label || '--')} | ${nextTransitionLine}`)}
+                ${renderScheduleBlock('Stage Set · TOP3 Survival', schedules?.top3Survival || schedules?.top3Monitor, 'Primary execution when bankroll is below $8.00')}
+                ${renderScheduleBlock('Stage Set · TOP5 Balanced', schedules?.top5Bootstrap, 'Primary execution from $8.00 to under $20.00')}
+                ${renderScheduleBlock('Stage Set · TOP7 Growth', schedules?.top7Growth || schedules?.top7Primary, 'Primary execution from $20.00+ (fallback below $18.00)')}
+                ${renderScheduleBlock('TOP3 Monitor Set', schedules?.top3Monitor, 'Read-only concurrent monitor')}
+                ${renderScheduleBlock('TOP8 Reference Set', schedules?.top8Reference, 'Reference only (not primary execution)')}
+                ${finalGoldenBlock}
+            `;
+        }
+
+        function calcDaysToTarget(startBankroll, endingBalance, spanDays, target) {
+            const start = Number(startBankroll);
+            const end = Number(endingBalance);
+            const days = Number(spanDays);
+            const tgt = Number(target);
+            if (!Number.isFinite(start) || !Number.isFinite(end) || !Number.isFinite(days) || days <= 0) return null;
+            if (!Number.isFinite(tgt) || tgt <= start) return null;
+            const growth = end / start;
+            if (!Number.isFinite(growth) || growth <= 1) return null;
+            const denom = Math.log(growth);
+            if (!Number.isFinite(denom) || denom <= 0) return null;
+            const eta = days * Math.log(tgt / start) / denom;
+            return Number.isFinite(eta) && eta >= 0 ? eta : null;
+        }
+
+        function fmtDays(x) {
+            const n = Number(x);
+            if (!Number.isFinite(n)) return '--';
+            if (n < 1) return '<1d';
+            return `${n.toFixed(1)}d`;
+        }
+
+        function renderStressTableRows(rows) {
+            if (!Array.isArray(rows) || rows.length === 0) {
+                return '<tr><td colspan="8" style="padding:6px;border-bottom:1px solid #333;color:var(--dim);">No rows</td></tr>';
+            }
+            return rows.map(r => {
+                const stake = `${fmtNum(Number(r.stakeFraction) * 100, 0)}%`;
+                const slip = `${fmtNum(Number(r.slippagePct) * 100, 0)}%`;
+                return `<tr>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${stake}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${slip}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">£${fmtNum(r.endingBalance, 2)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtPctValue(r.roiPct, 1)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtPctValue(r.maxDrawdownPct, 1)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${Number(r.executed)}/${Number(r.blocked)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtPctValue(r.winRatePct, 1)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${Number(r.haltGlobalStop || 0)}/${Number(r.haltMinOrder || 0)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderStressTimelineRows(timelineMap) {
+            const entries = Object.entries(timelineMap || {}).sort((a, b) => Number(a[0]) - Number(b[0]));
+            if (!entries.length) {
+                return '<tr><td colspan="2" style="padding:6px;border-bottom:1px solid #333;color:var(--dim);">No timeline rows</td></tr>';
+            }
+            return entries.map(([stake, rows]) => {
+                const path = (rows || []).map(r => `${r.window}: £${fmtNum(r.endingBalance, 2)} (${fmtPctValue(r.roiPct, 1)})`).join(' | ');
+                return `<tr>
+                    <td style="padding:6px;border-bottom:1px solid #333;white-space:nowrap;">${fmtNum(Number(stake) * 100, 0)}%</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${path || '--'}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderMilestoneRows(rows, startBankroll, spanDays) {
+            if (!Array.isArray(rows) || rows.length === 0) {
+                return '<tr><td colspan="6" style="padding:6px;border-bottom:1px solid #333;color:var(--dim);">No scenario rows</td></tr>';
+            }
+            return rows.map(r => {
+                const d100 = calcDaysToTarget(startBankroll, r.endingBalance, spanDays, 100);
+                const d500 = calcDaysToTarget(startBankroll, r.endingBalance, spanDays, 500);
+                const d1000 = calcDaysToTarget(startBankroll, r.endingBalance, spanDays, 1000);
+                return `<tr>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtNum(Number(r.stakeFraction) * 100, 0)}%</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtNum(Number(r.slippagePct) * 100, 0)}%</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">£${fmtNum(r.endingBalance, 2)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtDays(d100)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtDays(d500)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtDays(d1000)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderLedgerSection(ledger, label = 'top3_robust') {
+            if (!ledger || ledger.error) {
+                const err = ledger?.error ? String(ledger.error) : 'Unavailable';
+                return `<div style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px; color: var(--dim);">Ledger summary unavailable: ${err}</div>`;
+            }
+
+            const dateRange = ledger.dateRange || {};
+            const byStrategy = Array.isArray(ledger.byStrategy) ? ledger.byStrategy : [];
+            const strategyRows = byStrategy.length
+                ? byStrategy.map(s => `<tr>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtInt(s.strategyId)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${s.strategyName || '--'}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${s.tier || '--'}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtInt(s.trades)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtInt(s.wins)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtInt(s.losses)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtPctValue(s.winRatePct, 2)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtPctValue(s.wilsonLCBPct, 2)}</td>
+                </tr>`).join('')
+                : '<tr><td colspan="8" style="padding:6px;border-bottom:1px solid #333;color:var(--dim);">No by-strategy rows</td></tr>';
+
+            return `
+                <div style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                    <div style="font-weight: bold; color: #fff;">Executed Ledger Snapshot (${label || '--'})</div>
+                    <div style="margin-top: 4px; color: var(--dim); font-size: 11px;">
+                        Trades ${fmtInt(ledger.trades)} | Wins ${fmtInt(ledger.wins)} | Losses ${fmtInt(ledger.losses)} | WR ${fmtPctValue(ledger.winRatePct, 2)} | LCB ${fmtPctValue(ledger.wilsonLCBPct, 2)}
+                    </div>
+                    <div style="margin-top: 3px; color: var(--dim); font-size: 11px;">
+                        Avg ROI/trade ${fmtPctValue(ledger.avgRoiPct, 3)} | Total ROI ${fmtPctValue(ledger.totalRoiPct, 2)} | Trades/day ${fmtNum(ledger.tradesPerDay, 2)} | Collision cycles ${fmtInt(ledger.collisionCycles)} (blocked ${fmtInt(ledger.collisionBlockedCandidates)})
+                    </div>
+                    <div style="margin-top: 3px; color: var(--dim); font-size: 11px;">
+                        Date span: ${dateRange.firstDay || '--'} → ${dateRange.lastDay || '--'} (${fmtInt(dateRange.calendarSpanDays)} days) | Days with trades: ${fmtInt(ledger.daysWithTrades)}
+                    </div>
+                    <div style="overflow-x:auto; margin-top: 8px;">
+                        <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                            <thead>
+                                <tr style="text-align:left; color: var(--dim);">
+                                    <th style="padding:6px;border-bottom:1px solid #333;">ID</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Strategy</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Tier</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Trades</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Wins</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Losses</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">WR</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">LCB</th>
+                                </tr>
+                            </thead>
+                            <tbody>${strategyRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderStressSection(sb, spanDays) {
+            if (!sb || !Array.isArray(sb.rows)) {
+                return '<div style="color: var(--dim);">Stress data unavailable for this bankroll.</div>';
+            }
+            const summary = sb.summary || {};
+            const best = summary.bestEnding || {};
+            const worst = summary.worstEnding || {};
+            const bestWr = summary.bestWinRate || {};
+            const worstWr = summary.worstWinRate || {};
+
+            return `
+                <div style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                    <div style="font-weight: bold; color: #fff;">${sb.label} (start £${fmtNum(sb.startBankroll, 2)})</div>
+                    <div style="margin-top: 4px; color: var(--dim); font-size: 11px;">
+                        Avg End £${fmtNum(summary.avgEndingBalance, 2)} | Avg ROI ${fmtPctValue(summary.avgRoiPct, 1)} | Avg MaxDD ${fmtPctValue(summary.avgMaxDrawdownPct, 1)} | Avg WR ${fmtPctValue(summary.avgWinRatePct, 1)}
+                    </div>
+                    <div style="margin-top: 3px; color: var(--dim); font-size: 11px;">
+                        Best End: £${fmtNum(best.endingBalance, 2)} (${fmtNum(Number(best.stakeFraction) * 100, 0)}% stake, ${fmtNum(Number(best.slippagePct) * 100, 0)}% slip) |
+                        Worst End: £${fmtNum(worst.endingBalance, 2)} (${fmtNum(Number(worst.stakeFraction) * 100, 0)}% stake, ${fmtNum(Number(worst.slippagePct) * 100, 0)}% slip)
+                    </div>
+                    <div style="margin-top: 3px; color: var(--dim); font-size: 11px;">
+                        Best WR: ${fmtPctValue(bestWr.winRatePct, 1)} (${fmtNum(Number(bestWr.stakeFraction) * 100, 0)}% stake, ${fmtNum(Number(bestWr.slippagePct) * 100, 0)}% slip) |
+                        Worst WR: ${fmtPctValue(worstWr.winRatePct, 1)} (${fmtNum(Number(worstWr.stakeFraction) * 100, 0)}% stake, ${fmtNum(Number(worstWr.slippagePct) * 100, 0)}% slip)
+                    </div>
+                    <div style="overflow-x:auto; margin-top: 8px;">
+                        <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                            <thead>
+                                <tr style="text-align:left; color: var(--dim);">
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Stake</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Slip</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">End</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">ROI</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">MaxDD</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Exec/Blk</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">WR</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Halts G/M</th>
+                                </tr>
+                            </thead>
+                            <tbody>${renderStressTableRows(sb.rows)}</tbody>
+                        </table>
+                    </div>
+                    <details style="margin-top: 8px;">
+                        <summary style="cursor: pointer; color: var(--accent);">1% slippage path by window (1w/2w/3w/1m/full)</summary>
+                        <div style="overflow-x:auto; margin-top: 6px;">
+                            <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                                <thead>
+                                    <tr style="text-align:left; color: var(--dim);">
+                                        <th style="padding:6px;border-bottom:1px solid #333;">Stake</th>
+                                        <th style="padding:6px;border-bottom:1px solid #333;">Path</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${renderStressTimelineRows(sb.timelineSlippage1Pct)}</tbody>
+                            </table>
+                        </div>
+                    </details>
+                    <details style="margin-top: 8px;">
+                        <summary style="cursor: pointer; color: var(--accent);">ETA to £100/£500/£1000 by full-window CAGR (all rows)</summary>
+                        <div style="margin-top: 4px; color: var(--dim); font-size: 11px;">
+                            Assumes full-window growth persists; baseline window length ${fmtInt(spanDays)} days.
+                        </div>
+                        <div style="overflow-x:auto; margin-top: 6px;">
+                            <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                                <thead>
+                                    <tr style="text-align:left; color: var(--dim);">
+                                        <th style="padding:6px;border-bottom:1px solid #333;">Stake</th>
+                                        <th style="padding:6px;border-bottom:1px solid #333;">Slip</th>
+                                        <th style="padding:6px;border-bottom:1px solid #333;">End</th>
+                                        <th style="padding:6px;border-bottom:1px solid #333;">d→£100</th>
+                                        <th style="padding:6px;border-bottom:1px solid #333;">d→£500</th>
+                                        <th style="padding:6px;border-bottom:1px solid #333;">d→£1000</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${renderMilestoneRows(sb.rows, sb.startBankroll, spanDays)}</tbody>
+                            </table>
+                        </div>
+                    </details>
+                </div>
+            `;
+        }
+
+        function renderTop3StressSummary(stress) {
+            const el = document.getElementById('top3-stress-summary');
+            if (!el) return;
+            if (!stress || stress.error) {
+                const err = stress?.error ? String(stress.error) : 'No stress payload in /api/state-public';
+                el.textContent = `Unavailable: ${err}`;
+                return;
+            }
+
+            const assumptions = stress.assumptions || {};
+            const generatedAt = stress.generatedAt ? new Date(stress.generatedAt).toLocaleString() : '--';
+            const spanDays = Number(stress?.ledgerSummary?.dateRange?.calendarSpanDays);
+
+            el.innerHTML = `
+                <div style="color: var(--dim); font-size: 11px; margin-bottom: 6px;">
+                    Source: ${assumptions.source || '--'} | Strategy: ${assumptions.strategySet || '--'} | Fill bump: +${fmtNum(assumptions.fillBumpCents, 0)}c | Slippage set: ${(assumptions.slippagePctScenarios || []).map(x => fmtNum(Number(x) * 100, 0) + '%').join(', ')} | Generated: ${generatedAt}
+                </div>
+                ${renderLedgerSection(stress.ledgerSummary, assumptions.strategySet || 'top3_robust')}
+                ${renderStressSection(stress.sb5, spanDays)}
+                ${renderStressSection(stress.sb10, spanDays)}
+            `;
+        }
+
+        function renderGateSummary(gates) {
+            const summaryEl = document.getElementById('gate-block-summary');
+            const byAssetEl = document.getElementById('gate-block-by-asset');
+            if (!summaryEl || !byAssetEl) return;
+
+            if (!gates) {
+                summaryEl.textContent = 'Unavailable: No gate telemetry in /api/state-public';
+                byAssetEl.innerHTML = '';
+                return;
+            }
+
+            const totalEvaluations = Number(gates.totalEvaluations) || 0;
+            const totalBlocked = Number(gates.totalBlocked) || 0;
+            const blockRate = totalEvaluations > 0
+                ? `${((totalBlocked / totalEvaluations) * 100).toFixed(1)}%`
+                : '--';
+
+            const topReasons = Array.isArray(gates.topBlockedReasons) ? gates.topBlockedReasons : [];
+            const reasonsLine = topReasons.length
+                ? topReasons.slice(0, 8).map(r => `${String(r.gate || '--')}: ${fmtInt(r.count)}`).join(' | ')
+                : 'None';
+
+            summaryEl.innerHTML = `
+                <div>Total evaluations: <b>${fmtInt(totalEvaluations)}</b> | Blocked: <b>${fmtInt(totalBlocked)}</b> | Block rate: <b>${blockRate}</b></div>
+                <div style="margin-top: 4px; color: var(--dim);">Top reasons: ${reasonsLine}</div>
+            `;
+
+            const byAssetEntries = Object.entries(gates.byAsset || {}).map(([asset, data]) => {
+                const evaluations = Number(data?.evaluations) || 0;
+                const blocked = Number(data?.blocked) || 0;
+                const traded = Number(data?.traded) || 0;
+                const rate = evaluations > 0 ? `${((blocked / evaluations) * 100).toFixed(1)}%` : '--';
+                const topFail = Object.entries(data?.failedGates || {})
+                    .sort((a, b) => Number(b[1]) - Number(a[1]))[0] || null;
+                return {
+                    asset,
+                    evaluations,
+                    blocked,
+                    traded,
+                    rate,
+                    topFail: topFail ? `${topFail[0]} (${fmtInt(topFail[1])})` : '--'
+                };
+            }).sort((a, b) => b.blocked - a.blocked);
+
+            if (!byAssetEntries.length) {
+                byAssetEl.innerHTML = '<div style="font-size: 11px; color: var(--dim);">No per-asset gate telemetry yet.</div>';
+                return;
+            }
+
+            byAssetEl.innerHTML = `
+                <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                    <thead>
+                        <tr style="text-align:left; color: var(--dim);">
+                            <th style="padding:6px;border-bottom:1px solid #333;">Asset</th>
+                            <th style="padding:6px;border-bottom:1px solid #333;">Eval</th>
+                            <th style="padding:6px;border-bottom:1px solid #333;">Blocked</th>
+                            <th style="padding:6px;border-bottom:1px solid #333;">Traded</th>
+                            <th style="padding:6px;border-bottom:1px solid #333;">Block %</th>
+                            <th style="padding:6px;border-bottom:1px solid #333;">Top Gate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${byAssetEntries.map(row => `
+                            <tr>
+                                <td style="padding:6px;border-bottom:1px solid #222;">${row.asset}</td>
+                                <td style="padding:6px;border-bottom:1px solid #222;">${fmtInt(row.evaluations)}</td>
+                                <td style="padding:6px;border-bottom:1px solid #222;">${fmtInt(row.blocked)}</td>
+                                <td style="padding:6px;border-bottom:1px solid #222;">${fmtInt(row.traded)}</td>
+                                <td style="padding:6px;border-bottom:1px solid #222;">${row.rate}</td>
+                                <td style="padding:6px;border-bottom:1px solid #222; color: var(--dim);">${row.topFail}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function renderTop7StressSummary(stress) {
+            const el = document.getElementById('top7-stress-summary');
+            if (!el) return;
+            if (!stress || stress.error) {
+                const err = stress?.error ? String(stress.error) : 'No stress payload in /api/state-public';
+                el.textContent = `Unavailable: ${err}`;
+                return;
+            }
+
+            const assumptions = stress.assumptions || {};
+            const generatedAt = stress.generatedAt ? new Date(stress.generatedAt).toLocaleString() : '--';
+            const spanDays = Number(stress?.ledgerSummary?.dateRange?.calendarSpanDays);
+
+            el.innerHTML = `
+                <div style="color: var(--dim); font-size: 11px; margin-bottom: 6px;">
+                    Source: ${assumptions.source || '--'} | Strategy: ${assumptions.strategySet || '--'} | Fill bump: +${fmtNum(assumptions.fillBumpCents, 0)}c | Slippage set: ${(assumptions.slippagePctScenarios || []).map(x => fmtNum(Number(x) * 100, 0) + '%').join(', ')} | Generated: ${generatedAt}
+                </div>
+                ${renderLedgerSection(stress.ledgerSummary, assumptions.strategySet || 'top7_drop6')}
+                ${renderStressSection(stress.sb5, spanDays)}
+                ${renderStressSection(stress.sb10, spanDays)}
+            `;
+        }
+
+        function pickPreferredStakeRow(sb, preferredSlip = 0.01) {
+            const rows = Array.isArray(sb?.rows) ? sb.rows : [];
+            if (!rows.length) return null;
+            const preferred = rows
+                .filter(r => Number(r.slippagePct) === Number(preferredSlip))
+                .sort((a, b) => Number(b.endingBalance) - Number(a.endingBalance));
+            if (preferred.length) return preferred[0];
+            const allSorted = [...rows].sort((a, b) => Number(b.endingBalance) - Number(a.endingBalance));
+            return allSorted[0] || null;
+        }
+
+        function renderOperatorWorksheetRows(rows, startBankroll) {
+            if (!Array.isArray(rows) || rows.length === 0) {
+                return '<tr><td colspan="7" style="padding:6px;border-bottom:1px solid #333;color:var(--dim);">No worksheet rows</td></tr>';
+            }
+            return rows.map(r => {
+                const pBelowStart = Number(r.pBelowStart);
+                const pColor = Number.isFinite(pBelowStart)
+                    ? (pBelowStart <= 0.05 ? 'var(--green)' : (pBelowStart <= 0.15 ? '#ffd700' : 'var(--red)'))
+                    : 'var(--dim)';
+                const strategyLabel = String(r.strategySet || '--').toUpperCase();
+                return `<tr>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${String(r.window || '--')}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${strategyLabel}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">${fmtNum(Number(r.stakeFraction) * 100, 0)}%</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">£${fmtNum(startBankroll, 2)} → £${fmtNum(r.medianEnd, 2)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">£${fmtNum(r.meanEnd, 2)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;color:${pColor};">${fmtPctValue(Number(r.pBelowStart) * 100, 1)}</td>
+                    <td style="padding:6px;border-bottom:1px solid #333;">£${fmtNum(r.minEnd, 2)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderOperatorHandbook(payload) {
+            const el = document.getElementById('operator-handbook');
+            if (!el) return;
+
+            const top7 = payload?.top7Drop6StressSummary || null;
+            const top3 = payload?.top3RobustStressSummary || null;
+            const op = payload?.liveOperatorProfile || {};
+            const signalGates = op?.signalGates || {};
+            const primarySetDisplay = String(op?.primarySignalSetDisplay || op?.primarySignalSet || 'PRIMARY').trim();
+            const primaryRuntime = op?.strategySetRuntime || {};
+            const top3Runtime = op?.top3ConcurrentRuntime || {};
+            const stageInfo = op?.strategyStages || {};
+            const activeStage = stageInfo?.active || null;
+            const stageLadder = Array.isArray(stageInfo?.ladder) ? stageInfo.ladder : [];
+            const top7Ledger = top7?.ledgerSummary || {};
+            const top3Ledger = top3?.ledgerSummary || {};
+            const top7Sb5 = top7?.sb5 || null;
+            const top3Sb5 = top3?.sb5 || null;
+            const top7Sb10 = top7?.sb10 || null;
+            const top3Sb10 = top3?.sb10 || null;
+
+            const top7Pref5 = pickPreferredStakeRow(top7Sb5, 0.01);
+            const top3Pref5 = pickPreferredStakeRow(top3Sb5, 0.01);
+            const top7Pref10 = pickPreferredStakeRow(top7Sb10, 0.01);
+            const top3Pref10 = pickPreferredStakeRow(top3Sb10, 0.01);
+            const nextTransition = activeStage?.nextTransition || null;
+            const nextTransitionLine = nextTransition && Number.isFinite(Number(nextTransition.atBankroll))
+                ? `${String(nextTransition.direction || 'switch').toUpperCase()} @ $${fmtNum(nextTransition.atBankroll, 2)} → ${String(nextTransition.toStageKey || '--').toUpperCase()}`
+                : '--';
+            const executionGateLine = `Execution gates: price ${fmtBand(signalGates?.priceMin, signalGates?.priceMax)} | momentum ${signalGates?.applyMomentumGate ? 'ON' : 'OFF'} | volume ${signalGates?.applyVolumeGate ? 'ON' : 'OFF'}${signalGates?.volumeDeferredInBootstrap ? ' (bootstrap defers volume)' : ''} | max global/cycle ${fmtInt(signalGates?.maxGlobalTradesPerCycle)}`;
+            const stageRows = stageLadder.length
+                ? stageLadder.map(stage => `
+                    <tr>
+                        <td style="padding:4px;border-bottom:1px solid #222;">${escHtml(stage.label || '--')}</td>
+                        <td style="padding:4px;border-bottom:1px solid #222;">${escHtml(stage.signalSetDisplay || '--')}</td>
+                        <td style="padding:4px;border-bottom:1px solid #222;">${escHtml(stage.rangeLabel || '--')}</td>
+                        <td style="padding:4px;border-bottom:1px solid #222;color:${stage.key === activeStage?.key ? '#34d399' : 'var(--dim)'};">${escHtml(stage.objective || '--')}</td>
+                    </tr>
+                `).join('')
+                : '<tr><td colspan="4" style="padding:4px;border-bottom:1px solid #222;color:var(--dim);">No staged ladder data</td></tr>';
+
+            el.innerHTML = `
+                <div style="color:#fff;font-size:12px;line-height:1.7;">
+                    <div style="margin-bottom:8px;color:var(--green);font-weight:bold;">Primary execution set: ${primarySetDisplay} (${escHtml(activeStage?.label || 'ACTIVE')} stage)</div>
+                    <div style="margin-bottom:6px;">Runtime bankroll: $${fmtNum(activeStage?.bankroll, 2)} | Stage band: ${escHtml(activeStage?.rangeLabel || '--')} | Next switch: ${escHtml(nextTransitionLine)}</div>
+                    <div style="margin-bottom:6px;">${escHtml(executionGateLine)}</div>
+                    <div style="margin-bottom:6px;">Concurrent monitor: TOP3_ROBUST (read-only telemetry).</div>
+                    <div style="margin-bottom:6px;color:var(--dim);">BUY decisions are driven by the enforced primary set only. TOP3 status is informational and does not gate entries.</div>
+                    <div style="margin-bottom:10px;color:var(--dim);">The stress rows below remain TOP7/TOP3 reference comparisons because an equivalent bundled full stress matrix is not present for TOP5 in the current payload bundle.</div>
+
+                    <div style="font-weight:bold;margin-bottom:4px;border-bottom:1px solid #444;padding-bottom:4px;">RUNTIME STATUS</div>
+                    <div>Primary runtime: <b style="color:${primaryRuntime.loaded ? 'var(--green)' : 'var(--red)'}">${primaryRuntime.loaded ? 'LOADED' : 'NOT LOADED'}</b> (${fmtInt(primaryRuntime.strategies)} strategies)</div>
+                    <div>TOP3 runtime: <b style="color:${top3Runtime.loaded ? 'var(--green)' : 'var(--red)'}">${top3Runtime.loaded ? 'LOADED' : 'NOT LOADED'}</b> (${fmtInt(top3Runtime.strategies)} strategies)</div>
+
+                    <div style="font-weight:bold;margin:8px 0 4px;border-bottom:1px solid #444;padding-bottom:4px;">BANKROLL STAGE LADDER</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
+                        <thead><tr style="color:var(--dim);text-align:left;">
+                            <th style="padding:4px;border-bottom:1px solid #333;">Stage</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Set</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Range</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Why</th>
+                        </tr></thead>
+                        <tbody>
+                            ${stageRows}
+                        </tbody>
+                    </table>
+
+                    <div style="font-weight:bold;margin:8px 0 4px;border-bottom:1px solid #444;padding-bottom:4px;">REFERENCE SET QUALITY SNAPSHOT (EXECUTED LEDGER)</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
+                        <thead><tr style="color:var(--dim);text-align:left;">
+                            <th style="padding:4px;border-bottom:1px solid #333;">Set</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Trades</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">WR</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">LCB</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">Trades/Day</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr><td style="padding:4px;border-bottom:1px solid #222;">TOP7_DROP6 reference</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtInt(top7Ledger.trades)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top7Ledger.winRatePct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top7Ledger.wilsonLCBPct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtNum(top7Ledger.tradesPerDay, 2)}</td></tr>
+                            <tr><td style="padding:4px;border-bottom:1px solid #222;">TOP3_ROBUST</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtInt(top3Ledger.trades)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top3Ledger.winRatePct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtPctValue(top3Ledger.wilsonLCBPct, 2)}</td><td style="padding:4px;border-bottom:1px solid #222;">${fmtNum(top3Ledger.tradesPerDay, 2)}</td></tr>
+                        </tbody>
+                    </table>
+
+                    <div style="font-weight:bold;margin-bottom:4px;border-bottom:1px solid #444;padding-bottom:4px;">REFERENCE STAKE ROWS (FULL WINDOW, 1% SLIPPAGE)</div>
+                    <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
+                        <thead><tr style="color:var(--dim);text-align:left;">
+                            <th style="padding:4px;border-bottom:1px solid #333;">Bankroll</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">TOP7 reference row</th>
+                            <th style="padding:4px;border-bottom:1px solid #333;">TOP3 best row</th>
+                        </tr></thead>
+                        <tbody>
+                            <tr>
+                                <td style="padding:4px;border-bottom:1px solid #222;">£5</td>
+                                <td style="padding:4px;border-bottom:1px solid #222;">${top7Pref5 ? `${fmtNum(Number(top7Pref5.stakeFraction) * 100, 0)}% → £${fmtNum(top7Pref5.endingBalance, 2)} (WR ${fmtPctValue(top7Pref5.winRatePct, 1)})` : '--'}</td>
+                                <td style="padding:4px;border-bottom:1px solid #222;">${top3Pref5 ? `${fmtNum(Number(top3Pref5.stakeFraction) * 100, 0)}% → £${fmtNum(top3Pref5.endingBalance, 2)} (WR ${fmtPctValue(top3Pref5.winRatePct, 1)})` : '--'}</td>
+                            </tr>
+                            <tr>
+                                <td style="padding:4px;border-bottom:1px solid #222;">£10</td>
+                                <td style="padding:4px;border-bottom:1px solid #222;">${top7Pref10 ? `${fmtNum(Number(top7Pref10.stakeFraction) * 100, 0)}% → £${fmtNum(top7Pref10.endingBalance, 2)} (WR ${fmtPctValue(top7Pref10.winRatePct, 1)})` : '--'}</td>
+                                <td style="padding:4px;border-bottom:1px solid #222;">${top3Pref10 ? `${fmtNum(Number(top3Pref10.stakeFraction) * 100, 0)}% → £${fmtNum(top3Pref10.endingBalance, 2)} (WR ${fmtPctValue(top3Pref10.winRatePct, 1)})` : '--'}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+
+                    <div style="margin-top:6px;font-weight:bold;border-bottom:1px solid #444;padding-bottom:4px;">OPERATOR DECISION RULES</div>
+                    <div>1) <b>Both PRIMARY + TOP3 active:</b> highest-quality overlap; prioritize these signals.</div>
+                    <div>2) <b>PRIMARY active only:</b> valid primary set signal; trade per your stake plan.</div>
+                    <div>3) <b>TOP3 active only:</b> conservative secondary context; optional/manual discretion.</div>
+                    <div>4) <b>Neither active:</b> skip and wait for qualified window.</div>
+                    <div>5) Keep one trade per 15m cycle and avoid late fills that exceed your slippage plan.</div>
+                </div>
+            `;
+        }
+
+        function renderOperatorWorksheet(worksheet) {
+            const el = document.getElementById('operator-worksheet-summary');
+            if (!el) return;
+            if (!worksheet || worksheet.error) {
+                const err = worksheet?.error ? String(worksheet.error) : 'No worksheet payload in /api/state-public';
+                el.textContent = `Unavailable: ${err}`;
+                return;
+            }
+
+            const generatedAt = worksheet.generatedAt ? new Date(worksheet.generatedAt).toLocaleString() : '--';
+            const mode = worksheet.selectionMode || '--';
+            const sb5Rows = worksheet?.rowsByBankroll?.SB5?.riskAdjusted || [];
+            const sb10Rows = worksheet?.rowsByBankroll?.SB10?.riskAdjusted || [];
+
+            const renderBankroll = (label, start, rows) => `
+                <div style="margin-top: 10px; border-top: 1px solid #333; padding-top: 10px;">
+                    <div style="font-weight: bold; color: #fff;">${label} (start £${fmtNum(start, 2)})</div>
+                    <div style="overflow-x:auto; margin-top: 8px;">
+                        <table style="width:100%; border-collapse: collapse; font-size: 11px;">
+                            <thead>
+                                <tr style="text-align:left; color: var(--dim);">
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Window</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Set</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Stake</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Median End</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Mean End</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">P(end&lt;start)</th>
+                                    <th style="padding:6px;border-bottom:1px solid #333;">Min End</th>
+                                </tr>
+                            </thead>
+                            <tbody>${renderOperatorWorksheetRows(rows, start)}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            el.innerHTML = `
+                <div style="color: var(--dim); font-size: 11px; margin-bottom: 6px;">
+                    Selection mode: ${mode} | Default signal set: ${worksheet.defaultSignalStrategySet || '--'} | Generated: ${generatedAt}
+                </div>
+                <div style="color: var(--dim); font-size: 11px;">${worksheet.rationale || ''}</div>
+                ${renderBankroll('SB5', 5, sb5Rows)}
+                ${renderBankroll('SB10', 10, sb10Rows)}
+            `;
+        }
+
+        function renderOptimized8StressSummary(stress) {
+            const el = document.getElementById('opt8-stress-summary');
+            if (!el) return;
+            if (!stress || stress.error) {
+                const err = stress?.error ? String(stress.error) : 'No stress payload in /api/state-public';
+                el.textContent = `Unavailable: ${err}`;
+                return;
+            }
+
+            const assumptions = stress.assumptions || {};
+            const generatedAt = stress.generatedAt ? new Date(stress.generatedAt).toLocaleString() : '--';
+            const spanDays = Number(stress?.ledgerSummary?.dateRange?.calendarSpanDays);
+
+            el.innerHTML = `
+                <div style="color: var(--dim); font-size: 11px; margin-bottom: 6px;">
+                    Source: ${assumptions.source || '--'} | Strategy: ${assumptions.strategySet || '--'} | Fill bump: +${fmtNum(assumptions.fillBumpCents, 0)}c | Slippage set: ${(assumptions.slippagePctScenarios || []).map(x => fmtNum(Number(x) * 100, 0) + '%').join(', ')} | Generated: ${generatedAt}
+                </div>
+                ${renderLedgerSection(stress.ledgerSummary, assumptions.strategySet || 'optimized8')}
+                ${renderStressSection(stress.sb5, spanDays)}
+                ${renderStressSection(stress.sb10, spanDays)}
+            `;
+        }
+
+        async function loadVersion() {
+            const el = document.getElementById('version');
+            if (!el) return;
+            try {
+                const res = await fetch(new URL('/api/version', window.location.origin).toString(), { cache: 'no-store' });
+                const v = await res.json();
+                const commit = v.gitCommit ? String(v.gitCommit).slice(0, 7) : 'unknown';
+                el.innerText = `v${v.configVersion || '?'} • ${commit}`;
+            } catch (e) {
+                el.innerText = 'version: unavailable';
+            }
+        }
+
+        async function loadTelegramConfig() {
+            const statusEl = document.getElementById('telegram-status');
+            try {
+                const res = await fetch('/api/telegram-config', { cache: 'no-store' });
+                const cfg = await res.json();
+                if (cfg.enabled) {
+                    statusEl.innerHTML = '<span style="color:var(--green);font-weight:bold;">● CONNECTED</span> — Notifications active';
+                } else if (cfg.hasToken || cfg.hasChatId) {
+                    statusEl.innerHTML = '<span style="color:#ffd700;font-weight:bold;">● PARTIAL</span> — Missing token or chat ID';
+                } else {
+                    statusEl.innerHTML = '<span style="color:var(--dim);">● NOT CONFIGURED</span> — Enter bot token & chat ID below';
+                }
+                if (cfg.chatId) document.getElementById('tg-chat-id').value = cfg.chatId;
+                if (cfg.tokenPreview) document.getElementById('tg-bot-token').placeholder = cfg.tokenPreview;
+                document.getElementById('tg-signals-only').checked = cfg.signalsOnly !== false;
+            } catch (e) {
+                statusEl.textContent = 'Failed to load config';
+            }
+        }
+
+        async function saveTelegramConfig() {
+            const btn = document.getElementById('tg-save-btn');
+            const resultEl = document.getElementById('tg-result');
+            const token = document.getElementById('tg-bot-token').value.trim();
+            const chatId = document.getElementById('tg-chat-id').value.trim();
+            const signalsOnly = document.getElementById('tg-signals-only').checked;
+
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            resultEl.style.display = 'block';
+            resultEl.style.color = 'var(--dim)';
+            resultEl.textContent = 'Sending test message...';
+
+            try {
+                const res = await fetch('/api/telegram-config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ botToken: token, chatId, signalsOnly })
+                });
+                const data = await res.json();
+                if (data.success && data.testResult === 'OK') {
+                    resultEl.style.color = 'var(--green)';
+                    resultEl.textContent = '✅ ' + data.message;
+                } else if (data.success) {
+                    resultEl.style.color = '#ffd700';
+                    resultEl.textContent = '⚠️ ' + data.message;
+                } else {
+                    resultEl.style.color = 'var(--red)';
+                    resultEl.textContent = '❌ ' + (data.error || 'Unknown error');
+                }
+                loadTelegramConfig();
+            } catch (e) {
+                resultEl.style.color = 'var(--red)';
+                resultEl.textContent = '❌ ' + (e.message || 'Network error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save & Test';
+            }
+        }
+
+        // ==================== MULTIFRAME DASHBOARD ====================
+        let _mfCache = null;
+        let _mfStrategiesCache = null;
+
+        async function loadMultiframeStatus() {
+            try {
+                const [statusRes, stratRes] = await Promise.all([
+                    fetch('/api/multiframe/status', { cache: 'no-store' }),
+                    fetch('/api/multiframe/strategies', { cache: 'no-store' })
+                ]);
+                _mfCache = await statusRes.json();
+                _mfStrategiesCache = await stratRes.json();
+                renderMultiframe4h(_mfCache['4h']);
+                renderMultiframe5m(_mfCache['5m']);
+                renderMultiframe4hStrategies(_mfStrategiesCache['4h'] || []);
+            } catch (e) {
+                console.error('Multiframe fetch error:', e);
+                const el4h = document.getElementById('mf-4h-status');
+                const el5m = document.getElementById('mf-5m-status');
+                if (el4h) el4h.textContent = 'API error';
+                if (el5m) el5m.textContent = 'API error';
+            }
+        }
+
+        function renderMultiframe4h(data) {
+            if (!data) return;
+            const statusEl = document.getElementById('mf-4h-status');
+            const cycleEl = document.getElementById('mf-4h-cycle');
+            const progressEl = document.getElementById('mf-4h-progress');
+            const signalsEl = document.getElementById('mf-4h-signals');
+            const marketsEl = document.getElementById('mf-4h-markets');
+            const historyEl = document.getElementById('mf-4h-history');
+
+            // Status
+            const stratLoaded = data.strategySet?.loaded === true;
+            const stratCount = data.strategySet?.strategies || 0;
+            const lastPoll = data.lastPollAt ? new Date(data.lastPollAt).toLocaleTimeString() : 'never';
+            const signalEnabled = data.signalEnabled === true;
+            const statusLabel = data.statusLabel || (signalEnabled ? '4H signal engine active' : '4H signal engine disabled');
+            if (statusEl) {
+                statusEl.innerHTML = `<span style="color:${signalEnabled ? 'var(--green)' : 'var(--red)'};">${signalEnabled ? '●' : '○'}</span> ${escHtml(statusLabel)} | ${stratCount} strategies | Poll: ${lastPoll}`;
+            }
+
+            // Cycle info
+            const utcH = data.utcHour;
+            const elapsed = data.elapsedMinutes || 0;
+            const remaining = data.timeRemaining || '--';
+            const progress = Math.min(100, (data.cycleProgress || 0) * 100);
+            const etHour = ((utcH - 5 + 24) % 24);
+            const etLabel = `${etHour > 12 ? etHour - 12 : etHour || 12}${etHour >= 12 ? 'PM' : 'AM'} ET`;
+            if (cycleEl) cycleEl.textContent = `Cycle: UTC ${String(utcH).padStart(2,'0')}:00 (${etLabel}) | ${elapsed}min elapsed | ${remaining} remaining${signalEnabled ? '' : ` | ${statusLabel}`}`;
+            if (progressEl) progressEl.style.width = `${progress}%`;
+
+            // Active signals
+            if (signalsEl) {
+                if (!signalEnabled) {
+                    signalsEl.innerHTML = `<div class="tf-signal-none">${escHtml(statusLabel)}</div>`;
+                } else {
+                    const activeSignals = data.activeSignals || {};
+                    const activePairs = Object.entries(activeSignals).filter(([_, s]) => s !== null);
+                    if (activePairs.length > 0) {
+                    signalsEl.innerHTML = activePairs.map(([asset, sig]) => {
+                        const tierClass = sig.tier === 'PLATINUM' ? 'tier-platinum' : 'tier-gold';
+                        const tierIcon = sig.tier === 'PLATINUM' ? '💎' : '🥇';
+                        return `<div class="tf-signal-active">
+                            <div style="font-weight:bold;color:#22C55E;">${tierIcon} ${asset}: ${sig.direction} @ ${(sig.entryPrice * 100).toFixed(0)}c</div>
+                            <div style="font-size:11px;color:#aaa;margin-top:2px;">Strategy: ${escHtml(sig.strategy)} | <span class="${tierClass}">${sig.tier}</span> | WR: ${(sig.winRate * 100).toFixed(1)}% | Fired: ${new Date(sig.firedAt).toLocaleTimeString()}</div>
+                        </div>`;
+                    }).join('');
+                    } else {
+                        const nextStrategyInfo = getNextStrategyWindow(utcH, elapsed);
+                        signalsEl.innerHTML = `<div class="tf-signal-none">No active 4h signals this cycle${nextStrategyInfo ? ` — ${nextStrategyInfo}` : ''}</div>`;
+                    }
+                }
+            }
+
+            // Markets
+            if (marketsEl) {
+                const markets = data.markets || {};
+                const rows = Object.entries(markets).map(([asset, m]) => {
+                    if (m.status === 'NOT_POLLED') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--dim);">Not polled</span></div>`;
+                    if (m.status !== 'OK') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--red);">${m.status}</span></div>`;
+                    const yp = m.yesPrice !== null ? `${(m.yesPrice * 100).toFixed(1)}c` : '--';
+                    const np = m.noPrice !== null ? `${(m.noPrice * 100).toFixed(1)}c` : '--';
+                    const resolved = m.resolved ? ` | <b style="color:${m.resolvedOutcome === 'UP' ? 'var(--green)' : 'var(--red)'};">${m.resolvedOutcome}</b>` : '';
+                    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;font-size:12px;">
+                        <span>${asset}</span>
+                        <span>UP ${yp} | DOWN ${np}${resolved}</span>
+                    </div>`;
+                }).join('');
+                marketsEl.innerHTML = `<div style="font-size:11px;color:var(--dim);margin-bottom:4px;">${signalEnabled ? 'Live 4H Market Prices' : '4H Market Prices (monitor only)'}</div>${rows}`;
+            }
+
+            // History
+            if (historyEl) {
+                const signals = data.recentSignals || [];
+                if (signals.length === 0) {
+                    historyEl.textContent = signalEnabled ? 'No signal history yet' : statusLabel;
+                } else {
+                    historyEl.innerHTML = signals.map(s => {
+                        const time = new Date(s.firedAt).toLocaleString();
+                        return `<div style="margin-bottom:4px;">${time} — ${s.asset} ${s.direction} @ ${(s.entryPrice * 100).toFixed(0)}c (${s.strategy})</div>`;
+                    }).join('');
+                }
+            }
+        }
+
+        function renderMultiframe5m(data) {
+            if (!data) return;
+            const statusEl = document.getElementById('mf-5m-status');
+            const cycleEl = document.getElementById('mf-5m-cycle');
+            const progressEl = document.getElementById('mf-5m-progress');
+            const marketsEl = document.getElementById('mf-5m-markets');
+            const historyEl = document.getElementById('mf-5m-history');
+
+            const lastPoll = data.lastPollAt ? new Date(data.lastPollAt).toLocaleTimeString() : 'never';
+            if (statusEl) statusEl.textContent = `Monitor only | Poll: ${lastPoll}`;
+
+            const elapsedSec = data.elapsedSeconds || 0;
+            const remaining = data.timeRemaining || '--';
+            const progress = Math.min(100, (data.cycleProgress || 0) * 100);
+            if (cycleEl) cycleEl.textContent = `Cycle: ${elapsedSec}s elapsed | ${remaining} remaining`;
+            if (progressEl) progressEl.style.width = `${progress}%`;
+
+            if (marketsEl) {
+                const markets = data.markets || {};
+                const rows = Object.entries(markets).map(([asset, m]) => {
+                    if (m.status === 'NOT_POLLED') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--dim);">Not polled</span></div>`;
+                    if (m.status !== 'OK') return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;"><span>${asset}</span><span style="color:var(--red);">${m.status}</span></div>`;
+                    const yp = m.yesPrice !== null ? `${(m.yesPrice * 100).toFixed(1)}c` : '--';
+                    const np = m.noPrice !== null ? `${(m.noPrice * 100).toFixed(1)}c` : '--';
+                    return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #222;font-size:12px;">
+                        <span>${asset}</span>
+                        <span>UP ${yp} | DOWN ${np}</span>
+                    </div>`;
+                }).join('');
+                marketsEl.innerHTML = `<div style="font-size:11px;color:var(--dim);margin-bottom:4px;">Live 5M Market Prices</div>${rows}`;
+            }
+
+            if (historyEl) {
+                const outcomes = data.recentOutcomes || [];
+                if (outcomes.length === 0) {
+                    historyEl.textContent = 'No resolved outcomes yet';
+                } else {
+                    historyEl.innerHTML = outcomes.map(o => {
+                        const time = new Date(o.timestamp).toLocaleString();
+                        const color = o.outcome === 'UP' ? 'var(--green)' : 'var(--red)';
+                        return `<div style="margin-bottom:3px;">${time} — ${o.asset} <span style="color:${color};font-weight:bold;">${o.outcome}</span></div>`;
+                    }).join('');
+                }
+            }
+        }
+
+        function renderMultiframe4hStrategies(strategies) {
+            const el = document.getElementById('mf-4h-schedule');
+            if (!el || !Array.isArray(strategies)) return;
+            if (strategies.length === 0) {
+                el.innerHTML = '<div style="color:var(--dim);font-size:12px;">No 4h strategies loaded</div>';
+                return;
+            }
+            const rows = strategies.map(s => {
+                const tierClass = s.tier === 'PLATINUM' ? 'tier-platinum' : s.tier === 'GOLD' ? 'tier-gold' : 'tier-silver';
+                const etHour = ((s.utcHour - 5 + 24) % 24);
+                const etLabel = `${etHour > 12 ? etHour - 12 : etHour || 12}${etHour >= 12 ? 'PM' : 'AM'}`;
+                return `<tr>
+                    <td style="padding:5px;border-bottom:1px solid #222;">UTC ${String(s.utcHour).padStart(2,'0')}:00 (${etLabel})</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">m${s.entryMinute}</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;font-weight:bold;">${s.direction}</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${s.priceBand}</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;"><span class="${tierClass}">${s.tier}</span></td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${(s.winRate * 100).toFixed(1)}%</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${(s.winRateLCB * 100).toFixed(1)}%</td>
+                    <td style="padding:5px;border-bottom:1px solid #222;">${s.totalTrades}</td>
+                </tr>`;
+            }).join('');
+
+            el.innerHTML = `
+                <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                    <thead><tr style="text-align:left;color:var(--dim);">
+                        <th style="padding:5px;border-bottom:1px solid #333;">Window</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Entry</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Dir</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Band</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Tier</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">WR</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">LCB</th>
+                        <th style="padding:5px;border-bottom:1px solid #333;">Trades</th>
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>`;
+        }
+
+        function getNextStrategyWindow(currentUtcHour, elapsedMin) {
+            if (!_mfStrategiesCache || !_mfStrategiesCache['4h']) return null;
+            const strats = _mfStrategiesCache['4h'];
+            // Find strategies for current hour that haven't fired yet
+            const upcoming = strats.filter(s => s.utcHour === currentUtcHour && s.entryMinute > elapsedMin);
+            if (upcoming.length > 0) {
+                const next = upcoming.sort((a, b) => a.entryMinute - b.entryMinute)[0];
+                return `Next check at m${next.entryMinute} (${next.direction} ${next.priceBand})`;
+            }
+            return 'All strategy windows passed for this cycle';
+        }
+
+        // Poll multiframe every 10 seconds
+        setInterval(loadMultiframeStatus, 10000);
+
+        async function loadOperatorStatus() {
+            const title = document.getElementById('operator-status-title');
+            const details = document.getElementById('operator-status-details');
+            if (!title || !details) return;
+            try {
+                const res = await fetch(new URL('/api/state-public', window.location.origin).toString(), { cache: 'no-store' });
+                const json = await res.json();
+                const op = json?.liveOperatorProfile || {};
+                stateCache.liveOperatorProfile = op;
+                const rt = op?.strategySetRuntime || {};
+                const rtTop3 = op?.top3ConcurrentRuntime || {};
+                const activeStage = op?.strategyStages?.active || {};
+                const signalGates = op?.signalGates || {};
+                renderTop7StressSummary(json?.top7Drop6StressSummary);
+                renderTop3StressSummary(json?.top3RobustStressSummary);
+                renderOptimized8StressSummary(json?.optimized8StressSummary);
+                renderOperatorWorksheet(json?.operatorWorksheet);
+                renderOperatorHandbook(json);
+                renderOperatorSchedulePanel(json);
+                renderGateSummary(json?.gates || null);
+                const enforced = rt?.enforced === true;
+                const loaded = rt?.loaded === true;
+                const top3Loaded = rtTop3?.loaded === true;
+                const strategyCount = Number(rt?.strategies);
+                const status = loaded ? 'LOADED' : 'NOT LOADED';
+                const activeStageLabel = String(activeStage?.label || 'STAGED').trim().toUpperCase();
+                const activeSetLabel = String(activeStage?.signalSetDisplay || op?.primarySignalSetDisplay || 'PRIMARY').trim().toUpperCase();
+                title.textContent = `${status} (${activeStageLabel} · ${activeSetLabel})${enforced ? ' ENFORCED' : ''}${top3Loaded ? ' + TOP3 MONITOR' : ''}`;
+                title.style.color = loaded ? 'var(--green)' : 'var(--red)';
+
+                const lines = [];
+                lines.push(`[active stage] ${activeStage?.label || '--'} | bankroll=$${fmtNum(activeStage?.bankroll, 2)} | range=${activeStage?.rangeLabel || '--'}`);
+                lines.push(`[active primary] strategySetPath: ${op.strategySetPath || '--'}`);
+                if (rt?.resolvedPath) lines.push(`resolvedPath: ${rt.resolvedPath}`);
+                if (Number.isFinite(strategyCount)) lines.push(`strategies: ${strategyCount}`);
+                if (rt?.loadError) lines.push(`loadError: ${rt.loadError}`);
+                if (activeStage?.objective) lines.push(`objective: ${activeStage.objective}`);
+                if (activeStage?.nextTransition?.atBankroll) {
+                    lines.push(`nextSwitch: ${String(activeStage.nextTransition.direction || 'switch').toUpperCase()} @ $${fmtNum(activeStage.nextTransition.atBankroll, 2)} -> ${String(activeStage.nextTransition.toStageKey || '--').toUpperCase()}`);
+                }
+                lines.push(`executionGates: price=${fmtBand(signalGates?.priceMin, signalGates?.priceMax)} | momentum=${signalGates?.applyMomentumGate ? 'ON' : 'OFF'} | volume=${signalGates?.applyVolumeGate ? 'ON' : 'OFF'}${signalGates?.volumeDeferredInBootstrap ? ' (bootstrap defers volume)' : ''} | maxGlobal=${fmtInt(signalGates?.maxGlobalTradesPerCycle)}`);
+                lines.push('');
+                lines.push(`[TOP3 concurrent] loaded: ${rtTop3?.loaded === true ? 'YES' : 'NO'}`);
+                if (rtTop3?.resolvedPath) lines.push(`resolvedPath: ${rtTop3.resolvedPath}`);
+                if (Number.isFinite(Number(rtTop3?.strategies))) lines.push(`strategies: ${Number(rtTop3.strategies)}`);
+                if (rtTop3?.loadError) lines.push(`loadError: ${rtTop3.loadError}`);
+                details.textContent = lines.join('\n');
+                updateGoldenHour();
+            } catch (e) {
+                stateCache.liveOperatorProfile = null;
+                title.textContent = 'UNAVAILABLE';
+                title.style.color = 'var(--red)';
+                details.textContent = e && e.message ? String(e.message) : 'Failed to fetch /api/state-public';
+                renderTop7StressSummary({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
+                renderTop3StressSummary({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
+                renderOptimized8StressSummary({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
+                renderOperatorWorksheet({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
+                renderOperatorSchedulePanel({ error: e && e.message ? String(e.message) : 'Failed to fetch /api/state-public' });
+                renderGateSummary(null);
+                updateGoldenHour();
+            }
+        }
+
+        socket.on('connect', () => {
+            console.log('✅ Connected to server');
+            document.getElementById('activity-list').innerText = 'Connected to server...';
+            loadVersion();
+            loadOperatorStatus();
+            loadMultiframeStatus();
+            loadTelegramConfig();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ Disconnected from server');
+            document.getElementById('activity-list').innerText = 'Disconnected from server...';
+        });
+
+        socket.on('omega_update', (data) => {
+            // Update Bankroll
+            const bankroll = data.bankroll || 5.00;
+            renderBankrollCard(bankroll, data.mode, data.balanceBreakdown || null);
+            const progress = Math.min((bankroll / goal) * 100, 100);
+            document.getElementById('goal-progress').style.width = `${progress}%`;
+
+            // Golden hour card is now driven by liveOperatorProfile.finalGolden payload
+            updateGoldenHour();
+
+            // Update Asset Rows
+            const list = document.getElementById('assets-list');
+            if (!list) return;
+
+            list.innerHTML = '<div class="assets-title">Assets</div>';
+
+            if (data.assets && Object.keys(data.assets).length > 0) {
+                Object.entries(data.assets).forEach(([name, asset]) => {
+                    const row = document.createElement('div');
+                    row.className = 'asset-row';
+                    const label = asset.marketUrl
+                        ? `<a href="${asset.marketUrl}" target="_blank" rel="noopener noreferrer" class="asset-link">${name}</a>`
+                        : name;
+                    const sig = asset.oracleSignal;
+                    const hasSignal = sig && sig.action && ['BUY', 'PREPARE'].includes(String(sig.action).toUpperCase());
+                    const concurrentBadges = sig ? renderConcurrentSetFlags(sig, true) : '';
+                    const signalBadge = hasSignal
+                        ? `<span style="background:${sig.action === 'BUY' ? '#10b981' : '#ffd700'};color:${sig.action === 'BUY' ? '#000' : '#000'};padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;margin-left:8px;">
+                            ${sig.action} ${sig.direction || asset.prediction || 'WAIT'}
+                          </span>`
+                        : '';
+                    const convictionBadge = sig && sig.tier === 'CONVICTION'
+                        ? `<span style="background:linear-gradient(90deg,#ff0066,#cc0055);color:#fff;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:bold;margin-left:8px;">💎 CONVICTION</span>`
+                        : '';
+
+                    row.innerHTML = `
+                        <div>
+                            <div style="display:flex;align-items:center;gap:4px;">
+                                <div style="font-weight: bold;">${label}</div>
+                                ${signalBadge}
+                                ${convictionBadge}
+                                ${concurrentBadges}
+                            </div>
+                            <div style="font-size: 12px; color: var(--dim);">
+                                ${asset.prediction || 'WAIT'} | ${asset.tier || 'NONE'} | Conf: ${fmtPct01(asset.confidence, 0)}
+                            </div>
+                            <div style="font-size: 12px; color: var(--dim); margin-top: 2px;">
+                                ${renderOracleLine(asset)}
+                            </div>
+                            <div style="font-size: 11px; margin-top: 4px;">
+                                ${renderCallCounter(asset)}
+                            </div>
+                        </div>
+                        <div class="tag tag-${asset.state.toLowerCase()}">${asset.state}</div>
+                    `;
+                    list.appendChild(row);
+                });
+            } else {
+                list.innerHTML += '<div class="asset-no-data">No asset data available</div>';
+            }
+
+            // Update Signals Section
+            const signalsList = document.getElementById('signals-list');
+            if (signalsList) {
+                signalsList.innerHTML = '';
+                let hasSignals = false;
+                if (data.assets && Object.keys(data.assets).length > 0) {
+                    Object.entries(data.assets).forEach(([name, asset]) => {
+                        const sig = asset.oracleSignal;
+                        if (sig && sig.action && ['BUY', 'PREPARE'].includes(String(sig.action).toUpperCase())) {
+                            hasSignals = true;
+                            const action = String(sig.action).toUpperCase();
+                            const dir = sig.direction || asset.prediction || 'WAIT';
+                            const odds = Number.isFinite(sig.implied) ? fmtCents01(sig.implied, 1) : '--';
+                            const pWin = Number.isFinite(sig.pWin) ? fmtPct01(sig.pWin, 1) : '--';
+                            const tier = sig.tier || 'NONE';
+                            const isLocked = sig.calibration?.isLocked === true;
+                            const stakeUsd = Number.isFinite(sig.recommendedStakeUsd) ? `$${Number(sig.recommendedStakeUsd).toFixed(2)}` : '--';
+                            const stakePct = Number.isFinite(sig.recommendedStakeFraction) ? `${(Number(sig.recommendedStakeFraction) * 100).toFixed(0)}%` : null;
+                            const setBadges = renderConcurrentSetFlags(sig, true);
+
+                            const signalDiv = document.createElement('div');
+                            signalDiv.className = 'signal-card';
+                            signalDiv.innerHTML = `
+                                <div class="signal-card-title">${name}: ${action} ${dir} ${setBadges}</div>
+                                <div class="signal-card-meta">
+                                    @ ${odds} | pWin: ${pWin} | Tier: ${tier} ${isLocked ? '🔒' : ''} | Stake: ${stakeUsd}${stakePct ? ` (${stakePct})` : ''}
+                                </div>
+                            `;
+                            signalsList.appendChild(signalDiv);
+                        }
+                    });
+                }
+                if (!hasSignals) {
+                    signalsList.innerHTML = '<div style="color: var(--dim);">No active signals</div>';
+                }
+            }
+
+            // Update Activity
+            const activity = document.getElementById('activity-list');
+            if (!activity) return;
+
+            activity.innerHTML = '';
+
+            if (data.assets && Object.keys(data.assets).length > 0) {
+                let hasActivity = false;
+                Object.entries(data.assets).forEach(([name, asset]) => {
+                    const sig = asset.oracleSignal;
+                    if (sig && sig.action && ['PREPARE', 'BUY', 'SELL'].includes(String(sig.action).toUpperCase())) {
+                        hasActivity = true;
+                        const div = document.createElement('div');
+                        div.className = 'activity-item';
+                        const action = String(sig.action).toUpperCase();
+                        const dir = sig.direction || asset.prediction || 'WAIT';
+                        const odds = Number.isFinite(sig.implied) ? fmtCents01(sig.implied, 1) : '--';
+                        const setSuffix = `${sig.primarySetActive ? 'TOP7' : ''}${sig.primarySetActive && sig.top3RobustActive ? '+' : ''}${sig.top3RobustActive ? 'TOP3' : ''}`;
+                        div.innerHTML = `<strong>${name}</strong>: ${action} ${dir} @ ${odds}${setSuffix ? ` | ${setSuffix}` : ''}`;
+                        activity.appendChild(div);
+                    }
+                });
+
+                if (!hasActivity) {
+                    activity.innerHTML = '<div style="color: var(--dim);">Waiting for trading signals...</div>';
+                }
+            } else {
+                activity.innerHTML = '<div style="color: var(--dim);">Syncing with server...</div>';
+            }
+
+            // Show P/L if available
+            if (data.todayPnL !== undefined) {
+                const pnlDiv = document.createElement('div');
+                pnlDiv.className = 'activity-pnl';
+                pnlDiv.style.color = data.todayPnL >= 0 ? 'var(--green)' : 'var(--red)';
+                pnlDiv.innerHTML = `<strong>Today's P/L:</strong> £${data.todayPnL.toFixed(2)}`;
+                activity.appendChild(pnlDiv);
+            }
+        });
+    </script>
+</body>
+
+</html>

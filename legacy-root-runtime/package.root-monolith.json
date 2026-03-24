@@ -1,0 +1,33 @@
+{
+    "name": "polyprophet",
+    "version": "4.9.0-v134",
+    "description": "POLYPROPHET v106 - Paper-only oracle: 97%+ WR, 41+ trades/day, ENABLE_LIVE_TRADING opt-in, drift alerts, per-asset breakdown",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "assistant:start": "node assistant-server.js",
+        "assistant:check": "node --check assistant-server.js && node --check assistant/public/app.js",
+        "forensics:debug": "node scripts/forensics/analyze_debug.js",
+        "forensics:ledger": "node scripts/forensics/generate_ledger.js",
+        "test": "node -e \"console.log('OK')\"",
+        "analysis": "node exhaustive_market_analysis.js"
+    },
+    "dependencies": {
+        "@polymarket/clob-client": "^4.5.0",
+        "axios": "^1.6.0",
+        "basic-auth": "^2.0.1",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "ethers": "^5.8.0",
+        "express": "^4.18.2",
+        "https-proxy-agent": "^7.0.2",
+        "ioredis": "^5.3.2",
+        "node-fetch": "^3.3.1",
+        "socket.io": "^4.7.2",
+        "ws": "^8.13.0"
+    },
+    "engines": {
+        "node": "20.x"
+    },
+    "engineStrict": true
+}

@@ -20667,3 +20667,380 @@ This is NOT a strategy quality problem — it is a **micro-bankroll survivabilit
 - The 5m strategy set is ready to deploy as an artifact — the runtime can load it when activated
 
 End of Addendum AO30.33 — Fresh all-asset 5m strategy validation pass, 23 March 2026
+
+## Addendum AO30.34 — Deployment push and live verification, 23 March 2026
+
+### AO30.34.1) What was pushed
+
+Git commit `2918bc4` was pushed to `origin/main` at `https://github.com/jadenmubaira-oss/POLYPROPHET.git` containing:
+
+- `render.yaml`: build/start aligned to root runtime (`npm ci` / `npm start`)
+- `multiframe_engine.js`: `loadStrategySet4h()` now loads `debug/strategy_set_4h_maxprofit.json`
+- `.gitignore`: whitelisted new strategy artifacts
+- `debug/strategy_set_4h_maxprofit.json`: 8 walk-forward validated 4h strategies
+- `debug/strategy_set_5m_maxprofit.json`: 10 walk-forward validated 5m strategies
+- `debug/4h_maxprofit_full_analysis.json`: full 4h analysis summary
+- `debug/5m_maxprofit_full_analysis.json`: full 5m analysis summary
+- `scripts/walkforward_validate_and_sim.js`: walk-forward + replay + MC simulation script
+- `scripts/enrich_5m_clob.js`: 5m CLOB intracycle enrichment script
+- `IMPLEMENTATION_PLAN_v140.md`: AO30.29–33 addenda
+
+### AO30.34.2) Live Render status after push
+
+The live Render host `https://polyprophet-1-rr1g.onrender.com` was checked multiple times after the push. It still reports:
+
+- `gitCommit: 6f1242a` (old commit, not our new `2918bc4`)
+- `4h: disabled by env, strategySet loaded=false`
+- `5m: signalEnabled=false`
+
+This means **Render did not auto-deploy from the push**.
+
+### AO30.34.3) Why Render did not auto-deploy
+
+Most likely causes:
+
+1. Auto-deploy is disabled in the Render dashboard for this service
+2. Render is connected to a different GitHub repository or branch than `jadenmubaira-oss/POLYPROPHET` `main`
+3. The Render service was originally created manually (not via Blueprint) and doesn't watch `render.yaml`
+
+### AO30.34.4) Manual deploy steps required
+
+To deploy the new code to Render:
+
+1. Open the Render dashboard at `https://dashboard.render.com`
+2. Navigate to the `polyprophet` service
+3. Click **Manual Deploy** → **Deploy latest commit** (or select commit `2918bc4`)
+4. Wait for the build to complete (~2-5 minutes)
+5. Verify via `/api/version` that `gitCommit` now shows `2918bc4`
+
+### AO30.34.5) Post-deploy verification checklist
+
+After the deploy completes, verify these endpoints:
+
+1. `/api/version` — should show `gitCommit: 2918bc4`
+2. `/api/multiframe/status` — should show `4h.strategySet.loaded=true` (if `MULTIFRAME_4H_ENABLED=true` in env)
+3. `/api/live-op-config` — should show the current operator strategy configuration
+4. `/api/health` — should show `status: ok`
+
+### AO30.34.6) To enable 4h trading after deploy
+
+After verifying the deploy, to activate 4h trading:
+
+1. In Render dashboard Environment tab, set `MULTIFRAME_4H_ENABLED=true`
+2. Redeploy or restart the service
+3. Verify `/api/multiframe/status` shows `4h.signalEnabled=true` and `4h.strategySet.loaded=true`
+4. The 8 walk-forward validated strategies from `debug/strategy_set_4h_maxprofit.json` will then be active
+
+### AO30.34.7) Current honest readiness state
+
+| Market | Strategy Ready | Runtime Ready | Deploy Ready | Env Ready | Execute Ready |
+|--------|---------------|---------------|--------------|-----------|---------------|
+| 15m | YES (top7_drop6) | YES | YES (already live) | YES | YES |
+| 4h | YES (8 maxprofit strategies) | YES (code path exists) | YES (artifact in repo, whitelisted) | NO (needs MULTIFRAME_4H_ENABLED=true) | **PENDING ENV CHANGE** |
+| 5m | YES (10 maxprofit strategies, 80.7% WR) | PARTIAL (monitor-only, no evaluate5mStrategies) | YES (artifact in repo) | NO (signalEnabled=false) | **NOT YET** (micro-bankroll fragile + needs runtime wiring) |
+| 1h | NO | NO | NO | NO | **NOT SUPPORTED** |
+
+End of Addendum AO30.34 — Deployment push and live verification, 23 March 2026
+
+## AO30.35) POLYPROPHET-LITE FINALIZATION PATCH — VALIDATED ARTIFACT WIRING, TIMEFRAME GATING, AND HONEST EXECUTION BOUNDARY
+
+Date: 23 March 2026
+
+### AO30.35.1) Scope of this patch
+
+This pass did **not** deploy anything live. It updated the local `polyprophet-lite` app so its default runtime behavior better matches the validated evidence already produced in the debug artifacts.
+
+Files changed in this pass:
+
+- `polyprophet-lite/lib/config.js`
+- `polyprophet-lite/server.js`
+- `polyprophet-lite/lib/market-discovery.js`
+- `polyprophet-lite/.env.example`
+
+### AO30.35.2) Verified problems that were fixed
+
+#### A) Lite default asset universe exceeded the validated universe
+
+Before this patch, `polyprophet-lite/lib/config.js` defaulted to:
+
+- `BTC`
+- `ETH`
+- `SOL`
+- `XRP`
+- `DOGE`
+- `BNB`
+- `HYPE`
+
+But the fresh validated 4h and 5m artifacts were built on datasets covering only:
+
+- `BTC`
+- `ETH`
+- `SOL`
+- `XRP`
+
+Evidence:
+
+- `debug/4h_maxprofit_full_analysis.json` → `dataset.assets = [BTC, ETH, SOL, XRP]`
+- `debug/5m_maxprofit_full_analysis.json` → `dataset.assets = [BTC, ETH, SOL, XRP]`
+
+Because the strategy rows use `"asset": "ALL"`, leaving lite on a 7-asset default would have allowed the runtime to apply those rows to unvalidated assets.
+
+**Fix implemented:** lite now defaults to `ASSETS=BTC,ETH,SOL,XRP`, with env override support preserved.
+
+#### B) Lite was still biased toward stale/adaptation-era 4h/5m strategy files
+
+Before this patch, `polyprophet-lite/server.js` loaded per-timeframe strategies primarily from:
+
+- `polyprophet-lite/strategies/strategy_set_4h_top8.json`
+- `polyprophet-lite/strategies/strategy_set_5m_top8.json`
+
+Those are adaptation-based legacy sets, not the fresh walk-forward validated artifacts.
+
+**Fix implemented:** loader priority now prefers:
+
+- `debug/strategy_set_4h_maxprofit.json`
+- fallback `debug/strategy_set_4h_curated.json`
+- `debug/strategy_set_5m_maxprofit.json`
+- fallback `debug/strategy_set_5m_walkforward_top4.json`
+
+This means the lite app will consume the new validated files first when those timeframes are enabled.
+
+#### C) Lite had no explicit execution gate for 5m vs 4h
+
+The audit evidence is asymmetric:
+
+- `debug/4h_maxprofit_full_analysis.json` → `verdict.executeReady = true`
+- `debug/5m_maxprofit_full_analysis.json` → `verdict.executeReady = false`
+
+So simply wiring both validated files and enabling both by default would have been dishonest and unsafe.
+
+**Fix implemented:** `polyprophet-lite/lib/config.js` now supports explicit timeframe gates:
+
+- `TIMEFRAME_15M_ENABLED` → default `true`
+- `TIMEFRAME_5M_ENABLED` → default `false`
+- `MULTIFRAME_4H_ENABLED` / `ENABLE_4H_TRADING` → default `false`
+
+This preserves the honest boundary:
+
+- `15m` enabled by default
+- `4h` available but opt-in
+- `5m` disabled by default because its own replay/MC evidence is not execute-ready
+
+#### D) Discovery/evaluation/status previously treated all configured timeframes as active
+
+Before this patch, lite loops in `server.js` and `lib/market-discovery.js` iterated across `CONFIG.TIMEFRAMES` with no `enabled` filtering.
+
+That meant adding flags alone would not actually constrain runtime behavior.
+
+**Fix implemented:**
+
+- `polyprophet-lite/server.js` now filters orchestration and strategy loading to enabled timeframes only
+- `polyprophet-lite/lib/market-discovery.js` now discovers only enabled timeframes
+- `/api/health` now exposes both active `timeframes` and `configuredTimeframes`
+- startup logs now print enabled timeframes only
+
+### AO30.35.3) Exact local runtime posture after this patch
+
+With no extra env overrides, the local lite app now defaults to:
+
+- `ASSETS=BTC,ETH,SOL,XRP`
+- `15m enabled`
+- `5m disabled`
+- `4h disabled`
+
+If the operator explicitly sets `MULTIFRAME_4H_ENABLED=true`, lite should then load and evaluate `debug/strategy_set_4h_maxprofit.json` first.
+
+If the operator explicitly sets `TIMEFRAME_5M_ENABLED=true`, lite can now load `debug/strategy_set_5m_maxprofit.json`, **but this remains intentionally disabled by default because the current 5m evidence does not support execute-readiness**.
+
+### AO30.35.4) Local verification performed
+
+The following syntax checks were run successfully after the patch:
+
+- `node --check polyprophet-lite/server.js`
+- `node --check polyprophet-lite/lib/config.js`
+- `node --check polyprophet-lite/lib/market-discovery.js`
+
+No syntax errors were reported.
+
+### AO30.35.5) What this patch does NOT prove
+
+This patch improves the **truthfulness and safety of the local lite runtime**, but it does **not** prove live profitability or live deployment correctness.
+
+Still unproven / still pending:
+
+1. The live Render service is still serving the repo-root runtime, not `polyprophet-lite`
+2. `render.yaml` is still aligned to the root runtime (`npm ci` / `npm start` at repo root)
+3. No fresh funded live smoke test was executed on the lite app after this patch
+4. 5m remains non-execute-ready by its own current replay and Monte Carlo artifacts
+5. 4h still needs explicit env enablement plus live deployment verification before claiming production execution readiness
+
+### AO30.35.6) Updated honest readiness table for lite after patch
+
+| Lite Timeframe | Strategy Artifact Preferred | Default State | Evidence Status | Honest Verdict |
+|----------------|-----------------------------|---------------|-----------------|----------------|
+| 15m | `debug/strategy_set_top7_drop6.json` | ENABLED | Existing operator runtime artifact | READY IN LOCAL LITE CODE PATH |
+| 4h | `debug/strategy_set_4h_maxprofit.json` | DISABLED | `executeReady=true` locally | **READY TO ENABLE LOCALLY, NOT LIVE-PROVEN** |
+| 5m | `debug/strategy_set_5m_maxprofit.json` | DISABLED | `executeReady=false` locally | **KEEP DISABLED** |
+
+### AO30.35.7) Bottom line
+
+This patch closes the most concrete local `polyprophet-lite` truthfulness/runtime gaps found in the finalization audit:
+
+- validated asset scope now matches runtime defaults
+- validated 4h/5m artifacts are now the preferred runtime inputs
+- timeframe enablement is now explicit and enforceable
+- 5m is no longer implicitly treated like an execution-ready expansion path
+
+The remaining blocker is **deployment truth**, not local file wiring.
+
+End of Addendum AO30.35 — Polyprophet-lite finalization patch, 23 March 2026
+
+## AO30.36) REPO-ROOT REPLACEMENT WITH POLYPROPHET-LITE — PROMOTION, REVERIFICATION, AND RESIDUAL BOUNDARY
+
+Date: 23 March 2026
+
+### AO30.36.1) Purpose
+
+This pass addressed the deployment/runtime mismatch more directly by promoting `polyprophet-lite` to the repo root canonical app surface instead of leaving it as a nested subtree while the old monolith remained the default root runtime.
+
+### AO30.36.2) What was changed at repo root
+
+The following root runtime/deploy files now come from the lite app:
+
+- `server.js`
+- `lib/`
+- `public/`
+- `scripts/`
+- `strategies/`
+- `data/`
+- `.env.example`
+- `package.json`
+- `package-lock.json`
+- `render.yaml`
+
+The old root monolith runtime surface was archived to:
+
+- `legacy-root-runtime/server.root-monolith.js`
+- `legacy-root-runtime/public.root-monolith/`
+- `legacy-root-runtime/scripts.root-monolith/`
+- `legacy-root-runtime/env.example.root-monolith`
+- `legacy-root-runtime/package.root-monolith.json`
+- `legacy-root-runtime/package-lock.root-monolith.json`
+- `legacy-root-runtime/render.root-monolith.yaml`
+
+This means the repo root now starts the lite runtime by default via:
+
+- `npm start` → root `server.js` (lite)
+- root `render.yaml` → `npm ci` + `npm start`
+
+### AO30.36.3) Root-compatibility fixes required before promotion
+
+Before moving lite into root, one real path issue had to be corrected:
+
+- `polyprophet-lite/server.js` previously assumed validated debug artifacts lived one directory above the app (`path.join(__dirname, '..', 'debug', ...)`)
+
+That would have broken after root promotion.
+
+**Fix implemented:** the lite server now computes `REPO_ROOT` dynamically:
+
+- if `debug/` exists beside the server, use `__dirname`
+- otherwise fall back to `path.join(__dirname, '..')`
+
+This preserves correct artifact resolution in both nested and root layouts.
+
+### AO30.36.4) Root package/deploy posture after promotion
+
+Root `package.json` is now lite-oriented and limited to the lite runtime dependency surface.
+
+Root `render.yaml` is now lite-oriented and encodes the audited default posture:
+
+- `TRADE_MODE=PAPER`
+- `ENABLE_LIVE_TRADING=false`
+- `LIVE_AUTOTRADING_ENABLED=false`
+- `ASSETS=BTC,ETH,SOL,XRP`
+- `TIMEFRAME_15M_ENABLED=true`
+- `TIMEFRAME_5M_ENABLED=false`
+- `MULTIFRAME_4H_ENABLED=false`
+- `STRATEGY_SET_15M_PATH=debug/strategy_set_top7_drop6.json`
+- `STRATEGY_SET_4H_PATH=debug/strategy_set_4h_maxprofit.json`
+- `STRATEGY_SET_5M_PATH=debug/strategy_set_5m_maxprofit.json`
+
+### AO30.36.5) Reverification performed after promotion
+
+#### A) File-layout verification
+
+Post-migration inspection confirmed:
+
+- root `server.js` is the lite server (~21.6 KB), not the old monolith (~1.85 MB)
+- root `public/` now contains the lite dashboard surface
+- root `scripts/` now contains only lite scripts:
+  - `collect-historical.js`
+  - `strategy-scan.js`
+- `polyprophet-lite/` was reduced to a leftover `node_modules/` directory only
+
+#### B) Syntax verification
+
+The following root files passed `node --check` after promotion:
+
+- `server.js`
+- `lib/config.js`
+- `lib/market-discovery.js`
+- `lib/trade-executor.js`
+- `lib/clob-client.js`
+- `lib/risk-manager.js`
+- `lib/strategy-matcher.js`
+- `scripts/collect-historical.js`
+- `scripts/strategy-scan.js`
+
+#### C) Safe module-load verification
+
+The following root libs were loaded successfully in a single Node process without starting the server:
+
+- `./lib/config`
+- `./lib/market-discovery`
+- `./lib/strategy-matcher`
+- `./lib/risk-manager`
+- `./lib/clob-client`
+- `./lib/trade-executor`
+- `./lib/telegram`
+
+Observed result: `ROOT_LITE_LIBS_OK`
+
+This is stronger than syntax-only checking because it confirms the promoted root dependency surface can be resolved locally.
+
+### AO30.36.6) Honest re-investigation findings after replacement
+
+#### Confirmed fixed
+
+1. The repo root no longer defaults to the old monolith runtime
+2. The root deploy blueprint no longer points at the old monolith startup surface
+3. The validated 4h/5m artifact wiring and timeframe gating now sit on the repo-root canonical app surface
+4. The previous root-vs-lite ambiguity is materially reduced
+
+#### Still true / still not proven
+
+1. No fresh live Render deploy was executed in this pass
+2. No funded live smoke test was executed in this pass
+3. 4h remains opt-in and still requires explicit enablement + live verification
+4. 5m remains disabled by default and still should not be treated as execute-ready
+5. The repo still contains many non-runtime research/audit artifacts at top level; this pass replaced the **runtime/deploy surface**, not every historical analysis file in the repository
+
+### AO30.36.7) Practical meaning of this change
+
+Before AO30.36, the honest statement was:
+
+- lite had been improved locally, but the repo root still primarily represented the old monolith runtime
+
+After AO30.36, the honest statement is:
+
+- the repo root itself now represents the lite app as the canonical runtime surface
+
+That is a real structural improvement for deployment truth.
+
+### AO30.36.8) Bottom line
+
+The repository has now been re-centered around `polyprophet-lite` at the root runtime/deploy layer.
+
+This does **not** yet prove live profitability or live deployment correctness, but it **does** eliminate the largest local structural ambiguity that previously allowed the old root runtime to remain the effective default.
+
+End of Addendum AO30.36 — Repo-root replacement with polyprophet-lite, 23 March 2026
