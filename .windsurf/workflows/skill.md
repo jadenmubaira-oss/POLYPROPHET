@@ -16,12 +16,16 @@ Invoke `/skill` when you need the full DEITY operational protocol for ANY Polypr
 ## Pre-Flight (EVERY SESSION)
 
 1. **Read `README.md`** — the Immortal Manifesto, full source of truth
-2. **Identify yourself** in your first response:
+2. **Read `AGENTS.md`** if present — it is the cross-harness map for this repo's hybrid DEITY + ECC adaptation
+3. **Read `.agent/skills/ECC_BASELINE/SKILL.md`** as an additive baseline when present
+    - Use it for research-first, security-aware, evidence-backed execution
+    - If it conflicts with repo-specific guidance, `README.md` + DEITY win
+4. **Identify yourself** in your first response:
    ```
    I am [Claude Opus / ChatGPT / Other] operating as DEITY agent.
    Session started: [timestamp]
    ```
-3. **Start every substantive response with a BRIEF**:
+5. **Start every substantive response with a BRIEF**:
    ```
    ## BRIEF
    **Task**: [What was asked]
@@ -31,8 +35,8 @@ Invoke `/skill` when you need the full DEITY operational protocol for ANY Polypr
    **Confidence**: [HIGH/MEDIUM/LOW + justification]
    **Verification Plan**: [How you will verify correctness]
    ```
-4. **Check `IMPLEMENTATION_PLAN_v140.md`** for the relevant AO30 addenda before changing direction
-5. **Inspect the relevant dashboard/UI surfaces** when auditing runtime behavior
+6. **Check `IMPLEMENTATION_PLAN_v140.md`** for the relevant AO30 addenda before changing direction
+7. **Inspect the relevant dashboard/UI surfaces** when auditing runtime behavior
 
 ## Current Mission
 
@@ -124,6 +128,8 @@ When ending a session:
 | File | Purpose |
 |------|---------|
 | `README.md` | Immortal manifesto — read FIRST |
+| `AGENTS.md` | Hybrid harness entrypoint for repo-specific DEITY + local ECC adaptation |
+| `.agent/skills/ECC_BASELINE/SKILL.md` | Additive ECC-derived baseline; does not override DEITY |
 | `IMPLEMENTATION_PLAN_v140.md` | Full audit trail (AO30.x addenda) |
 | `server.js` | Lite runtime entry |
 | `lib/config.js` | Configuration + env vars |

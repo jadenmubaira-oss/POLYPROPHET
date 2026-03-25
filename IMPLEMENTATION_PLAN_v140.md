@@ -21044,3 +21044,221 @@ The repository has now been re-centered around `polyprophet-lite` at the root ru
 This does **not** yet prove live profitability or live deployment correctness, but it **does** eliminate the largest local structural ambiguity that previously allowed the old root runtime to remain the effective default.
 
 End of Addendum AO30.36 — Repo-root replacement with polyprophet-lite, 23 March 2026
+
+### AO30.37) Manual Render redeploy re-verification after root promotion (24 March 2026)
+
+#### What was verified live
+
+1. `origin/main` was advanced to commit `1c3c90f` (`refactor: promote polyprophet-lite to repo root`)
+2. The Render service did **not** update on push alone; a manual dashboard deploy was required
+3. After the manual deploy, the live API surface changed materially in a way consistent with the root-promoted lite runtime
+
+#### Live endpoint truth after manual deploy
+
+Observed on `https://polyprophet-1-rr1g.onrender.com`:
+
+- `GET /api/health` returned `version: polyprophet-lite-1.0.0`
+- `GET /api/status` returned the lite runtime status payload (`risk`, `executor`, `markets`, `orchestrator`, `strategies`)
+- Legacy monolith verification endpoints returned `404`:
+  - `/api/version`
+  - `/api/live-op-config`
+  - `/api/multiframe/status`
+  - `/api/state`
+
+This is strong evidence that the root-promoted lite runtime is now the live deployed service.
+
+#### Live runtime state observed
+
+From live `GET /api/health` and `GET /api/status`:
+
+1. `mode` was `LIVE`
+2. `isLive` was `true`
+3. Active assets were `BTC, ETH, SOL, XRP`
+4. Enabled timeframes reported by runtime were `15m` and `4h`
+5. Configured timeframe flags were reported as:
+   - `5m: false`
+   - `15m: true`
+   - `4h: true`
+6. The orchestrator was running and had discovered 8 active markets (`4 assets x 2 enabled timeframes`)
+7. `candidatesFound` and `tradesAttempted` were both `0` at the sampled instant
+
+#### Important mismatch: intended strategy artifacts were not the ones loaded live
+
+The deployed root `render.yaml` sets:
+
+- `STRATEGY_SET_15M_PATH=debug/strategy_set_top7_drop6.json`
+- `STRATEGY_SET_4H_PATH=debug/strategy_set_4h_maxprofit.json`
+- `STRATEGY_SET_5M_PATH=debug/strategy_set_5m_maxprofit.json`
+
+However live `GET /api/status` / `GET /api/health` reported:
+
+- `15m` loaded from `/app/strategies/strategy_set_15m_top8.json`
+- `4h` loaded from `/app/strategies/strategy_set_4h_top8.json`
+
+This means the live runtime fell back to bundled `strategies/` artifacts instead of using the intended `debug/` artifact paths.
+
+#### Additional live balance truth
+
+`GET /api/wallet/balance` reported:
+
+1. `walletLoaded: true`
+2. `balanceBreakdown.source: UNKNOWN`
+3. `baselineBankrollInitialized: false`
+4. `baselineBankroll: 5`
+
+So the service is running in live mode, but at the sampled instant the lite runtime had not established a verified live balance baseline.
+
+#### Honest interpretation
+
+Confirmed true:
+
+1. The live Render service is no longer serving the old monolith runtime
+2. The root-promoted `polyprophet-lite` runtime is now the live deployed service
+3. The old endpoint verification method must no longer be used for this service because the live API surface changed
+
+Still not fully proven / still blocked:
+
+1. The live service is **not yet proven** to be honoring the intended validated `debug/` strategy artifacts
+2. The live service is currently loading fallback bundled strategy sets instead of the intended `debug` files
+3. The exact root cause is not fully proven from outside the host; likely candidates are:
+   - Render dashboard environment variables overriding or omitting the blueprint values
+   - runtime file availability mismatch for the `debug/` artifacts on the deployed host
+4. `render.yaml` defaults to `TRADE_MODE=PAPER` and `MULTIFRAME_4H_ENABLED=false`, but live health reported `LIVE` mode and `4h` enabled, which proves dashboard/runtime env overrides are currently in effect
+
+#### Practical next action
+
+Before trusting live 15m/4h behavior as equivalent to the validated deployment target, re-check the Render service environment and confirm the host can actually resolve:
+
+- `debug/strategy_set_top7_drop6.json`
+- `debug/strategy_set_4h_maxprofit.json`
+- `debug/strategy_set_5m_maxprofit.json`
+
+Then redeploy and re-verify that live `strategySets` no longer point at `/app/strategies/strategy_set_*_top8.json`.
+
+End of Addendum AO30.37 — Manual Render redeploy re-verification after root promotion, 24 March 2026
+
+### AO30.38) Corrected live-blocker root cause + local hardening patch set (25 March 2026)
+
+#### What was re-verified locally
+
+1. `debug/strategy_set_top7_drop6.json`, `debug/strategy_set_4h_maxprofit.json`, and `debug/strategy_set_5m_maxprofit.json` are currently tracked by git
+2. `git check-ignore` produced no matching ignore rule for those files in the current repo state
+3. Therefore the present repository snapshot does **not** support `.gitignore` as the active blocker for validated `debug/` artifact deployment
+4. `render.yaml` still points the intended runtime artifact paths at:
+   - `debug/strategy_set_top7_drop6.json`
+   - `debug/strategy_set_4h_maxprofit.json`
+   - `debug/strategy_set_5m_maxprofit.json`
+5. `lib/config.js` still exposes the live geoblock posture via `PROXY_URL` and `CLOB_FORCE_PROXY`
+
+#### Stronger root cause for zero/blank live markets
+
+In the previous `lib/market-discovery.js` implementation, `fetchJSON()` automatically forced all non-CLOB URLs through the proxy whenever `PROXY_URL` existed.
+
+That behavior matters because Gamma market discovery calls are non-CLOB URLs, for example:
+
+- `https://gamma-api.polymarket.com/markets?slug=...`
+
+So in a live environment with a configured proxy, Gamma slug discovery could fail because of the proxy path even while the rest of the runtime remained up.
+
+This is a stronger local match for the observed live symptom where the runtime stayed alive but active/priceable markets collapsed to zero or blank.
+
+#### Why the proxy explanation fits the live deployment posture
+
+Current docs and operator guidance explicitly describe geoblocked operation using:
+
+- `PROXY_URL=<set>`
+- `CLOB_FORCE_PROXY=1`
+
+Under the old `fetchJSON()` logic, that live posture did **not** just force CLOB through the proxy; it also pushed Gamma through the proxy by default.
+
+That is broader than the intended geoblock workaround.
+
+#### Local market-discovery hardening applied
+
+1. `fetchJSON()` now only uses the proxy when the caller explicitly sets `useProxy: true`
+2. `fetchMarketBySlug()` now performs Gamma lookup direct-first, then falls back to proxy only if direct lookup throws and a proxy exists
+3. `fetchCLOBBook()` now passes explicit proxy intent based on `CLOB_FORCE_PROXY`
+
+Practical effect:
+
+1. Gamma slug discovery is no longer proxy-forced by accident
+2. CLOB can still use the configured geoblock workaround when explicitly required
+3. A bad Gamma-via-proxy path should no longer silently collapse otherwise-valid market discovery
+
+#### Corrected understanding of the 4h artifact blocker
+
+The live `4h` mismatch and the zero/blank market issue were not the same bug.
+
+Local artifact comparison showed:
+
+1. `debug/strategy_set_4h_maxprofit.json` is the validated walk-forward artifact with `8` strategies
+2. `strategies/strategy_set_4h_top8.json` was a stale adapted fallback artifact with only `6` strategies
+
+So even if the host continued to fall back to `/app/strategies/strategy_set_4h_top8.json`, it was landing on the wrong `4h` strategy set.
+
+#### Local 4h fallback hardening applied
+
+1. `strategies/strategy_set_4h_top8.json` was replaced with the validated contents of `debug/strategy_set_4h_maxprofit.json`
+2. A local JSON equality check returned `same: true`
+3. That means the bundled `4h` fallback is now aligned with the validated `4h` artifact
+
+Practical effect:
+
+1. If Render honors the intended `debug` path, it should load the validated `4h` set
+2. If Render still falls back to the bundled `strategies` path, it should now land on the same validated `4h` logic instead of the stale adapted artifact
+
+#### Additional 15m fallback hardening applied
+
+Local comparison also showed that the live-observed bundled `15m` fallback path was not equivalent to the validated primary set:
+
+1. `debug/strategy_set_top7_drop6.json` is the intended validated `15m` artifact (`7` strategies)
+2. `strategies/strategy_set_15m_top8.json` is a different bundled fallback artifact (`8` strategies)
+3. The validated `top7_drop6` set intentionally removes strategy id `6` (`H20 m01 DOWN (68-80c)`) from the bundled top-8 set
+
+So if the host fell back to `/app/strategies/strategy_set_15m_top8.json`, it was not using the validated `15m` primary set.
+
+To reduce that mismatch, `server.js` was patched so `15m` candidate resolution now checks these debug artifacts before bundled `strategies/` files:
+
+1. `debug/strategy_set_top7_drop6.json`
+2. `debug/strategy_set_top8_current.json`
+
+Practical effect:
+
+1. If the live env path is missing or overridden but the debug files exist on host, `15m` should now still resolve to the validated debug artifact before falling back to bundled `strategies/strategy_set_15m_top8.json`
+2. This makes `15m` fallback precedence consistent with the stronger debug-first behavior already used for `4h` and `5m`
+
+#### Fresh live re-audit result on the public Render host
+
+A fresh live endpoint audit was executed after the local patch set, and the public host still showed the older pre-patch runtime state:
+
+1. `/api/health` reported `uptime` around `58987s`, which is not consistent with a fresh patched restart landing immediately before the audit
+2. Live `15m` resolution was already pointing at `/app/debug/strategy_set_top7_drop6.json` with `7` strategies
+3. Live `4h` resolution was still pointing at `/app/strategies/strategy_set_4h_top8.json` with only `6` strategies
+4. The live `strategySets.*.loadedAt` values still showed `2026-03-24T13:36:27.708Z`
+5. `/api/status` still reported all `8` tracked markets as `NOT_FOUND`
+6. `/api/wallet/balance` still reported trading balance `0` with source `UNKNOWN`
+
+Conclusion:
+
+1. The public Render host observed during this audit was still pre-patch
+2. The local market-discovery hardening and `4h` fallback replacement were **not yet reflected live** at audit time
+3. Deployment state, not local code state, is now the blocking variable
+
+#### Honest boundary
+
+Not yet proven in this pass:
+
+1. A fresh live re-audit was executed, but it showed the public host still running the older pre-patch state
+2. Therefore the patched deployment has not yet been proven to be live on the public host
+3. Active-market recovery and live `15m` / `4h` artifact resolution remain unresolved in production until the patched build actually lands
+
+#### Next proof gate
+
+1. Trigger or confirm the actual Render deployment for this patch set
+2. Re-check `/api/health`, `/api/status`, and `/api/wallet/balance`
+3. Confirm that `4h` stops loading `/app/strategies/strategy_set_4h_top8.json` and instead resolves to the intended validated artifact path
+4. Confirm that active markets and prices repopulate on the live host
+5. Confirm that live `strategySets` either point at the intended `debug/` files or at the now-hardened validated fallback path
+6. Only after that should further profitability ranking work resume
+
+End of Addendum AO30.38 — Corrected live-blocker root cause + local hardening patch set, 25 March 2026

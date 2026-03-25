@@ -862,6 +862,314 @@ CLOB_FORCE_PROXY=1
 
 **ACTION REQUIRED**: After deploying the `TELEGRAM_SIGNALS_ONLY` bug fix, verify via `GET /api/health` that `isLive: true` appears in the response.
 
+### Maximum Profit Strategy Research Plan (25 March 2026)
+
+#### Why Current Strategies Alone Can't Reach $xxx→$xxxx+ from $5
+
+The fundamental problem is not strategy quality — it's **min-order-dominated sizing at micro bankroll**:
+
+- Current strategies enter at 60-80c → 5 shares × 75c = **$3.75 per trade = 75% of $5 bankroll**
+- One loss = bankroll drops to $1.25 → below tradability threshold
+- Even at 88% WR, P(first loss in first 3 trades) ≈ 33%
+- Result: 25% bust rate, median $28.91 in 30 days
+
+The solution is to **flip the risk/reward asymmetry** by trading at extreme prices.
+
+#### The Death Bounce / Floor Bounce Opportunity
+
+**What it is:** In Polymarket 15m crypto markets, price occasionally flips from one extreme to the other (e.g., YES goes from 85c→15c, or from 10c→80c). This happens when the underlying crypto asset reverses sharply mid-cycle.
+
+**Why it's transformative:**
+
+| Entry Price | Cost (5 shares) | % of $5 Bankroll | Win Payout | ROI | Required WR for BE |
+|:-----------:|:---------------:|:----------------:|:----------:|:---:|:------------------:|
+| 10c | $0.50 | 10% | $5.00 | 900% | 10% |
+| 15c | $0.75 | 15% | $5.00 | 567% | 15% |
+| 20c | $1.00 | 20% | $5.00 | 400% | 20% |
+| 75c (current) | $3.75 | 75% | $5.00 | 33% | 75% |
+
+At 10c entry, you can survive **8+ consecutive losses** before bust. At 75c entry, you survive **0-1 losses**.
+
+**What causes death bounces:**
+1. Crypto price reversal mid-cycle (BTC was going UP, suddenly drops → YES crashes)
+2. Late-cycle momentum shifts from external price action
+3. Resolution sniping by informed traders who know the oracle snapshot timing
+4. Mean reversion from extreme overextension
+
+#### Profit Simulation Results — Death Bounce Strategies
+
+Monte Carlo, 10,000 trials, 30 days, from $5 start:
+
+**A) Death Bounce ONLY (entry 5-20c, 4 trades/day):**
+
+| WR | Bust Rate | Median 30d | p75 | p95 |
+|----|-----------|------------|-----|-----|
+| 20% | 46.5% | $15.97 | $44.12 | $69.19 |
+| 25% | 29.6% | $51.71 | $73.21 | $101.26 |
+| 30% | 19.3% | **$81.74** | $103.05 | $132.20 |
+| 35% | 12.5% | **$113.93** | $135.71 | $166.85 |
+| 40% | 7.5% | **$147.41** | $169.43 | $202.26 |
+
+**B) Death Bounce (25% WR, 5-20c) + Standard 15m (85% WR, 70-80c):**
+
+| DB Freq | Bust Rate | Median 30d | p75 | p95 | Max |
+|---------|-----------|------------|-----|-----|-----|
+| 2/day | 36.7% | $68 | $269 | **$1,202** | $23,047 |
+| 4/day | 33.6% | **$106** | **$355** | **$1,557** | $27,068 |
+| 6/day | 31.8% | **$125** | **$350** | **$1,258** | $14,043 |
+
+**C) Higher Entry Bounces (15-30c) + Standard 15m:**
+
+| WR | Bust Rate | Median 30d | p75 | p95 | Max |
+|----|-----------|------------|-----|-----|-----|
+| 35% | 43.6% | $70 | **$329** | **$1,569** | $23,662 |
+| 40% | 31.1% | **$210** | **$634** | **$2,535** | $57,537 |
+| 45% | 22.5% | **$362** | **$964** | **$3,669** | $55,339 |
+
+**D) Combined from $7 start (DB 25% + Std 85%):**
+- Bust: 18.0% | Median: **$231** | p75: **$671** | p95: **$3,077** | Max: **$154,922**
+
+**E) Resolution Sniping (95% WR at 40-60c) + Standard 15m:**
+
+| Freq | Bust Rate | Median 30d | p75 | p95 | Max |
+|------|-----------|------------|-----|-----|-----|
+| 2/day | 3.0% | **$524** | **$1,183** | **$4,045** | $84,403 |
+| 4/day | 1.0% | **$1,018** | **$2,240** | **$7,612** | $188,492 |
+| 6/day | 0.8% | **$1,522** | **$3,448** | **$11,314** | $157,995 |
+
+#### Ranked Strategy Approaches (by expected profit potential)
+
+**TIER 1 — Highest potential, must investigate first:**
+
+**1. Resolution Sniping (Latency Arbitrage)**
+- Previously documented at 98-99% WR in IMPLEMENTATION_PLAN
+- Entry at 40-60c near resolution when outcome is highly predictable
+- Sim shows median **$1,018 in 30 days** at 4/day frequency (1.0% bust)
+- **To validate**: Need to understand Chainlink oracle snapshot timing and whether the outcome is predictable 5-30 seconds before resolution
+- **To implement**: Monitor underlying crypto price near cycle end, compare to opening snapshot, trade if direction is clear
+- **Risk**: May require sub-second execution speed; liquidity may dry up near resolution
+
+**2. Death Bounce / Floor Bounce Strategy**
+- Buy at 5-25c when market is at extreme AND crypto is reversing
+- Sim shows median **$106-$362 in 30 days** depending on WR achieved
+- **To validate**: Collect intracycle minute-by-minute price data for thousands of 15m cycles, identify how often bounces occur and what predicts them
+- **To implement**: Real-time monitor for extreme prices + crypto reversal detection
+- **Risk**: WR is unknown until validated with data; liquidity at extremes may be thin
+
+**TIER 2 — Solid secondary approaches:**
+
+**3. Cross-Asset Momentum Cascade**
+- BTC and ETH ~74% correlated
+- Watch BTC resolution, immediately trade correlated assets
+- Could add 2-4 high-probability trades per day
+- **To validate**: Analyze cross-asset correlation in intracycle data
+- **To implement**: When BTC market resolves UP, immediately buy ETH UP if price is favorable
+
+**4. Intracycle Momentum (First N Minutes → Outcome)**
+- If the first 3-5 minutes of a cycle show strong directional movement, the outcome is biased
+- The existing strategy sets partially capture this (specific minute entries)
+- **To validate**: Analyze minute-by-minute price evolution vs outcome
+- **To implement**: Extend strategy matcher to consider momentum signals
+
+**TIER 3 — Enhancement/optimization:**
+
+**5. Optimized Walk-Forward Strategies (Current Approach, Improved)**
+- Run fresh strategy scan on latest data
+- Look specifically for LOW-entry-price strategies (10-40c) which have better risk profile at micro bankroll
+- Consider asset-specific strategies instead of "ALL"
+- **To validate**: Run `exhaustive_market_analysis.js` with modified price band search
+
+**6. 4h and 5m Integration (After Bankroll Growth)**
+- Keep as planned: 4h at $20+, 5m at $50+
+- Not suitable at micro bankroll
+
+#### Investigation and Implementation Plan
+
+**Phase 1: Data Collection (1-2 hours)**
+1. Run `exhaustive_market_analysis.js` to collect fresh 15m intracycle data (30+ days, all 4 assets)
+2. The existing pipeline already fetches minute-by-minute CLOB prices via `/prices-history`
+3. Ensure `fidelity=1` (1-minute resolution) is used for maximum granularity
+4. Output: `exhaustive_analysis/intracycle_data.json` with full price paths
+
+**Phase 2: Death Bounce Analysis (1-2 hours)**
+1. Write analysis script to scan intracycle data for "death bounces":
+   - Identify cycles where price swung ≥30c from peak to trough
+   - Identify cycles where price was <20c at any point and then won (resolved at $1)
+   - Calculate: how often bounces happen, at what minute, from what price level
+   - Correlate with underlying crypto price movement
+2. Walk-forward validate bounce detection rules
+3. Output: death bounce frequency, achievable WR, optimal entry conditions
+
+**Phase 3: Resolution Sniping Analysis (1-2 hours)**
+1. Analyze the last 1-2 minutes of each cycle:
+   - What was the price at minute 13-14?
+   - What was the actual outcome?
+   - How predictable is the outcome from minute 13 prices?
+2. Investigate Chainlink oracle snapshot timing
+3. Output: resolution sniping WR, optimal entry timing
+
+**Phase 4: Strategy Implementation (2-4 hours)**
+1. Implement the highest-validated approach as a new strategy type in the runtime
+2. Add to orchestrator loop alongside existing walk-forward strategies
+3. Test locally in PAPER mode
+4. Deploy and verify
+
+**Phase 5: Live Validation (ongoing)**
+1. Monitor first 24-48 hours of combined operation
+2. Track actual WR, frequency, and P&L
+3. Adjust sizing and frequency based on real results
+
+#### Render Env Verification (From Screenshot)
+
+All IS_LIVE flags are correctly set:
+- `TRADE_MODE=LIVE` ✅
+- `ENABLE_LIVE_TRADING=1` ✅
+- `LIVE_AUTOTRADING_ENABLED=true` ✅
+- `TELEGRAM_SIGNALS_ONLY=false` ✅ (explicitly set)
+- `POLYMARKET_PRIVATE_KEY` set ✅
+- `POLYMARKET_SIGNATURE_TYPE=1` ✅
+- `PROXY_URL` set (Japan proxy) ✅
+- `CLOB_FORCE_PROXY=1` ✅
+- `MULTIFRAME_4H_ENABLED=true` ✅
+- `STRATEGY_SET_15M_PATH=debug/strategy_set_top7_drop6.json` ✅
+- `STRATEGY_SET_4H_PATH=debug/strategy_set_4h_maxprofit.json` ✅
+- `STRATEGY_SET_5M_PATH=debug/strategy_set_5m_maxprofit.json` ✅
+
+**Note**: `ENABLE_4H_TRADING=false` conflicts with `MULTIFRAME_4H_ENABLED=true`, but the code uses `??` (nullish coalescing) so `MULTIFRAME_4H_ENABLED=true` takes precedence. 4h IS enabled.
+
+**Note**: `MAX_POSITION_SIZE=0.32` — this is fine for current operation. The death bounce approach would use min-order sizing at extreme prices, so this cap doesn't constrain it.
+
+### Live Audit Reverification + Refreshed Death Bounce Findings (24 March 2026, UTC)
+
+This addendum supersedes the earlier assumption-based death-bounce projections in this README.
+
+#### Verified Live Runtime Findings
+
+- Live `walletLoaded=true` behavior still comes from `POLYMARKET_PRIVATE_KEY` auto-loading correctly. The unresolved balance issue occurs later in confirmed balance fetch/merge, not during initial private-key load.
+
+- The live `50/50` odds display was a runtime pricing bug, not a real Polymarket market condition. A local fix is prepared in `lib/market-discovery.js` to use the CLOB best-buy price endpoint and sorted bid/ask fallback instead of unsorted first levels.
+
+- The dashboard trading-balance display could show baseline bankroll while the live balance source was `UNKNOWN`. A local fix is prepared in `public/index.html` so the dashboard stops implying confirmed live funds when balance provenance is unknown.
+
+- Lite still appears to prefer fallback bundled `4h` strategy artifacts on the deployed host. That remains a deploy-time artifact-resolution issue to re-check after the next Render redeploy.
+
+#### Refreshed Intracycle Dataset
+
+- Incremental refresh extended cached analysis coverage from `2026-03-15T06:45:00.000Z` to `2026-03-24T10:15:00.000Z`.
+
+- `manifest_combined.json` now contains `59,900` markets.
+
+- The refreshed 30-day death-bounce pass loaded `11,495` recent manifest markets, `7,899` valid intracycle markets, and `31` distinct trading days.
+
+#### Refreshed Death Bounce Findings
+
+- All refreshed hold-to-resolution bounce variants remained negative expectancy over the latest 30-day window.
+
+- Best raw scalp rule by refreshed expected daily profit was:
+
+  - `entryBand=5-20c`
+  - `window=m3-m12`
+  - `target=35c`
+  - `stopFactor=80%`
+  - `winRate=17.8504%`
+  - `winRateLCB=16.9639%`
+  - `avgEntry=14.7022c`
+  - `avgWinPnlPerShare=18.4223c`
+  - `avgLossAbsPerShare=2.8894c`
+
+- Raw observed frequency for that rule was `222.10 trades/day`, which is not executable for a `$5` bankroll and must not be treated as a real live-server operating point.
+
+#### Best Current Server / Setup Recommendation
+
+- Keep live trading focused on the validated `15m` path until the price fix, balance-display fix, and live artifact-resolution re-check are deployed and verified.
+
+- Keep `4h` and `5m` disabled for live bankroll deployment until the strategy-path mismatch is resolved and the bankroll threshold justifies additional frequency.
+
+- Do **not** enable death-bounce auto-trading live yet.
+
+- If death-bounce logic is shadow-tested only, the least-bad conservative setup found in refreshed Monte Carlo was:
+
+  - `MAX_TRADES_PER_DAY=3`
+  - `GLOBAL_STOP_LOSS_PCT=0.10`
+  - `MAX_CONSECUTIVE_LOSSES=3`
+  - `COOLDOWN_DAYS=1`
+  - candidate rule `scalp 5-20c m3-m12 target=35c stop=80%`
+
+- Even under that throttled `winRateLCB` setup from a `$5` start, 30-day Monte Carlo still showed:
+
+  - `bustRate=7.14%`
+  - `medianFinal=$6.79`
+  - `p5=$1.97`
+  - probability of the first `3` trades all losing remains about `57.25%` under the same lower-bound win rate
+
+- Optimistic `mean`-win-rate sensitivity still did not make this safe enough for the user's stated constraint; the best capped setup remained around `5.6%` bust over 30 days.
+
+- Conclusion: refreshed death-bounce analysis is research-valid, but it is **not** deployment-valid for the user's current "$5 and the first few trades cannot lose" requirement.
+
+#### Next Proof Gate
+
+- Deploy the local price-fix and balance-display-fix changes to Render.
+
+- Re-verify `/api/health`, `/api/status`, and `/api/wallet/balance` after redeploy.
+
+- Confirm live strategy artifact resolution on the deployed host.
+
+- Keep death-bounce in analysis or shadow mode only until a materially safer empirical profile is proven.
+
+#### Live Blocker Root-Cause Update (25 March 2026, UTC)
+
+- `debug/strategy_set_top7_drop6.json`, `debug/strategy_set_4h_maxprofit.json`, and `debug/strategy_set_5m_maxprofit.json` are currently tracked by git. `git ls-files` returned all three paths, and `git check-ignore` returned no matching ignore rule. That means the present repo state does **not** support the earlier theory that `.gitignore` is the active blocker.
+
+- The zero/blank live market state had a stronger local root-cause match in `lib/market-discovery.js`: when `PROXY_URL` existed, `fetchJSON()` forced all non-CLOB requests through the proxy. Because Gamma market discovery uses non-CLOB URLs, a bad or mismatched proxy could turn otherwise-valid slug lookups into `NOT_FOUND` markets even while the rest of the runtime stayed up.
+
+- This matters for live because the operator docs and README deployment examples explicitly describe geoblocked operation with `PROXY_URL` and `CLOB_FORCE_PROXY=1`. Under the old code, that combination also routed Gamma through the proxy by default, even though only CLOB actually needed forced proxy behavior.
+
+- The local fix now makes Gamma slug discovery direct-first with proxy fallback, while keeping CLOB proxy usage explicit behind `CLOB_FORCE_PROXY`. That hardens market discovery against proxy-only Gamma failures without removing the geoblock workaround for CLOB.
+
+- The local `4h` blocker was also reduced materially: `strategies/strategy_set_4h_top8.json` was stale (`6` strategies, adapted artifact) while `debug/strategy_set_4h_maxprofit.json` is the validated walk-forward set (`8` strategies). The bundled fallback file has now been replaced with the validated `8`-strategy artifact, and a local JSON equality check returned `same: true`.
+
+- A related `15m` mismatch was also confirmed locally: live had previously reported falling back to `/app/strategies/strategy_set_15m_top8.json`, and that bundled file is not the validated `debug/strategy_set_top7_drop6.json` primary set. `server.js` has now been patched so `15m` checks `debug/strategy_set_top7_drop6.json` and `debug/strategy_set_top8_current.json` before bundled `strategies/` fallbacks.
+
+- Fresh live re-audit on `25 March 2026` showed the public Render host is still pre-patch: `/api/health` reported `uptime` ~`58987s`, `15m` loaded `/app/debug/strategy_set_top7_drop6.json`, but `4h` still loaded stale `/app/strategies/strategy_set_4h_top8.json` with `6` strategies and `loadedAt` still `2026-03-24T13:36:27.708Z`. `/api/status` still showed all `8` markets as `NOT_FOUND`, and `/api/wallet/balance` still reported trading balance `0` with source `UNKNOWN`.
+- Honest boundary: the local fixes are verified in code, but the public deployment still does **not** reflect them. Live proof now requires the patched Render build to actually land, then be re-audited.
+
+### Harness Adaptation Addendum — ECC to Windsurf (25 March 2026)
+
+This session investigated `affaan-m/everything-claude-code` specifically to determine whether it could be installed directly into this Windsurf workspace.
+
+#### Methodology
+
+- Read the upstream `README.md`.
+- Read the upstream `rules/README.md`.
+- Read the upstream `install.ps1` entrypoint.
+- Read the upstream `manifests/install-profiles.json`.
+- Read representative upstream rule files from `rules/common/` and `rules/typescript/`.
+- Compared those findings against this repo's current authority chain: `README.md`, `.agent/skills/DEITY/SKILL.md`, and `.windsurf/workflows/*.md`.
+
+#### Verified Findings
+
+- ECC is a portable harness system with rules, skills, agents, commands, hooks, and install tooling.
+- In the install docs inspected during this session, ECC explicitly documented install targets for Claude Code, Cursor, and Antigravity.
+- A native Windsurf install target was **not** verified from the upstream install flow that was inspected.
+- Because of that, the honest implementation for this repo is a **local Windsurf adaptation**, not a claimed one-command upstream ECC install.
+
+#### Local Adaptation Applied
+
+- Added root `AGENTS.md` as a cross-harness entrypoint.
+- Added `.agent/skills/ECC_BASELINE/SKILL.md` as an additive baseline skill.
+- Added `.windsurf/workflows/ecc-research-first.md` as a Windsurf-native workflow.
+
+#### Design Choice
+
+- `DEITY` remains the authoritative repo-specific protocol.
+- The ECC-derived layer is intentionally **additive** and imports only the parts that fit this repo cleanly:
+  - research-first development
+  - evidence-backed verification
+  - security checks before risky changes
+  - parallel exploration when independent
+  - small, reversible implementation steps
+- The adaptation intentionally does **not** replace the repo's manifesto, DEITY rules, or existing POLYPROPHET-specific workflows.
+
 ---
 
 ## Current Session State
@@ -869,10 +1177,10 @@ CLOB_FORCE_PROXY=1
 > **Update this section at the end of every AI session.**
 
 **Last Agent**: Claude Opus (Cascade) operating as DEITY agent
-**Date**: 25 March 2026
-**What was done**: Full atomic-level runtime hardening audit. Read every line of server.js + all lib/*.js + all 3 strategy artifacts + dashboard + legacy monolith comparison. Found and fixed CRITICAL bug: TELEGRAM_SIGNALS_ONLY defaulted to true, silently blocking all live trades. Ran Monte Carlo profit sim (10k trials). Documented all findings in README addendum.
-**What is pending**: (1) Deploy the TELEGRAM_SIGNALS_ONLY fix to Render. (2) Verify `isLive: true` in live `/api/health`. (3) Verify Render env vars match IS_LIVE chain requirements. (4) Run funded end-to-end live smoke test. (5) Consider adding 4h mid-cycle emergency exit for when 4h is enabled.
-**Discrepancies found**: TELEGRAM_SIGNALS_ONLY bug (FIXED in code, needs deploy). Live strategy artifact mismatch still pending verification. User mentioned Render env screenshot but it was not visible — need user to re-share or confirm env vars.
-**Methodology**: Read every character of runtime code, validated strategy artifacts against their claimed evidence, ran realistic Monte Carlo sim with min-order/cooldown/global-stop constraints, compared lite vs 35,828-line legacy monolith for missing safeguards, audited dashboard HTML against API contract.
-**Assumptions**: Profit sim uses winRateLCB (conservative). Does not model Polymarket fees (~3.15%). Does not model fill failures. Assumes sufficient liquidity.
-**Next action**: Deploy fix → verify isLive → confirm Render env → funded smoke test.
+**Date**: 25 March 2026 (UTC)
+**What was done**: (1) Investigated `affaan-m/everything-claude-code` directly from upstream docs/files rather than relying on summaries. (2) Verified that ECC provides portable rules, skills, agents, commands, and install tooling, but did **not** verify a native Windsurf install target from the inspected install flow. (3) Designed and applied a local workspace adaptation instead of pretending upstream had one-click Windsurf support. (4) Added root `AGENTS.md` as a cross-harness entrypoint. (5) Added `.agent/skills/ECC_BASELINE/SKILL.md` as an additive ECC-derived baseline skill. (6) Added `.windsurf/workflows/ecc-research-first.md` as a Windsurf-native research-first workflow adapted for POLYPROPHET. (7) Preserved `README.md` + `DEITY` as the authoritative harness and kept the ECC-derived layer additive only.
+**What is pending**: (1) If desired later, selectively import more ECC-derived workflows or conventions after file-by-file compatibility review. (2) If the user wants a deeper cross-tool setup, evaluate whether project-level `.claude/` or `.cursor/` artifacts should also be added deliberately. (3) The previously identified live runtime/deploy blocker work remains pending and unaffected by this harness adaptation session.
+**Discrepancies found**: Upstream ECC markets itself as cross-platform and supports several agent harnesses, but from the install/docs files inspected in this session I did **not** verify a native Windsurf target. The honest repo implementation is therefore a local adaptation, not a claimed direct upstream install.
+**Key insight**: The correct way to apply ECC here is to import its useful research/security/validation principles into files Windsurf and this workspace actually use, while keeping the repo-specific DEITY manifesto authoritative.
+**Methodology**: Compared upstream ECC `README.md`, `rules/README.md`, `install.ps1`, `manifests/install-profiles.json`, and representative common/typescript rule files against this repo's existing `README.md`, `.agent/skills/DEITY/SKILL.md`, and `.windsurf/workflows/` files before creating the local adaptation layer.
+**Next action**: Use the new local ECC adaptation files as the workspace baseline for future Windsurf sessions, and only expand the adaptation further if a specific additional ECC component is wanted and verified compatible.

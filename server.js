@@ -73,6 +73,10 @@ function loadAllStrategySets() {
         }
         const candidates = [
             ...envCandidates.filter(Boolean),
+            ...(tf.key === '15m' ? [
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json')
+            ] : []),
             ...(tf.key === '4h' ? [
                 path.join(REPO_ROOT, 'debug', 'strategy_set_4h_maxprofit.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_4h_curated.json')
@@ -85,11 +89,6 @@ function loadAllStrategySets() {
             path.join(strategiesDir, `strategy_set_${tf.key}_top5.json`),
             path.join(strategiesDir, `strategy_set_${tf.key}.json`),
         ];
-        // Also check for the existing 15m strategy from the parent repo
-        if (tf.key === '15m') {
-            candidates.push(path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'));
-            candidates.push(path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'));
-        }
         for (const fp of [...new Set(candidates)]) {
             const resolved = path.isAbsolute(fp) ? fp : path.join(REPO_ROOT, fp);
             if (fs.existsSync(resolved)) {
