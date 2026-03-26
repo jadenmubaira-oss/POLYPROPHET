@@ -26,11 +26,15 @@ services:
       - key: TIMEFRAME_15M_ENABLED
         value: "true"
       - key: TIMEFRAME_5M_ENABLED
-        value: "false"
+        value: "true"
       - key: MULTIFRAME_4H_ENABLED
-        value: "false"
+        value: "true"
+      - key: TIMEFRAME_4H_MIN_BANKROLL
+        value: "10"
+      - key: TIMEFRAME_5M_MIN_BANKROLL
+        value: "50"
       - key: STRATEGY_SET_15M_PATH
-        value: debug/strategy_set_top7_drop6.json
+        value: debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json
       - key: STRATEGY_SET_4H_PATH
         value: debug/strategy_set_4h_maxprofit.json
       - key: STRATEGY_SET_5M_PATH

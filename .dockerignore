@@ -33,9 +33,14 @@ backtest_results.json
 debug/*
 !debug/strategy_set_top7_drop6.json
 !debug/strategy_set_top3_robust.json
-!debug/strategy_set_top5_robust.json
 !debug/strategy_set_top8_current.json
 !debug/strategy_set_union_validated_top12.json
+!debug/strategy_set_union_validated_top12_max95.json
+!debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json
+!debug/strategy_set_4h_curated.json
+!debug/strategy_set_4h_maxprofit.json
+!debug/strategy_set_5m_maxprofit.json
+!debug/strategy_set_5m_walkforward_top4.json
 !debug/analysis/
 !debug/analysis/expected_24h48h_compact.json
 !debug/analysis/stress_expected_compact.json

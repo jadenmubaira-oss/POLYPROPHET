@@ -23,8 +23,31 @@ let diagnosticLog = [];
 const startupTime = Date.now();
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'debug')) ? __dirname : path.join(__dirname, '..');
 
- function getEnabledTimeframes() {
+ function getConfiguredTimeframes() {
      return CONFIG.TIMEFRAMES.filter(tf => tf && tf.enabled !== false);
+ }
+
+ function getRuntimeBankrollForTimeframes() {
+     const liveTradingBalance = Number(tradeExecutor?.getCachedBalanceBreakdown?.()?.tradingBalanceUsdc || tradeExecutor?.cachedLiveBalance || 0);
+     if (CONFIG.TRADE_MODE === 'LIVE' && Number.isFinite(liveTradingBalance) && liveTradingBalance > 0) {
+         return liveTradingBalance;
+     }
+
+     if (CONFIG.TRADE_MODE === 'LIVE') {
+         return Math.max(0, liveTradingBalance || 0);
+     }
+
+     const riskBankroll = Number(riskManager?.bankroll);
+     if (Number.isFinite(riskBankroll) && riskBankroll > 0) {
+         return riskBankroll;
+     }
+
+     return Number(CONFIG.RISK.startingBalance || 0) || 0;
+ }
+
+ function getEnabledTimeframes() {
+     const bankroll = getRuntimeBankrollForTimeframes();
+     return getConfiguredTimeframes().filter(tf => bankroll >= Number(tf.minBankroll || 0));
  }
 
 function saveRuntimeState() {
@@ -65,16 +88,30 @@ function loadRuntimeState() {
 // ==================== LOAD STRATEGY SETS ====================
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
-    for (const tf of getEnabledTimeframes()) {
+    const promoted15mCandidatePath = path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json');
+    const legacy15mPrimaryPath = path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json');
+
+    for (const tf of getConfiguredTimeframes()) {
         const envKey = `STRATEGY_SET_${String(tf.key || '').toUpperCase().replace(/[^A-Z0-9]/g, '')}_PATH`;
         const envCandidates = [process.env[envKey]];
         if (tf.key === '15m') {
             envCandidates.push(process.env.OPERATOR_STRATEGY_SET_PATH);
         }
+        const prioritizedEnvCandidates = envCandidates
+            .filter(Boolean)
+            .flatMap((fp) => {
+                if (tf.key !== '15m') return [fp];
+                const resolved = path.isAbsolute(fp) ? fp : path.join(REPO_ROOT, fp);
+                if (resolved === legacy15mPrimaryPath) {
+                    return [promoted15mCandidatePath, fp];
+                }
+                return [fp];
+            });
         const candidates = [
-            ...envCandidates.filter(Boolean),
+            ...prioritizedEnvCandidates,
             ...(tf.key === '15m' ? [
-                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
+                promoted15mCandidatePath,
+                legacy15mPrimaryPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json')
             ] : []),
             ...(tf.key === '4h' ? [
@@ -173,6 +210,7 @@ async function reconcilePendingLivePositions() {
 // ==================== MAIN ORCHESTRATION LOOP ====================
 async function orchestrate() {
     const nowSec = Math.floor(Date.now() / 1000);
+    const enabledTimeframes = getEnabledTimeframes();
 
     if (CONFIG.TRADE_MODE === 'LIVE') {
         await tradeExecutor.refreshLiveBalance().catch(() => null);
@@ -190,7 +228,7 @@ async function orchestrate() {
 
     // Discover all markets across all timeframes and assets
     try {
-        currentMarkets = await discoverAllMarkets(nowSec);
+        currentMarkets = await discoverAllMarkets(nowSec, enabledTimeframes);
     } catch (e) {
         console.error(`❌ Market discovery failed: ${e.message}`);
         return;
@@ -202,7 +240,7 @@ async function orchestrate() {
     const allCandidates = [];
 
     // For each timeframe, evaluate strategy matches
-    for (const tf of getEnabledTimeframes()) {
+    for (const tf of enabledTimeframes) {
         for (const asset of CONFIG.ASSETS) {
             const key = `${asset}_${tf.key}`;
             const market = currentMarkets[key];
@@ -373,6 +411,8 @@ async function resolvePendingPaperPositions() {
 app.get('/api/health', (req, res) => {
     const uptime = (Date.now() - startupTime) / 1000;
     const executorStatus = tradeExecutor.getStatus();
+    const activeTimeframes = getEnabledTimeframes();
+    const runtimeBankrollForTimeframes = getRuntimeBankrollForTimeframes();
     res.json({
         status: 'ok',
         version: 'polyprophet-lite-1.0.0',
@@ -384,8 +424,14 @@ app.get('/api/health', (req, res) => {
         baselineBankroll: executorStatus.baselineBankroll,
         baselineBankrollInitialized: executorStatus.baselineBankrollInitialized,
         assets: CONFIG.ASSETS,
-        timeframes: getEnabledTimeframes().map(t => t.key),
-        configuredTimeframes: CONFIG.TIMEFRAMES.map(t => ({ key: t.key, enabled: t.enabled !== false })),
+        timeframes: activeTimeframes.map(t => t.key),
+        runtimeBankrollForTimeframes,
+        configuredTimeframes: CONFIG.TIMEFRAMES.map(t => ({
+            key: t.key,
+            enabled: t.enabled !== false,
+            active: activeTimeframes.some(activeTf => activeTf.key === t.key),
+            minBankroll: Number(t.minBankroll || 0)
+        })),
         orchestrator: orchestratorHeartbeat,
         pendingBuys: executorStatus.pendingBuys.length,
         pendingSettlements: executorStatus.pendingSettlements.length,
@@ -485,7 +531,10 @@ app.get('/api/wallet/balance', async (req, res) => {
             balanceBreakdown,
             baselineBankroll: tradeExecutor.baselineBankroll,
             baselineBankrollInitialized: tradeExecutor.baselineBankrollInitialized,
-            walletLoaded: !!tradeExecutor.clob?.wallet
+            walletLoaded: !!tradeExecutor.clob?.wallet,
+            walletStatus: tradeExecutor.clob?.getStatus?.() || null,
+            runtimeBankrollForTimeframes: getRuntimeBankrollForTimeframes(),
+            activeTimeframes: getEnabledTimeframes().map(t => t.key)
         });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
