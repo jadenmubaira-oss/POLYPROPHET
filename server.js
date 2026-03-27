@@ -651,6 +651,34 @@ app.get('/api/derive-debug', async (req, res) => {
             results.deriveSig1 = { raw: raw1d, type: typeof raw1d };
         } catch (e) { results.deriveSig1 = { error: e.message }; }
 
+        // Raw proxy health check: can the proxy reach CLOB and return valid data?
+        try {
+            const axios = require('axios');
+            const proxyResp = await Promise.race([
+                axios.get('https://clob.polymarket.com/time', { timeout: 10000 }),
+                new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 10000))
+            ]);
+            results.proxyHealthCheck = { status: proxyResp.status, data: proxyResp.data, headers: Object.fromEntries(Object.entries(proxyResp.headers).slice(0, 5)) };
+        } catch (e) {
+            results.proxyHealthCheck = { error: e.message };
+        }
+
+        // Raw derive attempt via axios directly (bypass @polymarket/clob-client)
+        try {
+            const axios = require('axios');
+            const ethers = require('ethers');
+            const { createL1Headers } = require('@polymarket/clob-client/dist/headers');
+            const signer = wallet;
+            const headers = await createL1Headers(signer, 137);
+            const rawResp = await Promise.race([
+                axios.post('https://clob.polymarket.com/auth/api-key', {}, { headers, timeout: 15000 }),
+                new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
+            ]);
+            results.rawCreateApiKey = { status: rawResp.status, data: rawResp.data };
+        } catch (e) {
+            results.rawCreateApiKey = { error: e.message, response: e.response ? { status: e.response.status, data: e.response.data } : null };
+        }
+
         results.walletAddress = wallet.address;
         results.proxyConfigured = !!CONFIG.PROXY_URL;
         results.clobForceProxy = !!CONFIG.CLOB_FORCE_PROXY;
