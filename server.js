@@ -323,6 +323,17 @@ async function orchestrate() {
                     reason: result.error,
                     strategy: candidate.name
                 });
+            } else if (!result.success) {
+                diagnosticLog.push({
+                    ts: new Date().toISOString(),
+                    type: 'TRADE_FAILED',
+                    asset: candidate.asset,
+                    timeframe: candidate.timeframe,
+                    direction: candidate.direction,
+                    entryPrice: candidate.entryPrice,
+                    reason: result.error,
+                    strategy: candidate.name
+                });
             }
         }
     }
