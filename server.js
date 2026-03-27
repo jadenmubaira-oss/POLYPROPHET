@@ -88,6 +88,7 @@ function loadRuntimeState() {
 // ==================== LOAD STRATEGY SETS ====================
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
+    const lateminute15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
     const promoted15mCandidatePath = path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json');
     const legacy15mPrimaryPath = path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json');
 
@@ -110,6 +111,7 @@ function loadAllStrategySets() {
         const candidates = [
             ...prioritizedEnvCandidates,
             ...(tf.key === '15m' ? [
+                lateminute15mPath,
                 promoted15mCandidatePath,
                 legacy15mPrimaryPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json')
@@ -213,8 +215,22 @@ async function orchestrate() {
     const enabledTimeframes = getEnabledTimeframes();
 
     if (CONFIG.TRADE_MODE === 'LIVE') {
-        await tradeExecutor.refreshLiveBalance().catch(() => null);
-        const pendingBuys = await tradeExecutor.processPendingBuys(10).catch((e) => ({ success: false, error: e.message, processed: 0, recovered: 0, failed: 0 }));
+        const balanceTimeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('BALANCE_REFRESH_TIMEOUT')), ms));
+        try {
+            await Promise.race([
+                tradeExecutor.refreshLiveBalance(),
+                balanceTimeout(15000)
+            ]);
+        } catch (e) {
+            if (e.message === 'BALANCE_REFRESH_TIMEOUT') {
+                console.error('⚠️ Balance refresh timed out (15s) — continuing to discovery');
+                diagnosticLog.push({ ts: new Date().toISOString(), type: 'BALANCE_REFRESH_TIMEOUT', message: 'refreshLiveBalance exceeded 15s hard timeout' });
+            }
+        }
+        const pendingBuys = await Promise.race([
+            tradeExecutor.processPendingBuys(10),
+            balanceTimeout(15000).catch(() => ({ success: false, error: 'PENDING_BUYS_TIMEOUT', processed: 0, recovered: 0, failed: 0 }))
+        ]).catch((e) => ({ success: false, error: e.message, processed: 0, recovered: 0, failed: 0 }));
         if ((pendingBuys.recovered || 0) > 0 || (pendingBuys.failed || 0) > 0) {
             diagnosticLog.push({
                 ts: new Date().toISOString(),
