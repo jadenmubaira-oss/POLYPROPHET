@@ -578,6 +578,27 @@ app.get('/api/markets', (req, res) => {
     res.json(currentMarkets);
 });
 
+app.get('/api/clob-status', async (req, res) => {
+    try {
+        const status = tradeExecutor.clob?.getStatus?.() || {};
+        const deriveResult = await tradeExecutor.clob?.ensureCreds?.().catch(e => ({ ok: false, reason: e.message })) || { ok: false, reason: 'no clob' };
+        const tradeReady = await Promise.race([
+            tradeExecutor.clob?.getTradeReadyClient?.({ force: true, ttlMs: 5000 }),
+            new Promise(r => setTimeout(() => r({ ok: false, reason: 'TIMEOUT_5s' }), 5000))
+        ]).catch(e => ({ ok: false, reason: e.message }));
+        res.json({
+            clobStatus: status,
+            credsDerived: deriveResult,
+            tradeReady: { ok: tradeReady?.ok, reason: tradeReady?.reason, summary: tradeReady?.summary, closedOnly: tradeReady?.closedOnly, closedOnlyErr: tradeReady?.closedOnlyErr },
+            hasCreds: !!(CONFIG.POLYMARKET_API_KEY && CONFIG.POLYMARKET_SECRET && CONFIG.POLYMARKET_PASSPHRASE),
+            proxyConfigured: !!CONFIG.PROXY_URL,
+            clobForceProxy: !!CONFIG.CLOB_FORCE_PROXY
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ==================== DASHBOARD ====================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
