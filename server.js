@@ -109,9 +109,9 @@ function loadAllStrategySets() {
                 return [fp];
             });
         const candidates = [
+            ...(tf.key === '15m' ? [lateminute15mPath] : []),
             ...prioritizedEnvCandidates,
             ...(tf.key === '15m' ? [
-                lateminute15mPath,
                 promoted15mCandidatePath,
                 legacy15mPrimaryPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json')
