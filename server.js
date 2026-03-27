@@ -553,12 +553,18 @@ app.get('/', (req, res) => {
 // ==================== START ====================
 const TICK_INTERVAL_MS = 2000;
 let tickTimer = null;
+let shuttingDown = false;
 
 async function tick() {
+    if (shuttingDown) return;
     try {
         await orchestrate();
     } catch (e) {
         console.error(`❌ Orchestration error: ${e.message}`);
+    } finally {
+        if (!shuttingDown) {
+            tickTimer = setTimeout(tick, TICK_INTERVAL_MS);
+        }
     }
 }
 
@@ -568,7 +574,6 @@ const server = app.listen(CONFIG.PORT, () => {
     console.log(`📊 Status: http://localhost:${CONFIG.PORT}/api/status\n`);
 
     // Start orchestration loop
-    tickTimer = setInterval(tick, TICK_INTERVAL_MS);
     tick(); // First tick immediately
 });
 
@@ -581,14 +586,16 @@ server.on('error', (err) => {
 
 process.on('SIGTERM', () => {
     console.log('Received SIGTERM, shutting down...');
-    if (tickTimer) clearInterval(tickTimer);
+    shuttingDown = true;
+    if (tickTimer) clearTimeout(tickTimer);
     saveRuntimeState();
     server.close(() => process.exit(0));
 });
 
 process.on('SIGINT', () => {
     console.log('Received SIGINT, shutting down...');
-    if (tickTimer) clearInterval(tickTimer);
+    shuttingDown = true;
+    if (tickTimer) clearTimeout(tickTimer);
     saveRuntimeState();
     server.close(() => process.exit(0));
 });
