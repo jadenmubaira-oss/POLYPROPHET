@@ -128,10 +128,16 @@ function loadAllStrategySets() {
             path.join(strategiesDir, `strategy_set_${tf.key}_top5.json`),
             path.join(strategiesDir, `strategy_set_${tf.key}.json`),
         ];
+        let loaded = false;
         for (const fp of [...new Set(candidates)]) {
             const resolved = path.isAbsolute(fp) ? fp : path.join(REPO_ROOT, fp);
-            if (fs.existsSync(resolved)) {
+            const exists = fs.existsSync(resolved);
+            if (tf.key === '15m') {
+                console.log(`  📂 15m candidate: ${path.basename(resolved)} → ${exists ? 'EXISTS' : 'NOT_FOUND'}`);
+            }
+            if (exists && !loaded) {
                 loadStrategySet(tf.key, resolved);
+                loaded = true;
                 break;
             }
         }
