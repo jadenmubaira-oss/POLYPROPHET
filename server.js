@@ -599,6 +599,67 @@ app.get('/api/clob-status', async (req, res) => {
     }
 });
 
+app.get('/api/derive-debug', async (req, res) => {
+    try {
+        const ClobClientClass = require('@polymarket/clob-client').ClobClient;
+        if (!ClobClientClass || !tradeExecutor.clob?.wallet) {
+            return res.json({ error: 'No ClobClient or wallet' });
+        }
+        const host = 'https://clob.polymarket.com';
+        const wallet = tradeExecutor.clob.wallet;
+        const results = {};
+
+        // Try sigType=0 create
+        try {
+            const tmp0 = new ClobClientClass(host, 137, wallet, undefined, 0, wallet.address);
+            const raw0 = await Promise.race([
+                tmp0.createApiKey(),
+                new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
+            ]);
+            results.createSig0 = { raw: raw0, type: typeof raw0 };
+        } catch (e) { results.createSig0 = { error: e.message }; }
+
+        // Try sigType=0 derive
+        try {
+            const tmp0d = new ClobClientClass(host, 137, wallet, undefined, 0, wallet.address);
+            const raw0d = await Promise.race([
+                tmp0d.deriveApiKey(),
+                new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
+            ]);
+            results.deriveSig0 = { raw: raw0d, type: typeof raw0d };
+        } catch (e) { results.deriveSig0 = { error: e.message }; }
+
+        // Try sigType=1 create
+        try {
+            const funder = wallet.address;
+            const tmp1 = new ClobClientClass(host, 137, wallet, undefined, 1, funder);
+            const raw1 = await Promise.race([
+                tmp1.createApiKey(),
+                new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
+            ]);
+            results.createSig1 = { raw: raw1, type: typeof raw1 };
+        } catch (e) { results.createSig1 = { error: e.message }; }
+
+        // Try sigType=1 derive
+        try {
+            const funder = wallet.address;
+            const tmp1d = new ClobClientClass(host, 137, wallet, undefined, 1, funder);
+            const raw1d = await Promise.race([
+                tmp1d.deriveApiKey(),
+                new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
+            ]);
+            results.deriveSig1 = { raw: raw1d, type: typeof raw1d };
+        } catch (e) { results.deriveSig1 = { error: e.message }; }
+
+        results.walletAddress = wallet.address;
+        results.proxyConfigured = !!CONFIG.PROXY_URL;
+        results.clobForceProxy = !!CONFIG.CLOB_FORCE_PROXY;
+        res.json(results);
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack?.split('\n').slice(0, 5) });
+    }
+});
+
 // ==================== DASHBOARD ====================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
