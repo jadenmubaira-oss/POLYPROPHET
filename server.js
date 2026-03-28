@@ -88,34 +88,44 @@ function loadRuntimeState() {
 // ==================== LOAD STRATEGY SETS ====================
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
-    const lateminute15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
-    const promoted15mCandidatePath = path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json');
-    const legacy15mPrimaryPath = path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json');
+
+    // PRIMARY 15m strategy: v2 resolution-momentum hybrid (from exhaustive 896-cycle audit)
+    // ALWAYS load this first. ENV var overrides are DISABLED for 15m to prevent per_asset regressions.
+    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_v2_resolution_momentum.json');
+    const fallback15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
 
     for (const tf of getConfiguredTimeframes()) {
-        const envKey = `STRATEGY_SET_${String(tf.key || '').toUpperCase().replace(/[^A-Z0-9]/g, '')}_PATH`;
-        const envCandidates = [process.env[envKey]];
+        let loaded = false;
+
         if (tf.key === '15m') {
-            envCandidates.push(process.env.OPERATOR_STRATEGY_SET_PATH);
-        }
-        const prioritizedEnvCandidates = envCandidates
-            .filter(Boolean)
-            .flatMap((fp) => {
-                if (tf.key !== '15m') return [fp];
-                const resolved = path.isAbsolute(fp) ? fp : path.join(REPO_ROOT, fp);
-                if (resolved === legacy15mPrimaryPath) {
-                    return [promoted15mCandidatePath, fp];
+            // 15m: IGNORE env var overrides — always use the audited v2 strategy
+            const candidates15m = [
+                primary15mPath,
+                fallback15mPath,
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
+            ];
+            for (const fp of candidates15m) {
+                const exists = fs.existsSync(fp);
+                console.log(`  📂 15m candidate: ${path.basename(fp)} → ${exists ? 'EXISTS' : 'NOT_FOUND'}`);
+                if (exists && !loaded) {
+                    loadStrategySet('15m', fp);
+                    loaded = true;
+                    console.log(`  ✅ 15m LOADED: ${path.basename(fp)}`);
+                    break;
                 }
-                return [fp];
-            });
+            }
+            if (!loaded) {
+                console.warn('  ⚠️ 15m: NO strategy file found! Trading will not work for 15m.');
+            }
+            continue;
+        }
+
+        // Other timeframes: use env var or built-in candidates
+        const envKey = `STRATEGY_SET_${String(tf.key || '').toUpperCase().replace(/[^A-Z0-9]/g, '')}_PATH`;
+        const envPath = process.env[envKey];
         const candidates = [
-            ...(tf.key === '15m' ? [lateminute15mPath] : []),
-            ...prioritizedEnvCandidates,
-            ...(tf.key === '15m' ? [
-                promoted15mCandidatePath,
-                legacy15mPrimaryPath,
-                path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json')
-            ] : []),
+            ...(envPath ? [path.isAbsolute(envPath) ? envPath : path.join(REPO_ROOT, envPath)] : []),
             ...(tf.key === '4h' ? [
                 path.join(REPO_ROOT, 'debug', 'strategy_set_4h_maxprofit.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_4h_curated.json')
@@ -128,15 +138,9 @@ function loadAllStrategySets() {
             path.join(strategiesDir, `strategy_set_${tf.key}_top5.json`),
             path.join(strategiesDir, `strategy_set_${tf.key}.json`),
         ];
-        let loaded = false;
         for (const fp of [...new Set(candidates)]) {
-            const resolved = path.isAbsolute(fp) ? fp : path.join(REPO_ROOT, fp);
-            const exists = fs.existsSync(resolved);
-            if (tf.key === '15m') {
-                console.log(`  📂 15m candidate: ${path.basename(resolved)} → ${exists ? 'EXISTS' : 'NOT_FOUND'}`);
-            }
-            if (exists && !loaded) {
-                loadStrategySet(tf.key, resolved);
+            if (fs.existsSync(fp) && !loaded) {
+                loadStrategySet(tf.key, fp);
                 loaded = true;
                 break;
             }
