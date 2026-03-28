@@ -515,6 +515,27 @@ app.get('/api/diagnostics', (req, res) => {
     });
 });
 
+app.get('/api/debug/strategy-paths', (req, res) => {
+    const strategiesDir = path.join(__dirname, 'strategies');
+    const candidates15m = [
+        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_v2_resolution_momentum.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
+    ];
+    const debugDirExists = fs.existsSync(path.join(__dirname, 'debug'));
+    let debugFiles = [];
+    try { debugFiles = fs.readdirSync(path.join(__dirname, 'debug')).filter(f => f.includes('strategy') || f.includes('15m')); } catch (e) { debugFiles = [`ERROR: ${e.message}`]; }
+    res.json({
+        __dirname,
+        REPO_ROOT,
+        debugDirExists,
+        debugStrategyFiles: debugFiles,
+        candidates: candidates15m.map(fp => ({ path: fp, basename: path.basename(fp), exists: fs.existsSync(fp) })),
+        currentlyLoaded: getAllLoadedSets()
+    });
+});
+
 app.get('/api/reconcile-pending', (req, res) => {
     const executorStatus = tradeExecutor.getStatus();
     res.json({
