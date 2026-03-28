@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const CONFIG = require('./lib/config');
+const DEPLOY_VERSION = '2026-03-28T09:55Z-lateminute-v1-final';
 const { discoverAllMarkets, computeEpoch, getEntryMinute, fetchMarketBySlug } = require('./lib/market-discovery');
 const { loadStrategySet, evaluateMatch, sortCandidates, getAllLoadedSets } = require('./lib/strategy-matcher');
 const RiskManager = require('./lib/risk-manager');
@@ -89,10 +90,10 @@ function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: v2 resolution-momentum hybrid (from exhaustive 896-cycle audit)
-    // ALWAYS load this first. ENV var overrides are DISABLED for 15m to prevent per_asset regressions.
-    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_v2_resolution_momentum.json');
-    const fallback15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
+    // PRIMARY 15m strategy: lateminute_v1 contains v2 resolution-momentum hybrid (from 896-cycle audit)
+    // lateminute_v1 is PROVEN to exist on Render deploy. v2 file had gitignore issues.
+    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_v2_resolution_momentum.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
@@ -101,7 +102,7 @@ function loadAllStrategySets() {
             // 15m: IGNORE env var overrides — always use the audited v2 strategy
             const candidates15m = [
                 primary15mPath,
-                fallback15mPath,
+                secondary15mPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
             ];
@@ -453,6 +454,7 @@ app.get('/api/health', (req, res) => {
     res.json({
         status: 'ok',
         version: 'polyprophet-lite-1.0.0',
+        deployVersion: DEPLOY_VERSION,
         uptime,
         mode: CONFIG.TRADE_MODE,
         isLive: CONFIG.IS_LIVE,
