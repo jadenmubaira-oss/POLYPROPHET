@@ -17,11 +17,11 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $5 -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Current Blocker** | CLOB order signing fails. Bot generates 20+ candidates/cycle but all orders rejected. Investigating whether `POLYMARKET_ADDRESS` should be EOA or proxy. See handoff state below. |
+| **Current Blocker** | Intermittent geoblock (403) from proxy IP rotation. `withClobAuthContext` fix resolved `invalid signature`. Geoblock retry deployed. Awaiting first successful trade. |
 | **Active Strategy (15m)** | `debug/strategy_set_15m_lateminute_v1.json` (14 strategies, wildcard hours, 35-95c, m10-m14) |
 | **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
 | **Wallet Balance** | $4.999209 USDC, `sigType=1`, funder `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`, `tradeReady.ok=true` |
-| **Next Action** | Change `POLYMARKET_ADDRESS` to `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` (EOA) on Render -- this is the address that had balance+allowance. Then verify. |
+| **Next Action** | Monitor for first successful trade at m10-m14. If geoblock persists, check BrightData proxy health. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
@@ -2111,11 +2111,11 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 1. With `POLYMARKET_ADDRESS` NOT SET: Bot used EOA (`0x1fcb...`) as sigType=1 funder. Balance/allowance probes succeed ($4.999209), but orders fail with `invalid signature` (400). Some orders also get `geoblock` (403) when proxy fails.
 2. With `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` (derived proxy): All probes fail with `Unauthorized/Invalid api key` (401). The derived proxy has no balance registered and API creds (auto-derived) don't authorize it.
 
-**DIAGNOSIS**: The EOA address IS the correct Polymarket funder (it has the $4.999209 balance and unlimited allowance). The `invalid signature` error with the EOA likely means the `@polymarket/clob-client` order signing is producing wrong signatures for sigType=1. The proxy address `0xe7E89...` is NOT the correct funder (no balance, 401 on all probes).
+**PROGRESS (30 March 18:30 UTC)**: With `POLYMARKET_ADDRESS=0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` (EOA), the bot is `tradeReady: ok: true`. The previous `invalid signature` errors are GONE after the `withClobAuthContext` fix. The only remaining error is intermittent `403 geoblock` from the BrightData proxy rotating to blocked IPs. Geoblock retry logic (2 retries with 3s delay) has been deployed in commit `6e743a8`.
 
-**REQUIRED USER ACTION**: Change `POLYMARKET_ADDRESS` to `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` (the EOA) on Render. Then we need to debug why order signing fails for this address (balance and allowance probes work fine).
+**KEY FINDING**: The Polymarket profile address `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` shown on polymarket.com/settings is the proxy, but the USDC balance ($4.999209) and CLOB allowances are on the EOA `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` with sigType=1. Using the proxy as funder returns 401 on all probes. The EOA is the correct POLYMARKET_ADDRESS for this wallet setup.
 
-**What is pending**: (1) Fix `POLYMARKET_ADDRESS` to EOA. (2) Debug sigType=1 order signing with EOA funder. (3) If sigType=1 cannot work, try sigType=0 with funds moved to EOA. (4) Run fresh data collection + profit sims.
+**What is pending**: (1) Monitor next m10-m14 cycle for first successful trade (geoblock retry should help). (2) If geoblock persists, investigate proxy configuration. (3) Run fresh data collection + profit sims. (4) Research maker order strategy.
 **Key insight**: Polymarket expanded taker fees to ALL categories on 30 March 2026. Fee curve: highest at 50c, lowest at extremes. Resolution farming at 85c+ has lower fees. Maker orders = zero fees + daily rebates.
 **Discrepancies resolved**: Strategy loading fixed (lateminute_v1 now loads first). `.dockerignore` whitelist fixed. `withClobAuthContext` wrapping added. Proxy address derivation priority fixed in probe logic.
 **Next action**: User sets `POLYMARKET_ADDRESS` env var, then monitor for first successful trade.
