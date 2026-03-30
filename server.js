@@ -728,6 +728,96 @@ app.get('/api/derive-debug', async (req, res) => {
     }
 });
 
+app.post('/api/manual-smoke-test', async (req, res) => {
+    try {
+        const secret = String(process.env.MANUAL_SMOKE_TEST_KEY || process.env.AUTH_PASSWORD || '').trim();
+        const suppliedSecret = String(req.get('x-manual-smoke-key') || req.body?.manualSmokeKey || '').trim();
+        if (!secret) {
+            return res.status(503).json({ success: false, error: 'MANUAL_SMOKE_TEST_DISABLED' });
+        }
+        if (!suppliedSecret || suppliedSecret !== secret) {
+            return res.status(401).json({ success: false, error: 'UNAUTHORIZED' });
+        }
+        if (CONFIG.TRADE_MODE !== 'LIVE' || !CONFIG.IS_LIVE) {
+            return res.status(400).json({ success: false, error: 'LIVE_MODE_REQUIRED' });
+        }
+        if (req.body?.confirmLive !== true) {
+            return res.status(400).json({ success: false, error: 'CONFIRM_LIVE_REQUIRED' });
+        }
+
+        const marketKey = String(req.body?.marketKey || '').trim();
+        const direction = String(req.body?.direction || '').trim().toUpperCase();
+        const expectedSlug = String(req.body?.expectedSlug || '').trim();
+        const maxEntryPrice = Number(req.body?.maxEntryPrice);
+        const pWinEstimateRaw = Number(req.body?.pWinEstimate);
+
+        if (!marketKey) {
+            return res.status(400).json({ success: false, error: 'MARKET_KEY_REQUIRED' });
+        }
+        if (direction !== 'UP' && direction !== 'DOWN') {
+            return res.status(400).json({ success: false, error: 'DIRECTION_REQUIRED' });
+        }
+
+        const market = currentMarkets[marketKey];
+        if (!market || market.status !== 'ACTIVE') {
+            return res.status(400).json({ success: false, error: 'ACTIVE_MARKET_REQUIRED', marketKey });
+        }
+
+        const parts = marketKey.split('_');
+        const asset = parts[0];
+        const timeframe = parts[1];
+        if (!asset || !timeframe) {
+            return res.status(400).json({ success: false, error: 'INVALID_MARKET_KEY', marketKey });
+        }
+        if (expectedSlug && expectedSlug !== String(market.slug || '')) {
+            return res.status(400).json({ success: false, error: 'SLUG_MISMATCH', marketKey, expectedSlug, actualSlug: market.slug || null });
+        }
+
+        const entryPrice = direction === 'UP' ? Number(market.yesPrice) : Number(market.noPrice);
+        if (!(entryPrice > 0 && entryPrice < 1)) {
+            return res.status(400).json({ success: false, error: 'INVALID_ENTRY_PRICE', marketKey, entryPrice });
+        }
+        if (Number.isFinite(maxEntryPrice) && entryPrice > maxEntryPrice) {
+            return res.status(400).json({ success: false, error: 'ENTRY_PRICE_ABOVE_MAX', marketKey, entryPrice, maxEntryPrice });
+        }
+
+        const candidate = {
+            asset,
+            timeframe,
+            direction,
+            entryPrice,
+            pWinEstimate: Number.isFinite(pWinEstimateRaw) ? pWinEstimateRaw : 0.5,
+            name: 'MANUAL_SMOKE_TEST',
+            signature: `manual-smoke|${marketKey}|${direction}`
+        };
+
+        const result = await tradeExecutor.executeTrade(candidate, market);
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'MANUAL_SMOKE_TEST',
+            marketKey,
+            slug: market.slug || null,
+            direction,
+            entryPrice,
+            success: !!result?.success,
+            blocked: !!result?.blocked,
+            orderID: result?.orderID || null,
+            error: result?.error || null
+        });
+
+        return res.status(result?.success ? 200 : 400).json({
+            success: !!result?.success,
+            marketKey,
+            slug: market.slug || null,
+            direction,
+            entryPrice,
+            result
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // ==================== DASHBOARD ====================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));

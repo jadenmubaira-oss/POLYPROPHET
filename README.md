@@ -1472,15 +1472,449 @@ After triggering manual deploy of commit `3dde15a` on Render:
 4. Wait for a minute 10, 11, or 12 of any 15m cycle and check `candidatesFound > 0`
 5. If candidates appear but `liveBalance: 0`, the wallet/CLOB readiness path needs further debugging
 
-## Current Session State
+### Live Runtime + Strategy Audit Addendum (28 March 2026, UTC)
+
+This addendum supersedes older README claims that the live host was still waiting on its first strategy-match proof or that the current live 15m path was `top7_drop6_per_asset_lcb60_min12.json` with `20` strategies.
+
+#### Data Source Statement
+
+- **DATA SOURCE**: Live API (`/api/health`, `/api/status`, `/api/diagnostics`, `/api/clob-status`, `/api/derive-debug`), current code analysis, official Polymarket docs, corrected local exact-runtime simulation (`scripts/profit-sim-exact-runtime.js`)
+- **LIVE RUNTIME STATUS**: Live host is up, strategy files load, markets are discovered and priced, wallet/balance surfaces are populated, but autonomous order placement is still blocked by CLOB signing/auth mismatch
+- **LIVE METRIC AVAILABILITY**: Lite runtime still does **not** expose a rolling live accuracy field; do not invent one
+- **DISCREPANCIES**: Earlier README sections describing the live 15m artifact, deploy method, and “ready” posture are stale relative to current 28 March live truth
+
+#### Verified 28 March Live Runtime Truth
+
+From live `GET /api/health` / `GET /api/status` / `GET /api/debug/strategy-paths`:
+
+- Deploy version: `2026-03-28T09:55Z-lateminute-v1-final`
+- Runtime URL: `https://polyprophet-1-rr1g.onrender.com`
+- Balance: `4.999209` USDC trading balance (currently surfaced from last-known-good / CLOB collateral fallback chain)
+- Active timeframes: `15m` and `4h` are both active at current bankroll because `TIMEFRAME_4H_MIN_BANKROLL` now resolves to `4`
+- Current live 15m file: `/app/debug/strategy_set_top7_drop6.json`
+- Current live 15m strategy count: `14`
+- Current live 4h file: `/app/debug/strategy_set_4h_maxprofit.json`
+- Current live 4h strategy count: `8`
+- Live debug endpoint proves `strategy_set_15m_lateminute_v1.json` and `strategy_set_15m_v2_resolution_momentum.json` do **not** exist on Render, so the host is loading the repurposed `strategy_set_top7_drop6.json` fallback
+
+#### Critical Live Discovery: The Bot Already Tried To Trade
+
+Live `GET /api/diagnostics` now proves the root problem is **not** “no signals.”
+
+At `11:40-11:45 UTC`, the live runtime generated multiple 15m candidates and attempted real BUY orders across BTC / ETH / SOL / XRP for minute-10 / minute-11 / minute-12 / minute-14 strategies, including:
+
+- `m10 DOWN late-momentum [45-95c]`
+- `m10 DOWN bootstrap [35-60c]`
+- `m10 UP bootstrap [35-60c]`
+- `m11 DOWN wide-momentum [45-95c]`
+- `m11 UP wide-momentum [55-95c]`
+- `m12 UP late-momentum [55-95c]`
+- `m12 DOWN late-momentum [55-95c]`
+- `m14 DOWN resolution [80-95c]`
+- `m14 UP resolution [65-95c]`
+
+Every live order failed with the same execution-layer error:
+
+- `CLOB_ORDER_FAILED: No orderID in response: {"error":"invalid signature","status":400}`
+
+So the truthful current blocker is:
+
+- **Discovery works**
+- **Strategy matching works**
+- **Candidate generation works**
+- **Live order posting is still broken**
+
+#### Root Cause: Proxy-Wallet (`signatureType=1`) Signing / Funder Mismatch
+
+Official Polymarket docs state that `signatureType=1` (`POLY_PROXY`) requires the **Polymarket profile/proxy wallet address** as the `funder` address, not merely the exported signer EOA.
+
+Current repo/live evidence:
+
+- Live env is using `POLYMARKET_SIGNATURE_TYPE=1`
+- `.env.example` includes `POLYMARKET_ADDRESS`, but it is blank by default
+- Current runtime previously fell back to `wallet.address` when `POLYMARKET_ADDRESS` was missing
+- Official Polymarket docs say proxy-wallet users must use the wallet shown on polymarket.com/settings / profile dropdown as the funder address
+- Upstream `@polymarket/clob-client` issue `#248` documents a related `sigType=1` bug where authenticated order-post headers can use the signer EOA instead of the required funder/profile address
+
+That combination explains the live behavior:
+
+- `/api/clob-status` can still report `tradeReady.ok=true` because balance/allowance probes succeed under the selected client posture
+- But the actual signed order payload or authenticated order-post request still fails at submission time with `invalid signature`
+
+#### Local Code Hardening Applied
+
+`lib/clob-client.js` has now been hardened locally so that:
+
+- `POLYMARKET_SIGNATURE_TYPE=1` now requires an explicit valid `POLYMARKET_ADDRESS`
+- Authenticated CLOB requests in proxy-wallet mode override `POLY_ADDRESS` to the configured funder/profile address instead of trusting the upstream default
+
+This does **not** by itself fix the live host until the service is redeployed with the real `POLYMARKET_ADDRESS` value set.
+
+#### Corrected Exact-Runtime Simulation Findings (`exact-runtime-v2`)
+
+The local simulation engine was corrected to match the current runtime more closely:
+
+- wildcard `utcHour=-1` strategies now match correctly
+- micro-bankroll min-order bump logic now matches the current `risk-manager.js`
+- buy cost now uses raw entry price like the current runtime path instead of an extra slippage-charged cost basis
+
+##### Key comparative results
+
+At **$5 start**:
+
+- Current live 15m hybrid (`strategy_set_top7_drop6.json`): `bustRate=25.1%`, `median=$5.44`
+- Current live 15m hybrid + 4h: `bustRate=22.27%`, `median=$5.65`
+- Older hour-filtered 15m set only: `bustRate=19.9%`, `median=$5.41`
+- Older hour-filtered 15m + 4h: `bustRate=16.43%`, `median=$5.94`
+- 4h only: `bustRate=21.1%`, `median=$6.26`
+
+At **$10 start**:
+
+- Current live 15m hybrid + 4h: `bustRate=15.53%`, `median=$6.82`
+- Older hour-filtered 15m + 4h: `bustRate=10.9%`, `median=$11.43`
+- 4h only: `bustRate=6.37%`, `median=$48.31`
+
+At **$20 start**:
+
+- Current live 15m hybrid + 4h: `bustRate=5.57%`, `median=$20.56`
+- Older hour-filtered 15m + 4h: `bustRate=3.23%`, `median=$25.89`
+- 4h only: `bustRate=0.6%`, `median=$102.34`
+
+#### Strategy Verdict From Corrected Sim
+
+- The currently deployed 14-strategy 15m hybrid is **not** the best low-bust median path in the corrected local simulation
+- The older hour-filtered 15m artifact outperforms the current live 15m hybrid on survivability and median in the tested `$5-$20` range when paired with `4h`
+- `5m` outputs remain dominated by extreme outliers and fragile bankroll dynamics; they are **not** honest unattended-autonomy candidates at current bankroll
+- None of the corrected `$5` scenarios satisfy the user's “first few trades cannot lose” constraint honestly
+
+#### Current Go / No-Go Status
+
+**NO-GO for unattended live autonomy right now.**
+
+Reasons:
+
+1. Live execution is still failing with `invalid signature`
+2. The required proxy-wallet `POLYMARKET_ADDRESS` / funder posture is not yet verified live
+3. The currently deployed 15m hybrid is not the best corrected-sim choice for low-bust median growth
+4. The `$5` bankroll remains structurally dominated by Polymarket's 5-share minimum order size
+
+#### Required Fixes Before Honest GO
+
+1. Set `POLYMARKET_ADDRESS` in Render to the **actual Polymarket profile / proxy wallet address** for the funded account
+2. Redeploy the service with the `clob-client.js` hardening now in repo
+3. Re-check `GET /api/clob-status` and `GET /api/diagnostics` during an active minute window (`10-14`)
+4. Confirm at least one live order returns a real `orderID` instead of `invalid signature`
+5. Re-evaluate whether the live 15m primary should remain the 14-strategy hybrid or revert to the older hour-filtered 15m artifact for better corrected-sim survivability
+6. Do not claim readiness until one full funded smoke path is proven: buy -> fill/partial-fill handling -> resolve/sell -> redemption/balance reconciliation
+
+#### Current Session State
 
 > **Update this section at the end of every AI session.**
 
 **Last Agent**: Claude Opus (Cascade) operating as DEITY agent
-**Date**: 27 March 2026 (UTC)
-**What was done**: (1) Full exhaustive investigation of why bot never traded — identified three compounding failures: strategy price bands wrong for current markets, orchestrator hanging on balance fetch, CLOB discovery not respecting proxy. (2) Exhaustive 1344-cycle CLOB price-history analysis across 7 days, 4 assets, all hours with fidelity=1. (3) Scanned 478 strategy candidates across minutes 8-13, all price bands, both directions. (4) Built new late-minute momentum strategy (`strategy_set_15m_lateminute_v1.json`) with 12 strategies at minutes 10-12, all hours, tiered price bands. (5) Ran 10,000-trial Monte Carlo profit sims with exact runtime logic. (6) Fixed orchestrator balance timeout (15s hard limit), non-overlapping tick loop, CLOB proxy discovery, wildcard UTC hour support. (7) Pushed commits `80ffd04` through `3dde15a` to origin/main.
-**What is pending**: (1) Manual Render deploy of commit `3dde15a`. (2) Post-deploy verification that new strategy loads (12 strategies, lateminute_v1 path). (3) Verify orchestrator completes first tick and discovers active markets. (4) Observe first candidate generation at minute 10/11/12 of a live cycle. (5) Wallet balance endpoint still times out — may need further CLOB client timeout hardening.
-**Discrepancies found**: Old strategies had 0% in-band match rate over 48h of live data despite historical backtests showing 4.4 trades/day. Root cause: market microstructure changed — prices are ~50c at early minutes (not 60-80c as in training data). Profit sims used historical entry prices, not live CLOB prices, masking this gap.
-**Key insight**: The only viable 15m strategy at current market conditions is late-minute momentum (m10-12) where cycle direction is already established. Early-minute strategies (m3-m8) enter when prices are near 50/50 and have no exploitable edge. Death bounce and resolution sniping are negative EV or unaffordable at micro bankroll.
-**Methodology**: Direct Gamma/CLOB API queries, exhaustive minute-by-minute price analysis of 1344 resolved cycles, Wilson LCB filtering, tiered Monte Carlo simulation with exact risk-manager mechanics.
-**Next action**: Trigger manual Render deploy, verify new strategy loads, observe first live candidate generation, then funded smoke test.
+**Date**: 28 March 2026 (UTC)
+**What was done**: (1) Reconciled the current live host against repo truth and proved the live 15m artifact is `/app/debug/strategy_set_top7_drop6.json` with `14` strategies, not the older `20`-strategy hour-filtered file. (2) Verified live host is discovering/pricing markets and that both `15m` and `4h` are currently active. (3) Proved via `/api/diagnostics` that the bot already generated many real 15m trade attempts at minutes `10-14`. (4) Identified the actual live blocker as CLOB order submission failing with `400 invalid signature`, not lack of candidate generation. (5) Cross-checked official Polymarket docs and upstream client behavior, isolating `signatureType=1` + missing/incorrect `POLYMARKET_ADDRESS` as the key execution-auth defect. (6) Hardened `lib/clob-client.js` locally to require explicit `POLYMARKET_ADDRESS` in proxy-wallet mode and override authenticated `POLY_ADDRESS` headers to the configured funder. (7) Corrected `scripts/profit-sim-exact-runtime.js` so wildcard hours and current micro-bankroll order sizing match the current runtime more closely, then reran comparative sims for current 15m vs older hour-filtered 15m.
+**What is pending**: (1) Set the real Polymarket profile/proxy wallet address in Render as `POLYMARKET_ADDRESS`. (2) Redeploy the current repo state. (3) Re-verify live `clob-status` / `diagnostics` during an active minute window and confirm at least one real `orderID`. (4) Decide whether to keep the 14-strategy live hybrid or restore the older hour-filtered 15m set based on corrected-sim priorities. (5) Perform one end-to-end funded smoke path before declaring unattended autonomy readiness.
+**Discrepancies found**: Earlier README sections claiming live `15m` was `top7_drop6_per_asset_lcb60_min12.json` with `20` strategies are stale. Earlier README text claiming manual deploy only is stale relative to current `render.yaml` (`autoDeploy: true`). `/api/health` and `/api/status` can look healthy while hiding earlier failed order attempts unless `/api/diagnostics` is checked.
+**Key insight**: The core bot is now far enough along that it *does* generate real live entries, but proxy-wallet signing semantics remain the hard blocker between “signal engine works” and “autonomous trading works.”
+**Methodology**: Full read of current runtime code paths, live endpoint verification, current artifact inspection, corrected exact-runtime simulation, official Polymarket auth documentation review, upstream client issue comparison.
+**Next action**: Set `POLYMARKET_ADDRESS`, redeploy, verify a real order submission succeeds, then finalize the 15m artifact choice using the corrected-sim evidence.
+
+### Addendum — 29 March 2026 Live Reverification + Straight-Handover Audit
+
+⚠️ **DATA SOURCE**: Live API (`/api/health?ts=1774789000`, `/api/status`, `/api/debug/strategy-paths`, `/api/clob-status`, `/api/diagnostics`, `/api/wallet/balance`) plus local code verification (`node --check server.js`, `node --check lib/clob-client.js`) plus local `scripts/profit-sim-exact-runtime.js` (`exact-runtime-v2`) replays.
+
+⚠️ **LIVE RUNTIME STATUS**: The currently reachable host is `https://polyprophet-1-rr1g.onrender.com`, deploy version `2026-03-28T09:55Z-lateminute-v1-final`, mode `LIVE`, wallet loaded, proxy configured, and using `sigType=1`.
+
+⚠️ **LIVE METRIC AVAILABILITY**: Rolling live accuracy is still unavailable for decision use because the current deploy has `0` completed trades since restart.
+
+⚠️ **DISCREPANCIES**: Bare `/api/health` returned a stale startup snapshot through the cached fetch path; cache-busted `/api/health?ts=...` matched `/api/status` and `/api/wallet/balance`. Treat the cache-busted health result as authoritative for this addendum.
+
+#### Verified 29 March 2026 Live Runtime Truth
+
+- Runtime URL: `https://polyprophet-1-rr1g.onrender.com`
+- Deploy version: `2026-03-28T09:55Z-lateminute-v1-final`
+- Mode: `LIVE`
+- Wallet loaded: `true`
+- Active wallet address exposed by the runtime: `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`
+- Balance: `4.999209` USDC
+- Balance source: `LAST_KNOWN_GOOD` / CLOB collateral fallback chain
+- Active timeframes: `15m` and `4h`
+- Disabled timeframe: `5m`
+- Current live 15m artifact: `/app/debug/strategy_set_top7_drop6.json`
+- Current live 15m strategy count: `14`
+- Current live 4h artifact: `/app/debug/strategy_set_4h_maxprofit.json`
+- Current live 4h strategy count: `8`
+- Current live 5m posture: disabled, bankroll floor `50`
+- Orchestrator state during verification: running, `activeMarkets=8`, `candidatesFound=0`, `tradesAttempted=0`
+
+#### CLOB / Auth Truth On The Current Host
+
+From live `/api/clob-status`:
+
+- `clientAvailable=true`
+- `walletLoaded=true`
+- `hasCreds=true`
+- `sigType=1`
+- `proxyConfigured=true`
+- `clobForceProxy=true`
+- `tradeReady.ok=true`
+- Selected trade candidate uses `signatureType=1`
+- Selected `funderAddress=0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`
+- Selected collateral balance raw: `4999209`
+- Selected allowance is already maxed for spender `0xC5d563A36AE78145C45a50134d48A1215220f80a`
+
+This means the current live deploy is past the old “wallet not loaded / proxy missing / allowance missing” class of failures. What is **not** yet proven on this restart is an actual accepted order submission returning a real `orderID`.
+
+#### Repo Truth vs Live Host Truth
+
+The checked-in blueprint and the live host are **not** identical.
+
+`render.yaml` currently says:
+
+- `region: oregon`
+- `autoDeploy: true`
+- default `TRADE_MODE=PAPER`
+- default `ENABLE_LIVE_TRADING=false`
+- default `LIVE_AUTOTRADING_ENABLED=false`
+- `TIMEFRAME_4H_MIN_BANKROLL=10`
+- `STRATEGY_SET_15M_PATH=debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json`
+
+The live host currently proves env overrides are in effect:
+
+- mode is actually `LIVE`
+- `4h` is active at bankroll `4.999209`, so the effective live `TIMEFRAME_4H_MIN_BANKROLL` is `4`
+- the active live 15m artifact is `strategy_set_top7_drop6.json`, not the checked-in default `top7_drop6_per_asset_lcb60_min12.json`
+
+Handoff consequence: **`render.yaml` is the deploy path, but it is not the authoritative description of the current live posture. The live env dashboard overrides matter.**
+
+#### Local Verification Completed In This Session
+
+- `node --check server.js` -> passed
+- `node --check lib/clob-client.js` -> passed
+- Current branch: `main`
+- Deploy path from this workspace: push a curated commit to `main`, then Render auto-deploys
+- Important operational caveat: the local working tree is dirty with many unrelated modified/untracked files, so a blind deploy from the current workspace would be unsafe
+
+#### What The Bot Can Honestly Be Expected To Do Right Now
+
+The bot is currently capable of polling and evaluating live markets, but it is **not honest** to claim “it will definitely trade on the next cycle.”
+
+What is true:
+
+- The 15m live artifact uses wildcard `utcHour=-1` schedules, so it can evaluate every hour
+- The live 15m entry minutes are `10`, `11`, `12`, and `14`
+- The live 4h artifact has windows at UTC hours `1`, `9`, `13`, `17`, and `21` with entry minutes `120` or `180`
+- Therefore the bot has many upcoming eligible windows
+
+What is **not** guaranteed:
+
+- A trade only happens if live prices also land inside the strategy price bands at the scheduled minute
+- During this verification window the orchestrator found `0` candidates and attempted `0` trades
+- `/api/diagnostics` was empty because the current restart was fresh and had not yet accumulated logs for an active match window
+
+So the truthful statement is:
+
+- **The bot can trade on upcoming valid windows**
+- **The bot is not yet proven to trade on the very next cycle**
+
+#### Exact-Runtime-v2 Comparative Replay Findings
+
+These are **local replay / Monte Carlo** results from `scripts/profit-sim-exact-runtime.js`. They are not live fills.
+
+##### `$5` start
+
+| Scenario | Bust Rate | Median | p5 | p95 |
+|----------|-----------|--------|----|-----|
+| Current live `15m only` | `25.1%` | `$5.44` | `$0.32` | `$6.72` |
+| Current live `15m + 4h` | `22.27%` | `$5.65` | `$0.32` | `$6.89` |
+| `4h only` | `21.1%` | `$6.26` | `$1.05` | `$108.86` |
+| `top7_drop6_per_asset_lcb60_min12 only` | `19.9%` | `$5.41` | `$0.63` | `$6.77` |
+| `top7_drop6_per_asset_lcb60_min12 + 4h` | `16.43%` | `$5.94` | `$0.83` | `$14.24` |
+| `top8_current only` | `20.3%` | `$6.67` | `$1.15` | `$328.57` |
+| `top8_current + 4h` | `19.03%` | `$6.33` | `$1.05` | `$467.34` |
+
+##### `$10` start
+
+| Scenario | Bust Rate | Median | p5 | p95 |
+|----------|-----------|--------|----|-----|
+| Current live `15m only` | `24.2%` | `$5.75` | `$0.28` | `$18.17` |
+| Current live `15m + 4h` | `15.53%` | `$6.82` | `$0.42` | `$37.29` |
+| `4h only` | `6.37%` | `$48.31` | `$1.55` | `$207.11` |
+| `top7_drop6_per_asset_lcb60_min12 only` | `17.37%` | `$6.17` | `$0.28` | `$29.76` |
+| `top7_drop6_per_asset_lcb60_min12 + 4h` | `10.9%` | `$11.43` | `$0.54` | `$49.84` |
+| `top8_current only` | `2.5%` | `$139.27` | `$2.53` | `$460.26` |
+| `top8_current + 4h` | `4.33%` | `$167.08` | `$2.25` | `$950.39` |
+
+##### `$20` start
+
+| Scenario | Bust Rate | Median | p5 | p95 |
+|----------|-----------|--------|----|-----|
+| Current live `15m only` | `13.6%` | `$8.41` | `$0.53` | `$30.49` |
+| Current live `15m + 4h` | `5.57%` | `$20.56` | `$1.78` | `$56.96` |
+| `4h only` | `0.6%` | `$102.34` | `$23.12` | `$330.42` |
+| `top7_drop6_per_asset_lcb60_min12 only` | `6.73%` | `$15.82` | `$1.18` | `$48.57` |
+| `top7_drop6_per_asset_lcb60_min12 + 4h` | `3.23%` | `$25.89` | `$5.05` | `$72.88` |
+| `top8_current only` | `0.47%` | `$197.87` | `$57.77` | `$610.14` |
+| `top8_current + 4h` | `0.57%` | `$411.85` | `$75.27` | `$2107.90` |
+
+#### How To Interpret Those Replays Honestly
+
+- The currently deployed `top7_drop6` live artifact is **not** the strongest local replay winner in this session
+- If prioritizing **conservative improvement over the current live setup in the `$5-$20` band**, `top7_drop6_per_asset_lcb60_min12 + 4h` beats the current live `top7_drop6 + 4h` on both bust rate and median
+- If prioritizing **maximum median upside in the current local replay**, `top8_current` and especially `top8_current + 4h` dominate the tested field
+- However, `top8_current` is **not** the currently deployed live artifact, and this session did **not** re-prove it on the present live execution path
+- None of the `$5` scenarios honestly satisfy the user's “first few trades cannot lose” constraint
+
+#### 5m Verdict From The Same Exact-Runtime-v2 Run
+
+| Start | Scenario | Bust Rate | Median | p5 | p95 |
+|-------|----------|-----------|--------|----|-----|
+| `$5` | `5m only` | `29.47%` | `$2.20` | `$0.76` | `$195,362.99` |
+| `$5` | `15m + 5m` | `31.97%` | `$5.35` | `$0.18` | `$6.90` |
+| `$5` | `15m + 4h + 5m` | `24.3%` | `$5.76` | `$0.27` | `$21.92` |
+| `$10` | `5m only` | `31.23%` | `$2.71` | `$0.37` | `$4,226,870.34` |
+| `$10` | `15m + 5m` | `23.57%` | `$6.00` | `$0.27` | `$38.19` |
+| `$10` | `15m + 4h + 5m` | `15.0%` | `$10.67` | `$0.48` | `$57.36` |
+| `$20` | `5m only` | `18.4%` | `$3,810.69` | `$0.71` | `$85,227,387.31` |
+| `$20` | `15m + 5m` | `10.0%` | `$16.94` | `$0.80` | `$207.22` |
+| `$20` | `15m + 4h + 5m` | `4.73%` | `$28.28` | `$4.20` | `$177.89` |
+
+Interpretation:
+
+- The 5m outputs remain dominated by extreme outliers and fragile path dependence
+- The gigantic `p95` values are exactly why 5m is **not** an honest unattended-micro-bankroll recommendation
+- The present live choice to keep `5m` disabled remains correct
+
+#### Current GO / NO-GO Verdict For Straight Handover
+
+**Current verdict: NO-GO for claiming fully proven unattended live autonomy right this second.**
+
+Reasons:
+
+1. The current live deploy is healthy enough to poll, price, and present balances, but it still has `0` completed trades on this restart
+2. `tradeReady.ok=true` is encouraging, but it is **not** the same thing as a verified live order submission returning `orderID`
+3. The checked-in blueprint and the live env posture are divergent, so a handoff that ignores env overrides would be misleading
+4. The currently deployed 15m artifact is not obviously the best choice by the current local replay evidence
+5. The `$5` bankroll remains structurally constrained by the 5-share minimum order reality
+
+#### Honest Best-Current Strategy Verdict
+
+- **Do not enable 5m** for unattended micro-bankroll live trading
+- **Current live stack**: `top7_drop6` + `4h_maxprofit`
+- **Most conservative improvement over current live replay**: `top7_drop6_per_asset_lcb60_min12 + 4h`
+- **Highest median upside in this session's local replay**: `top8_current + 4h`
+- **But** no artifact change should be called production-best until it is re-proven against the actual current live execution path and not just replay data
+
+#### Required Pre-GO Checklist From Here
+
+1. Curate the dirty local workspace into a clean deployable commit set
+2. Push that curated commit to `main` so Render auto-deploy picks it up
+3. Verify the live `deployVersion` changes after deploy
+4. Watch a real eligible window (`15m` minute `10/11/12/14` or a valid `4h` window)
+5. Confirm one live order returns a real `orderID`
+6. Confirm the rest of the funded smoke path works: fill or partial fill handling -> settlement -> balance reconciliation
+7. Only after that should the project be described as fully handoff-ready for unattended live autonomy
+
+#### Current Session State
+
+> **Update this section at the end of every AI session.**
+
+**Last Agent**: Cascade operating as DEITY agent
+**Date**: 29 March 2026 (UTC)
+**What was done**: (1) Re-read the governing README and implementation-plan materials needed for a truthful handoff. (2) Verified the current workspace deploy path: repo is on `main`, `render.yaml` uses `autoDeploy: true`, but the local tree is dirty and must be curated before any safe deploy. (3) Verified live host truth via `/api/health?ts=...`, `/api/status`, `/api/debug/strategy-paths`, `/api/clob-status`, `/api/diagnostics`, and `/api/wallet/balance`. (4) Proved the current host is `LIVE`, has `4.999209` balance, has both `15m` and `4h` active, is loading `strategy_set_top7_drop6.json` and `strategy_set_4h_maxprofit.json`, and is CLOB-trade-ready in the narrow probe sense. (5) Re-ran exact-runtime-v2 comparisons for the current live 15m artifact versus `top7_drop6_per_asset_lcb60_min12` and `top8_current`, plus 5m scenario comparisons. (6) Verified `server.js` and `lib/clob-client.js` parse cleanly with `node --check`.
+**What is pending**: (1) Curate and deploy the intended local changes. (2) Verify that the next live deploy still passes the balance/CLOB truth endpoints. (3) Capture one real live order submission with `orderID` on the current execution path. (4) Decide whether to keep `top7_drop6`, switch to `top7_drop6_per_asset_lcb60_min12`, or test-deploy `top8_current` based on the desired trade-off between conservative survivability and replay median upside.
+**Discrepancies found**: `render.yaml` defaults do not match the live env posture. Bare cached `/api/health` can mislead unless a cache-busted query string is used. Current live artifact choice differs from the checked-in default 15m path.
+**Key insight**: The bot is now much closer to honest handoff than in the old “invalid signature” state, but the present deploy is still missing the one proof that matters most: a fresh, current-deploy live order that actually returns `orderID` and completes the funded path.
+**Methodology**: Live endpoint verification, local syntax verification, local exact-runtime-v2 replay comparisons, local strategy schedule extraction, repo/deploy state inspection.
+**Next action**: Curate the workspace, deploy intentionally, then verify one real live order path before calling the project fully handoff-ready.
+
+### Addendum — 30 March 2026 Runtime Recovery + Proof-Path Preparation
+
+⚠️ **DATA SOURCE**: Live API (`/api/health`, `/api/status`, `/api/diagnostics`, `/api/clob-status`, `/api/wallet/balance`, `/api/debug/strategy-paths`) plus local strategy-file inspection of `debug/strategy_set_top8_current.json` plus local syntax-checked code changes in `server.js` and `lib/clob-client.js`.
+
+⚠️ **LIVE RUNTIME STATUS**: The live host is again healthy enough to evaluate both `15m` and `4h` honestly. Trading bankroll is back to `4.999209`, `15m` loads `/app/debug/strategy_set_top8_current.json`, `4h` loads `/app/debug/strategy_set_4h_maxprofit.json`, and the selected `sigType=1` wallet funder is `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` with collateral/allowance visible.
+
+⚠️ **LIVE METRIC AVAILABILITY**: Rolling live accuracy is still unavailable because the current restart has `0` completed trades.
+
+⚠️ **DISCREPANCIES**: The live host now shows recovered bankroll and active `4h`, but `/api/health.deployVersion` still reports the old static label and top-level `/api/clob-status.tradeReady` can still show `TIMEOUT_5s` even while nested `clobStatus.tradeReady.ok=true`. Those are truth-surface mismatches, not proof of failed wallet auth.
+
+#### Verified 30 March 2026 Recovery State
+
+- Runtime URL remains `https://polyprophet-1-rr1g.onrender.com`
+- Live bankroll/runtime bankroll: `4.999209`
+- Active timeframes: `15m` and `4h`
+- `15m` artifact: `/app/debug/strategy_set_top8_current.json` (`8` strategies)
+- `4h` artifact: `/app/debug/strategy_set_4h_maxprofit.json` (`8` strategies)
+- Current executor posture: `0` open positions, `0` completed trades on this restart
+- Current diagnostics no longer show new balance-timeout entries after runtime recovery
+
+#### Current Honest Boundary
+
+- The runtime is healthy enough to monitor, discover, price, and size trades again.
+- The wallet/auth layer is healthy enough to report a ready `sigType=1` selected candidate with visible collateral balance and allowance.
+- What is **still not proven** is a fresh live order returning a real `orderID` on the current deploy path.
+
+#### Why No Natural Trade Proof Exists Yet
+
+`top8_current` does **not** trade every cycle. It only opens when both the scheduled UTC window and the required entry band are hit.
+
+The currently loaded `top8_current` schedule is:
+
+- `H08 m14 DOWN 60-80c`
+- `H09 m08 UP 75-80c`
+- `H10 m06 UP 75-80c`
+- `H10 m07 UP 75-80c`
+- `H11 m04 UP 75-80c`
+- `H20 m01 DOWN 68-80c`
+- `H20 m03 DOWN 72-80c`
+- `H00 m12 DOWN 65-78c`
+
+During the current verification slice, live 15m prices were mostly around `44-55c`, so the runtime honestly found `0` candidates and attempted `0` trades.
+
+#### Local Proof-Path Hardening Prepared
+
+Two local code changes were prepared to improve verification honesty and manual proof capability:
+
+1. `lib/clob-client.js`
+   - preserves the selected `sigType=1` auth context for collateral balance refreshes
+   - reuses the already-probed selected collateral balance instead of collapsing the runtime to false-zero on transient follow-up failures
+
+2. `server.js`
+   - exposes a guarded `POST /api/manual-smoke-test` route that reuses the normal `tradeExecutor.executeTrade()` path
+   - requires explicit secret authorization plus `confirmLive=true`
+   - validates market key, side, slug, and optional max entry price before attempting a real live smoke trade
+
+This route is intended for **one intentional funded smoke test**, not for ordinary runtime operation.
+
+#### Current GO / NO-GO Verdict
+
+**Still NO-GO for claiming fully proven unattended live autonomy.**
+
+Reasons:
+
+1. No fresh live `orderID` has been observed on the current restart.
+2. Natural proof depends on scheduled windows and in-band prices, which have not aligned yet.
+3. The guarded manual smoke-test route exists locally for intentional verification, but that path still needs deploy + explicit invocation.
+
+#### Updated Next Action
+
+1. Deploy the local guarded smoke-test route and the balance-refresh hardening.
+2. Verify the route and the restored bankroll truth on the live host.
+3. Either:
+   - wait for the next natural `top8_current` eligible window, or
+   - invoke one guarded intentional smoke test with explicit confirmation.
+4. Only after a real `orderID` is captured should the project be described as fully handoff-ready.
+
+#### Current Session State — 30 March 2026
+
+> **Update this section at the end of every AI session.**
+
+**Last Agent**: Cascade operating as DEITY agent
+**Date**: 30 March 2026 (UTC)
+**What was done**: (1) Re-verified the live host and confirmed runtime recovery: bankroll restored to `4.999209`, `15m` and `4h` both active, `top8_current` loaded for `15m`, and `4h_maxprofit` loaded for `4h`. (2) Identified the latest live blocker as proof absence rather than active auth failure: no fresh candidate had appeared in-band during the verification slice. (3) Hardened `lib/clob-client.js` locally so collateral balance refresh uses the selected auth context and can reuse a known-good selected balance instead of collapsing to false-zero on transient failures. (4) Added a guarded local `POST /api/manual-smoke-test` route in `server.js` for one intentional live smoke trade through the normal execution path. (5) Extracted and documented the exact `top8_current` UTC windows so the next natural proof attempt can be monitored honestly.
+**What is pending**: (1) Push/deploy the guarded smoke-test route and latest runtime truth-surface changes. (2) Verify the route and live balance path after deploy. (3) Capture one real `orderID` either from a natural `top8_current` window or one guarded manual smoke test. (4) If that succeeds, append the final GO/handoff status.
+**Discrepancies found**: Live runtime behavior recovered before the stale `deployVersion` and top-level `tradeReady` truth surfaces caught up. Natural top8 windows are much sparser than earlier wildcard-like 15m postures, so `0` candidates in a short slice is expected rather than alarming.
+**Key insight**: The bot is no longer obviously blocked on wallet auth; the real missing artifact is a current-restart order acceptance proof.
+**Methodology**: Live endpoint verification, local strategy-file schedule extraction, targeted runtime code hardening, syntax verification, and handoff documentation update.
+**Next action**: Deploy the guarded smoke-test route and balance-refresh hardening, then capture one real live `orderID` via either a natural window or an intentional smoke test.
