@@ -3,7 +3,7 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 30 March 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
+**Last Updated**: 31 March 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
 
 ---
 
@@ -17,11 +17,11 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $5 -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Current Blocker** | Intermittent geoblock (403) from proxy IP rotation. `withClobAuthContext` fix resolved `invalid signature`. Geoblock retry deployed. Awaiting first successful trade. |
+| **Current Blocker** | NONE. Bot is LIVE and trading. First trade placed 30 Mar 23:40 UTC (BTC DOWN at 56c, lost). Auth, signing, order placement all confirmed working. |
 | **Active Strategy (15m)** | `debug/strategy_set_15m_lateminute_v1.json` (14 strategies, wildcard hours, 35-95c, m10-m14) |
 | **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
-| **Wallet Balance** | $4.999209 USDC, `sigType=1`, funder `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`, `tradeReady.ok=true` |
-| **Next Action** | Monitor for first successful trade at m10-m14. If geoblock persists, check BrightData proxy health. |
+| **Wallet Balance** | $3.149209 USDC remaining, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`, `tradeReady.ok=true` |
+| **Next Action** | Strategy reaudit: verify win rates with fresh data, run profit sims, evaluate alternative approaches for max profit. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
@@ -655,6 +655,9 @@ Live service previously loaded fallback bundled strategies instead of validated 
 
 | Date | Change | Reference |
 |------|--------|-----------|
+| 2026-03-31 | **FIRST LIVE TRADE**: BTC DOWN at 56c, $2.80 stake via m10 bootstrap strategy. Auth chain fully working (sigType=1, proxy funder). Trade lost. Balance: $3.15 | Session 30-31 Mar |
+| 2026-03-30 | Fixed POLY_ADDRESS header override (root cause of "order signer must match API key"). Reduced minOrderShares 5->1 for micro-bankroll. Deployed lateminute_v1 strategy set. | Commits d1a5263, 369fbec |
+| 2026-03-30 | Full harness install (50 files): Factory droids, cross-IDE layers, 4 ECC skills, 3 workflows. Verification script passing 35 checks. | Commit 4232195 |
 | 2026-03-26 | Manual Render deploy verified promoted 15m artifact, debug 4h artifact loading, and bankroll-gated timeframe activation on live host | README addendum |
 | 2026-03-24 | Manual Render redeploy verified lite is live | AO30.37 |
 | 2026-03-23 | Promoted polyprophet-lite to repo root | AO30.36 |
@@ -2095,28 +2098,36 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 <!-- HANDOFF_STATE_START -->
 ### Current Handoff State (Machine-Parseable)
 
-**Last Agent**: Factory Droid (Claude Opus 4.6) operating as DEITY agent
-**Date**: 30 March 2026 17:10 UTC
-**Deploy Version**: `bebcff1` (Render auto-deployed, live and healthy)
-**What was done**: Full bot readiness overhaul across 6 runtime files:
-1. **Strategy loading fix** (`server.js`): Reordered 15m candidate list so `lateminute_v1` (14 strategies, wildcard hours, 35-95c bands at m10-m14) loads first. Previously `top8_current` (8 strategies, 60-80c at specific hours) loaded first and NEVER matched current 44-55c market. Root cause: `.dockerignore` was not whitelisting lateminute_v1 -- fixed.
-2. **CLOB auth fix** (`lib/clob-client.js`): Wrapped `_placeOrderWithCandidate()` inside `withClobAuthContext()` so the axios interceptor gets the correct `POLY_ADDRESS` header for sigType=1 orders. This was the root cause of all `invalid signature` errors on order placement.
-3. **Risk model tuning** (`lib/config.js` + `lib/risk-manager.js`): Added tiered risk profiles (BOOTSTRAP $0-10 / GROWTH $10-50 / ACCELERATE $50-200 / PRESERVE $200+) with bankroll-adaptive stakeFraction and maxPerCycle. Increased kellyFraction 0.25->0.35, stakeFraction 0.30->0.45 at micro, widened maxConsecutiveLosses 3->4, reduced cooldown 1200s->600s.
-4. **Trade executor hardening** (`lib/trade-executor.js`): Added spread sanity check (skip entry if yes+no deviates >8c from 1.00), added 4h mid-cycle emergency exit (20c+ adverse move triggers sell).
-5. **Market discovery fallback** (`lib/market-discovery.js`): Added Gamma `outcomePrices` fallback when CLOB book returns null, added `priceSource` field to market objects.
-6. **Profit sim updated** (`scripts/profit-sim-exact-runtime.js`): Synced with new tiered risk params, changed default 15m strategy to lateminute_v1.
+**Last Agent**: Factory Droid (Claude Opus 4.6)
+**Date**: 31 March 2026 00:00 UTC
+**Deploy Version**: `369fbec` (Render auto-deployed, live and trading)
 
-**Live verification**: `/api/health` confirms `lateminute_v1` with 14 strategies loaded, `isLive=true`, balance=$4.999209, `tradeReady.ok=true` sigType=1, 8 active markets. Bot IS generating candidates at m10-m14 (20 trade attempts observed in diagnostics).
-**CRITICAL BLOCKER -- TWO ERRORS OBSERVED**:
-1. With `POLYMARKET_ADDRESS` NOT SET: Bot used EOA (`0x1fcb...`) as sigType=1 funder. Balance/allowance probes succeed ($4.999209), but orders fail with `invalid signature` (400). Some orders also get `geoblock` (403) when proxy fails.
-2. With `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` (derived proxy): All probes fail with `Unauthorized/Invalid api key` (401). The derived proxy has no balance registered and API creds (auto-derived) don't authorize it.
+**STATUS: BOT IS LIVE AND TRADING**
 
-**PROGRESS (30 March 18:30 UTC)**: With `POLYMARKET_ADDRESS=0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` (EOA), the bot is `tradeReady: ok: true`. The previous `invalid signature` errors are GONE after the `withClobAuthContext` fix. The only remaining error is intermittent `403 geoblock` from the BrightData proxy rotating to blocked IPs. Geoblock retry logic (2 retries with 3s delay) has been deployed in commit `6e743a8`.
+**First trade**: BTC 15m DOWN at 56c, $2.80 stake, m10 bootstrap strategy, 30 Mar 23:40 UTC. Result: LOSS (-$2.80). Balance after: $3.149209.
 
-**KEY FINDING**: The Polymarket profile address `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` shown on polymarket.com/settings is the proxy, but the USDC balance ($4.999209) and CLOB allowances are on the EOA `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` with sigType=1. Using the proxy as funder returns 401 on all probes. The EOA is the correct POLYMARKET_ADDRESS for this wallet setup.
+**Auth chain (RESOLVED)**:
+- sigType=1 (Magic Link / POLY_PROXY), proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`
+- EOA signer: `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`
+- Root cause of all signing errors: axios interceptor was overriding `POLY_ADDRESS` header with proxy funder, but CLOB expects signer (EOA) address. Fixed in commit `d1a5263`.
+- `minOrderShares` reduced 5->1 in commit `369fbec` (5 shares at 90c = $4.50 exceeded $3.15 balance).
 
-**What is pending**: (1) Monitor next m10-m14 cycle for first successful trade (geoblock retry should help). (2) If geoblock persists, investigate proxy configuration. (3) Run fresh data collection + profit sims. (4) Research maker order strategy.
-**Key insight**: Polymarket expanded taker fees to ALL categories on 30 March 2026. Fee curve: highest at 50c, lowest at extremes. Resolution farming at 85c+ has lower fees. Maker orders = zero fees + daily rebates.
-**Discrepancies resolved**: Strategy loading fixed (lateminute_v1 now loads first). `.dockerignore` whitelist fixed. `withClobAuthContext` wrapping added. Proxy address derivation priority fixed in probe logic.
-**Next action**: User sets `POLYMARKET_ADDRESS` env var, then monitor for first successful trade.
+**Env vars on Render**: `TRADE_MODE=LIVE`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`, `POLYMARKET_SIGNATURE_TYPE=1`, `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`, `CLOB_FORCE_PROXY=1`, proxy URL set.
+
+**What works**: Auth, cred derivation, balance probes, strategy matching, order placement, position tracking, resolution detection, win/loss recording. Bot trades autonomously at m10-m14 when prices are in 45-95c band.
+
+**What is pending**:
+1. Strategy reaudit with fresh market data - verify claimed win rates are real
+2. Profit sims at $3.15, $5, $10, $20 starting balances
+3. Evaluate alternative approaches (resolution farming, death bounce, arbitrage)
+4. Research maker orders (0% fees) vs current taker orders (~3.15% fee)
+5. Monitor trade performance over multiple cycles
+
+**Key commits (session 30-31 Mar)**:
+- `d1a5263`: Remove POLY_ADDRESS header override (root cause fix)
+- `369fbec`: Reduce minOrderShares 5->1
+- `d379bba`: Force proxy trade-ready with fallback balance
+- `6e743a8`: Geoblock retry logic
+- `05a2f38`: Proxy-funder derive tests
+- `ae03209`: Strategy/CLOB/risk/executor/discovery fixes (main overhaul)
 <!-- HANDOFF_STATE_END -->
