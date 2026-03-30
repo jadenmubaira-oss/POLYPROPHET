@@ -1,0 +1,61 @@
+---
+description: POLYPROPHET unified agent harness rules for Cursor
+globs: ["**/*"]
+alwaysApply: true
+---
+
+# POLYPROPHET — Cursor Agent Rules
+
+## Read Order (MANDATORY before any changes)
+
+1. `README.md` — Immortal manifesto, source of truth
+2. `AGENTS.md` — Cross-harness map
+3. `.agent/skills/DEITY/SKILL.md` — Unified agent protocol
+4. `.agent/skills/ECC_BASELINE/SKILL.md` — Research-first baseline
+5. `IMPLEMENTATION_PLAN_v140.md` — Detailed audit trail
+
+## Core Rules
+
+- README.md is the canonical handoff document. Update it after every substantial task.
+- DEITY is the primary authority. ECC is additive only.
+- Research before editing. Verify before and after every change.
+- Run `node --check server.js` after touching runtime code.
+- Never hardcode secrets. Keep `.env` and `POLYPROPHET.env` out of commits.
+- Prefer small, reversible changes over large rewrites.
+- State DATA SOURCE for every performance claim.
+- If not 100% certain, ask the user.
+
+## Agent Self-Identification
+
+At session start, state:
+```
+I am [Agent Name] operating as DEITY agent.
+Session started: [timestamp]
+Last known state: [from README.md Current Session State]
+```
+
+## Handover Protocol
+
+At session end:
+1. Update README.md "Current Session State" section
+2. Document what was done, discovered, and pending
+3. Note any discrepancies
+4. Leave clear next-action items
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `server.js` | Lite runtime entry point |
+| `lib/config.js` | Configuration and env vars |
+| `lib/strategy-matcher.js` | Strategy set loading/matching |
+| `lib/risk-manager.js` | Bankroll management |
+| `lib/trade-executor.js` | CLOB order execution |
+| `lib/market-discovery.js` | Market discovery |
+| `lib/clob-client.js` | CLOB API client |
+
+## Validation
+
+- Runtime: `node --check server.js`
+- Endpoints: `/api/health`, `/api/status`, `/api/wallet/balance`
+- Strategy artifacts: `debug/strategy_set_*.json`

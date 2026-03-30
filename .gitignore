@@ -59,7 +59,8 @@ Thumbs.db
 nul
 
 # IDE
-.cursor/
+.cursor/*
+!.cursor/rules/
 .vscode/
 .idea/
 

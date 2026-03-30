@@ -7,6 +7,27 @@
 
 ---
 
+## Quick Start For New Agents
+
+<!-- AGENT_QUICK_START -->
+> **Read this first.** 10-line summary of current project state.
+
+| Field | Value |
+|-------|-------|
+| **Objective** | Autonomous Polymarket crypto trading bot, $5 -> max profit via compounding |
+| **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
+| **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
+| **Current Blocker** | No post-patch live `orderID` captured yet. Runtime is healthy, wallet/auth ready, but execution proof is missing. |
+| **Active Strategy (15m)** | `debug/strategy_set_top8_current.json` (8 strategies, hours 0/8/9/10/11/20) |
+| **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $10) |
+| **Wallet Balance** | ~$5 USDC, `sigType=1`, funder `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` |
+| **Next Action** | Capture one real live `orderID` via natural window or guarded `/api/manual-smoke-test` route |
+| **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
+| **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
+<!-- /AGENT_QUICK_START -->
+
+---
+
 ## Table of Contents
 
 1. [Mission](#mission)
@@ -1918,3 +1939,168 @@ Reasons:
 **Key insight**: The bot is no longer obviously blocked on wallet auth; the real missing artifact is a current-restart order acceptance proof.
 **Methodology**: Live endpoint verification, local strategy-file schedule extraction, targeted runtime code hardening, syntax verification, and handoff documentation update.
 **Next action**: Deploy the guarded smoke-test route and balance-refresh hardening, then capture one real live `orderID` via either a natural window or an intentional smoke test.
+
+### Final Handoff — 30 March 2026 Post-Patch Live State
+
+⚠️ **DATA SOURCE**: Live API (`/api/health`, `/api/status`, `/api/diagnostics`, `/api/clob-status`) plus local code analysis of the shipped `lib/clob-client.js` and `server.js` changes.
+
+⚠️ **LIVE RUNTIME STATUS**: The current live host is `https://polyprophet-1-rr1g.onrender.com` and is serving deploy `055de786be39bdd25d9356aedb107776baaff82b`. Runtime is `LIVE`, bankroll is `4.999209`, both `15m` and `4h` are active, `15m` is loading `/app/debug/strategy_set_top8_current.json`, `4h` is loading `/app/debug/strategy_set_4h_maxprofit.json`, and `/api/clob-status` currently reports `tradeReady.ok=true` for `sigType=1` with selected funder `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`.
+
+⚠️ **LIVE METRIC AVAILABILITY**: Rolling live accuracy remains unavailable because the current patched restart still has `0` completed trades.
+
+⚠️ **DISCREPANCIES**: Earlier README notes that said the latest guarded smoke-test / order-path fixes were still undeployed are now stale. The current live host has already advanced to `055de78`. What remains stale is not deploy state but proof state: there is still no post-patch accepted live `orderID`.
+
+#### What Was Actually Proven This Session
+
+1. The live host previously reached the real funded path and produced honest `TRADE_FAILED` diagnostics with `{"error":"invalid signature","status":400}` on natural 15m attempts. The blocker was therefore real order submission, not market discovery.
+2. The order path in `lib/clob-client.js` was then narrowed against the legacy runtime and patched so `_placeOrderWithCandidate()` uses the direct upstream `createOrder()` / `postOrder()` flow again.
+3. That patch is now live on deploy `055de78`.
+4. The patched restart is healthy: diagnostics are currently empty, bankroll is preserved at `4.999209`, and the readiness / allowance surfaces remain good.
+
+#### What Is Still Not Proven
+
+1. No post-patch live order has yet returned a real `orderID`.
+2. The current patched restart has `0` completed trades and `0` open positions.
+3. The first natural post-patch window checked during this session (`09:08 UTC`, `UP 75-80c`) produced `0` candidates because actual 15m YES prices were far below band.
+4. The guarded manual smoke-test route exists on the live host but has not been intentionally invoked in this session.
+
+#### Why The Patched Runtime Still Has No Trade Proof
+
+`top8_current` is sparse by design. It only trades when a scheduled UTC minute and the required price band align together.
+
+At the latest post-patch live check:
+
+- `BTC_15m yesPrice = 0.11`
+- `ETH_15m yesPrice = 0.02`
+- `XRP_15m yesPrice = 0.01`
+- `SOL_15m yesPrice = 0.00`
+
+Those prices are nowhere near the near-term `UP 75-80c` windows, so `candidatesFound=0` and `tradesAttempted=0` is the honest outcome, not a fresh failure.
+
+#### Exact Next Proof Gates
+
+The next natural `top8_current` windows after this handoff are:
+
+- `10:06 UTC` — `UP 75-80c`
+- `10:07 UTC` — `UP 75-80c`
+- `11:04 UTC` — `UP 75-80c`
+
+If those windows do not land in-band, the fastest honest proof path is the guarded live smoke test.
+
+#### Guarded Smoke-Test Route Handoff
+
+Current live route:
+
+- `POST /api/manual-smoke-test`
+
+Current safeguards:
+
+- requires secret via `x-manual-smoke-key` header or `manualSmokeKey` body field
+- requires `confirmLive=true`
+- requires valid `marketKey`
+- requires `direction` of `UP` or `DOWN`
+- optionally enforces `expectedSlug`
+- optionally enforces `maxEntryPrice`
+- routes through normal `tradeExecutor.executeTrade()` instead of a fake path
+
+This is the cleanest way to prove the current patched execution path if natural windows stay out of band.
+
+#### Final Truthful Verdict
+
+**NO-GO for claiming fully proven unattended live autonomy.**
+
+Reason:
+
+- the runtime is healthy
+- the wallet/auth readiness layer is healthy
+- the previously failing order path has been patched and deployed
+- but there is still **no post-patch accepted order with real `orderID`**
+
+The project is therefore **handoff-ready for continued verification**, but **not handoff-ready for claiming proven live autonomy**.
+
+#### Final Session Closeout — 30 March 2026
+
+> **Update this section at the end of every AI session.**
+
+**Last Agent**: Cascade operating as DEITY agent
+**Date**: 30 March 2026 (UTC)
+**What was done**: (1) Re-verified the promoted live posture and confirmed `top8_current` + `4h_maxprofit` were active on the host. (2) Captured real pre-patch `invalid signature` order failures from live diagnostics, proving the blocker was actual order submission. (3) Compared the current order path against the legacy runtime and narrowed the likely regression to the wrapped order-submission flow. (4) Patched `lib/clob-client.js` so actual order creation/submission returned to the direct upstream client path. (5) Deployed that patch as commit `055de78` and re-verified the patched host. (6) Confirmed the patched restart remained healthy but did not yet receive an in-band natural order opportunity.
+**What is pending**: (1) Capture one post-patch accepted live `orderID`. (2) If natural windows stay out of band, run one guarded manual smoke test. (3) After one accepted live order, verify the rest of the funded path: fill or partial fill handling, resolution / sell behavior, redemption, and balance reconciliation. (4) Only then append a true GO-ready autonomy note.
+**Discrepancies found**: Earlier README notes still imply the newest guarded-route / patched-order deploy had not landed. That is now stale; `055de78` is live. The remaining uncertainty is execution proof, not deployment state.
+**Key insight**: The real milestone was shifting from “the bot looks ready” to “the bot previously failed on a real funded order path, that path was patched, and the remaining gap is now only a post-patch proof trade.”
+**Methodology**: Live endpoint polling, legacy-vs-lite order-path comparison, targeted runtime patching, syntax verification, deploy verification, and natural-window monitoring.
+**Next action**: Use either the next natural in-band `top8_current` window or the guarded `/api/manual-smoke-test` route to capture one post-patch real `orderID`.
+
+### Harness Continuity Addendum — 30 March 2026
+
+⚠️ **DATA SOURCE**: Local harness file creation, direct authority-file edits, and deterministic ECC harness audit output from `node external/everything-claude-code/scripts/harness-audit.js repo --format text --root .`.
+
+#### What Was Added
+
+Repo-local harness coverage was expanded with:
+
+- `.agent/skills/harness-optimizer/SKILL.md`
+- `.agent/skills/typescript-reviewer/SKILL.md`
+- `.agent/rules/typescript.md`
+- `.agent/workflows/harness-audit.md`
+- `.agent/workflows/loop-start.md`
+- `.agent/workflows/loop-status.md`
+- `.windsurf/workflows/handover-sync.md`
+
+Additionally, these existing authority files were synchronized toward current repo truth:
+
+- `.agent/skills/DEITY/SKILL.md`
+- `.agent/skills/EXECUTION/SKILL.md`
+- `.agent/skills/ULTRATHINK/SKILL.md`
+- `.agent/rules/agents.md`
+- `.windsurf/workflows/skill.md`
+- `.agent/ecc-install-state.json`
+
+#### What Was Verified
+
+ECC harness audit result after the repo-local harness additions:
+
+- overall score: `8/29`
+- Tool Coverage: `0/10` (`0/7 pts`)
+- Context Efficiency: `6/10` (`3/5 pts`)
+- Quality Gates: `4/10` (`3/7 pts`)
+- Memory Persistence: `0/10` (`0/2 pts`)
+- Eval Coverage: `0/10` (`0/2 pts`)
+- Security Guardrails: `3/10` (`2/6 pts`)
+
+#### Why The Score Is Still Low
+
+The upstream ECC audit is heavily biased toward a Claude/ECC install shape such as user-level plugin state and project-local `.claude/` assets.
+
+This repo now has a meaningful project-local harness in `.agent/` and `.windsurf/`, but the audit still penalizes:
+
+1. missing user/plugin installation that cannot be guaranteed by the repo alone
+2. lack of checked-in automated tests
+3. lack of project-local `.claude/` mirrors or equivalents for Claude-specific discovery
+
+#### Honest Remaining Limits
+
+1. `AGENTS.md` is semantically updated but still has unresolved markdown table-style lint. Multiple direct patch attempts on that file failed due tool-context mismatch, so this remains a formatting issue rather than a truth issue.
+2. The repo still lacks checked-in automated tests, so quality-gate automation remains weak.
+3. The repo still does not ship a `.claude/` mirror layer, so some ECC/Claude-specific audit checks remain uncredited even though `.agent/` and `.windsurf/` coverage improved.
+4. None of this changes the separate live-trading proof status: the project still lacks a post-patch accepted live `orderID` and therefore still cannot be described as proven unattended live autonomy.
+
+#### Best Next Harness Actions
+
+1. Add a minimal `.claude/` compatibility layer that points Claude-oriented agents at `README.md`, `AGENTS.md`, and the local `.agent/` harness.
+2. Add at least one checked-in verification script or smoke-testable test suite so harness workflows can validate changes automatically.
+3. Fix `AGENTS.md` markdown formatting once a non-brittle edit path is available.
+4. Keep updating this README at the end of each substantial task so handoff truth remains repo-native rather than chat-dependent.
+
+<!-- HANDOFF_STATE_START -->
+### Current Handoff State (Machine-Parseable)
+
+**Last Agent**: Factory Droid (Claude Opus 4.6) operating as DEITY agent
+**Date**: 30 March 2026 (UTC)
+**What was done**: (1) Installed full cross-IDE harness compatibility layers: `.factory/droids/` (4 project droids), `.claude/` (settings + CLAUDE.md), `.cursor/rules/` (Cursor MDC rules), `.codex/` (OpenAI instructions). (2) Installed 4 new ECC-adapted agent skills: `performance-optimizer`, `e2e-runner`, `tdd-guide`, `docs-lookup`. (3) Installed 3 new ECC-adapted workflows: `checkpoint`, `resume-session`, `quality-gate`. (4) Added machine-parseable Quick Start and Handoff State blocks to README.md. (5) Created `scripts/verify-harness.js` for automated harness integrity checking. (6) Updated AGENTS.md with Factory/Droid integration and synced all installed component tables.
+**What is pending**: (1) Capture one real post-patch live `orderID`. (2) Run guarded `/api/manual-smoke-test` if natural windows stay out of band. (3) Verify full funded path: buy -> fill -> resolve -> redeem -> balance reconciliation. (4) Re-evaluate 15m strategy artifact choice based on corrected-sim evidence.
+**Discrepancies found**: `render.yaml` defaults still differ from live env overrides. Live 15m artifact is `top8_current` not the checked-in default. Earlier README sections claiming different artifacts are stale.
+**Key insight**: The harness is now cross-IDE complete. Any AI agent on any IDE (Factory, Windsurf, Cursor, Claude Code, Codex) can read this README and continue work seamlessly.
+**Methodology**: Full workspace audit, ECC upstream analysis, cross-IDE file creation, harness verification script, README/AGENTS.md synchronization.
+**Next action**: Deploy harness changes, then capture one real live `orderID`.
+<!-- HANDOFF_STATE_END -->

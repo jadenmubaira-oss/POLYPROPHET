@@ -1,0 +1,16 @@
+{
+  "project": {
+    "name": "POLYPROPHET",
+    "description": "Autonomous Polymarket trading bot with walk-forward validated strategies",
+    "authorityFiles": [
+      "README.md",
+      "AGENTS.md",
+      ".agent/skills/DEITY/SKILL.md",
+      ".agent/skills/ECC_BASELINE/SKILL.md",
+      "IMPLEMENTATION_PLAN_v140.md"
+    ],
+    "rules": ".agent/rules/",
+    "skills": ".agent/skills/",
+    "workflows": ".agent/workflows/"
+  }
+}
