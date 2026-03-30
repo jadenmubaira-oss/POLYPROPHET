@@ -2,7 +2,11 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const CONFIG = require('./lib/config');
-const DEPLOY_VERSION = '2026-03-28T09:55Z-lateminute-v1-final';
+const DEPLOY_VERSION =
+    process.env.RENDER_GIT_COMMIT ||
+    process.env.SOURCE_VERSION ||
+    process.env.GIT_COMMIT ||
+    'local-dev';
 const { discoverAllMarkets, computeEpoch, getEntryMinute, fetchMarketBySlug } = require('./lib/market-discovery');
 const { loadStrategySet, evaluateMatch, sortCandidates, getAllLoadedSets } = require('./lib/strategy-matcher');
 const RiskManager = require('./lib/risk-manager');
@@ -24,32 +28,32 @@ let diagnosticLog = [];
 const startupTime = Date.now();
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'debug')) ? __dirname : path.join(__dirname, '..');
 
- function getConfiguredTimeframes() {
-     return CONFIG.TIMEFRAMES.filter(tf => tf && tf.enabled !== false);
- }
+function getConfiguredTimeframes() {
+    return CONFIG.TIMEFRAMES.filter(tf => tf && tf.enabled !== false);
+}
 
- function getRuntimeBankrollForTimeframes() {
-     const liveTradingBalance = Number(tradeExecutor?.getCachedBalanceBreakdown?.()?.tradingBalanceUsdc || tradeExecutor?.cachedLiveBalance || 0);
-     if (CONFIG.TRADE_MODE === 'LIVE' && Number.isFinite(liveTradingBalance) && liveTradingBalance > 0) {
-         return liveTradingBalance;
-     }
+function getRuntimeBankrollForTimeframes() {
+    const liveTradingBalance = Number(tradeExecutor?.getCachedBalanceBreakdown?.()?.tradingBalanceUsdc || tradeExecutor?.cachedLiveBalance || 0);
+    if (CONFIG.TRADE_MODE === 'LIVE' && Number.isFinite(liveTradingBalance) && liveTradingBalance > 0) {
+        return liveTradingBalance;
+    }
 
-     if (CONFIG.TRADE_MODE === 'LIVE') {
-         return Math.max(0, liveTradingBalance || 0);
-     }
+    if (CONFIG.TRADE_MODE === 'LIVE') {
+        return Math.max(0, liveTradingBalance || 0);
+    }
 
-     const riskBankroll = Number(riskManager?.bankroll);
-     if (Number.isFinite(riskBankroll) && riskBankroll > 0) {
-         return riskBankroll;
-     }
+    const riskBankroll = Number(riskManager?.bankroll);
+    if (Number.isFinite(riskBankroll) && riskBankroll > 0) {
+        return riskBankroll;
+    }
 
-     return Number(CONFIG.RISK.startingBalance || 0) || 0;
- }
+    return Number(CONFIG.RISK.startingBalance || 0) || 0;
+}
 
- function getEnabledTimeframes() {
-     const bankroll = getRuntimeBankrollForTimeframes();
-     return getConfiguredTimeframes().filter(tf => bankroll >= Number(tf.minBankroll || 0));
- }
+function getEnabledTimeframes() {
+    const bankroll = getRuntimeBankrollForTimeframes();
+    return getConfiguredTimeframes().filter(tf => bankroll >= Number(tf.minBankroll || 0));
+}
 
 function saveRuntimeState() {
     try {
@@ -615,10 +619,13 @@ app.get('/api/clob-status', async (req, res) => {
     try {
         const status = tradeExecutor.clob?.getStatus?.() || {};
         const deriveResult = await tradeExecutor.clob?.ensureCreds?.().catch(e => ({ ok: false, reason: e.message })) || { ok: false, reason: 'no clob' };
-        const tradeReady = await Promise.race([
+        const liveTradeReady = await Promise.race([
             tradeExecutor.clob?.getTradeReadyClient?.({ force: true, ttlMs: 5000 }),
             new Promise(r => setTimeout(() => r({ ok: false, reason: 'TIMEOUT_5s' }), 5000))
         ]).catch(e => ({ ok: false, reason: e.message }));
+        const tradeReady = liveTradeReady?.ok
+            ? liveTradeReady
+            : (status?.tradeReady?.ok ? status.tradeReady : liveTradeReady);
         res.json({
             clobStatus: status,
             credsDerived: deriveResult,
