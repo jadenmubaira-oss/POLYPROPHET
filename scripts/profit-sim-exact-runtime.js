@@ -27,6 +27,10 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
+const INPUTS = {
+    altStrat15Path: String(process.env.ALT_STRAT15_PATH || '').trim(),
+    altStrat15Label: String(process.env.ALT_STRAT15_LABEL || '').trim()
+};
 
 // ==================== EXACT RUNTIME CONFIG ====================
 const RUNTIME = {
@@ -34,16 +38,16 @@ const RUNTIME = {
     simDays: Number(process.env.SIM_DAYS || 30),
     trials: Number(process.env.TRIALS || 3000),
     // Risk params from lib/config.js
-    stakeFraction: 0.30,        // defaultStakeFraction when startingBalance <= 10
+    stakeFraction: 0.45,
     kellyMaxFraction: 0.45,
-    kellyFraction: 0.25,        // half-Kelly
+    kellyFraction: 0.35,
     kellyMinPWin: 0.55,
     globalStopLoss: 0.20,
-    maxGlobalTradesPerCycle: 2,
+    maxGlobalTradesPerCycle: 3,
     microBankrollThreshold: 10,
     minOrderShares: 5,
-    maxConsecutiveLosses: 3,
-    cooldownSeconds: 1200,
+    maxConsecutiveLosses: 4,
+    cooldownSeconds: 600,
     peakDrawdownBrakePct: 0.20,
     peakDrawdownBrakeMinBankroll: 20,
     minBalanceFloor: 2.0,
@@ -89,8 +93,16 @@ function mulberry32(seed) {
 }
 
 // ==================== EXACT RUNTIME SIZING (from risk-manager.js) ====================
+function getTierProfile(bankroll) {
+    if (bankroll < 10) return { maxPerCycle: 1, stakeFraction: 0.45, label: 'BOOTSTRAP' };
+    if (bankroll < 50) return { maxPerCycle: 2, stakeFraction: 0.32, label: 'GROWTH' };
+    if (bankroll < 200) return { maxPerCycle: 3, stakeFraction: 0.25, label: 'ACCELERATE' };
+    return { maxPerCycle: 2, stakeFraction: 0.12, label: 'PRESERVE' };
+}
+
 function calculateSize(bankroll, peakBalance, entryPrice, pWinEstimate) {
-    let stakeFraction = RUNTIME.stakeFraction;
+    const tier = getTierProfile(bankroll);
+    let stakeFraction = tier.stakeFraction;
 
     // Peak drawdown brake
     if (peakBalance > RUNTIME.peakDrawdownBrakeMinBankroll) {
@@ -124,7 +136,9 @@ function calculateSize(bankroll, peakBalance, entryPrice, pWinEstimate) {
     // Minimum order enforcement (EXACT runtime logic)
     const minOrderCost = RUNTIME.minOrderShares * entryPrice;
     if (size < minOrderCost) {
-        const minCashNeeded = minOrderCost * 1.05;
+        const minCashNeeded = bankroll < RUNTIME.microBankrollThreshold
+            ? minOrderCost
+            : minOrderCost * 1.05;
         if (bankroll >= minCashNeeded) {
             size = minOrderCost;
         } else {
@@ -144,17 +158,24 @@ function calculateSize(bankroll, peakBalance, entryPrice, pWinEstimate) {
 
 // ==================== TRADE BUILDING ====================
 function buildStrategyTrades(dataset, strategies, cycleSec, groupName) {
-    const bySlot = new Map();
+    const byMinute = new Map();
     for (const s of strategies) {
-        const key = `${s.utcHour}|${s.entryMinute}`;
-        if (!bySlot.has(key)) bySlot.set(key, []);
-        bySlot.get(key).push(s);
+        const minute = Number(s.entryMinute);
+        if (!Number.isFinite(minute)) continue;
+        if (!byMinute.has(minute)) byMinute.set(minute, []);
+        byMinute.get(minute).push(s);
     }
     const trades = [];
     for (const row of dataset) {
-        const slot = bySlot.get(`${row.utcHour}|${row.entryMinute}`);
+        const slot = byMinute.get(Number(row.entryMinute));
         if (!slot) continue;
         for (const s of slot) {
+            const strategyHour = Number(s.utcHour);
+            const rowHour = Number(row.utcHour);
+            if (Number.isFinite(strategyHour) && strategyHour !== -1 && strategyHour !== rowHour) continue;
+            const strategyAsset = String(s.asset || 'ALL').toUpperCase();
+            const rowAsset = String(row.asset || 'ALL').toUpperCase();
+            if (strategyAsset !== 'ALL' && rowAsset !== strategyAsset) continue;
             const entryPrice = s.direction === 'UP' ? Number(row.upPrice) : Number(row.downPrice);
             if (!Number.isFinite(entryPrice) || entryPrice <= 0 || entryPrice >= 1) continue;
             if (entryPrice < s.priceMin || entryPrice > s.priceMax) continue;
@@ -165,7 +186,7 @@ function buildStrategyTrades(dataset, strategies, cycleSec, groupName) {
             const won = row.resolvedOutcome === s.direction;
             trades.push({
                 group: groupName,
-                asset: row.asset || 'ALL',
+                asset: strategyAsset === 'ALL' ? (row.asset || 'ALL') : strategyAsset,
                 dayKey: new Date(entryTs * 1000).toISOString().slice(0, 10),
                 entryTs,
                 exitTs,
@@ -191,6 +212,58 @@ function groupByDay(trades) {
         dayKey,
         trades: dayTrades.sort((a, b) => a.entryTs - b.entryTs)
     }));
+}
+
+function getTradeConfigs() {
+    const configs = [
+        {
+            key: 'strat15',
+            label: '15m lateminute_v1',
+            strategyPath: 'debug/strategy_set_15m_lateminute_v1.json',
+            datasetPath: 'exhaustive_analysis/decision_dataset.json',
+            cycleSec: 900
+        },
+        {
+            key: 'strat4h',
+            label: '4h maxprofit',
+            strategyPath: 'debug/strategy_set_4h_maxprofit.json',
+            datasetPath: 'exhaustive_analysis/4h/4h_decision_dataset.json',
+            cycleSec: 14400
+        },
+        {
+            key: 'strat5m',
+            label: '5m maxprofit',
+            strategyPath: 'debug/strategy_set_5m_maxprofit.json',
+            datasetPath: 'exhaustive_analysis/5m/5m_decision_dataset.json',
+            cycleSec: 300
+        }
+    ];
+
+    if (INPUTS.altStrat15Path) {
+        configs.push({
+            key: 'strat15Alt',
+            label: INPUTS.altStrat15Label || path.basename(INPUTS.altStrat15Path, path.extname(INPUTS.altStrat15Path)),
+            strategyPath: INPUTS.altStrat15Path,
+            datasetPath: 'exhaustive_analysis/decision_dataset.json',
+            cycleSec: 900
+        });
+    }
+
+    return configs;
+}
+
+function loadTradeGroups(configs) {
+    const datasetCache = {};
+    return configs.map((config) => {
+        if (!datasetCache[config.datasetPath]) {
+            datasetCache[config.datasetPath] = readJson(config.datasetPath);
+        }
+        const strategySet = readJson(config.strategyPath);
+        return {
+            ...config,
+            trades: buildStrategyTrades(datasetCache[config.datasetPath], strategySet.strategies, config.cycleSec, config.key)
+        };
+    });
 }
 
 // ==================== EXACT RUNTIME SIMULATION ====================
@@ -289,8 +362,7 @@ function simulateTrial(dayBuckets, scenario, seed) {
             const dayPnl = bankroll - dayStartBalance;
             if (dayPnl < -maxDayLoss) { dayStopped = true; continue; }
 
-            // Max trades per cycle (bankroll-adaptive)
-            const maxPerCycle = bankroll < RUNTIME.microBankrollThreshold ? 1 : RUNTIME.maxGlobalTradesPerCycle;
+            const maxPerCycle = getTierProfile(bankroll).maxPerCycle;
             const ck = trade.cycleKey;
             const cycleCount = dayCycleCounts[ck] || 0;
             if (cycleCount >= maxPerCycle) continue;
@@ -303,9 +375,7 @@ function simulateTrial(dayBuckets, scenario, seed) {
             const shares = Math.floor(sizing.size / trade.entryPrice);
             if (shares < RUNTIME.minOrderShares) continue;
 
-            // Actual fill cost includes slippage (what you really pay)
-            const effectiveEntry = Math.min(0.999, trade.entryPrice * (1 + RUNTIME.slippagePct));
-            const cost = shares * effectiveEntry;
+            const cost = shares * trade.entryPrice;
             if (cost > bankroll) continue;
 
             // === Execute trade ===
@@ -371,19 +441,10 @@ function summarizeTrials(results) {
 // ==================== MAIN ====================
 function main() {
     console.error('Loading datasets...');
-    const strat15 = readJson('debug/strategy_set_top7_drop6.json');
-    const strat4h = readJson('debug/strategy_set_4h_maxprofit.json');
-    const strat5m = readJson('debug/strategy_set_5m_maxprofit.json');
-    const ds15 = readJson('exhaustive_analysis/decision_dataset.json');
-    const ds4h = readJson('exhaustive_analysis/4h/4h_decision_dataset.json');
-    const ds5m = readJson('exhaustive_analysis/5m/5m_decision_dataset.json');
-
     console.error('Building trade lists...');
-    const trades15 = buildStrategyTrades(ds15, strat15.strategies, 900, 'strat15');
-    const trades4h = buildStrategyTrades(ds4h, strat4h.strategies, 14400, 'strat4h');
-    const trades5m = buildStrategyTrades(ds5m, strat5m.strategies, 300, 'strat5m');
+    const loadedTradeGroups = loadTradeGroups(getTradeConfigs());
 
-    console.error(`Trades: 15m=${trades15.length}, 4h=${trades4h.length}, 5m=${trades5m.length}`);
+    console.error(`Trades: ${loadedTradeGroups.map(({ key, trades }) => `${key}=${trades.length}`).join(', ')}`);
 
     // Summarize raw trade quality
     const summarize = (trades, label) => {
@@ -401,31 +462,34 @@ function main() {
         };
     };
 
-    const tradeSummaries = {
-        strat15: summarize(trades15, '15m top7_drop6'),
-        strat4h: summarize(trades4h, '4h maxprofit'),
-        strat5m: summarize(trades5m, '5m maxprofit')
-    };
+    const tradeSummaries = Object.fromEntries(
+        loadedTradeGroups.map(({ key, label, trades }) => [key, summarize(trades, label)])
+    );
 
     // Group by day for Monte Carlo sampling
-    const dayBuckets = {
-        strat15: groupByDay(trades15),
-        strat4h: groupByDay(trades4h),
-        strat5m: groupByDay(trades5m)
-    };
+    const dayBuckets = Object.fromEntries(
+        loadedTradeGroups.map(({ key, trades }) => [key, groupByDay(trades)])
+    );
 
-    console.error(`Day buckets: 15m=${dayBuckets.strat15.length}, 4h=${dayBuckets.strat4h.length}, 5m=${dayBuckets.strat5m.length}`);
+    console.error(`Day buckets: ${loadedTradeGroups.map(({ key }) => `${key}=${dayBuckets[key].length}`).join(', ')}`);
 
     // Define scenarios
-    const scenarios = [
-        { name: '15m only', groups: ['strat15'] },
-        { name: '4h only', groups: ['strat4h'] },
-        { name: '5m only', groups: ['strat5m'] },
-        { name: '15m + 4h', groups: ['strat15', 'strat4h'] },
-        { name: '15m + 5m', groups: ['strat15', 'strat5m'] },
-        { name: '15m + 4h + 5m', groups: ['strat15', 'strat4h', 'strat5m'] },
-        { name: '4h + 5m', groups: ['strat4h', 'strat5m'] },
-    ];
+    const available = new Set(loadedTradeGroups.map(({ key }) => key));
+    const scenarios = [];
+    if (available.has('strat15')) scenarios.push({ name: '15m only', groups: ['strat15'] });
+    if (available.has('strat4h')) scenarios.push({ name: '4h only', groups: ['strat4h'] });
+    if (available.has('strat5m')) scenarios.push({ name: '5m only', groups: ['strat5m'] });
+    if (available.has('strat15') && available.has('strat4h')) scenarios.push({ name: '15m + 4h', groups: ['strat15', 'strat4h'] });
+    if (available.has('strat15') && available.has('strat5m')) scenarios.push({ name: '15m + 5m', groups: ['strat15', 'strat5m'] });
+    if (available.has('strat15') && available.has('strat4h') && available.has('strat5m')) scenarios.push({ name: '15m + 4h + 5m', groups: ['strat15', 'strat4h', 'strat5m'] });
+    if (available.has('strat4h') && available.has('strat5m')) scenarios.push({ name: '4h + 5m', groups: ['strat4h', 'strat5m'] });
+    if (available.has('strat15Alt')) {
+        const altLabel = tradeSummaries.strat15Alt.label;
+        scenarios.push({ name: `${altLabel} only`, groups: ['strat15Alt'] });
+        if (available.has('strat4h')) scenarios.push({ name: `${altLabel} + 4h`, groups: ['strat15Alt', 'strat4h'] });
+        if (available.has('strat5m')) scenarios.push({ name: `${altLabel} + 5m`, groups: ['strat15Alt', 'strat5m'] });
+        if (available.has('strat4h') && available.has('strat5m')) scenarios.push({ name: `${altLabel} + 4h + 5m`, groups: ['strat15Alt', 'strat4h', 'strat5m'] });
+    }
 
     // Run simulations at multiple starting balances
     const startingBalances = [5, 7, 10, 20];
@@ -433,8 +497,7 @@ function main() {
 
     for (const sb of startingBalances) {
         RUNTIME.startingBalance = sb;
-        // Adjust stake fraction based on starting balance (EXACT config.js logic)
-        RUNTIME.stakeFraction = sb <= 10 ? 0.30 : 0.20;
+        RUNTIME.stakeFraction = sb <= 10 ? 0.45 : 0.20;
 
         console.error(`\nRunning ${RUNTIME.trials} trials at $${sb} start...`);
         const sbResults = [];
@@ -459,9 +522,13 @@ function main() {
 
     const output = {
         generatedAt: new Date().toISOString(),
-        simulationEngine: 'exact-runtime-v1',
+        simulationEngine: 'exact-runtime-v2',
+        inputConfig: {
+            altStrat15Path: INPUTS.altStrat15Path || null,
+            altStrat15Label: INPUTS.altStrat15Path ? tradeSummaries.strat15Alt.label : null
+        },
         runtimeConfig: {
-            stakeFraction: '0.30 (<=10) / 0.20 (>10)',
+            stakeFraction: 'tiered: 0.45 (<$10) / 0.32 (<$50) / 0.25 (<$200) / 0.12 ($200+)',
             kellyFraction: RUNTIME.kellyFraction,
             kellyMaxFraction: RUNTIME.kellyMaxFraction,
             minOrderShares: RUNTIME.minOrderShares,
