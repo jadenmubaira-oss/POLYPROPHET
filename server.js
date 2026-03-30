@@ -103,15 +103,17 @@ function loadAllStrategySets() {
         let loaded = false;
 
         if (tf.key === '15m') {
-            // 15m: IGNORE env var overrides — always use the audited v2 strategy
+            // 15m: lateminute_v1 FIRST — 14 wildcard-hour strategies covering 35-95c bands
+            // at m10-m14. Proven to generate candidates at current 44-55c market prices.
+            // top8_current requires 60-80c at specific hours — zero matches in current market.
             const candidates15m = [
+                primary15mPath,
+                secondary15mPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
-                primary15mPath,
-                secondary15mPath,
             ];
             for (const fp of candidates15m) {
                 const exists = fs.existsSync(fp);
@@ -348,6 +350,14 @@ async function orchestrate() {
                 });
             }
         }
+    }
+
+    // 4h emergency exit: close positions with 20c+ adverse move
+    const emergencyExits = tradeExecutor.check4hEmergencyExit(currentMarkets);
+    for (const exit of emergencyExits) {
+        await tradeExecutor.closePosition(exit.positionId, exit.exitPrice, 'EMERGENCY_EXIT_4H').catch(e => {
+            console.error(`Emergency exit failed for ${exit.positionId}: ${e.message}`);
+        });
     }
 
     // Check for expired positions to resolve
