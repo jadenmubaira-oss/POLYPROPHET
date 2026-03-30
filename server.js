@@ -101,10 +101,13 @@ function loadAllStrategySets() {
         if (tf.key === '15m') {
             // 15m: IGNORE env var overrides — always use the audited v2 strategy
             const candidates15m = [
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
                 primary15mPath,
                 secondary15mPath,
-                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
-                path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
             ];
             for (const fp of candidates15m) {
                 const exists = fs.existsSync(fp);
@@ -518,10 +521,13 @@ app.get('/api/diagnostics', (req, res) => {
 app.get('/api/debug/strategy-paths', (req, res) => {
     const strategiesDir = path.join(__dirname, 'strategies');
     const candidates15m = [
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_15m_v2_resolution_momentum.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
     ];
     const debugDirExists = fs.existsSync(path.join(__dirname, 'debug'));
     let debugFiles = [];
