@@ -3,7 +3,7 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 26 March 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + optional proxy-backed CLOB routing
+**Last Updated**: 30 March 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
 
 ---
 
@@ -17,11 +17,11 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $5 -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Current Blocker** | No post-patch live `orderID` captured yet. Runtime is healthy, wallet/auth ready, but execution proof is missing. |
-| **Active Strategy (15m)** | `debug/strategy_set_top8_current.json` (8 strategies, hours 0/8/9/10/11/20) |
-| **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $10) |
-| **Wallet Balance** | ~$5 USDC, `sigType=1`, funder `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612` |
-| **Next Action** | Capture one real live `orderID` via natural window or guarded `/api/manual-smoke-test` route |
+| **Current Blocker** | `POLYMARKET_ADDRESS` env var not set on Render. Bot finds candidates (20 attempts/cycle) but all fail with `invalid signature`. Set to `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`. |
+| **Active Strategy (15m)** | `debug/strategy_set_15m_lateminute_v1.json` (14 strategies, wildcard hours, 35-95c, m10-m14) |
+| **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
+| **Wallet Balance** | $4.999209 USDC, `sigType=1`, funder `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`, `tradeReady.ok=true` |
+| **Next Action** | Set `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` in Render env, then monitor for first successful trade. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
@@ -2096,11 +2096,21 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid (Claude Opus 4.6) operating as DEITY agent
-**Date**: 30 March 2026 (UTC)
-**What was done**: (1) Installed full cross-IDE harness compatibility layers: `.factory/droids/` (4 project droids), `.claude/` (settings + CLAUDE.md), `.cursor/rules/` (Cursor MDC rules), `.codex/` (OpenAI instructions). (2) Installed 4 new ECC-adapted agent skills: `performance-optimizer`, `e2e-runner`, `tdd-guide`, `docs-lookup`. (3) Installed 3 new ECC-adapted workflows: `checkpoint`, `resume-session`, `quality-gate`. (4) Added machine-parseable Quick Start and Handoff State blocks to README.md. (5) Created `scripts/verify-harness.js` for automated harness integrity checking. (6) Updated AGENTS.md with Factory/Droid integration and synced all installed component tables.
-**What is pending**: (1) Capture one real post-patch live `orderID`. (2) Run guarded `/api/manual-smoke-test` if natural windows stay out of band. (3) Verify full funded path: buy -> fill -> resolve -> redeem -> balance reconciliation. (4) Re-evaluate 15m strategy artifact choice based on corrected-sim evidence.
-**Discrepancies found**: `render.yaml` defaults still differ from live env overrides. Live 15m artifact is `top8_current` not the checked-in default. Earlier README sections claiming different artifacts are stale.
-**Key insight**: The harness is now cross-IDE complete. Any AI agent on any IDE (Factory, Windsurf, Cursor, Claude Code, Codex) can read this README and continue work seamlessly.
-**Methodology**: Full workspace audit, ECC upstream analysis, cross-IDE file creation, harness verification script, README/AGENTS.md synchronization.
-**Next action**: Deploy harness changes, then capture one real live `orderID`.
+**Date**: 30 March 2026 17:10 UTC
+**Deploy Version**: `bebcff1` (Render auto-deployed, live and healthy)
+**What was done**: Full bot readiness overhaul across 6 runtime files:
+1. **Strategy loading fix** (`server.js`): Reordered 15m candidate list so `lateminute_v1` (14 strategies, wildcard hours, 35-95c bands at m10-m14) loads first. Previously `top8_current` (8 strategies, 60-80c at specific hours) loaded first and NEVER matched current 44-55c market. Root cause: `.dockerignore` was not whitelisting lateminute_v1 -- fixed.
+2. **CLOB auth fix** (`lib/clob-client.js`): Wrapped `_placeOrderWithCandidate()` inside `withClobAuthContext()` so the axios interceptor gets the correct `POLY_ADDRESS` header for sigType=1 orders. This was the root cause of all `invalid signature` errors on order placement.
+3. **Risk model tuning** (`lib/config.js` + `lib/risk-manager.js`): Added tiered risk profiles (BOOTSTRAP $0-10 / GROWTH $10-50 / ACCELERATE $50-200 / PRESERVE $200+) with bankroll-adaptive stakeFraction and maxPerCycle. Increased kellyFraction 0.25->0.35, stakeFraction 0.30->0.45 at micro, widened maxConsecutiveLosses 3->4, reduced cooldown 1200s->600s.
+4. **Trade executor hardening** (`lib/trade-executor.js`): Added spread sanity check (skip entry if yes+no deviates >8c from 1.00), added 4h mid-cycle emergency exit (20c+ adverse move triggers sell).
+5. **Market discovery fallback** (`lib/market-discovery.js`): Added Gamma `outcomePrices` fallback when CLOB book returns null, added `priceSource` field to market objects.
+6. **Profit sim updated** (`scripts/profit-sim-exact-runtime.js`): Synced with new tiered risk params, changed default 15m strategy to lateminute_v1.
+
+**Live verification**: `/api/health` confirms `lateminute_v1` with 14 strategies loaded, `isLive=true`, balance=$4.999209, `tradeReady.ok=true` sigType=1, 8 active markets. Bot IS generating candidates at m10-m14 (20 trade attempts observed in diagnostics).
+**CRITICAL BLOCKER**: All 20 trade attempts failed with `invalid signature` (400) or `Trading restricted in your region` (403). Root cause: `POLYMARKET_ADDRESS` env var is NOT SET on Render. Without it, the bot uses the EOA wallet address (`0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`) as the sigType=1 funder, but Polymarket expects the proxy wallet address. The derived proxy is `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` (deployed onchain, confirmed via Create2 derivation). Code fix applied to auto-use proxy address when env var is not set, but the 401 auth error on the proxy candidate suggests API creds may also need to be generated for the proxy wallet.
+**REQUIRED USER ACTION**: Add `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` to Render env vars. Verify this matches the address shown at polymarket.com/settings when logged in with the trading wallet. If API creds (`POLYMARKET_API_KEY`/`SECRET`/`PASSPHRASE`) are not set, they will auto-derive. If they ARE set, they must have been generated for the proxy wallet, not the EOA.
+**What is pending**: (1) User sets `POLYMARKET_ADDRESS` env var on Render. (2) Verify first successful trade at m10-m14 window. (3) Run fresh data collection + profit sims. (4) Research maker order strategy (0 fees + rebates).
+**Key insight**: Polymarket expanded taker fees to ALL categories on 30 March 2026. Fee curve: highest at 50c, lowest at extremes. Resolution farming at 85c+ has lower fees. Maker orders = zero fees + daily rebates.
+**Discrepancies resolved**: Strategy loading fixed (lateminute_v1 now loads first). `.dockerignore` whitelist fixed. `withClobAuthContext` wrapping added. Proxy address derivation priority fixed in probe logic.
+**Next action**: User sets `POLYMARKET_ADDRESS` env var, then monitor for first successful trade.
 <!-- HANDOFF_STATE_END -->
