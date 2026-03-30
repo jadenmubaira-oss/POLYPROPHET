@@ -679,7 +679,7 @@ app.get('/api/derive-debug', async (req, res) => {
             results.deriveSig0 = { raw: raw0d, type: typeof raw0d };
         } catch (e) { results.deriveSig0 = { error: e.message }; }
 
-        // Try sigType=1 create
+        // Try sigType=1 create (EOA as funder)
         try {
             const funder = wallet.address;
             const tmp1 = new ClobClientClass(host, 137, wallet, undefined, 1, funder);
@@ -687,10 +687,10 @@ app.get('/api/derive-debug', async (req, res) => {
                 tmp1.createApiKey(),
                 new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
             ]);
-            results.createSig1 = { raw: raw1, type: typeof raw1 };
-        } catch (e) { results.createSig1 = { error: e.message }; }
+            results.createSig1_eoa = { raw: raw1, type: typeof raw1 };
+        } catch (e) { results.createSig1_eoa = { error: e.message }; }
 
-        // Try sigType=1 derive
+        // Try sigType=1 derive (EOA as funder)
         try {
             const funder = wallet.address;
             const tmp1d = new ClobClientClass(host, 137, wallet, undefined, 1, funder);
@@ -698,8 +698,31 @@ app.get('/api/derive-debug', async (req, res) => {
                 tmp1d.deriveApiKey(),
                 new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
             ]);
-            results.deriveSig1 = { raw: raw1d, type: typeof raw1d };
-        } catch (e) { results.deriveSig1 = { error: e.message }; }
+            results.deriveSig1_eoa = { raw: raw1d, type: typeof raw1d };
+        } catch (e) { results.deriveSig1_eoa = { error: e.message }; }
+
+        // Try sigType=1 create (PROXY as funder)
+        const proxyFunder = CONFIG.POLYMARKET_ADDRESS || null;
+        if (proxyFunder && proxyFunder !== wallet.address) {
+            try {
+                const tmp1p = new ClobClientClass(host, 137, wallet, undefined, 1, proxyFunder);
+                const raw1p = await Promise.race([
+                    tmp1p.createApiKey(),
+                    new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
+                ]);
+                results.createSig1_proxy = { raw: raw1p, funder: proxyFunder };
+            } catch (e) { results.createSig1_proxy = { error: e.message, funder: proxyFunder }; }
+
+            // Try sigType=1 derive (PROXY as funder)
+            try {
+                const tmp1pd = new ClobClientClass(host, 137, wallet, undefined, 1, proxyFunder);
+                const raw1pd = await Promise.race([
+                    tmp1pd.deriveApiKey(),
+                    new Promise((_, r) => setTimeout(() => r(new Error('TIMEOUT')), 15000))
+                ]);
+                results.deriveSig1_proxy = { raw: raw1pd, funder: proxyFunder };
+            } catch (e) { results.deriveSig1_proxy = { error: e.message, funder: proxyFunder }; }
+        }
 
         // Raw proxy health check: can the proxy reach CLOB and return valid data?
         try {
