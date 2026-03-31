@@ -94,10 +94,11 @@ function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: OOS-validated v1 (6 strategies, >3% margin above break-even after fees)
-    // Old lateminute_v1 had 14 strategies including m10 bootstrap (40-51% OOS WR = below break-even)
-    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_oos_validated_v1.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
+    // PRIMARY 15m strategy: combined optimal v9 (16 strategies across m0/m5/m10/m11/m12/m14)
+    // Merges OOS-validated m11/m12/m14 + walk-forward validated m0/m5/m10
+    // Falls back to OOS-validated v1 (6 strategies) if combined not found
+    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_combined_v9.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_oos_validated_v1.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
