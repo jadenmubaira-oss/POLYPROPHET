@@ -17,11 +17,11 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $5 -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Current Blocker** | NONE. Bot is LIVE and trading. First trade placed 30 Mar 23:40 UTC (BTC DOWN at 56c, lost). Auth, signing, order placement all confirmed working. |
+| **Current Blocker** | NO-GO. Live host balance is $0.349 and the previous micro-bankroll profit sims were overstated because live Polymarket books still require `min_order_size=5` while the runtime had been modeling `1` share. |
 | **Active Strategy (15m)** | `debug/strategy_set_15m_oos_validated_v1.json` (6 OOS-validated strategies, 45-95c, m11-m14) |
 | **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
 | **Wallet Balance** | $0.349 USDC (BUSTED), `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` — needs $5-10 deposit to resume |
-| **Next Action** | DEPOSIT $5-10, then remove bootstrap strategies (40-51% OOS WR = below break-even). Keep m14 resolution (90% OOS WR) + m12 momentum (82% OOS WR). 15% stake deployed. |
+| **Next Action** | Do NOT redeposit yet. Deploy and verify the market-native min-order fix, restore the truthful 4h gate to $10, then rerun funded proof with exact 5-share runtime assumptions. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
@@ -655,6 +655,7 @@ Live service previously loaded fallback bundled strategies instead of validated 
 
 | Date | Change | Reference |
 |------|--------|-----------|
+| 2026-03-31 | **FINAL REINVESTIGATION / NO-GO**: live Polymarket books still report `min_order_size=5`, current lite runtime had been simulating with `1` share, and truthful 5-share sensitivity turns `$5` back into a high-bust setup (median ~$2, bust ~47-49%). Added market-native min-order enforcement and restored the safer default 4h gate to `$10`. | Session 31 Mar |
 | 2026-03-31 | **OOS VALIDATION**: 992 cycles, 3333 matches. Overall 74.4% WR (vs 79% in-sample). m14 resolution 83-92% VALIDATED, m10 bootstrap 40-51% FAILED. Honest profit sims: median $201-$5,111 from $5 depending on strategy mix. Extreme sensitivity: 5% WR drop = 1000x less profit. | Session 31 Mar |
 | 2026-03-31 | **BUSTED**: 3 consecutive losses at 45% stake, balance $5->$0.35. Risk fix deployed: stake 45%->15%. m10 bootstrap identified as root cause (40% OOS WR vs 65% claimed). | Commits b584d4f, dd85fef |
 | 2026-03-31 | **FIRST LIVE TRADE**: BTC DOWN at 56c, $2.80 stake via m10 bootstrap strategy. Auth chain fully working (sigType=1, proxy funder). Trade lost. | Session 30-31 Mar |
@@ -1937,12 +1938,12 @@ Reasons:
 > **Update this section at the end of every AI session.**
 
 **Last Agent**: Factory Droid (Claude Opus 4.6)
-**Date**: 31 March 2026 01:30 UTC
-**What was done**: (1) Fixed CLOB signing (removed POLY_ADDRESS override in d1a5263). (2) Placed FIRST LIVE TRADE: BTC DOWN at 56c, lost $2.80 using m10 bootstrap. (3) Discovered 45% stake fraction = guaranteed bust via Monte Carlo. (4) Reduced stake to 15% across all tiers (b584d4f). (5) Ran OUT-OF-SAMPLE validation on 992 cycles (March 28-31): overall 74.4% WR vs 79% in-sample. (6) Identified FAILED strategies: m10 bootstrap 40-51% OOS WR (below break-even), m11 mid-momentum 56-66% OOS WR. (7) Validated GOOD strategies: m14 resolution 83-92% OOS WR, m12 momentum 79-87% OOS WR. (8) Ran honest profit sims showing extreme sensitivity: 5% WR drop turns $12k median into $22.
-**What is pending**: (1) User must deposit $5-10. (2) Remove m10 bootstrap and m11 mid-momentum strategies from active set. (3) Monitor first 50 trades with validated strategies. (4) If actual WR < 65%, halt and reassess. (5) Research maker orders for 0% fees.
-**Discrepancies found**: Previous profit sims claimed "median $291k" but used in-sample WRs without sensitivity analysis. At OOS WRs (74.4%), the median drops by 3 orders of magnitude. The first 3 real trades all lost, confirming the m10 bootstrap strategy is non-viable.
-**Key insight**: Compounding math is real but EXTREMELY sensitive to edge quality. The strategies need to be filtered to only validated ones (m14 resolution + m12 momentum) before resuming live trading.
-**Next action**: Deposit funds, remove failed strategies, resume with validated strategies at 10-15% stake.
+**Date**: 31 March 2026 03:45 UTC
+**What was done**: (1) Re-read README and the latest implementation-plan addenda, then re-audited live `/api/health`, `/api/status`, `/api/diagnostics`, `/api/wallet/balance`, `/api/clob-status`, and `/api/trades`. (2) Recomputed the deployed 6-strategy file: weighted OOS WR 79.98%, weighted runtime sizing pWin 75.10%, weighted break-even 74.43%. (3) Verified a public live BTC 15m CLOB book still reports `min_order_size=5`. (4) Found that current lite runtime had been relying on configurable min shares rather than market-native min shares, which invalidated the earlier 1-share micro-bankroll profit sims. (5) Implemented market-native min-order enforcement plus restored the safer default 4h gate to `$10`. (6) Ran fresh truthful 5-share sensitivity sims for `$5`, `$10`, and `$20`.
+**What is pending**: (1) Push and deploy the min-order truth fix. (2) Re-verify live `4h` gating after deploy. (3) Re-run funded proof only after the live host is confirmed to honor market-native 5-share minimums. (4) If any redeposit is considered later, base it on the new truthful 5-share results, not the earlier 1-share numbers.
+**Discrepancies found**: Earlier README/profit-sim notes overstated micro-bankroll viability because they treated the current OOS set as if 1-share live execution were valid. Public live order books still show `min_order_size=5`, which makes `$5` a high-bust setup again.
+**Key insight**: The 6-strategy OOS set may still have a real edge, but the edge is not enough to save a `$5` bankroll once true 5-share Polymarket minimums are enforced.
+**Next action**: Do not redeposit at `$5`. Deploy the fix, verify the live host, and only then reassess whether `$10-$20` can honestly meet the user’s target.
 
 ### Final Handoff — 30 March 2026 Post-Patch Live State
 
@@ -2096,63 +2097,136 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 3. Fix `AGENTS.md` markdown formatting once a non-brittle edit path is available.
 4. Keep updating this README at the end of each substantial task so handoff truth remains repo-native rather than chat-dependent.
 
+### Final Reinvestigation Addendum — 31 March 2026 (Truth Reset / GO-NO-GO)
+
+**DATA SOURCES**: current live endpoints (`/api/health`, `/api/status`, `/api/diagnostics`, `/api/wallet/balance`, `/api/clob-status`, `/api/trades`), public Gamma/CLOB data for the live BTC 15m market, local code audit of `server.js`, `lib/config.js`, `lib/market-discovery.js`, `lib/risk-manager.js`, `lib/trade-executor.js`, `lib/clob-client.js`, `debug/strategy_set_15m_oos_validated_v1.json`, and a fresh local Monte Carlo sensitivity using the exact current lite risk-manager with a truthful 5-share floor.
+
+#### What was reverified
+
+1. **Live posture**
+   - deployed host is still `https://polyprophet-1-rr1g.onrender.com`
+   - `15m` loads `/app/debug/strategy_set_15m_oos_validated_v1.json` with `6` strategies
+   - live balance remains **`$0.349209`**
+   - current live `4h` gate still reports **`minBankroll = 4`**, not the safer `$10` posture previously described in README
+   - `/api/trades` is currently empty, so unattended live continuity is **not** fully proven
+
+2. **Current strategy quality**
+   - The 6-strategy OOS file is real and still computes to:
+     - weighted OOS WR = **79.98%** (`1654` matches)
+     - weighted sizing pWin used by runtime (LCB-based) = **75.10%**
+     - weighted midpoint entry = **72.48c**
+     - weighted break-even WR = **74.43%**
+   - So the set is **positive-edge on paper**, but only by a modest margin after fees.
+
+3. **Critical truth mismatch found**
+   - public current BTC 15m CLOB book still reports **`min_order_size = "5"`**
+   - the lite runtime had been relying on `DEFAULT_MIN_ORDER_SHARES`, and live/operator reasoning had drifted to `1` share
+   - that means the earlier 1-share micro-bankroll profit sims were **not representative of real market constraints**
+
+4. **Code fix prepared**
+   - `lib/market-discovery.js` now captures market-native `min_order_size`
+   - `lib/risk-manager.js` and `lib/trade-executor.js` now honor the larger of config min shares and market-native min shares
+   - `lib/config.js` default `TIMEFRAME_4H_MIN_BANKROLL` restored to **`10`** so missing env does not silently activate 4h too early
+
+#### Truthful micro-bankroll sizing after the fix
+
+With real 5-share minimums:
+
+| Bankroll | 55c entry | 75c entry | 90c entry |
+|---------:|----------:|----------:|----------:|
+| `$5` | `$2.75` (55%) | `$3.75` (75%) | `$4.50` (90%) |
+| `$10` | `$2.75` (27.5%) | `$3.75` (37.5%) | `$4.50` (45%) |
+| `$20` | `$3.00` (15%) | `$3.75` (18.8%) | `$4.50` (22.5%) |
+
+At `$5`, a single loss at `75c` leaves only `$1.25`, which is below the live `$2.00` floor.  
+Approximate probability that the **first trade alone** drops a `$5` bankroll below floor under the current 6-strategy mix is **~14.8%**.
+
+#### Truthful 30-day profit-sim sensitivity with the real 5-share floor
+
+Fresh local Monte Carlo, using:
+- current lite `risk-manager.js`
+- `debug/strategy_set_15m_oos_validated_v1.json`
+- actual outcomes sampled from each strategy’s **OOS WR**
+- runtime sizing based on each strategy’s **LCB** estimate
+- **5-share** minimum order floor
+
+| Start | Trade freq assumption | Bust | P25 | Median | P75 | P90 |
+|------:|-----------------------|-----:|----:|-------:|----:|----:|
+| `$5` | `10/day` | `47.1%` | `$1` | **`$2`** | `$182` | `$500` |
+| `$5` | `20/day` | `49.3%` | `$1` | **`$2`** | `$1,197` | `$4,212` |
+| `$10` | `10/day` | `26.1%` | `$2` | **`$119`** | `$322` | `$664` |
+| `$10` | `20/day` | `24.6%` | `$2` | **`$717`** | `$2,859` | `$7,717` |
+| `$20` | `10/day` | `7.4%` | `$105` | **`$250`** | `$533` | `$1,049` |
+| `$20` | `20/day` | `7.6%` | `$495` | **`$1,752`** | `$4,898` | `$12,687` |
+
+**Important honesty note**: the trade-frequency rows above are sensitivity scenarios, not a claim that the current host has already proven `10/day` or `20/day` executable capture under live uptime/restart conditions.
+
+#### Final GO / NO-GO
+
+**NO-GO** for redepositing `$5` right now if the requirement is:
+- near-irrefutable truth,
+- realistic runtime equivalence,
+- and a likely **`xxx+` to `xxxx+` median** without high bust risk.
+
+Reasons:
+
+1. the previous micro profit sims were materially overstated by the 1-share assumption
+2. truthful 5-share runtime math makes the current `$5` start a **high-bust** setup again
+3. live unattended continuity is still not fully proven (`/api/trades` empty on current restart)
+4. live `4h` gating has drifted from the safer README posture and must be re-verified after deploy
+
+#### Honest path forward
+
+1. Deploy and verify the market-native min-order fix
+2. Confirm live `4h` gate is back at `$10`
+3. Re-run exact post-deploy proof with the truthful 5-share floor
+4. If redepositing at all, the first bankroll that honestly produces a plausible `xxx+` median under this setup is **closer to `$10-$20` than `$5`**
+5. Do **not** describe the current `$5` configuration as irrefutably ready
+
 <!-- HANDOFF_STATE_START -->
 ### Current Handoff State (Machine-Parseable)
 
-**Last Agent**: Factory Droid (Claude Opus 4.6)
-**Date**: 31 March 2026 03:30 UTC
-**Deploy Version**: `c525cd9` (Render verified: 6 OOS-validated strategies loaded, 4 candidates found per cycle)
+**Last Agent**: Factory Droid (GPT-5.4)
+**Date**: 31 March 2026 03:45 UTC
+**Deploy Version**: live host currently shows `8e4bc2b`; local truth-fix commit for market-native min-order handling is pending deploy verification.
 
-**STATUS: BUSTED — $0.349 balance, cannot trade (min order $0.90)**
+**STATUS: NO-GO — do not redeposit at $5 yet**
 
-**First trade**: BTC 15m DOWN at 56c, $2.80 stake, m10 bootstrap strategy, 30 Mar 23:40 UTC. Result: LOSS.
-**Subsequent trades**: 2 more losses at 45% stake fraction -> balance crashed $5 -> $0.35.
-**Root cause**: Used m10 bootstrap strategy (40-51% OOS WR, below 56% break-even) with 45% stake (>2x full Kelly).
+**Why NO-GO**:
+1. Public live Polymarket books still report **`min_order_size=5`**
+2. Earlier micro-bankroll profit sims were overstated because the runtime had drifted to a **1-share** assumption
+3. With truthful 5-share minimums, `$5` becomes a high-bust setup again
+4. `/api/trades` is empty on the current restart, so unattended live continuity is still not fully proven
 
-**Auth chain (RESOLVED)**:
-- sigType=1 (Magic Link / POLY_PROXY), proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`
-- EOA signer: `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`
-- Fixed: POLY_ADDRESS header override removed (`d1a5263`), minOrderShares 5->1 (`369fbec`), stake fractions 45%->15% (`b584d4f`).
+**Live state reverified**:
+- host: `https://polyprophet-1-rr1g.onrender.com`
+- live balance: **`$0.349209`**
+- active timeframe at current balance: **`15m`**
+- loaded 15m file: `/app/debug/strategy_set_15m_oos_validated_v1.json`
+- current live 4h gate reported by `/api/health`: **`minBankroll = 4`** (needs re-verification after deploy)
 
-**OUT-OF-SAMPLE VALIDATION (992 cycles, March 28-31, 4 assets, 3,333 strategy matches)**:
+**Current 6-strategy file (recomputed)**:
+- weighted OOS WR: **79.98%** across `1654` matches
+- weighted runtime sizing pWin (LCB-based): **75.10%**
+- weighted midpoint entry: **72.48c**
+- weighted break-even WR: **74.43%**
 
-| Strategy | In-Sample WR | OOS WR | Verdict |
-|----------|-------------|--------|---------|
-| m14 resolution (80c+) | 88-94% | 83-92% | VALIDATED |
-| m12 momentum (55-95c) | 80-84% | 79-87% | VALIDATED |
-| m11 wide-momentum | 80-85% | 75-84% | VALIDATED |
-| m10 late-momentum | 76-79% | 72-76% | MARGINAL |
-| m11 mid-momentum (45-70c) | 67-74% | 56-66% | DEGRADED |
-| m10 bootstrap (35-60c) | 65-68% | 40-51% | FAILED |
+**Truthful 30-day sensitivity with real 5-share floor**:
+- `$5`, `10/day`: bust `47.1%`, median **`$2`**
+- `$5`, `20/day`: bust `49.3%`, median **`$2`**
+- `$10`, `10/day`: bust `26.1%`, median **`$119`**
+- `$10`, `20/day`: bust `24.6%`, median **`$717`**
+- `$20`, `10/day`: bust `7.4%`, median **`$250`**
+- `$20`, `20/day`: bust `7.6%`, median **`$1,752`**
 
-**Overall OOS WR: 74.4%** (vs 79% in-sample). 5% degradation from overfitting.
+**Code fixes prepared in this session**:
+- market-native `min_order_size` is now read from CLOB books
+- risk sizing and trade execution now honor the larger of config min shares and market-native min shares
+- default `TIMEFRAME_4H_MIN_BANKROLL` restored to **`10`**
 
-**DEFINITIVE Profit Sim (exact risk-manager.js code, fixed cooldown, 2000 sims, 31 Mar 03:30 UTC)**:
-- OOS WR: 79.9% (1322/1654 matches, 95% CI: 77.9%-81.8%, break-even 74.2%)
-- Kelly stake: 9.44% of bankroll per trade, cooldown 600s after 4 consecutive losses
-- From $5, 30% match rate (~29 trades/day): **MEDIAN $2,053** | P75=$24,817 | P90=$103,071 | bust 0%
-- From $5, 50% match rate (~48 trades/day): **MEDIAN $216,975** | P75=$6M | bust 0%
-- P25=$4 in all configs (25% of sims stay flat due to early loss streaks at micro-bankroll)
-- Sim uses EXACT RiskManager class with Kelly, tier fractions, cooldowns, min-order bumps
-- SENSITIVITY: System is profitable but magnitude depends heavily on actual trade frequency and WR.
-
-**Env vars on Render**: `TRADE_MODE=LIVE`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`, `POLYMARKET_SIGNATURE_TYPE=1`, `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`, `CLOB_FORCE_PROXY=1`, proxy URL set.
-
-**What works**: Auth, cred derivation, balance probes, strategy matching, order placement, position tracking, resolution detection, win/loss recording, risk manager with 15% stake.
-
-**What is pending**:
-1. **User must deposit $5-10** to proxy wallet `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`
-2. **Remove failed strategies**: m10 bootstrap (40-51% OOS WR) and m11 mid-momentum (56-66% OOS WR) from strategy set
-3. **Monitor first 50 real trades** with validated strategies, compare actual WR to OOS WR
-4. **If actual WR < 65%**: halt and reassess entire approach
-5. Research maker orders (0% fees) vs current taker orders (~3.15% fee)
-
-**Key commits (session 30-31 Mar)**:
-- `c9516a1`: Fix .dockerignore to include OOS-validated strategy file
-- `dd7ccfa`: Deploy 6 OOS-validated strategies (remove 8 failed/marginal)
-- `bf799a2`: README with OOS validation results
-- `dd85fef`: README with profit sim results and new stake fractions
-- `b584d4f`: Reduce stake fractions to 15% (prevent guaranteed bust)
-- `369fbec`: Reduce minOrderShares 5->1
-- `d1a5263`: Remove POLY_ADDRESS header override (root cause fix)
+**Immediate next actions**:
+1. Push/deploy the min-order truth fix
+2. Verify live host now reports safer 4h gating
+3. Re-check live trade viability only under truthful 5-share assumptions
+4. Do **not** describe `$5` as irrefutably ready; if redeposit is reconsidered later, it should be evaluated from **`$10-$20`**, not `$5`
 <!-- HANDOFF_STATE_END -->
