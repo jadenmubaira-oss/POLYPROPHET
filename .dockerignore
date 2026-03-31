@@ -42,6 +42,7 @@ debug/*
 !debug/strategy_set_5m_maxprofit.json
 !debug/strategy_set_5m_walkforward_top4.json
 !debug/strategy_set_15m_lateminute_v1.json
+!debug/strategy_set_15m_oos_validated_v1.json
 !debug/strategy_set_15m_v2_resolution_momentum.json
 !debug/analysis/
 !debug/analysis/expected_24h48h_compact.json
