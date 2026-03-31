@@ -20,8 +20,8 @@
 | **Current Blocker** | NONE. Bot is LIVE and trading. First trade placed 30 Mar 23:40 UTC (BTC DOWN at 56c, lost). Auth, signing, order placement all confirmed working. |
 | **Active Strategy (15m)** | `debug/strategy_set_15m_lateminute_v1.json` (14 strategies, wildcard hours, 35-95c, m10-m14) |
 | **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
-| **Wallet Balance** | $3.149209 USDC remaining, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`, `tradeReady.ok=true` |
-| **Next Action** | Monitor trades with new 15% stake fraction. Previous 45% = 100% bust. Now: 7% bust, median $291k at $5 start (Monte Carlo 30d). |
+| **Wallet Balance** | $0.349 USDC (BUSTED), `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` — needs $5-10 deposit to resume |
+| **Next Action** | DEPOSIT $5-10, then remove bootstrap strategies (40-51% OOS WR = below break-even). Keep m14 resolution (90% OOS WR) + m12 momentum (82% OOS WR). 15% stake deployed. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
@@ -655,7 +655,9 @@ Live service previously loaded fallback bundled strategies instead of validated 
 
 | Date | Change | Reference |
 |------|--------|-----------|
-| 2026-03-31 | **FIRST LIVE TRADE**: BTC DOWN at 56c, $2.80 stake via m10 bootstrap strategy. Auth chain fully working (sigType=1, proxy funder). Trade lost. Balance: $3.15 | Session 30-31 Mar |
+| 2026-03-31 | **OOS VALIDATION**: 992 cycles, 3333 matches. Overall 74.4% WR (vs 79% in-sample). m14 resolution 83-92% VALIDATED, m10 bootstrap 40-51% FAILED. Honest profit sims: median $201-$5,111 from $5 depending on strategy mix. Extreme sensitivity: 5% WR drop = 1000x less profit. | Session 31 Mar |
+| 2026-03-31 | **BUSTED**: 3 consecutive losses at 45% stake, balance $5->$0.35. Risk fix deployed: stake 45%->15%. m10 bootstrap identified as root cause (40% OOS WR vs 65% claimed). | Commits b584d4f, dd85fef |
+| 2026-03-31 | **FIRST LIVE TRADE**: BTC DOWN at 56c, $2.80 stake via m10 bootstrap strategy. Auth chain fully working (sigType=1, proxy funder). Trade lost. | Session 30-31 Mar |
 | 2026-03-30 | Fixed POLY_ADDRESS header override (root cause of "order signer must match API key"). Reduced minOrderShares 5->1 for micro-bankroll. Deployed lateminute_v1 strategy set. | Commits d1a5263, 369fbec |
 | 2026-03-30 | Full harness install (50 files): Factory droids, cross-IDE layers, 4 ECC skills, 3 workflows. Verification script passing 35 checks. | Commit 4232195 |
 | 2026-03-26 | Manual Render deploy verified promoted 15m artifact, debug 4h artifact loading, and bankroll-gated timeframe activation on live host | README addendum |
@@ -1930,18 +1932,17 @@ Reasons:
    - invoke one guarded intentional smoke test with explicit confirmation.
 4. Only after a real `orderID` is captured should the project be described as fully handoff-ready.
 
-#### Current Session State — 30 March 2026
+#### Current Session State — 31 March 2026
 
 > **Update this section at the end of every AI session.**
 
-**Last Agent**: Cascade operating as DEITY agent
-**Date**: 30 March 2026 (UTC)
-**What was done**: (1) Re-verified the live host and confirmed runtime recovery: bankroll restored to `4.999209`, `15m` and `4h` both active, `top8_current` loaded for `15m`, and `4h_maxprofit` loaded for `4h`. (2) Identified the latest live blocker as proof absence rather than active auth failure: no fresh candidate had appeared in-band during the verification slice. (3) Hardened `lib/clob-client.js` locally so collateral balance refresh uses the selected auth context and can reuse a known-good selected balance instead of collapsing to false-zero on transient failures. (4) Added a guarded local `POST /api/manual-smoke-test` route in `server.js` for one intentional live smoke trade through the normal execution path. (5) Extracted and documented the exact `top8_current` UTC windows so the next natural proof attempt can be monitored honestly.
-**What is pending**: (1) Push/deploy the guarded smoke-test route and latest runtime truth-surface changes. (2) Verify the route and live balance path after deploy. (3) Capture one real `orderID` either from a natural `top8_current` window or one guarded manual smoke test. (4) If that succeeds, append the final GO/handoff status.
-**Discrepancies found**: Live runtime behavior recovered before the stale `deployVersion` and top-level `tradeReady` truth surfaces caught up. Natural top8 windows are much sparser than earlier wildcard-like 15m postures, so `0` candidates in a short slice is expected rather than alarming.
-**Key insight**: The bot is no longer obviously blocked on wallet auth; the real missing artifact is a current-restart order acceptance proof.
-**Methodology**: Live endpoint verification, local strategy-file schedule extraction, targeted runtime code hardening, syntax verification, and handoff documentation update.
-**Next action**: Deploy the guarded smoke-test route and balance-refresh hardening, then capture one real live `orderID` via either a natural window or an intentional smoke test.
+**Last Agent**: Factory Droid (Claude Opus 4.6)
+**Date**: 31 March 2026 01:30 UTC
+**What was done**: (1) Fixed CLOB signing (removed POLY_ADDRESS override in d1a5263). (2) Placed FIRST LIVE TRADE: BTC DOWN at 56c, lost $2.80 using m10 bootstrap. (3) Discovered 45% stake fraction = guaranteed bust via Monte Carlo. (4) Reduced stake to 15% across all tiers (b584d4f). (5) Ran OUT-OF-SAMPLE validation on 992 cycles (March 28-31): overall 74.4% WR vs 79% in-sample. (6) Identified FAILED strategies: m10 bootstrap 40-51% OOS WR (below break-even), m11 mid-momentum 56-66% OOS WR. (7) Validated GOOD strategies: m14 resolution 83-92% OOS WR, m12 momentum 79-87% OOS WR. (8) Ran honest profit sims showing extreme sensitivity: 5% WR drop turns $12k median into $22.
+**What is pending**: (1) User must deposit $5-10. (2) Remove m10 bootstrap and m11 mid-momentum strategies from active set. (3) Monitor first 50 trades with validated strategies. (4) If actual WR < 65%, halt and reassess. (5) Research maker orders for 0% fees.
+**Discrepancies found**: Previous profit sims claimed "median $291k" but used in-sample WRs without sensitivity analysis. At OOS WRs (74.4%), the median drops by 3 orders of magnitude. The first 3 real trades all lost, confirming the m10 bootstrap strategy is non-viable.
+**Key insight**: Compounding math is real but EXTREMELY sensitive to edge quality. The strategies need to be filtered to only validated ones (m14 resolution + m12 momentum) before resuming live trading.
+**Next action**: Deposit funds, remove failed strategies, resume with validated strategies at 10-15% stake.
 
 ### Final Handoff — 30 March 2026 Post-Patch Live State
 
@@ -2099,35 +2100,54 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid (Claude Opus 4.6)
-**Date**: 31 March 2026 00:00 UTC
-**Deploy Version**: `369fbec` (Render auto-deployed, live and trading)
+**Date**: 31 March 2026 01:30 UTC
+**Deploy Version**: `dd85fef` (Render auto-deployed)
 
-**STATUS: BOT IS LIVE AND TRADING**
+**STATUS: BUSTED — $0.349 balance, cannot trade (min order $0.90)**
 
-**First trade**: BTC 15m DOWN at 56c, $2.80 stake, m10 bootstrap strategy, 30 Mar 23:40 UTC. Result: LOSS (-$2.80). Balance after: $3.149209.
+**First trade**: BTC 15m DOWN at 56c, $2.80 stake, m10 bootstrap strategy, 30 Mar 23:40 UTC. Result: LOSS.
+**Subsequent trades**: 2 more losses at 45% stake fraction -> balance crashed $5 -> $0.35.
+**Root cause**: Used m10 bootstrap strategy (40-51% OOS WR, below 56% break-even) with 45% stake (>2x full Kelly).
 
 **Auth chain (RESOLVED)**:
 - sigType=1 (Magic Link / POLY_PROXY), proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`
 - EOA signer: `0x1fcb9065142AFDFa4eE1cFFC107B6a7fd1d49612`
-- Root cause of all signing errors: axios interceptor was overriding `POLY_ADDRESS` header with proxy funder, but CLOB expects signer (EOA) address. Fixed in commit `d1a5263`.
-- `minOrderShares` reduced 5->1 in commit `369fbec` (5 shares at 90c = $4.50 exceeded $3.15 balance).
+- Fixed: POLY_ADDRESS header override removed (`d1a5263`), minOrderShares 5->1 (`369fbec`), stake fractions 45%->15% (`b584d4f`).
+
+**OUT-OF-SAMPLE VALIDATION (992 cycles, March 28-31, 4 assets, 3,333 strategy matches)**:
+
+| Strategy | In-Sample WR | OOS WR | Verdict |
+|----------|-------------|--------|---------|
+| m14 resolution (80c+) | 88-94% | 83-92% | VALIDATED |
+| m12 momentum (55-95c) | 80-84% | 79-87% | VALIDATED |
+| m11 wide-momentum | 80-85% | 75-84% | VALIDATED |
+| m10 late-momentum | 76-79% | 72-76% | MARGINAL |
+| m11 mid-momentum (45-70c) | 67-74% | 56-66% | DEGRADED |
+| m10 bootstrap (35-60c) | 65-68% | 40-51% | FAILED |
+
+**Overall OOS WR: 74.4%** (vs 79% in-sample). 5% degradation from overfitting.
+
+**HONEST Profit Projections (all assumptions flagged)**:
+- Resolution farm only (m14, 91% WR, 20 trades/day, 10% stake, $5 start): median $201/30d
+- Combined res+momentum (35 trades/day, 10% stake): median $5,111/30d
+- Conservative (WR -5%, 15 trades/day, 10% stake): median $10/30d
+- CRITICAL: 5% WR degradation turns $12k median into $22. Extreme sensitivity to WR assumptions.
 
 **Env vars on Render**: `TRADE_MODE=LIVE`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`, `POLYMARKET_SIGNATURE_TYPE=1`, `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`, `CLOB_FORCE_PROXY=1`, proxy URL set.
 
-**What works**: Auth, cred derivation, balance probes, strategy matching, order placement, position tracking, resolution detection, win/loss recording. Bot trades autonomously at m10-m14 when prices are in 45-95c band.
+**What works**: Auth, cred derivation, balance probes, strategy matching, order placement, position tracking, resolution detection, win/loss recording, risk manager with 15% stake.
 
 **What is pending**:
-1. Strategy reaudit with fresh market data - verify claimed win rates are real
-2. Profit sims at $3.15, $5, $10, $20 starting balances
-3. Evaluate alternative approaches (resolution farming, death bounce, arbitrage)
-4. Research maker orders (0% fees) vs current taker orders (~3.15% fee)
-5. Monitor trade performance over multiple cycles
+1. **User must deposit $5-10** to proxy wallet `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`
+2. **Remove failed strategies**: m10 bootstrap (40-51% OOS WR) and m11 mid-momentum (56-66% OOS WR) from strategy set
+3. **Monitor first 50 real trades** with validated strategies, compare actual WR to OOS WR
+4. **If actual WR < 65%**: halt and reassess entire approach
+5. Research maker orders (0% fees) vs current taker orders (~3.15% fee)
 
 **Key commits (session 30-31 Mar)**:
-- `d1a5263`: Remove POLY_ADDRESS header override (root cause fix)
+- `dd85fef`: README with profit sim results and new stake fractions
+- `b584d4f`: Reduce stake fractions to 15% (prevent guaranteed bust)
+- `5b62dd1`: README update with first trade details
 - `369fbec`: Reduce minOrderShares 5->1
-- `d379bba`: Force proxy trade-ready with fallback balance
-- `6e743a8`: Geoblock retry logic
-- `05a2f38`: Proxy-funder derive tests
-- `ae03209`: Strategy/CLOB/risk/executor/discovery fixes (main overhaul)
+- `d1a5263`: Remove POLY_ADDRESS header override (root cause fix)
 <!-- HANDOFF_STATE_END -->
