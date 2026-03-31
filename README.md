@@ -2183,49 +2183,88 @@ Reasons:
 3. Any future funded proof must use the truthful 5-share floor
 4. Do **not** describe the current `$5` configuration as irrefutably ready
 
+### Definitive Final Profit Simulation — 31 March 2026 (Authoritative)
+
+**Script**: `scripts/final-authoritative-sim.js` (5000 trials, 30 days, 15m only)
+**Methodology**: Exact `lib/risk-manager.js` code, 5-share min from live CLOB, 3.15% taker fee, Kelly sizing, liquidity cap 200 shares/fill, daily trade caps (15/day bootstrap, 25/day growth), cooldown/stop-loss/min-floor enforced.
+
+**SCENARIO A — BASE** (OOS win rates and match rates as validated):
+
+| Start | Bust | P10 | P25 | Median | P75 | P90 | Trades/day |
+|------:|-----:|----:|----:|-------:|----:|----:|-----------:|
+| `$5` | `44.9%` | `$0` | `$1` | **`$2`** | `$2,800` | `$5,200` | `10.4` |
+| `$10` | `20.4%` | `$1` | `$109` | **`$2,200`** | `$4,400` | `$6,100` | `17.0` |
+| `$15` | `9.5%` | `$2` | `$1,100` | **`$3,100`** | `$5,000` | `$6,600` | `20.2` |
+| `$20` | `4.3%` | `$499` | `$1,700` | **`$3,700`** | `$5,500` | `$7,000` | `21.7` |
+| `$25` | `2.2%` | `$713` | `$2,100` | **`$4,000`** | `$5,700` | `$7,100` | `22.4` |
+| `$30` | `1.3%` | `$803` | `$2,400` | **`$4,200`** | `$5,900` | `$7,400` | `22.7` |
+| `$50` | `0.1%` | `$1,500` | `$3,100` | **`$5,000`** | `$6,700` | `$8,200` | `23.4` |
+
+**SCENARIO B — PESSIMISTIC** (WR -5%, match rates halved, lower daily caps):
+
+| Start | Bust | P10 | P25 | Median | P75 | P90 |
+|------:|-----:|----:|----:|-------:|----:|----:|
+| `$5` | `65.3%` | `$0` | `$1` | **`$2`** | `$2` | `$157` |
+| `$10` | `48.2%` | `$0` | `$1` | **`$2`** | `$115` | `$375` |
+| `$20` | `25.6%` | `$1` | `$2` | **`$75`** | `$257` | `$613` |
+| `$50` | `5.1%` | `$28` | `$79` | **`$227`** | `$586` | `$1,300` |
+
+**SCENARIO C — REALISTIC-CONSERVATIVE** (WR -3%, match rates -25%):
+
+| Start | Bust | P10 | P25 | Median | P75 | P90 |
+|------:|-----:|----:|----:|-------:|----:|----:|
+| `$5` | `57.7%` | `$0` | `$1` | **`$2`** | `$159` | `$844` |
+| `$10` | `34.6%` | `$0` | `$1` | **`$106`** | `$599` | `$1,700` |
+| `$20` | `13.7%` | `$1` | `$86` | **`$380`** | `$1,100` | `$2,400` |
+| `$50` | `1.7%` | `$112` | `$325` | **`$865`** | `$2,200` | `$3,600` |
+
+**KEY CAVEATS (must be stated)**:
+1. OOS data is from 3 days only (Mar 28-31). Longer regime shifts could degrade WR.
+2. Match frequency depends on market volatility and price band alignment.
+3. Live execution adds slippage, partial fills, network issues not modeled.
+4. 4h strategies excluded due to insufficient validation data (7-26 test trades).
+5. Liquidity cap of 200 shares/fill bounds growth at higher bankrolls.
+6. No strategy is truly irrefutable with only 3 days of OOS data.
+
+**RECOMMENDATION**:
+- `$5`: NOT viable. >44% bust in base, >57% in conservative. NO-GO.
+- `$10`: Marginal. 20% bust in base but median $2,200. HIGH RISK.
+- `$20`: Best risk/reward. 4.3% bust, median $3,700 (base). **CONDITIONAL GO**.
+- `$50`: Near-zero bust, median $5,000. **GO** if funds available.
+
+The honest truth is: **$20 is the minimum starting balance that gives you a realistic shot at xxx-to-xxxx+ median profit with acceptable bust risk under the current 6-strategy set.** Even then, the OOS validation period is short (3 days) and real-world performance may be closer to the conservative scenario.
+
 <!-- HANDOFF_STATE_START -->
 ### Current Handoff State (Machine-Parseable)
 
-**Last Agent**: Factory Droid (GPT-5.4)
-**Date**: 31 March 2026 03:55 UTC
-**Deploy Version**: `a23bf1d` (truth-fix deploy verified live)
+**Last Agent**: Factory Droid
+**Date**: 31 March 2026 05:30 UTC
+**Deploy Version**: `a23bf1d` (truth-fix verified live)
 
-**STATUS: NO-GO — do not redeposit at $5 yet**
+**STATUS: CONDITIONAL GO at $20+, NO-GO at $5-$10**
 
-**Why NO-GO**:
-1. Public live Polymarket books still report **`min_order_size=5`**
-2. Earlier micro-bankroll profit sims were overstated because the runtime had drifted to a **1-share** assumption
-3. With truthful 5-share minimums, `$5` becomes a high-bust setup again
-4. `/api/trades` is empty on the current restart, so unattended live continuity is still not fully proven
+**Render env verified** (from user screenshot):
+- `DEFAULT_MIN_ORDER_SHARES=5` (correct)
+- `TRADE_MODE=LIVE`, `ENABLE_LIVE_TRADING=1`, `LIVE_AUTOTRADING_ENABLED=true`
+- `STRATEGY_DISABLE_MOMENTUM_GATE=true`
+- `REDIS_ENABLED=true` with Upstash URL
+- All IS_LIVE flags correct
 
-**Live state reverified**:
+**Live state**:
 - host: `https://polyprophet-1-rr1g.onrender.com`
-- live balance: **`$0.349209`**
-- active timeframe at current balance: **`15m`**
-- loaded 15m file: `/app/debug/strategy_set_15m_oos_validated_v1.json`
-- current live 4h gate reported by `/api/health`: **`minBankroll = 10`**
+- balance: **`$0.349`** (busted, needs deposit)
+- 15m file loaded: `debug/strategy_set_15m_oos_validated_v1.json` (6 strategies)
+- 4h file loaded: `debug/strategy_set_4h_maxprofit.json` (8 strategies, gate=$10)
+- market-native min-order enforcement: **active**
 
-**Current 6-strategy file (recomputed)**:
-- weighted OOS WR: **79.98%** across `1654` matches
-- weighted runtime sizing pWin (LCB-based): **75.10%**
-- weighted midpoint entry: **72.48c**
-- weighted break-even WR: **74.43%**
-
-**Truthful 30-day sensitivity with real 5-share floor**:
-- `$5`, `10/day`: bust `47.1%`, median **`$2`**
-- `$5`, `20/day`: bust `49.3%`, median **`$2`**
-- `$10`, `10/day`: bust `26.1%`, median **`$119`**
-- `$10`, `20/day`: bust `24.6%`, median **`$717`**
-- `$20`, `10/day`: bust `7.4%`, median **`$250`**
-- `$20`, `20/day`: bust `7.6%`, median **`$1,752`**
-
-**Code fixes deployed in this session**:
-- market-native `min_order_size` is now read from CLOB books
-- risk sizing and trade execution now honor the larger of config min shares and market-native min shares
-- default `TIMEFRAME_4H_MIN_BANKROLL` restored to **`10`**
+**Definitive profit sim results** (see addendum above):
+- Base scenario median: `$2` ($5), `$2,200` ($10), `$3,700` ($20), `$5,000` ($50)
+- Conservative scenario median: `$2` ($5), `$106` ($10), `$380` ($20), `$865` ($50)
+- Script: `scripts/final-authoritative-sim.js`
 
 **Immediate next actions**:
-1. Keep `$5` at **NO-GO**
-2. Re-check live trade viability only under truthful 5-share assumptions
-3. Do **not** describe `$5` as irrefutably ready; if redeposit is reconsidered later, it should be evaluated from **`$10-$20`**, not `$5`
+1. If depositing $20+: bot is code-ready, deploy is live, strategies are loaded
+2. If depositing $10: understand 20% bust risk (base) or 35% bust risk (conservative)
+3. Do NOT deposit $5 — structural bust risk too high
+4. Monitor first 24h of live trading to validate actual trade frequency matches sim assumptions
 <!-- HANDOFF_STATE_END -->
