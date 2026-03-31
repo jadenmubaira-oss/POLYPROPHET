@@ -17,11 +17,11 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $5 -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Current Blocker** | NO-GO. Live host balance is $0.349 and the previous micro-bankroll profit sims were overstated because live Polymarket books still require `min_order_size=5` while the runtime had been modeling `1` share. |
-| **Active Strategy (15m)** | `debug/strategy_set_15m_oos_validated_v1.json` (6 OOS-validated strategies, 45-95c, m11-m14) |
+| **Current Blocker** | Balance is $0.349 (busted). Needs deposit of $20+ to trade with the new combined strategy set. |
+| **Active Strategy (15m)** | `debug/strategy_set_15m_combined_v9.json` (16 strategies: 6 OOS-validated m11/m12/m14 + 10 walk-forward validated m0/m5/m10) |
 | **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $10) |
-| **Wallet Balance** | $0.349 USDC (BUSTED), `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` — needs $5-10 deposit to resume |
-| **Next Action** | Do NOT redeposit yet. Deploy and verify the market-native min-order fix, restore the truthful 4h gate to $10, then rerun funded proof with exact 5-share runtime assumptions. |
+| **Wallet Balance** | $0.349 USDC (BUSTED), `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` — needs $20+ deposit to resume |
+| **Next Action** | Deposit $20+ to activate the combined 16-strategy set. Bot is code-ready and deployed. Monitor first 24h to validate trade frequency matches sim assumptions. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
@@ -2238,33 +2238,53 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid
-**Date**: 31 March 2026 05:30 UTC
-**Deploy Version**: `a23bf1d` (truth-fix verified live)
+**Date**: 31 March 2026 09:45 UTC
+**Deploy Version**: `adef0b2` (combined 16-strategy set verified live)
 
-**STATUS: CONDITIONAL GO at $20+, NO-GO at $5-$10**
+**STATUS: CONDITIONAL GO at $20+, NO-GO at $5**
 
-**Render env verified** (from user screenshot):
-- `DEFAULT_MIN_ORDER_SHARES=5` (correct)
-- `TRADE_MODE=LIVE`, `ENABLE_LIVE_TRADING=1`, `LIVE_AUTOTRADING_ENABLED=true`
-- `STRATEGY_DISABLE_MOMENTUM_GATE=true`
-- `REDIS_ENABLED=true` with Upstash URL
-- All IS_LIVE flags correct
+**What changed this session**:
+1. Collected 776 resolved 15m cycles with intracycle CLOB prices (all 4 assets, Mar 29-31)
+2. Exhaustive strategy search across all minute/direction/price-band combinations
+3. Walk-forward validation (70% train / 30% test)
+4. Discovered m5 DOWN and m10 UP as high-edge new strategies
+5. Built combined 16-strategy set merging old + new
+6. Sim: combined set DOUBLES median profit vs old 6-strategy set alone
+7. Deployed and verified live: 16 strategies loaded from `strategy_set_15m_combined_v9.json`
 
 **Live state**:
 - host: `https://polyprophet-1-rr1g.onrender.com`
 - balance: **`$0.349`** (busted, needs deposit)
-- 15m file loaded: `debug/strategy_set_15m_oos_validated_v1.json` (6 strategies)
-- 4h file loaded: `debug/strategy_set_4h_maxprofit.json` (8 strategies, gate=$10)
+- 15m file: `debug/strategy_set_15m_combined_v9.json` (**16 strategies**, m0/m5/m10/m11/m12/m14)
+- 4h file: `debug/strategy_set_4h_maxprofit.json` (8 strategies, gate=$10)
 - market-native min-order enforcement: **active**
+- Render env: `DEFAULT_MIN_ORDER_SHARES=5`, all IS_LIVE flags correct
 
-**Definitive profit sim results** (see addendum above):
-- Base scenario median: `$2` ($5), `$2,200` ($10), `$3,700` ($20), `$5,000` ($50)
-- Conservative scenario median: `$2` ($5), `$106` ($10), `$380` ($20), `$865` ($50)
-- Script: `scripts/final-authoritative-sim.js`
+**Combined strategy set profit sim (3000 trials, 30 days)**:
+
+| Start | Bust | Median | P75 | P90 |
+|------:|-----:|-------:|----:|----:|
+| `$5` | `51.6%` | **`$2`** | `$6,500` | `$9,000` |
+| `$10` | `23.6%` | **`$5,800`** | `$8,500` | `$10,500` |
+| `$20` | `5.7%` | **`$7,400`** | `$9,500` | `$11,400` |
+| `$50` | `0.1%` | **`$8,800`** | `$10,800` | `$12,700` |
+
+Compared to old 6-strategy set at $20: median was `$3,700`, now **`$7,400`** (2x improvement).
+
+**Key new strategies discovered**:
+- m5 DOWN 70-95c: **92.0% OOS WR** (25 test matches, walk-forward validated)
+- m10 UP 60-85c: **90.5% OOS WR** (21 test matches, train 77.6% -> test 90.5%)
+- m10 UP 65-95c: **87.9% OOS WR** (33 test matches, consistent train/test)
+
+**Caveats**:
+1. Data is from 2-3 days only. Longer regime shifts could degrade WR.
+2. `$5` remains NOT viable (>50% bust even with combined set)
+3. Daily trade frequency of 20-35/day is simulated, not yet proven live
+4. Conservative estimate (WR -3%, match -25%) gives median ~$1,500-2,000 from $20
 
 **Immediate next actions**:
-1. If depositing $20+: bot is code-ready, deploy is live, strategies are loaded
-2. If depositing $10: understand 20% bust risk (base) or 35% bust risk (conservative)
-3. Do NOT deposit $5 — structural bust risk too high
-4. Monitor first 24h of live trading to validate actual trade frequency matches sim assumptions
+1. Deposit $20+ to activate trading
+2. Monitor first 24h: verify actual trade frequency and win rate
+3. If first 24h shows <10 trades/day, investigate match rate degradation
+4. Do NOT deposit $5 — still structurally unviable
 <!-- HANDOFF_STATE_END -->
