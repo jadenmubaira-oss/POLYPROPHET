@@ -19,7 +19,7 @@
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
 | **Current Blocker** | NO-GO. Live host balance is $0.349 and the previous micro-bankroll profit sims were overstated because live Polymarket books still require `min_order_size=5` while the runtime had been modeling `1` share. |
 | **Active Strategy (15m)** | `debug/strategy_set_15m_oos_validated_v1.json` (6 OOS-validated strategies, 45-95c, m11-m14) |
-| **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
+| **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $10) |
 | **Wallet Balance** | $0.349 USDC (BUSTED), `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` — needs $5-10 deposit to resume |
 | **Next Action** | Do NOT redeposit yet. Deploy and verify the market-native min-order fix, restore the truthful 4h gate to $10, then rerun funded proof with exact 5-share runtime assumptions. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
@@ -1937,13 +1937,13 @@ Reasons:
 
 > **Update this section at the end of every AI session.**
 
-**Last Agent**: Factory Droid (Claude Opus 4.6)
+**Last Agent**: Factory Droid (GPT-5.4)
 **Date**: 31 March 2026 03:45 UTC
 **What was done**: (1) Re-read README and the latest implementation-plan addenda, then re-audited live `/api/health`, `/api/status`, `/api/diagnostics`, `/api/wallet/balance`, `/api/clob-status`, and `/api/trades`. (2) Recomputed the deployed 6-strategy file: weighted OOS WR 79.98%, weighted runtime sizing pWin 75.10%, weighted break-even 74.43%. (3) Verified a public live BTC 15m CLOB book still reports `min_order_size=5`. (4) Found that current lite runtime had been relying on configurable min shares rather than market-native min shares, which invalidated the earlier 1-share micro-bankroll profit sims. (5) Implemented market-native min-order enforcement plus restored the safer default 4h gate to `$10`. (6) Ran fresh truthful 5-share sensitivity sims for `$5`, `$10`, and `$20`.
-**What is pending**: (1) Push and deploy the min-order truth fix. (2) Re-verify live `4h` gating after deploy. (3) Re-run funded proof only after the live host is confirmed to honor market-native 5-share minimums. (4) If any redeposit is considered later, base it on the new truthful 5-share results, not the earlier 1-share numbers.
+**What is pending**: (1) Funded proof under the now-deployed truthful 5-share constraints. (2) Verify the first real post-fix live order only after an intentional redeposit decision. (3) If any redeposit is considered later, base it on the new truthful 5-share results, not the earlier 1-share numbers.
 **Discrepancies found**: Earlier README/profit-sim notes overstated micro-bankroll viability because they treated the current OOS set as if 1-share live execution were valid. Public live order books still show `min_order_size=5`, which makes `$5` a high-bust setup again.
 **Key insight**: The 6-strategy OOS set may still have a real edge, but the edge is not enough to save a `$5` bankroll once true 5-share Polymarket minimums are enforced.
-**Next action**: Do not redeposit at `$5`. Deploy the fix, verify the live host, and only then reassess whether `$10-$20` can honestly meet the user’s target.
+**Next action**: Do not redeposit at `$5`. The truth-fix is now deployed; only reassess later from a truthful `$10-$20` bankroll if the user still wants funded proof.
 
 ### Final Handoff — 30 March 2026 Post-Patch Live State
 
@@ -2105,9 +2105,10 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 
 1. **Live posture**
    - deployed host is still `https://polyprophet-1-rr1g.onrender.com`
+   - truth-fix deploy `a23bf1d` is now live
    - `15m` loads `/app/debug/strategy_set_15m_oos_validated_v1.json` with `6` strategies
    - live balance remains **`$0.349209`**
-   - current live `4h` gate still reports **`minBankroll = 4`**, not the safer `$10` posture previously described in README
+   - live `4h` gate now reports **`minBankroll = 10`** after the truth-fix deploy
    - `/api/trades` is currently empty, so unattended live continuity is **not** fully proven
 
 2. **Current strategy quality**
@@ -2123,7 +2124,7 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
    - the lite runtime had been relying on `DEFAULT_MIN_ORDER_SHARES`, and live/operator reasoning had drifted to `1` share
    - that means the earlier 1-share micro-bankroll profit sims were **not representative of real market constraints**
 
-4. **Code fix prepared**
+4. **Code fix deployed**
    - `lib/market-discovery.js` now captures market-native `min_order_size`
    - `lib/risk-manager.js` and `lib/trade-executor.js` now honor the larger of config min shares and market-native min shares
    - `lib/config.js` default `TIMEFRAME_4H_MIN_BANKROLL` restored to **`10`** so missing env does not silently activate 4h too early
@@ -2173,22 +2174,21 @@ Reasons:
 1. the previous micro profit sims were materially overstated by the 1-share assumption
 2. truthful 5-share runtime math makes the current `$5` start a **high-bust** setup again
 3. live unattended continuity is still not fully proven (`/api/trades` empty on current restart)
-4. live `4h` gating has drifted from the safer README posture and must be re-verified after deploy
+4. even after the deploy, live unattended continuity is still not proven enough to call `$5` ready
 
 #### Honest path forward
 
-1. Deploy and verify the market-native min-order fix
-2. Confirm live `4h` gate is back at `$10`
-3. Re-run exact post-deploy proof with the truthful 5-share floor
-4. If redepositing at all, the first bankroll that honestly produces a plausible `xxx+` median under this setup is **closer to `$10-$20` than `$5`**
-5. Do **not** describe the current `$5` configuration as irrefutably ready
+1. Keep the current verdict at **NO-GO for `$5`**
+2. If redepositing at all, the first bankroll that honestly produces a plausible `xxx+` median under this setup is **closer to `$10-$20` than `$5`**
+3. Any future funded proof must use the truthful 5-share floor
+4. Do **not** describe the current `$5` configuration as irrefutably ready
 
 <!-- HANDOFF_STATE_START -->
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid (GPT-5.4)
-**Date**: 31 March 2026 03:45 UTC
-**Deploy Version**: live host currently shows `8e4bc2b`; local truth-fix commit for market-native min-order handling is pending deploy verification.
+**Date**: 31 March 2026 03:55 UTC
+**Deploy Version**: `a23bf1d` (truth-fix deploy verified live)
 
 **STATUS: NO-GO — do not redeposit at $5 yet**
 
@@ -2203,7 +2203,7 @@ Reasons:
 - live balance: **`$0.349209`**
 - active timeframe at current balance: **`15m`**
 - loaded 15m file: `/app/debug/strategy_set_15m_oos_validated_v1.json`
-- current live 4h gate reported by `/api/health`: **`minBankroll = 4`** (needs re-verification after deploy)
+- current live 4h gate reported by `/api/health`: **`minBankroll = 10`**
 
 **Current 6-strategy file (recomputed)**:
 - weighted OOS WR: **79.98%** across `1654` matches
@@ -2219,14 +2219,13 @@ Reasons:
 - `$20`, `10/day`: bust `7.4%`, median **`$250`**
 - `$20`, `20/day`: bust `7.6%`, median **`$1,752`**
 
-**Code fixes prepared in this session**:
+**Code fixes deployed in this session**:
 - market-native `min_order_size` is now read from CLOB books
 - risk sizing and trade execution now honor the larger of config min shares and market-native min shares
 - default `TIMEFRAME_4H_MIN_BANKROLL` restored to **`10`**
 
 **Immediate next actions**:
-1. Push/deploy the min-order truth fix
-2. Verify live host now reports safer 4h gating
-3. Re-check live trade viability only under truthful 5-share assumptions
-4. Do **not** describe `$5` as irrefutably ready; if redeposit is reconsidered later, it should be evaluated from **`$10-$20`**, not `$5`
+1. Keep `$5` at **NO-GO**
+2. Re-check live trade viability only under truthful 5-share assumptions
+3. Do **not** describe `$5` as irrefutably ready; if redeposit is reconsidered later, it should be evaluated from **`$10-$20`**, not `$5`
 <!-- HANDOFF_STATE_END -->
