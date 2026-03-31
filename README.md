@@ -21,7 +21,7 @@
 | **Active Strategy (15m)** | `debug/strategy_set_15m_lateminute_v1.json` (14 strategies, wildcard hours, 35-95c, m10-m14) |
 | **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
 | **Wallet Balance** | $3.149209 USDC remaining, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`, `tradeReady.ok=true` |
-| **Next Action** | Strategy reaudit: verify win rates with fresh data, run profit sims, evaluate alternative approaches for max profit. |
+| **Next Action** | Monitor trades with new 15% stake fraction. Previous 45% = 100% bust. Now: 7% bust, median $291k at $5 start (Monte Carlo 30d). |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
