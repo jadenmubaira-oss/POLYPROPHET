@@ -2100,8 +2100,8 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid (Claude Opus 4.6)
-**Date**: 31 March 2026 01:30 UTC
-**Deploy Version**: `dd85fef` (Render auto-deployed)
+**Date**: 31 March 2026 03:00 UTC
+**Deploy Version**: `c9516a1` (Render verified: 6 OOS-validated strategies loaded)
 
 **STATUS: BUSTED — $0.349 balance, cannot trade (min order $0.90)**
 
@@ -2127,11 +2127,13 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 
 **Overall OOS WR: 74.4%** (vs 79% in-sample). 5% degradation from overfitting.
 
-**HONEST Profit Projections (all assumptions flagged)**:
-- Resolution farm only (m14, 91% WR, 20 trades/day, 10% stake, $5 start): median $201/30d
-- Combined res+momentum (35 trades/day, 10% stake): median $5,111/30d
-- Conservative (WR -5%, 15 trades/day, 10% stake): median $10/30d
-- CRITICAL: 5% WR degradation turns $12k median into $22. Extreme sensitivity to WR assumptions.
+**TRIPLE-CHECKED Profit Projections (corrected 31 Mar 03:00 UTC)**:
+- Frequency-weighted OOS WR: **79.9%** (1322/1654 matches, 95% CI: 77.9%-81.8%)
+- Break-even WR at 72.5c avg entry: 74.2% (statistically significant margin: 5.7%)
+- Kelly stake: 9.44% of bankroll per trade
+- At 30 trades/day: **median $1,026** from $5 in 30 days (P10=$135, P75=$2,978, bust ~2%)
+- At 40 trades/day: **median $6,052** (P10=$583, P75=$20,716)
+- SENSITIVITY: 2% WR drop (80%->78%) cuts median from $1,173 to $62. Edge is real but thin.
 
 **Env vars on Render**: `TRADE_MODE=LIVE`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`, `POLYMARKET_SIGNATURE_TYPE=1`, `POLYMARKET_ADDRESS=0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A`, `CLOB_FORCE_PROXY=1`, proxy URL set.
 
@@ -2145,9 +2147,11 @@ This repo now has a meaningful project-local harness in `.agent/` and `.windsurf
 5. Research maker orders (0% fees) vs current taker orders (~3.15% fee)
 
 **Key commits (session 30-31 Mar)**:
+- `c9516a1`: Fix .dockerignore to include OOS-validated strategy file
+- `dd7ccfa`: Deploy 6 OOS-validated strategies (remove 8 failed/marginal)
+- `bf799a2`: README with OOS validation results
 - `dd85fef`: README with profit sim results and new stake fractions
 - `b584d4f`: Reduce stake fractions to 15% (prevent guaranteed bust)
-- `5b62dd1`: README update with first trade details
 - `369fbec`: Reduce minOrderShares 5->1
 - `d1a5263`: Remove POLY_ADDRESS header override (root cause fix)
 <!-- HANDOFF_STATE_END -->
