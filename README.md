@@ -18,7 +18,7 @@
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
 | **Current Blocker** | NONE. Bot is LIVE and trading. First trade placed 30 Mar 23:40 UTC (BTC DOWN at 56c, lost). Auth, signing, order placement all confirmed working. |
-| **Active Strategy (15m)** | `debug/strategy_set_15m_lateminute_v1.json` (14 strategies, wildcard hours, 35-95c, m10-m14) |
+| **Active Strategy (15m)** | `debug/strategy_set_15m_oos_validated_v1.json` (6 OOS-validated strategies, 45-95c, m11-m14) |
 | **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $4) |
 | **Wallet Balance** | $0.349 USDC (BUSTED), `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` — needs $5-10 deposit to resume |
 | **Next Action** | DEPOSIT $5-10, then remove bootstrap strategies (40-51% OOS WR = below break-even). Keep m14 resolution (90% OOS WR) + m12 momentum (82% OOS WR). 15% stake deployed. |

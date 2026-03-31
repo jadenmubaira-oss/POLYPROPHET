@@ -94,10 +94,10 @@ function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: lateminute_v1 contains v2 resolution-momentum hybrid (from 896-cycle audit)
-    // lateminute_v1 is PROVEN to exist on Render deploy. v2 file had gitignore issues.
-    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_v2_resolution_momentum.json');
+    // PRIMARY 15m strategy: OOS-validated v1 (6 strategies, >3% margin above break-even after fees)
+    // Old lateminute_v1 had 14 strategies including m10 bootstrap (40-51% OOS WR = below break-even)
+    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_oos_validated_v1.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;

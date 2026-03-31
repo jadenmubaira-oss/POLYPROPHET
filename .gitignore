@@ -80,6 +80,7 @@ debug/*
 !debug/strategy_set_5m_maxprofit.json
 !debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json
 !debug/strategy_set_15m_lateminute_v1.json
+!debug/strategy_set_15m_oos_validated_v1.json
 !debug/strategy_set_5m_walkforward_top4.json
 !debug/4h_maxprofit_full_analysis.json
 !debug/5m_maxprofit_full_analysis.json
