@@ -1,0 +1,787 @@
+{
+  "version": "1.0-near-certainty",
+  "generatedAt": "2026-04-01T16:55:52.553Z",
+  "timeframe": "15m",
+  "startBalance": 20,
+  "description": "12-strategy chronology-preserving near-certainty set (beam_best_12): robustFloor $115.10, hist $5266.54, recent $885.26, worstDD 55.9%. Verified stable at beam widths 200-300; gate 20 collapses the floor to $17.33.",
+  "conditions": {
+    "priceMin": 0.5,
+    "priceMax": 0.98,
+    "applyMomentumGate": false,
+    "applyVolumeGate": false
+  },
+  "stats": {
+    "search": {
+      "method": "Chronology-preserving beam search over 41 active validated 15m candidates",
+      "candidateUniverse": 41,
+      "maxStrategies": 12,
+      "beamWidthStableThrough": 300
+    },
+    "deepValidation": {
+      "method": "Deep per-candidate validation with gate sweep, start-balance stress, leave-one-out, per-strategy breakdown, and trade ledger",
+      "historicalDays": 32,
+      "recentDays": 15,
+      "historicalRange": "2026-02-08 to 2026-03-11",
+      "recentRange": "2026-03-17 to 2026-03-31",
+      "ungated": {
+        "robustFloor": 115.1,
+        "histFinal": 5266.54,
+        "recentFinal": 885.26,
+        "worstDD": 0.5585,
+        "divergence": 5.9491
+      },
+      "gated20": {
+        "robustFloor": 17.33,
+        "histFinal": 17.33,
+        "recentFinal": 19.97
+      },
+      "leaveOneOutWorstDelta": -547.21
+    }
+  },
+  "strategies": [
+    {
+      "id": 1,
+      "name": "H10 m10 UP [70-80c]",
+      "asset": "ALL",
+      "utcHour": 10,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.8,
+      "signature": "10|10|UP|0.70|0.80",
+      "tier": "BRONZE",
+      "winRate": 0.7895,
+      "winRateLCB": 0.6365,
+      "recentWinRate": 0.9375,
+      "recentMatches": 16,
+      "sources": [
+        "exhaustive_analysis/strategies_ranked.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 108,
+          "wins": 91,
+          "losses": 17,
+          "wr": 0.8426,
+          "lcb": 0.7623,
+          "avgEntry": 0.7497,
+          "breakEven": 0.7557,
+          "edge": 0.0869
+        },
+        "val": {
+          "matches": 41,
+          "wins": 32,
+          "losses": 9,
+          "wr": 0.7805,
+          "lcb": 0.6329,
+          "avgEntry": 0.7573,
+          "breakEven": 0.7631,
+          "edge": 0.0174
+        },
+        "test": {
+          "matches": 38,
+          "wins": 30,
+          "losses": 8,
+          "wr": 0.7895,
+          "lcb": 0.6365,
+          "avgEntry": 0.7517,
+          "breakEven": 0.7576,
+          "edge": 0.0319
+        },
+        "recent": {
+          "matches": 16,
+          "wins": 15,
+          "losses": 1,
+          "wr": 0.9375,
+          "lcb": 0.7167,
+          "avgEntry": 0.7469,
+          "breakEven": 0.7528,
+          "edge": 0.1847,
+          "matchedDays": 12
+        }
+      }
+    },
+    {
+      "id": 2,
+      "name": "H15 m8 UP [50-98c]",
+      "asset": "ALL",
+      "utcHour": 15,
+      "entryMinute": 8,
+      "direction": "UP",
+      "priceMin": 0.5,
+      "priceMax": 0.98,
+      "signature": "8|15|UP|0.50|0.98",
+      "tier": "SILVER",
+      "winRate": 0.8206,
+      "winRateLCB": 0.765,
+      "recentWinRate": 0.7757,
+      "recentMatches": 107,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 615,
+          "wins": 472,
+          "losses": 143,
+          "wr": 0.7675,
+          "lcb": 0.7325,
+          "avgEntry": 0.7614,
+          "breakEven": 0.7666,
+          "edge": 0.0009
+        },
+        "val": {
+          "matches": 243,
+          "wins": 201,
+          "losses": 42,
+          "wr": 0.8272,
+          "lcb": 0.7746,
+          "avgEntry": 0.7847,
+          "breakEven": 0.7894,
+          "edge": 0.0377
+        },
+        "test": {
+          "matches": 223,
+          "wins": 183,
+          "losses": 40,
+          "wr": 0.8206,
+          "lcb": 0.765,
+          "avgEntry": 0.7778,
+          "breakEven": 0.7826,
+          "edge": 0.038
+        },
+        "recent": {
+          "matches": 107,
+          "wins": 83,
+          "losses": 24,
+          "wr": 0.7757,
+          "lcb": 0.6879,
+          "avgEntry": 0.7603,
+          "breakEven": 0.7655,
+          "edge": 0.0102,
+          "matchedDays": 15
+        }
+      }
+    },
+    {
+      "id": 3,
+      "name": "H16 m4 UP [70-80c]",
+      "asset": "ALL",
+      "utcHour": 16,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.8,
+      "signature": "4|16|UP|0.70|0.80",
+      "tier": "SILVER",
+      "winRate": 0.8947,
+      "winRateLCB": 0.7587,
+      "recentWinRate": 0.7778,
+      "recentMatches": 18,
+      "sources": [
+        "exhaustive_analysis/strategies_ranked.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 150,
+          "wins": 125,
+          "losses": 25,
+          "wr": 0.8333,
+          "lcb": 0.7655,
+          "avgEntry": 0.7494,
+          "breakEven": 0.7554,
+          "edge": 0.078
+        },
+        "val": {
+          "matches": 39,
+          "wins": 31,
+          "losses": 8,
+          "wr": 0.7949,
+          "lcb": 0.6447,
+          "avgEntry": 0.7445,
+          "breakEven": 0.7505,
+          "edge": 0.0444
+        },
+        "test": {
+          "matches": 38,
+          "wins": 34,
+          "losses": 4,
+          "wr": 0.8947,
+          "lcb": 0.7587,
+          "avgEntry": 0.7438,
+          "breakEven": 0.7498,
+          "edge": 0.1449
+        },
+        "recent": {
+          "matches": 18,
+          "wins": 14,
+          "losses": 4,
+          "wr": 0.7778,
+          "lcb": 0.5478,
+          "avgEntry": 0.7369,
+          "breakEven": 0.7431,
+          "edge": 0.0347,
+          "matchedDays": 8
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "H17 m12 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 17,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "signature": "12|17|DOWN|0.55|0.98",
+      "tier": "PLATINUM",
+      "winRate": 0.883,
+      "winRateLCB": 0.8263,
+      "recentWinRate": 0.9571,
+      "recentMatches": 70,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 484,
+          "wins": 415,
+          "losses": 69,
+          "wr": 0.8574,
+          "lcb": 0.8235,
+          "avgEntry": 0.8418,
+          "breakEven": 0.8455,
+          "edge": 0.0119
+        },
+        "val": {
+          "matches": 160,
+          "wins": 138,
+          "losses": 22,
+          "wr": 0.8625,
+          "lcb": 0.8006,
+          "avgEntry": 0.8539,
+          "breakEven": 0.8573,
+          "edge": 0.0052
+        },
+        "test": {
+          "matches": 171,
+          "wins": 151,
+          "losses": 20,
+          "wr": 0.883,
+          "lcb": 0.8263,
+          "avgEntry": 0.8071,
+          "breakEven": 0.8115,
+          "edge": 0.0715
+        },
+        "recent": {
+          "matches": 70,
+          "wins": 67,
+          "losses": 3,
+          "wr": 0.9571,
+          "lcb": 0.8814,
+          "avgEntry": 0.816,
+          "breakEven": 0.8203,
+          "edge": 0.1369,
+          "matchedDays": 14
+        }
+      }
+    },
+    {
+      "id": 5,
+      "name": "H18 m11 UP [55-98c]",
+      "asset": "ALL",
+      "utcHour": 18,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "signature": "11|18|UP|0.55|0.98",
+      "tier": "GOLD",
+      "winRate": 0.8667,
+      "winRateLCB": 0.8093,
+      "recentWinRate": 0.8642,
+      "recentMatches": 81,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 516,
+          "wins": 448,
+          "losses": 68,
+          "wr": 0.8682,
+          "lcb": 0.8363,
+          "avgEntry": 0.8322,
+          "breakEven": 0.8361,
+          "edge": 0.0321
+        },
+        "val": {
+          "matches": 199,
+          "wins": 170,
+          "losses": 29,
+          "wr": 0.8543,
+          "lcb": 0.7985,
+          "avgEntry": 0.8123,
+          "breakEven": 0.8165,
+          "edge": 0.0377
+        },
+        "test": {
+          "matches": 180,
+          "wins": 156,
+          "losses": 24,
+          "wr": 0.8667,
+          "lcb": 0.8093,
+          "avgEntry": 0.8206,
+          "breakEven": 0.8247,
+          "edge": 0.0419
+        },
+        "recent": {
+          "matches": 81,
+          "wins": 70,
+          "losses": 11,
+          "wr": 0.8642,
+          "lcb": 0.773,
+          "avgEntry": 0.8198,
+          "breakEven": 0.824,
+          "edge": 0.0402,
+          "matchedDays": 14
+        }
+      }
+    },
+    {
+      "id": 6,
+      "name": "H18 m12 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 18,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "signature": "12|18|DOWN|0.55|0.98",
+      "tier": "SILVER",
+      "winRate": 0.8472,
+      "winRateLCB": 0.7795,
+      "recentWinRate": 0.8833,
+      "recentMatches": 60,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 468,
+          "wins": 397,
+          "losses": 71,
+          "wr": 0.8483,
+          "lcb": 0.813,
+          "avgEntry": 0.8405,
+          "breakEven": 0.8442,
+          "edge": 0.0041
+        },
+        "val": {
+          "matches": 163,
+          "wins": 138,
+          "losses": 25,
+          "wr": 0.8466,
+          "lcb": 0.7834,
+          "avgEntry": 0.8348,
+          "breakEven": 0.8386,
+          "edge": 0.008
+        },
+        "test": {
+          "matches": 144,
+          "wins": 122,
+          "losses": 22,
+          "wr": 0.8472,
+          "lcb": 0.7795,
+          "avgEntry": 0.8118,
+          "breakEven": 0.8161,
+          "edge": 0.0311
+        },
+        "recent": {
+          "matches": 60,
+          "wins": 53,
+          "losses": 7,
+          "wr": 0.8833,
+          "lcb": 0.7782,
+          "avgEntry": 0.8329,
+          "breakEven": 0.8368,
+          "edge": 0.0466,
+          "matchedDays": 14
+        }
+      }
+    },
+    {
+      "id": 7,
+      "name": "H19 m10 DOWN [50-98c]",
+      "asset": "ALL",
+      "utcHour": 19,
+      "entryMinute": 10,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.98,
+      "signature": "10|19|DOWN|0.50|0.98",
+      "tier": "PLATINUM",
+      "winRate": 0.8836,
+      "winRateLCB": 0.8301,
+      "recentWinRate": 0.8879,
+      "recentMatches": 107,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 640,
+          "wins": 537,
+          "losses": 103,
+          "wr": 0.8391,
+          "lcb": 0.8086,
+          "avgEntry": 0.8004,
+          "breakEven": 0.8049,
+          "edge": 0.0342
+        },
+        "val": {
+          "matches": 235,
+          "wins": 208,
+          "losses": 27,
+          "wr": 0.8851,
+          "lcb": 0.838,
+          "avgEntry": 0.8054,
+          "breakEven": 0.8097,
+          "edge": 0.0754
+        },
+        "test": {
+          "matches": 189,
+          "wins": 167,
+          "losses": 22,
+          "wr": 0.8836,
+          "lcb": 0.8301,
+          "avgEntry": 0.798,
+          "breakEven": 0.8025,
+          "edge": 0.0811
+        },
+        "recent": {
+          "matches": 107,
+          "wins": 95,
+          "losses": 12,
+          "wr": 0.8879,
+          "lcb": 0.8141,
+          "avgEntry": 0.7787,
+          "breakEven": 0.7835,
+          "edge": 0.1043,
+          "matchedDays": 14
+        }
+      }
+    },
+    {
+      "id": 8,
+      "name": "H20 m13 UP [70-80c]",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 13,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.8,
+      "signature": "13|20|UP|0.70|0.80",
+      "tier": "BRONZE",
+      "winRate": 0.9412,
+      "winRateLCB": 0.7302,
+      "recentWinRate": 0.8,
+      "recentMatches": 5,
+      "sources": [
+        "exhaustive_analysis/strategies_ranked.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 60,
+          "wins": 53,
+          "losses": 7,
+          "wr": 0.8833,
+          "lcb": 0.7782,
+          "avgEntry": 0.7507,
+          "breakEven": 0.7566,
+          "edge": 0.1267
+        },
+        "val": {
+          "matches": 21,
+          "wins": 18,
+          "losses": 3,
+          "wr": 0.8571,
+          "lcb": 0.6536,
+          "avgEntry": 0.7471,
+          "breakEven": 0.7531,
+          "edge": 0.104
+        },
+        "test": {
+          "matches": 17,
+          "wins": 16,
+          "losses": 1,
+          "wr": 0.9412,
+          "lcb": 0.7302,
+          "avgEntry": 0.7518,
+          "breakEven": 0.7577,
+          "edge": 0.1835
+        },
+        "recent": {
+          "matches": 5,
+          "wins": 4,
+          "losses": 1,
+          "wr": 0.8,
+          "lcb": 0.3755,
+          "avgEntry": 0.762,
+          "breakEven": 0.7677,
+          "edge": 0.0323,
+          "matchedDays": 5
+        }
+      }
+    },
+    {
+      "id": 9,
+      "name": "H03 m2 DOWN [72-80c]",
+      "asset": "ALL",
+      "utcHour": 3,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.72,
+      "priceMax": 0.8,
+      "signature": "2|3|DOWN|0.72|0.80",
+      "tier": "BRONZE",
+      "winRate": 0.8333,
+      "winRateLCB": 0.6415,
+      "recentWinRate": 0.8125,
+      "recentMatches": 16,
+      "sources": [
+        "exhaustive_analysis/strategies_ranked.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 74,
+          "wins": 65,
+          "losses": 9,
+          "wr": 0.8784,
+          "lcb": 0.7847,
+          "avgEntry": 0.762,
+          "breakEven": 0.7677,
+          "edge": 0.1107
+        },
+        "val": {
+          "matches": 26,
+          "wins": 20,
+          "losses": 6,
+          "wr": 0.7692,
+          "lcb": 0.5795,
+          "avgEntry": 0.756,
+          "breakEven": 0.7618,
+          "edge": 0.0074
+        },
+        "test": {
+          "matches": 24,
+          "wins": 20,
+          "losses": 4,
+          "wr": 0.8333,
+          "lcb": 0.6415,
+          "avgEntry": 0.7538,
+          "breakEven": 0.7596,
+          "edge": 0.0737
+        },
+        "recent": {
+          "matches": 16,
+          "wins": 13,
+          "losses": 3,
+          "wr": 0.8125,
+          "lcb": 0.5699,
+          "avgEntry": 0.7591,
+          "breakEven": 0.7649,
+          "edge": 0.0476,
+          "matchedDays": 9
+        }
+      }
+    },
+    {
+      "id": 10,
+      "name": "H08 m12 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "signature": "12|8|DOWN|0.55|0.98",
+      "tier": "PLATINUM",
+      "winRate": 0.9149,
+      "winRateLCB": 0.8571,
+      "recentWinRate": 0.9531,
+      "recentMatches": 64,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 446,
+          "wins": 381,
+          "losses": 65,
+          "wr": 0.8543,
+          "lcb": 0.8185,
+          "avgEntry": 0.8351,
+          "breakEven": 0.839,
+          "edge": 0.0153
+        },
+        "val": {
+          "matches": 141,
+          "wins": 128,
+          "losses": 13,
+          "wr": 0.9078,
+          "lcb": 0.8486,
+          "avgEntry": 0.8382,
+          "breakEven": 0.842,
+          "edge": 0.0658
+        },
+        "test": {
+          "matches": 141,
+          "wins": 129,
+          "losses": 12,
+          "wr": 0.9149,
+          "lcb": 0.8571,
+          "avgEntry": 0.838,
+          "breakEven": 0.8418,
+          "edge": 0.0731
+        },
+        "recent": {
+          "matches": 64,
+          "wins": 61,
+          "losses": 3,
+          "wr": 0.9531,
+          "lcb": 0.871,
+          "avgEntry": 0.8351,
+          "breakEven": 0.8389,
+          "edge": 0.1142,
+          "matchedDays": 14
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "VAL11 H09 m12 DOWN (72-80c)",
+      "asset": "ALL",
+      "utcHour": 9,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.72,
+      "priceMax": 0.85,
+      "signature": "12|9|DOWN|0.72|0.85",
+      "tier": "BRONZE",
+      "winRate": 0.8125,
+      "winRateLCB": 0.6469,
+      "recentWinRate": 0.9231,
+      "recentMatches": 13,
+      "sources": [
+        "debug/strategy_set_union_validated_top12_max95.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 119,
+          "wins": 103,
+          "losses": 16,
+          "wr": 0.8655,
+          "lcb": 0.7927,
+          "avgEntry": 0.7893,
+          "breakEven": 0.7945,
+          "edge": 0.071
+        },
+        "val": {
+          "matches": 33,
+          "wins": 30,
+          "losses": 3,
+          "wr": 0.9091,
+          "lcb": 0.7643,
+          "avgEntry": 0.7979,
+          "breakEven": 0.803,
+          "edge": 0.1061
+        },
+        "test": {
+          "matches": 32,
+          "wins": 26,
+          "losses": 6,
+          "wr": 0.8125,
+          "lcb": 0.6469,
+          "avgEntry": 0.7745,
+          "breakEven": 0.78,
+          "edge": 0.0325
+        },
+        "recent": {
+          "matches": 13,
+          "wins": 12,
+          "losses": 1,
+          "wr": 0.9231,
+          "lcb": 0.6669,
+          "avgEntry": 0.7868,
+          "breakEven": 0.7921,
+          "edge": 0.131,
+          "matchedDays": 9
+        }
+      }
+    },
+    {
+      "id": 12,
+      "name": "H08 m9 DOWN [50-98c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 9,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.98,
+      "signature": "9|8|DOWN|0.50|0.98",
+      "tier": "SILVER",
+      "winRate": 0.8037,
+      "winRateLCB": 0.746,
+      "recentWinRate": 0.8776,
+      "recentMatches": 98,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 624,
+          "wins": 499,
+          "losses": 125,
+          "wr": 0.7997,
+          "lcb": 0.7665,
+          "avgEntry": 0.7795,
+          "breakEven": 0.7843,
+          "edge": 0.0154
+        },
+        "val": {
+          "matches": 206,
+          "wins": 177,
+          "losses": 29,
+          "wr": 0.8592,
+          "lcb": 0.8051,
+          "avgEntry": 0.7799,
+          "breakEven": 0.7846,
+          "edge": 0.0746
+        },
+        "test": {
+          "matches": 219,
+          "wins": 176,
+          "losses": 43,
+          "wr": 0.8037,
+          "lcb": 0.746,
+          "avgEntry": 0.7824,
+          "breakEven": 0.7872,
+          "edge": 0.0164
+        },
+        "recent": {
+          "matches": 98,
+          "wins": 86,
+          "losses": 12,
+          "wr": 0.8776,
+          "lcb": 0.7981,
+          "avgEntry": 0.7807,
+          "breakEven": 0.7854,
+          "edge": 0.0922,
+          "matchedDays": 14
+        }
+      }
+    }
+  ]
+}

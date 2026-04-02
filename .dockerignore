@@ -43,8 +43,11 @@ debug/*
 !debug/strategy_set_5m_walkforward_top4.json
 !debug/strategy_set_15m_lateminute_v1.json
 !debug/strategy_set_15m_oos_validated_v1.json
+!debug/strategy_set_15m_nc_exhaustive_13.json
+!debug/strategy_set_15m_nc_beam_best_12.json
 !debug/strategy_set_15m_combined_v9.json
 !debug/strategy_set_15m_optimal_v8.json
+!debug/strategy_set_15m_max_median_v10.json
 !debug/strategy_set_15m_v2_resolution_momentum.json
 !debug/analysis/
 !debug/analysis/expected_24h48h_compact.json
