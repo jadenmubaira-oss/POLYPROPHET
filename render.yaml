@@ -25,6 +25,8 @@ services:
         value: BTC,ETH,SOL,XRP
       - key: TIMEFRAME_15M_ENABLED
         value: "true"
+      - key: TIMEFRAME_15M_MIN_BANKROLL
+        value: "5"
       - key: TIMEFRAME_5M_ENABLED
         value: "true"
       - key: MULTIFRAME_4H_ENABLED
@@ -34,10 +36,24 @@ services:
       - key: TIMEFRAME_5M_MIN_BANKROLL
         value: "50"
       - key: STRATEGY_SET_15M_PATH
-        value: debug/strategy_set_top8_current.json
+        value: debug/strategy_set_15m_nc_exhaustive_13.json
       - key: STRATEGY_SET_4H_PATH
         value: debug/strategy_set_4h_maxprofit.json
       - key: STRATEGY_SET_5M_PATH
         value: debug/strategy_set_5m_maxprofit.json
       - key: DEFAULT_MIN_ORDER_SHARES
         value: "5"
+      - key: REQUIRE_REAL_ORDERBOOK
+        value: "true"
+      - key: MAX_TOTAL_EXPOSURE
+        value: "0.50"
+      - key: MAX_TOTAL_EXPOSURE_MIN_BANKROLL
+        value: "50"
+      - key: RISK_ENVELOPE_ENABLED
+        value: "true"
+      - key: RISK_ENVELOPE_MIN_BANKROLL
+        value: "100"
+      - key: VAULT_TRIGGER_BALANCE
+        value: "100"
+      - key: STAGE2_THRESHOLD
+        value: "1000"

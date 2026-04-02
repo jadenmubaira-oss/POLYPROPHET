@@ -94,19 +94,17 @@ function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: combined optimal v9 (16 strategies across m0/m5/m10/m11/m12/m14)
-    // Merges OOS-validated m11/m12/m14 + walk-forward validated m0/m5/m10
-    // Falls back to OOS-validated v1 (6 strategies) if combined not found
-    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_combined_v9.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_oos_validated_v1.json');
+    // PRIMARY 15m strategy: exhaustive_nc_13 dethroned beam_best_12 via targeted exhaustive over 20-strategy elite pool.
+    // robustFloor $125.57, hist $20443.89, recent $607.60. Verified via gate sweep + leave-one-out.
+    // Requires TIMEFRAME_15M_MIN_BANKROLL <= 5; gate 10+ collapses the edge.
+    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
 
         if (tf.key === '15m') {
-            // 15m: lateminute_v1 FIRST — 14 wildcard-hour strategies covering 35-95c bands
-            // at m10-m14. Proven to generate candidates at current 44-55c market prices.
-            // top8_current requires 60-80c at specific hours — zero matches in current market.
+            // 15m: prefer the newly validated near-certainty artifacts first, then older audited fallbacks.
             const candidates15m = [
                 primary15mPath,
                 secondary15mPath,
@@ -494,6 +492,21 @@ app.get('/api/health', (req, res) => {
         pendingSettlements: executorStatus.pendingSettlements.length,
         pendingSells: executorStatus.pendingSells.length,
         redemptionQueue: executorStatus.redemptionQueue.length,
+        riskControls: {
+            requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
+            minNetEdgeRoi: Number(CONFIG.RISK.minNetEdgeRoi || 0),
+            maxTotalExposure: Number(CONFIG.RISK.maxTotalExposure || 0),
+            maxTotalExposureMinBankroll: Number(CONFIG.RISK.maxTotalExposureMinBankroll || 0),
+            riskEnvelopeEnabled: !!CONFIG.RISK.riskEnvelopeEnabled,
+            riskEnvelopeMinBankroll: Number(CONFIG.RISK.riskEnvelopeMinBankroll || 0),
+            vaultTriggerBalance: Number(CONFIG.RISK.vaultTriggerBalance || 0),
+            stage2Threshold: Number(CONFIG.RISK.stage2Threshold || 0),
+            tieredAbsoluteStakeCaps: {
+                small: Number(CONFIG.RISK.maxAbsoluteStakeSmall || 0),
+                medium: Number(CONFIG.RISK.maxAbsoluteStakeMedium || 0),
+                large: Number(CONFIG.RISK.maxAbsoluteStakeLarge || 0)
+            }
+        },
         strategySets: getAllLoadedSets()
     });
 });
@@ -536,6 +549,8 @@ app.get('/api/diagnostics', (req, res) => {
 app.get('/api/debug/strategy-paths', (req, res) => {
     const strategiesDir = path.join(__dirname, 'strategies');
     const candidates15m = [
+        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
