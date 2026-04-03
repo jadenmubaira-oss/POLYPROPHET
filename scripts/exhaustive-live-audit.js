@@ -16,13 +16,19 @@ const path = require('path');
 const GAMMA_API = 'https://gamma-api.polymarket.com';
 const CLOB_API = 'https://clob.polymarket.com';
 const ASSETS = ['BTC', 'ETH', 'SOL', 'XRP'];
-const CYCLE_SECONDS = 900; // 15 minutes
+const TIMEFRAME = String(process.env.AUDIT_TIMEFRAME || '15m').trim().toLowerCase();
+const CYCLE_SECONDS = TIMEFRAME === '5m' ? 300 : TIMEFRAME === '4h' ? 14400 : 900;
 const RATE_LIMIT_MS = 120;
 
 // Load strategy set
+const defaultStrategyPath = TIMEFRAME === '5m'
+    ? path.join(__dirname, '..', 'debug', 'strategy_set_5m_maxprofit.json')
+    : TIMEFRAME === '4h'
+        ? path.join(__dirname, '..', 'debug', 'strategy_set_4h_maxprofit.json')
+        : path.join(__dirname, '..', process.env.STRATEGY_SET_15M_PATH || 'strategies/strategy_set_15m_beam_2739_uncapped.json');
 const strategyPath = process.env.STRATEGY_PATH
     ? path.resolve(process.env.STRATEGY_PATH)
-    : path.join(__dirname, '..', 'debug', 'strategy_set_15m_nc_exhaustive_13.json');
+    : defaultStrategyPath;
 const strategySet = JSON.parse(fs.readFileSync(strategyPath, 'utf8'));
 const strategies = strategySet.strategies;
 
@@ -61,7 +67,7 @@ function computeEpoch(nowSec) {
 }
 
 async function analyzeCycle(asset, epoch) {
-    const slug = `${asset.toLowerCase()}-updown-15m-${epoch}`;
+    const slug = `${asset.toLowerCase()}-updown-${TIMEFRAME}-${epoch}`;
     const cycleStart = epoch;
     const cycleEnd = epoch + CYCLE_SECONDS;
     const utcHour = new Date(epoch * 1000).getUTCHours();
@@ -111,7 +117,8 @@ async function analyzeCycle(asset, epoch) {
 
     // Build minute-by-minute price map
     const minutePrices = {};
-    for (let m = 0; m < 15; m++) {
+    const totalMinutes = CYCLE_SECONDS / 60;
+    for (let m = 0; m < totalMinutes; m++) {
         const minStart = cycleStart + m * 60;
         const minEnd = minStart + 60;
 
@@ -132,7 +139,7 @@ async function analyzeCycle(asset, epoch) {
     const misses = [];
     for (const strat of strategies) {
         if (strat.asset !== asset && strat.asset !== 'ALL') continue;
-        if (strat.utcHour !== utcHour) continue;
+        if (Number(strat.utcHour) !== -1 && strat.utcHour !== utcHour) continue;
 
         const m = strat.entryMinute;
         const priceData = minutePrices[m];
@@ -181,8 +188,7 @@ async function main() {
     const nowSec = Math.floor(Date.now() / 1000);
     const currentEpoch = computeEpoch(nowSec);
 
-    // Analyze last 48 hours of cycles (192 cycles per asset)
-    const hoursBack = 48;
+    const hoursBack = parseInt(process.env.AUDIT_HOURS || '48', 10);
     const cyclesBack = (hoursBack * 3600) / CYCLE_SECONDS;
     const startEpoch = currentEpoch - (cyclesBack * CYCLE_SECONDS);
 

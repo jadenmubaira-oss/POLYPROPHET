@@ -18,7 +18,9 @@ services:
       - key: LIVE_AUTOTRADING_ENABLED
         value: "false"
       - key: PAPER_BALANCE
-        value: "5.00"
+        value: "20.00"
+      - key: STARTING_BALANCE
+        value: "20"
       - key: MAX_POSITION_SIZE
         value: "0.32"
       - key: ASSETS
@@ -26,33 +28,45 @@ services:
       - key: TIMEFRAME_15M_ENABLED
         value: "true"
       - key: TIMEFRAME_15M_MIN_BANKROLL
-        value: "5"
+        value: "2"
       - key: TIMEFRAME_5M_ENABLED
-        value: "true"
+        value: "false"
       - key: MULTIFRAME_4H_ENABLED
-        value: "true"
+        value: "false"
       - key: TIMEFRAME_4H_MIN_BANKROLL
         value: "10"
       - key: TIMEFRAME_5M_MIN_BANKROLL
         value: "50"
       - key: STRATEGY_SET_15M_PATH
-        value: debug/strategy_set_15m_nc_exhaustive_13.json
+        value: strategies/strategy_set_15m_beam_2739_uncapped.json
       - key: STRATEGY_SET_4H_PATH
         value: debug/strategy_set_4h_maxprofit.json
       - key: STRATEGY_SET_5M_PATH
         value: debug/strategy_set_5m_maxprofit.json
+      - key: POLYMARKET_SIGNATURE_TYPE
+        value: "1"
+      - key: POLYMARKET_AUTO_DERIVE_CREDS
+        value: "true"
+      - key: CLOB_FORCE_PROXY
+        value: "1"
       - key: DEFAULT_MIN_ORDER_SHARES
         value: "5"
       - key: REQUIRE_REAL_ORDERBOOK
         value: "true"
       - key: MAX_TOTAL_EXPOSURE
-        value: "0.50"
+        value: "0"
       - key: MAX_TOTAL_EXPOSURE_MIN_BANKROLL
         value: "50"
       - key: RISK_ENVELOPE_ENABLED
-        value: "true"
+        value: "false"
       - key: RISK_ENVELOPE_MIN_BANKROLL
         value: "100"
+      - key: MAX_ABSOLUTE_STAKE_SMALL
+        value: "100000"
+      - key: MAX_ABSOLUTE_STAKE_MEDIUM
+        value: "100000"
+      - key: MAX_ABSOLUTE_STAKE_LARGE
+        value: "100000"
       - key: VAULT_TRIGGER_BALANCE
         value: "100"
       - key: STAGE2_THRESHOLD

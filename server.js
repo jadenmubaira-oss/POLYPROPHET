@@ -94,25 +94,28 @@ function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: exhaustive_nc_13 dethroned beam_best_12 via targeted exhaustive over 20-strategy elite pool.
-    // robustFloor $125.57, hist $20443.89, recent $607.60. Verified via gate sweep + leave-one-out.
-    // Requires TIMEFRAME_15M_MIN_BANKROLL <= 5; gate 10+ collapses the edge.
-    const primary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json');
+    // PRIMARY 15m strategy: uncapped-growth beam_2739 — 10 strategies, 2000-trial bootstrap:
+    //   7d median $91.66, 14d median $337.60, 30d median $4,646.52, bust <1%.
+    //   Requires RISK_ENVELOPE_ENABLED=false, MAX_TOTAL_EXPOSURE=0, TIMEFRAME_15M_MIN_BANKROLL=2.
+    // SECONDARY: exhaustive_nc_13 — 13 strategies, robustFloor $125.57 under full guards.
+    const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
+    const primary15mPath = envStrat15
+        ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
+        : path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
 
         if (tf.key === '15m') {
-            // 15m: prefer the newly validated near-certainty artifacts first, then older audited fallbacks.
+            // 15m: uncapped-growth beam_2739 primary, then NC-exhaustive-13 fallback, then legacy
             const candidates15m = [
                 primary15mPath,
                 secondary15mPath,
+                path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
-                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json'),
-                path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
             ];
             for (const fp of candidates15m) {
                 const exists = fs.existsSync(fp);
@@ -548,16 +551,16 @@ app.get('/api/diagnostics', (req, res) => {
 
 app.get('/api/debug/strategy-paths', (req, res) => {
     const strategiesDir = path.join(__dirname, 'strategies');
+    const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const candidates15m = [
+        ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_definitive_full_guards_best.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6_per_asset_lcb60_min12.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_top7_drop6.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_lateminute_v1.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_v2_resolution_momentum.json'),
     ];
     const debugDirExists = fs.existsSync(path.join(__dirname, 'debug'));
     let debugFiles = [];
@@ -567,7 +570,7 @@ app.get('/api/debug/strategy-paths', (req, res) => {
         REPO_ROOT,
         debugDirExists,
         debugStrategyFiles: debugFiles,
-        candidates: candidates15m.map(fp => ({ path: fp, basename: path.basename(fp), exists: fs.existsSync(fp) })),
+        candidates: [...new Set(candidates15m)].map(fp => ({ path: fp, basename: path.basename(fp), exists: fs.existsSync(fp) })),
         currentlyLoaded: getAllLoadedSets()
     });
 });
