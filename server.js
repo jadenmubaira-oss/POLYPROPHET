@@ -99,9 +99,10 @@ function loadAllStrategySets() {
     //   Requires RISK_ENVELOPE_ENABLED=false, MAX_TOTAL_EXPOSURE=0, TIMEFRAME_15M_MIN_BANKROLL=2.
     // SECONDARY: exhaustive_nc_13 — 13 strategies, robustFloor $125.57 under full guards.
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
-    const primary15mPath = envStrat15
+    const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
-        : path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
+        : null;
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
     const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json');
 
     for (const tf of getConfiguredTimeframes()) {
@@ -110,6 +111,7 @@ function loadAllStrategySets() {
         if (tf.key === '15m') {
             // 15m: uncapped-growth beam_2739 primary, then NC-exhaustive-13 fallback, then legacy
             const candidates15m = [
+                ...(env15mPath ? [env15mPath] : []),
                 primary15mPath,
                 secondary15mPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
