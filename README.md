@@ -17,7 +17,7 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $20 start -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Deploy Commit** | Current local final-audit commit pending live deploy on next push |
+| **Deploy Commit** | See live `/api/health.deployVersion` for the exact current hash; the final-audit 7-strategy deploy is live |
 | **Current Blocker** | Proxy-wallet wins are not fully autonomous: live host currently has `1` `redemptionQueue` item marked `requiresManual=true`, and pre-resolution exits do not catch every winner. |
 | **Active Strategy (15m)** | `strategies/strategy_set_15m_beam_2739_uncapped.json` (**7 strategies** after final audit: original cleaned 6 + `H06 m12 DOWN [55-98c]`). |
 | **Active Strategy (4h)** | Disabled in live posture (`MULTIFRAME_4H_ENABLED=false` on the Render env screenshot, plus bankroll gate `$10`) |
@@ -1000,8 +1000,8 @@ POLYPROPHET is configured for autonomous Polymarket crypto up/down trading using
 | **URL** | `https://polyprophet-1-rr1g.onrender.com` |
 | **Runtime** | `polyprophet-lite` (root-promoted) |
 | **Version** | `polyprophet-lite-1.0.0` |
-| **Last Deploy Commit** | `461c3b5` (`Port legacy wallet truth surfaces and bankroll-gated runtime defaults`) |
-| **Deploy Method** | Manual Render dashboard (auto-deploy not configured) |
+| **Last Deploy Commit** | See live `/api/health.deployVersion` for the exact current hash |
+| **Deploy Method** | Push to `origin/main` -> Render auto-deploy |
 
 ### Live API Surface (Lite Runtime)
 
@@ -2940,7 +2940,7 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 
 **Last Agent**: Factory Droid
 **Date**: 4 April 2026 19:20 UTC
-**Deploy Version**: current local final-audit commit (pending live deploy on push)
+**Deploy Version**: see live `/api/health.deployVersion` for the exact current hash
 
 **STATUS: CONDITIONAL NO-GO — live edge remains strong, but proxy-wallet redemptions are not fully autonomous**
 

@@ -6,6 +6,7 @@ const https = require('https');
 const ROOT = path.join(__dirname, '..');
 const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet-1-rr1g.onrender.com').replace(/\/+$/, '');
 const OUTPUT_PATH = path.join(ROOT, 'debug', 'runtime_reaudit_report.json');
+const LOCAL_15M_STRATEGY_PATH = path.join(ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
 
 function writeJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
@@ -44,6 +45,15 @@ function verdictFromChecks(checks, health, clobStatus, diagnostics) {
 }
 
 async function main() {
+    const local15mStrategyCount = (() => {
+        try {
+            const parsed = JSON.parse(fs.readFileSync(LOCAL_15M_STRATEGY_PATH, 'utf8'));
+            return Array.isArray(parsed?.strategies) ? parsed.strategies.length : null;
+        } catch {
+            return null;
+        }
+    })();
+
     const [health, status, clobStatus, diagnostics, walletBalance] = await Promise.all([
         getJson(`${LIVE_BASE_URL}/api/health`),
         getJson(`${LIVE_BASE_URL}/api/status`),
@@ -70,8 +80,11 @@ async function main() {
         },
         {
             name: '15m strategy count',
-            status: Number(health?.strategySets?.['15m']?.strategies) === 10 ? 'PASS' : 'FAIL',
-            detail: Number(health?.strategySets?.['15m']?.strategies || 0)
+            status: local15mStrategyCount !== null && Number(health?.strategySets?.['15m']?.strategies) === local15mStrategyCount ? 'PASS' : 'FAIL',
+            detail: {
+                live: Number(health?.strategySets?.['15m']?.strategies || 0),
+                localExpected: local15mStrategyCount
+            }
         },
         {
             name: 'CLOB tradeReady',
@@ -97,6 +110,20 @@ async function main() {
             name: 'Diagnostics clean',
             status: Array.isArray(diagnostics?.log) && diagnostics.log.length === 0 ? 'PASS' : 'WARN',
             detail: Array.isArray(diagnostics?.log) ? diagnostics.log.slice(-5) : null
+        },
+        {
+            name: 'Proxy redemption autonomy',
+            status: Array.isArray(status?.executor?.redemptionQueue) && status.executor.redemptionQueue.some((item) => item?.requiresManual) ? 'FAIL' : 'PASS',
+            detail: Array.isArray(status?.executor?.redemptionQueue)
+                ? status.executor.redemptionQueue
+                    .filter((item) => item?.requiresManual)
+                    .map((item) => ({
+                        asset: item.asset || null,
+                        timeframe: item.timeframe || null,
+                        holderAddress: item.holderAddress || null,
+                        lastError: item.lastError || null
+                    }))
+                : null
         },
         {
             name: 'Funding threshold',
