@@ -17,38 +17,40 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $20 start -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Deploy Commit** | `f7b2d27` — Redis persistence + startup safety |
+| **Deploy Commit** | `7a5b4d9` — zero-cost safety guards (error-halt, HTTP status check, deterministic sort) |
 | **Current Blocker** | Wallet underfunded ($0.349 USDC). Fund to >= $2 to arm 15m, recommend $20 for sim parity. |
 | **Active Strategy (15m)** | `strategies/strategy_set_15m_beam_2739_uncapped.json` (10 strategies, 14d median floor `$810.09`, bootstrap 14d median `$337.60`, 30d median `$4,646.52`). Uncapped growth posture. |
 | **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`), bankroll-gated at $10 |
 | **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`), bankroll-gated at $50 |
 | **Wallet Balance** | $0.349 USDC, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` |
-| **Runtime State** | Redis+file persistence, `START_PAUSED=false`, CLOB `tradeReady.ok=true` |
+| **Runtime State** | Redis+file persistence, `START_PAUSED=false`, CLOB `tradeReady.ok=true`, `errorHalt` live |
 | **Verdict** | **CONDITIONAL GO** — all code/deploy blockers resolved, awaiting funding |
 | **Next Action** | Fund wallet to **$20**, bot auto-arms 15m when balance > $2. Use `START_PAUSED=true` env for staged funding if desired. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
 
-## 2026-04-04 Guard Evaluation & Final Readiness Addendum
+## 2026-04-04 Final Recheck / Guard Evaluation Addendum
+
+This section reflects the latest repo-local recheck. Live Render is currently on commit `7a5b4d9`. Historical findings further down are audit-time snapshots; use this section for current truth.
 
 ### Question: Do we need volatility guards, circuit breakers, or anti-manipulation defenses?
 
-**Short answer: NO for profit-affecting guards. YES for three zero-cost safety additions.**
+**Short answer: NO for profit-affecting guards. YES for a small set of zero-cost safety additions.**
 
-### Kelly Sizing vs Flat-Fraction Comparison (1,500-trial bootstrap, $20 start)
+### Kelly Sizing vs Flat-Fraction Comparison (rerun 2026-04-04, 1,500-trial bootstrap, $20 start)
 
 The MEDIUM-1 audit finding (pWinEstimate field mismatch) causes Kelly sizing to be bypassed in live, using flat-fraction (15%) instead. We ran a head-to-head sim:
 
 | Variant | 14d Median | 14d p25 | 14d Bust | 30d Median | 30d p25 | 30d Bust |
 |---------|-----------|---------|----------|-----------|---------|----------|
-| **A) Kelly active (correct pWin)** | $214 | $110 | 0.0% | $2,620 | $1,099 | 0.0% |
-| **B) Flat-fraction (current live)** | **$302** | **$140** | 0.0% | **$5,387** | **$1,907** | 0.0% |
-| C) Kelly + tight cooldown (3 losses) | $224 | $108 | 0.0% | $2,594 | $1,051 | 0.0% |
-| D) Flat + tight cooldown (3 losses) | $314 | $140 | 0.0% | $5,473 | $1,949 | 0.0% |
-| E) Flat + loose cooldown (5 losses) | $304 | $144 | 0.0% | $5,411 | $1,920 | 0.0% |
+| **A) Kelly active (correct pWin)** | $227 | $111 | 0.0% | $2,794 | $1,159 | 0.0% |
+| **B) Flat-fraction (current live)** | **$292** | **$135** | 0.0% | **$5,472** | **$1,896** | 0.0% |
+| C) Kelly + tight cooldown (3 losses) | $220 | $107 | 0.0% | $2,680 | $1,080 | 0.0% |
+| D) Flat + tight cooldown (3 losses) | $309 | $144 | 0.0% | $5,537 | $1,846 | 0.0% |
+| E) Flat + loose cooldown (5 losses) | $318 | $139 | 0.0% | $5,177 | $1,852 | 0.0% |
 
-**Verdict**: Flat-fraction (current live behavior) produces **2x higher 30d median** with identical 0% bust rate. **DO NOT fix the pWinEstimate bug** — it is a net positive for the uncapped growth posture. Kelly is too conservative for 70-80c entry strategies where the edge-to-price ratio is small.
+**Verdict**: Rerun confirms the same result: flat-fraction (current live behavior) still produces roughly **2x higher 30d median** with identical 0% bust rate. **DO NOT fix the pWinEstimate bug** — it is a net positive for the uncapped growth posture. Kelly is too conservative for 70-80c entry strategies where the edge-to-price ratio is small.
 
 Full replay comparison: Kelly $67K vs Flat $483K over 52 days (7.2x difference). Max drawdown: Kelly 24.7% vs Flat 40.2% — higher drawdown is the accepted cost of faster compounding.
 
@@ -63,9 +65,12 @@ Cooldown variations (3/4/5 consecutive losses) show <5% difference. Current 4-lo
 | **ATR volatility guard** | Yes | **NO** | Would REDUCE trade frequency during volatile periods, which are often the most profitable for 15m binary markets. |
 | **Per-asset drift detection** | Yes | **NO** | Cannot be reliably detected in real-time with binary outcomes and small sample sizes. |
 | **WebSocket price feeds** | Yes | **NO** | Polling (2s tick) + CLOB book fetch per trade is adequate for 15m resolution. |
-| **Error accumulation auto-halt** | Yes | **YES (added)** | Zero profit impact. Prevents infinite retry loops during API/proxy failures. 15 consecutive tick errors → auto-pause. POST `/api/resume-errors` to recover. |
+| **Error accumulation auto-halt** | Yes | **YES (live)** | Zero profit impact. Prevents infinite retry loops during API/proxy failures. 15 consecutive tick errors → auto-pause. POST `/api/resume-errors` to recover. |
+| **Trade-failure auto-halt** | Partial | **YES (repo-local)** | Worth adding. Historical invalid-signature loops showed that repeated non-blocked order failures matter operationally. Repo-local recheck adds an 8-failure halt for `CLOB_ORDER_FAILED` / `LIVE_TRADE_ERROR` patterns; excluded for `NO_FILL_AFTER_RETRIES`. |
 | **fetchJSON HTTP status check** | No | **YES (added)** | Zero profit impact. Prevents treating 4xx/5xx error responses as valid market data. |
 | **Deterministic candidate sort** | No | **YES (added)** | Zero profit impact. Sorts by `pWinEstimate` instead of absent `winRateLCB`. Ensures highest-edge candidate executes first when multiple match. |
+| **Outcome-aware Gamma fallback** | No | **YES (repo-local)** | Worth adding. If CLOB book reads fail and Gamma returns prices in reversed outcome order, lite could read the wrong side. Repo-local recheck now maps `outcomePrices` via `market.outcomes`. |
+| **Stale market-cache pruning** | No | **YES (repo-local)** | Worth adding. Prevents unbounded growth of old slug entries during long uptimes; zero profit impact. |
 | **MATIC gas monitoring** | Yes | **NO** | CLOB order placement is off-chain (HMAC-signed REST). Gas only needed for redemption. Low priority. |
 | **Book depth guard** | No | **NO** | Would need arbitrary threshold that could block legitimate trades during low-activity UTC hours. Existing spread check (8%) is sufficient. |
 | **Trade mutex** | Yes | **NO** | Lite's sequential tick loop prevents concurrent ticks. Only risk is manual-smoke-test API racing with tick, which is operator error. |
@@ -81,11 +86,13 @@ For Polymarket 15m crypto up/down markets:
 
 **Verdict**: No additional anti-manipulation guards needed. The combination of Chainlink-based resolution + price band filtering + spread check + real orderbook requirement provides adequate defense for 15m binary markets.
 
-### Code Changes in This Commit
+### Code Changes From The Recheck
 
-1. **server.js**: Added error accumulation auto-halt (15 consecutive errors → pause, POST `/api/resume-errors` to recover). Exposed `errorHalt` in `/api/health`. Fixed orchestrator candidate sort to use `pWinEstimate`.
-2. **lib/market-discovery.js**: Added HTTP status check in `fetchJSON` — rejects 4xx/5xx responses before JSON parse.
-3. **lib/strategy-matcher.js**: Fixed `sortCandidates()` to use `pWinEstimate` for deterministic ordering.
+1. **Live on `7a5b4d9`**: `server.js` error accumulation auto-halt (15 consecutive tick errors → pause, POST `/api/resume-errors` to recover), `errorHalt` surfaced in `/api/health`, orchestrator candidate sort fixed to use `pWinEstimate`.
+2. **Live on `7a5b4d9`**: `lib/market-discovery.js` rejects HTTP 4xx/5xx in `fetchJSON` before JSON parse.
+3. **Live on `7a5b4d9`**: `lib/strategy-matcher.js` deterministic ordering via `pWinEstimate`.
+4. **Repo-local recheck**: `server.js` now also halts after 8 consecutive non-blocked live trade failures (`CLOB_ORDER_FAILED` / `LIVE_TRADE_ERROR`) and exposes `tradeFailureHalt` in health/status; `NO_FILL_AFTER_RETRIES` is treated as pending-buy behavior, not a hard failure.
+5. **Repo-local recheck**: `lib/market-discovery.js` now maps Gamma fallback prices using `market.outcomes` and prunes stale slug cache entries.
 
 ### Items of Interest
 
@@ -94,6 +101,159 @@ For Polymarket 15m crypto up/down markets:
 3. **Trade count**: 770-791 trades over 52 days (~15/day). The bot trades actively during matching UTC hours.
 4. **Win rate is remarkably stable**: 81.5% across all variants, confirming strategy edge is real and not an artifact of sizing.
 5. **30d p25 is $1,907**: Even in the worst 25% of bootstrap outcomes, the bot still returns ~95x from a $20 start.
+
+## 2026-04-04 Performance Window + Automation Addendum
+
+### Local resolved-data coverage note
+
+The latest resolved local archive currently ends at **`2026-03-31T15:30:00Z`**. So the "last 24h / 48h" numbers below refer to the **latest available resolved 24h / 48h window in local data**, not unresolved live time after March 31.
+
+The trailing 30-calendar-day archive has a known local gap on:
+
+- `2026-03-12`
+- `2026-03-13`
+- `2026-03-14`
+- `2026-03-15`
+- `2026-03-16`
+
+### Fresh-start replay results (`$20` start, current live runtime mechanics)
+
+These use the same current live posture as lite runtime:
+
+- strategy ordering by `strategy.pWinEstimate`
+- sizing with the current flat-fraction behavior (`candidate.pWinEstimate=0.5`)
+- 4-loss cooldown / 10m cooldown
+- uncapped growth posture (`riskEnvelopeEnabled=false`, `maxTotalExposure=0`)
+
+| Window | Trades | Wins | Losses | Win Rate | Trades / Day | PnL | End Balance |
+|--------|--------|------|--------|----------|--------------|-----|-------------|
+| **Last 24h** | 18 | 15 | 3 | 83.3% | 18.0 | **+$4.21** | **$24.21** |
+| **Last 48h** | 44 | 35 | 9 | 79.5% | 22.0 | **+$5.84** | **$25.84** |
+| **Last 7d** | 140 | 113 | 27 | 80.7% | 20.0 | **+$102.38** | **$122.38** |
+| **Last 14d** | 260 | 210 | 50 | 80.8% | 18.6 | **+$518.29** | **$538.29** |
+| **Last 30d** | 420 | 347 | 73 | 82.6% | 14.0 | **+$14,055.08** | **$14,075.08** |
+
+### Week-by-week (latest 28d run, sequential compounding from `$20`)
+
+| Week | Coverage | Trades | Wins | Losses | Win Rate | PnL | End Balance |
+|------|----------|--------|------|--------|----------|-----|-------------|
+| 1 | `2026-03-03 15:30` -> `2026-03-10 15:30` | 68 | 58 | 10 | 85.3% | **+$52.95** | **$72.95** |
+| 2 | `2026-03-10 15:30` -> `2026-03-17 15:30` | 4 | 2 | 2 | 50.0% | **-$12.87** | **$60.08** |
+| 3 | `2026-03-17 15:30` -> `2026-03-24 15:30` | 135 | 111 | 24 | 82.2% | **+$488.61** | **$548.69** |
+| 4 | `2026-03-24 15:30` -> `2026-03-31 15:30` | 139 | 113 | 26 | 81.3% | **+$2,629.72** | **$3,178.41** |
+
+**Interpretation**: Week 2 is not a true collapse signal; it overlaps the local archive gap (`2026-03-12` through `2026-03-16`). The recent two fully-covered weeks are both very strong.
+
+### Expected trade frequency after funding
+
+If conditions resemble the recent archive:
+
+- **Long-run baseline**: ~`15.1 trades/day`
+- **Last 30d**: ~`14.0 trades/day`
+- **Last 14d**: ~`18.6 trades/day`
+- **Last 7d**: ~`20.0 trades/day`
+- **Last 48h**: ~`22.0 trades/day`
+
+Practical expectation after funding: roughly **`14-20 trades/day`**, with bursts above that during favorable alignment.
+
+### Recent regime / degradation assessment
+
+Current automated reverify result: **`STABLE`**
+
+- Full replay baseline WR: **81.56%**
+- Last 7d WR: **80.71%**
+- Gap vs baseline: **-0.85pp** only
+- Last 7d trades/day: **20.0**
+- Gap vs baseline frequency: **+5.19 trades/day**
+
+**Conclusion**: There is **no credible sign of imminent regime break** in the available local archive. Frequency is healthy-to-strong, and recent 7d/14d/30d windows all remain profitable from a fresh `$20` start.
+
+### Short-term watchlist (not a replacement trigger by itself)
+
+These legs were weaker in the latest 7d slice and should be watched, not immediately removed:
+
+| Strategy | 7d Trades | 7d Win Rate | 7d PnL |
+|----------|-----------|-------------|--------|
+| `H15 m8 UP [50-98c]` | 22 | 63.6% | `-$9.81` |
+| `H18 m11 UP [55-98c]` | 18 | 72.2% | `-$21.32` |
+| `H16 m4 UP [70-80c]` | 6 | 66.7% | `-$4.01` |
+| `H18 m12 DOWN [55-98c]` | 6 | 66.7% | `-$13.31` |
+
+Portfolio verdict remains **STABLE** because the stronger legs still dominate:
+
+- `H19 m10 DOWN [50-98c]`
+- `H17 m12 DOWN [55-98c]`
+- `H08 m12 DOWN [55-98c]`
+- `H10 m10 UP [70-80c]`
+
+### Automated reverification / reaudit commands
+
+New repo commands:
+
+```bash
+npm run reverify:strategy
+npm run reaudit:runtime
+npm run reverify:full
+```
+
+Outputs:
+
+- `debug/reverify_beam_2739_report.json`
+- `debug/runtime_reaudit_report.json`
+
+Workflow files added:
+
+- `.agent/workflows/reverify-strategy.md`
+- `.agent/workflows/runtime-reaudit.md`
+- `.windsurf/workflows/reverify-strategy.md`
+- `.windsurf/workflows/runtime-reaudit.md`
+
+### Exact cadence
+
+- **Daily after funding**: `npm run reverify:strategy`
+- **Weekly**: `npm run reverify:full`
+- **After every deploy**: `npm run reverify:full`
+- **After every 100 resolved trades**: `npm run reverify:full`
+- **Immediately** after any unusual drawdown, repeated order failures, or frequency collapse
+
+### Exact trigger thresholds for re-search / replacement
+
+Run `node scripts/search-15m-short-horizon-guarded.js` if **any** trigger fires:
+
+1. 7d replay from `$20` ends `<= $20`
+2. 14d replay from `$20` ends `<= $20`
+3. 7d win rate `< 74%` with at least `30` trades
+4. 14d win rate `< 76%` with at least `60` trades
+5. 30d win rate `< 78%` with at least `150` trades
+6. 7d trades/day falls below `60%` of the 30d trades/day baseline
+7. 30d max drawdown exceeds `55%`
+
+### Exact definition of the "best" replacement strategy
+
+Only accept a replacement if it satisfies:
+
+- `shortHorizonEligible=true`
+- `noBust7=true`
+- `noBust14=true`
+- `allAboveStart=true`
+- `supportOk=true`
+
+Then rank candidates by:
+
+1. `medianFloor14` descending
+2. `medianFloor7` descending
+3. `p25Floor14` descending
+4. `p25Floor7` descending
+5. `recentActual.finalBalance` descending
+6. `worstMaxDrawdown` ascending
+
+### Operator caveats
+
+1. **Funding still gates reality**: Until balance is `>= $2`, the live runtime will stay inactive.
+2. **The 30d result is path-dependent compounding**: It is real chronological replay on archived data, but it compounds aggressively. Drawdowns remain substantial.
+3. **Max recent 30d drawdown is still ~40.5%**. This is within expected uncapped-growth behavior, but it is not psychologically gentle.
+4. **Local archive gap exists for March 12-16**. Treat any conclusion about that slice as lower-confidence than the fully covered recent weeks.
+5. **Detailed last-24h / last-48h trade lists** are saved in `debug/reverify_beam_2739_report.json` for exact winner/loser inspection.
 
 ---
 

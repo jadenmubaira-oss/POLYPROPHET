@@ -7,7 +7,10 @@
     "start": "node server.js",
     "collect": "node scripts/collect-historical.js",
     "scan": "node scripts/strategy-scan.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "reverify:strategy": "node scripts/reverify-beam-strategy.js",
+    "reaudit:runtime": "node scripts/runtime-reaudit.js",
+    "reverify:full": "node scripts/reverify-beam-strategy.js && node scripts/verify-harness.js && node scripts/runtime-reaudit.js"
   },
   "dependencies": {
     "@polymarket/clob-client": "^4.22.8",
