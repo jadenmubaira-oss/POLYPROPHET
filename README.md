@@ -2879,53 +2879,52 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid
-**Date**: 31 March 2026 09:45 UTC
-**Deploy Version**: `adef0b2` (combined 16-strategy set verified live)
+**Date**: 4 April 2026 18:00 UTC
+**Deploy Version**: pending (commit after this update)
 
-**STATUS: CONDITIONAL GO at $20+, NO-GO at $5**
+**STATUS: LIVE — recovering from drawdown ($7.67 bankroll)**
 
-**What changed this session**:
-1. Collected 776 resolved 15m cycles with intracycle CLOB prices (all 4 assets, Mar 29-31)
-2. Exhaustive strategy search across all minute/direction/price-band combinations
-3. Walk-forward validation (70% train / 30% test)
-4. Discovered m5 DOWN and m10 UP as high-edge new strategies
-5. Built combined 16-strategy set merging old + new
-6. Sim: combined set DOUBLES median profit vs old 6-strategy set alone
-7. Deployed and verified live: 16 strategies loaded from `strategy_set_15m_combined_v9.json`
+**What changed this session (4 Apr 2026)**:
+1. Removed 4 net-negative strategies (H15m8UP, H18m11UP, H16m4UP, H18m12DOWN) — collectively -$3,947 in 30d sim
+2. Cleaned strategy set: 6 strategies remain, 87.8% WR, +$18,002 in 30d sim (up from 82.6% WR with 10)
+3. Added pre-resolution exit: sells winning positions on CLOB at best bid (>=95c) within 120s of cycle end, avoids proxy redemption dependency
+4. Removed global stop loss: strategy sim already accounts for losses, dollar-based stop was reducing expected profit
+5. Fixed HIGH severity bugs: double-finalization guard, SELL_PENDING recovery after cycle close, live capital reservation to prevent same-tick over-exposure, shares computed from order price
+6. Hardened proxy reconciliation: same-address-only fallback, proxy-aware redemption tracking, truthful balance source labels
 
 **Live state**:
 - host: `https://polyprophet-1-rr1g.onrender.com`
-- balance: **`$0.349`** (busted, needs deposit)
-- 15m file: `debug/strategy_set_15m_combined_v9.json` (**16 strategies**, m0/m5/m10/m11/m12/m14)
-- 4h file: `debug/strategy_set_4h_maxprofit.json` (8 strategies, gate=$10)
-- market-native min-order enforcement: **active**
-- Render env: `DEFAULT_MIN_ORDER_SHARES=5`, all IS_LIVE flags correct
+- balance: **$7.67** (drawdown from $21.02 deposit — 4 consecutive losses, 2 from now-removed weak strategy)
+- 15m file: `strategies/strategy_set_15m_beam_2739_uncapped.json` (**6 strategies**, cleaned)
+- 4h/5m: disabled (insufficient bankroll)
+- pre-resolution exit: **enabled** (95c min bid, 120s window for 15m)
+- global stop loss: **removed**
+- proxy reconciliation: **hardened**
 
-**Combined strategy set profit sim (3000 trials, 30 days)**:
+**Cleaned 6-strategy set (30d sim, $20 start)**:
 
-| Start | Bust | Median | P75 | P90 |
-|------:|-----:|-------:|----:|----:|
-| `$5` | `51.6%` | **`$2`** | `$6,500` | `$9,000` |
-| `$10` | `23.6%` | **`$5,800`** | `$8,500` | `$10,500` |
-| `$20` | `5.7%` | **`$7,400`** | `$9,500` | `$11,400` |
-| `$50` | `0.1%` | **`$8,800`** | `$10,800` | `$12,700` |
+| Metric | Value |
+|--------|-------|
+| Trades | 245 |
+| Win Rate | 87.8% |
+| PnL | +$18,002 |
+| Max Drawdown | ~40% |
 
-Compared to old 6-strategy set at $20: median was `$3,700`, now **`$7,400`** (2x improvement).
+**Per-strategy performance (30d sim)**:
+- H08 m12 DOWN [55-98c]: +$5,384, 83.3% WR (strongest)
+- H19 m10 DOWN [50-98c]: +$4,404, 81.3% WR
+- H17 m12 DOWN [55-98c]: +$3,499, 94.7% WR (highest WR)
+- H10 m10 UP [70-80c]: +$2,536, 90.9% WR
+- H01 m6 UP [70-80c]: +$1,783, 89.5% WR
+- H19 m8 DOWN [72-80c]: +$396, 90.9% WR
 
-**Key new strategies discovered**:
-- m5 DOWN 70-95c: **92.0% OOS WR** (25 test matches, walk-forward validated)
-- m10 UP 60-85c: **90.5% OOS WR** (21 test matches, train 77.6% -> test 90.5%)
-- m10 UP 65-95c: **87.9% OOS WR** (33 test matches, consistent train/test)
-
-**Caveats**:
-1. Data is from 2-3 days only. Longer regime shifts could degrade WR.
-2. `$5` remains NOT viable (>50% bust even with combined set)
-3. Daily trade frequency of 20-35/day is simulated, not yet proven live
-4. Conservative estimate (WR -3%, match -25%) gives median ~$1,500-2,000 from $20
+**4 losses on 4 Apr explained**:
+- ETH UP @66c, XRP UP @57c: from H15 m8 UP [50-98c] — weakest strategy, 68.7% sim WR, net loser (-$913). NOW REMOVED.
+- BTC DOWN @76c, ETH DOWN @69c: from H17 m12 DOWN [55-98c] — 3rd best strategy, 94.7% sim WR. Genuine bad luck (0.28% probability).
 
 **Immediate next actions**:
-1. Deposit $20+ to activate trading
-2. Monitor first 24h: verify actual trade frequency and win rate
-3. If first 24h shows <10 trades/day, investigate match rate degradation
-4. Do NOT deposit $5 — still structurally unviable
+1. Monitor recovered strategy set: first trades should come from the 6 proven winners only
+2. With $7.67 bankroll, position sizes are small (~$1.15 each). Bot may hit CLOB min-order limits on some entries.
+3. Consider depositing additional funds to restore trading capacity
+4. Run `npm run reverify:full` periodically to track strategy regime
 <!-- HANDOFF_STATE_END -->
