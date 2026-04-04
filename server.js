@@ -426,9 +426,9 @@ async function orchestrate() {
     // Sort all candidates by quality (across all timeframes)
     if (allCandidates.length > 0) {
         allCandidates.sort((a, b) => {
-            const lcbA = a.candidate.strategy.winRateLCB || 0;
-            const lcbB = b.candidate.strategy.winRateLCB || 0;
-            return lcbB - lcbA;
+            const pA = a.candidate.strategy.pWinEstimate || a.candidate.strategy.winRateLCB || 0;
+            const pB = b.candidate.strategy.pWinEstimate || b.candidate.strategy.winRateLCB || 0;
+            return pB - pA;
         });
 
         // Log active windows
@@ -623,6 +623,7 @@ app.get('/api/health', (req, res) => {
         pendingSells: executorStatus.pendingSells.length,
         redemptionQueue: executorStatus.redemptionQueue.length,
         runtimeState: getRuntimeStateStatus(),
+        errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
         riskControls: {
             requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
             minNetEdgeRoi: Number(CONFIG.RISK.minNetEdgeRoi || 0),
@@ -999,6 +1000,14 @@ app.post('/api/manual-smoke-test', async (req, res) => {
     }
 });
 
+app.post('/api/resume-errors', (req, res) => {
+    const prev = { errorHalted, consecutiveTickErrors };
+    errorHalted = false;
+    consecutiveTickErrors = 0;
+    diagnosticLog.push({ ts: new Date().toISOString(), type: 'ERROR_HALT_RESUMED', prev });
+    res.json({ success: true, message: 'Error halt cleared', prev });
+});
+
 // ==================== DASHBOARD ====================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1006,19 +1015,33 @@ app.get('/', (req, res) => {
 
 // ==================== START ====================
 const TICK_INTERVAL_MS = 2000;
+const ERROR_HALT_THRESHOLD = 15;
 let tickTimer = null;
 let shuttingDown = false;
 let server = null;
+let consecutiveTickErrors = 0;
+let errorHalted = false;
 
 async function tick() {
     if (shuttingDown) return;
+    if (errorHalted) {
+        if (!shuttingDown) tickTimer = setTimeout(tick, TICK_INTERVAL_MS * 5);
+        return;
+    }
     try {
         await orchestrate();
+        consecutiveTickErrors = 0;
     } catch (e) {
-        console.error(`❌ Orchestration error: ${e.message}`);
+        consecutiveTickErrors++;
+        console.error(`❌ Orchestration error (${consecutiveTickErrors}/${ERROR_HALT_THRESHOLD}): ${e.message}`);
+        if (consecutiveTickErrors >= ERROR_HALT_THRESHOLD) {
+            errorHalted = true;
+            console.error(`🛑 ERROR HALT: ${consecutiveTickErrors} consecutive tick errors — trading paused. POST /api/resume-errors to recover.`);
+            diagnosticLog.push({ ts: new Date().toISOString(), type: 'ERROR_HALT', consecutiveErrors: consecutiveTickErrors, lastError: e.message });
+        }
     } finally {
         if (!shuttingDown) {
-            tickTimer = setTimeout(tick, TICK_INTERVAL_MS);
+            tickTimer = setTimeout(tick, errorHalted ? TICK_INTERVAL_MS * 5 : TICK_INTERVAL_MS);
         }
     }
 }
