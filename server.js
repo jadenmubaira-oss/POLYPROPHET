@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const Redis = require('ioredis');
 const CONFIG = require('./lib/config');
 const DEPLOY_VERSION =
     process.env.RENDER_GIT_COMMIT ||
@@ -17,6 +18,17 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 const RUNTIME_STATE_PATH = path.join(__dirname, 'data', 'runtime-state.json');
+const parseEnvBool = (value, defaultValue = false) => {
+    if (value === undefined || value === null || String(value).trim() === '') return defaultValue;
+    return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+};
+const REDIS_RUNTIME_ENABLED = parseEnvBool(
+    process.env.REDIS_ENABLED ?? process.env.USE_REDIS ?? (process.env.REDIS_URL ? 'true' : 'false'),
+    !!process.env.REDIS_URL
+);
+const RUNTIME_STATE_REDIS_KEY = String(process.env.RUNTIME_STATE_REDIS_KEY || 'polyprophet:lite:runtime-state').trim() || 'polyprophet:lite:runtime-state';
+const START_PAUSED_ENV = String(process.env.START_PAUSED || '').trim().toLowerCase();
+const REDIS_IO_TIMEOUT_MS = 5000;
 
 // ==================== CORE STATE ====================
 const riskManager = new RiskManager(CONFIG.RISK.startingBalance);
@@ -27,6 +39,40 @@ let orchestratorHeartbeat = { lastRun: null, marketsChecked: 0, candidatesFound:
 let diagnosticLog = [];
 const startupTime = Date.now();
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'debug')) ? __dirname : path.join(__dirname, '..');
+let redis = null;
+let redisAvailable = false;
+let runtimeStateLastSavedAt = 0;
+let runtimeStateLastLoadSource = 'FRESH_START';
+
+if (REDIS_RUNTIME_ENABLED && process.env.REDIS_URL) {
+    try {
+        redis = new Redis(process.env.REDIS_URL, {
+            maxRetriesPerRequest: 3,
+            retryStrategy: (times) => {
+                if (times > 3) return null;
+                return Math.min(times * 50, 2000);
+            }
+        });
+
+        redis.on('connect', () => {
+            redisAvailable = true;
+            console.log('✅ Redis Connected - runtime-state persistence enabled');
+        });
+
+        redis.on('error', (err) => {
+            redisAvailable = false;
+            console.error(`⚠️ Redis Error: ${err.message} - runtime-state falling back to file`);
+        });
+    } catch (e) {
+        console.error(`⚠️ Redis Init Failed: ${e.message} - runtime-state falling back to file`);
+        redis = null;
+        redisAvailable = false;
+    }
+} else if (REDIS_RUNTIME_ENABLED) {
+    console.warn('⚠️ REDIS enabled but REDIS_URL missing - runtime-state using file only');
+} else {
+    console.log('ℹ️ REDIS disabled - runtime-state using file only');
+}
 
 function getConfiguredTimeframes() {
     return CONFIG.TIMEFRAMES.filter(tf => tf && tf.enabled !== false);
@@ -55,39 +101,125 @@ function getEnabledTimeframes() {
     return getConfiguredTimeframes().filter(tf => bankroll >= Number(tf.minBankroll || 0));
 }
 
-function saveRuntimeState() {
-    try {
-        fs.mkdirSync(path.dirname(RUNTIME_STATE_PATH), { recursive: true });
-        fs.writeFileSync(RUNTIME_STATE_PATH, JSON.stringify({
-            savedAt: new Date().toISOString(),
-            risk: riskManager.exportState(),
-            executor: tradeExecutor.exportState(),
-            orchestratorHeartbeat,
-            diagnosticLog: diagnosticLog.slice(-200)
-        }, null, 2));
-    } catch (e) {
-        console.error(`⚠️ Failed to save runtime state: ${e.message}`);
+function buildRuntimeStateSnapshot() {
+    return {
+        savedAt: new Date().toISOString(),
+        risk: riskManager.exportState(),
+        executor: tradeExecutor.exportState(),
+        orchestratorHeartbeat,
+        diagnosticLog: diagnosticLog.slice(-200)
+    };
+}
+
+function applyRuntimeState(parsed, sourceLabel) {
+    if (!parsed || typeof parsed !== 'object') return false;
+    riskManager.importState(parsed.risk || {});
+    tradeExecutor.importState(parsed.executor || {});
+    if (parsed.orchestratorHeartbeat && typeof parsed.orchestratorHeartbeat === 'object') {
+        orchestratorHeartbeat = { ...orchestratorHeartbeat, ...parsed.orchestratorHeartbeat };
+    }
+    if (Array.isArray(parsed.diagnosticLog)) {
+        diagnosticLog = parsed.diagnosticLog.slice(-500);
+    }
+    runtimeStateLastLoadSource = sourceLabel || 'UNKNOWN';
+    console.log(`♻️ Restored runtime state from ${runtimeStateLastLoadSource}`);
+    return true;
+}
+
+function applyStartPausedOverride() {
+    if (START_PAUSED_ENV === '0' || START_PAUSED_ENV === 'false') {
+        riskManager.tradingPaused = false;
+        console.log('🚀 START_PAUSED=false: forced unpause on startup');
+        return;
+    }
+    if (START_PAUSED_ENV === '1' || START_PAUSED_ENV === 'true') {
+        riskManager.tradingPaused = true;
+        console.log('⏸️ START_PAUSED=true: forced pause on startup');
     }
 }
 
-function loadRuntimeState() {
+function getRuntimeStateStatus() {
+    return {
+        mode: redisAvailable ? 'redis+file' : 'file',
+        redisEnabled: REDIS_RUNTIME_ENABLED,
+        redisConfigured: !!process.env.REDIS_URL,
+        redisConnected: redisAvailable,
+        redisKey: REDIS_RUNTIME_ENABLED ? RUNTIME_STATE_REDIS_KEY : null,
+        filePath: RUNTIME_STATE_PATH,
+        lastLoadSource: runtimeStateLastLoadSource,
+        lastSavedAt: runtimeStateLastSavedAt || null,
+        lastSavedAtIso: runtimeStateLastSavedAt ? new Date(runtimeStateLastSavedAt).toISOString() : null,
+        startPausedEnv: START_PAUSED_ENV || null
+    };
+}
+
+function canUseRedisRuntime() {
+    const status = String(redis?.status || '').toLowerCase();
+    return !!redis && !['close', 'end'].includes(status);
+}
+
+async function saveRuntimeState() {
+    const snapshot = buildRuntimeStateSnapshot();
     try {
-        if (!fs.existsSync(RUNTIME_STATE_PATH)) return;
+        fs.mkdirSync(path.dirname(RUNTIME_STATE_PATH), { recursive: true });
+        fs.writeFileSync(RUNTIME_STATE_PATH, JSON.stringify(snapshot, null, 2));
+    } catch (e) {
+        console.error(`⚠️ Failed to save runtime state: ${e.message}`);
+    }
+
+    runtimeStateLastSavedAt = Date.now();
+
+    if (!canUseRedisRuntime()) return snapshot;
+    try {
+        await Promise.race([
+            redis.set(RUNTIME_STATE_REDIS_KEY, JSON.stringify(snapshot)),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('REDIS_SAVE_TIMEOUT')), REDIS_IO_TIMEOUT_MS))
+        ]);
+        redisAvailable = true;
+    } catch (e) {
+        redisAvailable = false;
+        console.error(`⚠️ Failed to save runtime state to Redis: ${e.message}`);
+    }
+
+    return snapshot;
+}
+
+async function loadRuntimeState() {
+    if (canUseRedisRuntime()) {
+        try {
+            const raw = await Promise.race([
+                redis.get(RUNTIME_STATE_REDIS_KEY),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('REDIS_LOAD_TIMEOUT')), REDIS_IO_TIMEOUT_MS))
+            ]);
+            if (raw) {
+                redisAvailable = true;
+                if (applyRuntimeState(JSON.parse(raw), `redis:${RUNTIME_STATE_REDIS_KEY}`)) {
+                    applyStartPausedOverride();
+                    return;
+                }
+            }
+        } catch (e) {
+            redisAvailable = false;
+            console.error(`⚠️ Failed to load runtime state from Redis: ${e.message}`);
+        }
+    }
+
+    try {
+        if (!fs.existsSync(RUNTIME_STATE_PATH)) {
+            applyStartPausedOverride();
+            return;
+        }
         const raw = fs.readFileSync(RUNTIME_STATE_PATH, 'utf8');
-        if (!raw) return;
-        const parsed = JSON.parse(raw);
-        riskManager.importState(parsed.risk || {});
-        tradeExecutor.importState(parsed.executor || {});
-        if (parsed.orchestratorHeartbeat && typeof parsed.orchestratorHeartbeat === 'object') {
-            orchestratorHeartbeat = { ...orchestratorHeartbeat, ...parsed.orchestratorHeartbeat };
+        if (!raw) {
+            applyStartPausedOverride();
+            return;
         }
-        if (Array.isArray(parsed.diagnosticLog)) {
-            diagnosticLog = parsed.diagnosticLog.slice(-500);
-        }
-        console.log(`♻️ Restored runtime state from ${RUNTIME_STATE_PATH}`);
+        applyRuntimeState(JSON.parse(raw), RUNTIME_STATE_PATH);
     } catch (e) {
         console.error(`⚠️ Failed to load runtime state: ${e.message}`);
     }
+
+    applyStartPausedOverride();
 }
 
 // ==================== LOAD STRATEGY SETS ====================
@@ -163,13 +295,6 @@ function loadAllStrategySets() {
 }
 
 loadAllStrategySets();
-loadRuntimeState();
-console.log(`\n🚀 POLYPROPHET LITE — Multi-Timeframe Trading Bot`);
-console.log(`   Mode: ${CONFIG.TRADE_MODE} | Live: ${CONFIG.IS_LIVE ? 'YES' : 'NO'}`);
-console.log(`   Assets: ${CONFIG.ASSETS.join(', ')}`);
-console.log(`   Timeframes: ${getEnabledTimeframes().map(t => t.key).join(', ')}`);
-console.log(`   Starting Balance: $${CONFIG.RISK.startingBalance}`);
-console.log(`   Strategy Sets: ${JSON.stringify(getAllLoadedSets())}\n`);
 
 function extractWinnerFromClosedMarket(market) {
     if (!market || !market.closed) return null;
@@ -497,6 +622,7 @@ app.get('/api/health', (req, res) => {
         pendingSettlements: executorStatus.pendingSettlements.length,
         pendingSells: executorStatus.pendingSells.length,
         redemptionQueue: executorStatus.redemptionQueue.length,
+        runtimeState: getRuntimeStateStatus(),
         riskControls: {
             requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
             minNetEdgeRoi: Number(CONFIG.RISK.minNetEdgeRoi || 0),
@@ -530,7 +656,8 @@ app.get('/api/status', (req, res) => {
             }])
         ),
         orchestrator: orchestratorHeartbeat,
-        strategies: getAllLoadedSets()
+        strategies: getAllLoadedSets(),
+        runtimeState: getRuntimeStateStatus()
     });
 });
 
@@ -881,6 +1008,7 @@ app.get('/', (req, res) => {
 const TICK_INTERVAL_MS = 2000;
 let tickTimer = null;
 let shuttingDown = false;
+let server = null;
 
 async function tick() {
     if (shuttingDown) return;
@@ -895,34 +1023,54 @@ async function tick() {
     }
 }
 
-const server = app.listen(CONFIG.PORT, () => {
-    console.log(`\n🌐 Dashboard: http://localhost:${CONFIG.PORT}`);
-    console.log(`📡 Health: http://localhost:${CONFIG.PORT}/api/health`);
-    console.log(`📊 Status: http://localhost:${CONFIG.PORT}/api/status\n`);
+async function startServer() {
+    await loadRuntimeState();
+    console.log(`\n🚀 POLYPROPHET LITE — Multi-Timeframe Trading Bot`);
+    console.log(`   Mode: ${CONFIG.TRADE_MODE} | Live: ${CONFIG.IS_LIVE ? 'YES' : 'NO'}`);
+    console.log(`   Assets: ${CONFIG.ASSETS.join(', ')}`);
+    console.log(`   Timeframes: ${getEnabledTimeframes().map(t => t.key).join(', ')}`);
+    console.log(`   Starting Balance: $${CONFIG.RISK.startingBalance}`);
+    console.log(`   Strategy Sets: ${JSON.stringify(getAllLoadedSets())}`);
+    console.log(`   Runtime State: ${JSON.stringify(getRuntimeStateStatus())}\n`);
 
-    // Start orchestration loop
-    tick(); // First tick immediately
-});
+    server = app.listen(CONFIG.PORT, () => {
+        console.log(`\n🌐 Dashboard: http://localhost:${CONFIG.PORT}`);
+        console.log(`📡 Health: http://localhost:${CONFIG.PORT}/api/health`);
+        console.log(`📊 Status: http://localhost:${CONFIG.PORT}/api/status\n`);
 
-server.on('error', (err) => {
-    if (err.code === 'EADDRINUSE') {
-        console.error(`🔴 Port ${CONFIG.PORT} in use — exiting`);
-        process.exit(1);
+        tick();
+    });
+
+    server.on('error', (err) => {
+        if (err.code === 'EADDRINUSE') {
+            console.error(`🔴 Port ${CONFIG.PORT} in use — exiting`);
+            process.exit(1);
+        }
+    });
+}
+
+async function shutdown(signal) {
+    if (shuttingDown) return;
+    console.log(`Received ${signal}, shutting down...`);
+    shuttingDown = true;
+    if (tickTimer) clearTimeout(tickTimer);
+    await saveRuntimeState();
+    if (redis) {
+        await redis.quit().catch(() => null);
     }
+    if (!server) {
+        process.exit(0);
+        return;
+    }
+    const forcedExit = setTimeout(() => process.exit(0), 5000);
+    forcedExit.unref?.();
+    server.close(() => process.exit(0));
+}
+
+startServer().catch((err) => {
+    console.error(`🔴 Startup failed: ${err.message}`);
+    process.exit(1);
 });
 
-process.on('SIGTERM', () => {
-    console.log('Received SIGTERM, shutting down...');
-    shuttingDown = true;
-    if (tickTimer) clearTimeout(tickTimer);
-    saveRuntimeState();
-    server.close(() => process.exit(0));
-});
-
-process.on('SIGINT', () => {
-    console.log('Received SIGINT, shutting down...');
-    shuttingDown = true;
-    if (tickTimer) clearTimeout(tickTimer);
-    saveRuntimeState();
-    server.close(() => process.exit(0));
-});
+process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
+process.on('SIGINT', () => { void shutdown('SIGINT'); });
