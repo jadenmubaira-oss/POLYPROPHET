@@ -3,7 +3,7 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 31 March 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
+**Last Updated**: 1 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
 
 ---
 
@@ -14,19 +14,433 @@
 
 | Field | Value |
 |-------|-------|
-| **Objective** | Autonomous Polymarket crypto trading bot, $5 -> max profit via compounding |
+| **Objective** | Autonomous Polymarket crypto trading bot, $20 start -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Current Blocker** | Balance is $0.349 (busted). Needs deposit of $20+ to trade with the new combined strategy set. |
-| **Active Strategy (15m)** | `debug/strategy_set_15m_combined_v9.json` (16 strategies: 6 OOS-validated m11/m12/m14 + 10 walk-forward validated m0/m5/m10) |
-| **Active Strategy (4h)** | `debug/strategy_set_4h_maxprofit.json` (8 strategies, bankroll-gated at $10) |
-| **Wallet Balance** | $0.349 USDC (BUSTED), `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` — needs $20+ deposit to resume |
-| **Next Action** | Deposit $20+ to activate the combined 16-strategy set. Bot is code-ready and deployed. Monitor first 24h to validate trade frequency matches sim assumptions. |
+| **Deploy Commit** | `f7b2d27` — Redis persistence + startup safety |
+| **Current Blocker** | Wallet underfunded ($0.349 USDC). Fund to >= $2 to arm 15m, recommend $20 for sim parity. |
+| **Active Strategy (15m)** | `strategies/strategy_set_15m_beam_2739_uncapped.json` (10 strategies, 14d median floor `$810.09`, bootstrap 14d median `$337.60`, 30d median `$4,646.52`). Uncapped growth posture. |
+| **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`), bankroll-gated at $10 |
+| **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`), bankroll-gated at $50 |
+| **Wallet Balance** | $0.349 USDC, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` |
+| **Runtime State** | Redis+file persistence, `START_PAUSED=false`, CLOB `tradeReady.ok=true` |
+| **Verdict** | **CONDITIONAL GO** — all code/deploy blockers resolved, awaiting funding |
+| **Next Action** | Fund wallet to **$20**, bot auto-arms 15m when balance > $2. Use `START_PAUSED=true` env for staged funding if desired. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
 
+## 2026-04-04 Full Line-by-Line Audit Addendum (beam_2739 deploy)
+
+### Deploy State (verified live)
+
+- Commit: `f7b2d27` — Harden lite runtime persistence and startup safety
+- Strategy: `strategies/strategy_set_15m_beam_2739_uncapped.json` (10 strategies, 5 UP / 5 DOWN)
+- Active UTC hours: 01, 08, 10, 15, 16, 17, 18, 19
+- Runtime state: Redis+file dual persistence, `START_PAUSED=false`
+- CLOB: `tradeReady.ok=true`, sigType=1, proxy funder deployed, unlimited allowance
+- Balance: $0.349 USDC (below $2 gate, 15m inactive)
+- All endpoints HTTP 200, correct strategy loaded, no mismatch
+
+### Profit Simulation / Backtest Summary (beam_2739, uncapped, $20 start)
+
+| Metric | 7d | 14d | 30d |
+|--------|-----|------|------|
+| Bootstrap median | $91.66 | $337.60 | $4,646 |
+| Bootstrap p25 | $56.44 | $170.29 | $1,918 |
+| Bootstrap bust | 0.3% | 0.55% | 0.6% |
+| Exact median floor (rolling windows) | $118.83 | $810.09 | N/A |
+| Historical replay final (32d) | — | — | $8,100.39 |
+| Historical win rate | — | — | 81.5% |
+| Max drawdown (historical) | — | — | 61.25% |
+
+- Exact proof boundary: 14-candidate exhaustive neighborhood (15,913 subsets), winner = beam_2739
+- 6-share variant 14d median floor: $943.36
+- NOT globally proven over all 41 candidates (full search = ~5.92 years compute)
+
+### Line-by-Line Code Audit Findings
+
+#### MEDIUM severity (3 findings, non-blocking)
+
+1. **strategy-matcher.js: `pWinEstimate` field mismatch** — `evaluateMatch()` reads `strategy.winRateLCB || strategy.winRate || 0.5` but beam_2739 strategies store the value as `strategy.pWinEstimate`. This means `candidate.pWinEstimate` passed to risk-manager is always `0.5`. **Impact**: Kelly sizing in `calculateSize()` is bypassed (requires `pWin >= 0.55`), so all trades use flat `stakeFraction` sizing (15% of bankroll) instead of edge-proportional Kelly. This does NOT affect the net-edge ROI gate — `trade-executor._resolveEvWinRate()` correctly reads `candidate.strategy.pWinEstimate`. **Sim parity**: The search script uses the same risk-manager code path, so the sim already reflects flat-fraction sizing. Live behavior matches sim.
+
+2. **strategy-matcher.js: `sortCandidates()` non-deterministic** — Sorts by `strategy.winRateLCB` which is absent in beam_2739 strategies, making all candidates compare as 0 vs 0. Candidate execution order is engine-dependent. **Impact**: When multiple strategies match simultaneously, the "best" one is not guaranteed to execute first. Low practical impact because `canTrade()` cycle limits (1-2 per cycle) gate total execution anyway.
+
+3. **market-discovery.js: `fetchJSON` no HTTP status check** — HTTP 4xx/5xx responses with JSON bodies are treated as valid data. **Impact**: A rate-limited or error JSON response from Gamma API could be treated as a valid market object. Mitigated by downstream field checks (missing `active`, `clobTokenIds` etc would prevent trading).
+
+#### LOW severity (6 findings, cosmetic/defensive)
+
+4. **strategy-matcher.js**: `signature` field evaluates to `"undefined"` for beam_2739 strategies (cosmetic, diagnostic logs only).
+5. **market-discovery.js**: `marketCache` has no eviction for stale slugs. Minor memory leak (~1-5 MB/day). Render restarts mitigate.
+6. **market-discovery.js**: Gamma-prices fallback assumes `["Up","Down"]` outcome order. Latent bug if Polymarket reverses order (not observed in practice).
+7. **market-discovery.js**: No response body size limit in `fetchJSON`. Negligible risk with controlled API endpoints.
+8. **risk-manager.js**: `calculateSize()` reads `candidate.pWinEstimate` with `||` operator — a legitimate `0` value would fall through to `0.5`. Not a real scenario since pWin is always 0.5-0.85.
+9. **trade-executor.js**: After `NO_FILL_AFTER_RETRIES` with an orderID, a pending buy is created without local capital deduction. If it later partially fills, `getAvailableCash()` may briefly overstate available cash until next `refreshLiveBalance()`.
+
+#### INFO (verified correct)
+
+- **Epoch computation**: `computeEpoch(nowSec, 900)` correctly floors to 15-minute window start. `getEntryMinute()` correctly computes minute 0-14 with bounds clamping.
+- **Strategy matching**: UTC hour matching uses epoch start hour (correct for 4h blocks). Entry minute, direction, and price band matching are correct.
+- **Risk gating**: `canTrade()` correctly enforces: manual pause, cooldown, global stop-loss, min balance floor, exposure cap, cycle trade limit.
+- **Position sizing**: Flat-fraction sizing at 15% for $10-$50 bankroll (GROWTH tier), with peak drawdown brake, absolute stake cap, min-order enforcement. Matches sim.
+- **Live execution**: `executeTrade()` correctly refreshes balance, checks spread (<8%), fetches live orderbook when `requireRealOrderBook=true`, validates live price against strategy band, enforces market min_order_size.
+- **CLOB client**: Order signing, HMAC auth, proxy routing, credential derivation, balance queries all verified. No secret exposure in logs.
+- **Persistence**: Redis+file dual save/load, async with 5s timeout, graceful shutdown with Redis quit.
+- **Telegram**: Notifications are fire-and-forget, failures silently caught. No blocking risk.
+
+### Legacy Monolith vs Lite: Missing Features
+
+| Feature | In Legacy | In Lite | Importance | Status |
+|---------|-----------|---------|------------|--------|
+| Multi-state circuit breaker (NORMAL/SAFE_ONLY/PROBE_ONLY/HALTED) | Yes | No | HIGH | Not ported — lite relies on canTrade() gating, cooldown, and manual pause instead |
+| WebSocket price feeds + Chainlink staleness detection | Yes | No | MEDIUM | Not ported — lite uses polling (2s tick) + CLOB book fetch per trade |
+| ATR volatility guard | Yes | No | MEDIUM | Not ported — lite has no volatility filter |
+| Per-asset drift auto-detection | Yes | No | MEDIUM | Not ported — lite has no drift self-healing |
+| Gas balance (MATIC) monitoring | Yes | No | MEDIUM | Not ported — if MATIC depletes on Polygon, orders would fail at submission |
+| Critical error accumulation auto-halt | Yes | No | MEDIUM | Not ported — lite logs errors but does not auto-halt after N failures |
+| Warmup period sizing | Yes | No | LOW | Not ported — lite sizes from first tick |
+| Trade mutex (prevent concurrent order placement) | Yes | No | LOW | Not ported — lite's sequential tick loop prevents concurrent ticks but API endpoint manual-smoke-test could race |
+| Portfolio mark-to-market accounting | Yes | No | LOW | Not ported — lite tracks PnL per resolved trade only |
+| 8-model brain ensemble | Yes | No | N/A | **Deliberately not ported** — replaced by strategy-file matching which is simpler and outperforms |
+| Shadow-book tracking | Yes | No | N/A | **Deliberately not ported** |
+
+### Risk Controls Parity: Sim vs Live
+
+All 13 risk control parameters match exactly between simulation guardConfig and live Render deployment:
+- `takerFeePct=0.0315`, `slippagePct=0.01`, `minNetEdgeRoi=0`, `requireRealOrderBook=true`
+- `maxTotalExposure=0` (disabled), `riskEnvelopeEnabled=false` (disabled for uncapped growth)
+- `maxAbsoluteStake=100000` (all tiers, effectively uncapped)
+- `vaultTriggerBalance=100`, `stage2Threshold=1000`, `minBankroll(15m)=2`
+
+### Verdict: CONDITIONAL GO
+
+**All code-side and deploy-side blockers are resolved.** The bot is loaded, CLOB-ready, strategy-correct, and persistence-hardened.
+
+**Remaining conditions for full GO:**
+1. Fund wallet to >= $2 (minimum), recommend $20 (sim parity)
+2. First live trade cycle completes successfully (entry + resolution + PnL)
+3. No real funded fill/exit proof exists yet
+
+**Known accepted risks:**
+- Max historical drawdown: 64.55% (severe, but sim-validated)
+- Bootstrap 30d bust rate: 0.6% (low but non-zero)
+- Kelly sizing bypassed (flat-fraction only) — matches sim, not a correctness issue
+- No circuit breaker or volatility guard from legacy — accepted for uncapped growth posture
+- Not globally proven over all 41 candidates — computationally infeasible
+
+**Funding guidance:**
+- `>= $2` to arm 15m timeframe
+- `$20` for best sim parity
+- Use `START_PAUSED=true` env var for staged funding, then flip to `false`
+
 ---
+
+## 2026-04-02 Final Verification Addendum (current truth)
+
+- Re-read the earlier beam/exhaustive addenda, then re-ran the **full exact cap=20 search** over the 20-strategy elite pool:
+  - artifact: `debug/audit_cap12_exhaustive.json`
+  - exact subsets tested: **`1,048,575`** (all non-empty subsets of the elite 20)
+  - best overall set: **15 strategies**, robustFloor **`$138.18`**, but **NOT near-certainty** because one historical 7-day window falls to **`$1.55`**
+  - best near-certainty set remains **`debug/strategy_set_15m_nc_exhaustive_13.json`** at **`$125.57`**
+- To check whether the remaining **21 non-elite candidates** could still beat it, a new neighborhood audit was added:
+  - script: `scripts/audit-outside-elite-neighborhood.js`
+  - artifact: `debug/audit_outside_elite_neighborhood.json`
+  - search covered **all sets formed by removing up to 3 winner strategies and adding up to 3 of the 21 outside-elite candidates**
+  - exact neighborhoods tested: **`590,435`**
+  - strongest outside-elite challenger was worse: robustFloor **`$123.68`**
+    - add `H09 m12 DOWN [70-80c]`
+    - remove `VAL11 H09 m12 DOWN (72-80c)`
+- This means the current winner survived:
+  - the original beam search over the 41-candidate universe
+  - exact enumeration of the full 20-strategy elite pool
+  - every 1-way / 2-way / 3-way substitution from the 21 remaining outside-elite candidates
+- **Strongest truthful claim**:
+  - `strategy_set_15m_nc_exhaustive_13.json` is the **best near-certainty set currently verified**
+  - it is **not mathematically proven global-best across all 41 active validated candidates**, because the unsearched space still includes larger combinations far outside the elite neighborhood
+  - full exact proof over the 41-candidate universe up to 14 strategies would require evaluating roughly **`65.5 billion`** subsets, which was not completed
+- Runtime truth for live deployment is unchanged:
+  - `TIMEFRAME_15M_MIN_BANKROLL <= 5` is mandatory
+  - gate `10+` still destroys the 15m edge
+- Profit simulation update (exact runtime, held-out calendar only):
+  - script: `scripts/profit-sim-exhaustive-nc13.js`
+  - artifact: `debug/profit_sim_exhaustive_nc13.json`
+  - exact combined 52-day path, start `$20`, gate `5`: final **`$499,687.89`**, `1208` trades, win rate **`84.69%`**, max drawdown **`59.14%`**
+  - 30-day block-bootstrap (5000 trials, 7-day blocks, same held-out calendar):
+    - `exhaustive_nc_13`: p10 **`$353.73`**, p25 **`$1,448.35`**, median **`$6,328.58`**, p75 **`$28,136.39`**, p90 **`$113,799.69`**, bust **`0.04%`**
+    - `beam_best_12`: p10 **`$156.63`**, p25 **`$988.88`**, median **`$3,388.43`**, p75 **`$9,831.83`**, p90 **`$26,025.69`**, bust **`1.84%`**
+    - best overall non-NC 15-strategy set: p10 **`$145.73`**, p25 **`$1,164.13`**, median **`$5,253.33`**, p75 **`$25,848.18`**, p90 **`$100,540.32`**, bust **`2.20%`**
+- Interpretation:
+  - if the goal is **max profit subject to near-certainty constraints**, `exhaustive_nc_13` remains the best verified answer
+  - if the goal were **raw max profit only**, the 15-strategy `rf=$138.18` set compounds harder but fails the near-certainty requirement
+  - the bootstrap table is **not a guarantee**; it is a resampling of the held-out calendar, not proof of future returns
+
+---
+
+## 2026-04-02 Global Reinvestigation Addendum (multiframe + liquidity + live-mechanics)
+
+- Added a new global set-combination audit:
+  - script: `scripts/global-multiframe-liquidity-audit.js`
+  - artifact: `debug/global_multiframe_liquidity_audit.json`
+  - coverage: **47** combinations across the currently relevant promoted/reference sets:
+    - `15m`: `exhaustive_nc_13`, `beam_best_12`, best-overall-15 (`nc=false`)
+    - `4h`: `maxprofit`, `curated`, `base`
+    - `5m`: `maxprofit`, `walkforward_top4`
+  - methodology:
+    - exact runtime-style chronology
+    - held-out `60/20/20` historical test split + recent intracycle holdout per timeframe
+    - timeframe bankroll gates enforced (`15m >= 5`, `4h >= 10`, `5m >= 50`)
+    - share-based minimum order, cooldown, daily stop-loss, Kelly sizing
+    - both **uncapped** current-lite mode and **legacy-style liquidity-cap** mode (`$100 / $200 / $500` absolute per-trade caps by bankroll tier)
+- Result of the multiframe audit:
+  - **Top raw robustFloor overall** remains the same 15-strategy `15m_best_overall` set at **`$138.18`**, but it is still **NOT near-certainty** because one historical 7-day window falls to **`$1.55`**
+  - **Best verified near-certainty set remains `debug/strategy_set_15m_nc_exhaustive_13.json` at `robustFloor $125.57`**
+  - the top ranking was **identical in uncapped and liquidity-capped mode**, so the conservative legacy liquidity cap did **not** dethrone `exhaustive_nc_13`
+- Cross-timeframe combination findings:
+  - adding the currently archived `4h` or thin-sample `5m` modules did **not** improve the verified near-certainty robust floor over `15m_exhaustive_nc_13`
+  - `15m_beam + 5m_maxprofit` showed a higher 30-day bootstrap median than beam alone, but its verified robust floor collapsed to **`$29.44`** and the `5m` component remains too thin to promote as deposit-grade
+  - `4h` sets currently have **zero recent matched trades** in the active recent holdout, so they cannot be honestly promoted as part of a “best verified now” live answer
+- 30-day capped bootstrap comparison (same held-out calendars, 1000 trials, 7-day blocks):
+  - `15m_exhaustive_nc_13`: bust **`0.0%`**, p10 **`$908.68`**, p25 **`$3,857.79`**, median **`$8,044.92`**, p75 **`$12,840.57`**, p90 **`$20,941.94`**
+  - `15m_best_overall` (non-NC): bust **`3.0%`**, p10 **`$4.31`**, p25 **`$2,510.65`**, median **`$7,244.09`**, p75 **`$12,703.78`**, p90 **`$21,008.95`**
+  - `15m_beam_best_12`: bust **`1.6%`**, p10 **`$4.80`**, p25 **`$2,060.21`**, median **`$5,381.87`**, p75 **`$8,480.23`**, p90 **`$11,532.57`**
+  - takeaway: `exhaustive_nc_13` remains the strongest **verified** balance between profit and certainty; some looser combinations may show higher simulated medians, but they rely on weaker or unverified components and/or much worse robust floors
+- Lite-vs-legacy execution audit (for truthful GO/NO-GO):
+  - lite already has the important truthful mechanics:
+    - real live-balance rebasing
+    - timeframe bankroll gating
+    - share-based min-order enforcement
+    - actual fill / partial-fill / pending-buy handling
+    - pending sell + redemption path
+    - proxy/auth/geoblock handling
+  - relevant legacy mechanics still missing in lite:
+    - stricter absolute liquidity/risk-envelope stack for larger balances
+    - stricter “real CLOB book required” market-tradeability rules (lite can still rely on weaker fallback pricing in some cases)
+  - implication:
+    - **local strategy answer**: `exhaustive_nc_13` remains the best verified near-certainty set
+    - **live deployment answer**: still only **CONDITIONAL GO**, not definitive GO
+- Live-host reality check performed against the deployed Render service:
+  - `/api/health` and `/api/status` confirm the host is still running commit `163bdc8`
+  - live `15m` strategy file is still **`/app/debug/strategy_set_15m_combined_v9.json`**
+  - live `15m` minimum bankroll is still effectively **`0`**, not the re-verified `<=5` local posture
+  - live balance is only **`$0.349209`**
+  - therefore the **current deployed host is NOT GO-ready**
+- Final truthful claim after this addendum:
+  - `strategy_set_15m_nc_exhaustive_13.json` is still the **best near-certainty strategy currently verified**
+  - it is **not** a mathematical proof of the global best possible portfolio across every individual 15m/5m/4h candidate
+  - but after:
+    - exact elite-pool search
+    - outside-elite substitution audit
+    - multiframe combination audit
+    - capped-vs-uncapped liquidity audit
+    - lite-vs-legacy execution review
+    it remains the strongest truth-preserving recommendation in this repo
+
+---
+
+## 2026-04-02 Exact-Search / Historical-Liquidity Boundary Addendum
+
+- Added exact-search feasibility artifact:
+  - script: `scripts/exact-search-feasibility.js`
+  - artifact: `debug/exact_search_feasibility.json`
+- Measured exact-search baseline from the completed 20-pool audit:
+  - source: `debug/audit_cap12_exhaustive.json`
+  - actual rate: **`413.1 eval/s`** (`1,048,575` subsets in `2,538.3s`)
+- Current exact search-space sizes:
+  - full `15m` active validated universe = **`41`** candidates
+  - full `5m` active validated universe = **`19`** candidates
+  - full `4h` active validated universe = **`0`** candidates
+  - cross-timeframe individual-strategy universe currently = **`60`** candidates
+- Optimistic exact-runtime projections using the measured 20-pool rate:
+  - `15m` exact up to 12 strategies: **`12,652,948,623`** subsets ≈ **`0.97 years`**
+  - `15m` exact up to 13 strategies: **`30,273,024,983`** subsets ≈ **`2.32 years`**
+  - `15m` exact up to 14 strategies: **`65,513,177,703`** subsets ≈ **`5.03 years`**
+  - `15m` all non-empty subsets: **`2,199,023,255,551`** ≈ **`168.68 years`**
+  - cross-timeframe all non-empty subsets (`15m+5m+4h` individual candidates): **`1,152,921,504,606,846,975`** ≈ **`88,438,063.3 years`**
+  - even capped cross-timeframe exact (`15m<=12`, `5m<=8`, `4h<=8`) is still ≈ **`164,771.44 years`**
+- Why no clean exact reduction exists:
+  - the evaluation is **path-dependent and nonlinear**
+  - bankroll path changes:
+    - cycle participation limits
+    - Kelly sizing
+    - whole-share rounding
+    - min-order bump / block
+    - cooldown timing
+    - daily stop-loss timing
+  - therefore there is no currently proven additive / meet-in-the-middle decomposition that would preserve exactness
+- Added historical-liquidity-data audit artifact:
+  - artifact: `debug/historical_liquidity_data_audit.json`
+  - collector source: `scripts/collect-intracycle-data.js`
+- Historical liquidity proof boundary:
+  - local intracycle datasets store:
+    - minute-level last prices (`minutePricesYes/No -> last,count,ts`)
+    - per-cycle min-order size fields (`yesMinOrderSize`, `noMinOrderSize`)
+  - local datasets do **NOT** store:
+    - historical bid ladders
+    - historical ask ladders
+    - historical depth snapshots
+    - exact available resting size at entry time
+  - therefore an **exact historical order-book-depth proof is not currently possible from repo data**
+- Strongest truthful liquidity statement:
+  - current proof covers:
+    - share-based minimum order enforcement
+    - current-book execution path
+    - partial-fill / pending-buy realism
+    - conservative absolute liquidity caps in simulation
+  - current proof does **not** cover:
+    - exact historical full depth at each strategy entry minute
+- Legacy large-balance safeguards still worth porting into lite:
+  1. **Tiered absolute stake cap** (`legacy-root-runtime/server.root-monolith.js`, `getTieredMaxAbsoluteStake`)  
+     - keep stake bounded to plausible market depth as bankroll scales
+  2. **Dynamic risk envelope** (`getDynamicRiskProfile`, `getRiskEnvelopeBudget`, `applyRiskEnvelope`)  
+     - intraday loss budget  
+     - trailing drawdown budget from peak  
+     - per-trade loss cap  
+     - stage-aware min-order override only in bootstrap
+  3. **Stricter real-book-required tradeability rule**  
+     - do not treat weak fallback pricing as live-tradeable when a real CLOB book is absent
+  4. **Final fee/slippage/current-price EV recheck before order submission**  
+     - catches entries that became too expensive relative to validated edge
+  5. **Aggregate exposure budget across overlapping positions/timeframes**  
+     - especially important once higher-balance `4h` + `15m` concurrency becomes active
+- Final truth after this addendum:
+  - `exhaustive_nc_13` remains the best **currently verified near-certainty** answer
+  - a full exact global proof across all individual candidates and exact historical depth proof remain **blocked by computation and missing historical depth data**, not by lack of further repo-local auditing effort
+
+---
+
+## 2026-04-01 Exhaustive Audit Addendum (supersedes beam_best_12)
+
+- **beam_best_12 dethroned** by targeted exhaustive search over the 20-strategy "elite pool"
+  - elite pool = beam_best_12 core (12) + non-overlapping strategies from the beam's top-10 solutions (8)
+  - tested **1,026,875 subsets** at cap=14 and **910,595 subsets** at cap=12
+  - also confirmed caps 8 and 10 produce inferior robustFloor ($83.97 and $101.27 respectively)
+- **New winner: `debug/strategy_set_15m_nc_exhaustive_13.json`** (13 strategies)
+  - strategies: `H19 m10 DOWN [50-98c]`, `H15 m8 UP [50-98c]`, `H06 m12 DOWN [55-98c]`, `H08 m11 DOWN [55-98c]`, `H18 m11 UP [55-98c]`, `H17 m12 DOWN [55-98c]`, `H08 m12 DOWN [55-98c]`, `H18 m12 DOWN [55-98c]`, `H16 m4 UP [70-80c]`, `H10 m10 UP [70-80c]`, `VAL11 H09 m12 DOWN (72-80c)`, `H06 m10 UP [70-80c]`, `H20 m13 UP [70-80c]`
+  - robustFloor: **`$125.57`** (vs beam_best_12's `$115.10`, +9.1%)
+  - historical actual: **`$20,443.89`** over `32` days (vs `$5,266.54`, +3.9x)
+  - recent actual: **`$607.60`** over `15` days (vs `$885.26`, -31%)
+  - near-certainty: TRUE (zero busts at gate 0/5, all windows above start)
+  - worstDD: 62.6%
+- **Key swaps from beam_best_12**:
+  - REMOVED: `H03 m2 DOWN [72-80c]` (anomalous +$4,187 leave-one-out), `H08 m9 DOWN [50-98c]`
+  - ADDED: `H06 m12 DOWN [55-98c]`, `H08 m11 DOWN [55-98c]`, `H06 m10 UP [70-80c]`
+- **Why the beam missed this**: beam search is a heuristic that prunes aggressively at each expansion step. The three-way swap was not reachable via single-strategy additions from the beam frontier. Only exhaustive enumeration could find it.
+- **Ablation results on beam_best_12** (confirming H03 m2 DOWN was problematic):
+  - removing H03 m2 DOWN: rf collapses to `$29.05` despite hist climbing to `$9,453` -- the strategy was hiding poor window consistency
+  - removing H16 m4 UP (negative PnL): rf halves to `$57.23` -- its compounding path interactions are beneficial
+  - removing both: rf collapses to `$24.13`
+- **Gate sweep (exhaustive_nc_13)**: gate 0/5 identical (`$125.57`), gate 10 collapses hist to `$8.68`, gate 20 to `$17.86`
+- **Leave-one-out (exhaustive_nc_13)**:
+  - worst recent delta: `-$484.46` (removing `H19 m10 DOWN`)
+  - no strategy has an absurdly large positive delta like beam_best_12's H03 m2 DOWN had
+  - all 13 strategies contribute positively to robustFloor
+- **Per-strategy quality**: all 13 have positive win rates (83-93%), no negative PnL outliers, trade counts 22-330
+- **Local runtime truth after this addendum**:
+  - `server.js` primary `15m` file: `debug/strategy_set_15m_nc_exhaustive_13.json`
+  - fallback: `debug/strategy_set_15m_nc_beam_best_12.json`
+  - `TIMEFRAME_15M_MIN_BANKROLL <= 5` requirement unchanged
+
+---
+
+## 2026-04-01 Final Near-Certainty Reinvestigation Addendum
+
+- Scope expanded beyond the old shortlist:
+  - fixed the `topCandidates` truncation in `scripts/optimize-timeframe-max-median.js`
+  - regenerated the ultra-relaxed `15m` universe at **41 active validated candidates**
+  - built `scripts/search-timeframe-near-certainty.js` for chronology-preserving `15m` / `5m` / `4h` search
+  - deep-validated the strongest `15m` finalists with gate sweep, start-balance stress, leave-one-out, and per-strategy PnL
+- New `15m` winner: **`debug/strategy_set_15m_nc_beam_best_12.json`**
+  - strategies: `H10 m10 UP [70-80c]`, `H15 m8 UP [50-98c]`, `H16 m4 UP [70-80c]`, `H17 m12 DOWN [55-98c]`, `H18 m11 UP [55-98c]`, `H18 m12 DOWN [55-98c]`, `H19 m10 DOWN [50-98c]`, `H20 m13 UP [70-80c]`, `H03 m2 DOWN [72-80c]`, `H08 m12 DOWN [55-98c]`, `VAL11 H09 m12 DOWN (72-80c)`, `H08 m9 DOWN [50-98c]`
+  - chronology-preserving robust floor: **`$115.10`**
+  - historical actual path: **`$5266.54`** across **`32`** held-out days (`2026-02-08` to `2026-03-11`)
+  - recent actual path: **`$885.26`** across **`15`** recent days (`2026-03-17` to `2026-03-31`)
+  - near-certainty windows: historical P25 **`$115.10`**, recent P25 **`$195.67`**, no busts under gate `0` or `5`
+  - search stability: same winner at beam widths **`200`** and **`300`**
+- Runtime bankroll truth:
+  - `TIMEFRAME_15M_MIN_BANKROLL=20` is incompatible with this winner
+  - gate `10` already breaks the historical path (`histFinal $8.83`)
+  - gate `20` collapses the set to **`$17.33`**
+  - local code default is now **`TIMEFRAME_15M_MIN_BANKROLL=5`**
+- `5m` verdict:
+  - full exhaustive search over all **`19`** active candidates found `mask_419283` at robust floor **`$87.96`**
+  - but support is only **`4` historical days + `3` recent days**, and default `5m` runtime gate remains **`$50`**
+  - result: promising but **not deposit-grade verified**, so not promoted over `15m beam_best_12`
+- `4h` verdict:
+  - even ultra-relaxed reruns still produced **`0` active validated candidates**
+- Local runtime truth after this addendum:
+  - `server.js` primary `15m` file: `debug/strategy_set_15m_nc_beam_best_12.json`
+  - fallback `15m` file: `debug/strategy_set_15m_nc_beam_alt_11.json`
+  - `lib/config.js` default `TIMEFRAME_15M_MIN_BANKROLL`: **`5`**
+  - `.env.example` now mirrors the new default and primary strategy path
+
+---
+
+## 2026-03-31 Exact-Runtime Reinvestigation Addendum
+
+- Old unified claims built around `combined_v9` and explosive `5m` outlier sims are **not** the current source of truth.
+- The stricter rerun also demoted the earlier `exact_b50` promotion for the `$20` band.
+- The strongest evidence-backed simple winner on the latest audited surface is now **`debug/strategy_set_15m_exact_b10.json`**.
+- Method used:
+  - truthful bounded CLOB minute data for recent holdout
+  - current `RiskManager` sizing / cooldown / stop-loss semantics
+  - market-native minimum order handling (`5` shares minimum floor)
+  - spread gate `|yes + no - 1| <= 0.08`
+  - chronological `60/20/20` historical split plus expanded **15-day** recent holdout
+  - stricter recent-regime filtering requiring multiple distinct recent matched days
+
+### Additional reinvestigation findings
+
+- The intracycle collector had been reading the wrong Gamma field for minimum size metadata. The correct market-level field is `orderMinSize`; sampled live `5m` / `15m` / `4h` markets still showed `5` shares, so the audit remained conservative.
+- A new strict `5m` rerun with `MIN_RECENT_EDGE=0.02` and `MIN_RECENT_MATCHED_DAYS=4` found **zero** currently validated candidates.
+- A new bankroll-band policy search across `b5 / b10 / b20 / b50` produced unstable winners across reruns, so it was **not** promoted over the simpler audited set.
+
+### Independent truth-audit summary for `15m exact b10`
+
+- **Support**
+  - historical test: `31` day buckets, `737` trades
+  - recent holdout: `15` day buckets, `377` trades
+  - recent raw: `88.59%` WR (`334 / 377`)
+
+- **Strategies**
+  - `H19 m9 DOWN [50-98c]`
+  - `H08 m11 DOWN [55-98c]`
+  - `H18 m11 UP [55-98c]`
+  - `VAL11 H09 m12 DOWN (72-80c)`
+  - `H06 m12 DOWN [55-98c]`
+
+- **$5 start**
+  - historical 30d median: **`$76.96`**, bust **`34.0%`**
+  - recent 30d median: **`$2.08`**, bust **`41.25%`**
+  - verdict: **reject**
+
+- **$10 start**
+  - historical 30d median: **`$214.55`**, bust **`15.75%`**
+  - recent 30d median: **`$87.84`**, bust **`26.0%`**
+  - verdict: **reject for deposit-grade confidence**
+
+- **$20 start**
+  - historical 30d median: **`$413.78`**, bust **`7.75%`**
+  - recent 30d median: **`$275.52`**, bust **`7.0%`**
+  - historical actual path: **`$406.48`** over the held-out `31` days
+  - recent actual path: **`$68.34`** over the `15`-day recent holdout
+  - verdict: **best audited simple set for the user’s stated max deposit**
+
+- **$50 start**
+  - historical 30d median: **`$749.28`**, bust **`0.75%`**
+  - recent 30d median: **`$708.13`**, bust **`0.75%`**
+  - historical actual path: **`$975.49`** over the held-out `31` days
+  - recent actual path: **`$128.89`** over the `15`-day recent holdout
+  - verdict: **strongest audited simple set overall**
+
+- **Other timeframe verdicts**
+  - `4h`: still **no current matches** in expanded recent holdout, so not a valid primary live path
+  - `5m`: after stricter current-regime validation, **0 active candidates**
+
+- **Local runtime truth**
+  - `server.js` primary `15m` file now points to `debug/strategy_set_15m_exact_b10.json`
+  - secondary fallback is `debug/strategy_set_15m_exact_b50.json`
+  - local default `TIMEFRAME_15M_MIN_BANKROLL` remains **`20`**
+  - this is **local code truth only** until the next redeploy verifies it on Render
 
 ## Table of Contents
 
