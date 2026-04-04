@@ -677,14 +677,74 @@
           "matchedDays": 14
         }
       }
+    },
+    {
+      "name": "H06 m12 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.825,
+      "evWinEstimate": 0.8846,
+      "sources": [
+        "debug/strategy_set_top7_drop6_per_asset_lcb60_min12.json"
+      ],
+      "metrics": {
+        "train": {
+          "matches": 442,
+          "wins": 389,
+          "losses": 53,
+          "wr": 0.8801,
+          "lcb": 0.8465,
+          "avgEntry": 0.8324,
+          "breakEven": 0.8363,
+          "edge": 0.0438
+        },
+        "val": {
+          "matches": 189,
+          "wins": 162,
+          "losses": 27,
+          "wr": 0.8571,
+          "lcb": 0.8001,
+          "avgEntry": 0.8266,
+          "breakEven": 0.8305,
+          "edge": 0.0266
+        },
+        "test": {
+          "matches": 156,
+          "wins": 138,
+          "losses": 18,
+          "wr": 0.8846,
+          "lcb": 0.825,
+          "avgEntry": 0.831,
+          "breakEven": 0.8348,
+          "edge": 0.0498
+        },
+        "recent": {
+          "matches": 89,
+          "wins": 79,
+          "losses": 10,
+          "wr": 0.8876,
+          "lcb": 0.8054,
+          "avgEntry": 0.8363,
+          "breakEven": 0.8402,
+          "edge": 0.0474,
+          "matchedDays": 12
+        }
+      }
     }
   ],
-  "cleanedAt": "2026-04-04T17:52:47.378Z",
+  "cleanedAt": "2026-04-04T19:20:00.000Z",
   "removed": [
     "H15 m8 UP [50-98c]",
     "H18 m11 UP [55-98c]",
     "H16 m4 UP [70-80c]",
     "H18 m12 DOWN [55-98c]"
   ],
-  "reason": "Net negative in 30d sim, degraded recent WR"
+  "addedAfterFinalAudit": [
+    "H06 m12 DOWN [55-98c]"
+  ],
+  "reason": "Removed 4 net-negative strategies, then re-added H06 m12 DOWN after final audit improved 14d floor and 30d bootstrap"
 }

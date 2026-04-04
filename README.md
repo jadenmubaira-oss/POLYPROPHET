@@ -3,7 +3,7 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 1 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
+**Last Updated**: 4 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
 
 ---
 
@@ -17,18 +17,78 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $20 start -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Deploy Commit** | `7a5b4d9` — zero-cost safety guards (error-halt, HTTP status check, deterministic sort) |
-| **Current Blocker** | Wallet underfunded ($0.349 USDC). Fund to >= $2 to arm 15m, recommend $20 for sim parity. |
-| **Active Strategy (15m)** | `strategies/strategy_set_15m_beam_2739_uncapped.json` (10 strategies, 14d median floor `$810.09`, bootstrap 14d median `$337.60`, 30d median `$4,646.52`). Uncapped growth posture. |
-| **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`), bankroll-gated at $10 |
+| **Deploy Commit** | Current local final-audit commit pending live deploy on next push |
+| **Current Blocker** | Proxy-wallet wins are not fully autonomous: live host currently has `1` `redemptionQueue` item marked `requiresManual=true`, and pre-resolution exits do not catch every winner. |
+| **Active Strategy (15m)** | `strategies/strategy_set_15m_beam_2739_uncapped.json` (**7 strategies** after final audit: original cleaned 6 + `H06 m12 DOWN [55-98c]`). |
+| **Active Strategy (4h)** | Disabled in live posture (`MULTIFRAME_4H_ENABLED=false` on the Render env screenshot, plus bankroll gate `$10`) |
 | **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`), bankroll-gated at $50 |
-| **Wallet Balance** | $0.349 USDC, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` |
-| **Runtime State** | Redis+file persistence, `START_PAUSED=false`, CLOB `tradeReady.ok=true`, `errorHalt` live |
-| **Verdict** | **CONDITIONAL GO** — all code/deploy blockers resolved, awaiting funding |
-| **Next Action** | Fund wallet to **$20**, bot auto-arms 15m when balance > $2. Use `START_PAUSED=true` env for staged funding if desired. |
+| **Wallet Balance** | `7.848397` USDC, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` |
+| **Runtime State** | Redis+file persistence, `START_PAUSED=false`, 15m only active, `tradeFailureHalt=false`, `errorHalt=false`, `redemptionQueue=1` |
+| **Verdict** | **NO-GO for fully unattended final-$7 proxy-wallet autonomy**. Conditional GO only if manual redemptions are acceptable. |
+| **Next Action** | Keep 15m-only. If staying live, either accept periodic manual proxy redemptions or migrate to a redeem-capable wallet posture before trusting compounding. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
+
+## 2026-04-04 Final Comprehensive Reinvestigation Addendum
+
+This section supersedes older README posture notes for the user's final-bankroll decision.
+
+### What was rechecked
+
+- Re-read the full README and current handoff state
+- Re-audited the live runtime code paths (`server.js`, `lib/config.js`, `lib/strategy-matcher.js`, `lib/market-discovery.js`, `lib/risk-manager.js`, `lib/trade-executor.js`, `lib/clob-client.js`)
+- Re-queried live `/api/health`, `/api/status`, and `/api/diagnostics`
+- Re-ran fresh local bootstrap-style simulations for bankrolls `7.848397`, `10`, `15`, and `20`
+- Re-tested strategy variants to answer whether anything should still be added or removed
+
+### Final strategy verdict
+
+- **Do not remove any of the current cleaned 6**
+  - removing `H19 m8 DOWN [72-80c]` degraded the current local replay/bootstraps in this recheck
+- **One addition is evidence-backed enough to promote now**
+  - add `H06 m12 DOWN [55-98c]`
+  - in the current local recheck it improved the 14d rolling floor from `32.23` -> `51.95` on a fresh `$20` start and improved 30d bootstrap median materially
+- **Do not add `H17 m8 DOWN [50-98c]` yet**
+  - it raised upside, but weakened the 14d floor in this recheck
+
+### Fresh 30-day bankroll simulations (current final 7-strategy set, local runtime-style bootstrap)
+
+These numbers are the practical local sim output for the **final audited 7-strategy set** (`current 6 + H06 m12 DOWN`), using current lite sizing semantics, 5-share market minimums, no global stop, 4-loss cooldown, and uncapped-growth posture.
+
+| Start | Bust | P10 | P25 | Median | P75 | P90 |
+|------:|-----:|----:|----:|-------:|----:|----:|
+| `$7.85` | `0.0%` | `$635` | `$1,505` | **`$4,043`** | `$11,622` | `$28,059` |
+| `$10` | `0.0%` | `$889` | `$2,220` | **`$6,004`** | `$15,370` | `$37,411` |
+| `$15` | `0.0%` | `$1,691` | `$3,837` | **`$9,657`** | `$22,993` | `$53,233` |
+| `$20` | `0.0%` | `$1,954` | `$4,761` | **`$11,696`** | `$28,829` | `$71,835` |
+
+### Main remaining runtime flaw
+
+The biggest remaining issue is **not strategy edge**. It is the **proxy-wallet redemption path**:
+
+- live `/api/status` currently shows **`redemptionQueue=1`** with `requiresManual=true`
+- current proxy-wallet winners cannot always be auto-redeemed
+- pre-resolution exit at `>=95c` reduces this problem, but does **not** eliminate it
+
+In the recent matched local sample for the active set:
+
+- only **`75.5%`** of winning trades reached `>=95c` during the final 120 seconds
+- so roughly **`24.5%` of wins** can still miss the auto-sell path and fall into manual redemption territory
+
+That means the pure compounding sims above are **too optimistic for unattended proxy mode**, because some winning capital can still get stuck instead of recycling automatically.
+
+### Final GO / NO-GO
+
+- **NO-GO** for claiming this is now fully unattended, final-$7-safe autonomy
+- **Conditional GO** only if the operator accepts periodic manual redemptions when proxy-held winners miss the pre-resolution auto-sell path
+
+### Live env note from the Render screenshot
+
+- `ENABLE_4H_TRADING=true`
+- `MULTIFRAME_4H_ENABLED=false`
+
+Because the code uses `MULTIFRAME_4H_ENABLED ?? ENABLE_4H_TRADING`, the explicit `false` wins. So `4h` is currently off in live posture even before the `$10` bankroll gate.
 
 ## 2026-04-04 Final Recheck / Guard Evaluation Addendum
 
@@ -2879,52 +2939,58 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid
-**Date**: 4 April 2026 18:00 UTC
-**Deploy Version**: pending (commit after this update)
+**Date**: 4 April 2026 19:20 UTC
+**Deploy Version**: current local final-audit commit (pending live deploy on push)
 
-**STATUS: LIVE — recovering from drawdown ($7.67 bankroll)**
+**STATUS: CONDITIONAL NO-GO — live edge remains strong, but proxy-wallet redemptions are not fully autonomous**
 
-**What changed this session (4 Apr 2026)**:
-1. Removed 4 net-negative strategies (H15m8UP, H18m11UP, H16m4UP, H18m12DOWN) — collectively -$3,947 in 30d sim
-2. Cleaned strategy set: 6 strategies remain, 87.8% WR, +$18,002 in 30d sim (up from 82.6% WR with 10)
-3. Added pre-resolution exit: sells winning positions on CLOB at best bid (>=95c) within 120s of cycle end, avoids proxy redemption dependency
-4. Removed global stop loss: strategy sim already accounts for losses, dollar-based stop was reducing expected profit
-5. Fixed HIGH severity bugs: double-finalization guard, SELL_PENDING recovery after cycle close, live capital reservation to prevent same-tick over-exposure, shares computed from order price
-6. Hardened proxy reconciliation: same-address-only fallback, proxy-aware redemption tracking, truthful balance source labels
+**What changed this session (4 Apr 2026, final reinvestigation)**:
+1. Re-read README and re-audited the current live runtime code path end-to-end
+2. Re-ran fresh bankroll simulations for `$7.85`, `$10`, `$15`, `$20`
+3. Re-tested strategy removals/additions instead of trusting the prior 6-strategy cleanup blindly
+4. Re-promoted **`H06 m12 DOWN [55-98c]`** into the live 15m file because it improved the 14d floor and 30d bootstrap in this final audit
+5. Confirmed no other removal is warranted right now; specifically, removing `H19 m8 DOWN [72-80c]` degraded this recheck
+6. Confirmed the remaining major blocker is proxy-wallet redemption autonomy, not strategy edge
 
 **Live state**:
 - host: `https://polyprophet-1-rr1g.onrender.com`
-- balance: **$7.67** (drawdown from $21.02 deposit — 4 consecutive losses, 2 from now-removed weak strategy)
-- 15m file: `strategies/strategy_set_15m_beam_2739_uncapped.json` (**6 strategies**, cleaned)
-- 4h/5m: disabled (insufficient bankroll)
+- balance: **$7.848397**
+- 15m file: `strategies/strategy_set_15m_beam_2739_uncapped.json` (**7 strategies** after final audit)
+- 4h: disabled in current env posture (`MULTIFRAME_4H_ENABLED=false`) and bankroll-gated at `$10`
+- 5m: disabled
 - pre-resolution exit: **enabled** (95c min bid, 120s window for 15m)
 - global stop loss: **removed**
 - proxy reconciliation: **hardened**
+- current live runtime truth: `redemptionQueue=1`, `pendingBuys=0`, `pendingSells=0`, `errorHalt=false`, `tradeFailureHalt=false`
 
-**Cleaned 6-strategy set (30d sim, $20 start)**:
+**Final audited 7-strategy set**:
 
 | Metric | Value |
 |--------|-------|
-| Trades | 245 |
-| Win Rate | 87.8% |
-| PnL | +$18,002 |
-| Max Drawdown | ~40% |
+| Base change | Added `H06 m12 DOWN [55-98c]` to the cleaned 6 |
+| 7d rolling min (`$20` start) | `$15.57` |
+| 14d rolling min (`$20` start) | `$51.95` |
+| 30d bootstrap median (`$20` start) | `$11,696` |
+| 30d bootstrap p25 (`$20` start) | `$4,761` |
 
-**Per-strategy performance (30d sim)**:
-- H08 m12 DOWN [55-98c]: +$5,384, 83.3% WR (strongest)
-- H19 m10 DOWN [50-98c]: +$4,404, 81.3% WR
-- H17 m12 DOWN [55-98c]: +$3,499, 94.7% WR (highest WR)
-- H10 m10 UP [70-80c]: +$2,536, 90.9% WR
-- H01 m6 UP [70-80c]: +$1,783, 89.5% WR
-- H19 m8 DOWN [72-80c]: +$396, 90.9% WR
+**30-day bankroll sims (final audited 7-strategy set)**:
 
-**4 losses on 4 Apr explained**:
-- ETH UP @66c, XRP UP @57c: from H15 m8 UP [50-98c] — weakest strategy, 68.7% sim WR, net loser (-$913). NOW REMOVED.
-- BTC DOWN @76c, ETH DOWN @69c: from H17 m12 DOWN [55-98c] — 3rd best strategy, 94.7% sim WR. Genuine bad luck (0.28% probability).
+| Start | Bust | P10 | P25 | Median | P75 | P90 |
+|------:|-----:|----:|----:|-------:|----:|----:|
+| `$7.85` | `0.0%` | `$635` | `$1,505` | **`$4,043`** | `$11,622` | `$28,059` |
+| `$10` | `0.0%` | `$889` | `$2,220` | **`$6,004`** | `$15,370` | `$37,411` |
+| `$15` | `0.0%` | `$1,691` | `$3,837` | **`$9,657`** | `$22,993` | `$53,233` |
+| `$20` | `0.0%` | `$1,954` | `$4,761` | **`$11,696`** | `$28,829` | `$71,835` |
+
+**Main remaining flaw**:
+- proxy-wallet redemption is still not fully autonomous
+- recent matched local sample shows only **75.5%** of winners hit `>=95c` in the final 120s
+- the other **24.5%** of wins can still require manual intervention instead of automatic capital recycling
+- live host already has **one** `requiresManual=true` redemption queue item, confirming the issue is real
 
 **Immediate next actions**:
-1. Monitor recovered strategy set: first trades should come from the 6 proven winners only
-2. With $7.67 bankroll, position sizes are small (~$1.15 each). Bot may hit CLOB min-order limits on some entries.
-3. Consider depositing additional funds to restore trading capacity
-4. Run `npm run reverify:full` periodically to track strategy regime
+1. Push the final audited 7-strategy file + README update, then verify the live host reloads `7` strategies
+2. Keep `15m` only; do **not** enable `5m`
+3. Treat the posture as **NO-GO for fully unattended autonomy** until proxy redemption is solved or manual redemptions are accepted operationally
+4. If autonomy is the goal, the next real engineering task is redeem-capable wallet flow, not more strategy churn
 <!-- HANDOFF_STATE_END -->
