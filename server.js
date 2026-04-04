@@ -519,6 +519,29 @@ async function orchestrate() {
         }
     }
 
+    // Pre-resolution exit: sell winning positions before cycle ends (avoids redemption dependency)
+    const preResExits = tradeExecutor.checkPreResolutionExits(currentMarkets);
+    for (const exit of preResExits) {
+        try {
+            const result = await tradeExecutor.closePosition(exit.positionId, exit.exitPrice, 'PRE_RESOLUTION_EXIT');
+            if (result?.success && result?.closed) {
+                telegram.notifyTradeClose(result.closed);
+                diagnosticLog.push({
+                    ts: new Date().toISOString(),
+                    type: 'PRE_RESOLUTION_EXIT',
+                    asset: exit.asset,
+                    timeframe: exit.timeframe,
+                    direction: exit.direction,
+                    exitPrice: exit.exitPrice,
+                    remaining: exit.remaining,
+                    pnl: result.closed?.pnl
+                });
+            }
+        } catch (e) {
+            console.error(`Pre-resolution exit failed for ${exit.positionId}: ${e.message}`);
+        }
+    }
+
     // 4h emergency exit: close positions with 20c+ adverse move
     const emergencyExits = tradeExecutor.check4hEmergencyExit(currentMarkets);
     for (const exit of emergencyExits) {
