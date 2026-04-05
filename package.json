@@ -13,6 +13,8 @@
     "reverify:full": "node scripts/reverify-beam-strategy.js && node scripts/verify-harness.js && node scripts/runtime-reaudit.js"
   },
   "dependencies": {
+    "@polymarket/builder-relayer-client": "^0.0.8",
+    "@polymarket/builder-signing-sdk": "^0.0.8",
     "@polymarket/clob-client": "^4.22.8",
     "axios": "^0.27.2",
     "dotenv": "^16.6.1",
