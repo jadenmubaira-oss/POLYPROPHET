@@ -89,6 +89,8 @@ async function main() {
         getJson(`${LIVE_BASE_URL}/api/diagnostics`),
         getJson(`${LIVE_BASE_URL}/api/wallet/balance`).catch(() => null)
     ]);
+    const clobSurface = clobStatus?.clobStatus || {};
+    const tradeReadySurface = clobStatus?.tradeReady || clobSurface?.tradeReady || null;
     const startupMs = parseEpochMs(diagnostics?.startedAt || health?.startedAt);
     const liveDiagnosticsLog = Array.isArray(diagnostics?.log)
         ? diagnostics.log.filter((entry) => {
@@ -133,19 +135,19 @@ async function main() {
         },
         {
             name: 'CLOB tradeReady',
-            status: !REQUIRE_TRADE_READY || clobStatus?.tradeReady?.ok === true ? 'PASS' : 'FAIL',
+            status: !REQUIRE_TRADE_READY || tradeReadySurface?.ok === true ? 'PASS' : 'FAIL',
             detail: REQUIRE_TRADE_READY
-                ? (clobStatus?.tradeReady?.summary || clobStatus?.tradeReady?.reason || null)
+                ? (tradeReadySurface?.summary || tradeReadySurface?.reason || null)
                 : 'not required for this reaudit mode'
         },
         {
             name: 'Proxy redemption auth ready',
-            status: clobStatus?.proxyRedeemAuthReady === true ? 'PASS' : 'WARN',
+            status: clobSurface?.proxyRedeemAuthReady === true ? 'PASS' : 'WARN',
             detail: {
-                proxyRedeemAuthReady: !!clobStatus?.proxyRedeemAuthReady,
-                relayerAuthMode: clobStatus?.relayerAuthMode || null,
-                relayerAuthConfigured: !!clobStatus?.relayerAuthConfigured,
-                builderAutoDerivable: !!clobStatus?.builderAutoDerivable
+                proxyRedeemAuthReady: !!clobSurface?.proxyRedeemAuthReady,
+                relayerAuthMode: clobSurface?.relayerAuthMode || null,
+                relayerAuthConfigured: !!clobSurface?.relayerAuthConfigured,
+                builderAutoDerivable: !!clobSurface?.builderAutoDerivable
             }
         },
         {
@@ -218,7 +220,7 @@ async function main() {
             risk: EXPECTED_RISK
         },
         deployVersion: health?.deployVersion || null,
-        verdict: verdictFromChecks(checks, health, clobStatus, { log: actionableDiagnostics }),
+        verdict: verdictFromChecks(checks, health, { ...clobStatus, tradeReady: tradeReadySurface }, { log: actionableDiagnostics }),
         checks,
         live: {
             health,
