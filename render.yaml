@@ -38,7 +38,7 @@ services:
       - key: TIMEFRAME_5M_MIN_BANKROLL
         value: "50"
       - key: STRATEGY_SET_15M_PATH
-        value: strategies/strategy_set_15m_beam_2739_uncapped.json
+        value: strategies/strategy_set_15m_maxgrowth_v5.json
       - key: STRATEGY_SET_4H_PATH
         value: debug/strategy_set_4h_maxprofit.json
       - key: STRATEGY_SET_5M_PATH

@@ -18,7 +18,7 @@
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
 | **Deploy Commit** | See live `/api/health.deployVersion` for the exact current hash after the latest deploy. |
-| **Current Blocker** | There is still **no capital-preservation proof** for the final bankroll. Current target posture is max-profit, not low-drawdown safety; proxy redemption must still be watched live. |
+| **Current Blocker** | There is still **no capital-preservation proof** for the final bankroll. Current target posture is max-profit, not low-drawdown safety; a blunt `>90c` hard cap tested worse/less stable, so no such cap is deployed. |
 | **Active Strategy (15m)** | `strategies/strategy_set_15m_maxgrowth_v5.json` (**16 strategies**; corrected-truth-surface winner after replacing `H08 m14 DOWN` in `v4` with `H15 m12 UP`). |
 | **Active Strategy (4h)** | Disabled in live posture (`MULTIFRAME_4H_ENABLED=false` on the Render env screenshot, plus bankroll gate `$10`) |
 | **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`), bankroll-gated at $50 |
@@ -46,10 +46,13 @@
   - no cooldown / no floor / no exposure cap / no risk envelope
   - dynamic strategy target instead of beam-only assumptions
   - diagnostics now judged against current-process entries instead of restored stale history
+- Fixed live pending-buy accounting so unresolved buy orders reserve cash and count against cycle limits until order finality is confirmed.
+- Fixed partial-sell settlement / redemption accounting so realized sell proceeds are not dropped when the remainder resolves later.
 - Added:
   - `strategies/strategy_set_15m_maxgrowth_v3.json`
   - `strategies/strategy_set_15m_maxgrowth_v4.json`
   - `strategies/strategy_set_15m_maxgrowth_v5.json`
+- Added a fresh-start Render / different-account deployment guide below and synchronized `.env.example`, `render.yaml`, and `DEPLOY_RENDER.md` to the current `maxgrowth_v5` posture.
 
 ### Why `maxgrowth_v5` became primary
 
@@ -91,6 +94,35 @@ That exact `v5` variant produced:
 
 Some additional variants produced even higher 30d terminal values, but they failed shorter-window profitability checks or triggered drawdown/profitability warnings. `maxgrowth_v5` was selected because it was the strongest variant found in this session that remained mechanically legitimate **and** verifier-stable on the corrected surface.
 
+### 98c live trade investigation / hard-cap verdict
+
+The user-reported `ETH 15m DOWN @ 98c` trade was traced to the intended current logic:
+
+- strategy band allows up to `0.98`
+- live execution re-fetches the real orderbook
+- a `+2c` limit buffer is applied
+- `ENFORCE_NET_EDGE_GATE=false`
+
+That exact trade came from a strategy leg whose admissible band reached `0.98` and then closed flat via the pre-resolution exit path, which is why it produced `PnL: $0.00`.
+
+Hard-cap rechecks:
+
+- global `0.90` cap: **rejected**
+  - 30d fell to **`$3,567,034.53`**
+  - 14d fell to **`$17.23`**
+  - regime downgraded to **`RESEARCH_REQUIRED`**
+- global `0.92` cap: **not promoted**
+  - 30d improved slightly to **`$4,037,955.80`**
+  - but 48h / 14d collapsed and regime downgraded to **`WATCH`**
+
+Conclusion: a blunt `>90c` ban is **not** supported by the current replay surface, so it is **not** deployed as the default live posture.
+
+### Strategy curation verdict after the re-audit
+
+- Keep `maxgrowth_v5` intact for now.
+- The only real watchlist leg remains `H17 m14 DOWN [55-98c]`.
+- Removing it improved some long-window numbers locally, but degraded shorter windows enough to downgrade the set to **`WATCH`**, so the current evidence was **not** strong enough to promote that removal.
+
 ### Current practical verdict
 
 - **Mechanical/runtime verdict**: GO — live runtime, verifier, and reaudit surfaces now line up with the intended posture.
@@ -102,6 +134,70 @@ Some additional variants produced even higher 30d terminal values, but they fail
 - `npm run reverify:strategy` -> `debug/reverify_strategy_report.json`
 - `npm run reaudit:runtime` -> `debug/runtime_reaudit_report.json`
 - `npm run reverify:full` -> strategy reverify + harness verify + runtime reaudit
+
+## Fresh Start / Different Account Render Guide
+
+Use this if a different operator wants to clone the repo, use a different PC, and run the bot on a different Polymarket account.
+
+### Local prep
+
+1. Install Node `20.x`
+2. Run `npm ci`
+3. Copy `.env.example` to `.env` or `POLYPROPHET.env`
+
+### Minimum live envs
+
+```env
+TRADE_MODE=LIVE
+ENABLE_LIVE_TRADING=1
+LIVE_AUTOTRADING_ENABLED=true
+TELEGRAM_SIGNALS_ONLY=false
+START_PAUSED=true
+
+TIMEFRAME_15M_ENABLED=true
+TIMEFRAME_15M_MIN_BANKROLL=2
+TIMEFRAME_5M_ENABLED=false
+MULTIFRAME_4H_ENABLED=false
+
+STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_maxgrowth_v5.json
+DEFAULT_MIN_ORDER_SHARES=5
+REQUIRE_REAL_ORDERBOOK=true
+ENTRY_PRICE_BUFFER_CENTS=2
+ENFORCE_NET_EDGE_GATE=false
+
+POLYMARKET_PRIVATE_KEY=<new account signer>
+POLYMARKET_SIGNATURE_TYPE=1
+POLYMARKET_ADDRESS=<new account profile/proxy/funder address>
+
+REDIS_URL=<recommended>
+PROXY_URL=<required if your Render region needs proxy-backed CLOB writes>
+CLOB_FORCE_PROXY=1
+```
+
+### Render steps
+
+1. Deploy from GitHub via Blueprint or a standard Web Service
+2. Set the envs above explicitly in the Render dashboard
+3. Use a Render plan that does not sleep the service for unattended live trading
+4. Keep `START_PAUSED=true` for the first deploy
+5. Fund the new account with Polygon USDC
+6. Verify:
+   - `/api/health`
+   - `/api/status`
+   - `/api/wallet/balance`
+   - `/api/clob-status`
+   - `/api/diagnostics`
+7. Run `npm run reverify:full`
+8. Only then flip `START_PAUSED=false`
+
+### What must be true before unpausing
+
+- `mode: LIVE`
+- `isLive: true`
+- 15m strategy path ends with `strategy_set_15m_maxgrowth_v5.json`
+- `tradeReady.ok: true`
+- `proxyRedeemAuthReady: true`
+- wallet balance is funded and visible on `/api/wallet/balance`
 
 ## 2026-04-04 Final Comprehensive Reinvestigation Addendum (Historical Snapshot)
 
@@ -3022,12 +3118,15 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 
 **STATUS: GO FOR MAX-GROWTH DEPLOY PARITY — NOT a capital-preservation guarantee**
 
-**What changed this session (5 Apr 2026, truth-gap cleanup + maxgrowth promotion)**:
+**What changed this session (5 Apr 2026, forensic re-audit + transferability sync)**:
 1. Fixed runtime truth propagation for `strategy.pWinEstimate` / `evWinEstimate`
 2. Made `NEGATIVE_NET_EDGE` truly config-gated and exposed current risk controls on `/api/health`
 3. Fixed verifier/reaudit truth gaps so diagnostics are judged against the current process instead of restored stale history
 4. Added maxgrowth artifacts `v3`, `v4`, and `v5`, then promoted the strongest verifier-stable set
-5. Updated README Quick Start + current handoff truth to the new maxgrowth posture
+5. Fixed pending-buy accounting so unresolved buy orders reserve cash and count against cycle limits until finality is confirmed
+6. Fixed partial-sell settlement / redemption accounting so realized proceeds and remaining-share redemption are handled truthfully
+7. Rechecked hard entry caps; rejected a blunt `>90c` live cap because current replays degrade or destabilize
+8. Updated README / `.env.example` / `DEPLOY_RENDER.md` / `render.yaml` for `maxgrowth_v5` fresh-start transferability
 
 **Live state**:
 - host: `https://polyprophet-1-rr1g.onrender.com`
@@ -3035,7 +3134,7 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 - 15m file target: `strategies/strategy_set_15m_maxgrowth_v5.json` (**16 strategies**)
 - 4h: disabled in current env posture (`MULTIFRAME_4H_ENABLED=false`) and bankroll-gated at `$10`
 - 5m: disabled
-- current intended runtime truth: `requireRealOrderBook=true`, `ENFORCE_NET_EDGE_GATE=false`, `ENTRY_PRICE_BUFFER_CENTS=2`, `DEFAULT_MIN_ORDER_SHARES=5`, `minBalanceFloor=0`, `maxTotalExposure=0`, `riskEnvelopeEnabled=false`
+- current intended runtime truth: `requireRealOrderBook=true`, `ENFORCE_NET_EDGE_GATE=false`, `ENTRY_PRICE_BUFFER_CENTS=2`, `DEFAULT_MIN_ORDER_SHARES=5`, `minBalanceFloor=0`, `maxTotalExposure=0`, `riskEnvelopeEnabled=false`, no blunt hard entry cap
 - diagnostics surface: current-process only, with `startedAt` and `restoredHistoricalEntries`
 - proxy redemption auth surface: `proxyRedeemAuthReady` exposed in CLOB status
 
@@ -3055,6 +3154,7 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 **Main remaining flaw**:
 - there is still **no proof of bankroll safety**
 - objective is max-growth / max-median, not low-drawdown capital preservation
+- the historical verifier still cannot perfectly model every live pre-resolution bid/exit microstructure event because the repo does not contain full historical orderbook depth
 - live orderbook reality, no-fills, and future regime changes can still reduce realized results
 
 **Immediate next actions**:
