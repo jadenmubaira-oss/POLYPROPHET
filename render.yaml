@@ -21,8 +21,8 @@ services:
         value: "20.00"
       - key: STARTING_BALANCE
         value: "20"
-      - key: MAX_POSITION_SIZE
-        value: "0.32"
+      - key: OPERATOR_STAKE_FRACTION
+        value: "0.15"
       - key: ASSETS
         value: BTC,ETH,SOL,XRP
       - key: TIMEFRAME_15M_ENABLED

@@ -3128,6 +3128,14 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 7. Rechecked hard entry caps; rejected a blunt `>90c` live cap because current replays degrade or destabilize
 8. Updated README / `.env.example` / `DEPLOY_RENDER.md` / `render.yaml` for `maxgrowth_v5` fresh-start transferability
 
+**Second forensic re-audit (5 Apr 2026, final comprehensive audit)**:
+9. Full line-by-line re-read of server.js, all lib/*.js, strategy-matcher, risk-manager, trade-executor, clob-client, market-discovery
+10. Re-ran entry-cap simulation (0.85/0.88/0.90/0.92/0.95/0.98/native): **native 98c remains optimal**; >90c trades have 95-100% WR, capping at 90c drops 14d from $578 to $17 and triggers RESEARCH_REQUIRED
+11. Per-strategy 30d audit: all 16 profitable except H17 m14 DOWN (70% WR, -$46K PnL); removal tested but degrades 14d from $578 to $19 (WATCH), so **kept as watchlist-only**
+12. Sim-vs-runtime realism verified: same RiskManager.calculateSize, same taker fee, same entry buffer, same min-order mechanics; only gap is sim resolves wins at $1.00 vs live pre-resolution exit at ~95-99c (small overstatement, ~$0.05/winning trade)
+13. Fixed stale `render.yaml` `MAX_POSITION_SIZE=0.32` → `OPERATOR_STAKE_FRACTION=0.15` (had no runtime effect since tier profile always overrides to 0.15, but was confusing for fresh deploys)
+14. All verification gates re-passed: `reverify:strategy` STABLE, `verify-harness` 35/35 PASS, `runtime-reaudit` GO, syntax checks clean
+
 **Live state**:
 - host: `https://polyprophet-1-rr1g.onrender.com`
 - balance: check live `/api/wallet/balance` for the latest truth
@@ -3154,8 +3162,11 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 **Main remaining flaw**:
 - there is still **no proof of bankroll safety**
 - objective is max-growth / max-median, not low-drawdown capital preservation
-- the historical verifier still cannot perfectly model every live pre-resolution bid/exit microstructure event because the repo does not contain full historical orderbook depth
+- minimum order size (5 shares) forces 37-70% of bankroll per trade at current balance ($10.92), making individual trades disproportionately risky at small bankrolls
+- the historical verifier resolves wins at $1.00 while live uses pre-resolution exit at ~95-99c (small systematic overstatement of ~$0.05 per winning trade, minor at compounding scale)
+- the repo does not contain full historical orderbook depth, so live spread/liquidity conditions may differ
 - live orderbook reality, no-fills, and future regime changes can still reduce realized results
+- H17 m14 DOWN remains on watchlist (70% WR, negative 30d PnL) but removal degrades 14d stability
 
 **Immediate next actions**:
 1. Verify live `/api/health`, `/api/status`, `/api/wallet/balance`, and `/api/clob-status` after the latest deploy
