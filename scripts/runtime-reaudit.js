@@ -1,20 +1,43 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
 const https = require('https');
 
 const ROOT = path.join(__dirname, '..');
 const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet-1-rr1g.onrender.com').replace(/\/+$/, '');
 const OUTPUT_PATH = path.join(ROOT, 'debug', 'runtime_reaudit_report.json');
-const LOCAL_15M_STRATEGY_PATH = path.join(ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
+const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_maxgrowth_v3.json').trim();
+const LOCAL_15M_STRATEGY_PATH = path.isAbsolute(EXPECTED_15M_STRATEGY_PATH)
+    ? EXPECTED_15M_STRATEGY_PATH
+    : path.join(ROOT, EXPECTED_15M_STRATEGY_PATH);
+const EXPECTED_15M_STRATEGY_BASENAME = path.basename(LOCAL_15M_STRATEGY_PATH);
+const EXPECTED_MODE = String(process.env.EXPECTED_MODE || 'LIVE').trim().toUpperCase();
+const REQUIRE_TRADE_READY = String(process.env.REQUIRE_TRADE_READY || (EXPECTED_MODE === 'LIVE' ? 'true' : 'false')).trim().toLowerCase() === 'true';
+const EXPECTED_RISK = {
+    requireRealOrderBook: String(process.env.EXPECTED_REQUIRE_REAL_ORDERBOOK || 'true').trim().toLowerCase() !== 'false',
+    enforceNetEdgeGate: String(process.env.EXPECTED_ENFORCE_NET_EDGE_GATE || 'false').trim().toLowerCase() === 'true',
+    maxTotalExposure: Number(process.env.EXPECTED_MAX_TOTAL_EXPOSURE ?? 0),
+    riskEnvelopeEnabled: String(process.env.EXPECTED_RISK_ENVELOPE_ENABLED || 'false').trim().toLowerCase() === 'true',
+    minBalanceFloor: Number(process.env.EXPECTED_MIN_BALANCE_FLOOR ?? 0),
+    minOrderShares: Number(process.env.EXPECTED_MIN_ORDER_SHARES ?? 5),
+    entryPriceBufferCents: Number(process.env.EXPECTED_ENTRY_BUFFER_CENTS ?? 2),
+    maxPerCycle: Number(process.env.EXPECTED_MAX_PER_CYCLE ?? 3),
+    stakeFraction: Number(process.env.EXPECTED_STAKE_FRACTION ?? 0.15)
+};
 
 function writeJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
 }
 
+function approxEqual(a, b, tolerance = 1e-9) {
+    return Number.isFinite(Number(a)) && Number.isFinite(Number(b)) && Math.abs(Number(a) - Number(b)) <= tolerance;
+}
+
 function getJson(url) {
     return new Promise((resolve, reject) => {
-        https.get(url, (res) => {
+        const client = String(url).startsWith('http://') ? http : https;
+        client.get(url, (res) => {
             let data = '';
             res.on('data', (chunk) => { data += chunk; });
             res.on('end', () => {
@@ -69,13 +92,13 @@ async function main() {
             detail: health?.status || null
         },
         {
-            name: 'Mode is LIVE',
-            status: health?.mode === 'LIVE' && health?.isLive === true ? 'PASS' : 'FAIL',
+            name: `Mode is ${EXPECTED_MODE}`,
+            status: health?.mode === EXPECTED_MODE && health?.isLive === (EXPECTED_MODE === 'LIVE') ? 'PASS' : 'FAIL',
             detail: `${health?.mode} / isLive=${health?.isLive}`
         },
         {
             name: 'Correct 15m strategy loaded',
-            status: String(health?.strategySets?.['15m']?.filePath || '').endsWith('strategy_set_15m_beam_2739_uncapped.json') ? 'PASS' : 'FAIL',
+            status: String(health?.strategySets?.['15m']?.filePath || '').endsWith(EXPECTED_15M_STRATEGY_BASENAME) ? 'PASS' : 'FAIL',
             detail: health?.strategySets?.['15m']?.filePath || null
         },
         {
@@ -88,8 +111,25 @@ async function main() {
         },
         {
             name: 'CLOB tradeReady',
-            status: clobStatus?.tradeReady?.ok === true ? 'PASS' : 'FAIL',
-            detail: clobStatus?.tradeReady?.summary || clobStatus?.tradeReady?.reason || null
+            status: !REQUIRE_TRADE_READY || clobStatus?.tradeReady?.ok === true ? 'PASS' : 'FAIL',
+            detail: REQUIRE_TRADE_READY
+                ? (clobStatus?.tradeReady?.summary || clobStatus?.tradeReady?.reason || null)
+                : 'not required for this reaudit mode'
+        },
+        {
+            name: '15m risk posture',
+            status: (
+                health?.riskControls?.requireRealOrderBook === EXPECTED_RISK.requireRealOrderBook &&
+                health?.riskControls?.enforceNetEdgeGate === EXPECTED_RISK.enforceNetEdgeGate &&
+                approxEqual(health?.riskControls?.maxTotalExposure, EXPECTED_RISK.maxTotalExposure) &&
+                health?.riskControls?.riskEnvelopeEnabled === EXPECTED_RISK.riskEnvelopeEnabled &&
+                approxEqual(health?.riskControls?.minBalanceFloor, EXPECTED_RISK.minBalanceFloor) &&
+                Number(health?.riskControls?.minOrderShares) === EXPECTED_RISK.minOrderShares &&
+                approxEqual(health?.riskControls?.entryPriceBufferCents, EXPECTED_RISK.entryPriceBufferCents) &&
+                Number(health?.riskControls?.currentTierProfile?.maxPerCycle) === EXPECTED_RISK.maxPerCycle &&
+                approxEqual(health?.riskControls?.currentTierProfile?.stakeFraction, EXPECTED_RISK.stakeFraction)
+            ) ? 'PASS' : 'FAIL',
+            detail: health?.riskControls || null
         },
         {
             name: 'Runtime persistence',
@@ -135,6 +175,12 @@ async function main() {
     const report = {
         generatedAt: new Date().toISOString(),
         liveBaseUrl: LIVE_BASE_URL,
+        expected: {
+            mode: EXPECTED_MODE,
+            strategy15m: EXPECTED_15M_STRATEGY_BASENAME,
+            tradeReadyRequired: REQUIRE_TRADE_READY,
+            risk: EXPECTED_RISK
+        },
         deployVersion: health?.deployVersion || null,
         verdict: verdictFromChecks(checks, health, clobStatus, diagnostics),
         checks,

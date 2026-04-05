@@ -3,7 +3,7 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 4 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
+**Last Updated**: 5 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
 
 ---
 
@@ -17,18 +17,71 @@
 | **Objective** | Autonomous Polymarket crypto trading bot, $20 start -> max profit via compounding |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Deploy Commit** | See live `/api/health.deployVersion` for the exact current hash; the final-audit 7-strategy deploy is live |
-| **Current Blocker** | Proxy-wallet wins are not fully autonomous: live host currently has `1` `redemptionQueue` item marked `requiresManual=true`, and pre-resolution exits do not catch every winner. |
-| **Active Strategy (15m)** | `strategies/strategy_set_15m_beam_2739_uncapped.json` (**7 strategies** after final audit: original cleaned 6 + `H06 m12 DOWN [55-98c]`). |
+| **Deploy Commit** | See live `/api/health.deployVersion` for the exact current hash after the latest deploy. |
+| **Current Blocker** | There is still **no capital-preservation proof** for the final bankroll. Current target posture is max-profit, not low-drawdown safety; proxy redemption must still be watched live. |
+| **Active Strategy (15m)** | `strategies/strategy_set_15m_maxgrowth_v3.json` (**16 strategies**; `maxgrowth_v1` with `H07 m14 DOWN [55-98c]` replaced by `H17 m8 DOWN [50-98c]`). |
 | **Active Strategy (4h)** | Disabled in live posture (`MULTIFRAME_4H_ENABLED=false` on the Render env screenshot, plus bankroll gate `$10`) |
 | **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`), bankroll-gated at $50 |
-| **Wallet Balance** | `7.848397` USDC, `sigType=1`, proxy funder `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` |
-| **Runtime State** | Redis+file persistence, `START_PAUSED=false`, 15m only active, `tradeFailureHalt=false`, `errorHalt=false`, `redemptionQueue=1` |
-| **Verdict** | **NO-GO for fully unattended final-$7 proxy-wallet autonomy**. Conditional GO only if manual redemptions are acceptable. |
-| **Next Action** | Keep 15m-only. If staying live, either accept periodic manual proxy redemptions or migrate to a redeem-capable wallet posture before trusting compounding. |
+| **Wallet Balance** | Check live `/api/wallet/balance` for the latest truth; do not trust older README snapshots for bankroll. |
+| **Runtime State** | Redis+file persistence, 15m-only posture, `requireRealOrderBook=true`, `ENFORCE_NET_EDGE_GATE=false`, `ENTRY_PRICE_BUFFER_CENTS=2`, `DEFAULT_MIN_ORDER_SHARES=5`, no floor/exposure/envelope. |
+| **Verdict** | **Conditional GO for max-profit deployment only**. Current truthful local reverify status is `WATCH` because drawdown remains material. |
+| **Next Action** | Keep 15m-only, deploy the current primary set, then verify `/api/health`, `/api/status`, `/api/wallet/balance`, and live strategy path before trusting the new posture. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 <!-- /AGENT_QUICK_START -->
+
+> Current-truth note: older sections below are historical snapshots. For strategy selection, runtime posture, and verification commands, treat this Quick Start plus the `2026-04-05` addendum immediately below as the canonical source of truth.
+
+## 2026-04-05 Truth Reconciliation + Maxgrowth v3 Addendum
+
+### What changed in this session
+
+- Fixed the runtime truth gap where `lib/strategy-matcher.js` dropped `strategy.pWinEstimate` and emitted `candidate.pWinEstimate=0.5` for modern strategy artifacts.
+- Fixed `lib/trade-executor.js` EV resolution so execution/logging prefers `evWinEstimate` when present.
+- Updated the local reverifier so it now mirrors the active runtime posture more truthfully:
+  - strategy-driven sizing input (`strategy.pWinEstimate`)
+  - 3 trades/cycle
+  - 2-cent entry buffer
+  - 5-share minimum
+  - no cooldown / no floor / no exposure cap / no risk envelope
+  - dynamic strategy target instead of beam-only assumptions
+- Added `strategies/strategy_set_15m_maxgrowth_v3.json`.
+
+### Why `maxgrowth_v3` became primary
+
+Truthful local reverification changed the ranking materially:
+
+- `maxgrowth_v1` reverify fell to a modest 30d fresh-start result after the candidate-propagation fix:
+  - 7d: **`$16.50`**
+  - 30d: **`$23.84`**
+  - regime: **`WATCH (PROFITABILITY_TRIGGER)`**
+- `maxgrowth_v2` remained worse on the same truthful replay surface:
+  - 30d: **`$17.73`**
+  - regime: **`WATCH (PROFITABILITY_TRIGGER)`**
+- The best low-diff improvement found on the corrected verifier was:
+  - **remove** `H07 m14 DOWN [55-98c]`
+  - **add** `H17 m8 DOWN [50-98c]`
+
+That exact `v3` variant produced:
+
+- 7d: **`$1,391.93`**
+- 14d: **`$189.13`**
+- 30d: **`$234,057.65`**
+- 30d WR: **`90.3%`**
+- 30d max drawdown: **`63.2%`**
+- regime: **`WATCH (DRAWDOWN_TRIGGER)`**
+
+### Current practical verdict
+
+- **Mechanical/runtime verdict**: GO once live `/api/health` confirms `strategy_set_15m_maxgrowth_v3.json` plus the new risk controls.
+- **Capital-safety verdict**: still **NOT** “safe final-$7 autonomy”.
+- **Profit posture verdict**: `maxgrowth_v3` is the best evidence-backed local deploy target found in this session.
+
+### Verification surfaces now expected
+
+- `npm run reverify:strategy` -> `debug/reverify_strategy_report.json`
+- `npm run reaudit:runtime` -> `debug/runtime_reaudit_report.json`
+- `npm run reverify:full` -> strategy reverify + harness verify + runtime reaudit
 
 ## 2026-04-04 Final Comprehensive Reinvestigation Addendum
 
@@ -110,7 +163,7 @@ The MEDIUM-1 audit finding (pWinEstimate field mismatch) causes Kelly sizing to 
 | D) Flat + tight cooldown (3 losses) | $309 | $144 | 0.0% | $5,537 | $1,846 | 0.0% |
 | E) Flat + loose cooldown (5 losses) | $318 | $139 | 0.0% | $5,177 | $1,852 | 0.0% |
 
-**Verdict**: Rerun confirms the same result: flat-fraction (current live behavior) still produces roughly **2x higher 30d median** with identical 0% bust rate. **DO NOT fix the pWinEstimate bug** — it is a net positive for the uncapped growth posture. Kelly is too conservative for 70-80c entry strategies where the edge-to-price ratio is small.
+**Verdict (historical snapshot, superseded 2026-04-05)**: This comparison captured an older surface where `candidate.pWinEstimate` was incorrectly falling to `0.5`. The current repo now propagates real `pWinEstimate` / `evWinEstimate`; use the 2026-04-05 addendum above as the source of truth.
 
 Full replay comparison: Kelly $67K vs Flat $483K over 52 days (7.2x difference). Max drawdown: Kelly 24.7% vs Flat 40.2% — higher drawdown is the accepted cost of faster compounding.
 
@@ -181,7 +234,7 @@ The trailing 30-calendar-day archive has a known local gap on:
 These use the same current live posture as lite runtime:
 
 - strategy ordering by `strategy.pWinEstimate`
-- sizing with the current flat-fraction behavior (`candidate.pWinEstimate=0.5`)
+- sizing with the then-current flat-fraction behavior (`candidate.pWinEstimate=0.5`, historical snapshot superseded 2026-04-05)
 - 4-loss cooldown / 10m cooldown
 - uncapped growth posture (`riskEnvelopeEnabled=false`, `maxTotalExposure=0`)
 
@@ -258,7 +311,7 @@ npm run reverify:full
 
 Outputs:
 
-- `debug/reverify_beam_2739_report.json`
+- `debug/reverify_strategy_report.json`
 - `debug/runtime_reaudit_report.json`
 
 Workflow files added:
@@ -313,7 +366,7 @@ Then rank candidates by:
 2. **The 30d result is path-dependent compounding**: It is real chronological replay on archived data, but it compounds aggressively. Drawdowns remain substantial.
 3. **Max recent 30d drawdown is still ~40.5%**. This is within expected uncapped-growth behavior, but it is not psychologically gentle.
 4. **Local archive gap exists for March 12-16**. Treat any conclusion about that slice as lower-confidence than the fully covered recent weeks.
-5. **Detailed last-24h / last-48h trade lists** are saved in `debug/reverify_beam_2739_report.json` for exact winner/loser inspection.
+5. **Detailed last-24h / last-48h trade lists** are now saved in `debug/reverify_strategy_report.json` for exact winner/loser inspection.
 
 ---
 
@@ -2939,18 +2992,16 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Factory Droid
-**Date**: 4 April 2026 19:20 UTC
+**Date**: 4 April 2026 19:53 UTC
 **Deploy Version**: see live `/api/health.deployVersion` for the exact current hash
 
-**STATUS: CONDITIONAL NO-GO — live edge remains strong, but proxy-wallet redemptions are not fully autonomous**
+**STATUS: CONDITIONAL NO-GO — proxy relayer redemption is implemented locally, but live relayer auth is still unconfigured**
 
-**What changed this session (4 Apr 2026, final reinvestigation)**:
-1. Re-read README and re-audited the current live runtime code path end-to-end
-2. Re-ran fresh bankroll simulations for `$7.85`, `$10`, `$15`, `$20`
-3. Re-tested strategy removals/additions instead of trusting the prior 6-strategy cleanup blindly
-4. Re-promoted **`H06 m12 DOWN [55-98c]`** into the live 15m file because it improved the 14d floor and 30d bootstrap in this final audit
-5. Confirmed no other removal is warranted right now; specifically, removing `H19 m8 DOWN [72-80c]` degraded this recheck
-6. Confirmed the remaining major blocker is proxy-wallet redemption autonomy, not strategy edge
+**What changed this session (4 Apr 2026, proxy auto-redemption implementation)**:
+1. Added a relayer-backed proxy redemption path in `lib/clob-client.js` for proxy-held winners instead of hard-failing with `PROXY_REDEEM_UNSUPPORTED`
+2. Wired config/env support for `POLYMARKET_RELAYER_URL`, relayer API key auth, and builder-credential auth
+3. Added direct-first relayer GETs plus proxy-first/fallback POST submits so the new redemption path fits the existing proxy-routing posture
+4. Verified local request construction, auth-header generation, `node --check`, and `scripts/verify-harness.js` successfully
 
 **Live state**:
 - host: `https://polyprophet-1-rr1g.onrender.com`
@@ -2983,14 +3034,14 @@ The honest truth is: **$20 is the minimum starting balance that gives you a real
 | `$20` | `0.0%` | `$1,954` | `$4,761` | **`$11,696`** | `$28,829` | `$71,835` |
 
 **Main remaining flaw**:
-- proxy-wallet redemption is still not fully autonomous
-- recent matched local sample shows only **75.5%** of winners hit `>=95c` in the final 120s
-- the other **24.5%** of wins can still require manual intervention instead of automatic capital recycling
-- live host already has **one** `requiresManual=true` redemption queue item, confirming the issue is real
+- proxy-wallet redemption code is now present, but the live environment still does **not** have relayer auth configured
+- automatic proxy redemption now requires either `POLYMARKET_RELAYER_API_KEY` (preferred) or `POLYMARKET_BUILDER_*` creds on the deploy target
+- until those secrets are added and the service is redeployed, the live `requiresManual=true` queue item will not clear automatically
+- recent matched local sample still shows only **75.5%** of winners hit `>=95c` in the final 120s, so the redemption path must work for the remaining **24.5%**
 
 **Immediate next actions**:
-1. Push the final audited 7-strategy file + README update, then verify the live host reloads `7` strategies
-2. Keep `15m` only; do **not** enable `5m`
-3. Treat the posture as **NO-GO for fully unattended autonomy** until proxy redemption is solved or manual redemptions are accepted operationally
-4. If autonomy is the goal, the next real engineering task is redeem-capable wallet flow, not more strategy churn
+1. Set `POLYMARKET_RELAYER_API_KEY` (or `POLYMARKET_BUILDER_API_KEY`/`SECRET`/`PASSPHRASE`) on Render and redeploy
+2. Verify the current live `redemptionQueue` item auto-redeems instead of staying `requiresManual=true`
+3. Keep `15m` only; do **not** enable `5m`
+4. After redemption is confirmed live, re-evaluate lowering `PRE_RESOLUTION_MIN_BID` from `0.95` to `0.90`
 <!-- HANDOFF_STATE_END -->

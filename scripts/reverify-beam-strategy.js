@@ -11,8 +11,17 @@ const BUST_THRESHOLD = 2;
 const CYCLE_SECONDS = 900;
 const TAKER_FEE = 0.0315;
 const MAX_ALLOWED_SPREAD_DEVIATION = 0.08;
+const STRATEGY_REL_PATH = String(process.env.VERIFY_STRATEGY_PATH || 'strategies/strategy_set_15m_maxgrowth_v3.json').trim();
+const STRATEGY_BASENAME = path.basename(STRATEGY_REL_PATH);
 const DEFAULT_MIN_ORDER_SHARES = Math.max(1, Number(CONFIG?.RISK?.minOrderShares || 1));
-const OUTPUT_PATH = path.join(ROOT, 'debug', 'reverify_beam_2739_report.json');
+const ENTRY_PRICE_BUFFER_CENTS = Number(process.env.VERIFY_ENTRY_PRICE_BUFFER_CENTS ?? CONFIG?.RISK?.entryPriceBufferCents ?? 2);
+const MAX_PER_CYCLE = Math.max(1, parseInt(process.env.VERIFY_MAX_PER_CYCLE || '3', 10));
+const COOLDOWN_SECONDS = Math.max(0, parseInt(process.env.VERIFY_COOLDOWN_SECONDS || '0', 10));
+const MAX_CONSECUTIVE_LOSSES = Math.max(1, parseInt(process.env.VERIFY_MAX_CONSECUTIVE_LOSSES || '999', 10));
+const MIN_BALANCE_FLOOR = Number(process.env.VERIFY_MIN_BALANCE_FLOOR ?? 0);
+const ENFORCE_NET_EDGE_GATE = String(process.env.VERIFY_ENFORCE_NET_EDGE_GATE || 'false').trim().toLowerCase() === 'true';
+const OUTPUT_PATH = path.join(ROOT, 'debug', 'reverify_strategy_report.json');
+const LEGACY_OUTPUT_PATH = path.join(ROOT, 'debug', 'reverify_beam_2739_report.json');
 
 Object.assign(CONFIG.RISK, {
     maxTotalExposure: 0,
@@ -21,13 +30,17 @@ Object.assign(CONFIG.RISK, {
     maxAbsoluteStakeMedium: 100000,
     maxAbsoluteStakeLarge: 100000,
     minNetEdgeRoi: 0,
-    cooldownSeconds: 600,
-    maxConsecutiveLosses: 4,
-    minBalanceFloor: 2
+    globalStopLoss: 1,
+    cooldownSeconds: COOLDOWN_SECONDS,
+    maxConsecutiveLosses: MAX_CONSECUTIVE_LOSSES,
+    minBalanceFloor: MIN_BALANCE_FLOOR,
+    entryPriceBufferCents: ENTRY_PRICE_BUFFER_CENTS,
+    enforceNetEdgeGate: ENFORCE_NET_EDGE_GATE
 });
 
 function readJson(relPath) {
-    return JSON.parse(fs.readFileSync(path.join(ROOT, relPath), 'utf8'));
+    const filePath = path.isAbsolute(relPath) ? relPath : path.join(ROOT, relPath);
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
 function writeJson(filePath, value) {
@@ -144,7 +157,7 @@ function normalizeStrategies(rawStrategies) {
             priceMax: Number(strategy.priceMax),
             strategyPWin: Number.isFinite(strategyPWin) ? strategyPWin : 0.5,
             evWinEstimate: Number.isFinite(evWinEstimate) ? evWinEstimate : 0.5,
-            sizePWinEstimate: 0.5
+            sizePWinEstimate: Number.isFinite(strategyPWin) ? strategyPWin : 0.5
         };
     });
 }
@@ -217,6 +230,8 @@ function buildOpportunityBook(strategies, historicalRows, recentCycles) {
                 entryTs: match.epoch + (strategy.entryMinute * 60),
                 exitTs: match.epoch + CYCLE_SECONDS,
                 entryPrice: match.entryPrice,
+                priceMin: strategy.priceMin,
+                priceMax: strategy.priceMax,
                 minOrderShares: match.minOrderShares,
                 strategyPWin: strategy.strategyPWin,
                 sizePWinEstimate: strategy.sizePWinEstimate,
@@ -237,6 +252,8 @@ function buildOpportunityBook(strategies, historicalRows, recentCycles) {
                 entryTs: match.epoch + (strategy.entryMinute * 60),
                 exitTs: match.epoch + CYCLE_SECONDS,
                 entryPrice: match.entryPrice,
+                priceMin: strategy.priceMin,
+                priceMax: strategy.priceMax,
                 minOrderShares: match.minOrderShares,
                 strategyPWin: strategy.strategyPWin,
                 sizePWinEstimate: strategy.sizePWinEstimate,
@@ -256,6 +273,7 @@ function buildOpportunityBook(strategies, historicalRows, recentCycles) {
 function runReplay(opportunities, { startBalance = START_BALANCE, startTs = -Infinity, endTs = Infinity } = {}) {
     const filtered = opportunities.filter((opportunity) => opportunity.entryTs >= startTs && opportunity.entryTs < endTs);
     const rm = new RiskManager(startBalance);
+    const gateCounts = {};
     const state = {
         bankroll: startBalance,
         peakBalance: startBalance,
@@ -271,6 +289,11 @@ function runReplay(opportunities, { startBalance = START_BALANCE, startTs = -Inf
     const executedTrades = [];
     const dailyBalances = [];
     let currentDay = filtered.length > 0 ? dayKeyFromEpoch(filtered[0].entryTs) : null;
+
+    function recordGate(reason) {
+        const key = String(reason || 'UNKNOWN_BLOCK');
+        gateCounts[key] = (gateCounts[key] || 0) + 1;
+    }
 
     function settle(position) {
         const grossPayout = position.won ? position.shares : 0;
@@ -295,8 +318,8 @@ function runReplay(opportunities, { startBalance = START_BALANCE, startTs = -Inf
         } else {
             state.todayPnL -= position.cost;
             state.consecutiveLosses++;
-            if (state.consecutiveLosses >= 4) {
-                state.cooldownUntilSec = position.exitTs + Number(CONFIG.RISK.cooldownSeconds || 600);
+            if (COOLDOWN_SECONDS > 0 && state.consecutiveLosses >= MAX_CONSECUTIVE_LOSSES) {
+                state.cooldownUntilSec = position.exitTs + COOLDOWN_SECONDS;
                 state.consecutiveLosses = 0;
             }
             executedTrades.push({
@@ -336,18 +359,50 @@ function runReplay(opportunities, { startBalance = START_BALANCE, startTs = -Inf
             state.todayPnL = 0;
         }
 
-        if (state.bankroll < MIN_RUNTIME_BANKROLL && state.openPositions.length === 0) break;
-        if (state.bankroll < MIN_RUNTIME_BANKROLL) continue;
-        if (opportunity.entryTs < state.cooldownUntilSec) continue;
-        if (state.todayPnL < -(state.dayStartBalance * Number(CONFIG.RISK.globalStopLoss || 0.20))) continue;
+        if (state.bankroll < MIN_RUNTIME_BANKROLL && state.openPositions.length === 0) {
+            recordGate('BELOW_RUNTIME_BANKROLL');
+            break;
+        }
+        if (state.bankroll < MIN_RUNTIME_BANKROLL) {
+            recordGate('BELOW_RUNTIME_BANKROLL');
+            continue;
+        }
+        if (opportunity.entryTs < state.cooldownUntilSec) {
+            recordGate('COOLDOWN');
+            continue;
+        }
+        if (state.todayPnL < -(state.dayStartBalance * Number(CONFIG.RISK.globalStopLoss || 0.20))) {
+            recordGate('GLOBAL_STOP');
+            continue;
+        }
 
         const cycleKey = `15m_${opportunity.cycleEpoch}`;
         const cycleCount = state.cycleCounts[cycleKey] || 0;
-        const maxPerCycle = state.bankroll < 10 ? 1 : 2;
-        if (cycleCount >= maxPerCycle) continue;
+        if (cycleCount >= MAX_PER_CYCLE) {
+            recordGate('MAX_TRADES_CYCLE');
+            continue;
+        }
 
         const netEdge = estimateNetEdgeRoi(opportunity.entryPrice, opportunity.evWinEstimate);
-        if (!Number.isFinite(netEdge) || netEdge < Number(CONFIG.RISK.minNetEdgeRoi || 0)) continue;
+        if (ENFORCE_NET_EDGE_GATE && (!Number.isFinite(netEdge) || netEdge < Number(CONFIG.RISK.minNetEdgeRoi || 0))) {
+            recordGate('NEGATIVE_NET_EDGE');
+            continue;
+        }
+
+        let orderPrice = opportunity.entryPrice;
+        if (ENTRY_PRICE_BUFFER_CENTS > 0) {
+            const buffered = opportunity.entryPrice + (ENTRY_PRICE_BUFFER_CENTS / 100);
+            const cap = Math.min(Number.isFinite(Number(opportunity.priceMax)) ? Number(opportunity.priceMax) : 0.99, 0.99);
+            const candidateOrder = Math.min(buffered, cap);
+            if (!ENFORCE_NET_EDGE_GATE) {
+                orderPrice = candidateOrder;
+            } else {
+                const bufferedEdge = estimateNetEdgeRoi(candidateOrder, opportunity.evWinEstimate);
+                if (Number.isFinite(bufferedEdge) && bufferedEdge >= Number(CONFIG.RISK.minNetEdgeRoi || 0)) {
+                    orderPrice = candidateOrder;
+                }
+            }
+        }
 
         const openExposureUsd = state.openPositions.reduce((sum, position) => sum + Number(position.cost || 0), 0);
         rm.bankroll = state.bankroll;
@@ -365,12 +420,21 @@ function runReplay(opportunities, { startBalance = START_BALANCE, startTs = -Inf
             bankrollEstimate: state.bankroll + openExposureUsd,
             dayStartBalanceEstimate: state.dayStartBalance
         });
-        if (sizing.blocked || !(sizing.size > 0)) continue;
+        if (sizing.blocked || !(sizing.size > 0)) {
+            recordGate(sizing.reason || 'SIZING_BLOCKED');
+            continue;
+        }
 
-        const shares = Math.floor(sizing.size / opportunity.entryPrice + 1e-9);
-        if (shares < opportunity.minOrderShares) continue;
-        const cost = shares * opportunity.entryPrice;
-        if (!(cost > 0) || cost > state.bankroll) continue;
+        const shares = Math.floor(sizing.size / orderPrice + 1e-9);
+        if (shares < opportunity.minOrderShares) {
+            recordGate('SHARES_BELOW_MIN');
+            continue;
+        }
+        const cost = shares * orderPrice;
+        if (!(cost > 0) || cost > state.bankroll) {
+            recordGate('COST_EXCEEDS_BANKROLL');
+            continue;
+        }
 
         state.bankroll -= cost;
         state.cycleCounts[cycleKey] = cycleCount + 1;
@@ -385,9 +449,11 @@ function runReplay(opportunities, { startBalance = START_BALANCE, startTs = -Inf
                 asset: opportunity.asset,
                 direction: opportunity.direction,
                 entryPrice: round(opportunity.entryPrice, 4),
+                orderPrice: round(orderPrice, 4),
                 strategyPWin: round(opportunity.strategyPWin, 4),
                 sizingPWin: round(opportunity.sizePWinEstimate, 4),
                 evWinEstimate: round(opportunity.evWinEstimate, 4),
+                netEdgeRoi: Number.isFinite(netEdge) ? round(netEdge, 4) : null,
                 openedAt: new Date(opportunity.entryTs * 1000).toISOString(),
                 resolvedAt: new Date(opportunity.exitTs * 1000).toISOString()
             }
@@ -407,6 +473,7 @@ function runReplay(opportunities, { startBalance = START_BALANCE, startTs = -Inf
         winRate: state.totalTrades > 0 ? round(state.totalWins / state.totalTrades, 4) : 0,
         busted: state.bankroll < BUST_THRESHOLD,
         maxDrawdown: computeDrawdown(dailyBalances, startBalance),
+        gateCounts,
         dailyBalances,
         executedTrades
     };
@@ -424,6 +491,7 @@ function makeWindowReport(opportunities, label, endTs, durationSeconds) {
         direction: trade.direction,
         strategy: trade.strategy,
         entryPrice: trade.entryPrice,
+        orderPrice: trade.orderPrice,
         size: trade.size,
         shares: trade.shares,
         result: trade.won ? 'WIN' : 'LOSS',
@@ -434,7 +502,8 @@ function makeWindowReport(opportunities, label, endTs, durationSeconds) {
         coverageStart,
         coverageEnd,
         ...summarizeTrades(result.executedTrades, START_BALANCE, durationSeconds, {
-            busted: result.busted
+            busted: result.busted,
+            gateCounts: result.gateCounts
         }),
         tradeList
     };
@@ -547,7 +616,7 @@ function regimeAssessment(fullReplay, window7d, window14d, window30d) {
         flags,
         notes: flags.length === 0
             ? ['No credible regime-break signal in the available local archive.', 'Recent 7d/14d/30d windows remain profitable from a fresh $20 start.']
-            : ['At least one trigger fired. Run the guarded search to confirm whether a replacement set now ranks above beam_2739.'],
+            : ['At least one trigger fired. Run the guarded search to confirm whether a replacement 15m set now ranks above the active one.'],
         baseline: {
             fullReplayTradesPerDay: round(fullTradesPerDay, 2),
             fullReplayWinRate: round(fullReplay.winRate, 4)
@@ -560,7 +629,7 @@ function regimeAssessment(fullReplay, window7d, window14d, window30d) {
     };
 }
 
-const strategyArtifact = readJson('strategies/strategy_set_15m_beam_2739_uncapped.json');
+const strategyArtifact = readJson(STRATEGY_REL_PATH);
 const historicalDataset = readJson('exhaustive_analysis/decision_dataset.json');
 const recentDatasetRaw = readJson('data/intracycle-price-data.json');
 const recentCyclesAll = Array.isArray(recentDatasetRaw?.cycles) ? recentDatasetRaw.cycles : [];
@@ -570,7 +639,7 @@ const strategies = normalizeStrategies(strategyArtifact.strategies || []);
 const opportunities = buildOpportunityBook(strategies, testRows, recentCycles);
 
 if (opportunities.length === 0) {
-    throw new Error('No opportunities generated for beam_2739 re-verification');
+    throw new Error(`No opportunities generated for ${STRATEGY_BASENAME} re-verification`);
 }
 
 const firstEntryTs = opportunities[0].entryTs;
@@ -606,14 +675,18 @@ const missingTrailing30Days = trailing30Days.filter((dayKey) => !coveredRecentDa
 
 const report = {
     generatedAt: new Date().toISOString(),
-    strategyPath: 'strategies/strategy_set_15m_beam_2739_uncapped.json',
+    strategyPath: STRATEGY_REL_PATH,
     runtimeParity: {
-        sizingPWinEstimate: 0.5,
+        sizingPWinEstimate: 'strategy.pWinEstimate',
         candidateOrdering: 'strategy.pWinEstimate desc',
-        cooldownAfterLosses: 4,
-        cooldownSeconds: 600,
+        maxPerCycle: MAX_PER_CYCLE,
+        cooldownAfterLosses: MAX_CONSECUTIVE_LOSSES,
+        cooldownSeconds: COOLDOWN_SECONDS,
         minRuntimeBankroll: MIN_RUNTIME_BANKROLL,
-        minBalanceFloor: Number(CONFIG.RISK.minBalanceFloor || 2),
+        minBalanceFloor: Number(CONFIG.RISK.minBalanceFloor || 0),
+        entryPriceBufferCents: ENTRY_PRICE_BUFFER_CENTS,
+        enforceNetEdgeGate: ENFORCE_NET_EDGE_GATE,
+        minOrderShares: DEFAULT_MIN_ORDER_SHARES,
         riskEnvelopeEnabled: false,
         maxTotalExposure: 0,
         slippagePct: Number(CONFIG.RISK.slippagePct || 0.01),
@@ -655,6 +728,7 @@ const report = {
         endBalance: fullReplay.endBalance,
         pnl: fullReplay.pnl,
         maxDrawdown: fullReplay.maxDrawdown,
+        gateCounts: fullReplay.gateCounts,
         tradesPerDay: round(fullReplay.trades / enumerateDays(coverageStartDay, coverageEndDay).length, 2)
     },
     windows: {
@@ -672,8 +746,11 @@ const report = {
 };
 
 writeJson(OUTPUT_PATH, report);
+if (STRATEGY_BASENAME === 'strategy_set_15m_beam_2739_uncapped.json') {
+    writeJson(LEGACY_OUTPUT_PATH, report);
+}
 
-console.log(`Beam strategy re-verification saved to ${path.relative(ROOT, OUTPUT_PATH)}`);
+console.log(`15m strategy re-verification saved to ${path.relative(ROOT, OUTPUT_PATH)} (${STRATEGY_BASENAME})`);
 console.log(`Coverage: ${report.dataCoverage.firstDay} -> ${report.dataCoverage.lastDay}`);
 console.log(`24h: trades=${window24h.trades}, wins=${window24h.wins}, losses=${window24h.losses}, pnl=$${window24h.pnl}, end=$${window24h.endBalance}`);
 console.log(`48h: trades=${window48h.trades}, wins=${window48h.wins}, losses=${window48h.losses}, pnl=$${window48h.pnl}, end=$${window48h.endBalance}`);

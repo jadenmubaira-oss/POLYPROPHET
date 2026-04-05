@@ -226,26 +226,29 @@ async function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: maxgrowth_v1 — 16 strategies (7 original + 9 m14 last-minute).
-    //   Combined WR 88.1%, 3000-trial 30d sim: $15 start → median $7,109, p90 $492,202.
-    //   Config: f0.15, 3/cycle, no cooldown, no stop loss, no floor.
-    // FALLBACK: beam_2739 — 7 strategies, original set.
+    // PRIMARY 15m strategy: maxgrowth_v3 — exact local reverify winner vs v1/v2.
+    //   Config: f0.15, 3/cycle, no cooldown, no exposure cap, no floor, NEGATIVE_NET_EDGE disabled.
+    // FALLBACKS: maxgrowth_v1, maxgrowth_v2, then beam_2739.
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
-    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v1.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v3.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v1.json');
+    const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v2.json');
+    const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
 
         if (tf.key === '15m') {
-            // 15m: maxgrowth_v1 primary (16 strats), beam_2739 fallback, then legacy
+            // 15m: maxgrowth_v3 primary, then v1, v2, beam_2739, then legacy
             const candidates15m = [
                 ...(env15mPath ? [env15mPath] : []),
                 primary15mPath,
                 secondary15mPath,
+                tertiary15mPath,
+                quaternary15mPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
@@ -658,6 +661,9 @@ app.get('/api/health', (req, res) => {
     const executorStatus = tradeExecutor.getStatus();
     const activeTimeframes = getEnabledTimeframes();
     const runtimeBankrollForTimeframes = getRuntimeBankrollForTimeframes();
+    const currentTierProfile = typeof riskManager._getTierProfile === 'function'
+        ? riskManager._getTierProfile(runtimeBankrollForTimeframes)
+        : null;
     res.json({
         status: 'ok',
         version: 'polyprophet-lite-1.0.0',
@@ -688,11 +694,16 @@ app.get('/api/health', (req, res) => {
         tradeFailureHalt: { halted: tradeFailureHalted, consecutiveFailures: consecutiveTradeFailures, threshold: TRADE_FAILURE_HALT_THRESHOLD, windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000 },
         riskControls: {
             requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
+            enforceNetEdgeGate: !!CONFIG.RISK.enforceNetEdgeGate,
             minNetEdgeRoi: Number(CONFIG.RISK.minNetEdgeRoi || 0),
+            minBalanceFloor: Number(CONFIG.RISK.minBalanceFloor || 0),
+            minOrderShares: Number(CONFIG.RISK.minOrderShares || 0),
+            entryPriceBufferCents: Number(CONFIG.RISK.entryPriceBufferCents || 0),
             maxTotalExposure: Number(CONFIG.RISK.maxTotalExposure || 0),
             maxTotalExposureMinBankroll: Number(CONFIG.RISK.maxTotalExposureMinBankroll || 0),
             riskEnvelopeEnabled: !!CONFIG.RISK.riskEnvelopeEnabled,
             riskEnvelopeMinBankroll: Number(CONFIG.RISK.riskEnvelopeMinBankroll || 0),
+            currentTierProfile,
             vaultTriggerBalance: Number(CONFIG.RISK.vaultTriggerBalance || 0),
             stage2Threshold: Number(CONFIG.RISK.stage2Threshold || 0),
             tieredAbsoluteStakeCaps: {
@@ -748,6 +759,9 @@ app.get('/api/debug/strategy-paths', (req, res) => {
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const candidates15m = [
         ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v3.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v1.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v2.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_definitive_full_guards_best.json'),
         path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json'),
