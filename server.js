@@ -226,22 +226,22 @@ async function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: uncapped-growth beam_2739 — 10 strategies, 2000-trial bootstrap:
-    //   7d median $91.66, 14d median $337.60, 30d median $4,646.52, bust <1%.
-    //   Requires RISK_ENVELOPE_ENABLED=false, MAX_TOTAL_EXPOSURE=0, TIMEFRAME_15M_MIN_BANKROLL=2.
-    // SECONDARY: exhaustive_nc_13 — 13 strategies, robustFloor $125.57 under full guards.
+    // PRIMARY 15m strategy: maxgrowth_v1 — 16 strategies (7 original + 9 m14 last-minute).
+    //   Combined WR 88.1%, 3000-trial 30d sim: $15 start → median $7,109, p90 $492,202.
+    //   Config: f0.15, 3/cycle, no cooldown, no stop loss, no floor.
+    // FALLBACK: beam_2739 — 7 strategies, original set.
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
-    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_exhaustive_13.json');
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v1.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
 
         if (tf.key === '15m') {
-            // 15m: uncapped-growth beam_2739 primary, then NC-exhaustive-13 fallback, then legacy
+            // 15m: maxgrowth_v1 primary (16 strats), beam_2739 fallback, then legacy
             const candidates15m = [
                 ...(env15mPath ? [env15mPath] : []),
                 primary15mPath,
