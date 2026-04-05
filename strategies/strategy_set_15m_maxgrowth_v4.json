@@ -1,0 +1,465 @@
+{
+  "version": "1.3-maxgrowth",
+  "generatedAt": "2026-04-05T11:45:29.660Z",
+  "timeframe": "15m",
+  "description": "Max-growth strategy set v4: corrected-truth-surface winner found by iterative local reverification from v3. Replaces H18 m14 UP, H15 m14 UP, and H19 m8 DOWN with H08 m10 DOWN, H06 m10 UP, and H08 m11 DOWN.",
+  "config": {
+    "stakeFraction": 0.15,
+    "maxPerCycle": 3,
+    "cooldown": "DISABLED",
+    "globalStopLoss": "DISABLED",
+    "floorEnabled": false,
+    "maxTotalExposure": 0,
+    "riskEnvelopeEnabled": false,
+    "requireRealOrderBook": true,
+    "entryPriceBufferCents": 2,
+    "enforceNetEdgeGate": false
+  },
+  "selectionSource": {
+    "baseSet": "strategies/strategy_set_15m_maxgrowth_v3.json",
+    "removed": [
+      "H18 m14 UP [55-98c]",
+      "H15 m14 UP [55-98c]",
+      "H19 m8 DOWN [72-80c]"
+    ],
+    "added": [
+      "H08 m10 DOWN [50-98c]",
+      "H06 m10 UP [50-98c]",
+      "H08 m11 DOWN [55-98c]"
+    ],
+    "candidatePool": "debug/tmp_all_41_15m_candidates.json",
+    "verifier": "scripts/reverify-beam-strategy.js"
+  },
+  "reverifySnapshot": {
+    "verifiedAt": "2026-04-05T12:52:01.014Z",
+    "startBalance": 20,
+    "windowResults": {
+      "last24h": {
+        "endBalance": 34.61
+      },
+      "last48h": {
+        "endBalance": 17.22
+      },
+      "last7d": {
+        "endBalance": 5434.51
+      },
+      "last14d": {
+        "endBalance": 662.7
+      },
+      "last30d": {
+        "endBalance": 2454980.15,
+        "trades": 976,
+        "winRate": 0.9037,
+        "maxDrawdown": 0.5441
+      }
+    },
+    "regimeAssessment": {
+      "status": "STABLE",
+      "flags": []
+    }
+  },
+  "strategies": [
+    {
+      "name": "H10 m10 UP [70-80c]",
+      "asset": "ALL",
+      "utcHour": 10,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.8,
+      "pWinEstimate": 0.7623,
+      "source": "beam_2739 original",
+      "intracycleWR": {
+        "all": 0.938,
+        "recent": 1
+      }
+    },
+    {
+      "name": "H17 m12 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 17,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.8235,
+      "source": "beam_2739 original",
+      "intracycleWR": {
+        "all": 0.957,
+        "recent": 0.926
+      }
+    },
+    {
+      "name": "H19 m10 DOWN [50-98c]",
+      "asset": "ALL",
+      "utcHour": 19,
+      "entryMinute": 10,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.8086,
+      "source": "beam_2739 original",
+      "intracycleWR": {
+        "all": 0.889,
+        "recent": 0.868
+      }
+    },
+    {
+      "name": "H01 m6 UP [70-80c]",
+      "asset": "ALL",
+      "utcHour": 1,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.8,
+      "pWinEstimate": 0.7708,
+      "source": "beam_2739 original",
+      "intracycleWR": {
+        "all": 0.865,
+        "recent": 0.833
+      }
+    },
+    {
+      "name": "H08 m12 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.8185,
+      "source": "beam_2739 original",
+      "intracycleWR": {
+        "all": 0.953,
+        "recent": 1
+      }
+    },
+    {
+      "name": "H06 m12 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.825,
+      "source": "beam_2739 original",
+      "intracycleWR": {
+        "all": 0.888,
+        "recent": 0.898
+      }
+    },
+    {
+      "name": "H08 m14 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 14,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.88,
+      "source": "m14 last-minute edge scan",
+      "datasetWR": 0.915,
+      "intracycleWR": {
+        "all": 0.949,
+        "recent": 1
+      }
+    },
+    {
+      "name": "H17 m14 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 17,
+      "entryMinute": 14,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.88,
+      "source": "m14 last-minute edge scan",
+      "datasetWR": 0.904,
+      "intracycleWR": {
+        "all": 0.952,
+        "recent": 0.947
+      }
+    },
+    {
+      "name": "H09 m14 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 9,
+      "entryMinute": 14,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.88,
+      "source": "m14 last-minute edge scan",
+      "datasetWR": 0.902,
+      "intracycleWR": {
+        "all": 1,
+        "recent": 1
+      }
+    },
+    {
+      "name": "H12 m14 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 12,
+      "entryMinute": 14,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.88,
+      "source": "m14 last-minute edge scan",
+      "datasetWR": 0.902,
+      "intracycleWR": {
+        "all": 0.971,
+        "recent": 1
+      }
+    },
+    {
+      "name": "H16 m14 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 16,
+      "entryMinute": 14,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.87,
+      "source": "m14 last-minute edge scan",
+      "datasetWR": 0.901,
+      "intracycleWR": {
+        "all": 0.875,
+        "recent": 0.913
+      }
+    },
+    {
+      "name": "H09 m14 UP [55-98c]",
+      "asset": "ALL",
+      "utcHour": 9,
+      "entryMinute": 14,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.87,
+      "source": "m14 last-minute edge scan",
+      "datasetWR": 0.898,
+      "intracycleWR": {
+        "all": 0.935,
+        "recent": 0.867
+      }
+    },
+    {
+      "name": "H17 m8 DOWN [50-98c]",
+      "asset": "ALL",
+      "utcHour": 17,
+      "entryMinute": 8,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.7715,
+      "metrics": {
+        "train": {
+          "matches": 624,
+          "wins": 502,
+          "losses": 122,
+          "wr": 0.8045,
+          "lcb": 0.7715,
+          "avgEntry": 0.7558,
+          "breakEven": 0.761,
+          "edge": 0.0435
+        },
+        "val": {
+          "matches": 251,
+          "wins": 202,
+          "losses": 49,
+          "wr": 0.8048,
+          "lcb": 0.7513,
+          "avgEntry": 0.7948,
+          "breakEven": 0.7994,
+          "edge": 0.0054
+        },
+        "test": {
+          "matches": 213,
+          "wins": 179,
+          "losses": 34,
+          "wr": 0.8404,
+          "lcb": 0.7852,
+          "avgEntry": 0.7649,
+          "breakEven": 0.77,
+          "edge": 0.0704
+        },
+        "recent": {
+          "matches": 103,
+          "wins": 95,
+          "losses": 8,
+          "wr": 0.9223,
+          "lcb": 0.8542,
+          "avgEntry": 0.7652,
+          "breakEven": 0.7702,
+          "edge": 0.1521,
+          "matchedDays": 13
+        }
+      },
+      "source": "validated tmp_all_41 candidate"
+    },
+    {
+      "name": "H08 m10 DOWN [50-98c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 10,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.7779,
+      "metrics": {
+        "train": {
+          "matches": 613,
+          "wins": 497,
+          "losses": 116,
+          "wr": 0.8108,
+          "lcb": 0.7779,
+          "avgEntry": 0.7945,
+          "breakEven": 0.799,
+          "edge": 0.0118
+        },
+        "val": {
+          "matches": 193,
+          "wins": 164,
+          "losses": 29,
+          "wr": 0.8497,
+          "lcb": 0.7925,
+          "avgEntry": 0.7859,
+          "breakEven": 0.7906,
+          "edge": 0.0592
+        },
+        "test": {
+          "matches": 194,
+          "wins": 164,
+          "losses": 30,
+          "wr": 0.8454,
+          "lcb": 0.7878,
+          "avgEntry": 0.7904,
+          "breakEven": 0.795,
+          "edge": 0.0504
+        },
+        "recent": {
+          "matches": 95,
+          "wins": 88,
+          "losses": 7,
+          "wr": 0.9263,
+          "lcb": 0.8556,
+          "avgEntry": 0.7692,
+          "breakEven": 0.7741,
+          "edge": 0.1522,
+          "matchedDays": 14
+        }
+      },
+      "source": "validated tmp_all_41 candidate"
+    },
+    {
+      "name": "H06 m10 UP [50-98c]",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.5,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.787,
+      "metrics": {
+        "train": {
+          "matches": 645,
+          "wins": 528,
+          "losses": 117,
+          "wr": 0.8186,
+          "lcb": 0.787,
+          "avgEntry": 0.7989,
+          "breakEven": 0.8034,
+          "edge": 0.0152
+        },
+        "val": {
+          "matches": 189,
+          "wins": 153,
+          "losses": 36,
+          "wr": 0.8095,
+          "lcb": 0.7476,
+          "avgEntry": 0.8049,
+          "breakEven": 0.8092,
+          "edge": 0.0003
+        },
+        "test": {
+          "matches": 185,
+          "wins": 157,
+          "losses": 28,
+          "wr": 0.8486,
+          "lcb": 0.7899,
+          "avgEntry": 0.8088,
+          "breakEven": 0.8131,
+          "edge": 0.0355
+        },
+        "recent": {
+          "matches": 92,
+          "wins": 81,
+          "losses": 11,
+          "wr": 0.8804,
+          "lcb": 0.7985,
+          "avgEntry": 0.7957,
+          "breakEven": 0.8002,
+          "edge": 0.0802,
+          "matchedDays": 14
+        }
+      },
+      "source": "validated tmp_all_41 candidate"
+    },
+    {
+      "name": "H08 m11 DOWN [55-98c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 11,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.98,
+      "pWinEstimate": 0.8233,
+      "metrics": {
+        "train": {
+          "matches": 521,
+          "wins": 446,
+          "losses": 75,
+          "wr": 0.856,
+          "lcb": 0.8233,
+          "avgEntry": 0.8288,
+          "breakEven": 0.8328,
+          "edge": 0.0233
+        },
+        "val": {
+          "matches": 160,
+          "wins": 144,
+          "losses": 16,
+          "wr": 0.9,
+          "lcb": 0.8437,
+          "avgEntry": 0.8286,
+          "breakEven": 0.8327,
+          "edge": 0.0673
+        },
+        "test": {
+          "matches": 161,
+          "wins": 140,
+          "losses": 21,
+          "wr": 0.8696,
+          "lcb": 0.8088,
+          "avgEntry": 0.8404,
+          "breakEven": 0.8442,
+          "edge": 0.0253
+        },
+        "recent": {
+          "matches": 88,
+          "wins": 81,
+          "losses": 7,
+          "wr": 0.9205,
+          "lcb": 0.8448,
+          "avgEntry": 0.8142,
+          "breakEven": 0.8185,
+          "edge": 0.102,
+          "matchedDays": 14
+        }
+      },
+      "source": "validated tmp_all_41 candidate"
+    }
+  ]
+}

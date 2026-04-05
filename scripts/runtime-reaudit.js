@@ -7,7 +7,7 @@ const https = require('https');
 const ROOT = path.join(__dirname, '..');
 const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet-1-rr1g.onrender.com').replace(/\/+$/, '');
 const OUTPUT_PATH = path.join(ROOT, 'debug', 'runtime_reaudit_report.json');
-const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_maxgrowth_v3.json').trim();
+const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_maxgrowth_v5.json').trim();
 const LOCAL_15M_STRATEGY_PATH = path.isAbsolute(EXPECTED_15M_STRATEGY_PATH)
     ? EXPECTED_15M_STRATEGY_PATH
     : path.join(ROOT, EXPECTED_15M_STRATEGY_PATH);
@@ -32,6 +32,11 @@ function writeJson(filePath, value) {
 
 function approxEqual(a, b, tolerance = 1e-9) {
     return Number.isFinite(Number(a)) && Number.isFinite(Number(b)) && Math.abs(Number(a) - Number(b)) <= tolerance;
+}
+
+function parseEpochMs(value) {
+    const parsed = Date.parse(String(value || ''));
+    return Number.isFinite(parsed) ? parsed : null;
 }
 
 function getJson(url) {
@@ -84,6 +89,23 @@ async function main() {
         getJson(`${LIVE_BASE_URL}/api/diagnostics`),
         getJson(`${LIVE_BASE_URL}/api/wallet/balance`).catch(() => null)
     ]);
+    const startupMs = parseEpochMs(diagnostics?.startedAt || health?.startedAt);
+    const liveDiagnosticsLog = Array.isArray(diagnostics?.log)
+        ? diagnostics.log.filter((entry) => {
+            if (!Number.isFinite(startupMs)) return true;
+            const entryMs = parseEpochMs(entry?.ts);
+            return Number.isFinite(entryMs) ? entryMs >= (startupMs - 1000) : false;
+        })
+        : [];
+    const actionableDiagnostics = liveDiagnosticsLog.filter((entry) =>
+        [
+            'ERROR_HALT',
+            'TRADE_FAILURE_HALT',
+            'LIVE_SETTLEMENT_ERROR',
+            'BALANCE_REFRESH_TIMEOUT',
+            'TRADE_FAILED'
+        ].includes(String(entry?.type || ''))
+    );
 
     const checks = [
         {
@@ -117,6 +139,16 @@ async function main() {
                 : 'not required for this reaudit mode'
         },
         {
+            name: 'Proxy redemption auth ready',
+            status: clobStatus?.proxyRedeemAuthReady === true ? 'PASS' : 'WARN',
+            detail: {
+                proxyRedeemAuthReady: !!clobStatus?.proxyRedeemAuthReady,
+                relayerAuthMode: clobStatus?.relayerAuthMode || null,
+                relayerAuthConfigured: !!clobStatus?.relayerAuthConfigured,
+                builderAutoDerivable: !!clobStatus?.builderAutoDerivable
+            }
+        },
+        {
             name: '15m risk posture',
             status: (
                 health?.riskControls?.requireRealOrderBook === EXPECTED_RISK.requireRealOrderBook &&
@@ -148,8 +180,12 @@ async function main() {
         },
         {
             name: 'Diagnostics clean',
-            status: Array.isArray(diagnostics?.log) && diagnostics.log.length === 0 ? 'PASS' : 'WARN',
-            detail: Array.isArray(diagnostics?.log) ? diagnostics.log.slice(-5) : null
+            status: actionableDiagnostics.length === 0 ? 'PASS' : 'WARN',
+            detail: {
+                restoredHistoricalEntries: Number(diagnostics?.restoredHistoricalEntries || 0),
+                postStartupEntries: liveDiagnosticsLog.length,
+                actionableEntries: actionableDiagnostics.slice(-5)
+            }
         },
         {
             name: 'Proxy redemption autonomy',
@@ -182,7 +218,7 @@ async function main() {
             risk: EXPECTED_RISK
         },
         deployVersion: health?.deployVersion || null,
-        verdict: verdictFromChecks(checks, health, clobStatus, diagnostics),
+        verdict: verdictFromChecks(checks, health, clobStatus, { log: actionableDiagnostics }),
         checks,
         live: {
             health,

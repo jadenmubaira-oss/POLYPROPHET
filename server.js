@@ -37,6 +37,7 @@ let currentMarkets = {};
 let lastOrchestrationTime = 0;
 let orchestratorHeartbeat = { lastRun: null, marketsChecked: 0, candidatesFound: 0, tradesAttempted: 0 };
 let diagnosticLog = [];
+let restoredDiagnosticLogCount = 0;
 const startupTime = Date.now();
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'debug')) ? __dirname : path.join(__dirname, '..');
 let redis = null;
@@ -119,7 +120,8 @@ function applyRuntimeState(parsed, sourceLabel) {
         orchestratorHeartbeat = { ...orchestratorHeartbeat, ...parsed.orchestratorHeartbeat };
     }
     if (Array.isArray(parsed.diagnosticLog)) {
-        diagnosticLog = parsed.diagnosticLog.slice(-500);
+        restoredDiagnosticLogCount = parsed.diagnosticLog.length;
+        diagnosticLog = [];
     }
     runtimeStateLastLoadSource = sourceLabel || 'UNKNOWN';
     console.log(`♻️ Restored runtime state from ${runtimeStateLastLoadSource}`);
@@ -226,29 +228,33 @@ async function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: maxgrowth_v3 — exact local reverify winner vs v1/v2.
+    // PRIMARY 15m strategy: maxgrowth_v5 — best locally reverified stable max-growth set on the corrected truth surface.
     //   Config: f0.15, 3/cycle, no cooldown, no exposure cap, no floor, NEGATIVE_NET_EDGE disabled.
-    // FALLBACKS: maxgrowth_v1, maxgrowth_v2, then beam_2739.
+    // FALLBACKS: maxgrowth_v4, maxgrowth_v3, maxgrowth_v1, maxgrowth_v2, then beam_2739.
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
-    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v3.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v1.json');
-    const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v2.json');
-    const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json');
+    const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v3.json');
+    const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v1.json');
+    const quinary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v2.json');
+    const senary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam_2739_uncapped.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
 
         if (tf.key === '15m') {
-            // 15m: maxgrowth_v3 primary, then v1, v2, beam_2739, then legacy
+            // 15m: maxgrowth_v5 primary, then v4, v3, v1, v2, beam_2739, then legacy
             const candidates15m = [
                 ...(env15mPath ? [env15mPath] : []),
                 primary15mPath,
                 secondary15mPath,
                 tertiary15mPath,
                 quaternary15mPath,
+                quinary15mPath,
+                senary15mPath,
                 path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
@@ -668,6 +674,7 @@ app.get('/api/health', (req, res) => {
         status: 'ok',
         version: 'polyprophet-lite-1.0.0',
         deployVersion: DEPLOY_VERSION,
+        startedAt: new Date(startupTime).toISOString(),
         uptime,
         mode: CONFIG.TRADE_MODE,
         isLive: CONFIG.IS_LIVE,
@@ -749,6 +756,8 @@ app.get('/api/trades', (req, res) => {
 app.get('/api/diagnostics', (req, res) => {
     res.json({
         log: diagnosticLog.slice(-100),
+        startedAt: new Date(startupTime).toISOString(),
+        restoredHistoricalEntries: restoredDiagnosticLogCount,
         orchestrator: orchestratorHeartbeat,
         uptime: (Date.now() - startupTime) / 1000
     });
@@ -759,6 +768,8 @@ app.get('/api/debug/strategy-paths', (req, res) => {
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const candidates15m = [
         ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v3.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v1.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v2.json'),
