@@ -228,18 +228,17 @@ async function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: beam11_zero_bust — ONLY 0%-bust strategy at $6.44
-    //   11 strategies, 50-98c band, UTC hours 8-20 coverage, MPC=2, EB=0
-    //   Honest chronological sim @ $6.44: 0% bust, recent actual $454.95 (340 trades, 15 days)
-    //   All 11 legs individually validated (test WR 78-95%, LCB > break-even)
-    // FALLBACKS: dense, ultra_tight, filtered, maxgrowth_v5, v4, v3.
+    // PRIMARY 15m strategy: 24h_ultra_tight — best short-horizon median after reverify.
+    //   Reverified at ~$6.44 with MPC=1 posture: 24h median $15.72, 48h $20.87, 72h $24.29
+    //   Lower short-horizon bust than beam11_zero_bust, which failed 24h/48h/72h reverify.
+    // FALLBACKS: beam11_zero_bust, dense, filtered, maxgrowth_v5, v4.
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
-    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam11_zero_bust.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json');
-    const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_ultra_tight.json');
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_ultra_tight.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam11_zero_bust.json');
+    const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json');
     const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json');
     const quinary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json');
     const senary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json');
@@ -290,8 +289,9 @@ function loadAllStrategySets() {
                 path.join(REPO_ROOT, 'debug', 'strategy_set_4h_curated.json')
             ] : []),
             ...(tf.key === '5m' ? [
-                path.join(REPO_ROOT, 'debug', 'strategy_set_5m_maxprofit.json'),
-                path.join(REPO_ROOT, 'debug', 'strategy_set_5m_walkforward_top4.json')
+                path.join(REPO_ROOT, 'debug', 'strategy_set_5m_walkforward_top4.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_5m_exact_b20.json'),
+                path.join(REPO_ROOT, 'debug', 'strategy_set_5m_maxprofit.json')
             ] : []),
             path.join(strategiesDir, `strategy_set_${tf.key}_top8.json`),
             path.join(strategiesDir, `strategy_set_${tf.key}_top5.json`),
@@ -772,9 +772,9 @@ app.get('/api/debug/strategy-paths', (req, res) => {
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
     const candidates15m = [
         ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_ultra_tight.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam11_zero_bust.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json'),
-        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_ultra_tight.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json'),

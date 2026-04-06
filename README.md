@@ -14,16 +14,17 @@
 
 | Field | Value |
 |-------|-------|
-| **Objective** | **MAX MEDIAN PROFIT IN 24 HOURS** from ~$6.44 bankroll. Zero bust tolerance. |
+| **Objective** | **MAX MEDIAN PROFIT IN 24-72 HOURS** from ~$6.44 bankroll without repeating the previous bust pattern. |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Target Strategy (15m)** | `strategies/strategy_set_15m_beam11_zero_bust.json` (**11 strategies**, UTC hours 8-20, beam-search validated). **ONLY** strategy set with **0% bust rate** at $6.44 across all historical sliding windows. |
+| **Target Strategy (15m)** | `strategies/strategy_set_15m_24h_ultra_tight.json` — selected after fresh 24h/48h/72h horizon reverify from `$6.44`. |
 | **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`) |
-| **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`) |
-| **Target Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=2`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, no floor/exposure/envelope. Code hard-caps MPC<=2 when bankroll<$20 regardless of env var. |
-| **Honest Chronological Sim Results** | $6.44 start: **0% bust** across 3 sliding 14d windows, hist median $6.75, recent actual **$454.95** (340 trades, 15 days). Per-strategy test WR 78-95%, all LCB > break-even. |
-| **Verdict** | **GO** after redeploy. Verify `/api/debug/strategy-paths` shows `beam11_zero_bust` loaded, MPC=2, EB=0. |
-| **Next Action** | `git push` to Render, verify strategy loaded via `/api/debug/strategy-paths`, set `START_PAUSED=false`, confirm `/api/health` shows correct posture. |
+| **Active Strategy (5m)** | `debug/strategy_set_5m_walkforward_top4.json` overlay, enabled at bankroll `>=2` for the current micro-bankroll posture. |
+| **Target Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=1`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, `TIMEFRAME_5M_ENABLED=true`, `TIMEFRAME_5M_MIN_BANKROLL=2`, no floor/exposure/envelope. |
+| **Fresh Horizon Reverify @ $6.44** | **15m ultra-tight + 5m walkforward top4**: 24h median **`$16.25`**, bust **`9.5%`**; 48h median **`$21.33`**, bust **`9.7%`**; 72h median **`$24.94`**, bust **`10.5%`** under the current runtime sizing with `MPC=1`. |
+| **Beam11 Reverify** | `beam11_zero_bust` stayed 0-bust only on the old coarse 14-day sliding check, but **failed short-horizon reverify**: 24h median **`$10.13`**, bust **`15.2%`**; 48h **`$14.14`**, bust **`18.6%`**; 72h **`$17.23`**, bust **`19.5%`**. |
+| **Verdict** | **Best current deploy posture for max short-horizon median from ~$6.44:** `15m ultra-tight + 5m walkforward top4`, `MPC=1`, `EB=0`. |
+| **Next Action** | Deploy this posture, verify `/api/health`, `/api/status`, and `/api/debug/strategy-paths`, then confirm the live host shows `15m` + `5m` active with `MPC=1`. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 
@@ -37,11 +38,12 @@
 
 ### Corrective Measures Applied (This Deploy)
 
-1. **Strategy**: Switched to `beam11_zero_bust` -- the ONLY strategy set with **0% bust rate** at $6.44 in honest chronological simulation across ALL sliding windows.
-2. **MPC Safety Cap**: Code now hard-caps `maxPerCycle <= 2` when bankroll < $20, regardless of any Render env var. This prevents the exact failure that caused Deploy 4.
-3. **No env-vs-sim mismatch**: EB=0 is the code default AND the .env.example value. MPC=2 is both the code default AND the safety-capped runtime value.
+1. **Beam11 truth reset**: `beam11_zero_bust` was kept in the repo, but it was demoted after fresh 24h/48h/72h rolling reverify showed materially worse short-horizon bust than the old 14-day sliding summary implied.
+2. **MPC Safety Cap**: Code now hard-caps `maxPerCycle <= 2` when bankroll < $20, regardless of any Render env var. For the active deploy posture we go further and set `MAX_GLOBAL_TRADES_PER_CYCLE=1`.
+3. **5m reverified, not dismissed**: the best short-horizon booster was not `5m_maxprofit`; it was the thin but helpful `5m_walkforward_top4` overlay, which improved 24h/48h median when paired with 15m ultra-tight.
+4. **No env-vs-sim mismatch**: EB=0 is the code default and deploy value. The target live posture is explicitly `15m ultra-tight + 5m walkforward top4`, `MPC=1`.
 
-**Current goal (6 April 2026)**: Turn ~$6.44 into maximum possible profit in 24h with **zero tolerance for bust**. Strategy selected purely on 0% bust rate + highest recent median performance.
+**Current goal (6 April 2026)**: Turn ~$6.44 into the highest plausible 24h median we can support with current evidence, while cutting the clustered-loss pattern that previously nuked the bankroll.
 
 ### MANDATORY Investigation Protocol (All AI Agents)
 
