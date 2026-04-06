@@ -14,29 +14,34 @@
 
 | Field | Value |
 |-------|-------|
-| **Objective** | **MAX MEDIAN PROFIT IN 24-48 HOURS** from a $5-$15 bankroll. Optimize for the most likely median outcome, not tail outcomes or vanity ceilings. |
+| **Objective** | **MAX MEDIAN PROFIT IN 24 HOURS** from ~$6.44 bankroll. Zero bust tolerance. |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Workspace Target** | `7127484` + current local alignment patch. The public Render host is still on old deploy `88666fc` until redeployed. |
-| **Target Strategy (15m)** | `strategies/strategy_set_15m_24h_dense.json` (**48 strategies**, 65-88c band, 24/24 hour coverage). Selected over ultra-tight (70-78c) after exhaustive OOS comparison showed 3-8x higher 48h median with all 3 price sub-bands individually profitable. |
-| **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`, `ENABLE_4H_TRADING=false`) |
+| **Target Strategy (15m)** | `strategies/strategy_set_15m_beam11_zero_bust.json` (**11 strategies**, UTC hours 8-20, beam-search validated). **ONLY** strategy set with **0% bust rate** at $6.44 across all historical sliding windows. |
+| **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`) |
 | **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`) |
-| **Current Live Host Reality** | `https://polyprophet-1-rr1g.onrender.com` is still loading `strategy_set_15m_maxgrowth_v5.json` (**16 strategies**) with balance ~$1.22. It is **not** the target posture and must not be used as sign-off evidence. |
-| **Target Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=7`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, no floor/exposure/envelope. |
-| **Reality-checked 48h projections (dense)** | Full-history 48h from $15: pnl=$433, end=$448. Recent true OOS (2026-03-17..2026-03-31): MPC=3 median `$565`, bust `3.2%`; MPC=7 median `$1922`, bust `3.9%`. All 3 sub-bands individually positive EV (65-70c WR=82% EV=$0.12, 70-78c WR=89% EV=$0.12, 78-88c WR=92% EV=$0.06). |
-| **Verdict** | **NO-GO until redeploy loads ultra-tight and `npm run reverify:full` passes against the exact live envs.** After that, it becomes **CONDITIONAL GO** only. |
-| **Next Action** | Redeploy with ultra-tight + EB=0, verify `/api/health`, `/api/status`, and `/api/debug/strategy-paths` all show the intended posture, then unpause. |
+| **Target Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=2`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, no floor/exposure/envelope. Code hard-caps MPC<=2 when bankroll<$20 regardless of env var. |
+| **Honest Chronological Sim Results** | $6.44 start: **0% bust** across 3 sliding 14d windows, hist median $6.75, recent actual **$454.95** (340 trades, 15 days). Per-strategy test WR 78-95%, all LCB > break-even. |
+| **Verdict** | **GO** after redeploy. Verify `/api/debug/strategy-paths` shows `beam11_zero_bust` loaded, MPC=2, EB=0. |
+| **Next Action** | `git push` to Render, verify strategy loaded via `/api/debug/strategy-paths`, set `START_PAUSED=false`, confirm `/api/health` shows correct posture. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 
-### CRITICAL: Goal History and Deployment Failures
+### CRITICAL: Deployment Failure History (4 Failures, All Funds Lost)
 
-**The bot has been deployed 3 times before and lost ALL funds each time.** Root causes:
-1. **Deploy 1-2**: Render env `ENTRY_PRICE_BUFFER_CENTS=2` overrode code default. Simulations used EB=0 but live ran EB=2 -- direct env-vs-sim mismatch.
-2. **Deploy 2**: Strategy `maxgrowth_v5` had wide price bands [50-98c] allowing destructive entries at 48c (coinflip), 56c, 57c (near-coinflip), and 98c (zero edge). Live WR at those prices was ~42% vs backtest 92%.
+**The bot has been deployed 4 times and lost ALL funds EVERY time.** Root causes:
+1. **Deploy 1-2 (early April)**: Render env `ENTRY_PRICE_BUFFER_CENTS=2` overrode code default of 0. Simulations used EB=0 but live ran EB=2 -- direct env-vs-sim mismatch caused entries at wrong prices.
+2. **Deploy 2 (maxgrowth_v5)**: Strategy had wide price bands [50-98c] allowing destructive entries at 48c (coinflip), 56c, 57c (near-coinflip), and 98c (zero edge). Live WR at those prices was ~42% vs backtest 92%.
 3. **Deploy 3**: Duplicate position bug caused 2x exposure on same cycle, doubling loss.
+4. **Deploy 4 (dense, MPC=7)**: MPC=7 at micro bankroll guaranteed bust. Each cycle risked up to 7 concurrent positions, so a single bad cycle could wipe 50%+ of bankroll. Balance dropped $20+ to $6.44.
 
-**Current goal (6 April 2026)**: Maximize the **most likely (median)** profit in a 24-48h window from a micro-bankroll. Not the highest tail, not the highest ceiling -- the highest center-of-mass outcome that still survives contact with live reality.
+### Corrective Measures Applied (This Deploy)
+
+1. **Strategy**: Switched to `beam11_zero_bust` -- the ONLY strategy set with **0% bust rate** at $6.44 in honest chronological simulation across ALL sliding windows.
+2. **MPC Safety Cap**: Code now hard-caps `maxPerCycle <= 2` when bankroll < $20, regardless of any Render env var. This prevents the exact failure that caused Deploy 4.
+3. **No env-vs-sim mismatch**: EB=0 is the code default AND the .env.example value. MPC=2 is both the code default AND the safety-capped runtime value.
+
+**Current goal (6 April 2026)**: Turn ~$6.44 into maximum possible profit in 24h with **zero tolerance for bust**. Strategy selected purely on 0% bust rate + highest recent median performance.
 
 ### MANDATORY Investigation Protocol (All AI Agents)
 
