@@ -34,29 +34,51 @@ description: The unified AI agent for Polyprophet -  combines deep analysis, pre
 
 ## 🎯 THE MISSION (MEMORIZE THIS)
 
-**Goal**: $1 → $1M via compounding on Polymarket 15-min crypto markets.
+**Goal**: **MAX MEDIAN PROFIT IN 24-48 HOURS** from $15 on Polymarket 15-min crypto markets.
 
-**User's Starting Point**: $1, going ALL-IN until ~$20.
+**User's Starting Point**: $15 (final deposit -- cannot afford another loss).
 
-**CRITICAL**: User CANNOT lose the first few trades. One loss at $1 = RUIN.
+**CRITICAL**: The bot has been deployed 3 times before and **lost ALL funds each time** due to:
+1. Render env not matching simulation parameters (EB=2 vs EB=0 mismatch)
+2. Wide price band strategy allowing coinflip entries (48c, 56c, 57c)
+3. Duplicate position bug doubling loss exposure
+
+**Current Baseline (6 Apr 2026)**:
+- Strategy: `strategy_set_15m_24h_ultra_tight.json` (48 strats, 70-78c, 24h coverage)
+- Config: SF=0.15, MPC=3, EB=0, MIN_SHARES=5
+- 48h rolling: median $80, p25 $20, bust 3.1%, >$100 in 42%
 
 ### Required Metrics
 
 | Metric | Target | Current Reality |
 |--------|--------|-----------------|
-| Win Rate | ≥90% | CHECK **LIVE** ROLLING ACCURACY |
-| ROI/Trade | 50-100% | Depends on entry price |
-| Frequency | ~1 trade/hour | May be lower due to strict settings |
-| First Trades | CANNOT LOSE | Must verify before user trades |
+| 48h Median | Highest possible | $80.22 from $15 |
+| 48h Bust Rate | Lowest possible | 3.1% |
+| 48h >$100 | Highest possible | 41.8% |
+| Per-cycle worst | Survivable | 3/3 lost = $11.38 (76% of $15) in 4% of cycles |
 
-### From User's Risk Tables (90% WR, 50% ROI, 80% sizing)
+### MANDATORY Side-Question Checklist
 
-- **70 trades**: $10 → $1M
-- **75 trades**: $5 → $1M  
-- **100% sizing**: BUST (even at 90% WR)
-- **80% sizing**: Survives with 90% WR
+Before ANY recommendation, you MUST investigate these:
+- Multi-loss-per-cycle risk: How many trades can lose in the same 15-min window? What is the bankroll impact?
+- Env-vs-sim mismatch: Does every Render env var match the replay parameters EXACTLY?
+- Partial fills: What happens if only part of the order fills?
+- Pending-buy lifecycle: Are pending orders correctly reserving cash and counting against cycle limits?
+- 98c entries: Does the strategy allow zero-edge entries? (ultra-tight 70-78c band eliminates this)
+- Orderbook depth: Is there enough liquidity for 5-share minimum orders at the target price?
+- Win-resolution gap: Sim resolves wins at $1.00, live exits at ~95-99c. Is this accounted for?
+- Single-window vs rolling: Are projections based on rolling-window distributions or a single favorable window?
 
-**CONCLUSION**: After $20, use 80% sizing. At $1-$20, all-in is high risk but user accepts.
+### From Rolling-Window Analysis (ultra-tight, SF=0.15, MPC=3, $15 start)
+
+| MPC | 48h Median | 48h Bust | 48h >$100 | Per-cycle worst |
+|-----|-----------|----------|-----------|-----------------|
+| 1 | $43.51 | 3.1% | 8.2% | 0 multi-loss events |
+| 2 | $68.84 | 5.1% | 31.6% | 2/2 lost = $7.75 (52% of $15) |
+| **3** | **$80.22** | **3.1%** | **41.8%** | 3/3 lost = $11.38 (76% of $15) |
+| 7 | $86.33 | 5.1% | 48.0% | same as MPC=3 (strategy rarely has >3 opps/cycle) |
+
+**CONCLUSION**: MPC=3 is the sweet spot. $6 less median than MPC=7, but 64% lower bust rate. MPC=7 is NOT worth the risk -- the extra upside comes from allowing more concurrent losses in the same cycle, which is what caused previous deployment failures.
 
 ---
 
@@ -229,23 +251,23 @@ Before concluding "no edge exists":
 
 ## 📡 LIVE SERVER MONITORING
 
-**Production URL**: `https://polyprophet.onrender.com`
+**Production URL**: `https://polyprophet-1-rr1g.onrender.com`
 
 ### Critical Endpoints
 
 | Endpoint | What to Check |
 |----------|---------------|
-| `/api/health` | Status, configVersion, **rollingAccuracy** |
-| `/api/state-public` | Predictions, locks, confidence, pWin |
-| `/api/verify?deep=1` | Full system verification |
-| `/api/perfection-check` | All invariants |
+| `/api/health` | Mode, strategy sets, readiness, and whether live metrics are actually exposed |
+| `/api/status` | Risk, executor, markets, and orchestrator truth |
+| `/api/diagnostics` | Diagnostic log, heartbeat, and recent runtime issues |
+| `/api/wallet/balance` | Wallet balance breakdown |
 
 ### Before ANY Performance Claims
 
-1. Query `/api/health` for live rolling accuracy
-2. Compare to any local/backtest data
-3. Report discrepancies explicitly
-4. Never present local data without live cross-check
+1. Query `/api/health` and `/api/status`
+2. State whether rolling accuracy or equivalent live accuracy is actually available
+3. Compare to any local/backtest data
+4. Report discrepancies or missing live metrics explicitly
 
 ---
 
@@ -263,9 +285,9 @@ Before concluding "no edge exists":
 | Check | Command | When |
 |-------|---------|------|
 | Syntax | `node --check server.js` | After every edit |
-| Values | `grep -n "X" server.js` | After config changes |
-| Deploy | `git push origin main` | After verification |
-| **LIVE** | Query `/api/health` | After deploy |
+| Values | Re-read touched values in source or search the repo | After config changes |
+| Deploy | Only deploy when explicitly asked | After verification |
+| **LIVE** | Query `/api/health` and `/api/status` | After deploy or runtime changes |
 
 ### Real-World Polymarket Validation
 
@@ -284,8 +306,9 @@ Before finalizing ANY strategy:
 
 1. **IMMEDIATELY** read README.md (your brain/manifesto)
 2. Read this skill file (DEITY/SKILL.md)
-3. Check implementation_plan.md for pending work
-4. Query `/api/health` for current state
+3. Check `IMPLEMENTATION_PLAN_v140.md` for pending work
+4. Read `AGENTS.md` and the relevant local workflows for the current task
+5. Query `/api/health` and `/api/status` for current runtime state when runtime claims matter
 
 ### Update README at End of Session
 
@@ -302,9 +325,10 @@ Document:
 |------|---------|
 | `README.md` | Immortal Manifesto - source of truth |
 | `.agent/skills/DEITY/SKILL.md` | This file - unified agent protocol |
-| `implementation_plan.md` | Current blueprint |
-| `task.md` | Task tracking |
+| `IMPLEMENTATION_PLAN_v140.md` | Current blueprint |
+| `AGENTS.md` | Cross-harness map and read order |
 | `.windsurf/workflows/atlas-build-app.md` | Standard build/change workflow (ATLAS) |
+| `.windsurf/workflows/handover-sync.md` | Mandatory README + harness synchronization before ending substantial work |
 | `.windsurf/workflows/oracle-certainty-audit.md` | Oracle correctness + frequency audit workflow (local) |
 
 ---
