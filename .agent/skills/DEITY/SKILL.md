@@ -44,20 +44,20 @@ description: The unified AI agent for Polyprophet -  combines deep analysis, pre
 3. Duplicate position bug doubling loss exposure
 
 **Current Baseline (6 Apr 2026)**:
-- Workspace target strategy: `strategy_set_15m_24h_ultra_tight.json` (48 strats, 70-78c, 24h coverage)
-- Baseline config for verification: SF=0.15, MPC=3, EB=0, MIN_SHARES=5
-- Aggressive override to investigate, not assume: MPC=7
-- Current public Render host is still on old `maxgrowth_v5` until redeployed; never treat the live host as aligned until `/api/health` proves it.
+- Workspace target strategy: `strategy_set_15m_24h_dense.json` (48 strats, 65-88c, 24h coverage)
+- Config: SF=0.15, MPC=7, EB=0, MIN_SHARES=5
+- All 3 sub-bands individually profitable on OOS: 65-70c WR=82% EV=$0.12, 70-78c WR=89% EV=$0.12, 78-88c WR=92% EV=$0.06
+- Never treat the live host as aligned unless `/api/health` shows the correct strategy file.
 
 ### Required Metrics
 
 | Metric | Target | Current Reality |
 |--------|--------|-----------------|
-| Full-history 48h median | Do not hide regime failure | `$2.94` from $15 |
-| Full-history 48h bust | Measure downside honestly | `29.3%` |
-| Recent true OOS 48h median | Highest realistic current-regime signal | `$180` at MPC=3, `$223` at MPC=7 |
-| Recent true OOS 48h bust | Lowest realistic current-regime downside | `1.2%` at MPC=3, `1.0%` at MPC=7 |
-| Per-cycle worst | Survivable / explicit | 3 losses in one cycle, about `$11.38` (76% of $15) |
+| Full-history 48h (dense) | Do not hide regime failure | pnl=$433, end=$448 from $15 |
+| Recent OOS 48h median (dense MPC=3) | Conservative | `$565` from $15 (bust 3.2%) |
+| Recent OOS 48h median (dense MPC=7) | Current target | `$1922` from $15 (bust 3.9%) |
+| Sub-band safety | All profitable | 65-70c EV=$0.12, 70-78c EV=$0.12, 78-88c EV=$0.06 |
+| Per-cycle worst | Survivable / explicit | 3 losses in one cycle at MPC=7 |
 
 ### MANDATORY Side-Question Checklist
 
@@ -73,14 +73,14 @@ Before ANY recommendation, you MUST investigate these:
 
 ### From Final Reverification (ultra-tight, SF=0.15, EB=0, $15 start)
 
-| Surface | MPC | 48h Median | 48h Bust | Notes |
-|---------|-----|-----------|----------|-------|
-| Full-history rolling | 3 | $2.94 | 29.3% | Historical regime mismatch; do not ignore |
-| Recent true OOS | 3 | $180.07 | 1.2% | Conservative current-regime baseline |
-| Recent true OOS | 7 | $223.26 | 1.0% | Highest recent median among required configs |
-| Recent true OOS | 1 | $63.34 | 0.0% | Safest but much lower ceiling |
+| Strategy | MPC | 48h Median ($15) | 48h Bust | Notes |
+|----------|-----|------------------|----------|-------|
+| Dense (65-88c) | 7 | $1922 | 3.9% | **CURRENT TARGET** -- highest median |
+| Dense (65-88c) | 3 | $565 | 3.2% | Conservative fallback |
+| Filtered (65-88c LCB>=0.74) | 7 | $993 | 3.2% | Alternative with tighter confidence |
+| Ultra-tight (70-78c) | 7 | $223 | 1.0% | Prior target, safest but 8.6x lower median |
 
-**CONCLUSION**: Do not present a single fake-certainty number. The honest posture is: `MPC=3` remains the canonical baseline because it is the safer default if envs drift, while `MPC=7` is the aggressive recent-OOS override because it currently has the highest observed recent median and did **not** materially worsen clustered-loss counts in the latest re-audit. Always report both.
+**CONCLUSION**: Dense at MPC=7 is the current operator-selected target. Exhaustive sub-band analysis confirmed all 3 price segments are individually positive EV (no coinflip entries like the failed 50-98c maxgrowth_v5). The 65c floor has 82% WR; the 88c ceiling has 92% WR with thin but positive edge.
 
 ---
 

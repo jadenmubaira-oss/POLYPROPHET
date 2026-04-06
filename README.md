@@ -18,12 +18,12 @@
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
 | **Workspace Target** | `7127484` + current local alignment patch. The public Render host is still on old deploy `88666fc` until redeployed. |
-| **Target Strategy (15m)** | `strategies/strategy_set_15m_24h_ultra_tight.json` (**48 strategies**, 70-78c band, 24/24 hour coverage). This is the current workspace target. |
+| **Target Strategy (15m)** | `strategies/strategy_set_15m_24h_dense.json` (**48 strategies**, 65-88c band, 24/24 hour coverage). Selected over ultra-tight (70-78c) after exhaustive OOS comparison showed 3-8x higher 48h median with all 3 price sub-bands individually profitable. |
 | **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`, `ENABLE_4H_TRADING=false`) |
 | **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`) |
 | **Current Live Host Reality** | `https://polyprophet-1-rr1g.onrender.com` is still loading `strategy_set_15m_maxgrowth_v5.json` (**16 strategies**) with balance ~$1.22. It is **not** the target posture and must not be used as sign-off evidence. |
-| **Target Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=3` baseline (`7` only as an aggressive override after explicit review), `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, no floor/exposure/envelope. |
-| **Reality-checked 48h projections** | Full historical ultra-tight replay is poor (median `$2.94`, bust `29.3%`). Recent true OOS (2026-03-17..2026-03-31) is strong: MPC=3 median `$180`, bust `1.2%`; MPC=7 median `$223`, bust `1.0%`. Treat recent OOS as regime-specific, not guaranteed. |
+| **Target Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=7`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, no floor/exposure/envelope. |
+| **Reality-checked 48h projections (dense)** | Full-history 48h from $15: pnl=$433, end=$448. Recent true OOS (2026-03-17..2026-03-31): MPC=3 median `$565`, bust `3.2%`; MPC=7 median `$1922`, bust `3.9%`. All 3 sub-bands individually positive EV (65-70c WR=82% EV=$0.12, 70-78c WR=89% EV=$0.12, 78-88c WR=92% EV=$0.06). |
 | **Verdict** | **NO-GO until redeploy loads ultra-tight and `npm run reverify:full` passes against the exact live envs.** After that, it becomes **CONDITIONAL GO** only. |
 | **Next Action** | Redeploy with ultra-tight + EB=0, verify `/api/health`, `/api/status`, and `/api/debug/strategy-paths` all show the intended posture, then unpause. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |

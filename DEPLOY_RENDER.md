@@ -5,7 +5,7 @@ This is the current live-lite deployment guide for a fresh machine and a differe
 ## Baseline
 
 - Runtime: root `server.js`
-- Workspace target 15m strategy: `strategies/strategy_set_15m_24h_ultra_tight.json`
+- Workspace target 15m strategy: `strategies/strategy_set_15m_24h_dense.json`
 - Current live host may still be on an older deploy. Treat `/api/health` and `/api/status` as the only live truth.
 - Node: `20.x`
 - Health endpoint: `/api/health`
@@ -57,7 +57,7 @@ MULTIFRAME_4H_ENABLED=false
 TIMEFRAME_4H_MIN_BANKROLL=10
 TIMEFRAME_5M_MIN_BANKROLL=50
 
-STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_24h_ultra_tight.json
+STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_24h_dense.json
 
 DEFAULT_MIN_ORDER_SHARES=5
 REQUIRE_REAL_ORDERBOOK=true
@@ -121,7 +121,7 @@ Expected before unpausing:
 
 - `mode: LIVE`
 - `isLive: true`
-- `strategySets["15m"].filePath` ends with `strategy_set_15m_24h_ultra_tight.json`
+- `strategySets["15m"].filePath` ends with `strategy_set_15m_24h_dense.json`
 - `strategySets["15m"].strategies` is `48`
 - 4h disabled, 5m disabled
 - `walletLoaded: true`
