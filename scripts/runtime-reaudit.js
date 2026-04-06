@@ -7,12 +7,18 @@ const https = require('https');
 const ROOT = path.join(__dirname, '..');
 const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet-1-rr1g.onrender.com').replace(/\/+$/, '');
 const OUTPUT_PATH = path.join(ROOT, 'debug', 'runtime_reaudit_report.json');
-const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_24h_dense.json').trim();
+const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_24h_ultra_tight.json').trim();
 const LOCAL_15M_STRATEGY_PATH = path.isAbsolute(EXPECTED_15M_STRATEGY_PATH)
     ? EXPECTED_15M_STRATEGY_PATH
     : path.join(ROOT, EXPECTED_15M_STRATEGY_PATH);
 const EXPECTED_15M_STRATEGY_BASENAME = path.basename(LOCAL_15M_STRATEGY_PATH);
+const EXPECTED_5M_STRATEGY_PATH = String(process.env.EXPECTED_5M_STRATEGY_PATH || 'debug/strategy_set_5m_walkforward_top4.json').trim();
+const LOCAL_5M_STRATEGY_PATH = path.isAbsolute(EXPECTED_5M_STRATEGY_PATH)
+    ? EXPECTED_5M_STRATEGY_PATH
+    : path.join(ROOT, EXPECTED_5M_STRATEGY_PATH);
+const EXPECTED_5M_STRATEGY_BASENAME = path.basename(LOCAL_5M_STRATEGY_PATH);
 const EXPECTED_MODE = String(process.env.EXPECTED_MODE || 'LIVE').trim().toUpperCase();
+const EXPECTED_5M_ENABLED = String(process.env.EXPECTED_5M_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const REQUIRE_TRADE_READY = String(process.env.REQUIRE_TRADE_READY || (EXPECTED_MODE === 'LIVE' ? 'true' : 'false')).trim().toLowerCase() === 'true';
 const EXPECTED_RISK = {
     requireRealOrderBook: String(process.env.EXPECTED_REQUIRE_REAL_ORDERBOOK || 'true').trim().toLowerCase() !== 'false',
@@ -22,7 +28,7 @@ const EXPECTED_RISK = {
     minBalanceFloor: Number(process.env.EXPECTED_MIN_BALANCE_FLOOR ?? 0),
     minOrderShares: Number(process.env.EXPECTED_MIN_ORDER_SHARES ?? 5),
     entryPriceBufferCents: Number(process.env.EXPECTED_ENTRY_BUFFER_CENTS ?? 0),
-    maxPerCycle: Number(process.env.EXPECTED_MAX_PER_CYCLE ?? 7),
+    maxPerCycle: Number(process.env.EXPECTED_MAX_PER_CYCLE ?? 1),
     stakeFraction: Number(process.env.EXPECTED_STAKE_FRACTION ?? 0.15)
 };
 
@@ -81,6 +87,14 @@ async function main() {
             return null;
         }
     })();
+    const local5mStrategyCount = (() => {
+        try {
+            const parsed = JSON.parse(fs.readFileSync(LOCAL_5M_STRATEGY_PATH, 'utf8'));
+            return Array.isArray(parsed?.strategies) ? parsed.strategies.length : null;
+        } catch {
+            return null;
+        }
+    })();
 
     const [health, status, clobStatus, diagnostics, walletBalance] = await Promise.all([
         getJson(`${LIVE_BASE_URL}/api/health`),
@@ -131,6 +145,31 @@ async function main() {
             detail: {
                 live: Number(health?.strategySets?.['15m']?.strategies || 0),
                 localExpected: local15mStrategyCount
+            }
+        },
+        {
+            name: '5m timeframe active',
+            status: !EXPECTED_5M_ENABLED || (
+                Array.isArray(health?.timeframes) &&
+                health.timeframes.includes('5m') &&
+                Number(health?.configuredTimeframes?.find?.((tf) => tf?.key === '5m')?.minBankroll) === 2
+            ) ? 'PASS' : 'FAIL',
+            detail: {
+                activeTimeframes: health?.timeframes || [],
+                configured5m: health?.configuredTimeframes?.find?.((tf) => tf?.key === '5m') || null
+            }
+        },
+        {
+            name: 'Correct 5m strategy loaded',
+            status: !EXPECTED_5M_ENABLED || String(health?.strategySets?.['5m']?.filePath || '').endsWith(EXPECTED_5M_STRATEGY_BASENAME) ? 'PASS' : 'FAIL',
+            detail: health?.strategySets?.['5m']?.filePath || null
+        },
+        {
+            name: '5m strategy count',
+            status: !EXPECTED_5M_ENABLED || (local5mStrategyCount !== null && Number(health?.strategySets?.['5m']?.strategies) === local5mStrategyCount) ? 'PASS' : 'FAIL',
+            detail: {
+                live: Number(health?.strategySets?.['5m']?.strategies || 0),
+                localExpected: local5mStrategyCount
             }
         },
         {
@@ -216,6 +255,8 @@ async function main() {
         expected: {
             mode: EXPECTED_MODE,
             strategy15m: EXPECTED_15M_STRATEGY_BASENAME,
+            strategy5m: EXPECTED_5M_STRATEGY_BASENAME,
+            expected5mEnabled: EXPECTED_5M_ENABLED,
             tradeReadyRequired: REQUIRE_TRADE_READY,
             risk: EXPECTED_RISK
         },
