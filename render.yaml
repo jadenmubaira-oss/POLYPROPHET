@@ -18,9 +18,9 @@ services:
       - key: LIVE_AUTOTRADING_ENABLED
         value: "false"
       - key: PAPER_BALANCE
-        value: "20.00"
+        value: "15.00"
       - key: STARTING_BALANCE
-        value: "20"
+        value: "15"
       - key: OPERATOR_STAKE_FRACTION
         value: "0.15"
       - key: ASSETS
@@ -38,7 +38,7 @@ services:
       - key: TIMEFRAME_5M_MIN_BANKROLL
         value: "50"
       - key: STRATEGY_SET_15M_PATH
-        value: strategies/strategy_set_15m_maxgrowth_v5.json
+        value: strategies/strategy_set_15m_24h_ultra_tight.json
       - key: STRATEGY_SET_4H_PATH
         value: debug/strategy_set_4h_maxprofit.json
       - key: STRATEGY_SET_5M_PATH
@@ -52,6 +52,14 @@ services:
       - key: DEFAULT_MIN_ORDER_SHARES
         value: "5"
       - key: REQUIRE_REAL_ORDERBOOK
+        value: "true"
+      - key: ENTRY_PRICE_BUFFER_CENTS
+        value: "0"
+      - key: ENFORCE_NET_EDGE_GATE
+        value: "false"
+      - key: MAX_GLOBAL_TRADES_PER_CYCLE
+        value: "3"
+      - key: START_PAUSED
         value: "true"
       - key: MAX_TOTAL_EXPOSURE
         value: "0"

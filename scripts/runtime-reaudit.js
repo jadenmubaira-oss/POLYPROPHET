@@ -7,7 +7,7 @@ const https = require('https');
 const ROOT = path.join(__dirname, '..');
 const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet-1-rr1g.onrender.com').replace(/\/+$/, '');
 const OUTPUT_PATH = path.join(ROOT, 'debug', 'runtime_reaudit_report.json');
-const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_maxgrowth_v5.json').trim();
+const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_24h_ultra_tight.json').trim();
 const LOCAL_15M_STRATEGY_PATH = path.isAbsolute(EXPECTED_15M_STRATEGY_PATH)
     ? EXPECTED_15M_STRATEGY_PATH
     : path.join(ROOT, EXPECTED_15M_STRATEGY_PATH);
@@ -21,7 +21,7 @@ const EXPECTED_RISK = {
     riskEnvelopeEnabled: String(process.env.EXPECTED_RISK_ENVELOPE_ENABLED || 'false').trim().toLowerCase() === 'true',
     minBalanceFloor: Number(process.env.EXPECTED_MIN_BALANCE_FLOOR ?? 0),
     minOrderShares: Number(process.env.EXPECTED_MIN_ORDER_SHARES ?? 5),
-    entryPriceBufferCents: Number(process.env.EXPECTED_ENTRY_BUFFER_CENTS ?? 2),
+    entryPriceBufferCents: Number(process.env.EXPECTED_ENTRY_BUFFER_CENTS ?? 0),
     maxPerCycle: Number(process.env.EXPECTED_MAX_PER_CYCLE ?? 3),
     stakeFraction: Number(process.env.EXPECTED_STAKE_FRACTION ?? 0.15)
 };

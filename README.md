@@ -3,7 +3,7 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 5 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
+**Last Updated**: 6 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing
 
 ---
 
@@ -14,18 +14,18 @@
 
 | Field | Value |
 |-------|-------|
-| **Objective** | **MAX MEDIAN PROFIT IN 24-48 HOURS** from $15 start. Not 7-day or 30-day optimization. See Goal History below. |
+| **Objective** | **MAX MEDIAN PROFIT IN 24-48 HOURS** from a $5-$15 bankroll. Optimize for the most likely median outcome, not tail outcomes or vanity ceilings. |
 | **Runtime** | `polyprophet-lite` (root `server.js`), deployed on Render (Oregon) |
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
-| **Deploy Commit** | `88666fc` (6 Apr 2026). See live `/api/health.deployVersion` to confirm. |
-| **Active Strategy (15m)** | `strategies/strategy_set_15m_24h_ultra_tight.json` (**48 strategies**, 70-78c band, 24/24 hour coverage). Selected as highest 48h median with lowest bust across 720 parameter combinations. |
+| **Workspace Target** | `7127484` + current local alignment patch. The public Render host is still on old deploy `88666fc` until redeployed. |
+| **Target Strategy (15m)** | `strategies/strategy_set_15m_24h_ultra_tight.json` (**48 strategies**, 70-78c band, 24/24 hour coverage). This is the current workspace target. |
 | **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`, `ENABLE_4H_TRADING=false`) |
 | **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`) |
-| **Wallet Balance** | ~$15 (user final deposit). Check live `/api/wallet/balance`. |
-| **Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=3`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, no floor/exposure/envelope. |
-| **Rolling 48h projection** | Median $80, p25 $20, bust 3.1%, >$100 in 42% of windows (from 97 historical rolling windows). |
-| **Verdict** | **CONDITIONAL GO** for 24-48h median-first deployment. See caveats below. |
-| **Next Action** | Confirm `MAX_GLOBAL_TRADES_PER_CYCLE=3` in Render. Monitor first 6-12 hours. Re-run `npm run reverify:full` after unusual drift. |
+| **Current Live Host Reality** | `https://polyprophet-1-rr1g.onrender.com` is still loading `strategy_set_15m_maxgrowth_v5.json` (**16 strategies**) with balance ~$1.22. It is **not** the target posture and must not be used as sign-off evidence. |
+| **Target Runtime State** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=3` baseline (`7` only as an aggressive override after explicit review), `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`, no floor/exposure/envelope. |
+| **Reality-checked 48h projections** | Full historical ultra-tight replay is poor (median `$2.94`, bust `29.3%`). Recent true OOS (2026-03-17..2026-03-31) is strong: MPC=3 median `$180`, bust `1.2%`; MPC=7 median `$223`, bust `1.0%`. Treat recent OOS as regime-specific, not guaranteed. |
+| **Verdict** | **NO-GO until redeploy loads ultra-tight and `npm run reverify:full` passes against the exact live envs.** After that, it becomes **CONDITIONAL GO** only. |
+| **Next Action** | Redeploy with ultra-tight + EB=0, verify `/api/health`, `/api/status`, and `/api/debug/strategy-paths` all show the intended posture, then unpause. |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
 
@@ -36,7 +36,7 @@
 2. **Deploy 2**: Strategy `maxgrowth_v5` had wide price bands [50-98c] allowing destructive entries at 48c (coinflip), 56c, 57c (near-coinflip), and 98c (zero edge). Live WR at those prices was ~42% vs backtest 92%.
 3. **Deploy 3**: Duplicate position bug caused 2x exposure on same cycle, doubling loss.
 
-**Current goal (6 April 2026)**: Maximize the **most likely (median)** profit in a 24-48h window from $15. Not the highest tail, not the highest ceiling -- the highest center-of-mass outcome. Bust rate must be minimized.
+**Current goal (6 April 2026)**: Maximize the **most likely (median)** profit in a 24-48h window from a micro-bankroll. Not the highest tail, not the highest ceiling -- the highest center-of-mass outcome that still survives contact with live reality.
 
 ### MANDATORY Investigation Protocol (All AI Agents)
 
@@ -44,11 +44,12 @@ Before recommending ANY strategy change, parameter change, or code change, you M
 1. Run `scripts/sweep-median-first-24h-48h.js` to compare 24h and 48h rolling medians across all candidates
 2. Run `scripts/analyze-cycle-loss-risk.js` to verify per-cycle multi-loss exposure at the proposed MPC level
 3. Run `npm run reverify:full` to confirm syntax, harness, and runtime audit pass
-4. Compare your proposed change against the CURRENT BASELINE: **ultra-tight, SF=0.15, MPC=3, EB=0, $15 -> 48h median $80, bust 3.1%**
+4. Compare your proposed change against the CURRENT BASELINE: **ultra-tight, SF=0.15, MPC=3, EB=0, $15**, and separately report whether the aggressive `MPC=7` override materially improves recent-OOS median without materially worsening clustered-loss risk
 5. Report BOTH the upside AND the downside (bust rate, p25, worst-case cycle damage) of any proposed change
 6. **NEVER DEPLOY without explicitly checking that Render env matches replay parameters exactly.** The #1 historical failure was env-vs-sim mismatch.
 7. Consider side-effects: multi-loss-per-cycle risk, partial fills, pending-buy lifecycle, 98c zero-edge entries, orderbook depth gaps
-8. Simulations have been wrong 3 times. Do not trust single-window results. Use rolling-window distributions (median, p25, bust rate).
+8. Simulations have been wrong 3 times. Do not trust single-window results. Use rolling-window distributions (median, p25, bust rate) and separate **full-history** from **true recent OOS**.
+9. A deployment is **NOT READY** unless the live runtime reports the intended strategy path, intended strategy count, intended entry buffer, and intended max-per-cycle values.
 
 <!-- /AGENT_QUICK_START -->
 
@@ -157,7 +158,7 @@ Conclusion: a blunt `>90c` ban is **not** supported by the current replay surfac
 - `npm run reaudit:runtime` -> `debug/runtime_reaudit_report.json`
 - `npm run reverify:full` -> strategy reverify + harness verify + runtime reaudit
 
-## Fresh Start / Different Account Render Guide
+## [ARCHIVED] Fresh Start / Different Account Render Guide (maxgrowth_v5 posture)
 
 Use this if a different operator wants to clone the repo, use a different PC, and run the bot on a different Polymarket account.
 

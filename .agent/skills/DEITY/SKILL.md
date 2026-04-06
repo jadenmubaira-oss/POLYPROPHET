@@ -34,9 +34,9 @@ description: The unified AI agent for Polyprophet -  combines deep analysis, pre
 
 ## 🎯 THE MISSION (MEMORIZE THIS)
 
-**Goal**: **MAX MEDIAN PROFIT IN 24-48 HOURS** from $15 on Polymarket 15-min crypto markets.
+**Goal**: **MAX MEDIAN PROFIT IN 24-48 HOURS** from a $5-$15 bankroll on Polymarket 15-min crypto markets.
 
-**User's Starting Point**: $15 (final deposit -- cannot afford another loss).
+**User's Starting Point**: $5-$15 (final bankroll range -- cannot absorb another bad deploy).
 
 **CRITICAL**: The bot has been deployed 3 times before and **lost ALL funds each time** due to:
 1. Render env not matching simulation parameters (EB=2 vs EB=0 mismatch)
@@ -44,18 +44,20 @@ description: The unified AI agent for Polyprophet -  combines deep analysis, pre
 3. Duplicate position bug doubling loss exposure
 
 **Current Baseline (6 Apr 2026)**:
-- Strategy: `strategy_set_15m_24h_ultra_tight.json` (48 strats, 70-78c, 24h coverage)
-- Config: SF=0.15, MPC=3, EB=0, MIN_SHARES=5
-- 48h rolling: median $80, p25 $20, bust 3.1%, >$100 in 42%
+- Workspace target strategy: `strategy_set_15m_24h_ultra_tight.json` (48 strats, 70-78c, 24h coverage)
+- Baseline config for verification: SF=0.15, MPC=3, EB=0, MIN_SHARES=5
+- Aggressive override to investigate, not assume: MPC=7
+- Current public Render host is still on old `maxgrowth_v5` until redeployed; never treat the live host as aligned until `/api/health` proves it.
 
 ### Required Metrics
 
 | Metric | Target | Current Reality |
 |--------|--------|-----------------|
-| 48h Median | Highest possible | $80.22 from $15 |
-| 48h Bust Rate | Lowest possible | 3.1% |
-| 48h >$100 | Highest possible | 41.8% |
-| Per-cycle worst | Survivable | 3/3 lost = $11.38 (76% of $15) in 4% of cycles |
+| Full-history 48h median | Do not hide regime failure | `$2.94` from $15 |
+| Full-history 48h bust | Measure downside honestly | `29.3%` |
+| Recent true OOS 48h median | Highest realistic current-regime signal | `$180` at MPC=3, `$223` at MPC=7 |
+| Recent true OOS 48h bust | Lowest realistic current-regime downside | `1.2%` at MPC=3, `1.0%` at MPC=7 |
+| Per-cycle worst | Survivable / explicit | 3 losses in one cycle, about `$11.38` (76% of $15) |
 
 ### MANDATORY Side-Question Checklist
 
@@ -69,16 +71,16 @@ Before ANY recommendation, you MUST investigate these:
 - Win-resolution gap: Sim resolves wins at $1.00, live exits at ~95-99c. Is this accounted for?
 - Single-window vs rolling: Are projections based on rolling-window distributions or a single favorable window?
 
-### From Rolling-Window Analysis (ultra-tight, SF=0.15, MPC=3, $15 start)
+### From Final Reverification (ultra-tight, SF=0.15, EB=0, $15 start)
 
-| MPC | 48h Median | 48h Bust | 48h >$100 | Per-cycle worst |
-|-----|-----------|----------|-----------|-----------------|
-| 1 | $43.51 | 3.1% | 8.2% | 0 multi-loss events |
-| 2 | $68.84 | 5.1% | 31.6% | 2/2 lost = $7.75 (52% of $15) |
-| **3** | **$80.22** | **3.1%** | **41.8%** | 3/3 lost = $11.38 (76% of $15) |
-| 7 | $86.33 | 5.1% | 48.0% | same as MPC=3 (strategy rarely has >3 opps/cycle) |
+| Surface | MPC | 48h Median | 48h Bust | Notes |
+|---------|-----|-----------|----------|-------|
+| Full-history rolling | 3 | $2.94 | 29.3% | Historical regime mismatch; do not ignore |
+| Recent true OOS | 3 | $180.07 | 1.2% | Conservative current-regime baseline |
+| Recent true OOS | 7 | $223.26 | 1.0% | Highest recent median among required configs |
+| Recent true OOS | 1 | $63.34 | 0.0% | Safest but much lower ceiling |
 
-**CONCLUSION**: MPC=3 is the sweet spot. $6 less median than MPC=7, but 64% lower bust rate. MPC=7 is NOT worth the risk -- the extra upside comes from allowing more concurrent losses in the same cycle, which is what caused previous deployment failures.
+**CONCLUSION**: Do not present a single fake-certainty number. The honest posture is: `MPC=3` remains the canonical baseline because it is the safer default if envs drift, while `MPC=7` is the aggressive recent-OOS override because it currently has the highest observed recent median and did **not** materially worsen clustered-loss counts in the latest re-audit. Always report both.
 
 ---
 

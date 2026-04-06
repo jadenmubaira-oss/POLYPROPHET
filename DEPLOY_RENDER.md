@@ -5,7 +5,8 @@ This is the current live-lite deployment guide for a fresh machine and a differe
 ## Baseline
 
 - Runtime: root `server.js`
-- Active 15m strategy: `strategies/strategy_set_15m_maxgrowth_v5.json`
+- Workspace target 15m strategy: `strategies/strategy_set_15m_24h_ultra_tight.json`
+- Current live host may still be on an older deploy. Treat `/api/health` and `/api/status` as the only live truth.
 - Node: `20.x`
 - Health endpoint: `/api/health`
 
@@ -56,12 +57,14 @@ MULTIFRAME_4H_ENABLED=false
 TIMEFRAME_4H_MIN_BANKROLL=10
 TIMEFRAME_5M_MIN_BANKROLL=50
 
-STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_maxgrowth_v5.json
+STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_24h_ultra_tight.json
 
 DEFAULT_MIN_ORDER_SHARES=5
 REQUIRE_REAL_ORDERBOOK=true
-ENTRY_PRICE_BUFFER_CENTS=2
+ENTRY_PRICE_BUFFER_CENTS=0
 ENFORCE_NET_EDGE_GATE=false
+MAX_GLOBAL_TRADES_PER_CYCLE=3
+OPERATOR_STAKE_FRACTION=0.15
 
 POLYMARKET_PRIVATE_KEY=<new account signer private key>
 POLYMARKET_SIGNATURE_TYPE=1
@@ -118,7 +121,8 @@ Expected before unpausing:
 
 - `mode: LIVE`
 - `isLive: true`
-- `strategySets["15m"].filePath` ends with `strategy_set_15m_maxgrowth_v5.json`
+- `strategySets["15m"].filePath` ends with `strategy_set_15m_24h_ultra_tight.json`
+- `strategySets["15m"].strategies` is `48`
 - 4h disabled, 5m disabled
 - `walletLoaded: true`
 - `tradeReady.ok: true`
@@ -135,6 +139,7 @@ Expected before unpausing:
 
 ## 7. Important caveats
 
-- The current max-growth posture is **not** a capital-preservation guarantee.
+- The current 24-48h median-first posture is **not** a capital-preservation guarantee.
 - `render.yaml` is a starting point, not the final live truth surface.
-- For unattended live trading, do not rely on stale older docs or older strategy names; use `maxgrowth_v5` plus the current README handoff block.
+- Never trust docs or env screenshots alone; re-check the live runtime surfaces after every deploy.
+- A deploy is **NO-GO** if the live runtime still reports `maxgrowth_v5`, `ENTRY_PRICE_BUFFER_CENTS=2`, or anything other than the exact intended env posture.
