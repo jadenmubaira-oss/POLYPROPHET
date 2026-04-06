@@ -247,9 +247,7 @@ function loadAllStrategySets() {
         let loaded = false;
 
         if (tf.key === '15m') {
-            // 15m: maxgrowth_v5 primary, then v4, v3, v1, v2, beam_2739, then legacy
-            const candidates15m = [
-                ...(env15mPath ? [env15mPath] : []),
+            const fallbackCandidates15m = [
                 primary15mPath,
                 secondary15mPath,
                 tertiary15mPath,
@@ -261,6 +259,7 @@ function loadAllStrategySets() {
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
             ];
+            const candidates15m = env15mPath ? [env15mPath] : fallbackCandidates15m;
             for (const fp of candidates15m) {
                 const exists = fs.existsSync(fp);
                 console.log(`  📂 15m candidate: ${path.basename(fp)} → ${exists ? 'EXISTS' : 'NOT_FOUND'}`);
@@ -272,6 +271,9 @@ function loadAllStrategySets() {
                 }
             }
             if (!loaded) {
+                if (env15mPath) {
+                    console.error(`  ❌ 15m: STRATEGY_SET_15M_PATH requested ${path.basename(env15mPath)} but the file is missing. Refusing silent fallback.`);
+                }
                 console.warn('  ⚠️ 15m: NO strategy file found! Trading will not work for 15m.');
             }
             continue;

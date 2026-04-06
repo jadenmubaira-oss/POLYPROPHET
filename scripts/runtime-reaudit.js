@@ -22,7 +22,7 @@ const EXPECTED_RISK = {
     minBalanceFloor: Number(process.env.EXPECTED_MIN_BALANCE_FLOOR ?? 0),
     minOrderShares: Number(process.env.EXPECTED_MIN_ORDER_SHARES ?? 5),
     entryPriceBufferCents: Number(process.env.EXPECTED_ENTRY_BUFFER_CENTS ?? 0),
-    maxPerCycle: Number(process.env.EXPECTED_MAX_PER_CYCLE ?? 3),
+    maxPerCycle: Number(process.env.EXPECTED_MAX_PER_CYCLE ?? 7),
     stakeFraction: Number(process.env.EXPECTED_STAKE_FRACTION ?? 0.15)
 };
 

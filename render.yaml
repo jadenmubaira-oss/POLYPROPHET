@@ -58,7 +58,7 @@ services:
       - key: ENFORCE_NET_EDGE_GATE
         value: "false"
       - key: MAX_GLOBAL_TRADES_PER_CYCLE
-        value: "3"
+        value: "7"
       - key: START_PAUSED
         value: "true"
       - key: MAX_TOTAL_EXPOSURE

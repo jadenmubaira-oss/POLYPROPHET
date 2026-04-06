@@ -1,0 +1,843 @@
+{
+  "version": "1.0-24h-filtered",
+  "generatedAt": "2026-04-06T08:46:56.086Z",
+  "timeframe": "15m",
+  "description": "24h-filtered: only highest-LCB strategies from 24h-dense (LCB>=0.78, WR>=0.85, fallback LCB>=0.74 WR>=0.83 for missing hours)",
+  "config": {
+    "entryPriceBufferCents": 0,
+    "maxPerCycle": 7,
+    "stakeFraction": 0.15
+  },
+  "strategies": [
+    {
+      "name": "H03 m3 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 3,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8205406425812511,
+      "evWinEstimate": 0.8969072164948454,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 87,
+        "losses": 10,
+        "total": 97,
+        "wr": 0.8969072164948454,
+        "lcb": 0.8205406425812511,
+        "avgPrice": 0.7355670103092786
+      }
+    },
+    {
+      "name": "H03 m8 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 3,
+      "entryMinute": 8,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7920768455041923,
+      "evWinEstimate": 0.8736842105263158,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 83,
+        "losses": 12,
+        "total": 95,
+        "wr": 0.8736842105263158,
+        "lcb": 0.7920768455041923,
+        "avgPrice": 0.7669999999999997
+      }
+    },
+    {
+      "name": "H05 m11 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 11,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7985030550748896,
+      "evWinEstimate": 0.9,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 54,
+        "losses": 6,
+        "total": 60,
+        "wr": 0.9,
+        "lcb": 0.7985030550748896,
+        "avgPrice": 0.7796916666666666
+      }
+    },
+    {
+      "name": "H06 m1 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.817746786633828,
+      "evWinEstimate": 0.9318181818181818,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 41,
+        "losses": 3,
+        "total": 44,
+        "wr": 0.9318181818181818,
+        "lcb": 0.817746786633828,
+        "avgPrice": 0.7137500000000001
+      }
+    },
+    {
+      "name": "H06 m11 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 11,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8126986682072593,
+      "evWinEstimate": 0.8987341772151899,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 71,
+        "losses": 8,
+        "total": 79,
+        "wr": 0.8987341772151899,
+        "lcb": 0.8126986682072593,
+        "avgPrice": 0.7649303797468356
+      }
+    },
+    {
+      "name": "H07 m6 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 7,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7812588689264784,
+      "evWinEstimate": 0.8666666666666667,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 78,
+        "losses": 12,
+        "total": 90,
+        "wr": 0.8666666666666667,
+        "lcb": 0.7812588689264784,
+        "avgPrice": 0.7697777777777781
+      }
+    },
+    {
+      "name": "H08 m6 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8119092356335661,
+      "evWinEstimate": 0.8888888888888888,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 88,
+        "losses": 11,
+        "total": 99,
+        "wr": 0.8888888888888888,
+        "lcb": 0.8119092356335661,
+        "avgPrice": 0.7621717171717173
+      }
+    },
+    {
+      "name": "H08 m11 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 11,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8076687752123195,
+      "evWinEstimate": 0.9,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 63,
+        "losses": 7,
+        "total": 70,
+        "wr": 0.9,
+        "lcb": 0.8076687752123195,
+        "avgPrice": 0.7820714285714284
+      }
+    },
+    {
+      "name": "H09 m13 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 9,
+      "entryMinute": 13,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8628671652316888,
+      "evWinEstimate": 0.9591836734693877,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 47,
+        "losses": 2,
+        "total": 49,
+        "wr": 0.9591836734693877,
+        "lcb": 0.8628671652316888,
+        "avgPrice": 0.7975306122448976
+      }
+    },
+    {
+      "name": "H09 m10 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 9,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8528025594745215,
+      "evWinEstimate": 0.9285714285714286,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 78,
+        "losses": 6,
+        "total": 84,
+        "wr": 0.9285714285714286,
+        "lcb": 0.8528025594745215,
+        "avgPrice": 0.7808333333333332
+      }
+    },
+    {
+      "name": "H11 m12 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 12,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8500230335750312,
+      "evWinEstimate": 0.9375,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 60,
+        "losses": 4,
+        "total": 64,
+        "wr": 0.9375,
+        "lcb": 0.8500230335750312,
+        "avgPrice": 0.7812343749999999
+      }
+    },
+    {
+      "name": "H11 m13 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 13,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.827398219083632,
+      "evWinEstimate": 0.9272727272727272,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 51,
+        "losses": 4,
+        "total": 55,
+        "wr": 0.9272727272727272,
+        "lcb": 0.827398219083632,
+        "avgPrice": 0.7780636363636366
+      }
+    },
+    {
+      "name": "H12 m4 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 12,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8150416221426189,
+      "evWinEstimate": 0.9041095890410958,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 66,
+        "losses": 7,
+        "total": 73,
+        "wr": 0.9041095890410958,
+        "lcb": 0.8150416221426189,
+        "avgPrice": 0.7425342465753426
+      }
+    },
+    {
+      "name": "H15 m11 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 15,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8148912101660255,
+      "evWinEstimate": 0.9,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 72,
+        "losses": 8,
+        "total": 80,
+        "wr": 0.9,
+        "lcb": 0.8148912101660255,
+        "avgPrice": 0.7722749999999997
+      }
+    },
+    {
+      "name": "H15 m12 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 15,
+      "entryMinute": 12,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.811614974549363,
+      "evWinEstimate": 0.92,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 46,
+        "losses": 4,
+        "total": 50,
+        "wr": 0.92,
+        "lcb": 0.811614974549363,
+        "avgPrice": 0.7634000000000003
+      }
+    },
+    {
+      "name": "H17 m9 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 17,
+      "entryMinute": 9,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8764610019095158,
+      "evWinEstimate": 0.9444444444444444,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 85,
+        "losses": 5,
+        "total": 90,
+        "wr": 0.9444444444444444,
+        "lcb": 0.8764610019095158,
+        "avgPrice": 0.771388888888889
+      }
+    },
+    {
+      "name": "H17 m8 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 17,
+      "entryMinute": 8,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8528025594745215,
+      "evWinEstimate": 0.9285714285714286,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 78,
+        "losses": 6,
+        "total": 84,
+        "wr": 0.9285714285714286,
+        "lcb": 0.8528025594745215,
+        "avgPrice": 0.7602380952380953
+      }
+    },
+    {
+      "name": "H19 m3 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 19,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8494770066805462,
+      "evWinEstimate": 0.9315068493150684,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 68,
+        "losses": 5,
+        "total": 73,
+        "wr": 0.9315068493150684,
+        "lcb": 0.8494770066805462,
+        "avgPrice": 0.7358219178082192
+      }
+    },
+    {
+      "name": "H19 m8 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 19,
+      "entryMinute": 8,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.846446856523734,
+      "evWinEstimate": 0.9213483146067416,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 82,
+        "losses": 7,
+        "total": 89,
+        "wr": 0.9213483146067416,
+        "lcb": 0.846446856523734,
+        "avgPrice": 0.768314606741573
+      }
+    },
+    {
+      "name": "H21 m11 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8076687752123195,
+      "evWinEstimate": 0.9,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 63,
+        "losses": 7,
+        "total": 70,
+        "wr": 0.9,
+        "lcb": 0.8076687752123195,
+        "avgPrice": 0.7722857142857144
+      }
+    },
+    {
+      "name": "H21 m7 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.8024962481102732,
+      "evWinEstimate": 0.8829787234042553,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 83,
+        "losses": 11,
+        "total": 94,
+        "wr": 0.8829787234042553,
+        "lcb": 0.8024962481102732,
+        "avgPrice": 0.7600000000000001
+      }
+    },
+    {
+      "name": "H01 m6 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 1,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7789591241958206,
+      "evWinEstimate": 0.8651685393258427,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 77,
+        "losses": 12,
+        "total": 89,
+        "wr": 0.8651685393258427,
+        "lcb": 0.7789591241958206,
+        "avgPrice": 0.7629213483146067
+      }
+    },
+    {
+      "name": "H01 m8 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 1,
+      "entryMinute": 8,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7666970498084034,
+      "evWinEstimate": 0.8571428571428571,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 72,
+        "losses": 12,
+        "total": 84,
+        "wr": 0.8571428571428571,
+        "lcb": 0.7666970498084034,
+        "avgPrice": 0.7623214285714287
+      }
+    },
+    {
+      "name": "H02 m1 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 2,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7735426157408215,
+      "evWinEstimate": 0.9285714285714286,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 26,
+        "losses": 2,
+        "total": 28,
+        "wr": 0.9285714285714286,
+        "lcb": 0.7735426157408215,
+        "avgPrice": 0.69375
+      }
+    },
+    {
+      "name": "H02 m11 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 2,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.758346054099279,
+      "evWinEstimate": 0.8666666666666667,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 52,
+        "losses": 8,
+        "total": 60,
+        "wr": 0.8666666666666667,
+        "lcb": 0.758346054099279,
+        "avgPrice": 0.7810833333333335
+      }
+    },
+    {
+      "name": "H04 m2 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 4,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7729674087144436,
+      "evWinEstimate": 0.8641975308641975,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 70,
+        "losses": 11,
+        "total": 81,
+        "wr": 0.8641975308641975,
+        "lcb": 0.7729674087144436,
+        "avgPrice": 0.7326543209876545
+      }
+    },
+    {
+      "name": "H04 m3 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 4,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7630400864073413,
+      "evWinEstimate": 0.8494623655913979,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 79,
+        "losses": 14,
+        "total": 93,
+        "wr": 0.8494623655913979,
+        "lcb": 0.7630400864073413,
+        "avgPrice": 0.732258064516129
+      }
+    },
+    {
+      "name": "H10 m3 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 10,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7666970498084034,
+      "evWinEstimate": 0.8571428571428571,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 72,
+        "losses": 12,
+        "total": 84,
+        "wr": 0.8571428571428571,
+        "lcb": 0.7666970498084034,
+        "avgPrice": 0.7212500000000001
+      }
+    },
+    {
+      "name": "H10 m10 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 10,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7500238655053636,
+      "evWinEstimate": 0.8529411764705882,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 58,
+        "losses": 10,
+        "total": 68,
+        "wr": 0.8529411764705882,
+        "lcb": 0.7500238655053636,
+        "avgPrice": 0.7815441176470591
+      }
+    },
+    {
+      "name": "H13 m9 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 13,
+      "entryMinute": 9,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7430592627681392,
+      "evWinEstimate": 0.8333333333333334,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 75,
+        "losses": 15,
+        "total": 90,
+        "wr": 0.8333333333333334,
+        "lcb": 0.7430592627681392,
+        "avgPrice": 0.771127777777778
+      }
+    },
+    {
+      "name": "H14 m13 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 13,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7650062450910905,
+      "evWinEstimate": 0.8888888888888888,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 40,
+        "losses": 5,
+        "total": 45,
+        "wr": 0.8888888888888888,
+        "lcb": 0.7650062450910905,
+        "avgPrice": 0.7751111111111112
+      }
+    },
+    {
+      "name": "H14 m12 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 12,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7502520495450893,
+      "evWinEstimate": 0.8571428571428571,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 54,
+        "losses": 9,
+        "total": 63,
+        "wr": 0.8571428571428571,
+        "lcb": 0.7502520495450893,
+        "avgPrice": 0.7816666666666666
+      }
+    },
+    {
+      "name": "H16 m10 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 16,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7658736406081267,
+      "evWinEstimate": 0.863013698630137,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 63,
+        "losses": 10,
+        "total": 73,
+        "wr": 0.863013698630137,
+        "lcb": 0.7658736406081267,
+        "avgPrice": 0.7691780821917807
+      }
+    },
+    {
+      "name": "H16 m3 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 16,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7648582105386766,
+      "evWinEstimate": 0.8589743589743589,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 67,
+        "losses": 11,
+        "total": 78,
+        "wr": 0.8589743589743589,
+        "lcb": 0.7648582105386766,
+        "avgPrice": 0.7347435897435897
+      }
+    },
+    {
+      "name": "H18 m9 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 18,
+      "entryMinute": 9,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7775987921491644,
+      "evWinEstimate": 0.8571428571428571,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 90,
+        "losses": 15,
+        "total": 105,
+        "wr": 0.8571428571428571,
+        "lcb": 0.7775987921491644,
+        "avgPrice": 0.7786190476190474
+      }
+    },
+    {
+      "name": "H18 m13 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 18,
+      "entryMinute": 13,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7696189698736854,
+      "evWinEstimate": 0.8913043478260869,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 41,
+        "losses": 5,
+        "total": 46,
+        "wr": 0.8913043478260869,
+        "lcb": 0.7696189698736854,
+        "avgPrice": 0.7881847826086953
+      }
+    },
+    {
+      "name": "H20 m11 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7780706171586962,
+      "evWinEstimate": 0.8674698795180723,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 72,
+        "losses": 11,
+        "total": 83,
+        "wr": 0.8674698795180723,
+        "lcb": 0.7780706171586962,
+        "avgPrice": 0.7683614457831324
+      }
+    },
+    {
+      "name": "H20 m2 UP [65-88c]",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7755479364150434,
+      "evWinEstimate": 0.8658536585365854,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 71,
+        "losses": 11,
+        "total": 82,
+        "wr": 0.8658536585365854,
+        "lcb": 0.7755479364150434,
+        "avgPrice": 0.7330487804878051
+      }
+    },
+    {
+      "name": "H22 m5 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 22,
+      "entryMinute": 5,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7683993769120605,
+      "evWinEstimate": 0.8555555555555555,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 77,
+        "losses": 13,
+        "total": 90,
+        "wr": 0.8555555555555555,
+        "lcb": 0.7683993769120605,
+        "avgPrice": 0.7612777777777778
+      }
+    },
+    {
+      "name": "H22 m10 DOWN [65-88c]",
+      "asset": "ALL",
+      "utcHour": 22,
+      "entryMinute": 10,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.88,
+      "pWinEstimate": 0.7630400864073413,
+      "evWinEstimate": 0.8494623655913979,
+      "source": "build-24h-dense (14d recent data)",
+      "recentStats": {
+        "wins": 79,
+        "losses": 14,
+        "total": 93,
+        "wr": 0.8494623655913979,
+        "lcb": 0.7630400864073413,
+        "avgPrice": 0.7719354838709678
+      }
+    }
+  ],
+  "coverage": {
+    "hoursCovered": 22,
+    "hoursWithEntries": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22
+    ],
+    "totalStrategies": 40,
+    "filteredCount": 21,
+    "fallbackCount": 19
+  }
+}
