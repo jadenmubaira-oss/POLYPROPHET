@@ -27,7 +27,10 @@ const REDIS_RUNTIME_ENABLED = parseEnvBool(
     !!process.env.REDIS_URL
 );
 const RUNTIME_STATE_REDIS_KEY = String(process.env.RUNTIME_STATE_REDIS_KEY || 'polyprophet:lite:runtime-state').trim() || 'polyprophet:lite:runtime-state';
-const START_PAUSED_ENV = String(process.env.START_PAUSED || '').trim().toLowerCase();
+const MICRO_BANKROLL_DEPLOY_PROFILE = !!CONFIG.MICRO_BANKROLL_DEPLOY_PROFILE;
+const START_PAUSED_ENV = MICRO_BANKROLL_DEPLOY_PROFILE
+    ? 'false'
+    : String(process.env.START_PAUSED || '').trim().toLowerCase();
 const REDIS_IO_TIMEOUT_MS = 5000;
 
 // ==================== CORE STATE ====================
@@ -232,7 +235,7 @@ function loadAllStrategySets() {
     //   Reverified at ~$6.44 with MPC=1 posture: 24h median $15.72, 48h $20.87, 72h $24.29
     //   Lower short-horizon bust than beam11_zero_bust, which failed 24h/48h/72h reverify.
     // FALLBACKS: beam11_zero_bust, dense, filtered, maxgrowth_v5, v4.
-    const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
+    const envStrat15 = MICRO_BANKROLL_DEPLOY_PROFILE ? null : process.env.STRATEGY_SET_15M_PATH;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
@@ -281,7 +284,7 @@ function loadAllStrategySets() {
 
         // Other timeframes: use env var or built-in candidates
         const envKey = `STRATEGY_SET_${String(tf.key || '').toUpperCase().replace(/[^A-Z0-9]/g, '')}_PATH`;
-        const envPath = process.env[envKey];
+        const envPath = MICRO_BANKROLL_DEPLOY_PROFILE ? null : process.env[envKey];
         const candidates = [
             ...(envPath ? [path.isAbsolute(envPath) ? envPath : path.join(REPO_ROOT, envPath)] : []),
             ...(tf.key === '4h' ? [
@@ -769,7 +772,7 @@ app.get('/api/diagnostics', (req, res) => {
 
 app.get('/api/debug/strategy-paths', (req, res) => {
     const strategiesDir = path.join(__dirname, 'strategies');
-    const envStrat15 = process.env.STRATEGY_SET_15M_PATH;
+    const envStrat15 = MICRO_BANKROLL_DEPLOY_PROFILE ? null : process.env.STRATEGY_SET_15M_PATH;
     const candidates15m = [
         ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_ultra_tight.json'),

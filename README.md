@@ -41,7 +41,8 @@
 1. **Beam11 truth reset**: `beam11_zero_bust` was kept in the repo, but it was demoted after fresh 24h/48h/72h rolling reverify showed materially worse short-horizon bust than the old 14-day sliding summary implied.
 2. **MPC Safety Cap**: Code now hard-caps `maxPerCycle <= 2` when bankroll < $20, regardless of any Render env var. For the active deploy posture we go further and set `MAX_GLOBAL_TRADES_PER_CYCLE=1`.
 3. **5m reverified, not dismissed**: the best short-horizon booster was not `5m_maxprofit`; it was the thin but helpful `5m_walkforward_top4` overlay, which improved 24h/48h median when paired with 15m ultra-tight.
-4. **No env-vs-sim mismatch**: EB=0 is the code default and deploy value. The target live posture is explicitly `15m ultra-tight + 5m walkforward top4`, `MPC=1`.
+4. **Render env drift patched in code**: after push `24794d1`, the live host deployed the new code but still honored stale Render env values (`beam11`, `5m=false`, `MPC=2`, `START_PAUSED=true`). The lite runtime now force-applies the micro-bankroll deploy profile for `STARTING_BALANCE <= 10`, so stale service envs cannot silently revert this posture.
+5. **No env-vs-sim mismatch**: EB=0 is the code default and deploy value. The target live posture is explicitly `15m ultra-tight + 5m walkforward top4`, `MPC=1`.
 
 **Current goal (6 April 2026)**: Turn ~$6.44 into the highest plausible 24h median we can support with current evidence, while cutting the clustered-loss pattern that previously nuked the bankroll.
 
