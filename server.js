@@ -239,7 +239,7 @@ function loadAllStrategySets() {
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
-    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_ultra_tight.json');
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_combined_sub50c_tight.json');
     const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam11_zero_bust.json');
     const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json');
     const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json');
@@ -775,6 +775,7 @@ app.get('/api/debug/strategy-paths', (req, res) => {
     const envStrat15 = MICRO_BANKROLL_DEPLOY_PROFILE ? null : process.env.STRATEGY_SET_15M_PATH;
     const candidates15m = [
         ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_combined_sub50c_tight.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_ultra_tight.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam11_zero_bust.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json'),

@@ -7,7 +7,7 @@ const https = require('https');
 const ROOT = path.join(__dirname, '..');
 const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet-1-rr1g.onrender.com').replace(/\/+$/, '');
 const OUTPUT_PATH = path.join(ROOT, 'debug', 'runtime_reaudit_report.json');
-const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_24h_ultra_tight.json').trim();
+const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_combined_sub50c_tight.json').trim();
 const LOCAL_15M_STRATEGY_PATH = path.isAbsolute(EXPECTED_15M_STRATEGY_PATH)
     ? EXPECTED_15M_STRATEGY_PATH
     : path.join(ROOT, EXPECTED_15M_STRATEGY_PATH);
