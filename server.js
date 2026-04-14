@@ -235,11 +235,13 @@ function loadAllStrategySets() {
     //   Reverified at ~$6.44 with MPC=1 posture: 24h median $15.72, 48h $20.87, 72h $24.29
     //   Lower short-horizon bust than beam11_zero_bust, which failed 24h/48h/72h reverify.
     // FALLBACKS: beam11_zero_bust, dense, filtered, maxgrowth_v5, v4.
-    const envStrat15 = MICRO_BANKROLL_DEPLOY_PROFILE ? null : process.env.STRATEGY_SET_15M_PATH;
+    // FIXED: Always honor explicit STRATEGY_SET_15M_PATH env var, even under micro-bankroll profile.
+    // Previous code silently ignored the env var when STARTING_BALANCE <= $10, forcing combined_sub50c_tight fallback.
+    const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
-    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_combined_sub50c_tight.json');
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_elite_recency.json');
     const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_beam11_zero_bust.json');
     const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json');
     const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json');
@@ -284,7 +286,7 @@ function loadAllStrategySets() {
 
         // Other timeframes: use env var or built-in candidates
         const envKey = `STRATEGY_SET_${String(tf.key || '').toUpperCase().replace(/[^A-Z0-9]/g, '')}_PATH`;
-        const envPath = MICRO_BANKROLL_DEPLOY_PROFILE ? null : process.env[envKey];
+        const envPath = process.env[envKey] || null;
         const candidates = [
             ...(envPath ? [path.isAbsolute(envPath) ? envPath : path.join(REPO_ROOT, envPath)] : []),
             ...(tf.key === '4h' ? [
@@ -772,7 +774,7 @@ app.get('/api/diagnostics', (req, res) => {
 
 app.get('/api/debug/strategy-paths', (req, res) => {
     const strategiesDir = path.join(__dirname, 'strategies');
-    const envStrat15 = MICRO_BANKROLL_DEPLOY_PROFILE ? null : process.env.STRATEGY_SET_15M_PATH;
+    const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
     const candidates15m = [
         ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_combined_sub50c_tight.json'),
