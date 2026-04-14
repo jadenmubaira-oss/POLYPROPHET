@@ -19,11 +19,18 @@
 | **Live URL** | `https://polyprophet-1-rr1g.onrender.com` |
 | **DEPLOYED Strategy (15m)** | `strategies/strategy_set_15m_elite_recency.json` — **12 elite strategies** selected for RISING/STABLE recent trend + 88%+ recent 7d WR |
 | **Active Strategy (4h)** | Disabled (`MULTIFRAME_4H_ENABLED=false`) |
-| **Active Strategy (5m)** | Disabled (`TIMEFRAME_5M_ENABLED=false`) |
+| **Configured Strategy (5m)** | Render env says disabled (`TIMEFRAME_5M_ENABLED=false`), but the **current live deploy is still force-enabling 5m under the micro-bankroll profile** until the `lib/config.js` fix is redeployed |
 | **Deploy Mode** | `TRADE_MODE=LIVE`, `START_PAUSED=FALSE`, `LIVE_AUTOTRADING_ENABLED=true` |
 | **Runtime Params** | `ENTRY_PRICE_BUFFER_CENTS=0`, `OPERATOR_STAKE_FRACTION=0.15`, `MAX_GLOBAL_TRADES_PER_CYCLE=1`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true` |
 | **Harness** | `.agent/` (Antigravity) + `.windsurf/` + `.claude/` + `.cursor/` + `.codex/` + `.factory/droids/` |
 | **Authority Chain** | README.md -> AGENTS.md -> `.agent/skills/DEITY/SKILL.md` -> `.agent/skills/ECC_BASELINE/SKILL.md` |
+
+**Live truth checked 14 April 2026, ~18:24 UTC**:
+- Cache-busted `/api/health` shows `deployVersion=906ce5f...`, `balance=0.687071`, `configuredTimeframes[0]={ key:"5m", enabled:true, minBankroll:2 }`
+- Live `/api/status` shows `strategies.5m.loaded=true` from `/app/debug/strategy_set_5m_walkforward_top4.json`
+- That means the Render screenshot is truthful about the **configured env**, but the **deployed code path is still overriding it**
+- There is also **1 stale pending buy + 1 stale pending settlement** from the pre-fix bad deployment
+- **Current live verdict: NO-GO for redeposit until the 5m override fix is redeployed and the stale state is reconciled**
 
 ### Deployed Strategy: Elite Recency Optimized (14 April 2026)
 
@@ -140,7 +147,7 @@ Start 2026-04-07: $5→$  7.61    2t 100%WR  0%DD  OK
 
 The 33% bust rate is a structural $5 problem: at $5 bankroll with 75c entry, one loss = $3.75 cost, leaving $1.25 (untradeable). ALL 5 busts were first-trade losses.
 
-**Mitigation**: The bot is deployed and LIVE. If the first trade at UTC 08:00 wins (H08 strategies = 100% 7d WR), bankroll reaches ~$6.28, and a subsequent single loss no longer busts. After surviving the first cycle, effective bust rate drops to ~5%.
+**Mitigation after the next clean redeploy only**: The safest verified first-trade window is to deposit during **`07:07-08:05 UTC`**, so the first eligible trade is the `H08` cluster rather than the weaker `H01/H06/H16/H18` starts. On the current Mar 24-Apr 7 holdout, the first eligible trade after deposits in that window went **14/14 wins (100%)**. Do **not** use this as a guarantee — it is a historical slice, not proof of future certainty. Also, do **not** deposit while the current live host still force-enables 5m.
 
 #### Comparison vs Previous Strategy Sets
 
@@ -220,6 +227,16 @@ CLOB_FORCE_PROXY=1
 POLYMARKET_SIGNATURE_TYPE=1
 REDIS_ENABLED=true
 ```
+
+### Live Discrepancy Verified After Screenshot (14 April 2026)
+
+- The screenshot env values are real, but the currently deployed `lib/config.js` micro-bankroll logic still does this:
+  - forces `5m.enabled=true`
+  - forces `5m.minBankroll=2`
+  - disables `4h`
+  - caps MPC at `1`
+- A local fix has now been applied in `lib/config.js` so `TIMEFRAME_5M_ENABLED=false` wins again, but that fix is **not live until redeployed**.
+- The live host is therefore **not trustworthy for redeposit right now**, because funding above `$2` would arm both `15m` and the unintended `5m` path.
 
 ### MANDATORY Investigation Protocol (All AI Agents)
 
