@@ -340,12 +340,65 @@ async function reconcilePendingLivePositions() {
 
     for (const p of pending) {
         try {
-            const market = await fetchMarketBySlug(p.slug);
-            const winner = extractWinnerFromClosedMarket(market);
-            if (!winner) continue;
-
             const pos = tradeExecutor.positions.find(pos => pos.id === p.id);
             if (!pos || pos.status !== 'PENDING_RESOLUTION') continue;
+
+            const market = await fetchMarketBySlug(p.slug);
+            const winner = extractWinnerFromClosedMarket(market);
+            if (!winner) {
+                if (!p.stalePending || !pos.tokenId) continue;
+
+                const balanceCheck = await tradeExecutor.clob.getTokenBalanceAcrossHolders(
+                    pos.tokenId,
+                    pos.funderAddress || null
+                ).catch((e) => ({ success: false, error: e.message, balance: 0, zeroVerified: false }));
+
+                const verifiable = !!balanceCheck?.success || !!balanceCheck?.zeroVerified;
+                if (!verifiable) continue;
+
+                let redeemQueued = false;
+                const tokenBalance = Number(balanceCheck?.balance || 0);
+                const holderAddress = balanceCheck?.address || pos.funderAddress || null;
+                if (tokenBalance > 0 && pos.conditionId) {
+                    tradeExecutor.addToRedemptionQueue({
+                        ...pos,
+                        shares: tokenBalance,
+                        holderAddress
+                    });
+                    redeemQueued = true;
+                }
+
+                const recovery = tradeExecutor.markPositionForRecovery(p.id, {
+                    reason: 'STALE_PENDING_UNRESOLVED_SLUG',
+                    holderAddress,
+                    tokenBalance,
+                    zeroVerified: !!balanceCheck?.zeroVerified,
+                    redeemQueued,
+                    lastError: balanceCheck?.success ? null : (balanceCheck?.error || null),
+                    notes: redeemQueued
+                        ? 'Queued redemption after stale slug reconciliation failed'
+                        : (balanceCheck?.zeroVerified ? 'Zero token balance verified after stale slug reconciliation failed' : 'Manual recovery required after stale slug reconciliation failed')
+                });
+
+                if (recovery) {
+                    diagnosticLog.push({
+                        ts: new Date().toISOString(),
+                        type: 'STALE_PENDING_MANUAL_RECOVERY',
+                        asset: pos.asset,
+                        timeframe: pos.timeframe,
+                        direction: pos.direction,
+                        slug: p.slug,
+                        tokenId: pos.tokenId,
+                        conditionId: pos.conditionId || null,
+                        holderAddress,
+                        tokenBalance,
+                        zeroVerified: !!balanceCheck?.zeroVerified,
+                        redeemQueued,
+                        error: balanceCheck?.success ? null : (balanceCheck?.error || null)
+                    });
+                }
+                continue;
+            }
 
             const won = pos.direction === winner;
             const result = tradeExecutor.resolvePosition(p.id, won);
