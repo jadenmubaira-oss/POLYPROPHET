@@ -1016,6 +1016,52 @@ app.post('/api/reconcile-pending', async (req, res) => {
     }
 });
 
+app.post('/api/force-recovery', (req, res) => {
+    try {
+        const positionId = String(req.body?.positionId || '').trim();
+        const reason = String(req.body?.reason || 'ADMIN_FORCE_MANUAL_RECOVERY').trim() || 'ADMIN_FORCE_MANUAL_RECOVERY';
+        if (!positionId) {
+            return res.status(400).json({ success: false, error: 'POSITION_ID_REQUIRED' });
+        }
+
+        const position = tradeExecutor.positions.find(pos => pos?.id === positionId) || null;
+        if (!position) {
+            return res.status(404).json({ success: false, error: 'POSITION_NOT_FOUND', positionId });
+        }
+
+        const recovery = tradeExecutor.markPositionForRecovery(positionId, {
+            reason,
+            holderAddress: position.funderAddress || tradeExecutor.clob?.getStatus?.()?.tradeReady?.selected?.funderAddress || null,
+            tokenBalance: null,
+            zeroVerified: false,
+            redeemQueued: false,
+            lastError: 'ADMIN_FORCE_MANUAL_RECOVERY',
+            notes: 'Forced manual recovery via admin endpoint'
+        });
+
+        if (!recovery) {
+            return res.status(400).json({ success: false, error: 'FORCE_RECOVERY_FAILED', positionId });
+        }
+
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'ADMIN_FORCE_MANUAL_RECOVERY',
+            positionId,
+            reason
+        });
+        saveRuntimeState();
+
+        return res.json({
+            success: true,
+            positionId,
+            recovery,
+            executor: tradeExecutor.getStatus()
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/wallet/balance', async (req, res) => {
     try {
         const balanceBreakdown = CONFIG.TRADE_MODE === 'LIVE'
