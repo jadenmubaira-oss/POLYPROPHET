@@ -1,0 +1,805 @@
+{
+  "name": "optimal_10usd_v5_true_oos",
+  "generatedAt": "2026-04-16T15:57:16.016Z",
+  "description": "Optimal 15m strategy set - TRUE OOS validated on Apr 8-16 data. All strategies have OOS WR >= 85% on >=30 trades, full-period WR >= 85% on >=80 trades, and avoid signals that degrade in recent data.",
+  "validationMethod": "TRAIN: Mar 24 - Apr 7 (14d), TRUE OOS: Apr 8 - Apr 16 (9d), data never seen by selector",
+  "targetBankroll": 10,
+  "stakeFraction": 0.15,
+  "takerFee": 0.0315,
+  "maxGlobalTradesPerCycle": 1,
+  "projections": {
+    "totalFullTrades": 2777,
+    "fullWR": 0.8970111631256752,
+    "totalOOSTrades": 1187,
+    "oosWR": 0.9149115417017691,
+    "hoursCovered": 18,
+    "expectedTradesPerDay": 23
+  },
+  "strategies": [
+    {
+      "id": "v5_1",
+      "name": "V5_H01_m10_DOWN",
+      "signature": "H1|10|DOWN|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 1,
+      "entryMinute": 10,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.9098360655737705,
+      "winRateLCB": 0.8457417985692873,
+      "pWinEstimate": 0.9347826086956522,
+      "evWinEstimate": 0.9347826086956522,
+      "stats": {
+        "full": {
+          "trades": 122,
+          "wr": 0.9098360655737705
+        },
+        "train": {
+          "trades": 76,
+          "wr": 0.8947368421052632
+        },
+        "oos": {
+          "trades": 46,
+          "wr": 0.9347826086956522
+        },
+        "avgEntryPrice": 0.8536352459016393,
+        "edge": 0.05224691367407175
+      }
+    },
+    {
+      "id": "v5_2",
+      "name": "V5_H01_m11_UP",
+      "signature": "H1|11|UP|0.6|0.95",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 1,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.95,
+      "priceBandLow": 0.6,
+      "priceBandHigh": 0.95,
+      "winRate": 0.8737864077669902,
+      "winRateLCB": 0.795957128091894,
+      "pWinEstimate": 0.8918918918918919,
+      "evWinEstimate": 0.8918918918918919,
+      "stats": {
+        "full": {
+          "trades": 103,
+          "wr": 0.8737864077669902
+        },
+        "train": {
+          "trades": 66,
+          "wr": 0.8636363636363636
+        },
+        "oos": {
+          "trades": 37,
+          "wr": 0.8918918918918919
+        },
+        "avgEntryPrice": 0.8093689320388351,
+        "edge": 0.05952795252218379
+      }
+    },
+    {
+      "id": "v5_3",
+      "name": "V5_H03_m10_DOWN",
+      "signature": "H3|10|DOWN|0.6|0.95",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 3,
+      "entryMinute": 10,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.95,
+      "priceBandLow": 0.6,
+      "priceBandHigh": 0.95,
+      "winRate": 0.8689655172413793,
+      "winRateLCB": 0.8044013774641434,
+      "pWinEstimate": 0.8985507246376812,
+      "evWinEstimate": 0.8985507246376812,
+      "stats": {
+        "full": {
+          "trades": 145,
+          "wr": 0.8689655172413793
+        },
+        "train": {
+          "trades": 76,
+          "wr": 0.8421052631578947
+        },
+        "oos": {
+          "trades": 69,
+          "wr": 0.8985507246376812
+        },
+        "avgEntryPrice": 0.8057241379310344,
+        "edge": 0.05828023698717266
+      }
+    },
+    {
+      "id": "v5_4",
+      "name": "V5_H04_m9_DOWN",
+      "signature": "H4|9|DOWN|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 4,
+      "entryMinute": 9,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.9285714285714286,
+      "winRateLCB": 0.8698134381416338,
+      "pWinEstimate": 0.9387755102040817,
+      "evWinEstimate": 0.9387755102040817,
+      "stats": {
+        "full": {
+          "trades": 126,
+          "wr": 0.9285714285714286
+        },
+        "train": {
+          "trades": 77,
+          "wr": 0.922077922077922
+        },
+        "oos": {
+          "trades": 49,
+          "wr": 0.9387755102040817
+        },
+        "avgEntryPrice": 0.8506309523809524,
+        "edge": 0.07391923076828766
+      }
+    },
+    {
+      "id": "v5_5",
+      "name": "V5_H05_m8_UP",
+      "signature": "H5|8|UP|0.7|0.95",
+      "tier": "S",
+      "asset": "all",
+      "utcHour": 5,
+      "entryMinute": 8,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.95,
+      "priceBandLow": 0.7,
+      "priceBandHigh": 0.95,
+      "winRate": 0.9081632653061225,
+      "winRateLCB": 0.8346022720739837,
+      "pWinEstimate": 0.9512195121951219,
+      "evWinEstimate": 0.9512195121951219,
+      "stats": {
+        "full": {
+          "trades": 98,
+          "wr": 0.9081632653061225
+        },
+        "train": {
+          "trades": 57,
+          "wr": 0.8771929824561403
+        },
+        "oos": {
+          "trades": 41,
+          "wr": 0.9512195121951219
+        },
+        "avgEntryPrice": 0.8400510204081633,
+        "edge": 0.06385830481577426
+      }
+    },
+    {
+      "id": "v5_6",
+      "name": "V5_H06_m7_UP",
+      "signature": "H6|7|UP|0.6|0.95",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 6,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.95,
+      "priceBandLow": 0.6,
+      "priceBandHigh": 0.95,
+      "winRate": 0.8695652173913043,
+      "winRateLCB": 0.808823468135044,
+      "pWinEstimate": 0.8939393939393939,
+      "evWinEstimate": 0.8939393939393939,
+      "stats": {
+        "full": {
+          "trades": 161,
+          "wr": 0.8695652173913043
+        },
+        "train": {
+          "trades": 95,
+          "wr": 0.8526315789473684
+        },
+        "oos": {
+          "trades": 66,
+          "wr": 0.8939393939393939
+        },
+        "avgEntryPrice": 0.7937267080745343,
+        "edge": 0.07064745431227681
+      }
+    },
+    {
+      "id": "v5_7",
+      "name": "V5_H07_m6_DOWN",
+      "signature": "H7|6|DOWN|0.65|0.98",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 7,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.8805970149253731,
+      "winRateLCB": 0.8148274794154238,
+      "pWinEstimate": 0.8852459016393442,
+      "evWinEstimate": 0.8852459016393442,
+      "stats": {
+        "full": {
+          "trades": 134,
+          "wr": 0.8805970149253731
+        },
+        "train": {
+          "trades": 73,
+          "wr": 0.8767123287671232
+        },
+        "oos": {
+          "trades": 61,
+          "wr": 0.8852459016393442
+        },
+        "avgEntryPrice": 0.8238059701492539,
+        "edge": 0.0521933114902966
+      }
+    },
+    {
+      "id": "v5_8",
+      "name": "V5_H07_m7_UP",
+      "signature": "H7|7|UP|0.55|0.95",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 7,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.95,
+      "priceBandLow": 0.55,
+      "priceBandHigh": 0.95,
+      "winRate": 0.8562874251497006,
+      "winRateLCB": 0.7950655243655803,
+      "pWinEstimate": 0.8548387096774194,
+      "evWinEstimate": 0.8548387096774194,
+      "stats": {
+        "full": {
+          "trades": 167,
+          "wr": 0.8562874251497006
+        },
+        "train": {
+          "trades": 105,
+          "wr": 0.8571428571428571
+        },
+        "oos": {
+          "trades": 62,
+          "wr": 0.8548387096774194
+        },
+        "avgEntryPrice": 0.7662574850299402,
+        "edge": 0.08434622255953361
+      }
+    },
+    {
+      "id": "v5_9",
+      "name": "V5_H09_m9_UP",
+      "signature": "H9|9|UP|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 9,
+      "entryMinute": 9,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.890625,
+      "winRateLCB": 0.8247641281996283,
+      "pWinEstimate": 0.9206349206349206,
+      "evWinEstimate": 0.9206349206349206,
+      "stats": {
+        "full": {
+          "trades": 128,
+          "wr": 0.890625
+        },
+        "train": {
+          "trades": 65,
+          "wr": 0.8615384615384616
+        },
+        "oos": {
+          "trades": 63,
+          "wr": 0.9206349206349206
+        },
+        "avgEntryPrice": 0.8349257812499996,
+        "edge": 0.05133504705143754
+      }
+    },
+    {
+      "id": "v5_10",
+      "name": "V5_H09_m12_DOWN",
+      "signature": "H9|12|DOWN|0.6|0.95",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 9,
+      "entryMinute": 12,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.95,
+      "priceBandLow": 0.6,
+      "priceBandHigh": 0.95,
+      "winRate": 0.8705882352941177,
+      "winRateLCB": 0.7829500250687882,
+      "pWinEstimate": 0.9090909090909091,
+      "evWinEstimate": 0.9090909090909091,
+      "stats": {
+        "full": {
+          "trades": 85,
+          "wr": 0.8705882352941177
+        },
+        "train": {
+          "trades": 52,
+          "wr": 0.8461538461538461
+        },
+        "oos": {
+          "trades": 33,
+          "wr": 0.9090909090909091
+        },
+        "avgEntryPrice": 0.8097058823529412,
+        "edge": 0.05599949238977586
+      }
+    },
+    {
+      "id": "v5_11",
+      "name": "V5_H10_m8_DOWN",
+      "signature": "H10|8|DOWN|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 10,
+      "entryMinute": 8,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.9083969465648855,
+      "winRateLCB": 0.8467012569932881,
+      "pWinEstimate": 0.9242424242424242,
+      "evWinEstimate": 0.9242424242424242,
+      "stats": {
+        "full": {
+          "trades": 131,
+          "wr": 0.9083969465648855
+        },
+        "train": {
+          "trades": 65,
+          "wr": 0.8923076923076924
+        },
+        "oos": {
+          "trades": 66,
+          "wr": 0.9242424242424242
+        },
+        "avgEntryPrice": 0.8306450381679388,
+        "edge": 0.07329691588154319
+      }
+    },
+    {
+      "id": "v5_12",
+      "name": "V5_H11_m12_UP",
+      "signature": "H11|12|UP|0.65|0.98",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 11,
+      "entryMinute": 12,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.928,
+      "winRateLCB": 0.8688158161825682,
+      "pWinEstimate": 0.8888888888888888,
+      "evWinEstimate": 0.8888888888888888,
+      "stats": {
+        "full": {
+          "trades": 125,
+          "wr": 0.928
+        },
+        "train": {
+          "trades": 71,
+          "wr": 0.9577464788732394
+        },
+        "oos": {
+          "trades": 54,
+          "wr": 0.8888888888888888
+        },
+        "avgEntryPrice": 0.8588319999999999,
+        "edge": 0.06533189436922604
+      }
+    },
+    {
+      "id": "v5_13",
+      "name": "V5_H12_m6_UP",
+      "signature": "H12|6|UP|0.7|0.95",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 12,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.95,
+      "priceBandLow": 0.7,
+      "priceBandHigh": 0.95,
+      "winRate": 0.8735632183908046,
+      "winRateLCB": 0.7876199981340795,
+      "pWinEstimate": 0.8888888888888888,
+      "evWinEstimate": 0.8888888888888888,
+      "stats": {
+        "full": {
+          "trades": 87,
+          "wr": 0.8735632183908046
+        },
+        "train": {
+          "trades": 42,
+          "wr": 0.8571428571428571
+        },
+        "oos": {
+          "trades": 45,
+          "wr": 0.8888888888888888
+        },
+        "avgEntryPrice": 0.8173563218390809,
+        "edge": 0.05147720895710417
+      }
+    },
+    {
+      "id": "v5_14",
+      "name": "V5_H13_m11_DOWN",
+      "signature": "H13|11|DOWN|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 13,
+      "entryMinute": 11,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.9083333333333333,
+      "winRateLCB": 0.843290092093749,
+      "pWinEstimate": 0.9285714285714286,
+      "evWinEstimate": 0.9285714285714286,
+      "stats": {
+        "full": {
+          "trades": 120,
+          "wr": 0.9083333333333333
+        },
+        "train": {
+          "trades": 78,
+          "wr": 0.8974358974358975
+        },
+        "oos": {
+          "trades": 42,
+          "wr": 0.9285714285714286
+        },
+        "avgEntryPrice": 0.8525083333333331,
+        "edge": 0.05184576948445285
+      }
+    },
+    {
+      "id": "v5_15",
+      "name": "V5_H15_m6_UP",
+      "signature": "H15|6|UP|0.65|0.98",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 15,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.8859649122807017,
+      "winRateLCB": 0.8146297223884994,
+      "pWinEstimate": 0.8653846153846154,
+      "evWinEstimate": 0.8653846153846154,
+      "stats": {
+        "full": {
+          "trades": 114,
+          "wr": 0.8859649122807017
+        },
+        "train": {
+          "trades": 62,
+          "wr": 0.9032258064516129
+        },
+        "oos": {
+          "trades": 52,
+          "wr": 0.8653846153846154
+        },
+        "avgEntryPrice": 0.7923026315789468,
+        "edge": 0.08844452983381934
+      }
+    },
+    {
+      "id": "v5_16",
+      "name": "V5_H17_m7_UP",
+      "signature": "H17|7|UP|0.7|0.95",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 17,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.95,
+      "priceBandLow": 0.7,
+      "priceBandHigh": 0.95,
+      "winRate": 0.8777777777777778,
+      "winRateLCB": 0.7942607696004788,
+      "pWinEstimate": 0.9,
+      "evWinEstimate": 0.9,
+      "stats": {
+        "full": {
+          "trades": 90,
+          "wr": 0.8777777777777778
+        },
+        "train": {
+          "trades": 40,
+          "wr": 0.85
+        },
+        "oos": {
+          "trades": 50,
+          "wr": 0.9
+        },
+        "avgEntryPrice": 0.8206666666666668,
+        "edge": 0.05244882787309946
+      }
+    },
+    {
+      "id": "v5_17",
+      "name": "V5_H18_m7_DOWN",
+      "signature": "H18|7|DOWN|0.65|0.98",
+      "tier": "B",
+      "asset": "all",
+      "utcHour": 18,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.8934426229508197,
+      "winRateLCB": 0.8262001842715376,
+      "pWinEstimate": 0.896551724137931,
+      "evWinEstimate": 0.896551724137931,
+      "stats": {
+        "full": {
+          "trades": 122,
+          "wr": 0.8934426229508197
+        },
+        "train": {
+          "trades": 64,
+          "wr": 0.890625
+        },
+        "oos": {
+          "trades": 58,
+          "wr": 0.896551724137931
+        },
+        "avgEntryPrice": 0.7983196721311477,
+        "edge": 0.09001885560195066
+      }
+    },
+    {
+      "id": "v5_18",
+      "name": "V5_H18_m11_UP",
+      "signature": "H18|11|UP|0.65|0.98",
+      "tier": "S",
+      "asset": "all",
+      "utcHour": 18,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.9320388349514563,
+      "winRateLCB": 0.8663161806994149,
+      "pWinEstimate": 1,
+      "evWinEstimate": 1,
+      "stats": {
+        "full": {
+          "trades": 103,
+          "wr": 0.9320388349514563
+        },
+        "train": {
+          "trades": 70,
+          "wr": 0.9
+        },
+        "oos": {
+          "trades": 33,
+          "wr": 1
+        },
+        "avgEntryPrice": 0.8548495145631068,
+        "edge": 0.07326278995424262
+      }
+    },
+    {
+      "id": "v5_19",
+      "name": "V5_H19_m6_UP",
+      "signature": "H19|6|UP|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 19,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.8872180451127819,
+      "winRateLCB": 0.8222435047285265,
+      "pWinEstimate": 0.9166666666666666,
+      "evWinEstimate": 0.9166666666666666,
+      "stats": {
+        "full": {
+          "trades": 133,
+          "wr": 0.8872180451127819
+        },
+        "train": {
+          "trades": 73,
+          "wr": 0.863013698630137
+        },
+        "oos": {
+          "trades": 60,
+          "wr": 0.9166666666666666
+        },
+        "avgEntryPrice": 0.8167669172932329,
+        "edge": 0.06570951026830052
+      }
+    },
+    {
+      "id": "v5_20",
+      "name": "V5_H20_m7_DOWN",
+      "signature": "H20|7|DOWN|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 20,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.875,
+      "winRateLCB": 0.8039690855177498,
+      "pWinEstimate": 0.9464285714285714,
+      "evWinEstimate": 0.9464285714285714,
+      "stats": {
+        "full": {
+          "trades": 120,
+          "wr": 0.875
+        },
+        "train": {
+          "trades": 64,
+          "wr": 0.8125
+        },
+        "oos": {
+          "trades": 56,
+          "wr": 0.9464285714285714
+        },
+        "avgEntryPrice": 0.8173749999999997,
+        "edge": 0.05289569081686629
+      }
+    },
+    {
+      "id": "v5_21",
+      "name": "V5_H20_m11_UP",
+      "signature": "H20|11|UP|0.65|0.98",
+      "tier": "S",
+      "asset": "all",
+      "utcHour": 20,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.9318181818181818,
+      "winRateLCB": 0.8754946530666444,
+      "pWinEstimate": 0.9767441860465116,
+      "evWinEstimate": 0.9767441860465116,
+      "stats": {
+        "full": {
+          "trades": 132,
+          "wr": 0.9318181818181818
+        },
+        "train": {
+          "trades": 89,
+          "wr": 0.9101123595505618
+        },
+        "oos": {
+          "trades": 43,
+          "wr": 0.9767441860465116
+        },
+        "avgEntryPrice": 0.8627159090909089,
+        "edge": 0.065355298295239
+      }
+    },
+    {
+      "id": "v5_22",
+      "name": "V5_H21_m10_UP",
+      "signature": "H21|10|UP|0.65|0.98",
+      "tier": "A",
+      "asset": "all",
+      "utcHour": 21,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.935251798561151,
+      "winRateLCB": 0.8815267879473588,
+      "pWinEstimate": 0.9253731343283582,
+      "evWinEstimate": 0.9253731343283582,
+      "stats": {
+        "full": {
+          "trades": 139,
+          "wr": 0.935251798561151
+        },
+        "train": {
+          "trades": 72,
+          "wr": 0.9444444444444444
+        },
+        "oos": {
+          "trades": 67,
+          "wr": 0.9253731343283582
+        },
+        "avgEntryPrice": 0.8439208633093521,
+        "edge": 0.08716130443881687
+      }
+    },
+    {
+      "id": "v5_23",
+      "name": "V5_H22_m11_UP",
+      "signature": "H22|11|UP|0.65|0.98",
+      "tier": "S",
+      "asset": "all",
+      "utcHour": 22,
+      "entryMinute": 11,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "winRate": 0.9565217391304348,
+      "winRateLCB": 0.8934815767361863,
+      "pWinEstimate": 1,
+      "evWinEstimate": 1,
+      "stats": {
+        "full": {
+          "trades": 92,
+          "wr": 0.9565217391304348
+        },
+        "train": {
+          "trades": 58,
+          "wr": 0.9310344827586207
+        },
+        "oos": {
+          "trades": 34,
+          "wr": 1
+        },
+        "avgEntryPrice": 0.8641847826086958,
+        "edge": 0.08862393405604618
+      }
+    }
+  ],
+  "loadNotes": "v5 - TRUE OOS validated. pWinEstimate = OOS WR (Apr 8-16 data). winRateLCB = Wilson 95% LCB over full 23-day sample.",
+  "dataRange": "2026-03-24 to 2026-04-16 (23 days, 8984 cycles)",
+  "buildDate": "2026-04-16T16:02:09.315Z"
+}

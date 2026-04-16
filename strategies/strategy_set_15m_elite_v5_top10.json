@@ -1,0 +1,240 @@
+{
+  "name": "elite_v5_top10",
+  "generatedAt": "2026-04-16T15:57:16.016Z",
+  "description": "Optimal 15m strategy set - TRUE OOS validated on Apr 8-16 data. All strategies have OOS WR >= 85% on >=30 trades, full-period WR >= 85% on >=80 trades, and avoid signals that degrade in recent data.",
+  "validationMethod": "TRAIN: Mar 24 - Apr 7 (14d), TRUE OOS: Apr 8 - Apr 16 (9d), data never seen by selector",
+  "targetBankroll": 10,
+  "stakeFraction": 0.15,
+  "takerFee": 0.0315,
+  "maxGlobalTradesPerCycle": 1,
+  "projections": {
+    "totalFullTrades": 2777,
+    "fullWR": 0.8970111631256752,
+    "totalOOSTrades": 1187,
+    "oosWR": 0.9149115417017691,
+    "hoursCovered": 18,
+    "expectedTradesPerDay": 23
+  },
+  "strategies": [
+    {
+      "utcHour": 3,
+      "entryMinute": 10,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.95,
+      "priceBandLow": 0.6,
+      "priceBandHigh": 0.95,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 145,
+          "wr": 0.8689655172413793
+        },
+        "oos": {
+          "trades": 69,
+          "wr": 0.8985507246376812
+        },
+        "avgEntryPrice": 0.8057241379310344,
+        "edge": 0.05828023698717266
+      }
+    },
+    {
+      "utcHour": 6,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.95,
+      "priceBandLow": 0.6,
+      "priceBandHigh": 0.95,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 161,
+          "wr": 0.8695652173913043
+        },
+        "oos": {
+          "trades": 66,
+          "wr": 0.8939393939393939
+        },
+        "avgEntryPrice": 0.7937267080745343,
+        "edge": 0.07064745431227681
+      }
+    },
+    {
+      "utcHour": 7,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 134,
+          "wr": 0.8805970149253731
+        },
+        "oos": {
+          "trades": 61,
+          "wr": 0.8852459016393442
+        },
+        "avgEntryPrice": 0.8238059701492539,
+        "edge": 0.0521933114902966
+      }
+    },
+    {
+      "utcHour": 7,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.95,
+      "priceBandLow": 0.55,
+      "priceBandHigh": 0.95,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 167,
+          "wr": 0.8562874251497006
+        },
+        "oos": {
+          "trades": 62,
+          "wr": 0.8548387096774194
+        },
+        "avgEntryPrice": 0.7662574850299402,
+        "edge": 0.08434622255953361
+      }
+    },
+    {
+      "utcHour": 9,
+      "entryMinute": 9,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 128,
+          "wr": 0.890625
+        },
+        "oos": {
+          "trades": 63,
+          "wr": 0.9206349206349206
+        },
+        "avgEntryPrice": 0.8349257812499996,
+        "edge": 0.05133504705143754
+      }
+    },
+    {
+      "utcHour": 10,
+      "entryMinute": 8,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 131,
+          "wr": 0.9083969465648855
+        },
+        "oos": {
+          "trades": 66,
+          "wr": 0.9242424242424242
+        },
+        "avgEntryPrice": 0.8306450381679388,
+        "edge": 0.07329691588154319
+      }
+    },
+    {
+      "utcHour": 18,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 122,
+          "wr": 0.8934426229508197
+        },
+        "oos": {
+          "trades": 58,
+          "wr": 0.896551724137931
+        },
+        "avgEntryPrice": 0.7983196721311477,
+        "edge": 0.09001885560195066
+      }
+    },
+    {
+      "utcHour": 19,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 133,
+          "wr": 0.8872180451127819
+        },
+        "oos": {
+          "trades": 60,
+          "wr": 0.9166666666666666
+        },
+        "avgEntryPrice": 0.8167669172932329,
+        "edge": 0.06570951026830052
+      }
+    },
+    {
+      "utcHour": 20,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 120,
+          "wr": 0.875
+        },
+        "oos": {
+          "trades": 56,
+          "wr": 0.9464285714285714
+        },
+        "avgEntryPrice": 0.8173749999999997,
+        "edge": 0.05289569081686629
+      }
+    },
+    {
+      "utcHour": 21,
+      "entryMinute": 10,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.98,
+      "priceBandLow": 0.65,
+      "priceBandHigh": 0.98,
+      "asset": "any",
+      "stats": {
+        "full": {
+          "trades": 139,
+          "wr": 0.935251798561151
+        },
+        "oos": {
+          "trades": 67,
+          "wr": 0.9253731343283582
+        },
+        "avgEntryPrice": 0.8439208633093521,
+        "edge": 0.08716130443881687
+      }
+    }
+  ]
+}
