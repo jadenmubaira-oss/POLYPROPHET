@@ -3828,15 +3828,17 @@ All other env vars remain the same:
  - corrected per-cycle v5 sim now shows materially lower but still positive projections than the earlier overstated addendum
  - bankroll growth within the same micro-bankroll deploy will no longer activate `5m` or `4h`
  - current runtime defaults still leave micro-bankroll execution relatively unbraked (`cooldownSeconds=0`, `maxConsecutiveLosses=999`, `MIN_BALANCE_FLOOR=0`), so strategy quality and first-trade timing remain critical
- 
+ - local runtime fix now staged in `lib/trade-executor.js`: pending-buy recovery no longer creates duplicate rows for the same live order, and imported runtime state now dedupes duplicate `positionId` records while preferring terminal / `MANUAL_RECOVERY` state over stale active fragments
+
   **Current live state**:
  - host: `https://polyprophet-1-rr1g.onrender.com`
  - live redeploy is verified on commit `0ca3765480e679683097f1615576dc5b9fcd7576`
  - live `15m` strategy is verified as `/app/strategies/strategy_set_15m_optimal_10usd_v5.json` with `23` strategies loaded
  - wallet balance is only `$0.687071`, so `15m` remains inactive despite being enabled
- - stale runtime baggage still remains: one stale pending settlement and one stale `ETH 15m DOWN` live position fragment from `2026-04-07`
- - recovery queue contains the same position, so live state still needs reconciliation before a clean first validation run
- 
+ - live contradiction is now root-caused: `/api/trades` exposes **two persisted rows with the same `positionId`** for the Apr 7 `ETH 15m DOWN` order — one `MANUAL_RECOVERY`, one `PENDING_RESOLUTION`
+ - because the stale duplicate remains `PENDING_RESOLUTION`, live status still counts `openPositions=1`, `openExposureUsd=0.499111`, and `riskBankrollEstimate=1.186182`, so this is **not safe to treat as cosmetic-only**
+ - recovery queue contains the same order because the manual-recovery row exists, but the duplicate pending row still needs the staged dedupe fix to be redeployed before a clean first validation run
+
   **Required env changes for Render**:
   1. Keep `STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_optimal_10usd_v5.json`
   2. Keep `STARTING_BALANCE=10`, `TIMEFRAME_5M_ENABLED=false`, and `MULTIFRAME_4H_ENABLED=false`
