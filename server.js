@@ -387,10 +387,18 @@ async function reconcilePendingLivePositions() {
                 }
                 if (!p.stalePending || !tokenId) continue;
 
-                const balanceCheck = await tradeExecutor.clob.getTokenBalanceAcrossHolders(
-                    tokenId,
-                    holderAddress
-                ).catch((e) => ({ success: false, error: e.message, balance: 0, zeroVerified: false }));
+                const balanceCheck = await Promise.race([
+                    tradeExecutor.clob.getTokenBalanceAcrossHolders(
+                        tokenId,
+                        holderAddress
+                    ),
+                    new Promise((resolve) => setTimeout(() => resolve({
+                        success: false,
+                        error: 'TOKEN_BALANCE_TIMEOUT',
+                        balance: 0,
+                        zeroVerified: false
+                    }), 10000))
+                ]).catch((e) => ({ success: false, error: e.message, balance: 0, zeroVerified: false }));
 
                 const verifiable = !!balanceCheck?.success || !!balanceCheck?.zeroVerified;
                 if (!verifiable) {
