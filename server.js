@@ -355,7 +355,37 @@ async function reconcilePendingLivePositions() {
                 ).catch((e) => ({ success: false, error: e.message, balance: 0, zeroVerified: false }));
 
                 const verifiable = !!balanceCheck?.success || !!balanceCheck?.zeroVerified;
-                if (!verifiable) continue;
+                if (!verifiable) {
+                    const staleAgeMs = Date.now() - Number(pos.pendingSince || Date.now());
+                    const forceManualRecovery = staleAgeMs > (24 * 60 * 60 * 1000);
+                    if (!forceManualRecovery) continue;
+
+                    const recovery = tradeExecutor.markPositionForRecovery(p.id, {
+                        reason: 'STALE_PENDING_UNVERIFIABLE_BALANCE',
+                        holderAddress: pos.funderAddress || null,
+                        tokenBalance: null,
+                        zeroVerified: false,
+                        redeemQueued: false,
+                        lastError: balanceCheck?.error || 'TOKEN_BALANCE_UNVERIFIABLE',
+                        notes: 'Auto-promoted to manual recovery after >24h stale pending without a verifiable token-balance proof'
+                    });
+
+                    if (recovery) {
+                        diagnosticLog.push({
+                            ts: new Date().toISOString(),
+                            type: 'STALE_PENDING_FORCED_MANUAL_RECOVERY',
+                            asset: pos.asset,
+                            timeframe: pos.timeframe,
+                            direction: pos.direction,
+                            slug: p.slug,
+                            tokenId: pos.tokenId,
+                            conditionId: pos.conditionId || null,
+                            holderAddress: pos.funderAddress || null,
+                            error: balanceCheck?.error || 'TOKEN_BALANCE_UNVERIFIABLE'
+                        });
+                    }
+                    continue;
+                }
 
                 let redeemQueued = false;
                 const tokenBalance = Number(balanceCheck?.balance || 0);
@@ -459,6 +489,17 @@ async function orchestrate() {
                 recovered: pendingBuys.recovered || 0,
                 failed: pendingBuys.failed || 0,
                 processed: pendingBuys.processed || 0
+            });
+        }
+        const liveSettlements = await Promise.race([
+            reconcilePendingLivePositions(),
+            balanceTimeout(15000).catch(() => [])
+        ]).catch(() => []);
+        if ((liveSettlements || []).length > 0) {
+            diagnosticLog.push({
+                ts: new Date().toISOString(),
+                type: 'LIVE_SETTLEMENT_MAINTENANCE',
+                settled: liveSettlements.length
             });
         }
     }
