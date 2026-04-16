@@ -9,6 +9,8 @@ const cycles = Array.isArray(data) ? data : (data.cycles || []);
 const apr8 = Math.floor(new Date('2026-04-08T00:00:00Z').getTime() / 1000);
 const oos = cycles.filter(c => (c.epoch || 0) >= apr8);
 
+const assetRank = { BTC: 0, ETH: 1, SOL: 2, XRP: 3 };
+
 // Build signals PER cycle (epoch is 15m cycle start)
 const cycleSignals = new Map();
 for (const c of oos) {
@@ -18,7 +20,6 @@ for (const c of oos) {
         const entryPrice = s.direction === 'UP' ? c.minutePricesYes?.[s.entryMinute]?.last : c.minutePricesNo?.[s.entryMinute]?.last;
         if (!Number.isFinite(entryPrice) || entryPrice < s.priceMin || entryPrice > s.priceMax) continue;
         if (!c.resolution) continue;
-        const key = `${c.epoch}_${s.entryMinute}`; // group by cycle+minute (these fire together)
         const sig = {
             epoch: c.epoch,
             minute: s.entryMinute,
@@ -31,23 +32,33 @@ for (const c of oos) {
             pWin: s.pWinEstimate || s.winRate || 0.9,
             won: s.direction === c.resolution
         };
-        if (!cycleSignals.has(key)) cycleSignals.set(key, []);
-        cycleSignals.get(key).push(sig);
+        if (!cycleSignals.has(c.epoch)) cycleSignals.set(c.epoch, []);
+        cycleSignals.get(c.epoch).push(sig);
     }
 }
 
-// Sort by timestamp, then within each key pick best (highest pWin) - runtime picks deterministic best match
 const firingEvents = [];
-for (const [key, sigs] of cycleSignals) {
-    sigs.sort((a, b) => (b.pWin - a.pWin));
-    // Runtime fires the FIRST match; with 4 assets, if multiple match at same minute, picks first (alphabetic asset)
-    firingEvents.push({ key, timestamp: sigs[0].timestamp, signals: sigs });
+for (const [epoch, sigs] of cycleSignals) {
+    const earliestMinute = Math.min(...sigs.map(sig => sig.minute));
+    const earliestSignals = sigs.filter(sig => sig.minute === earliestMinute);
+    earliestSignals.sort((a, b) => {
+        if (b.pWin !== a.pWin) return b.pWin - a.pWin;
+        return (assetRank[a.asset] ?? 99) - (assetRank[b.asset] ?? 99);
+    });
+    firingEvents.push({
+        key: String(epoch),
+        epoch,
+        minute: earliestMinute,
+        timestamp: earliestSignals[0].timestamp,
+        signal: earliestSignals[0],
+        suppressedSignals: sigs.length - 1
+    });
 }
 firingEvents.sort((a, b) => a.timestamp - b.timestamp);
 
-console.log('Total firing events (cycle+minute slots):', firingEvents.length);
-console.log('Avg signals per firing:', (firingEvents.reduce((a, e) => a + e.signals.length, 0) / firingEvents.length).toFixed(2));
-console.log('With MAX_GLOBAL_TRADES_PER_CYCLE=1, only 1 trade per event = total trades:', firingEvents.length);
+console.log('Total matched cycles:', cycleSignals.size);
+console.log('With MAX_GLOBAL_TRADES_PER_CYCLE=1, total executable events:', firingEvents.length);
+console.log('Suppressed later-minute / duplicate signals:', firingEvents.reduce((sum, evt) => sum + evt.suppressedSignals, 0));
 
 // Days
 const days = [...new Set(firingEvents.map(e => new Date(e.timestamp * 1000).toISOString().slice(0, 10)))].sort();
@@ -71,8 +82,7 @@ function simulate(startBank, horizonHours, stakeFrac = 0.15, minShares = 5, maxC
         for (let i = 0; i < tradesPerRun; i++) {
             const evt = firingEvents[(startIdx + i) % firingEvents.length];
             if (evt.timestamp < cooldownUntilTs) continue;
-            // Pick ONE signal from the event (runtime uses first-matched market)
-            const sig = evt.signals[Math.floor(Math.random() * evt.signals.length)];
+            const sig = evt.signal;
             const idealStake = bank * stakeFrac;
             const minOrderUsd = minShares * sig.entryPrice;
             const actualStake = Math.max(idealStake, minOrderUsd);
@@ -114,7 +124,7 @@ function simulate(startBank, horizonHours, stakeFrac = 0.15, minShares = 5, maxC
 console.log('\n=== CHRONOLOGICAL OOS REPLAY ($10 start, 1 trade per cycle enforced) ===');
 let bank = 10, trades = 0, wins = 0, losses = 0, peak = 10, maxDD = 0, maxConsecLoss = 0, curConsecLoss = 0;
 for (const evt of firingEvents) {
-    const sig = evt.signals[0]; // deterministic: pick first
+    const sig = evt.signal;
     const idealStake = bank * 0.15;
     const minOrderUsd = 5 * sig.entryPrice;
     const actualStake = Math.max(idealStake, minOrderUsd);
@@ -175,7 +185,7 @@ for (const h of [24, 48, 72, 168]) {
 let mcl = 0, cur = 0, streakDetails = [];
 let curStreak = [];
 for (const evt of firingEvents) {
-    const sig = evt.signals[0];
+    const sig = evt.signal;
     if (sig.won) { cur = 0; curStreak = []; }
     else {
         cur++;

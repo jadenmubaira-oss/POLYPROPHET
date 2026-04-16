@@ -88,7 +88,7 @@ if (maxConsecLossStreak.length) {
 }
 
 // First-trade bust simulation
-console.log('\n=== FIRST-TRADE BUST RISK (exact runtime mechanics) ===');
+console.log('\n=== FIRST-TRADE BUST RISK (raw-signal stress check) ===');
 function simulateBust(startBank, stakeFrac = 0.15, minShares = 5, feeRate = 0.0315) {
     const runs = 10000;
     const results = { bust1: 0, bust2: 0, bust3: 0, bust5: 0, bust10: 0 };
@@ -141,7 +141,7 @@ for (const start of [5, 7, 10, 15, 20]) {
 }
 
 // Chronological replay: $10 starting balance
-console.log('\n=== CHRONOLOGICAL OOS REPLAY ($10 start, exact runtime params) ===');
+console.log('\n=== CHRONOLOGICAL OOS REPLAY ($10 start, raw matched signals) ===');
 let bank = 10;
 let trades = 0, wins = 0, losses = 0;
 let maxBank = 10, minBank = 10;
@@ -175,6 +175,7 @@ console.log(`  Trades: ${trades} | Wins: ${wins} | Losses: ${losses} | WR: ${(wi
 console.log(`  Final bank: $${bank.toFixed(2)}`);
 console.log(`  Max bank: $${maxBank.toFixed(2)} | Min bank: $${minBank.toFixed(2)}`);
 console.log(`  Max drawdown: ${(maxDD * 100).toFixed(1)}%`);
+console.log('  NOTE: This script does not enforce one trade per full 15m cycle. Use v5_proper_runtime_sim.js for corrected per-cycle parity.');
 
 console.log('\n=== MC PROJECTIONS ($10 start, 24h / 48h / 72h / 7d) ===');
 function mcProject(startBank, tradesPerRun, runs = 5000) {

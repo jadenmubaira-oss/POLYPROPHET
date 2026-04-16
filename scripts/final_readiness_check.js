@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
 const https = require('https');
 
 const now = new Date();
@@ -12,6 +14,18 @@ https.get('https://polyprophet-1-rr1g.onrender.com/api/health', (res) => {
     res.on('data', c => d += c);
     res.on('end', () => {
         const j = JSON.parse(d);
+        const strategyFilePath = j.strategySets?.['15m']?.filePath || '';
+        const strategyBaseName = path.basename(strategyFilePath || '');
+        const localStrategyPath = strategyBaseName ? path.join(process.cwd(), 'strategies', strategyBaseName) : null;
+        let strategyRows = [];
+        if (localStrategyPath && fs.existsSync(localStrategyPath)) {
+            try {
+                const parsed = JSON.parse(fs.readFileSync(localStrategyPath, 'utf8'));
+                strategyRows = Array.isArray(parsed?.strategies) ? parsed.strategies : [];
+            } catch (e) {
+                strategyRows = [];
+            }
+        }
         console.log('=== LIVE HEALTH ===');
         console.log('Deploy:', j.deployVersion.slice(0, 8));
         console.log('Started:', j.startedAt);
@@ -36,37 +50,53 @@ https.get('https://polyprophet-1-rr1g.onrender.com/api/health', (res) => {
         const utcMin = now.getUTCMinutes();
         const utcHr = now.getUTCHours();
         const nowMinOfDay = utcHr * 60 + utcMin;
-        const nextTier = [
-            { hr: 17, min: 7, s: 'H17 m7 UP [70-95c]', tier: 'A', wr: 90, n: 50 },
-            { hr: 18, min: 7, s: 'H18 m7 DOWN [65-98c]', tier: 'A', wr: 90, n: 58 },
-            { hr: 18, min: 11, s: 'H18 m11 UP [65-98c]', tier: 'S', wr: 100, n: 33 },
-            { hr: 19, min: 6, s: 'H19 m6 UP [65-98c]', tier: 'A', wr: 92, n: 60 },
-            { hr: 19, min: 10, s: 'H19 m10 UP (new)', tier: 'A', wr: 92, n: 60 },
-            { hr: 20, min: 7, s: 'H20 m7 DOWN [65-98c]', tier: 'S', wr: 95, n: 56 },
-            { hr: 20, min: 11, s: 'H20 m11 UP [65-98c]', tier: 'S', wr: 98, n: 43 },
-            { hr: 21, min: 10, s: 'H21 m10 UP [65-98c]', tier: 'A', wr: 93, n: 67 },
-            { hr: 22, min: 11, s: 'H22 m11 UP [65-98c]', tier: 'S', wr: 100, n: 34 }
-        ];
+        const nextTier = strategyRows
+            .filter(s => Number.isFinite(Number(s.utcHour)) && Number.isFinite(Number(s.entryMinute)))
+            .map(s => {
+                const hr = Number(s.utcHour);
+                const min = Number(s.entryMinute);
+                let minsAway = (hr * 60 + min) - nowMinOfDay;
+                if (minsAway <= 0) minsAway += 24 * 60;
+                return {
+                    hr,
+                    min,
+                    minsAway,
+                    s: `${s.name} ${String(s.direction || '').toUpperCase()} [${Math.round(Number(s.priceMin || 0) * 100)}-${Math.round(Number(s.priceMax || 0) * 100)}c]`,
+                    tier: String(s.tier || 'A').toUpperCase(),
+                    wr: Math.round(Number(s.pWinEstimate || s.winRate || 0) * 1000) / 10,
+                    lcb: Math.round(Number(s.winRateLCB || 0) * 1000) / 10,
+                    n: Number(s?.stats?.oos?.trades || 0)
+                };
+            })
+            .sort((a, b) => a.minsAway - b.minsAway || b.lcb - a.lcb);
         for (const n of nextTier) {
             const minsAway = (n.hr * 60 + n.min) - nowMinOfDay;
-            if (minsAway > 0 && minsAway < 360) {
+            const normalizedAway = minsAway > 0 ? minsAway : minsAway + 24 * 60;
+            if (normalizedAway > 0 && normalizedAway < 360) {
                 const tStr = `${String(n.hr).padStart(2, '0')}:${String(n.min).padStart(2, '0')}`;
                 const marker = n.tier === 'S' ? ' ⭐ TIER-S' : '';
-                console.log(`  ${tStr} UTC | ${n.s.padEnd(26)} | ${n.wr}% OOS (${n.n}t) | ${String(minsAway).padStart(3)}min away${marker}`);
+                console.log(`  ${tStr} UTC | ${n.s.padEnd(34)} | ${n.wr}% OOS / ${n.lcb}% LCB (${n.n}t) | ${String(normalizedAway).padStart(3)}min away${marker}`);
             }
         }
         console.log('');
         console.log('=== DEPOSIT TIMING RECOMMENDATION ===');
-        const firstSWindow = nextTier.find(n => n.tier === 'S' && ((n.hr * 60 + n.min) - nowMinOfDay) > 20);
+        const firstSWindow = nextTier.find(n => n.tier === 'S' && n.minsAway > 20);
         if (firstSWindow) {
-            const firstSMins = (firstSWindow.hr * 60 + firstSWindow.min) - nowMinOfDay;
+            const firstSMins = firstSWindow.minsAway;
             const depositBy = firstSMins - 25;
             const depositTime = new Date(now.getTime() + depositBy * 60000);
             console.log(`Next Tier-S: ${String(firstSWindow.hr).padStart(2, '0')}:${String(firstSWindow.min).padStart(2, '0')} UTC (${firstSMins} min away)`);
             console.log(`Deposit by: ${depositTime.toISOString().slice(11, 19)} UTC (give runtime 25 min to rebase)`);
-            console.log(`Target signal: ${firstSWindow.s} @ ${firstSWindow.wr}% OOS WR on ${firstSWindow.n} trades`);
+            console.log(`Target signal: ${firstSWindow.s} @ ${firstSWindow.wr}% OOS WR / ${firstSWindow.lcb}% LCB on ${firstSWindow.n} trades`);
+        } else if (nextTier.length > 0) {
+            const firstWindow = nextTier.find(n => n.minsAway > 20) || nextTier[0];
+            const depositBy = Math.max(0, firstWindow.minsAway - 25);
+            const depositTime = new Date(now.getTime() + depositBy * 60000);
+            console.log(`No Tier-S in next 6 hours. Earliest strong window: ${String(firstWindow.hr).padStart(2, '0')}:${String(firstWindow.min).padStart(2, '0')} UTC`);
+            console.log(`Deposit by: ${depositTime.toISOString().slice(11, 19)} UTC (give runtime 25 min to rebase)`);
+            console.log(`Target signal: ${firstWindow.s} @ ${firstWindow.wr}% OOS WR / ${firstWindow.lcb}% LCB on ${firstWindow.n} trades`);
         } else {
-            console.log('No Tier-S in next 6 hours');
+            console.log('Unable to derive windows from the current live 15m strategy artifact');
         }
     });
 }).on('error', e => console.error('ERR:', e.message));

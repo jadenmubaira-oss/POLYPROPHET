@@ -3734,14 +3734,73 @@ All other env vars remain the same:
   - `23:04 UTC` `UP` (`winRateLCB=0.8150`, test half `95.2%`)
 - Deposit-timing conclusion: do **not** deposit blindly while the wallet is underfunded and stale pending state remains. If funding for a first live validation run, prefer funding shortly before one of the stronger windows above rather than immediately before the weaker `05:13 UTC` slot
 
+#### 2026-04-16 Strict Per-Cycle v5 Re-Audit (Runtime-Parity Correction)
+
+- **DATA SOURCE**: full code audit of `lib/config.js`, `lib/risk-manager.js`, `lib/strategy-matcher.js`, `lib/trade-executor.js`, `server.js`; local reruns of `scripts/v5_reverify.js` and corrected `scripts/v5_proper_runtime_sim.js`; live API checks of `/api/health`, `/api/status`, `/api/clob-status`, `/api/reconcile-pending`, and `/api/diagnostics`.
+- **LIVE RUNTIME STATUS**: deploy `0ca3765480e679683097f1615576dc5b9fcd7576` started `2026-04-16T17:15:12.595Z`; mode `LIVE`; CLOB readiness is healthy; `15m` loads `/app/strategies/strategy_set_15m_optimal_10usd_v5.json` with `23` strategies; actual wallet balance is only **`$0.687071`**, so `15m` is currently **inactive**.
+- **LIVE METRIC AVAILABILITY**: lite still exposes no rolling live-accuracy field beyond the persisted trade ledger and executor summaries.
+- **DISCREPANCIES FOUND**:
+  - the earlier v5 README numbers were too optimistic because the old “proper” sim still grouped by `epoch + minute`, not by full cycle epoch
+  - the raw `v5_reverify.js` pass is useful for signal quality, but it is not itself a full runtime-parity projection
+  - live state still contains **one stale `PENDING_RESOLUTION` ETH 15m position** from `2026-04-07`
+  - live executor status simultaneously shows a matching recovery-queue record for that same position, so the host currently has a truth-surface inconsistency: the recovery was recorded, but the position still remains pending in live status
+
+##### Corrected strict local findings
+
+- After fixing `scripts/v5_proper_runtime_sim.js` to enforce **one trade per full 15m cycle**, the executable OOS surface dropped from the prior minute-slot overcount to:
+  - **`409` matched cycles** across `9` OOS days
+  - **`45.4` trades/day** instead of the earlier overstated `49.6/day`
+  - **`680` suppressed later-minute / duplicate signals** that the runtime would not actually execute under `MAX_GLOBAL_TRADES_PER_CYCLE=1`
+- Corrected chronological replay from `$10`:
+  - `409` trades
+  - `371` wins / `38` losses
+  - **`90.7%` WR**
+  - final bankroll **`$1311.30`**
+  - max drawdown **`53.8%`**
+  - worst loss streak **`2`**
+- Corrected strict Monte Carlo from the patched per-cycle sim:
+  - **`$10 start, 24h`**: bust **`7.4%`**, p25 **`$17.31`**, median **`$23.11`**, p90 **`$34.08`**
+  - **`$10 start, 72h`**: bust **`2.1%`**, p25 **`$40.20`**, median **`$77.54`**, p90 **`$122.45`**
+  - **`$10 start, 7d`**: bust **`4.4%`**, p25 **`$292.30`**, median **`$376.43`**, p90 **`$634.68`**
+  - **`$15 start, 24h`**: bust **`0.0%`**, median **`$27.67`**
+  - **`$20 start, 24h`**: bust **`0.0%`**, median **`$33.38`**
+- Practical interpretation:
+  - `v5` still looks meaningfully better than the older failing sets
+  - but the corrected runtime-parity numbers are **far less explosive** than the earlier addendum implied
+  - `$10` is still the best intended micro-bankroll operating point in repo posture, but it is **not honest** to describe it as riskless or “can’t lose the first few trades” guaranteed
+
+##### Current live operational boundary
+
+- The host is **not ready for unattended autonomy right now** because:
+  1. `15m` is inactive while live balance stays below its truthful active floor
+  2. the stale `ETH 15m DOWN` pending settlement from `2026-04-07` is still present
+  3. the recovery queue and pending-settlement surfaces disagree for the same position, so stale-state cleanup is not fully proven
+- The host **is** ready for a supervised funding validation once the stale pending state is reconciled:
+  - auth / proxy / allowance are healthy
+  - strategy load is correct
+  - market discovery is healthy
+
+##### Updated deposit timing guidance from the actual loaded v5 artifact
+
+- Best near-term strong windows from `strategy_set_15m_optimal_10usd_v5.json` after this re-audit:
+  - `18:11 UTC` — `V5_H18_m11_UP` — OOS `100.0%`, LCB `86.6%`
+  - `20:11 UTC` — `V5_H20_m11_UP` — OOS `97.7%`, LCB `87.5%`
+  - `21:10 UTC` — `V5_H21_m10_UP` — OOS `92.5%`, LCB `88.2%`
+  - `22:11 UTC` — `V5_H22_m11_UP` — OOS `100.0%`, LCB `89.3%`
+  - next-day backups: `04:09 UTC`, `05:08 UTC`
+- Operational guidance:
+  - **do not fund blindly while the stale pending settlement remains unresolved**
+  - if running a first supervised validation after cleanup, fund **20-30 minutes before** one of the stronger windows above so balance refresh and runtime-state rebase can settle first
+  - prefer **`$10+ usable balance`** for the first validation pass; `$15-$20` is materially safer than `$10`
+
 <!-- HANDOFF_STATE_START -->
 ### Current Handoff State (Machine-Parseable)
 
   **Last Agent**: Cascade
   **Date**: 16 April 2026
-  **Deploy Commit**: `7ca1d06bd2e727b2e4e8ba8e1f9ba8f229ffd77c`
+  **Deploy Commit**: `0ca3765480e679683097f1615576dc5b9fcd7576`
  
-  **STATUS: CONDITIONAL GO — LIVE REDEPLOY VERIFIED, BUT FUNDING + STALE PENDING RECONCILIATION + FIRST LIVE TRADE PROOF STILL PENDING**
+  **STATUS: CONDITIONAL GO FOR SUPERVISED $10+ VALIDATION ONLY — NO-GO FOR UNATTENDED AUTONOMY UNTIL STALE PENDING RECONCILIATION + FIRST FRESH LIVE TRADE PROOF**
  
   **Session 16 Apr 2026: Full $10 strategy reinvestigation**:
   1. Re-read authority docs and re-verified the live redeploy truth via `/api/health`, `/api/status`, `/api/clob-status`, and `/api/reconcile-pending`
@@ -3758,30 +3817,36 @@ All other env vars remain the same:
   12. Updated `render.yaml`, `.env.example`, and `DEPLOY_RENDER.md` to the intended `$10` 15m-only posture
   13. Replayed the current major 15m artifacts under the current micro-bankroll runtime semantics and found `optimal_10usd_v3` was the only set that stayed strong across both halves of the 14d intracycle window; `24h_dense`, `24h_filtered`, and `maxgrowth_v5` all degraded to near-bust outcomes on the second half
   14. Verified the current live runtime still carries a stale `2026-04-07` pending buy + pending settlement, so the host is not clean-start ready yet even though the correct strategy artifact is now loaded
+  15. Re-ran local v5 verification and found the original “proper” runtime sim was still overstating executable trade count because it grouped by `epoch + minute` instead of full cycle epoch
+  16. Patched `scripts/v5_proper_runtime_sim.js` to enforce one trade per full cycle and re-ran the corrected per-cycle projection surface
+  17. Patched `scripts/final_readiness_check.js` so deposit timing is derived from the actually loaded live strategy artifact instead of stale hardcoded windows
+  18. Verified the current live deploy has advanced again to `0ca3765...`, remains underfunded at `$0.687071`, and still shows one stale pending settlement plus a matching recovery-queue record for the same position
  
   **Current local state**:
  - local repo defaults now point to the `$10` deploy posture (`STARTING_BALANCE=10`, `15m` enabled, `5m/4h` disabled)
  - local strategy file validated against runtime: correct field names, 23 strategies loaded, 23 hours matched
+ - corrected per-cycle v5 sim now shows materially lower but still positive projections than the earlier overstated addendum
  - bankroll growth within the same micro-bankroll deploy will no longer activate `5m` or `4h`
  - current runtime defaults still leave micro-bankroll execution relatively unbraked (`cooldownSeconds=0`, `maxConsecutiveLosses=999`, `MIN_BALANCE_FLOOR=0`), so strategy quality and first-trade timing remain critical
  
   **Current live state**:
  - host: `https://polyprophet-1-rr1g.onrender.com`
- - live redeploy is verified on commit `7ca1d06bd2e727b2e4e8ba8e1f9ba8f229ffd77c`
- - live `15m` strategy is verified as `/app/strategies/strategy_set_15m_optimal_10usd_v3.json` with `23` strategies loaded
+ - live redeploy is verified on commit `0ca3765480e679683097f1615576dc5b9fcd7576`
+ - live `15m` strategy is verified as `/app/strategies/strategy_set_15m_optimal_10usd_v5.json` with `23` strategies loaded
  - wallet balance is only `$0.687071`, so `15m` remains inactive despite being enabled
- - stale runtime baggage remains: one stale pending buy, one stale pending settlement, and one stale `ETH 15m DOWN` live position fragment from `2026-04-07`
+ - stale runtime baggage still remains: one stale pending settlement and one stale `ETH 15m DOWN` live position fragment from `2026-04-07`
+ - recovery queue contains the same position, so live state still needs reconciliation before a clean first validation run
  
   **Required env changes for Render**:
-  1. Keep `STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_optimal_10usd_v3.json`
+  1. Keep `STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_optimal_10usd_v5.json`
   2. Keep `STARTING_BALANCE=10`, `TIMEFRAME_5M_ENABLED=false`, and `MULTIFRAME_4H_ENABLED=false`
  
   **Post-deploy checklist**:
-  1. Reconcile or clear the stale pending buy / pending settlement before trusting fresh live results
+  1. Reconcile or clear the stale pending settlement before trusting fresh live results
   2. Deposit enough USDC to reach at least `$10` usable balance
   3. Verify `/api/health` shows active `15m` after funding
-  4. Prefer first activation shortly before a stronger UTC window (`09:12`, `11:13`, `12:11`, `19:05`, `23:04`) rather than immediately before the weaker `05:13` slot
+  4. Prefer first supervised activation shortly before a stronger current v5 window (`18:11`, `20:11`, `21:10`, `22:11`, then `04:09` / `05:08`)
   5. Monitor first 5-10 trades for live WR confirmation
-  6. If first 5 trades show ≥3 wins, status upgrades to **FULL GO**
+  6. Require at least one fresh post-cleanup live trade before upgrading status beyond **CONDITIONAL GO**
 
 <!-- HANDOFF_STATE_END -->
