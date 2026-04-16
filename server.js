@@ -343,15 +343,19 @@ async function reconcilePendingLivePositions() {
         try {
             const pos = tradeExecutor.positions.find(pos => pos.id === p.id);
             if (!pos || pos.status !== 'PENDING_RESOLUTION') continue;
+            const linkedPendingBuy = tradeExecutor.findPendingBuyByPositionId?.(p.id)?.pendingBuy || null;
+            const tokenId = pos.tokenId || linkedPendingBuy?.tokenId || null;
+            const conditionId = pos.conditionId || linkedPendingBuy?.conditionId || null;
+            const holderAddress = pos.funderAddress || linkedPendingBuy?.funderAddress || null;
 
             const market = await fetchMarketBySlug(p.slug);
             const winner = extractWinnerFromClosedMarket(market);
             if (!winner) {
-                if (!p.stalePending || !pos.tokenId) continue;
+                if (!p.stalePending || !tokenId) continue;
 
                 const balanceCheck = await tradeExecutor.clob.getTokenBalanceAcrossHolders(
-                    pos.tokenId,
-                    pos.funderAddress || null
+                    tokenId,
+                    holderAddress
                 ).catch((e) => ({ success: false, error: e.message, balance: 0, zeroVerified: false }));
 
                 const verifiable = !!balanceCheck?.success || !!balanceCheck?.zeroVerified;
@@ -362,7 +366,7 @@ async function reconcilePendingLivePositions() {
 
                     const recovery = tradeExecutor.markPositionForRecovery(p.id, {
                         reason: 'STALE_PENDING_UNVERIFIABLE_BALANCE',
-                        holderAddress: pos.funderAddress || null,
+                        holderAddress,
                         tokenBalance: null,
                         zeroVerified: false,
                         redeemQueued: false,
@@ -378,9 +382,9 @@ async function reconcilePendingLivePositions() {
                             timeframe: pos.timeframe,
                             direction: pos.direction,
                             slug: p.slug,
-                            tokenId: pos.tokenId,
-                            conditionId: pos.conditionId || null,
-                            holderAddress: pos.funderAddress || null,
+                            tokenId,
+                            conditionId,
+                            holderAddress,
                             error: balanceCheck?.error || 'TOKEN_BALANCE_UNVERIFIABLE'
                         });
                     }
@@ -389,19 +393,22 @@ async function reconcilePendingLivePositions() {
 
                 let redeemQueued = false;
                 const tokenBalance = Number(balanceCheck?.balance || 0);
-                const holderAddress = balanceCheck?.address || pos.funderAddress || null;
-                if (tokenBalance > 0 && pos.conditionId) {
+                const resolvedHolderAddress = balanceCheck?.address || holderAddress;
+                if (tokenBalance > 0 && conditionId) {
                     tradeExecutor.addToRedemptionQueue({
                         ...pos,
+                        tokenId,
+                        conditionId,
                         shares: tokenBalance,
-                        holderAddress
+                        holderAddress: resolvedHolderAddress,
+                        funderAddress: resolvedHolderAddress
                     });
                     redeemQueued = true;
                 }
 
                 const recovery = tradeExecutor.markPositionForRecovery(p.id, {
                     reason: 'STALE_PENDING_UNRESOLVED_SLUG',
-                    holderAddress,
+                    holderAddress: resolvedHolderAddress,
                     tokenBalance,
                     zeroVerified: !!balanceCheck?.zeroVerified,
                     redeemQueued,
@@ -419,9 +426,9 @@ async function reconcilePendingLivePositions() {
                         timeframe: pos.timeframe,
                         direction: pos.direction,
                         slug: p.slug,
-                        tokenId: pos.tokenId,
-                        conditionId: pos.conditionId || null,
-                        holderAddress,
+                        tokenId,
+                        conditionId,
+                        holderAddress: resolvedHolderAddress,
                         tokenBalance,
                         zeroVerified: !!balanceCheck?.zeroVerified,
                         redeemQueued,
