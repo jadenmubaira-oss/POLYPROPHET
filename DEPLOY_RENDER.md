@@ -57,13 +57,14 @@ MULTIFRAME_4H_ENABLED=false
 TIMEFRAME_4H_MIN_BANKROLL=10
 TIMEFRAME_5M_MIN_BANKROLL=50
 
-STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_24h_dense.json
+STARTING_BALANCE=10
+STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_optimal_10usd_v3.json
 
 DEFAULT_MIN_ORDER_SHARES=5
 REQUIRE_REAL_ORDERBOOK=true
 ENTRY_PRICE_BUFFER_CENTS=0
 ENFORCE_NET_EDGE_GATE=false
-MAX_GLOBAL_TRADES_PER_CYCLE=3
+MAX_GLOBAL_TRADES_PER_CYCLE=1
 OPERATOR_STAKE_FRACTION=0.15
 
 POLYMARKET_PRIVATE_KEY=<new account signer private key>
@@ -121,12 +122,12 @@ Expected before unpausing:
 
 - `mode: LIVE`
 - `isLive: true`
-- `strategySets["15m"].filePath` ends with `strategy_set_15m_24h_dense.json`
-- `strategySets["15m"].strategies` is `48`
+- `strategySets["15m"].filePath` ends with `strategy_set_15m_optimal_10usd_v3.json`
+- `strategySets["15m"].strategies` is `23`
 - 4h disabled, 5m disabled
 - `walletLoaded: true`
 - `tradeReady.ok: true`
-- `proxyRedeemAuthReady: true`
+- `/api/health.configuredTimeframes` shows `5m.enabled=false` and `4h.enabled=false`
 
 ## 6. Safe go-live sequence
 
