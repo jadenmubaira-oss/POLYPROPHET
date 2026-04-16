@@ -346,11 +346,45 @@ async function reconcilePendingLivePositions() {
             const linkedPendingBuy = tradeExecutor.findPendingBuyByPositionId?.(p.id)?.pendingBuy || null;
             const tokenId = pos.tokenId || linkedPendingBuy?.tokenId || null;
             const conditionId = pos.conditionId || linkedPendingBuy?.conditionId || null;
-            const holderAddress = pos.funderAddress || linkedPendingBuy?.funderAddress || null;
+            const holderAddress = pos.funderAddress
+                || linkedPendingBuy?.funderAddress
+                || tradeExecutor.clob?.getStatus?.()?.tradeReady?.selected?.funderAddress
+                || null;
 
             const market = await fetchMarketBySlug(p.slug);
             const winner = extractWinnerFromClosedMarket(market);
             if (!winner) {
+                const staleAgeMs = Date.now() - Number(pos.pendingSince || Date.now());
+                const forceManualRecovery = staleAgeMs > (24 * 60 * 60 * 1000);
+                if (p.stalePending && !tokenId && forceManualRecovery) {
+                    const recovery = tradeExecutor.markPositionForRecovery(p.id, {
+                        reason: 'STALE_PENDING_MISSING_MARKET_METADATA',
+                        holderAddress,
+                        tokenBalance: null,
+                        zeroVerified: false,
+                        redeemQueued: false,
+                        lastError: market ? 'TOKEN_METADATA_UNAVAILABLE' : 'MARKET_NOT_FOUND',
+                        notes: market
+                            ? 'Auto-promoted to manual recovery after >24h stale pending without token metadata'
+                            : 'Auto-promoted to manual recovery after >24h stale pending because Gamma market slug no longer resolves and no token metadata remains'
+                    });
+
+                    if (recovery) {
+                        diagnosticLog.push({
+                            ts: new Date().toISOString(),
+                            type: 'STALE_PENDING_MISSING_METADATA_MANUAL_RECOVERY',
+                            asset: pos.asset,
+                            timeframe: pos.timeframe,
+                            direction: pos.direction,
+                            slug: p.slug,
+                            tokenId: null,
+                            conditionId,
+                            holderAddress,
+                            error: market ? 'TOKEN_METADATA_UNAVAILABLE' : 'MARKET_NOT_FOUND'
+                        });
+                    }
+                    continue;
+                }
                 if (!p.stalePending || !tokenId) continue;
 
                 const balanceCheck = await tradeExecutor.clob.getTokenBalanceAcrossHolders(
@@ -360,8 +394,6 @@ async function reconcilePendingLivePositions() {
 
                 const verifiable = !!balanceCheck?.success || !!balanceCheck?.zeroVerified;
                 if (!verifiable) {
-                    const staleAgeMs = Date.now() - Number(pos.pendingSince || Date.now());
-                    const forceManualRecovery = staleAgeMs > (24 * 60 * 60 * 1000);
                     if (!forceManualRecovery) continue;
 
                     const recovery = tradeExecutor.markPositionForRecovery(p.id, {
