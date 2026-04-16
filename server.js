@@ -350,12 +350,40 @@ async function reconcilePendingLivePositions() {
                 || linkedPendingBuy?.funderAddress
                 || tradeExecutor.clob?.getStatus?.()?.tradeReady?.selected?.funderAddress
                 || null;
+            const staleAgeMs = Date.now() - Number(pos.pendingSince || Date.now());
+            const forceManualRecovery = staleAgeMs > (24 * 60 * 60 * 1000);
+
+            if (p.stalePending && forceManualRecovery) {
+                const recovery = tradeExecutor.markPositionForRecovery(p.id, {
+                    reason: 'STALE_PENDING_MAX_AGE_EXCEEDED',
+                    holderAddress,
+                    tokenBalance: null,
+                    zeroVerified: false,
+                    redeemQueued: false,
+                    lastError: tokenId ? 'STALE_PENDING_AUTO_RECOVERY_EXPIRED' : 'STALE_PENDING_METADATA_MISSING',
+                    notes: 'Auto-promoted to manual recovery after remaining stale pending for more than 24h'
+                });
+
+                if (recovery) {
+                    diagnosticLog.push({
+                        ts: new Date().toISOString(),
+                        type: 'STALE_PENDING_MAX_AGE_MANUAL_RECOVERY',
+                        asset: pos.asset,
+                        timeframe: pos.timeframe,
+                        direction: pos.direction,
+                        slug: p.slug,
+                        tokenId,
+                        conditionId,
+                        holderAddress,
+                        staleAgeMs
+                    });
+                }
+                continue;
+            }
 
             const market = await fetchMarketBySlug(p.slug);
             const winner = extractWinnerFromClosedMarket(market);
             if (!winner) {
-                const staleAgeMs = Date.now() - Number(pos.pendingSince || Date.now());
-                const forceManualRecovery = staleAgeMs > (24 * 60 * 60 * 1000);
                 if (p.stalePending && !tokenId && forceManualRecovery) {
                     const recovery = tradeExecutor.markPositionForRecovery(p.id, {
                         reason: 'STALE_PENDING_MISSING_MARKET_METADATA',
