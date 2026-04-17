@@ -1524,6 +1524,62 @@ app.post('/api/validator/run', (req, res) => {
     }
 });
 
+app.post('/api/validator/reset', async (req, res) => {
+    try {
+        const confirmReset = req.body?.confirmReset === true;
+        if (!confirmReset) {
+            return res.status(400).json({ success: false, error: 'confirmReset=true required' });
+        }
+
+        const clearTradeLog = req.body?.clearTradeLog !== false;
+        const preservePause = req.body?.preservePause !== false;
+        const breakdown = CONFIG.TRADE_MODE === 'LIVE'
+            ? await tradeExecutor.refreshLiveBalance(true)
+            : (tradeExecutor.getCachedBalanceBreakdown?.() || null);
+        const baselineBalance = Number(
+            breakdown?.tradingBalanceUsdc ??
+            tradeExecutor.cachedLiveBalance ??
+            riskManager.bankroll ??
+            CONFIG.RISK.startingBalance ??
+            0
+        );
+
+        riskManager.resetMonitoringBaseline(baselineBalance, { clearTradeLog, preservePause });
+        tradeExecutor.resetMonitoringBaseline(baselineBalance, { source: 'manual_validator_reset' });
+        strategyValidator.resetState({ tradeCount: 0, clearReport: true });
+
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'VALIDATOR_BASELINE_RESET',
+            baselineBalance,
+            clearTradeLog,
+            preservePause,
+            deployVersion: DEPLOY_VERSION
+        });
+
+        await saveRuntimeState();
+
+        const report = strategyValidator.runCheck({
+            risk: riskManager.getStatus(),
+            executor: tradeExecutor.getStatus(),
+            activeStrategyFiles: getActiveStrategyFilePaths(),
+            deployInfo: { deployVersion: DEPLOY_VERSION, mode: CONFIG.TRADE_MODE, isLive: CONFIG.IS_LIVE },
+            trigger: 'BASELINE_RESET'
+        });
+
+        return res.json({
+            success: true,
+            baselineBalance,
+            clearTradeLog,
+            preservePause,
+            balanceBreakdown: tradeExecutor.getCachedBalanceBreakdown?.() || breakdown || null,
+            report
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 // Telegram — send a test message (for setup verification)
 app.post('/api/telegram/test', (req, res) => {
     const sent = telegram.sendMessage(
