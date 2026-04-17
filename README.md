@@ -3,19 +3,21 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 16 April 2026 (18:30 UTC) | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Commit**: `4080515` (duplicate-position runtime fix) | **v5 LOADED & LIVE on `4080515`**
+**Last Updated**: 17 April 2026 (12:50 UTC) | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Live Deploy**: `81376c9` | **`v5` LOADED LIVE**
 
 ---
 
-## 🚨 ACTIVE HANDOVER — FINAL RE-INVESTIGATION (16 April 2026 18:30 UTC)
+## 🚨 ACTIVE HANDOVER — FINAL RE-INVESTIGATION (17 April 2026 18:30 UTC)
 
-> **STATUS**: ✅ v5 strategy set is **live on commit `4080515...`**, 23 strategies active, 18-hour coverage, mode LIVE. Bot is waiting for wallet deposit.
+> **STATUS**: ✅ `v5` remains the preferred live `15m` artifact after the 17 Apr 2026 revalidation. Live API + the Render env screenshot agree that the intended micro-bankroll posture is already active: `OPERATOR_STAKE_FRACTION=0.25`, `MAX_CONSECUTIVE_LOSSES=3`, `COOLDOWN_SECONDS=3600`, `MAX_GLOBAL_TRADES_PER_CYCLE=1`, `15m` only, `5` share minimum, `ENTRY_PRICE_BUFFER_CENTS=0`, `REQUIRE_REAL_ORDERBOOK=true`.
 >
-> **ONE REMAINING ACTION**: **Deposit `$10-15` USDC to `0xe7E89BA00F43A38F457d30c2F72f68fE75E2850A` on Polygon** + change 3 env vars (see "Required env changes" below).
+> **LIVE BOUNDARY**: the host is still sitting at `0.687071 USDC`, so `15m` is inactive until funded. `/api/health` and `/api/status` show a single stale manual-recovery stub in `recoveryQueue`, which keeps status `degraded`, but current code audit confirms that stub is **reporting-only** and does **not** block `executeTrade()`.
+>
+> **REMAINING ACTIONS**: if you want the new Telegram/status truth-surface fixes live, isolate a clean deploy commit and redeploy it first; either way, do a supervised `$12-15` funding validation before claiming unattended live autonomy. **Do not auto-promote `v6`.**
 
 ### Why this handover exists
 
-The prior handover was numerically honest for `SF=0.15`, but the new re-investigation proves **higher-stake-fraction + cooldown is strictly better** on the same OOS data once Kelly sizing and the peak-drawdown brake are correctly modelled. The winner is the **existing v5 artifact** run under a slightly more aggressive operator posture.
+The older handover text below still referenced a pending three-env-var change. The 17 Apr 2026 revalidation shows that posture is already the correct intended operating setup, and no stronger strategy/env replacement is justified today. The correct next step is truthful redeploy verification plus supervised funding validation, not another strategy swap.
 
 ### What was actually done in this audit
 
@@ -118,20 +120,18 @@ The ultra-worst-case: what if 10 signals in a row all lose (probability ≈ 10�
 
 Even if 10 losses in a row happened, the worst you can lose is your deposit. No on-chain exposure beyond that.
 
-### Required env changes on Render (PENDING — please apply)
+### Render env posture (verified on 17 April 2026)
 
-The strategy artifact is already correct on live. Only operator-posture env vars need updating:
+The Render env screenshot and live API posture agree. No additional env changes are required before the first supervised funding test.
 
 ```env
-# CHANGE these three:
-OPERATOR_STAKE_FRACTION=0.25        # was 0.15
-MAX_CONSECUTIVE_LOSSES=3            # was unset (defaults to 999, effectively off)
-COOLDOWN_SECONDS=3600               # was unset (defaults to 0)
-
-# Everything else is already correct:
+OPERATOR_STAKE_FRACTION=0.25
+MAX_CONSECUTIVE_LOSSES=3
+COOLDOWN_SECONDS=3600
 STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_optimal_10usd_v5.json
 STARTING_BALANCE=10
 TIMEFRAME_15M_ENABLED=true
+TIMEFRAME_15M_MIN_BANKROLL=2
 TIMEFRAME_5M_ENABLED=false
 MULTIFRAME_4H_ENABLED=false
 MAX_GLOBAL_TRADES_PER_CYCLE=1
@@ -143,33 +143,33 @@ TRADE_MODE=LIVE
 ENABLE_LIVE_TRADING=1
 LIVE_AUTOTRADING_ENABLED=true
 START_PAUSED=false
+TELEGRAM_COMMANDS_ENABLED=true
+STRATEGY_VALIDATOR_ENABLED=true
 ```
 
-### Best deposit timing (live signal calendar as of 16 April 2026 18:24 UTC)
+### Best deposit timing (live signal calendar as of 17 April 2026 12:44 UTC)
 
-| UTC Time | Tier | Signal | OOS WR / Trades | Away |
-|:---------|:----:|:-------|----------------:|-----:|
-| 19:06 | A | H19 m6 UP `[65–98c]` | 91.7 % / 60t | 42 min (tight) |
-| 20:07 | A | H20 m7 DOWN `[65–98c]` | 94.6 % / 56t | 103 min |
-| **20:11** | **S** | **H20 m11 UP `[65–98c]`** | **97.7 % / 43t** ⭐ | **107 min** |
-| 21:10 | A | H21 m10 UP `[65–98c]` | 92.5 % / 67t | 166 min |
-| **22:11** | **S** | **H22 m11 UP `[65–98c]`** | **100 % / 34t** ⭐ | **227 min** |
-| 04:09 | A | H04 m9 DOWN `[65–98c]` | 93.9 % / 49t | 585 min |
-| **05:08** | **S** | **H05 m8 UP `[70–95c]`** | **95.1 % / 41t** ⭐ | **644 min** |
+| UTC Time | BST Time | Tier | Signal | OOS WR / Trades | Away |
+|:---------|:---------|:----:|:-------|----------------:|-----:|
+| 13:11 | 14:11 | A | H13 m11 DOWN `[65–98c]` | 92.9 % / 42t | 27 min |
+| **18:11** | **19:11** | **S** | **H18 m11 UP `[65–98c]`** | **100.0 % / 33t** ⭐ | **327 min** |
+| **20:11** | **21:11** | **S** | **H20 m11 UP `[65–98c]`** | **97.7 % / 43t** ⭐ | **447 min** |
+| 21:10 | 22:10 | A | H21 m10 UP `[65–98c]` | 92.5 % / 67t | 506 min |
+| **22:11** | **23:11** | **S** | **H22 m11 UP `[65–98c]`** | **100.0 % / 34t** ⭐ | **567 min** |
 
 **RECOMMENDED DEPOSIT WINDOW**:
 
-- **Deposit by 19:46 UTC** (~82 min from now) — gives the runtime 25 min to detect on-chain USDC, rebase, and be ready for the `20:11 UTC Tier-S signal`
-- The bot will then have **4 strong signals in the next 3 hours** (`19:06`, `20:07`, `20:11`, `21:10`) to open its first position
-- Backup: if you miss the `20:11` slot, `22:11` is another perfect-OOS Tier-S (`100 % on 34t`)
-- Don't deposit inside the final 10 min before a signal — the runtime needs one full tick-cycle to rebase
+- **Best verified window**: deposit by **17:46 UTC / 18:46 BST** for the **18:11 UTC / 19:11 BST Tier-S** signal (`H18 m11 UP`, `100%` OOS on `33` trades)
+- **Strong backup**: deposit by **19:46 UTC / 20:46 BST** for the **20:11 UTC / 21:11 BST Tier-S** signal (`97.7%` OOS on `43` trades)
+- **Late backup**: deposit by **21:46 UTC / 22:46 BST** for the **22:11 UTC / 23:11 BST Tier-S** signal (`100%` OOS on `34` trades)
+- Avoid depositing inside the final `10` minutes before a signal; the runtime needs one rebasing cycle to detect balance and arm `15m`
 
 ### GO / CONDITIONAL GO verdict
 
-- **🟢 STRONG GO with `$12` deposit** — 1.4 % 24h bust, 1.1 % 7d bust, 7d MED `$393`, p75 `$722`, p95 `$850`
-- **🟢 GREEN GO with `$15` deposit** — 0 % 24h/7d bust, 7d MED `$410`, p75 `$830`, p95 `$998`
-- **🟡 CONDITIONAL GO with `$10` deposit** — 7.3 % 24h bust is real; if the first 2-3 trades happen to lose the bot can stall out. 7d MED `$367`, p95 `$773`
-- **🔴 NO GO below `$10`** — `$5` has 58 % 24h bust, `$7` has 44 %; `$10` is the structural floor
+- **🟡 CONDITIONAL GO with `$15` deposit** — strongest first-pass safety (`0.0%` 24h bust, `0.0%` 7d bust in the current `SF=0.25 + 3L / 60m` replay), but still **conditional** because the current live restart has no fresh funded `orderID -> fill/settle` proof
+- **🟡 CONDITIONAL GO with `$12` deposit** — best risk-adjusted compromise (`1.0%` 24h bust, `1.2%` 7d bust, 7d p25 `$313.79`, 7d MED `$392.88`)
+- **🟡 CONDITIONAL GO with `$10` deposit** — still a real edge, but 24h bust (`7.1%`) and 5-trade bust sensitivity (`3.81%`) are materially worse than `$12-15`
+- **🔴 NO GO below `$10`** — the 5-share minimum order makes lower bankrolls structurally fragile
 
 **Abort / pause condition (while live)**: if rolling WR over the first 20 trades drops below 80 %, pause via `/api/pause` or env `START_PAUSED=TRUE` and investigate. That would indicate regime change.
 
@@ -3859,26 +3859,29 @@ All other env vars remain the same:
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Cascade
-**Date**: 17 April 2026 (09:10 UTC)
+**Date**: 17 April 2026 (12:50 UTC)
 **Last Verified Live Strategy**: `strategies/strategy_set_15m_optimal_10usd_v5.json` (23 strategies)
-**Session Scope**: Telegram/runtime truth-surface audit, recovery queue visibility, and `v5` vs `v6` strategy revalidation
+**Session Scope**: final Apr 17 live/runtime reverification, `v5` vs `v6` revalidation, bankroll sensitivity, deposit timing, and operator GO audit
 
-**STATUS: CONDITIONAL GO ONLY for a supervised first funding validation after redeploying the local truth-surface fixes. Do not auto-promote `v6`. Do not deploy from the current dirty workspace without isolating the intended files first.**
+**STATUS: CONDITIONAL GO ONLY for a supervised first funding validation. Keep `v5`. Do not auto-promote `v6`. If you want the local Telegram/status truth-surface fixes live, redeploy a clean curated commit first.**
 
 **Session 17 Apr 2026 — audit completion**:
 
-1. Repaired and syntax-verified the `server.js` recovery/status truth-surface edits (`node --check server.js` passed).
-2. Patched Telegram `/status`, `/wr`, and `/recent` so they fall back to the executor ledger when a validator baseline reset leaves `risk.tradeLog` empty.
-3. Confirmed the current local retrain report `debug/retrain/retrain-2026-04-17T04-55-43-906Z.json` still marks the new `v6` candidate as `beatsCurrent=false`.
-4. Ran `node scripts/auto-validate-strategy.js --days 5 --no-telegram` on both artifacts:
-    - `v5`: `204` trailing events, `89.7%` replay WR
-    - `v6` candidate: `366` trailing events, `86.3%` replay WR
-5. No live redeploy and no funded smoke trade were performed in this session.
+1. Re-queried live `/api/health`, `/api/status`, `/api/wallet/balance`, and `/api/clob-status`; confirmed live `v5` path, `tradeReady.ok=true`, and balance still `0.687071 USDC`.
+2. Verified against current code that the lone `recoveryQueue` item is a historical manual-recovery stub that marks status `degraded` but does **not** gate `executeTrade()`.
+3. Confirmed the Render env screenshot matches the intended operator posture already active on live: `SF=0.25`, `MAX_CONSECUTIVE_LOSSES=3`, `COOLDOWN_SECONDS=3600`, `MPC=1`, `15m` only.
+4. Ran `node scripts/auto-validate-strategy.js --days 7 --no-telegram` on both artifacts:
+    - `v5`: `287` trailing events, `90.2%` replay WR (expected `91.5%`)
+    - `v6` candidate: `526` trailing events, `87.8%` replay WR (expected `88.0%`)
+5. Re-ran `node scripts/v5_final_optimization.js` and `node scripts/v5_bankroll_sensitivity.js`; current best directly-proved operating posture remains `SF=0.25 + cooldown 3 losses / 60m` for truthful `$10-15` guidance.
+6. Refreshed deposit timing via `node scripts/deposit_timing.js`; next best verified Tier-S window is `18:11 UTC / 19:11 BST`, with backups at `20:11 UTC` and `22:11 UTC`.
+7. No funded live smoke trade was performed in this session.
 
 **Current local state**:
 
 - Local fixes are present for Telegram truthfulness after validator resets and for recovery queue visibility in status surfaces.
-- Those local fixes are **not yet verified on the live host in this session**.
+- Telegram inline controls for **pause / resume / reset validator** are implemented in the workspace.
+- Those local truth-surface / Telegram fixes are **not yet verified on the live host in this session**.
 - The workspace is heavily dirty with many unrelated changes/deletions; create a clean deploy diff before pushing anything.
 
 **Last verified live state**:
@@ -3887,7 +3890,7 @@ All other env vars remain the same:
 - `15m` live artifact: `/app/strategies/strategy_set_15m_optimal_10usd_v5.json` with `23` strategies loaded
 - Wallet balance: `0.687071 USDC` — still below the `$2` activation floor, so `15m` is inactive until funded
 - `pendingSettlements=0`, `pendingBuys=0`, `openPositions=0`, `openExposureUsd=0`
-- `recoveryQueue` contains only the historical `MANUAL_RECOVERY` stub for the Apr 7 order
+- `recoveryQueue` contains only the historical `MANUAL_RECOVERY` stub for the Apr 7 order; current code audit shows this is reporting-only, not an execution gate
 - Lite still exposes **no rolling live-accuracy field**; do not claim one
 
 **Strategy verdict**:
@@ -3896,33 +3899,29 @@ All other env vars remain the same:
 - Keep **`v6`** as a **notify-only / manual-review** candidate.
 - Evidence against auto-promotion today:
    - retrain report says `beatsCurrent=false`
-   - trailing 5d validator replay favored `v5` (`89.7%`) over `v6` (`86.3%`)
+   - trailing 7d validator replay favored `v5` (`90.2%`) over `v6` (`87.8%`)
    - there is still **no funded live order proof** on `v6`
 
 **Operator verdict**:
 
-- **Conditional GO only** for a supervised first validation after redeploying the local fixes and funding the wallet.
+- **Conditional GO only** for a supervised first validation after funding the wallet.
 - **No unconditional GO** yet because:
-   - no funded smoke test / `orderID` proof was produced in this session
+   - no funded smoke test / `orderID -> fill/settle` proof was produced in this session
    - the wallet is still below the activation floor
-   - the local workspace is not deploy-clean
+   - the local workspace is not deploy-clean, so pushing local fixes blindly would be unsafe
 
 **Best BST funding windows from the verified live `v5` artifact**:
 
-- Primary: fund around **20:40-20:50 BST** for the **21:11 BST** window (`20:11 UTC`, `V5_H20_m11_UP`, OOS `97.7%`, LCB `87.5%`)
-- Strong late backup: fund around **22:40-22:50 BST** for the **23:11 BST** window (`22:11 UTC`, `V5_H22_m11_UP`, OOS `100.0%`, LCB `89.3%`)
-- Earlier backup: fund around **18:40-18:50 BST** for the **19:11 BST** window (`18:11 UTC`, `V5_H18_m11_UP`, OOS `100.0%`, LCB `86.6%`)
+- Primary: fund around **18:46-18:51 BST** for the **19:11 BST** window (`18:11 UTC`, `V5_H18_m11_UP`, OOS `100.0%`, LCB `86.6%`)
+- Strong backup: fund around **20:46-20:51 BST** for the **21:11 BST** window (`20:11 UTC`, `V5_H20_m11_UP`, OOS `97.7%`, LCB `87.5%`)
+- Late backup: fund around **22:46-22:51 BST** for the **23:11 BST** window (`22:11 UTC`, `V5_H22_m11_UP`, OOS `100.0%`, LCB `89.3%`)
 
 **Next required actions**:
 
-1. Isolate a clean deploy commit containing only the intended runtime / Telegram / README changes.
-2. Redeploy and verify:
-    - `/api/health`
-    - `/api/status`
-    - `/api/reconcile-pending`
-    - Telegram `/status` now shows recovery queue state and executor-ledger fallback after validator resets
-3. Fund `$10-15` USDC only after redeploy verification; prefer `$12+` for the first supervised pass.
-4. Capture a real live `orderID` before declaring unattended autonomy readiness.
+1. If you want the local status/Telegram truth-surface fixes live, isolate a clean deploy commit containing only the intended runtime / Telegram / README changes and redeploy it.
+2. Fund `$12-15` USDC for the first supervised pass (`$15` safest, `$12` best compromise).
+3. Prefer the next Tier-S timing window above; avoid depositing inside the final `10` minutes before the signal.
+4. Capture a real live `orderID`, then verify fill/partial-fill handling, settlement, and balance reconciliation before declaring unattended autonomy readiness.
 
 **Abort condition**: if funded live validation shows missing order-placement proof, unexpected recovery-queue growth, or material early live WR degradation, pause and re-audit before continuing.
 
