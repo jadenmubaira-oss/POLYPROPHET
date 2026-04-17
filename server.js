@@ -13,6 +13,8 @@ const { loadStrategySet, evaluateMatch, sortCandidates, getAllLoadedSets } = req
 const RiskManager = require('./lib/risk-manager');
 const TradeExecutor = require('./lib/trade-executor');
 const telegram = require('./lib/telegram');
+const strategyValidator = require('./lib/strategy-validator');
+const telegramCommands = require('./lib/telegram-commands');
 
 const app = express();
 app.use(express.json());
@@ -42,6 +44,14 @@ let orchestratorHeartbeat = { lastRun: null, marketsChecked: 0, candidatesFound:
 let diagnosticLog = [];
 let restoredDiagnosticLogCount = 0;
 const startupTime = Date.now();
+let lastDailySummaryAt = 0;
+let lastHeartbeatPingAt = 0;
+let lastKnownPeakBalance = 0;
+let lastKnownBankroll = 0;
+let lastCooldownActive = false;
+let lastHaltStates = { errorHalt: false, tradeFailureHalt: false };
+let cachedBestWindows = null;
+let cachedBestWindowsAt = 0;
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'debug')) ? __dirname : path.join(__dirname, '..');
 let redis = null;
 let redisAvailable = false;
@@ -785,6 +795,14 @@ async function orchestrate() {
     if (diagnosticLog.length > 500) diagnosticLog.splice(0, diagnosticLog.length - 500);
     saveRuntimeState();
 
+    // Runtime notifications (deposit, peak, cooldown, halt transitions)
+    try { emitRuntimeTelegramEvents(); } catch (e) { console.log(`⚠️ runtime-tg error: ${e.message}`); }
+
+    // Strategy validator + daily summary + heartbeat crons
+    try { maybeRunStrategyValidator(); } catch (e) { console.log(`⚠️ validator error: ${e.message}`); }
+    try { maybeSendDailySummary(); } catch (e) { console.log(`⚠️ daily-summary error: ${e.message}`); }
+    try { maybeSendHeartbeatPing(); } catch (e) { console.log(`⚠️ heartbeat error: ${e.message}`); }
+
     // Periodic heartbeat log (every 60s)
     if (nowSec - lastOrchestrationTime >= 60) {
         lastOrchestrationTime = nowSec;
@@ -838,6 +856,165 @@ async function resolvePendingPaperPositions() {
             tradeExecutor.pendingRedemptions.push(p);
         }
     }
+}
+
+// ==================== TELEGRAM + VALIDATOR HELPERS ====================
+function getActiveStrategyFilePaths() {
+    const sets = (typeof getAllLoadedSets === 'function') ? (getAllLoadedSets() || {}) : {};
+    const out = [];
+    for (const key of Object.keys(sets)) {
+        const s = sets[key];
+        if (!s) continue;
+        const candidate = s.filePath || s.path || s.file || s.absolutePath;
+        if (candidate) out.push(candidate);
+    }
+    return out;
+}
+
+function getHaltsSnapshot() {
+    return { errorHalt: !!errorHalted, tradeFailureHalt: !!tradeFailureHalted };
+}
+
+function clearAllHalts() {
+    errorHalted = false;
+    consecutiveTickErrors = 0;
+    tradeFailureHalted = false;
+    consecutiveTradeFailures = 0;
+    lastTradeFailureAt = 0;
+    diagnosticLog.push({ ts: new Date().toISOString(), type: 'HALT_CLEARED_RUNTIME' });
+}
+
+function getUpcomingWindowsForTelegram(hoursAhead = 6) {
+    // Cache for 5 minutes to avoid recomputation
+    if (cachedBestWindows && (Date.now() - cachedBestWindowsAt) < 5 * 60 * 1000) {
+        return cachedBestWindows;
+    }
+    const sets = (typeof getAllLoadedSets === 'function') ? (getAllLoadedSets() || {}) : {};
+    const tf15 = sets['15m'] || sets.fifteen || null;
+    if (!tf15 || !Array.isArray(tf15.strategies)) return [];
+    const now = new Date();
+    const out = [];
+    for (let i = 0; i < hoursAhead; i++) {
+        const slot = new Date(now.getTime() + i * 3600 * 1000);
+        const hour = slot.getUTCHours();
+        const strats = tf15.strategies.filter((s) => s.utcHour === hour);
+        for (const s of strats) {
+            const entry = new Date(slot);
+            entry.setUTCMinutes(Number(s.entryMinute || 0), 0, 0);
+            if (entry.getTime() < now.getTime()) continue;
+            const oosWr = Number(s.stats?.oos?.wr ?? s.pWinEstimate ?? s.winRate ?? 0);
+            out.push({
+                timeIso: entry.toISOString().slice(11, 16) + 'Z',
+                tier: s.tier || '?',
+                oosWr,
+                trades: Number(s.stats?.oos?.trades ?? s.stats?.full?.trades ?? 0),
+                asset: s.asset === 'all' ? 'any' : s.asset,
+                direction: s.direction
+            });
+        }
+    }
+    out.sort((a, b) => b.oosWr - a.oosWr);
+    cachedBestWindows = out.slice(0, 24);
+    cachedBestWindowsAt = Date.now();
+    return cachedBestWindows;
+}
+
+function emitRuntimeTelegramEvents() {
+    // Deposit / withdrawal detection (significant balance change with no open positions)
+    const execStatus = tradeExecutor.getStatus();
+    const liveBal = Number(execStatus.liveBalance ?? execStatus.paperBalance ?? riskManager.bankroll ?? 0);
+    if (!lastKnownBankroll) lastKnownBankroll = liveBal;
+    const delta = liveBal - lastKnownBankroll;
+    if (Math.abs(delta) >= 0.5 && execStatus.openPositions === 0) {
+        telegram.notifyDepositDetected({
+            delta,
+            previousBalance: lastKnownBankroll,
+            newBalance: liveBal
+        });
+        lastKnownBankroll = liveBal;
+    } else {
+        lastKnownBankroll = liveBal;
+    }
+
+    // New peak balance (only when it truly grows, not after deposit rebase)
+    const peak = Number(riskManager.peakBalance || 0);
+    if (peak > 0 && lastKnownPeakBalance > 0 && peak > lastKnownPeakBalance + 0.01) {
+        telegram.notifyPeakBalance({ peak, previousPeak: lastKnownPeakBalance });
+    }
+    lastKnownPeakBalance = peak;
+
+    // Cooldown transition
+    const inCooldown = !!(riskManager.cooldownUntil && Date.now() < riskManager.cooldownUntil);
+    if (inCooldown && !lastCooldownActive) {
+        telegram.notifyCooldownHit({
+            consecutiveLosses: Number(riskManager.consecutiveLosses || 0),
+            cooldownSeconds: Math.max(0, (riskManager.cooldownUntil - Date.now()) / 1000),
+            bankroll: Number(riskManager.bankroll || 0)
+        });
+    }
+    lastCooldownActive = inCooldown;
+
+    // Halt transitions
+    if (errorHalted && !lastHaltStates.errorHalt) {
+        telegram.notifyHaltTriggered({
+            kind: 'ERROR_HALT',
+            reason: `${consecutiveTickErrors} consecutive tick errors`,
+            count: consecutiveTickErrors,
+            threshold: ERROR_HALT_THRESHOLD
+        });
+    } else if (!errorHalted && lastHaltStates.errorHalt) {
+        telegram.notifyHaltResumed({ source: 'error_halt_cleared' });
+    }
+    if (tradeFailureHalted && !lastHaltStates.tradeFailureHalt) {
+        telegram.notifyHaltTriggered({
+            kind: 'TRADE_FAILURE_HALT',
+            reason: `${consecutiveTradeFailures} consecutive trade failures`,
+            count: consecutiveTradeFailures,
+            threshold: TRADE_FAILURE_HALT_THRESHOLD
+        });
+    } else if (!tradeFailureHalted && lastHaltStates.tradeFailureHalt) {
+        telegram.notifyHaltResumed({ source: 'trade_failure_halt_cleared' });
+    }
+    lastHaltStates = { errorHalt: errorHalted, tradeFailureHalt: tradeFailureHalted };
+}
+
+function maybeRunStrategyValidator() {
+    if (!CONFIG.STRATEGY_VALIDATOR?.enabled) return;
+    strategyValidator.maybeRunCheck({
+        risk: riskManager.getStatus(),
+        executor: tradeExecutor.getStatus(),
+        activeStrategyFiles: getActiveStrategyFilePaths(),
+        deployInfo: { deployVersion: DEPLOY_VERSION, mode: CONFIG.TRADE_MODE, isLive: CONFIG.IS_LIVE }
+    });
+}
+
+function maybeSendDailySummary() {
+    const cfg = CONFIG.TELEGRAM || {};
+    if (!cfg.enabled) return;
+    const now = new Date();
+    const hour = now.getUTCHours();
+    const minute = now.getUTCMinutes();
+    const targetHour = Number(cfg.dailySummaryUtcHour ?? 0);
+    const targetMinute = Number(cfg.dailySummaryUtcMinute ?? 5);
+    const hitWindow = hour === targetHour && minute >= targetMinute && minute < targetMinute + 3;
+    if (!hitWindow) return;
+    if (lastDailySummaryAt && (Date.now() - lastDailySummaryAt) < 22 * 3600 * 1000) return;
+    lastDailySummaryAt = Date.now();
+    telegram.notifyDailySummary(riskManager.getStatus());
+}
+
+function maybeSendHeartbeatPing() {
+    const cfg = CONFIG.TELEGRAM || {};
+    const minutes = Number(cfg.heartbeatIntervalMinutes || 0);
+    if (!minutes || minutes <= 0) return;
+    if (lastHeartbeatPingAt && (Date.now() - lastHeartbeatPingAt) < minutes * 60 * 1000) return;
+    lastHeartbeatPingAt = Date.now();
+    const risk = riskManager.getStatus();
+    telegram.sendMessage(
+        `💓 <b>HEARTBEAT</b>\nBal: $${Number(risk.bankroll || 0).toFixed(2)} | Trades: ${risk.totalTrades} | WR: ${risk.winRate}%`,
+        telegram.PRIORITY.LOW,
+        { allowDuplicate: true }
+    );
 }
 
 // ==================== API ENDPOINTS ====================
@@ -1326,6 +1503,42 @@ app.post('/api/resume-errors', (req, res) => {
     res.json({ success: true, message: 'Error and trade-failure halts cleared', prev });
 });
 
+// Strategy validator — run on demand
+app.get('/api/validator/last', (req, res) => {
+    const report = strategyValidator.getLastReport();
+    res.json({ success: true, report });
+});
+
+app.post('/api/validator/run', (req, res) => {
+    try {
+        const report = strategyValidator.runCheck({
+            risk: riskManager.getStatus(),
+            executor: tradeExecutor.getStatus(),
+            activeStrategyFiles: getActiveStrategyFilePaths(),
+            deployInfo: { deployVersion: DEPLOY_VERSION, mode: CONFIG.TRADE_MODE, isLive: CONFIG.IS_LIVE },
+            trigger: 'MANUAL'
+        });
+        res.json({ success: true, report });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+// Telegram — send a test message (for setup verification)
+app.post('/api/telegram/test', (req, res) => {
+    const sent = telegram.sendMessage(
+        `🧪 <b>TEST PING</b>\nDeploy: <code>${String(DEPLOY_VERSION).slice(0, 12)}</code>\n` +
+        `Mode: ${CONFIG.TRADE_MODE} | Live: ${CONFIG.IS_LIVE}`,
+        telegram.PRIORITY.HIGH,
+        { allowDuplicate: true }
+    );
+    res.json({ success: true, sent, state: telegram.getQueueState() });
+});
+
+app.get('/api/telegram/state', (req, res) => {
+    res.json({ success: true, state: telegram.getQueueState() });
+});
+
 // ==================== DASHBOARD ====================
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
@@ -1392,6 +1605,44 @@ async function startServer() {
         console.log(`📡 Health: http://localhost:${CONFIG.PORT}/api/health`);
         console.log(`📊 Status: http://localhost:${CONFIG.PORT}/api/status\n`);
 
+        // Start Telegram command long-poll loop (ignored if disabled/unconfigured)
+        try {
+            telegramCommands.startCommandLoop({
+                riskManager,
+                tradeExecutor,
+                getHalts: getHaltsSnapshot,
+                clearHalts: clearAllHalts,
+                saveRuntimeState,
+                runValidator: () => strategyValidator.runCheck({
+                    risk: riskManager.getStatus(),
+                    executor: tradeExecutor.getStatus(),
+                    activeStrategyFiles: getActiveStrategyFilePaths(),
+                    deployInfo: { deployVersion: DEPLOY_VERSION, mode: CONFIG.TRADE_MODE, isLive: CONFIG.IS_LIVE },
+                    trigger: 'TG_COMMAND'
+                }),
+                getUpcomingWindows: getUpcomingWindowsForTelegram
+            });
+        } catch (e) {
+            console.log(`⚠️ telegram commands failed to start: ${e.message}`);
+        }
+
+        // Boot notification (one-shot)
+        try {
+            const activeSets = (typeof getAllLoadedSets === 'function') ? (getAllLoadedSets() || {}) : {};
+            const tf15 = activeSets['15m'] || null;
+            telegram.notifyBootStartup({
+                mode: CONFIG.TRADE_MODE,
+                isLive: CONFIG.IS_LIVE,
+                balance: Number(riskManager.bankroll || 0),
+                strategyFile: tf15?.filePath ? path.basename(tf15.filePath) : 'unknown',
+                strategyCount: Number(tf15?.strategies || 0),
+                deployVersion: DEPLOY_VERSION,
+                host: process.env.RENDER_EXTERNAL_HOSTNAME || 'local'
+            });
+        } catch (e) {
+            console.log(`⚠️ boot telegram notify failed: ${e.message}`);
+        }
+
         tick();
     });
 
@@ -1407,6 +1658,7 @@ async function shutdown(signal) {
     if (shuttingDown) return;
     console.log(`Received ${signal}, shutting down...`);
     shuttingDown = true;
+    try { telegramCommands.stopCommandLoop(); } catch {}
     if (tickTimer) clearTimeout(tickTimer);
     await saveRuntimeState();
     if (redis) {

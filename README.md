@@ -3,7 +3,74 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 17 April 2026 (03:00 UTC) | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Commit**: `d1781dc` (final v5 re-investigation handover) | **v5 LOADED & LIVE on `d1781dc`**
+**Last Updated**: 17 April 2026 (05:00 UTC) | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Commit**: `f8bc539+local` (auto-validator + Telegram upgrade + retrain workflow landed locally) | **v5 LOADED & LIVE**
+
+## 🆕 17 April 2026 (05:00 UTC) — Auto-Validator + Telegram Ops Surface
+
+Added a full strategy health / retrain ops layer with NOTIFY-ONLY policy (no auto-swap).
+
+**New modules**:
+
+- `@/c:/Users/voide/Downloads/POLYPROPHET-main/POLYPROPHET-main/lib/telegram.js` — full rewrite with 4 priority tiers, rate limit, quiet hours, dedup, retry/backoff. 11 `notifyXxx` helpers wired into runtime (boot, trade open/close, cooldown, halt transitions, deposit, peak, drawdown, validator alert, retrain candidate, error).
+- `@/c:/Users/voide/Downloads/POLYPROPHET-main/POLYPROPHET-main/lib/telegram-commands.js` — inbound command long-poll. Commands: `/status`, `/balance`, `/wr`, `/recent N`, `/next`, `/health`, `/pause`, `/resume`, `/verbosity LVL`, `/id`, `/help`. Owner-guard via `TELEGRAM_CHAT_ID`.
+- `@/c:/Users/voide/Downloads/POLYPROPHET-main/POLYPROPHET-main/lib/strategy-validator.js` — in-process health monitor. Runs every batch of `VALIDATOR_TRADE_BATCH=20` live trades + hourly; hard-kill triggers (rolling 20/50/100 WR floors, daily WR collapse, drawdown, strategy file age warn/crit); Telegram alerts rate-limited 30min per alert-kind.
+- `@/c:/Users/voide/Downloads/POLYPROPHET-main/POLYPROPHET-main/scripts/auto-validate-strategy.js` — CLI weekly validator. Writes JSON report to `debug/validator/`, fires Telegram on WARN/CRITICAL.
+- `@/c:/Users/voide/Downloads/POLYPROPHET-main/POLYPROPHET-main/scripts/auto-retrain-v6.js` — monthly retrain orchestrator (builds candidate in `strategies/candidates/`, writes decision report to `debug/retrain/`, notify-only).
+- `.windsurf/workflows/validate-strategy.md` and `.windsurf/workflows/retrain-v6.md` — human runbooks.
+
+**New API endpoints** (live after next deploy):
+
+- `GET /api/validator/last` — last validator report
+- `POST /api/validator/run` — force immediate validator run
+- `POST /api/telegram/test` — send a test ping (useful for setup verification)
+- `GET /api/telegram/state` — inspect queue / verbosity / quiet-hours
+
+**New env vars** (all optional; sensible defaults):
+
+```env
+# Telegram behavior
+TELEGRAM_VERBOSITY=NORMAL           # SILENT|CRITICAL_ONLY|QUIET|NORMAL|VERBOSE
+TELEGRAM_QUIET_START_UTC=22         # e.g. 22 = 22:00 UTC start of quiet hours
+TELEGRAM_QUIET_END_UTC=7            # 07:00 UTC end (set equal to disable)
+TELEGRAM_MAX_PER_MINUTE=20          # hard cap on sends/minute
+TELEGRAM_COMMANDS_ENABLED=true      # allow inbound /commands
+TELEGRAM_COMMANDS_POLL_MS=15000     # long-poll interval
+TELEGRAM_DAILY_SUMMARY_UTC_HOUR=0   # midnight UTC daily summary
+TELEGRAM_HEARTBEAT_MIN=0            # 0 disables; e.g. 60 = hourly low-priority ping
+
+# In-process strategy validator
+STRATEGY_VALIDATOR_ENABLED=true
+VALIDATOR_TRADE_BATCH=20            # run validator after every N live trades
+VALIDATOR_ROLLING20_WR_FLOOR=0.65   # rolling 20-trade WR below this → CRITICAL
+VALIDATOR_ROLLING50_WR_FLOOR=0.76
+VALIDATOR_ROLLING100_WR_FLOOR=0.79
+VALIDATOR_DAILY_MIN_TRADES=10       # day must have ≥ N trades for daily WR check
+VALIDATOR_DAILY_WR_FLOOR=0.70
+VALIDATOR_DD_ALERT_PCT=0.40         # drawdown alert threshold
+VALIDATOR_DD_CRITICAL_PCT=0.60
+VALIDATOR_STRATEGY_MAX_AGE_WARN_DAYS=21
+VALIDATOR_STRATEGY_MAX_AGE_CRIT_DAYS=30
+```
+
+**Smoke-tested on local repo**:
+
+- `node scripts/auto-validate-strategy.js --days 7 --no-telegram` → `INFO, 90.2% WR on 305t trailing OOS, v5 file age 0.6d`
+- `node scripts/auto-retrain-v6.js --trainDays 10 --oosDays 5 --minWr 0.85 --minTrades 30 --no-telegram` → 185 candidates survived, written to `strategies/candidates/`
+
+**Operating cadence** (now enforced by tooling):
+
+- Every 20 live trades: in-process validator auto-runs
+- Every 7 days or 50 live trades (whichever first): run `node scripts/auto-validate-strategy.js`
+- Every 21-30 days from strategy `buildDate`: run `node scripts/auto-retrain-v6.js`, review candidate, promote manually if it beats v5
+
+**Monitoring from Telegram** — after deploy, you can run a bot from your phone with:
+
+- `/status` — live balance, WR, cooldown, halts, open positions, pending
+- `/wr` — rolling 20/50/100 WR with Wilson LCB
+- `/recent 15` — last 15 trades compact
+- `/next` — upcoming high-WR entry windows for next 6h
+- `/health` — full validator report (alerts, strategy age, rolling windows)
+- `/pause` / `/resume` — pause/resume trading (+ clears halts on resume)
 
 ---
 
@@ -3914,8 +3981,8 @@ All other env vars remain the same:
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Cascade
-**Date**: 17 April 2026 (03:00 UTC)
-**Deploy Commit**: `d1781dc611ef5f85bae6ab3e66b2fb067a9666e7`
+**Date**: 17 April 2026 (03:25 UTC)
+**Deploy Commit**: `f8bc5398eb420029a69f4beb9ed582785b521709`
 **Strategy File (live)**: `strategies/strategy_set_15m_optimal_10usd_v5.json` (23 strategies, 18h coverage)
 **Runtime Posture (LIVE, verified on Render)**: `SF=0.25 + MAX_CONSECUTIVE_LOSSES=3 + COOLDOWN_SECONDS=3600` — confirmed via `/api/health.riskControls.currentTierProfile.stakeFraction=0.25`
 
@@ -3937,7 +4004,7 @@ All other env vars remain the same:
 
 **Current local state**:
 
-- Repo `main` up to date with live `d1781dc`
+- Repo `main` currently at `f8bc539` (matches the freshly verified live deploy hash)
 - Test scripts under `scripts/` reproduce every table in the handover (`full_reverify_all_sets`, `v5_final_optimization`, `v5_bankroll_sensitivity`, `deposit_timing`)
 - v5 strategy artifact uses probability-safe encoding; 23 strategies, 18 UTC hours covered, avg entry price `~0.82`, all OOS WR `>=85%` on `>=30` trades
 - Legacy local script `final_readiness_check.js` derives deposit timing dynamically from the live artifact (fixed in this session series)
@@ -3945,7 +4012,7 @@ All other env vars remain the same:
 **Current live state**:
 
 - Host: `https://polyprophet-1-rr1g.onrender.com`
-- `deployVersion=d1781dc611ef5f85bae6ab3e66b2fb067a9666e7`
+- `deployVersion=f8bc5398eb420029a69f4beb9ed582785b521709`
 - `mode=LIVE`, `isLive=true`, `startPaused=false`, `currentTierProfile.label=BOOTSTRAP`
 - `balance=0.687071 USDC` (still below `$2` activation floor, waiting for deposit)
 - `15m` strategy path `/app/strategies/strategy_set_15m_optimal_10usd_v5.json` with `23` strategies loaded
