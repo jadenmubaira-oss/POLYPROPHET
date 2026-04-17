@@ -43,7 +43,7 @@ Invoke `/skill` when you need the full DEITY operational protocol for ANY Polypr
 - **Target**: coordinated autonomous trading across `15m + 4h + 5m`
 - **Current honest boundary**:
   - `15m` is the active primary path
-  - `4h` is validated and ready to enable with env posture + live verification
+  - `4h` is active on the live host but still requires honest post-patch trade proof before autonomy claims
   - `5m` is signal-valid but execution-fragile below roughly `$50` bankroll
 - **Truthfulness rule**: never present best-case or theoretical projections without stating gates, bankroll constraints, fees, min-order effects, and survivability assumptions
 
@@ -72,8 +72,8 @@ Invoke `/skill` when you need the full DEITY operational protocol for ANY Polypr
 
 | TF | Set | State | WR | Verdict |
 |----|-----|-------|----|---------|
-| 15m | `debug/strategy_set_top7_drop6.json` | ENABLED | 88.3% | READY |
-| 4h | `debug/strategy_set_4h_maxprofit.json` | DISABLED | 84.7% | READY TO ENABLE |
+| 15m | `debug/strategy_set_top8_current.json` | ENABLED | 88.3% | ACTIVE, SPARSE ENTRY WINDOWS |
+| 4h | `debug/strategy_set_4h_maxprofit.json` | ENABLED | 84.7% | ACTIVE, STILL NEEDS LIVE ORDER-PROOF CONTEXT |
 | 5m | `debug/strategy_set_5m_maxprofit.json` | DISABLED | 80.7% | FRAGILE at micro-bankroll |
 | 1h | None | N/A | N/A | NOT SUPPORTED |
 

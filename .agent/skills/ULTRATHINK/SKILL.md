@@ -136,8 +136,8 @@ If presenting ANY performance data, include:
 
 1. **Read `README.md`** - Every character, including OPEN ISSUES
 2. **Check `.agent/skills/`** - Read both ULTRATHINK and EXECUTION skills
-3. **Query live server** - `/api/health`, `/api/state` to understand current reality
-4. **Check `implementation_plan.md`** - Any pending work?
+3. **Query live server** - `/api/health` and `/api/status` to understand current reality
+4. **Check `IMPLEMENTATION_PLAN_v140.md`** - Any pending work?
 
 ### 2. Molecular Scrutiny
 
@@ -153,7 +153,7 @@ For every feature or bug, ask:
 
 - **Implementation Plan**: Detailed, architected changes with line numbers
 - **README Updates**: Document ALL discoveries, even if negative
-- **LIVE Verification**: Query rolling accuracy BEFORE presenting any stats
+- **LIVE Verification**: Query live endpoints and explicitly state whether rolling accuracy is available before presenting any stats
 
 When analyzing strategy certainty, use the Polymarket-only pipeline outputs:
 
@@ -166,23 +166,23 @@ Strategy rows include per-asset certainty metrics (`perAsset.*`) and conservativ
 
 ## 📡 LIVE SERVER MONITORING (ALWAYS USE LIVE DATA)
 
-**Production URL**: `https://polyprophet.onrender.com`
+**Production URL**: `https://polyprophet-1-rr1g.onrender.com`
 
 ### Endpoints to Check
 
 | Endpoint | What to Look For |
 |----------|-----------------|
-| `/api/health` | Status, configVersion, **rollingAccuracy** |
-| `/api/state-public` | Predictions, locks, confidence, pWin |
-| `/api/backtest-polymarket?hours=24` | Win rate, trade count, profitability |
-| `/api/perfection-check` | Failing invariants |
+| `/api/health` | Mode, strategy sets, readiness, and exposed metrics |
+| `/api/status` | Risk, executor, markets, and orchestrator truth |
+| `/api/diagnostics` | Diagnostic log, heartbeat, and recent runtime issues |
+| `/api/wallet/balance` | Wallet balance truth |
 
 ### Investigation Workflow
 
 1. **Query LIVE endpoint** first (not local files)
 2. **Compare** to any local data - flag discrepancies
 3. **Document** in README OPEN ISSUES
-4. **NEVER present local backtest results without live cross-check**
+4. **NEVER present local backtest results without live cross-check and a live metric availability statement**
 
 ---
 
@@ -192,7 +192,7 @@ Strategy rows include per-asset certainty metrics (`perAsset.*`) and conservativ
 
 1. Read README fully
 2. Read ALL skills files
-3. Query `/api/health` for current state (LIVE DATA)
+3. Query `/api/health` and `/api/status` for current state (LIVE DATA)
 4. Start response with BRIEF
 
 ### Every Conversation End
@@ -211,8 +211,9 @@ Strategy rows include per-asset certainty metrics (`perAsset.*`) and conservativ
 | File | Purpose |
 |------|---------|
 | `README.md` | Immortal Manifesto - source of truth |
-| `implementation_plan.md` | Current blueprint |
+| `IMPLEMENTATION_PLAN_v140.md` | Current blueprint |
 | `FORENSIC_ANALYSIS.md` | Deep investigation notes |
+| `AGENTS.md` | Hybrid harness map and read order |
 | `.agent/skills/*.md` | Agent behavior rules |
 
 **Rule**: Important = goes in README. Temporary = goes in plan.

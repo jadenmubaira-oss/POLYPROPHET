@@ -1,4 +1,39 @@
 ﻿# ðŸ”® POLYPROPHET v140 â€” FULL IMPLEMENTATION PLAN & AUDIT
+
+## 2026-03-31 Addendum — Unified Exact-Runtime Reinvestigation
+
+- Previous `15m combined_v9` / `5m` outlier claims are no longer the active truth surface.
+- The stricter rerun also demoted the earlier `exact_b50` promotion for the `$20` band.
+- New local winner on the latest audited surface:
+  - **`debug/strategy_set_15m_exact_b10.json`**
+- Search / audit method:
+  - truthful bounded CLOB minute history
+  - current runtime `RiskManager` semantics
+  - `5`-share minimum floor
+  - spread gate `|yes + no - 1| <= 0.08`
+  - chronological `60/20/20` historical split
+  - expanded `15`-day recent holdout (`2026-03-17` to `2026-03-31`)
+  - stricter recent matched-day requirements for current-regime validation
+
+### Best verified band from this pass
+
+| Start | Historical 30d median | Historical bust | Recent 30d median | Recent bust | Verdict |
+|---|---:|---:|---:|---:|---|
+| `$5` | `$76.96` | `34.0%` | `$2.08` | `41.25%` | Reject |
+| `$10` | `$214.55` | `15.75%` | `$87.84` | `26.0%` | Reject |
+| `$20` | `$413.78` | `7.75%` | `$275.52` | `7.0%` | Best user-acceptable deployable band |
+| `$50` | `$749.28` | `0.75%` | `$708.13` | `0.75%` | Strongest audited simple band |
+
+### Additional notes
+
+- Collector bug fixed: Gamma minimum-size metadata comes from `orderMinSize`, not the old null side-specific fields.
+- A strict `5m` rerun with `MIN_RECENT_EDGE=0.02` and `MIN_RECENT_MATCHED_DAYS=4` found **zero** currently validated candidates.
+- Bankroll-band policy search across `b5 / b10 / b20 / b50` produced unstable winners across reruns, so it was not promoted.
+- `4h` still has zero recent matches in the expanded holdout, so it is not a valid primary live path.
+- Local runtime code now points `15m` primary loading to `strategy_set_15m_exact_b10.json`.
+- Secondary fallback is `strategy_set_15m_exact_b50.json`.
+- Local default `TIMEFRAME_15M_MIN_BANKROLL` is now `20`.
+
 **Date:** 22 Feb 2026 | **Starting Balance:** ~$3 USDC | **Server:** Render (Oregon) + Japan proxy | **See Addendum E+F for current status**
 
 ---

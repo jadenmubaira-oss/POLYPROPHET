@@ -133,7 +133,7 @@ If presenting ANY performance data, include:
 
 ### 1. Read the Plan
 
-1. **Read `implementation_plan.md`** - Understand what to implement
+1. **Read `IMPLEMENTATION_PLAN_v140.md`** - Understand what to implement
 2. **Read `README.md`** - Full context, especially OPEN ISSUES
 3. **Verify the plan** - Does it make sense? Does it align with mission?
 4. **If plan is wrong** - DO NOT IMPLEMENT. Note error, propose fix.
@@ -150,10 +150,10 @@ If presenting ANY performance data, include:
 | Check | Command | When |
 |-------|---------|------|
 | Syntax | `node --check server.js` | After every edit |
-| Values | `grep -n "CONFIG.ORACLE.maxOdds" server.js` | After config changes |
-| Deploy | `git push origin main` | After verification passes |
-| **LIVE** | Query `/api/health` | After deploy |
-| **LIVE WR** | Check `rollingAccuracy` in health | Before presenting any stats |
+| Values | Re-read touched source or search the repo for the changed value | After config changes |
+| Deploy | Only deploy when explicitly asked | After verification passes |
+| **LIVE** | Query `/api/health` and `/api/status` | After deploy |
+| **LIVE WR** | State whether rolling accuracy is available on the active lite runtime | Before presenting any stats |
 
 ### Certainty-First Analysis Pipeline (Local)
 
@@ -164,9 +164,9 @@ The analysis outputs include per-asset certainty stats (`perAsset.*`) and conser
 
 ---
 
-## 🚀 AUTO-DEPLOYMENT PROTOCOL
+## 🚀 DEPLOYMENT PROTOCOL (ONLY WHEN EXPLICITLY ASKED)
 
-### Step 1: Commit & Push
+### Step 1: Prepare Deployment
 
 ```bash
 git add .
@@ -180,8 +180,9 @@ git push origin main
 
 | Endpoint | What to Check |
 |----------|---------------|
-| `/api/health` | status=ok, configVersion, **rollingAccuracy** |
-| `/api/state-public` | Config values match plan |
+| `/api/health` | mode, strategy sets, readiness, and exposed metrics |
+| `/api/status` | risk, executor, markets, and orchestrator truth |
+| `/api/wallet/balance` | bankroll and wallet balance truth |
 
 ### Step 4: Report to User
 
@@ -189,21 +190,21 @@ Include:
 
 1. ✅ Deployment Status
 2. 📊 Health Check Result
-3. 🎯 **LIVE Rolling Accuracy** (not backtest)
+3. 🎯 Live metric availability statement
 4. ⚠️ Any Issues Found
 
 ---
 
 ## 📡 LIVE SERVER MONITORING (ALWAYS USE LIVE DATA)
 
-**Production URL**: `https://polyprophet.onrender.com`
+**Production URL**: `https://polyprophet-1-rr1g.onrender.com`
 
 ### Post-Deploy Checklist
 
-1. ✅ `/api/health` returns status ok or degraded (acceptable)
-2. ✅ `configVersion` matches expected
-3. ✅ Key config values match plan
-4. ✅ **rollingAccuracy** shows actual live WR (DO NOT USE BACKTEST ALONE)
+1. ✅ `/api/health` returns truthful mode/readiness information
+2. ✅ `/api/status` matches the intended executor / orchestrator posture
+3. ✅ `/api/wallet/balance` reflects bankroll truth
+4. ✅ If rolling accuracy is unavailable, say it is unavailable rather than inventing a metric
 
 ### Proactive Monitoring
 
@@ -229,7 +230,7 @@ When asked to monitor:
 Ask yourself:
 
 - "Did all changes apply correctly?"
-- "Does **LIVE** rolling accuracy show ≥90% WR?"
+- "Did I state whether **LIVE** rolling accuracy is actually available?"
 - "Is README still accurate?"
 - "Would I bet MY $1 on this?"
 
@@ -240,14 +241,15 @@ Ask yourself:
 | File | Purpose |
 |------|---------|
 | `README.md` | Immortal Manifesto - source of truth |
-| `implementation_plan.md` | Current blueprint |
+| `IMPLEMENTATION_PLAN_v140.md` | Current blueprint |
 | `FORENSIC_ANALYSIS.md` | Deep investigation notes |
+| `AGENTS.md` | Hybrid harness map and read order |
 | `.agent/skills/*.md` | Agent behavior rules |
 
 **CRITICAL**: At end of work, update README with:
 
 - Changes made
-- Test results (**LIVE** rolling accuracy, not just backtest)
+- Test results and explicit live metric availability
 - Outstanding issues
 
 ---

@@ -5,110 +5,81 @@ description: Local research-first, testing-aware, security-aware ECC baseline ad
 
 # ECC_BASELINE
 
-This skill adapts the useful parts of `affaan-m/everything-claude-code` to this repository **without overriding DEITY**.
+Full ECC harness (v1.9.0) installed and adapted for this POLYPROPHET workspace. DEITY remains primary authority — ECC is additive.
 
 ## Read Order
 
 1. `README.md`
 2. `.agent/skills/DEITY/SKILL.md`
 3. This file
-4. Relevant `.windsurf/workflows/*.md`
+4. `.agent/rules/*.md` — Flattened ECC rules
+5. Relevant `.agent/workflows/*.md` or `.windsurf/workflows/*.md`
 
-## Purpose
+## What's Installed
 
-Use this skill as the local ECC-derived baseline for:
+### Rules (`.agent/rules/`)
+- `coding-style.md` — Immutability, file organization, error handling, code quality
+- `security.md` — OWASP checks, secret management, POLYPROPHET wallet security
+- `testing.md` — Validation chain, TDD workflow, POLYPROPHET verification order
+- `git-workflow.md` — Commit format, PR workflow, POLYPROPHET deploy steps
+- `performance.md` — Context management, build troubleshooting, POLYPROPHET perf notes
+- `patterns.md` — Repository pattern, API format, POLYPROPHET architecture patterns
+- `hooks.md` — Hook reference (non-executable in Antigravity)
+- `agents.md` — Agent orchestration, priority hierarchy, parallel execution
+- `javascript.md` — JS/Node.js coding standards, async patterns, Express best practices
 
-- research-first investigation
-- security-aware implementation
-- evidence-backed validation
-- small, reversible changes
-- tool-efficient exploration
+### Skills (`.agent/skills/`)
+- `planner` — Implementation planning specialist
+- `code-reviewer` — Security and quality review
+- `security-reviewer` — OWASP and vulnerability detection
+- `build-error-resolver` — Minimal-diff error fixing
+- `architect` — System design and scalability
+- `refactor-cleaner` — Dead code cleanup
+- `doc-updater` — Documentation synchronization
+- `loop-operator` — Autonomous loop execution
 
-## Core Rules
+### Workflows (`.agent/workflows/`)
+- `/plan` — Step-by-step implementation planning
+- `/code-review` — Comprehensive security and quality review
+- `/build-fix` — Incremental build error fixing
+- `/verify` — Comprehensive codebase verification
+- `/refactor-clean` — Dead code cleanup
+- `/tdd` — Test-driven development
+
+## Core Principles (from ECC)
 
 ### 1. Research First
-
-Before code changes:
-
-- identify the authoritative files
-- read the relevant files fully
-- map where state lives and what calls what
-- distinguish primary logic from fallback paths
+Before code changes: identify authoritative files, read fully, map state, distinguish primary from fallback.
 
 ### 2. Parallel Exploration
-
-When tasks are independent, batch reads/searches together instead of exploring sequentially.
-
-Examples:
-
-- read multiple related files in parallel
-- inspect backend + UI + docs together when a surfaced behavior may drift
-- compare current runtime with legacy reference files when touching central behavior
+Batch independent reads/searches. Read multiple files, inspect backend + UI + docs together.
 
 ### 3. Small, Reversible Edits
-
-- prefer the smallest change that satisfies the requirement
-- avoid broad rewrites without concrete evidence they are necessary
-- preserve working repo-specific harness behavior unless the user explicitly wants it changed
+Prefer smallest justified change. Avoid speculative rewrites. Preserve working conventions.
 
 ### 4. Security Gate
-
-Before finishing security-relevant work, check:
-
-- no secrets were hardcoded
-- no auth/control-plane protections were weakened accidentally
-- no sensitive local env files were exposed
-- external input boundaries are validated where relevant
-
-Treat `POLYPROPHET.env` and live credentials as sensitive.
+Check: no hardcoded secrets, no auth weakening, no env files exposed, input boundaries validated.
 
 ### 5. Validation Gate
-
-Use repo-realistic validation instead of generic claims.
-
 For this repository:
-
-- runtime JS edits -> `node --check server.js`
-- runtime/API/dashboard changes -> verify `/api/health`, `/api/status`, `/api/wallet/balance`, plus UI parity when relevant
-- execution/risk/runtime changes -> compare touched behavior against `legacy-root-runtime/` when that comparison is meaningful
+- Runtime JS → `node --check server.js`
+- API/dashboard → verify `/api/health`, `/api/status`, `/api/wallet/balance`
+- Execution/risk → compare against `legacy-root-runtime/`
 
 ### 6. Testing Posture
-
-ECC's generic testing philosophy is useful, but this repo should not pretend to have blanket test coverage it does not currently maintain.
-
-Preferred order here:
-
-1. syntax validation
-2. targeted command/test execution when available
-3. API verification
-4. UI/runtime truthfulness checks
-5. documentation consistency check
+Preferred validation order: syntax → targeted tests → API verification → UI truthfulness → doc consistency.
 
 ### 7. Documentation Truthfulness
+Never claim: unverified capabilities, broader compatibility than researched, guarantees not validated.
 
-Do not claim:
+## Install State
 
-- native Windsurf ECC support unless verified
-- broader install compatibility than was actually researched
-- repo guarantees that were not validated locally or from live/runtime evidence
+See `.agent/ecc-install-state.json` for the complete manifest of installed files.
 
-## Upstream-Derived Principles Retained
+## Intentionally Not Imported
 
-These ECC ideas were intentionally retained in this local adaptation:
-
-- research-first development
-- explicit security review
-- boundary validation
-- evidence over assumption
-- use parallel analysis when independent
-- prefer focused files and explicit reasoning
-
-## Intentionally Not Imported Verbatim
-
-These ECC elements were intentionally **not** copied directly into repo authority:
-
-- Claude plugin install commands
-- `.claude/rules` conventions as authoritative repo behavior
-- generic agent names/tools that do not exist in Windsurf here
-- blanket coverage requirements detached from this repo's actual test surface
-- any instruction that would override DEITY or the POLYPROPHET manifesto
+- Claude Code plugin infrastructure (hooks.json execution)
+- Claude-specific install commands and paths
+- Generic agent names that don't exist in Antigravity
+- Blanket coverage requirements detached from this repo's test surface
+- Any instruction that would override DEITY or the POLYPROPHET manifesto
