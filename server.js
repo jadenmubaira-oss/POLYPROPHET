@@ -1021,13 +1021,20 @@ function maybeSendHeartbeatPing() {
 app.get('/api/health', (req, res) => {
     const uptime = (Date.now() - startupTime) / 1000;
     const executorStatus = tradeExecutor.getStatus();
+    const riskStatus = riskManager.getStatus();
     const activeTimeframes = getEnabledTimeframes();
     const runtimeBankrollForTimeframes = getRuntimeBankrollForTimeframes();
     const currentTierProfile = typeof riskManager._getTierProfile === 'function'
         ? riskManager._getTierProfile(runtimeBankrollForTimeframes)
         : null;
+    const hasPendingSettlements = executorStatus.pendingSettlements.length > 0;
+    const hasRecoveryQueue = executorStatus.recoveryQueue.length > 0;
+    const hasPendingBuys = executorStatus.pendingBuys.length > 0;
+    const hasPendingSells = executorStatus.pendingSells.length > 0;
+    const isManuallyPaused = !!riskStatus.tradingPaused;
+    const isDegraded = isManuallyPaused || errorHalted || tradeFailureHalted || hasPendingSettlements || hasRecoveryQueue || hasPendingBuys || hasPendingSells;
     res.json({
-        status: 'ok',
+        status: isDegraded ? 'degraded' : 'ok',
         version: 'polyprophet-lite-1.0.0',
         deployVersion: DEPLOY_VERSION,
         startedAt: new Date(startupTime).toISOString(),
@@ -1051,10 +1058,19 @@ app.get('/api/health', (req, res) => {
         pendingBuys: executorStatus.pendingBuys.length,
         pendingSettlements: executorStatus.pendingSettlements.length,
         pendingSells: executorStatus.pendingSells.length,
+        recoveryQueue: executorStatus.recoveryQueue.length,
         redemptionQueue: executorStatus.redemptionQueue.length,
         runtimeState: getRuntimeStateStatus(),
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
         tradeFailureHalt: { halted: tradeFailureHalted, consecutiveFailures: consecutiveTradeFailures, threshold: TRADE_FAILURE_HALT_THRESHOLD, windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000 },
+        tradingSuppression: {
+            manualPause: isManuallyPaused,
+            inCooldown: !!riskStatus.inCooldown,
+            pendingBuys: hasPendingBuys,
+            pendingSells: hasPendingSells,
+            pendingSettlements: hasPendingSettlements,
+            recoveryQueue: hasRecoveryQueue
+        },
         riskControls: {
             requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
             enforceNetEdgeGate: !!CONFIG.RISK.enforceNetEdgeGate,
@@ -1080,9 +1096,18 @@ app.get('/api/health', (req, res) => {
 });
 
 app.get('/api/status', (req, res) => {
+    const riskStatus = riskManager.getStatus();
+    const executorStatus = tradeExecutor.getStatus();
+    const hasPendingSettlements = executorStatus.pendingSettlements.length > 0;
+    const hasRecoveryQueue = executorStatus.recoveryQueue.length > 0;
+    const hasPendingBuys = executorStatus.pendingBuys.length > 0;
+    const hasPendingSells = executorStatus.pendingSells.length > 0;
+    const isManuallyPaused = !!riskStatus.tradingPaused;
+    const isDegraded = isManuallyPaused || errorHalted || tradeFailureHalted || hasPendingSettlements || hasRecoveryQueue || hasPendingBuys || hasPendingSells;
     res.json({
-        risk: riskManager.getStatus(),
-        executor: tradeExecutor.getStatus(),
+        status: isDegraded ? 'degraded' : 'ok',
+        risk: riskStatus,
+        executor: executorStatus,
         timeframes: getEnabledTimeframes().map(t => t.key),
         markets: Object.fromEntries(
             Object.entries(currentMarkets).map(([k, v]) => [k, {
@@ -1095,56 +1120,24 @@ app.get('/api/status', (req, res) => {
         orchestrator: orchestratorHeartbeat,
         strategies: getAllLoadedSets(),
         runtimeState: getRuntimeStateStatus(),
+        tradingSuppression: {
+            manualPause: isManuallyPaused,
+            inCooldown: !!riskStatus.inCooldown,
+            pendingBuys: hasPendingBuys,
+            pendingSells: hasPendingSells,
+            pendingSettlements: hasPendingSettlements,
+            recoveryQueue: hasRecoveryQueue
+        },
+        degradedSummary: {
+            recoveryQueue: executorStatus.recoveryQueue.length,
+            manualPause: isManuallyPaused,
+            inCooldown: !!riskStatus.inCooldown,
+            pendingBuys: hasPendingBuys,
+            pendingSells: hasPendingSells,
+            pendingSettlements: hasPendingSettlements
+        },
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
         tradeFailureHalt: { halted: tradeFailureHalted, consecutiveFailures: consecutiveTradeFailures, threshold: TRADE_FAILURE_HALT_THRESHOLD, windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000 }
-    });
-});
-
-app.get('/api/trades', (req, res) => {
-    const limit = parseInt(req.query.limit) || 50;
-    res.json({
-        trades: tradeExecutor.getRecentTrades(limit),
-        openPositions: tradeExecutor.getOpenPositions(),
-        risk: riskManager.getStatus()
-    });
-});
-
-app.get('/api/diagnostics', (req, res) => {
-    res.json({
-        log: diagnosticLog.slice(-100),
-        startedAt: new Date(startupTime).toISOString(),
-        restoredHistoricalEntries: restoredDiagnosticLogCount,
-        orchestrator: orchestratorHeartbeat,
-        uptime: (Date.now() - startupTime) / 1000
-    });
-});
-
-app.get('/api/debug/strategy-paths', (req, res) => {
-    const strategiesDir = path.join(__dirname, 'strategies');
-    const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
-    const candidates15m = [
-        ...(envStrat15 ? [path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15)] : []),
-        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_optimal_10usd_v3.json'),
-        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_elite_recency.json'),
-        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json'),
-        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json'),
-        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json'),
-        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
-        path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
-    ];
-    const debugDirExists = fs.existsSync(path.join(__dirname, 'debug'));
-    let debugFiles = [];
-    try { debugFiles = fs.readdirSync(path.join(__dirname, 'debug')).filter(f => f.includes('strategy') || f.includes('15m')); } catch (e) { debugFiles = [`ERROR: ${e.message}`]; }
-    res.json({
-        __dirname,
-        REPO_ROOT,
-        debugDirExists,
-        debugStrategyFiles: debugFiles,
-        candidates: [...new Set(candidates15m)].map(fp => ({ path: fp, basename: path.basename(fp), exists: fs.existsSync(fp) })),
-        currentlyLoaded: getAllLoadedSets()
     });
 });
 
@@ -1154,6 +1147,7 @@ app.get('/api/reconcile-pending', (req, res) => {
         pendingBuys: executorStatus.pendingBuys,
         pendingSettlements: executorStatus.pendingSettlements,
         pendingSells: executorStatus.pendingSells,
+        recoveryQueue: executorStatus.recoveryQueue,
         redemptionQueue: executorStatus.redemptionQueue,
         baselineBankroll: executorStatus.baselineBankroll,
         balanceBreakdown: executorStatus.balanceBreakdown
@@ -1524,6 +1518,53 @@ app.post('/api/validator/run', (req, res) => {
     }
 });
 
+async function resetValidatorBaseline(options = {}) {
+    const clearTradeLog = options.clearTradeLog !== false;
+    const preservePause = options.preservePause !== false;
+    const breakdown = CONFIG.TRADE_MODE === 'LIVE'
+        ? await tradeExecutor.refreshLiveBalance(true)
+        : (tradeExecutor.getCachedBalanceBreakdown?.() || null);
+    const baselineBalance = Number(
+        breakdown?.tradingBalanceUsdc ??
+        tradeExecutor.cachedLiveBalance ??
+        riskManager.bankroll ??
+        CONFIG.RISK.startingBalance ??
+        0
+    );
+
+    riskManager.resetMonitoringBaseline(baselineBalance, { clearTradeLog, preservePause });
+    tradeExecutor.resetMonitoringBaseline(baselineBalance, { source: options.source || 'manual_validator_reset' });
+    strategyValidator.resetState({ tradeCount: 0, clearReport: true });
+
+    diagnosticLog.push({
+        ts: new Date().toISOString(),
+        type: 'VALIDATOR_BASELINE_RESET',
+        baselineBalance,
+        clearTradeLog,
+        preservePause,
+        deployVersion: DEPLOY_VERSION,
+        source: options.source || 'manual_validator_reset'
+    });
+
+    await saveRuntimeState();
+
+    const report = strategyValidator.runCheck({
+        risk: riskManager.getStatus(),
+        executor: tradeExecutor.getStatus(),
+        activeStrategyFiles: getActiveStrategyFilePaths(),
+        deployInfo: { deployVersion: DEPLOY_VERSION, mode: CONFIG.TRADE_MODE, isLive: CONFIG.IS_LIVE },
+        trigger: options.trigger || 'BASELINE_RESET'
+    });
+
+    return {
+        baselineBalance,
+        clearTradeLog,
+        preservePause,
+        balanceBreakdown: tradeExecutor.getCachedBalanceBreakdown?.() || breakdown || null,
+        report
+    };
+}
+
 app.post('/api/validator/reset', async (req, res) => {
     try {
         const confirmReset = req.body?.confirmReset === true;
@@ -1531,50 +1572,14 @@ app.post('/api/validator/reset', async (req, res) => {
             return res.status(400).json({ success: false, error: 'confirmReset=true required' });
         }
 
-        const clearTradeLog = req.body?.clearTradeLog !== false;
-        const preservePause = req.body?.preservePause !== false;
-        const breakdown = CONFIG.TRADE_MODE === 'LIVE'
-            ? await tradeExecutor.refreshLiveBalance(true)
-            : (tradeExecutor.getCachedBalanceBreakdown?.() || null);
-        const baselineBalance = Number(
-            breakdown?.tradingBalanceUsdc ??
-            tradeExecutor.cachedLiveBalance ??
-            riskManager.bankroll ??
-            CONFIG.RISK.startingBalance ??
-            0
-        );
-
-        riskManager.resetMonitoringBaseline(baselineBalance, { clearTradeLog, preservePause });
-        tradeExecutor.resetMonitoringBaseline(baselineBalance, { source: 'manual_validator_reset' });
-        strategyValidator.resetState({ tradeCount: 0, clearReport: true });
-
-        diagnosticLog.push({
-            ts: new Date().toISOString(),
-            type: 'VALIDATOR_BASELINE_RESET',
-            baselineBalance,
-            clearTradeLog,
-            preservePause,
-            deployVersion: DEPLOY_VERSION
+        const result = await resetValidatorBaseline({
+            clearTradeLog: req.body?.clearTradeLog !== false,
+            preservePause: req.body?.preservePause !== false,
+            trigger: 'BASELINE_RESET',
+            source: 'manual_validator_reset'
         });
 
-        await saveRuntimeState();
-
-        const report = strategyValidator.runCheck({
-            risk: riskManager.getStatus(),
-            executor: tradeExecutor.getStatus(),
-            activeStrategyFiles: getActiveStrategyFilePaths(),
-            deployInfo: { deployVersion: DEPLOY_VERSION, mode: CONFIG.TRADE_MODE, isLive: CONFIG.IS_LIVE },
-            trigger: 'BASELINE_RESET'
-        });
-
-        return res.json({
-            success: true,
-            baselineBalance,
-            clearTradeLog,
-            preservePause,
-            balanceBreakdown: tradeExecutor.getCachedBalanceBreakdown?.() || breakdown || null,
-            report
-        });
+        return res.json({ success: true, ...result });
     } catch (e) {
         return res.status(500).json({ success: false, error: e.message });
     }
@@ -1669,6 +1674,7 @@ async function startServer() {
                 getHalts: getHaltsSnapshot,
                 clearHalts: clearAllHalts,
                 saveRuntimeState,
+                resetValidatorBaseline,
                 runValidator: () => strategyValidator.runCheck({
                     risk: riskManager.getStatus(),
                     executor: tradeExecutor.getStatus(),
