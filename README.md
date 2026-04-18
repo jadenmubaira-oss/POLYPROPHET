@@ -3867,70 +3867,61 @@ All other env vars remain the same:
 ### Current Handoff State (Machine-Parseable)
 
 **Last Agent**: Cascade
-**Date**: 17 April 2026 (12:50 UTC)
+**Date**: 18 April 2026 (01:20 UTC)
 **Last Verified Live Strategy**: `strategies/strategy_set_15m_optimal_10usd_v5.json` (23 strategies)
-**Session Scope**: final Apr 17 live/runtime reverification, `v5` vs `v6` revalidation, bankroll sensitivity, deposit timing, and operator GO audit
+**Session Scope**: runtime balance/recovery/diagnostics fixes, isolated deploy commit push, live Render redeploy check, README handoff sync
 
-**STATUS: CONDITIONAL GO ONLY for a supervised first funding validation. Keep `v5`. Do not auto-promote `v6`. If you want the local Telegram/status truth-surface fixes live, redeploy a clean curated commit first.**
+**STATUS: CONDITIONAL GO ONLY until the live Render host actually serves the runtime fix commit `ae28bf5`. Keep `v5`. Do not auto-promote `v6`.**
 
-**Session 17 Apr 2026 — audit completion**:
+**Session 18 Apr 2026 — implementation + deploy-check completion**:
 
-1. Re-queried live `/api/health`, `/api/status`, `/api/wallet/balance`, and `/api/clob-status`; confirmed live `v5` path, `tradeReady.ok=true`, and balance still `0.687071 USDC`.
-2. Verified against current code that the lone `recoveryQueue` item is a historical manual-recovery stub that marks status `degraded` but does **not** gate `executeTrade()`.
-3. Confirmed the Render env screenshot matches the intended operator posture already active on live: `SF=0.25`, `MAX_CONSECUTIVE_LOSSES=3`, `COOLDOWN_SECONDS=3600`, `MPC=1`, `15m` only.
-4. Ran `node scripts/auto-validate-strategy.js --days 7 --no-telegram` on both artifacts:
-    - `v5`: `287` trailing events, `90.2%` replay WR (expected `91.5%`)
-    - `v6` candidate: `526` trailing events, `87.8%` replay WR (expected `88.0%`)
-5. Re-ran `node scripts/v5_final_optimization.js` and `node scripts/v5_bankroll_sensitivity.js`; current best directly-proved operating posture remains `SF=0.25 + cooldown 3 losses / 60m` for truthful `$10-15` guidance.
-6. Refreshed deposit timing via `node scripts/deposit_timing.js`; next best verified Tier-S window is `18:11 UTC / 19:11 BST`, with backups at `20:11 UTC` and `22:11 UTC`.
-7. No funded live smoke trade was performed in this session.
+1. Patched `lib/trade-executor.js` to use conservative live bankroll truth, clean recovery records after redemption / verified zero balance, requeue orphaned redemption work, and expose closed trades correctly.
+2. Patched `lib/clob-client.js` so forced live balance refresh can bypass stale cached trade-ready collateral data.
+3. Patched `server.js` to restore `GET /api/diagnostics`, add `GET /api/trades`, and enrich `/api/wallet/balance` plus `/api/clob-status` for better live observability.
+4. Ran `node --check server.js`, `node --check lib/trade-executor.js`, and `node --check lib/clob-client.js` successfully.
+5. Isolated and pushed the runtime fix commit **`ae28bf5`** (`Fix runtime balance and diagnostics truth`).
+6. Updated README truth and pushed the documentation commit **`f59ed08`** (`Update README with live deploy blocker truth`).
+7. Re-queried live `/api/health`, `/api/wallet/balance`, and `/api/clob-status`; confirmed the host is still serving the old build and the new routes are not live yet.
 
 **Current local state**:
 
-- Local fixes are present for Telegram truthfulness after validator resets and for recovery queue visibility in status surfaces.
-- Telegram inline controls for **pause / resume / reset validator** are implemented in the workspace.
-- Those local truth-surface / Telegram fixes are **not yet verified on the live host in this session**.
+- Runtime fixes for balance truth, recovery/redemption consistency, and observability are present locally and pushed to `origin/main`.
+- README top-level handoff text and this machine-parseable block are synchronized.
 - The workspace is heavily dirty with many unrelated changes/deletions; create a clean deploy diff before pushing anything.
+- The deploy-related commits for this session are already isolated and safe in git; do **not** mix unrelated workspace dirt into follow-up deploy work.
 
 **Last verified live state**:
 
 - Host: `https://polyprophet-1-rr1g.onrender.com`
+- Live `deployVersion`: `238bfd30338d23868f350fd0205bda03cf87f3ff`
 - `15m` live artifact: `/app/strategies/strategy_set_15m_optimal_10usd_v5.json` with `23` strategies loaded
-- Wallet balance: `0.687071 USDC` — still below the `$2` activation floor, so `15m` is inactive until funded
-- `pendingSettlements=0`, `pendingBuys=0`, `openPositions=0`, `openExposureUsd=0`
-- `recoveryQueue` contains only the historical `MANUAL_RECOVERY` stub for the Apr 7 order; current code audit shows this is reporting-only, not an execution gate
+- Live `GET /api/diagnostics` and `GET /api/trades` still return `404`, proving the new runtime code is not active on the host yet
+- Live `GET /api/wallet/balance` still reports old balance source behavior: `onChainUsdc=13.499056`, `tradeReady.balance=13.220656`, `source="ON_CHAIN_USDC"`
+- Live `GET /api/health` still lagged at `runtimeBankrollForTimeframes=8.520656`, confirming the currently deployed truth surface remains inconsistent
+- `recoveryQueue=10` and `redemptionQueue=1` were still present on the old live build during the last check
 - Lite still exposes **no rolling live-accuracy field**; do not claim one
 
 **Strategy verdict**:
 
 - Keep **`v5`** as the live `15m` artifact for now.
 - Keep **`v6`** as a **notify-only / manual-review** candidate.
-- Evidence against auto-promotion today:
-   - retrain report says `beatsCurrent=false`
-   - trailing 7d validator replay favored `v5` (`90.2%`) over `v6` (`87.8%`)
-   - there is still **no funded live order proof** on `v6`
+- No strategy swap should be made before the current runtime fix deployment actually lands and is re-verified on live.
 
 **Operator verdict**:
 
-- **Conditional GO only** for a supervised first validation after funding the wallet.
+- **Conditional GO only** after Render actually serves `ae28bf5` and the new endpoints / balance truth are verified live.
 - **No unconditional GO** yet because:
-   - no funded smoke test / `orderID -> fill/settle` proof was produced in this session
-   - the wallet is still below the activation floor
-   - the local workspace is not deploy-clean, so pushing local fixes blindly would be unsafe
-
-**Best BST funding windows from the verified live `v5` artifact**:
-
-- Primary: fund around **18:46-18:51 BST** for the **19:11 BST** window (`18:11 UTC`, `V5_H18_m11_UP`, OOS `100.0%`, LCB `86.6%`)
-- Strong backup: fund around **20:46-20:51 BST** for the **21:11 BST** window (`20:11 UTC`, `V5_H20_m11_UP`, OOS `97.7%`, LCB `87.5%`)
-- Late backup: fund around **22:46-22:51 BST** for the **23:11 BST** window (`22:11 UTC`, `V5_H22_m11_UP`, OOS `100.0%`, LCB `89.3%`)
+  - the live host is still on the old deploy
+  - no funded smoke test / `orderID -> fill/settle` proof was produced after the runtime fixes
+  - the workspace is not broadly deploy-clean, so unrelated dirt must stay isolated from follow-up pushes
 
 **Next required actions**:
 
-1. If you want the local status/Telegram truth-surface fixes live, isolate a clean deploy commit containing only the intended runtime / Telegram / README changes and redeploy it.
-2. Fund `$12-15` USDC for the first supervised pass (`$15` safest, `$12` best compromise).
-3. Prefer the next Tier-S timing window above; avoid depositing inside the final `10` minutes before the signal.
-4. Capture a real live `orderID`, then verify fill/partial-fill handling, settlement, and balance reconciliation before declaring unattended autonomy readiness.
+1. Confirm the Render service redeploys and `/api/health` flips from `238bfd3...` to the new fix commit lineage.
+2. Verify live `GET /api/diagnostics` and `GET /api/trades?limit=5` return `200`.
+3. Verify live `/api/wallet/balance` and `/api/health` now show the conservative balance source instead of raw `ON_CHAIN_USDC` when CLOB-confirmed balance is lower / different.
+4. Only after the new build is live, run the next supervised funded validation and capture a real `orderID -> fill/settle/redemption` lifecycle before declaring unattended autonomy readiness.
 
-**Abort condition**: if funded live validation shows missing order-placement proof, unexpected recovery-queue growth, or material early live WR degradation, pause and re-audit before continuing.
+**Abort condition**: if the host still fails to pick up the fix commit, or funded live validation shows missing order-placement proof, unexpected recovery-queue growth, or material early live WR degradation, pause and re-audit before continuing.
 
 <!-- HANDOFF_STATE_END -->
