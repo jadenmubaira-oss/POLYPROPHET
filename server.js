@@ -1233,20 +1233,72 @@ app.post('/api/force-recovery', (req, res) => {
     }
 });
 
+app.get('/api/diagnostics', (req, res) => {
+    const executorStatus = tradeExecutor.getStatus();
+    const balanceBreakdown = executorStatus.balanceBreakdown || {};
+    const divergenceUsdc = Number(balanceBreakdown.divergenceUsdc || 0);
+    res.json({
+        success: true,
+        restoredDiagnosticLogCount,
+        orchestrator: orchestratorHeartbeat,
+        summary: {
+            recoveryQueue: executorStatus.recoveryQueue.length,
+            redemptionQueue: executorStatus.redemptionQueue.length,
+            pendingBuys: executorStatus.pendingBuys.length,
+            pendingSells: executorStatus.pendingSells.length,
+            pendingSettlements: executorStatus.pendingSettlements.length,
+            liveBalanceSource: executorStatus.liveBalanceSource,
+            balanceDivergenceUsdc: Number.isFinite(divergenceUsdc) ? divergenceUsdc : null
+        },
+        log: diagnosticLog.slice(-200)
+    });
+});
+
+app.get('/api/trades', (req, res) => {
+    const requestedLimit = Number.parseInt(String(req.query?.limit || '50'), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(200, requestedLimit)) : 50;
+    const riskStatus = riskManager.getStatus();
+    const executorStatus = tradeExecutor.getStatus();
+    const executorTrades = tradeExecutor.getRecentTrades(limit);
+    const riskTrades = Array.isArray(riskStatus.recentTrades) ? riskStatus.recentTrades.slice(-limit) : [];
+    res.json({
+        success: true,
+        limit,
+        counts: {
+            riskRecentTrades: riskTrades.length,
+            executorRecentTrades: executorTrades.length,
+            riskTotalTrades: Number(riskStatus.totalTrades || 0),
+            executorTotalTrades: Number(executorStatus.totalTrades || 0),
+            discrepancy: Number(executorStatus.totalTrades || 0) - Number(riskStatus.totalTrades || 0)
+        },
+        recentTrades: riskTrades,
+        executorClosedTrades: executorTrades,
+        openPositions: executorStatus.positions
+    });
+});
+
 app.get('/api/wallet/balance', async (req, res) => {
     try {
         const balanceBreakdown = CONFIG.TRADE_MODE === 'LIVE'
             ? await tradeExecutor.refreshLiveBalance(true)
             : tradeExecutor.getCachedBalanceBreakdown();
+        const clobStatus = tradeExecutor.clob?.getStatus?.() || null;
         res.json({
             mode: CONFIG.TRADE_MODE,
             balanceBreakdown,
             baselineBankroll: tradeExecutor.baselineBankroll,
             baselineBankrollInitialized: tradeExecutor.baselineBankrollInitialized,
             walletLoaded: !!tradeExecutor.clob?.wallet,
-            walletStatus: tradeExecutor.clob?.getStatus?.() || null,
+            walletStatus: clobStatus,
             runtimeBankrollForTimeframes: getRuntimeBankrollForTimeframes(),
-            activeTimeframes: getEnabledTimeframes().map(t => t.key)
+            activeTimeframes: getEnabledTimeframes().map(t => t.key),
+            diagnostics: {
+                liveBalanceSource: tradeExecutor.liveBalanceSource,
+                lastBalanceFetch: tradeExecutor.lastBalanceFetch || null,
+                selectedFunderAddress: clobStatus?.tradeReady?.selected?.funderAddress || null,
+                tradeReadyBalance: clobStatus?.tradeReady?.balance ?? null,
+                tradeReadyBalanceRaw: clobStatus?.tradeReady?.selected?.balanceRaw || null
+            }
         });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -1268,10 +1320,22 @@ app.get('/api/clob-status', async (req, res) => {
         const tradeReady = liveTradeReady?.ok
             ? liveTradeReady
             : (status?.tradeReady?.ok ? status.tradeReady : liveTradeReady);
+        const collateralProbe = await tradeExecutor.clob?.getClobCollateralBalance?.(true).catch(e => ({ success: false, error: e.message })) || { success: false, error: 'no clob' };
         res.json({
             clobStatus: status,
             credsDerived: deriveResult,
-            tradeReady: { ok: tradeReady?.ok, reason: tradeReady?.reason, summary: tradeReady?.summary, closedOnly: tradeReady?.closedOnly, closedOnlyErr: tradeReady?.closedOnlyErr },
+            tradeReady: {
+                ok: tradeReady?.ok,
+                reason: tradeReady?.reason,
+                summary: tradeReady?.summary,
+                closedOnly: tradeReady?.closedOnly,
+                closedOnlyErr: tradeReady?.closedOnlyErr,
+                balance: tradeReady?.balance ?? null,
+                sigType: tradeReady?.sigType ?? null,
+                selected: tradeReady?.selected || null,
+                candidates: Array.isArray(tradeReady?.candidates) ? tradeReady.candidates : []
+            },
+            collateralProbe,
             hasCreds: !!(CONFIG.POLYMARKET_API_KEY && CONFIG.POLYMARKET_SECRET && CONFIG.POLYMARKET_PASSPHRASE),
             proxyConfigured: !!CONFIG.PROXY_URL,
             clobForceProxy: !!CONFIG.CLOB_FORCE_PROXY
