@@ -3,21 +3,29 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 17 April 2026 (12:50 UTC) | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Live Deploy**: `81376c9` | **`v5` LOADED LIVE**
+**Last Updated**: 18 April 2026 (01:20 UTC) | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Local Fix Commit**: `ae28bf5` | **Latest Live Deploy Verified**: `238bfd3` | **`v5` LOADED LIVE**
 
 ---
 
-## 🚨 ACTIVE HANDOVER — FINAL RE-INVESTIGATION (17 April 2026 18:30 UTC)
+## 🚨 ACTIVE HANDOVER — FIX COMMIT PUSHED, LIVE RENDER DEPLOY STILL STALE (18 April 2026 01:20 UTC)
 
-> **STATUS**: ✅ `v5` remains the preferred live `15m` artifact after the 17 Apr 2026 revalidation. Live API + the Render env screenshot agree that the intended micro-bankroll posture is already active: `OPERATOR_STAKE_FRACTION=0.25`, `MAX_CONSECUTIVE_LOSSES=3`, `COOLDOWN_SECONDS=3600`, `MAX_GLOBAL_TRADES_PER_CYCLE=1`, `15m` only, `5` share minimum, `ENTRY_PRICE_BUFFER_CENTS=0`, `REQUIRE_REAL_ORDERBOOK=true`.
+> **STATUS**: The runtime fixes for truthful diagnostics, better balance accounting, and recovery/redemption cleanup were implemented in local commit **`ae28bf5`** and pushed to `origin/main`. That commit adds `GET /api/diagnostics`, `GET /api/trades`, conservative live bankroll selection (`min(on-chain, trade-ready CLOB)` when both are confirmed), and recovery cleanup / redemption requeue logic.
 >
-> **LIVE BOUNDARY**: the host is still sitting at `0.687071 USDC`, so `15m` is inactive until funded. `/api/health` and `/api/status` show a single stale manual-recovery stub in `recoveryQueue`, which keeps status `degraded`, but current code audit confirms that stub is **reporting-only** and does **not** block `executeTrade()`.
+> **LIVE TRUTH RIGHT NOW**: the Render host **has not picked up `ae28bf5` yet**. Live `GET /api/health` still reports `deployVersion="238bfd30338d23868f350fd0205bda03cf87f3ff"`, and live `GET /api/diagnostics` / `GET /api/trades` still return `404`, which proves the new code is not active on the host. The old live runtime is also still using the over-optimistic bankroll logic (`source="ON_CHAIN_USDC"`). During this check, old-live `GET /api/wallet/balance` showed `onChainUsdc=13.499056` and `tradeReady.balance=13.220656`, while `GET /api/health` still lagged at `runtimeBankrollForTimeframes=8.520656`, confirming the current deployed truth surface is still inconsistent.
 >
-> **REMAINING ACTIONS**: if you want the new Telegram/status truth-surface fixes live, isolate a clean deploy commit and redeploy it first; either way, do a supervised `$12-15` funding validation before claiming unattended live autonomy. **Do not auto-promote `v6`.**
+> **VERDICT**: **🟡 CONDITIONAL GO only after Render actually serves `ae28bf5` and the live host verifies `GET /api/diagnostics`, `GET /api/trades`, `GET /api/wallet/balance`, and `GET /api/health` with the new balance source.** Until that happens, the bot is **not** an honest full-GO for unattended operation because the fixes exist in git but are not live.
+
+### Immediate operator checklist
+
+1. Confirm the Render service redeploys and `/api/health` flips from `238bfd3...` to `ae28bf5...`
+2. Confirm `/api/diagnostics` returns `200` and shows the restored diagnostic surface
+3. Confirm `/api/trades?limit=5` returns `200` and exposes both risk and executor trade views
+4. Confirm `/api/wallet/balance` and `/api/health` now expose the conservative balance source instead of raw `ON_CHAIN_USDC`
+5. Only then re-issue the final live GO / conditional-GO decision for unattended runtime use
 
 ### Why this handover exists
 
-The older handover text below still referenced a pending three-env-var change. The 17 Apr 2026 revalidation shows that posture is already the correct intended operating setup, and no stronger strategy/env replacement is justified today. The correct next step is truthful redeploy verification plus supervised funding validation, not another strategy swap.
+The older handover text below still referenced a pending three-env-var change. The 17 Apr 2026 revalidation showed that posture was already the correct intended operating setup, and the 18 Apr 2026 runtime fix pass confirmed the remaining work is now deployment synchronization and live re-verification, not another strategy swap.
 
 ### What was actually done in this audit
 
