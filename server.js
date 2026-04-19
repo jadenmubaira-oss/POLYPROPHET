@@ -1079,6 +1079,8 @@ app.get('/api/health', (req, res) => {
         riskControls: {
             requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
             enforceNetEdgeGate: !!CONFIG.RISK.enforceNetEdgeGate,
+            enforceHighPriceEdgeFloor: !!CONFIG.RISK.enforceHighPriceEdgeFloor,
+            highPriceEdgeFloorPrice: Number(CONFIG.RISK.highPriceEdgeFloorPrice || 0),
             minNetEdgeRoi: Number(CONFIG.RISK.minNetEdgeRoi || 0),
             minBalanceFloor: Number(CONFIG.RISK.minBalanceFloor || 0),
             minOrderShares: Number(CONFIG.RISK.minOrderShares || 0),
