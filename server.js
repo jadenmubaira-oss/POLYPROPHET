@@ -361,6 +361,9 @@ async function reconcilePendingLivePositions() {
                 || tradeExecutor.clob?.getStatus?.()?.tradeReady?.selected?.funderAddress
                 || null;
             const staleAgeMs = Date.now() - Number(pos.pendingSince || Date.now());
+            const pendingAutoRecoveryThresholdMs = pos.timeframe === '4h' ? (2 * 60 * 60 * 1000) : (10 * 60 * 1000);
+            const recoveryEligiblePending = !!p.stalePending || staleAgeMs > pendingAutoRecoveryThresholdMs;
+            const recoveryReasonPrefix = p.stalePending ? 'STALE_PENDING' : (recoveryEligiblePending ? 'STUCK_PENDING' : 'PENDING');
             const forceManualRecovery = staleAgeMs > (24 * 60 * 60 * 1000);
 
             if (p.stalePending && forceManualRecovery) {
@@ -394,23 +397,23 @@ async function reconcilePendingLivePositions() {
             const market = await fetchMarketBySlug(p.slug);
             const winner = extractWinnerFromClosedMarket(market);
             if (!winner) {
-                if (p.stalePending && !tokenId && forceManualRecovery) {
+                if (recoveryEligiblePending && !tokenId && (forceManualRecovery || !p.stalePending)) {
                     const recovery = tradeExecutor.markPositionForRecovery(p.id, {
-                        reason: 'STALE_PENDING_MISSING_MARKET_METADATA',
+                        reason: `${recoveryReasonPrefix}_MISSING_MARKET_METADATA`,
                         holderAddress,
                         tokenBalance: null,
                         zeroVerified: false,
                         redeemQueued: false,
                         lastError: market ? 'TOKEN_METADATA_UNAVAILABLE' : 'MARKET_NOT_FOUND',
                         notes: market
-                            ? 'Auto-promoted to manual recovery after >24h stale pending without token metadata'
-                            : 'Auto-promoted to manual recovery after >24h stale pending because Gamma market slug no longer resolves and no token metadata remains'
+                            ? `Auto-promoted to manual recovery after pending settlement exceeded the ${Math.round(pendingAutoRecoveryThresholdMs / 60000)}m auto-recovery window without token metadata`
+                            : `Auto-promoted to manual recovery after pending settlement exceeded the ${Math.round(pendingAutoRecoveryThresholdMs / 60000)}m auto-recovery window because Gamma market slug no longer resolves and no token metadata remains`
                     });
 
                     if (recovery) {
                         diagnosticLog.push({
                             ts: new Date().toISOString(),
-                            type: 'STALE_PENDING_MISSING_METADATA_MANUAL_RECOVERY',
+                            type: `${recoveryReasonPrefix}_MISSING_METADATA_MANUAL_RECOVERY`,
                             asset: pos.asset,
                             timeframe: pos.timeframe,
                             direction: pos.direction,
@@ -423,7 +426,7 @@ async function reconcilePendingLivePositions() {
                     }
                     continue;
                 }
-                if (!p.stalePending || !tokenId) continue;
+                if (!recoveryEligiblePending || !tokenId) continue;
 
                 const balanceCheck = await Promise.race([
                     tradeExecutor.clob.getTokenBalanceAcrossHolders(
@@ -440,22 +443,20 @@ async function reconcilePendingLivePositions() {
 
                 const verifiable = !!balanceCheck?.success || !!balanceCheck?.zeroVerified;
                 if (!verifiable) {
-                    if (!forceManualRecovery) continue;
-
                     const recovery = tradeExecutor.markPositionForRecovery(p.id, {
-                        reason: 'STALE_PENDING_UNVERIFIABLE_BALANCE',
+                        reason: `${recoveryReasonPrefix}_UNVERIFIABLE_BALANCE`,
                         holderAddress,
                         tokenBalance: null,
                         zeroVerified: false,
                         redeemQueued: false,
                         lastError: balanceCheck?.error || 'TOKEN_BALANCE_UNVERIFIABLE',
-                        notes: 'Auto-promoted to manual recovery after >24h stale pending without a verifiable token-balance proof'
+                        notes: `Auto-promoted to manual recovery after pending settlement exceeded the ${Math.round(pendingAutoRecoveryThresholdMs / 60000)}m auto-recovery window without a verifiable token-balance proof`
                     });
 
                     if (recovery) {
                         diagnosticLog.push({
                             ts: new Date().toISOString(),
-                            type: 'STALE_PENDING_FORCED_MANUAL_RECOVERY',
+                            type: `${recoveryReasonPrefix}_FORCED_MANUAL_RECOVERY`,
                             asset: pos.asset,
                             timeframe: pos.timeframe,
                             direction: pos.direction,
@@ -485,7 +486,7 @@ async function reconcilePendingLivePositions() {
                 }
 
                 const recovery = tradeExecutor.markPositionForRecovery(p.id, {
-                    reason: 'STALE_PENDING_UNRESOLVED_SLUG',
+                    reason: `${recoveryReasonPrefix}_UNRESOLVED_SLUG`,
                     holderAddress: resolvedHolderAddress,
                     tokenBalance,
                     zeroVerified: !!balanceCheck?.zeroVerified,
@@ -499,7 +500,7 @@ async function reconcilePendingLivePositions() {
                 if (recovery) {
                     diagnosticLog.push({
                         ts: new Date().toISOString(),
-                        type: 'STALE_PENDING_MANUAL_RECOVERY',
+                        type: `${recoveryReasonPrefix}_MANUAL_RECOVERY`,
                         asset: pos.asset,
                         timeframe: pos.timeframe,
                         direction: pos.direction,
@@ -1028,7 +1029,8 @@ app.get('/api/health', (req, res) => {
         ? riskManager._getTierProfile(runtimeBankrollForTimeframes)
         : null;
     const hasPendingSettlements = executorStatus.pendingSettlements.length > 0;
-    const hasRecoveryQueue = executorStatus.recoveryQueue.length > 0;
+    const recoveryQueueSummary = executorStatus.recoveryQueueSummary || { total: executorStatus.recoveryQueue.length, actionable: executorStatus.recoveryQueue.length, benign: 0 };
+    const hasRecoveryQueue = Number(recoveryQueueSummary.actionable || 0) > 0;
     const hasPendingBuys = executorStatus.pendingBuys.length > 0;
     const hasPendingSells = executorStatus.pendingSells.length > 0;
     const isManuallyPaused = !!riskStatus.tradingPaused;
@@ -1059,6 +1061,7 @@ app.get('/api/health', (req, res) => {
         pendingSettlements: executorStatus.pendingSettlements.length,
         pendingSells: executorStatus.pendingSells.length,
         recoveryQueue: executorStatus.recoveryQueue.length,
+        recoveryQueueSummary,
         redemptionQueue: executorStatus.redemptionQueue.length,
         runtimeState: getRuntimeStateStatus(),
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
@@ -1069,7 +1072,9 @@ app.get('/api/health', (req, res) => {
             pendingBuys: hasPendingBuys,
             pendingSells: hasPendingSells,
             pendingSettlements: hasPendingSettlements,
-            recoveryQueue: hasRecoveryQueue
+            recoveryQueue: hasRecoveryQueue,
+            actionableRecoveryQueue: Number(recoveryQueueSummary.actionable || 0) > 0,
+            benignRecoveryQueue: Number(recoveryQueueSummary.benign || 0) > 0
         },
         riskControls: {
             requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
@@ -1083,6 +1088,7 @@ app.get('/api/health', (req, res) => {
             riskEnvelopeEnabled: !!CONFIG.RISK.riskEnvelopeEnabled,
             riskEnvelopeMinBankroll: Number(CONFIG.RISK.riskEnvelopeMinBankroll || 0),
             currentTierProfile,
+            drawdownBrake: riskStatus.drawdownBrake || null,
             vaultTriggerBalance: Number(CONFIG.RISK.vaultTriggerBalance || 0),
             stage2Threshold: Number(CONFIG.RISK.stage2Threshold || 0),
             tieredAbsoluteStakeCaps: {
@@ -1099,7 +1105,8 @@ app.get('/api/status', (req, res) => {
     const riskStatus = riskManager.getStatus();
     const executorStatus = tradeExecutor.getStatus();
     const hasPendingSettlements = executorStatus.pendingSettlements.length > 0;
-    const hasRecoveryQueue = executorStatus.recoveryQueue.length > 0;
+    const recoveryQueueSummary = executorStatus.recoveryQueueSummary || { total: executorStatus.recoveryQueue.length, actionable: executorStatus.recoveryQueue.length, benign: 0 };
+    const hasRecoveryQueue = Number(recoveryQueueSummary.actionable || 0) > 0;
     const hasPendingBuys = executorStatus.pendingBuys.length > 0;
     const hasPendingSells = executorStatus.pendingSells.length > 0;
     const isManuallyPaused = !!riskStatus.tradingPaused;
@@ -1126,10 +1133,13 @@ app.get('/api/status', (req, res) => {
             pendingBuys: hasPendingBuys,
             pendingSells: hasPendingSells,
             pendingSettlements: hasPendingSettlements,
-            recoveryQueue: hasRecoveryQueue
+            recoveryQueue: hasRecoveryQueue,
+            actionableRecoveryQueue: Number(recoveryQueueSummary.actionable || 0) > 0,
+            benignRecoveryQueue: Number(recoveryQueueSummary.benign || 0) > 0
         },
         degradedSummary: {
             recoveryQueue: executorStatus.recoveryQueue.length,
+            recoveryQueueSummary,
             manualPause: isManuallyPaused,
             inCooldown: !!riskStatus.inCooldown,
             pendingBuys: hasPendingBuys,
@@ -1260,19 +1270,30 @@ app.get('/api/trades', (req, res) => {
     const riskStatus = riskManager.getStatus();
     const executorStatus = tradeExecutor.getStatus();
     const executorTrades = tradeExecutor.getRecentTrades(limit);
+    const baselineExecutorTrades = tradeExecutor.getClosedTradesSince(executorStatus.monitoringBaselineAt).slice(-limit);
     const riskTrades = Array.isArray(riskStatus.recentTrades) ? riskStatus.recentTrades.slice(-limit) : [];
+    const riskTotalTrades = Number(riskStatus.totalTrades || 0);
+    const executorTotalTrades = Number(executorStatus.totalTrades || 0);
+    const baselineExecutorTotalTrades = Number.isFinite(Number(executorStatus.monitoringTotalTrades))
+        ? Number(executorStatus.monitoringTotalTrades)
+        : executorTotalTrades;
     res.json({
         success: true,
         limit,
         counts: {
             riskRecentTrades: riskTrades.length,
             executorRecentTrades: executorTrades.length,
-            riskTotalTrades: Number(riskStatus.totalTrades || 0),
-            executorTotalTrades: Number(executorStatus.totalTrades || 0),
-            discrepancy: Number(executorStatus.totalTrades || 0) - Number(riskStatus.totalTrades || 0)
+            executorRecentTradesSinceBaseline: baselineExecutorTrades.length,
+            riskTotalTrades,
+            executorTotalTrades,
+            executorTotalTradesSinceBaseline: baselineExecutorTotalTrades,
+            discrepancy: baselineExecutorTotalTrades - riskTotalTrades,
+            allTimeDiscrepancy: executorTotalTrades - riskTotalTrades
         },
+        monitoringBaselineAt: executorStatus.monitoringBaselineAt || riskStatus.monitoringBaselineAt || null,
         recentTrades: riskTrades,
         executorClosedTrades: executorTrades,
+        executorClosedTradesSinceBaseline: baselineExecutorTrades,
         openPositions: executorStatus.positions
     });
 });
