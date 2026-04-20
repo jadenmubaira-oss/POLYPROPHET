@@ -1612,6 +1612,8 @@ async function resetValidatorBaseline(options = {}) {
         ? await tradeExecutor.refreshLiveBalance(true)
         : (tradeExecutor.getCachedBalanceBreakdown?.() || null);
     const baselineBalance = Number(
+        breakdown?.equityEstimateUsdc ??
+        tradeExecutor.getRiskBankrollEstimate?.() ??
         breakdown?.tradingBalanceUsdc ??
         tradeExecutor.cachedLiveBalance ??
         riskManager.bankroll ??

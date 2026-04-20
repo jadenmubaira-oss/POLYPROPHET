@@ -28,6 +28,7 @@
  */
 
 const RiskManager = require('../lib/risk-manager');
+const { calcPolymarketTakerFeeUsd } = require('../lib/polymarket-fees');
 
 const STRATEGIES = [
     { name: 'm14 UP res [65-95c]',    wr: 0.900, pMin: 0.65, pMax: 0.95, lcb: 0.802, matchFrac: 0.041, oosN: 161 },
@@ -38,7 +39,6 @@ const STRATEGIES = [
     { name: 'm11 UP wide [55-95c]',   wr: 0.829, pMin: 0.55, pMax: 0.95, lcb: 0.794, matchFrac: 0.082, oosN: 327 },
 ];
 
-const TAKER_FEE = 0.0315;
 const MIN_SHARES = 5;
 const MIN_BAL = 2.0;
 const MAX_SHARES_PER_FILL = 200;
@@ -86,16 +86,16 @@ function simulate(startBal, days, wrMult, matchMult, maxDayBoot, maxDayGrowth) {
                 let sh = Math.min(Math.floor(sz.size / ep + 1e-9), MAX_SHARES_PER_FILL);
                 if (sh < MIN_SHARES) continue;
                 const cost = sh * ep;
-                if (cost > bal) continue;
+                const entryFee = calcPolymarketTakerFeeUsd(sh, ep);
+                if (cost + entryFee > bal) continue;
                 
                 const effectiveWR = best.wr * wrMult;
                 const won = Math.random() < effectiveWR;
                 let pnl;
                 if (won) {
-                    const profit = sh * 1.0 - cost;
-                    pnl = profit - (profit > 0 ? profit * TAKER_FEE : 0);
+                    pnl = sh - cost - entryFee;
                 } else {
-                    pnl = -cost;
+                    pnl = -cost - entryFee;
                 }
                 
                 bal += pnl; rm.bankroll = bal; rm.todayPnL += pnl;
@@ -155,7 +155,7 @@ function printTable(label, wrMult, matchMult, maxDB, maxDG) {
 console.log('=====================================================');
 console.log('FINAL AUTHORITATIVE PROFIT SIMULATION');
 console.log('5000 trials | 30 days | 15m strategies only');
-console.log('min_order=5 | fee=3.15% | liquidity_cap=200sh');
+console.log('min_order=5 | fee=crypto_fees_v2 | liquidity_cap=200sh');
 console.log('=====================================================');
 
 // SCENARIO A: BASE (OOS data as-is)

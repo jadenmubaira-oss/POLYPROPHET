@@ -3,29 +3,40 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 18 April 2026 (01:20 UTC) | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Local Fix Commit**: `ae28bf5` | **Latest Live Deploy Verified**: `238bfd3` | **`v5` LOADED LIVE**
+**Last Updated**: 19 April 2026 | **Runtime**: `polyprophet-lite` (promoted to repo root) | **Deploy**: Render (Oregon) + proxy-backed CLOB routing | **Latest Live Deploy Verified**: `81c0310` | **`v5` LOADED LIVE**
 
 ---
 
-## 🚨 ACTIVE HANDOVER — FIX COMMIT PUSHED, LIVE RENDER DEPLOY STILL STALE (18 April 2026 01:20 UTC)
+## 🚨 ACTIVE HANDOVER — LIVE v5 VERIFIED, DEPLOYED, RESET, BUT STILL NOT UNATTENDED-READY (19 April 2026)
 
-> **STATUS**: The runtime fixes for truthful diagnostics, better balance accounting, and recovery/redemption cleanup were implemented in local commit **`ae28bf5`** and pushed to `origin/main`. That commit adds `GET /api/diagnostics`, `GET /api/trades`, conservative live bankroll selection (`min(on-chain, trade-ready CLOB)` when both are confirmed), and recovery cleanup / redemption requeue logic.
+> **STATUS**: The live Render host is now serving the newly deployed truthful surface on commit `81c031086de447bcdc12a19a3fce92217cd116d4`. `GET /api/health`, `GET /api/status`, `GET /api/diagnostics`, `GET /api/trades`, and `GET /api/wallet/balance` are all live, `v5` is loaded, the runtime is using the conservative balance source `CONFIRMED_CONSERVATIVE_MIN`, and the validator baseline reset has already been applied.
 >
-> **LIVE TRUTH RIGHT NOW**: the Render host **has not picked up `ae28bf5` yet**. Live `GET /api/health` still reports `deployVersion="238bfd30338d23868f350fd0205bda03cf87f3ff"`, and live `GET /api/diagnostics` / `GET /api/trades` still return `404`, which proves the new code is not active on the host. The old live runtime is also still using the over-optimistic bankroll logic (`source="ON_CHAIN_USDC"`). During this check, old-live `GET /api/wallet/balance` showed `onChainUsdc=13.499056` and `tradeReady.balance=13.220656`, while `GET /api/health` still lagged at `runtimeBankrollForTimeframes=8.520656`, confirming the current deployed truth surface is still inconsistent.
+> **LIVE TRUTH RIGHT NOW**: as of the latest deploy-timing recheck, the host reports `deployVersion="81c031086de447bcdc12a19a3fce92217cd116d4"`, active `15m` strategy path `/app/strategies/strategy_set_15m_optimal_10usd_v5.json`, `23` strategies loaded, `runtimeBankrollForTimeframes=8.327726`, and `baselineBankroll=17.282096`. Wallet surfaces are internally consistent: on-chain USDC, CLOB collateral, and trading balance all match at `8.327726`.
 >
-> **VERDICT**: **🟡 CONDITIONAL GO only after Render actually serves `ae28bf5` and the live host verifies `GET /api/diagnostics`, `GET /api/trades`, `GET /api/wallet/balance`, and `GET /api/health` with the new balance source.** Until that happens, the bot is **not** an honest full-GO for unattended operation because the fixes exist in git but are not live.
+> **IMPORTANT CAVEAT**: the bot is still **degraded**, not clean, and it is **not a good deploy window right now**. Live `GET /api/status` shows `openPositions=1`, `pendingSettlements=1`, `pendingBuys=[]`, `pendingSells=[]`, and `redemptionQueue=[]`. The active live position is `XRP DOWN @ 0.87` with `size=4.35`, currently sitting in `PENDING_RESOLUTION`, while `recoveryQueueSummary.total=2` and `recoveryQueueSummary.actionable=2` still keep health degraded.
+>
+> **VERDICT**: **🟡 CONDITIONAL GO only. Not an honest unattended full-GO yet.** Do **not** deploy right now while the host is mid-position / pending-resolution. The local hardening patch is prepared, but it should wait for the runtime to flatten. On profitability, the current system is not underperforming because stake is too low alone; it is underperforming because much of the live/OOS flow occurs at expensive prices where even wins realize small ROI.
 
+### New local accounting / fee-model state (19 April 2026, undeployed)
+
+- Added shared `lib/polymarket-fees.js` and moved the authoritative fee surface to the Polymarket crypto taker model `fee = shares * 0.072 * price * (1 - price)` with taker-only + min-fee handling.
+- `lib/trade-executor.js` now prices net edge through the shared fee helper, books entry fees into paper-mode debits, deducts pre-resolution sell fees, tracks `entryFee` / `exitFee` / `totalFees` on closed trades, and makes pending-buy reserves fee-aware.
+- `buildLiveBalanceBreakdown()` now exposes `openPositionExposureUsd`, `pendingBuyReservedUsdc`, `openExposureUsd`, and `equityEstimateUsdc` so cash-vs-equity truth is visible on the API surface.
+- `server.js` `resetValidatorBaseline()` now rebases from equity estimate when available instead of cash-only `tradingBalanceUsdc`, which fixes the misleading baseline semantics when open exposure exists.
+- `scripts/v5_runtime_parity_core.js`, `scripts/final-authoritative-sim.js`, `scripts/definitive-truthful-sim.js`, and `scripts/build_optimal_strategy.js` now use the same fee model.
+- Local verification completed: `node --check server.js lib/polymarket-fees.js lib/trade-executor.js scripts/v5_runtime_parity_core.js scripts/final-authoritative-sim.js scripts/definitive-truthful-sim.js scripts/build_optimal_strategy.js`.
+- This is **not deployed yet**. The top-of-file live truth above still refers to deploy `81c0310`; do not claim live accounting/fee truth until the next deploy and fresh `/api/health` + `/api/status` + `/api/wallet/balance` verification.
 ### Immediate operator checklist
 
-1. Confirm the Render service redeploys and `/api/health` flips from `238bfd3...` to `ae28bf5...`
-2. Confirm `/api/diagnostics` returns `200` and shows the restored diagnostic surface
-3. Confirm `/api/trades?limit=5` returns `200` and exposes both risk and executor trade views
-4. Confirm `/api/wallet/balance` and `/api/health` now expose the conservative balance source instead of raw `ON_CHAIN_USDC`
-5. Only then re-issue the final live GO / conditional-GO decision for unattended runtime use
+1. Keep `v5` loaded; do **not** swap strategy sets based on the current evidence.
+2. Treat live performance as **cleaner but still operationally degraded** until the two actionable recovery records are reduced or explicitly explained.
+3. Remember the validator reset removed the hidden drawdown brake, so live sizing is back at nominal `SF=0.8`.
+4. Do **not** deploy mid-trade; wait until `openPositions=0` and `pendingSettlements=0` again before pushing the current local hardening.
+5. Do not issue an unattended-autonomy GO until recovery health and the `0.95+` entry-policy risk are both honestly re-verified.
 
 ### Why this handover exists
 
-The older handover text below still referenced a pending three-env-var change. The 17 Apr 2026 revalidation showed that posture was already the correct intended operating setup, and the 18 Apr 2026 runtime fix pass confirmed the remaining work is now deployment synchronization and live re-verification, not another strategy swap.
+The older top-of-file handover was stale: it still described the pre-deploy host on `4d4149d` with a larger recovery/redemption backlog. That is no longer the current live state. The current live posture is materially better — but still not clean enough for an honest unattended GO.
 
 ### What was actually done in this audit
 
@@ -40,8 +51,9 @@ The older handover text below still referenced a pending three-env-var change. T
 All scripts are reproducible:
 
 - `scripts/full_reverify_all_sets.js` — compare every strategy set under runtime parity
+- `scripts/v5_runtime_parity_core.js` — shared v5 runtime-parity engine (pre-resolution exits, rounded shares, Kelly / DD sizing, cooldowns)
 - `scripts/v5_final_optimization.js` — v5 config sweep (SF, cooldown, priceMax cap)
-- `scripts/v5_bankroll_sensitivity.js` — `$10–$25` start analysis
+- `scripts/v5_bankroll_sensitivity.js` — `$10–$25` start analysis for the held config posture
 - `scripts/deposit_timing.js` — upcoming Tier-S/A signal calendar
 
 ### Strategy comparison — why v5 wins by a massive margin
@@ -62,75 +74,89 @@ Runtime-parity Monte Carlo from `$10` over the Apr 8–16 OOS window, 10,000 run
 - `v3`/`v4_pruned` collapse in OOS exactly as the prior audit called out — wide `[0.50–0.98]` bands eat coin-flip entries
 - `24h_dense` and `24h_ultra_tight` (the DEITY-era "baselines") bust in 77–100 % of `$10` 7-day paths under runtime parity
 - `elite_recency` (the prior live set before v5) has 100 % 7-day bust from `$10`
-- **v5 is the only set where `$10` survives** (4.5 % bust) and compounds
 
-### v5 configuration sweep — SF=0.25 + cooldown wins
+- **v5 is still the only set here that both survives and compounds honestly under the corrected runtime-parity model**
 
-Same OOS events, 10,000 runs, full runtime model (Kelly + peak-DD brake + min-order):
+### v5 runtime-parity rebuild — old `SF=0.15–0.30` sweep was too narrow
+
+The older `v5` tables above this point are no longer authoritative by themselves. On `19 April 2026` the local `v5` simulator was rebuilt around a shared engine that now models:
+
+- pre-resolution exits from `data/intracycle-price-data.json`
+- rounded-share execution instead of fractional-share shortcuts
+- runtime-style Kelly reduction, peak-DD brake, min-order gating, and cooldown logic
+- one consistent block-bootstrap evaluator across all `v5` scripts
+
+Verified event surface on the Apr 8-16 OOS window:
+
+- `1089` raw matched signals
+- `409` executable cycle-level events after `MAX_GLOBAL_TRADES_PER_CYCLE=1`
+- `680` suppressed later-minute / duplicate same-cycle signals
+- `294` pre-resolution-exit-eligible events
+
+Representative `$10`-start sweep from the rebuilt engine:
 
 | Variant | 24h Bust | 24h MED | 48h MED | 7d Bust | 7d p25 | 7d MED | 7d p75 | 7d p95 |
 |---------|---------:|--------:|--------:|--------:|-------:|-------:|-------:|-------:|
-| `SF=0.15` (baseline) | 6.8 % | $23.54 | $38.84 | 4.7 % | $257.71 | $310.40 | $494.34 | $574.07 |
-| `SF=0.20` | 7.5 % | $22.71 | $38.83 | 4.5 % | $267.20 | $320.99 | $520.59 | $608.39 |
-| `SF=0.20 + CD 3×60m` | 7.0 % | $22.44 | $38.56 | 4.2 % | $267.20 | $326.29 | $519.55 | $608.39 |
-| **`SF=0.25`** | **7.1 %** | **$22.75** | **$37.54** | **4.4 %** | **$297.66** | **$365.81** | **$651.09** | **$773.41** |
-| **`SF=0.25 + CD 3×60m`** | **7.2 %** | **$22.60** | **$38.27** | **4.5 %** | **$297.66** | **$366.89** | **$655.77** | **$773.41** |
-| `SF=0.30` | 7.1 % | $22.82 | $38.11 | 4.8 % | $312.38 | $356.39 | $811.89 | $967.63 |
-| `SF=0.30 + CD 3×60m` | 6.7 % | $22.81 | $38.50 | 4.5 % | $312.38 | $359.03 | $811.89 | $967.63 |
-| `priceMax≤0.92 + SF=0.25` | 19.9 % | $21.11 | $31.74 | 1.3 % | $129.39 | $157.59 | $517.05 | $589.87 |
+| `SF=0.15` | 2.2 % | $27.25 | $50.13 | 1.4 % | $61.61 | $141.97 | $600.46 | $1,047.21 |
+| `SF=0.30 + CD 3×60m` | 2.0 % | $28.41 | $57.50 | 1.5 % | $99.54 | $167.16 | $1,140.76 | $2,697.37 |
+| `SF=0.60 + CD 3×60m` | 1.2 % | $31.19 | $50.11 | 1.2 % | $120.48 | $221.84 | $4,163.55 | n/a |
+| `SF=0.80 + CD 3×60m` | 2.4 % | n/a | n/a | 2.4 % | $127.14 | $242.11 | n/a | n/a |
+| `SF=1.00 + CD 3×60m` | 11.6 % | n/a | n/a | 11.6 % | $110.99 | $330.55 | n/a | n/a |
+| `priceMax≤0.92 + SF=0.25 + CD 3×60m` | 10.2 % | $25.34 | $39.88 | 8.6 % | $84.75 | $134.13 | $283.72 | $684.78 |
 
-Key observations:
+Key observations from the rebuilt model:
 
-- **Bust risk is statistically flat across `SF ∈ [0.15, 0.30]`** — the min-order clamp (`5 × entryPrice ≈ $4.10`) dominates at `$10`, so stake fraction barely changes the first 2-3 trades
-- **`SF=0.25` lifts the 7d p25 from `$258 → $298`, MED from `$310 → $367`, p75 from `$494 → $656`, p95 from `$574 → $773`** — same bust risk, materially higher expected terminal
-- **`SF=0.30`** adds even more p75/p95 but its p25 advantage over `SF=0.25` is small; the runtime's Kelly cap (`~0.20` for `pWin≈0.90, entry≈0.80`) already pulls effective SF down, so going above `0.25` mostly helps at the highest-pWin trades
-- **Capping `priceMax` at 0.92 is strictly worse** — it removes the high-WR `[0.65–0.98]` OOS trades without adding safety; 24h bust actually rises from 7 % to 20 %
-- **Cooldown (`MAX_CONSECUTIVE_LOSSES=3`, `COOLDOWN_SECONDS=3600`)** is essentially free insurance — same median, slightly lower tail bust, guards against unforeseen regime blips
+- **The original search band was too conservative**; within that band, `SF=0.30 + cooldown` beats `SF=0.25`
+- **Blunt `priceMax` caps are still bad**; `0.92` remains materially worse than uncapped `v5`
+- **Cooldown remains basically free insurance**; it preserves most upside while slightly improving the lower tail
+- **At `$10`, very aggressive stake fractions can improve p25/median in local OOS, but model-risk rises sharply**; `SF=1.00` crosses into clearly worse bust behavior
 
-### Bankroll sensitivity — $12 is the sweet spot, $15 is effectively fail-proof
+### Current-bankroll surface (`~$19.76`) — local model winner is aggressive, but not yet applied
 
-Winner config (`SF=0.25` + cooldown `3×60m`):
+Targeted reruns at the current live-like bankroll (`$19.759216`) show that higher `stakeFraction` still improves the local OOS surface well above `0.30`:
 
-| Start | 24h Bust | 24h MED | 48h MED | 7d Bust | 7d p25 | 7d MED | 7d p75 | 7d p95 |
-|:-----:|---------:|--------:|--------:|--------:|-------:|-------:|-------:|-------:|
-| **$10** | 7.3 % | $22.39 | $37.55 | 4.3 % | $297.66 | $366.89 | $655.77 | $773.41 |
-| **$11** | **4.0 %** | $23.64 | $40.08 | **1.0 %** | $309.04 | $380.33 | $687.42 | $810.41 |
-| **$12** | **1.4 %** | $24.91 | $41.67 | **1.1 %** | $313.62 | $392.88 | $722.02 | $850.16 |
-| **$13** | **0.4 %** | $26.02 | $42.66 | **0.0 %** | $329.39 | $410.90 | $756.79 | $898.52 |
-| **$15** | **0.0 %** | $28.40 | $46.20 | **0.0 %** | $343.17 | $410.48 | $829.82 | $997.52 |
-| $17 | 0.0 % | $30.97 | $50.70 | 0.0 % | $365.97 | $451.51 | $906.74 | $1,080.71 |
-| $20 | 0.0 % | $34.40 | $57.38 | 0.0 % | $407.01 | $509.56 | $1,036.41 | $1,211.13 |
+| Variant | 24h Bust | 24h p25 | 24h MED | 48h p25 | 48h MED | 7d Bust | 7d p25 | 7d MED |
+|---------|---------:|--------:|--------:|--------:|--------:|--------:|-------:|-------:|
+| `SF=0.25 + CD 3×60m` | 0.0 % | $27.50 | $41.35 | $40.12 | $93.41 | 0.0 % | $135.25 | $186.72 |
+| `SF=0.30 + CD 3×60m` | 0.0 % | $28.39 | $42.27 | $43.21 | $94.09 | 0.0 % | $147.42 | $240.84 |
+| `SF=0.60 + CD 3×60m` | 0.0 % | $31.19 | $48.64 | $50.11 | $115.04 | 0.0 % | $174.28 | $261.68 |
+| **`SF=0.80 + CD 3×60m`** | **0.0 %** | **$33.30** | **$51.85** | **$56.56** | **$128.11** | **0.0 %** | **$195.50** | **$323.18** |
+| `SF=0.90 + CD 3×60m` | 4.6 % | $35.26 | $54.31 | $56.39 | $134.10 | 3.0 % | $201.97 | $521.74 |
+| `SF=1.00 + CD 3×60m` | 5.2 % | $37.35 | $55.57 | $62.45 | $138.74 | 5.8 % | $207.66 | $439.35 |
 
-**Key insight**: going `$10 → $12` drops 24h bust from 7.3 % to 1.4 % (**5× safer**). `$10 → $15` gives literally 0 % 24h bust. If you can scrape together another `$2–5`, it's the best risk-adjusted move you can make.
+**Decision in the original modeling pass**: do **not** auto-apply the new aggressive winner yet. The local model favored `SF=0.80 + 3×60m cooldown`, but at that point the documented live posture was still the earlier `SF=0.25` hold. Treat the tables below as **pre-reset modeling context**, not as the current verified live runtime posture.
 
-### First-N-trade bust risk (the "cannot-lose-first-trades" gate)
+### Bankroll sensitivity — pre-reset modeled posture (`SF=0.25 + CD 3×60m`)
 
-Shuffled-worst-case (`SF=0.25`, 30,000 runs):
+Historical modeled posture used for the table below:
 
-| Start | 1 trade | 2 trades | 3 trades | 5 trades | 10 trades |
-|:-----:|:-------:|:--------:|:--------:|:--------:|:---------:|
-| **$10** | **0.00 %** | 0.50 % | 1.28 % | 3.77 % | 8.14 % |
-| $12 | 0.00 % | 0.00 % | 0.48 % | 1.34 % | 3.72 % |
-| $15 | 0.00 % | 0.00 % | 0.02 % | 0.22 % | 1.04 % |
-| $20 | 0.00 % | 0.00 % | 0.00 % | 0.00 % | 0.10 % |
+| Start | 24h Bust | 24h MED | 48h MED | 72h MED | 7d Bust | 7d p25 | 7d MED | 7d p75 | 7d p95 |
+|:-----:|---------:|--------:|--------:|--------:|--------:|-------:|-------:|-------:|-------:|
+| **$10** | 2.5 % | $27.84 | $55.21 | $91.07 | 1.2 % | $93.99 | $153.66 | $1,062.23 | $2,118.58 |
+| **$11** | 0.8 % | $29.13 | $61.20 | $97.18 | 0.7 % | $97.18 | $153.74 | $1,046.37 | $2,176.22 |
+| **$12** | 0.3 % | $29.63 | $63.39 | $98.84 | 0.0 % | $98.83 | $157.19 | $1,142.45 | $2,223.55 |
+| **$13** | 0.0 % | $31.97 | $67.45 | $103.20 | 0.0 % | $105.77 | $154.34 | $1,193.45 | $2,338.71 |
+| **$15** | 0.0 % | $34.95 | $75.02 | $114.12 | 0.0 % | $114.12 | $164.70 | $1,239.95 | $2,540.85 |
+| $17 | 0.0 % | $37.02 | $83.10 | $122.65 | 0.0 % | $122.65 | $178.73 | $1,419.22 | $2,706.31 |
+| $20 | 0.0 % | $41.20 | $90.95 | $135.75 | 0.0 % | $135.72 | $229.95 | $1,731.99 | $2,866.41 |
+| $25 | 0.0 % | $49.91 | $113.42 | $155.09 | 0.0 % | $148.02 | $230.19 | $1,947.24 | $3,687.58 |
 
-- First trade is always 0 % bust at `$10+` — the bot literally cannot lose on the first trade
-- Going `$10 → $15` cuts 5-trade bust from **3.77 % → 0.22 %** (17× safer)
+The old `$10 -> $12 -> $15` takeaway still holds directionally: extra bankroll materially reduces short-horizon fragility.
 
-### 10-consecutive-loss catastrophe trace
+### Consecutive-loss affordability trace (pre-reset modeled posture)
 
-The ultra-worst-case: what if 10 signals in a row all lose (probability ≈ 10⁻¹⁰ for `pWin≈0.90`)?
+Using the rebuilt engine's deterministic worst-case loss trace under that modeled posture:
 
-- **From `$10`**: bust at trade 2 (bank goes `$10 → $5.77 → $1.54` → can't afford next min-order)
-- **From `$12`**: bust at trade 3 (`$12 → $7.77 → $3.54`, blocked)
-- **From `$15`**: bust at trade 3 (`$15 → $10.77 → $6.54 → $2.31`, blocked)
-- **From `$20`**: bust at trade 5 (`$20 → $15.77 → $11.54 → $7.31 → $3.08`, blocked)
+- **From `$10`**: `$10 -> $5.90 -> $1.80`, then blocked on trade 3
+- **From `$12`**: `$12 -> $7.90 -> $3.80`, then blocked on trade 3
+- **From `$15`**: `$15 -> $10.90 -> $6.80 -> $2.70`, then blocked on trade 4
+- **From `$20`**: `$20 -> $15.90 -> $11.80 -> $7.70 -> $3.60`, then blocked on trade 5
 
-Even if 10 losses in a row happened, the worst you can lose is your deposit. No on-chain exposure beyond that.
+This is the honest affordability floor, not a forecast. It shows how quickly the 5-share minimum order becomes the real limiter after repeated losses.
 
-### Render env posture (verified on 17 April 2026)
+### Render env posture used for the pre-reset modeling pass
 
-The Render env screenshot and live API posture agree. No additional env changes are required before the first supervised funding test.
+This env block reflects the earlier documented posture used for the local simulation tables above. It is **not** the final verified post-reset live truth. After the later deploy + validator reset, the verified live runtime again reported nominal/effective stake fraction `0.8`; use the handoff block below as the authoritative current state.
 
 ```env
 OPERATOR_STAKE_FRACTION=0.25
@@ -3837,18 +3863,20 @@ All other env vars remain the same:
 - Practical interpretation:
   - `v5` still looks meaningfully better than the older failing sets
   - but the corrected runtime-parity numbers are **far less explosive** than the earlier addendum implied
-  - `$10` is still the best intended micro-bankroll operating point in repo posture, but it is **not honest** to describe it as riskless or “can’t lose the first few trades” guaranteed
+  - `$10` is still the best intended micro-bankroll operating point in repo posture, but it is **not honest** to describe it as riskless or “can't lose the first few trades” guaranteed
 
 ##### Current live operational boundary
 
-- The host is **not ready for unattended autonomy right now** because:
-  1. `15m` is inactive while live balance stays below its truthful active floor
-  2. the stale `ETH 15m DOWN` pending settlement from `2026-04-07` is still present
-  3. the recovery queue and pending-settlement surfaces disagree for the same position, so stale-state cleanup is not fully proven
-- The host **is** ready for a supervised funding validation once the stale pending state is reconciled:
-  - auth / proxy / allowance are healthy
-  - strategy load is correct
-  - market discovery is healthy
+- The host is **still not ready for unattended autonomy right now** because:
+  1. live health remains `degraded`
+  2. `recoveryQueueSummary.actionable=2` still indicates unresolved operational residue
+  3. the validator reset restored nominal sizing, so the runtime can again operate at `SF=0.8`
+  4. the `0.95+` entry-band question is still not operationally resolved
+- The host **is** ready for supervised operation and re-verification because:
+  - `15m` is active with truthful bankroll `17.282096`
+  - the stuck pending settlement was force-recovered and `pendingSettlements=0`
+  - auth / proxy / allowance remain healthy enough for trading
+  - strategy load is correct and `v5` remains live
 
 ##### Updated deposit timing guidance from the actual loaded v5 artifact
 
@@ -3859,69 +3887,221 @@ All other env vars remain the same:
   - `22:11 UTC` — `V5_H22_m11_UP` — OOS `100.0%`, LCB `89.3%`
   - next-day backups: `04:09 UTC`, `05:08 UTC`
 - Operational guidance:
-  - **do not fund blindly while the stale pending settlement remains unresolved**
-  - if running a first supervised validation after cleanup, fund **20-30 minutes before** one of the stronger windows above so balance refresh and runtime-state rebase can settle first
-  - prefer **`$10+ usable balance`** for the first validation pass; `$15-$20` is materially safer than `$10`
+  - **do not call the host unattended-ready yet** while the two actionable recovery records remain unresolved
+  - if adding funds or increasing risk, do it **20-30 minutes before** one of the stronger windows above so balance refresh and runtime-state rebase can settle first
+  - remember that post-reset live sizing is no longer being silently clipped by the old drawdown brake
 
 <!-- HANDOFF_STATE_START -->
 ### Current Handoff State (Machine-Parseable)
 
-**Last Agent**: Cascade
-**Date**: 18 April 2026 (01:20 UTC)
+**Last Agent**: GPT-5.4 (Codex/OpenAI)
+**Date**: 19 April 2026
 **Last Verified Live Strategy**: `strategies/strategy_set_15m_optimal_10usd_v5.json` (23 strategies)
-**Session Scope**: runtime balance/recovery/diagnostics fixes, isolated deploy commit push, live Render redeploy check, README handoff sync
+**Session Scope**: live deploy of truthful runtime-state fixes, stuck pending-settlement recovery, pending auto-recovery hardening, validator baseline reset, post-reset performance audit, undeployed high-price hardening, deploy-timing recheck, max-profit investigation, README handoff sync
 
-**STATUS: CONDITIONAL GO ONLY until the live Render host actually serves the runtime fix commit `ae28bf5`. Keep `v5`. Do not auto-promote `v6`.**
+**STATUS: CONDITIONAL GO ONLY. `v5` is still the live artifact and the deploy/reset succeeded, but do not call this unattended-ready yet because health remains `degraded` from two actionable recovery records, the high-90c hardening is only local right now, the fresh post-reset sample is still too small for unattended claims, and the host is currently mid-position so this is not a safe deploy window.**
 
-**Session 18 Apr 2026 — implementation + deploy-check completion**:
+**Session 19 Apr 2026 — live recovery + deploy + truthful post-reset audit**:
 
-1. Patched `lib/trade-executor.js` to use conservative live bankroll truth, clean recovery records after redemption / verified zero balance, requeue orphaned redemption work, and expose closed trades correctly.
-2. Patched `lib/clob-client.js` so forced live balance refresh can bypass stale cached trade-ready collateral data.
-3. Patched `server.js` to restore `GET /api/diagnostics`, add `GET /api/trades`, and enrich `/api/wallet/balance` plus `/api/clob-status` for better live observability.
-4. Ran `node --check server.js`, `node --check lib/trade-executor.js`, and `node --check lib/clob-client.js` successfully.
-5. Isolated and pushed the runtime fix commit **`ae28bf5`** (`Fix runtime balance and diagnostics truth`).
-6. Updated README truth and pushed the documentation commit **`f59ed08`** (`Update README with live deploy blocker truth`).
-7. Re-queried live `/api/health`, `/api/wallet/balance`, and `/api/clob-status`; confirmed the host is still serving the old build and the new routes are not live yet.
+1. Re-read authority surfaces and the live runtime endpoints before touching the live host.
+2. Confirmed the env-only restart had **not** deployed the local truth-surface fixes; the host stayed on old `deployVersion` `4d4149dbd1880cfeabd035c1b496ecf4258239db` until the code push.
+3. Investigated the balance drop and found it was mostly active exposure plus one thin-margin `ETH UP @ 0.96` loss, not a missing-redemption event.
+4. Verified that redemptions were working again for at least one live settlement, then waited for the runtime to flatten before code deploy.
+5. Found one `XRP` pending settlement stuck across multiple cycle boundaries; `POST /api/reconcile-pending` did not clear it.
+6. Force-recovered the single stuck live position `XRP_15m_1776600000_1776600402696`, reconciled again, and got the runtime flat (`openPositions=0`, `pendingSettlements=0`).
+7. Deployed commit `81c031086de447bcdc12a19a3fce92217cd116d4` with the truthful runtime-state surfaces plus new stuck-pending auto-recovery logic.
+8. Hardened `reconcilePendingLivePositions()` so future unresolved pending settlements auto-escalate into recovery after roughly `10m` on `15m` markets and `2h` on `4h` markets, rather than waiting for a `24h` stale-only path.
+9. Ran `POST /api/validator/reset` after the book was flat, rebasing the monitoring baseline and clearing the peak-drawdown brake.
 
 **Current local state**:
 
-- Runtime fixes for balance truth, recovery/redemption consistency, and observability are present locally and pushed to `origin/main`.
-- README top-level handoff text and this machine-parseable block are synchronized.
-- The workspace is heavily dirty with many unrelated changes/deletions; create a clean deploy diff before pushing anything.
-- The deploy-related commits for this session are already isolated and safe in git; do **not** mix unrelated workspace dirt into follow-up deploy work.
+- The workspace authority chain is present and readable.
+- Harness structure is installed across `.agent/`, `.windsurf/`, `.claude/`, `.cursor/`, `.codex/`, and `.factory/`.
+- Local runtime fixes are committed and deployed in `81c031086de447bcdc12a19a3fce92217cd116d4`.
+- `v5` remains the active live `15m` artifact; no strategy-file swap was performed.
+- The new pending-settlement hardening lives in `server.js` and is intended to auto-promote stuck pending settlements into recovery sooner.
+- New undeployed hardening is now prepared locally:
+  - targeted `>=0.95` negative-edge blocking in the live executor
+  - automatic recovery-residue re-verification so zero-balance forced-manual records can become benign
+  - runtime-parity simulation support for the same high-price edge floor in `scripts/v5_runtime_parity_core.js`
+- Current deploy caution: the local working tree contains many unrelated file changes outside the intentional hardening, so even after the host flattens, deploy prep should isolate only the intended patch before pushing.
 
 **Last verified live state**:
 
 - Host: `https://polyprophet-1-rr1g.onrender.com`
-- Live `deployVersion`: `238bfd30338d23868f350fd0205bda03cf87f3ff`
+- Live `deployVersion`: `81c031086de447bcdc12a19a3fce92217cd116d4`
 - `15m` live artifact: `/app/strategies/strategy_set_15m_optimal_10usd_v5.json` with `23` strategies loaded
-- Live `GET /api/diagnostics` and `GET /api/trades` still return `404`, proving the new runtime code is not active on the host yet
-- Live `GET /api/wallet/balance` still reports old balance source behavior: `onChainUsdc=13.499056`, `tradeReady.balance=13.220656`, `source="ON_CHAIN_USDC"`
-- Live `GET /api/health` still lagged at `runtimeBankrollForTimeframes=8.520656`, confirming the currently deployed truth surface remains inconsistent
-- `recoveryQueue=10` and `redemptionQueue=1` were still present on the old live build during the last check
+- `GET /api/diagnostics` and `GET /api/trades` both return `200`
+- Live wallet/balance truth is now conservative and internally consistent:
+  - `onChainUsdc=8.327726`
+  - `clobCollateralUsdc=8.327726`
+  - `tradingBalanceUsdc=8.327726`
+  - `source="CONFIRMED_CONSERVATIVE_MIN"`
+- Runtime bankroll is active and aligned to the currently visible wallet:
+  - `runtimeBankrollForTimeframes=8.327726`
+  - `baselineBankroll=17.282096`
+  - `monitoringBaselineAt=1776602196222`
+- Health is still `degraded` because:
+  - `recoveryQueueSummary.total=2`
+  - `recoveryQueueSummary.actionable=2`
+  - `redemptionQueue=0`
+  - `openPositions=1`
+  - `pendingBuys=[]`
+  - `pendingSettlements=1`
+  - `pendingSells=[]`
+- Current live open position is:
+  - `XRP_15m_1776622500_1776622939776`
+  - `asset=XRP`, `timeframe=15m`, `direction=DOWN`
+  - `entryPrice=0.87`, `size=4.35`, `strategy=V5_H18_m7_DOWN`
+  - `status=PENDING_RESOLUTION`
+- Post-reset live risk surface now has a small real sample:
+  - `risk.totalTrades=4`
+  - `risk.totalWins=3`
+  - `risk.totalLosses=1`
+  - `todayPnL=1.74`
+- Executor all-time surface remains much noisier than risk because it includes legacy finalized history and pre-baseline exits:
+  - `executor.totalTrades=51`
+  - `executor.monitoringTotalTrades=4`
+  - `executor.monitoringWins=3`
+  - `executor.monitoringLosses=1`
+- Post-reset live trade sample by entry bucket is currently:
+  - `<0.90`: `2` trades, `2W / 0L`, net `+1.89`
+  - `0.97-0.98`: `2` trades, `1W / 1L`, net `-0.15`
+- Drawdown brake was successfully reset:
+  - `drawdownBrake.active=false`
+  - `drawdownBrake.nominalStakeFraction=0.8`
+  - `drawdownBrake.effectiveStakeFraction=0.8`
+- Wallet / auth caveat after restart:
+  - `tradeReady.ok=true`
+  - `proxyRedeemAuthReady=true`
+  - `relayerAuthMode=builder`
+  - `relayerAuthReady=true`
 - Lite still exposes **no rolling live-accuracy field**; do not claim one
 
 **Strategy verdict**:
 
-- Keep **`v5`** as the live `15m` artifact for now.
-- Keep **`v6`** as a **notify-only / manual-review** candidate.
-- No strategy swap should be made before the current runtime fix deployment actually lands and is re-verified on live.
+- Keep **`v5`** as the live `15m` artifact.
+- The reset now makes the live runtime actually operate at the intended nominal `SF=0.8` again; before the reset it was truthfully being clipped by the drawdown brake to `0.12`.
+- High-90c fills are now a live-confirmed concern rather than only a theoretical caveat. In the fresh post-reset sample the `0.97-0.98` bucket has already gone `1W / 1L` with net `-0.15`, while the sub-`0.90` bucket is `2W / 0L` with net `+1.89`.
+- The structural issue is stronger than the tiny live sample alone: the runtime's own fee/slippage math still makes much of the `>=0.95` regime extremely thin.
+- Local runtime-parity re-sim with the new targeted high-price edge floor did not degrade the modeled aggressive live-like posture: event frequency fell from `409` to `393` (`45.4/day` to `43.7/day`) while the local 24h and 7d medians did not worsen in the same bootstrap pass.
+- That hardening is now present locally but **not** deployed yet.
+- The current strategy set is not built for `100%` per-trade growth. Weighted by OOS trade counts, the set's average entry is about `82.45c`, so a full-resolution win from the average trade is only about `1.213x` gross bankroll or about `20.6%` profit after the current fee model.
+- The user's “23 straight all-in wins at 70c gets to around 30k” intuition is directionally right, but the current set does not operate like a pure `70c -> 100c` compounding engine. Even a perfect `70c` all-in sequence would be about `$29.4k` after `23` consecutive wins under the current fee model, while `17` such wins only gets to about `$3.66k`, not `$1M`.
+- Runtime-parity bucket analysis of current `v5` matched events shows why the expensive regime is a profit cap even when it wins often:
+  - `<0.80` entries: `177` events, avg ROI about `17.76%`
+  - `0.80-0.90` entries: `104` events, avg ROI about `4.79%`
+  - `0.95-0.97` entries: `20` events, avg ROI about `2.99%`
+  - `0.97-0.98` entries: `18` events, avg ROI about `1.74%`
+- So the current path to higher profit is **not** “just go more all-in on 95-98c.” The honest higher-growth direction is to concentrate more of the executable flow into lower-price, still-positive-edge windows.
+- `v6` remains **notify-only / manual-review**, not promotion-ready.
+
+**Max-profit investigation**:
+
+- I checked whether there was an obvious live candidate-ranking bug suppressing profit. There is **not**: when multiple current-window candidates exist, the live orchestrator already sorts by estimated win probability rather than taking an arbitrary market.
+- I compared higher-size variants inside the current `v5` runtime-parity harness:
+  - current live-ish `SF=0.8`: 24h bust about `5.0%`, 24h median about `$35.62`, 72h median about `$152.43`
+  - all-in `SF=1.0`: 24h bust about `13.2%`, 24h median about `$40.61`, 72h median about `$205.53`
+- That means raw all-in sizing **does** raise upside, but far less than intuition suggests, while more than doubling early bust risk. For the user's mission constraint that the first few trades effectively cannot lose, this is not the honest primary path.
+- Disabling pre-resolution exits improves the local simulated median somewhat, but it also pushes the runtime back toward more settlement/redemption dependency, which is the exact operational surface that just needed recovery hardening. So it is not honest to call that an immediate production improvement without a fresh lifecycle audit.
+- The more promising “max profit” research direction is a **growth-filtered `15m` engine** that explicitly optimizes for lower entry price / higher unit ROI rather than just higher win rate at expensive prices. The current strongest lower-entry `v5` windows by stored edge include:
+  - `V5_H18_m7_DOWN` — avg entry `0.7983`, edge `0.0900`
+  - `V5_H15_m6_UP` — avg entry `0.7923`, edge `0.0884`
+  - `V5_H07_m7_UP` — avg entry `0.7663`, edge `0.0843`
+  - `V5_H06_m7_UP` — avg entry `0.7937`, edge `0.0706`
+- If pursuing “absolute highest” profit honestly, the next research pass should rank candidates by **expected log-growth / unit ROI after fee and slippage**, not by win rate alone, and then re-run runtime-parity simulations with real Polymarket min-order constraints.
+
+**Redemption / recovery verdict**:
+
+- The stuck `XRP` pending settlement was real enough to require manual force-recovery.
+- Future comparable cases should auto-escalate faster because of the new stuck-pending auto-recovery path.
+- The host is materially healthier than before deploy, but the two remaining actionable recovery records still keep health at `degraded`.
+- Those two records no longer correspond to active pending queues; they are forced ETH/XRP residues that remain actionable only because they have not yet been zero-verified.
+- Local code now includes automatic recovery-residue re-verification so zero-balance manual-recovery records can drop out of degraded health once the runtime proves them benign.
 
 **Operator verdict**:
 
-- **Conditional GO only** after Render actually serves `ae28bf5` and the new endpoints / balance truth are verified live.
-- **No unconditional GO** yet because:
-  - the live host is still on the old deploy
-  - no funded smoke test / `orderID -> fill/settle` proof was produced after the runtime fixes
-  - the workspace is not broadly deploy-clean, so unrelated dirt must stay isolated from follow-up pushes
+- **Conditional GO only; unattended full-GO is still not honest.**
+- The deploy succeeded, the truthful baseline reset succeeded, the drawdown brake is cleared, and the bot has now logged a small fresh post-reset trade sample, but the latest live recheck shows the host is currently mid-position rather than flat.
+- It is **not** an unattended full-GO because:
+  - `health.status` is still `degraded`
+  - `recoveryQueueSummary.actionable=2`
+  - the current live config can again size at `SF=0.8`
+  - the host is currently mid-position / pending-resolution, so this is not a safe deploy window right now
+  - the new high-price / residue hardening is still local and undeployed
+  - the current live trade sample is still only `4` trades and does not honestly prove stable edge yet
 
 **Next required actions**:
 
-1. Confirm the Render service redeploys and `/api/health` flips from `238bfd3...` to the new fix commit lineage.
-2. Verify live `GET /api/diagnostics` and `GET /api/trades?limit=5` return `200`.
-3. Verify live `/api/wallet/balance` and `/api/health` now show the conservative balance source instead of raw `ON_CHAIN_USDC` when CLOB-confirmed balance is lower / different.
-4. Only after the new build is live, run the next supervised funded validation and capture a real `orderID -> fill/settle/redemption` lifecycle before declaring unattended autonomy readiness.
+1. Wait for the host to flatten again (`openPositions=0`, `pendingSettlements=0`) before deploying the current local hardening.
+2. Before that deploy, isolate the intended hardening from unrelated local file churn so the push does not include accidental repo-wide changes.
+3. After deploy, re-check `/api/health`, `/api/status`, `/api/trades`, and `/api/wallet/balance` and confirm whether `recoveryQueueSummary.actionable` drops automatically.
+4. Keep segmenting live fills by entry bucket (`<0.90`, `0.90-0.92`, `0.92-0.95`, `0.95-0.97`, `0.97-0.98`) as more post-reset trades accumulate.
+5. For the next profit-maximization pass, build and test a growth-filtered `15m` variant that explicitly prefers lower-price, higher-ROI windows and scores candidates by expected log-growth after fee/slippage.
+6. If recovery queue grows again or any pending settlement stays unresolved past the new auto-recovery window, pause and re-audit immediately.
 
-**Abort condition**: if the host still fails to pick up the fix commit, or funded live validation shows missing order-placement proof, unexpected recovery-queue growth, or material early live WR degradation, pause and re-audit before continuing.
+**Abort condition**: if actionable recovery records increase, if a new pending settlement sticks beyond the new auto-recovery window, if redemption starts failing under real pressure, if the `0.95+` bucket keeps printing thin/negative results, or if early post-reset live results degrade materially, pause and re-audit before continuing.
 
-<!-- HANDOFF_STATE_END -->
+**Addendum — 19 April 2026: Max-profit reinvestigation (parity frontier correction)**:
+
+- I re-audited the local `v5` runtime-parity harness against the current live code paths that matter for profit simulation:
+  - `lib/strategy-matcher.js` still matches only the exact current `entryMinute`, so there is no evidence that the simulator is undercounting “later minute fallback” entries inside the same 15m cycle.
+  - `lib/trade-executor.js` still sizes from the current matched candidate and only counts the per-cycle slot after a real open / pending buy, which remains consistent with the simulator's one-open-per-cycle modeling.
+  - The meaningful remaining honesty gap is **pre-resolution exits**: live closes those only when a real current bid is available near expiry, while the simulator necessarily uses historical minute-level intracycle snapshots as a proxy.
+- Because of that gap, it is **not honest to call the current simulator 100% live-proven for max-profit ranking when a configuration depends heavily on pre-resolution exits**.
+- I re-ran the growth frontier with the current local hardening posture (`enforceHighPriceEdgeFloor=true`) and found that the highest tested modeled growth inside a still-low bust envelope came from keeping the full `23`-strategy `v5` set but **disabling pre-resolution exits** in the simulator:
+  - `SF=0.80`, `maxConsecutiveLosses=3`, `cooldown=3600s`, `preResolutionExitEnabled=false`:
+    - 24h bust about `4.04%`
+    - 24h median about `$39.66`
+    - 72h median about `$156.42`
+    - 7d bust about `1.56%`
+    - 7d p25 about `$98.24`
+    - 7d median about `$408.91`
+  - Slightly safer nearby variants were very close in upside:
+    - `SF=0.75`, `maxConsecutiveLosses=999`, `cooldown=3600s`, `preResolutionExitEnabled=false`: 24h bust about `3.52%`, 7d bust about `0.88%`, 7d median about `$398.22`
+    - `SF=0.70`, `maxConsecutiveLosses=2`, `cooldown=0s`, `preResolutionExitEnabled=false`: 24h bust about `1.88%`, 7d bust about `0.80%`, 7d median about `$371.78`
+- Under the same hardened assumptions, the previous live-like early-exit posture was still good but materially lower on long-horizon median:
+  - full `v5`, `SF=0.80`, `maxConsecutiveLosses=3`, `cooldown=3600s`, `preResolutionExitEnabled=true`:
+    - 24h bust about `5.32%`
+    - 72h median about `$156.79`
+    - 7d bust about `2.68%`
+    - 7d median about `$292.04`
+- I also tested several reduced / “growth-filtered” subsets of the current `23` strategies. In this pass, **none of the tested subsets beat the full `23`-strategy set on 7d median while staying inside a low-bust envelope**. Smaller subsets could drive bust very low, but they gave up too much frequency and total compounding.
+- So the latest honest conclusion is:
+  - the **highest modeled profit** currently comes from the full `v5` set, not a reduced subset,
+  - the biggest modeled upside gain comes from **removing pre-resolution exits**, not from simply pushing stake fraction to `1.0`,
+  - but that change is **not yet promotion-ready** because it increases dependence on the settlement / redemption lifecycle that previously needed recovery hardening.
+- Therefore this is the current truth split:
+  - **Best modeled max-profit frontier**: full `v5` + high-price edge floor + `SF≈0.75-0.80` + pre-resolution exits off.
+  - **Best currently honest live-like posture**: full `v5` + high-price edge floor + `SF≈0.75-0.80` + current pre-resolution exits kept on, until a dedicated lifecycle audit proves the no-early-exit posture is operationally safe.
+- The next profit-maximization task should no longer assume “find a better subset first.” The higher-value next step is a **settlement-lifecycle audit for `preResolutionExitEnabled=false`**, including pending-resolution growth, redemption latency, recovery-queue pressure, and whether the modeled extra median survives more realistic live fill / settlement frictions.
+
+**Settlement-lifecycle audit (19 April 2026, no-early-exit posture)**:
+
+- I traced the current live state machine for positions when `preResolutionExitEnabled=false`:
+  - cycle-end positions move from `OPEN` to `PENDING_RESOLUTION`
+  - the same runtime loop then runs `reconcilePendingLivePositions()`
+  - resolved winners finalize through `resolvePosition()` and are pushed into `redemptionQueue`
+  - unresolved / stale cases escalate into `recoveryQueue` rather than disappearing silently
+- Important mechanical constraint: `PENDING_RESOLUTION` and `SELL_PENDING` both still count as **open exposure** and are included in `getOpenPositions()` / `getTotalOpenExposure()`.
+- That means a no-early-exit posture can preserve modeled bankroll on paper while still reducing **available executable cash** until redemption actually clears.
+- The runtime is not missing a maintenance loop here:
+  - `tick()` reschedules every `2000ms`
+  - lifecycle maintenance runs before/within each trading pass
+  - `checkAndResolveExpiredPositions()`, `reconcilePendingLivePositions()`, `processPendingSells()`, and `checkAndRedeemPositions()` all execute every tick while live
+- The real concern is **operational load shift**, not an absent state transition:
+  - in deterministic local replay of the current full-`v5` frontier (`SF=0.80`, `MCL=3`, `CD=3600s`, high-price edge floor on), the current early-exit posture produced about `39.78` wins/day, but only about `9.11` of those wins/day remained settlement-dependent because about `30.67` wins/day exited pre-resolution
+  - with pre-resolution exits disabled, about `39.44` wins/day become settlement-dependent
+  - so the no-early-exit posture adds about **`30.33` extra settlement-dependent winning positions per day** versus the current live-like posture
+- This does **not** prove the posture is unusable. At the repo's current one-trade-per-cycle ceiling, the runtime can still process settlements and redemptions every loop.
+- But it does prove that the max-profit frontier is much more dependent on:
+  - Gamma closed-market resolution availability
+  - token-balance verification
+  - redemption success / latency
+  - recovery-queue hygiene when any winner fails to settle cleanly
+- Honest operator conclusion after this audit:
+  - **Modeled max-profit frontier remains real in the simulator**
+  - **Promotion-ready live recommendation is still not earned** until the no-early-exit posture is exercised against real settlement/redemption timing or a stronger settlement-delay simulation is added
+  - if this path is pursued next, the first live/research metric to watch is not only PnL but also **pending-settlement dwell time, redemption queue depth, and actionable recovery count per day**
+
+ <!-- HANDOFF_STATE_END -->

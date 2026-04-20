@@ -21,7 +21,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 
-const TAKER_FEE = 0.0315;
+const { calcPolymarketTakerFeeFrac } = require(path.join(ROOT, 'lib/polymarket-fees'));
 const MIN_SHARES = 5;
 
 const ic = require(path.join(ROOT, 'data/intracycle-price-data.json'));
@@ -82,9 +82,9 @@ for (let h = 0; h < 24; h++) {
                 if ((oos.wr - tr.wr) > 0.15) continue;  // no suspicious spike (could be noise)
 
                 const avgP = full.avgP;
-                const be = avgP / (avgP + (1 - avgP) * (1 - TAKER_FEE));
+                const be = avgP > 0 ? avgP * (1 + calcPolymarketTakerFeeFrac(avgP)) : 1;
                 const edge = full.wr - be;
-                const oosEdge = oos.avgP > 0 ? oos.wr - (oos.avgP / (oos.avgP + (1 - oos.avgP) * (1 - TAKER_FEE))) : 0;
+                const oosEdge = oos.avgP > 0 ? oos.wr - (oos.avgP * (1 + calcPolymarketTakerFeeFrac(oos.avgP))) : 0;
 
                 if (edge < 0.05) continue;
                 if (oosEdge < 0.03) continue;
