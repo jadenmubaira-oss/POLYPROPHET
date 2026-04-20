@@ -28,7 +28,7 @@ services:
       - key: TIMEFRAME_15M_ENABLED
         value: "true"
       - key: TIMEFRAME_15M_MIN_BANKROLL
-        value: "2"
+        value: "3"
       - key: TIMEFRAME_5M_ENABLED
         value: "false"
       - key: MULTIFRAME_4H_ENABLED
