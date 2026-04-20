@@ -22,7 +22,7 @@ services:
       - key: STARTING_BALANCE
         value: "10"
       - key: OPERATOR_STAKE_FRACTION
-        value: "0.15"
+        value: "0.25"
       - key: ASSETS
         value: BTC,ETH,SOL,XRP
       - key: TIMEFRAME_15M_ENABLED
@@ -56,7 +56,9 @@ services:
       - key: ENTRY_PRICE_BUFFER_CENTS
         value: "0"
       - key: ENFORCE_NET_EDGE_GATE
-        value: "false"
+        value: "true"
+      - key: HIGH_PRICE_EDGE_FLOOR_PRICE
+        value: "0.90"
       - key: MAX_GLOBAL_TRADES_PER_CYCLE
         value: "1"
       - key: START_PAUSED
