@@ -30,9 +30,7 @@ const REDIS_RUNTIME_ENABLED = parseEnvBool(
 );
 const RUNTIME_STATE_REDIS_KEY = String(process.env.RUNTIME_STATE_REDIS_KEY || 'polyprophet:lite:runtime-state').trim() || 'polyprophet:lite:runtime-state';
 const MICRO_BANKROLL_DEPLOY_PROFILE = !!CONFIG.MICRO_BANKROLL_DEPLOY_PROFILE;
-const START_PAUSED_ENV = MICRO_BANKROLL_DEPLOY_PROFILE
-    ? 'false'
-    : String(process.env.START_PAUSED || '').trim().toLowerCase();
+const START_PAUSED_ENV = String(process.env.START_PAUSED || '').trim().toLowerCase();
 const REDIS_IO_TIMEOUT_MS = 5000;
 
 // ==================== CORE STATE ====================
