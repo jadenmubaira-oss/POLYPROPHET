@@ -56,6 +56,49 @@ let redisAvailable = false;
 let runtimeStateLastSavedAt = 0;
 let runtimeStateLastLoadSource = 'FRESH_START';
 
+function buildStrategyPathDebug() {
+    const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
+    const env15mPath = envStrat15
+        ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
+        : null;
+
+    const fallbackCandidates15m = [
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_optimal_10usd_v3.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_elite_recency.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_micro_recovery.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_apr21_edge32.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
+    ];
+    const candidates15m = env15mPath ? [env15mPath] : fallbackCandidates15m;
+
+    return {
+        nodeDirname: __dirname,
+        repoRoot: REPO_ROOT,
+        strategiesDirExists: fs.existsSync(path.join(REPO_ROOT, 'strategies')),
+        debugDirExists: fs.existsSync(path.join(REPO_ROOT, 'debug')),
+        env: {
+            STRATEGY_SET_15M_PATH: envStrat15,
+            START_PAUSED: process.env.START_PAUSED,
+            TIMEFRAME_15M_ENABLED: process.env.TIMEFRAME_15M_ENABLED,
+            TIMEFRAME_15M_MIN_BANKROLL: process.env.TIMEFRAME_15M_MIN_BANKROLL
+        },
+        candidates: {
+            '15m': candidates15m.map(fp => ({
+                filePath: fp,
+                exists: fs.existsSync(fp)
+            }))
+        },
+        loaded: getAllLoadedSets()
+    };
+}
+
 if (REDIS_RUNTIME_ENABLED && process.env.REDIS_URL) {
     try {
         redis = new Redis(process.env.REDIS_URL, {
@@ -282,6 +325,12 @@ function loadAllStrategySets() {
                 if (exists && !loaded) {
                     loadStrategySet('15m', fp);
                     loaded = true;
+                    diagnosticLog.push({
+                        ts: new Date().toISOString(),
+                        type: 'STRATEGY_LOADED',
+                        timeframe: '15m',
+                        filePath: fp
+                    });
                     console.log(`  ✅ 15m LOADED: ${path.basename(fp)}`);
                     break;
                 }
@@ -289,8 +338,20 @@ function loadAllStrategySets() {
             if (!loaded) {
                 if (env15mPath) {
                     console.error(`  ❌ 15m: STRATEGY_SET_15M_PATH requested ${path.basename(env15mPath)} but the file is missing. Refusing silent fallback.`);
+                    diagnosticLog.push({
+                        ts: new Date().toISOString(),
+                        type: 'STRATEGY_FILE_MISSING',
+                        timeframe: '15m',
+                        filePath: env15mPath
+                    });
                 }
                 console.warn('  ⚠️ 15m: NO strategy file found! Trading will not work for 15m.');
+                diagnosticLog.push({
+                    ts: new Date().toISOString(),
+                    type: 'NO_STRATEGY_FILE_FOUND',
+                    timeframe: '15m',
+                    candidates: candidates15m.map(fp => ({ filePath: fp, exists: fs.existsSync(fp) }))
+                });
             }
             continue;
         }
@@ -317,6 +378,12 @@ function loadAllStrategySets() {
             if (fs.existsSync(fp) && !loaded) {
                 loadStrategySet(tf.key, fp);
                 loaded = true;
+                diagnosticLog.push({
+                    ts: new Date().toISOString(),
+                    type: 'STRATEGY_LOADED',
+                    timeframe: tf.key,
+                    filePath: fp
+                });
                 break;
             }
         }
@@ -324,6 +391,10 @@ function loadAllStrategySets() {
 }
 
 loadAllStrategySets();
+
+app.get('/api/debug/strategy-paths', (req, res) => {
+    res.json(buildStrategyPathDebug());
+});
 
 function extractWinnerFromClosedMarket(market) {
     if (!market || !market.closed) return null;

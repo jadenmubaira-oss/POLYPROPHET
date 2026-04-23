@@ -1,0 +1,235 @@
+{
+  "generated": "2026-04-22T09:58:15.679Z",
+  "source": "intracycle-price-data.json",
+  "oosStartEpoch": 1775606400,
+  "criteria": {
+    "minMatches": 15,
+    "minWinRate": 0.9,
+    "minDayCount": 5,
+    "bands": [
+      [
+        0.5,
+        0.65
+      ],
+      [
+        0.55,
+        0.7
+      ],
+      [
+        0.5,
+        0.73
+      ],
+      [
+        0.65,
+        0.73
+      ]
+    ],
+    "z": 1.96
+  },
+  "strategies": [
+    {
+      "name": "APR21_H13_m02_UP_[0.5-0.65]",
+      "utcHour": 13,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.5,
+      "priceMax": 0.65,
+      "pWinEstimate": 0.7586,
+      "stats": {
+        "matches": 26,
+        "wins": 24,
+        "winRate": 0.9231,
+        "dayCount": 7,
+        "avgEntry": 0.581,
+        "edge": 0.334344
+      }
+    },
+    {
+      "name": "APR21_H14_m02_DOWN_[0.65-0.73]",
+      "utcHour": 14,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.7961,
+      "stats": {
+        "matches": 15,
+        "wins": 15,
+        "winRate": 1,
+        "dayCount": 7,
+        "avgEntry": 0.6893,
+        "edge": 0.303854
+      }
+    },
+    {
+      "name": "APR21_H05_m05_DOWN_[0.65-0.73]",
+      "utcHour": 5,
+      "entryMinute": 5,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.8157,
+      "stats": {
+        "matches": 17,
+        "wins": 17,
+        "winRate": 1,
+        "dayCount": 9,
+        "avgEntry": 0.6926,
+        "edge": 0.300581
+      }
+    },
+    {
+      "name": "APR21_H13_m02_UP_[0.5-0.73]",
+      "utcHour": 13,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.5,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.8014,
+      "stats": {
+        "matches": 40,
+        "wins": 37,
+        "winRate": 0.925,
+        "dayCount": 8,
+        "avgEntry": 0.6189,
+        "edge": 0.298605
+      }
+    },
+    {
+      "name": "APR21_H10_m07_DOWN_[0.55-0.7]",
+      "utcHour": 10,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.7,
+      "pWinEstimate": 0.7415,
+      "stats": {
+        "matches": 24,
+        "wins": 22,
+        "winRate": 0.9167,
+        "dayCount": 10,
+        "avgEntry": 0.6329,
+        "edge": 0.276346
+      }
+    },
+    {
+      "name": "APR21_H05_m04_DOWN_[0.65-0.73]",
+      "utcHour": 5,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.7639,
+      "stats": {
+        "matches": 20,
+        "wins": 19,
+        "winRate": 0.95,
+        "dayCount": 9,
+        "avgEntry": 0.6757,
+        "edge": 0.267277
+      }
+    },
+    {
+      "name": "APR21_H05_m03_DOWN_[0.65-0.73]",
+      "utcHour": 5,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.7733,
+      "stats": {
+        "matches": 21,
+        "wins": 20,
+        "winRate": 0.9524,
+        "dayCount": 8,
+        "avgEntry": 0.679,
+        "edge": 0.266398
+      }
+    },
+    {
+      "name": "APR21_H11_m07_UP_[0.65-0.73]",
+      "utcHour": 11,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.7639,
+      "stats": {
+        "matches": 20,
+        "wins": 19,
+        "winRate": 0.95,
+        "dayCount": 9,
+        "avgEntry": 0.6997,
+        "edge": 0.243569
+      }
+    },
+    {
+      "name": "APR21_H14_m04_UP_[0.65-0.73]",
+      "utcHour": 14,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.7424,
+      "stats": {
+        "matches": 18,
+        "wins": 17,
+        "winRate": 0.9444,
+        "dayCount": 7,
+        "avgEntry": 0.6953,
+        "edge": 0.242428
+      }
+    },
+    {
+      "name": "APR21_H18_m03_UP_[0.65-0.73]",
+      "utcHour": 18,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.7167,
+      "stats": {
+        "matches": 16,
+        "wins": 15,
+        "winRate": 0.9375,
+        "dayCount": 8,
+        "avgEntry": 0.6963,
+        "edge": 0.234524
+      }
+    },
+    {
+      "name": "APR21_H07_m03_DOWN_[0.65-0.73]",
+      "utcHour": 7,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.7503,
+      "stats": {
+        "matches": 25,
+        "wins": 23,
+        "winRate": 0.92,
+        "dayCount": 11,
+        "avgEntry": 0.6948,
+        "edge": 0.218455
+      }
+    },
+    {
+      "name": "APR21_H04_m05_UP_[0.65-0.73]",
+      "utcHour": 4,
+      "entryMinute": 5,
+      "direction": "UP",
+      "priceMin": 0.65,
+      "priceMax": 0.73,
+      "pWinEstimate": 0.732,
+      "stats": {
+        "matches": 23,
+        "wins": 21,
+        "winRate": 0.913,
+        "dayCount": 10,
+        "avgEntry": 0.6933,
+        "edge": 0.213019
+      }
+    }
+  ]
+}
