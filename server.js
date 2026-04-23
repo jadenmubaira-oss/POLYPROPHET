@@ -1278,6 +1278,48 @@ app.get('/api/forward-log', (req, res) => {
     });
 });
 
+function getAdminControlSecret() {
+    return String(process.env.MANUAL_SMOKE_TEST_KEY || process.env.AUTH_PASSWORD || '').trim();
+}
+
+function requireAdminControlSecret(req, res) {
+    const secret = getAdminControlSecret();
+    if (!secret) {
+        res.status(503).json({ success: false, error: 'ADMIN_CONTROL_DISABLED' });
+        return false;
+    }
+    const suppliedSecret = String(req.get('x-manual-smoke-key') || req.body?.manualSmokeKey || '').trim();
+    if (!suppliedSecret || suppliedSecret !== secret) {
+        res.status(401).json({ success: false, error: 'UNAUTHORIZED' });
+        return false;
+    }
+    return true;
+}
+
+app.post('/api/pause', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        riskManager.tradingPaused = true;
+        diagnosticLog.push({ ts: new Date().toISOString(), type: 'ADMIN_PAUSE' });
+        await saveRuntimeState();
+        return res.json({ success: true, paused: true });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/resume', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        riskManager.tradingPaused = false;
+        diagnosticLog.push({ ts: new Date().toISOString(), type: 'ADMIN_RESUME' });
+        await saveRuntimeState();
+        return res.json({ success: true, paused: false });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/trades', (req, res) => {
     const requestedLimit = Number.parseInt(String(req.query?.limit || '50'), 10);
     const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(200, requestedLimit)) : 50;
