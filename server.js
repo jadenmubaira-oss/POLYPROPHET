@@ -268,6 +268,8 @@ function loadAllStrategySets() {
                 quaternary15mPath,
                 quinary15mPath,
                 senary15mPath,
+                path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_micro_recovery.json'),
+                path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_apr21_edge32.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top8_current.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_top3_robust.json'),
@@ -1261,6 +1263,18 @@ app.get('/api/diagnostics', (req, res) => {
             balanceDivergenceUsdc: Number.isFinite(divergenceUsdc) ? divergenceUsdc : null
         },
         log: diagnosticLog.slice(-200)
+    });
+});
+
+app.get('/api/forward-log', (req, res) => {
+    const requestedLimit = Number.parseInt(String(req.query?.limit || '200'), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(500, requestedLimit)) : 200;
+    const log = Array.isArray(tradeExecutor.forwardTradeLog) ? tradeExecutor.forwardTradeLog.slice(-limit) : [];
+    res.json({
+        success: true,
+        enabled: String(process.env.FORWARD_TRADE_LOG_ENABLED || '').trim().toLowerCase() === 'true' || String(process.env.FORWARD_TRADE_LOG_ENABLED || '').trim() === '1',
+        limit,
+        log
     });
 });
 
