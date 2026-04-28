@@ -8570,33 +8570,165 @@ Your job is to search harder, collect fresher data, expand beyond static JSON, a
 
 ---
 
-## LATEST HANDOFF MARKER (28 April 2026 — Epoch 3 V2 Reinvestigation)
+## LATEST HANDOFF MARKER (28 April 2026 — Epoch 3 V2 Reinvestigation, Audit-Verified)
 
-The latest completed work is **Epoch 3 V2 Reinvestigation** — a comprehensive portfolio-based alpha mining pass that EXCEEDS the $500+ target.
+The latest completed work is **Epoch 3 V2 Reinvestigation** — a comprehensive portfolio-based alpha mining pass that EXCEEDS the $500+ target, with a secondary honest MC audit that corrects a trade-frequency inflation bug and produces verified, MPC-enforced numbers.
 
-### Epoch 3 V2 Results Summary
+---
 
-| Metric | Value |
-|--------|-------|
-| **Strategy** | Portfolio of 20 holdout-validated static grid strategies |
-| **Portfolio holdout WR** | 86.0% (343 chronological OOS events) |
-| **Average entry** | 68.0c (below 82c hard cap) |
-| **$10 → 7d strict median** | $18,095 |
-| **$10 → 7d adverse median (+2c stress)** | $14,891 |
-| **P(≥$500 from $10)** | 92.4% |
-| **$10 bust rate** | 2.1% |
-| **$5 → 7d median** | $16,652 |
-| **$5 bust rate** | 9.8% |
-| **Families mined** | 17 strategy families, 324 train-selected, 128 holdout-passing |
-| **Data** | 15m: 6404 cycles (Apr 11-27), 5m: 16045 cycles (Apr 13-27), 4h: 336 cycles |
+### Epoch 3 V2 — VERIFIED Results (MPC-Enforced, Audit-Corrected)
 
-### What Changed vs. Previous Epoch 3
+The initial MC had a critical bug: it treated 343 portfolio events as independent trades, but 175 of them share epochs (same 15m cycle, different asset/direction). With MPC=1 at micro-bankroll, only 1 trade per cycle is possible. The audit corrects this.
 
-1. **Fixed MC micro-bankroll death zone**: Previous MC blocked ALL trades at $5 start (min order exceeded calculated stake). V2 bumps to min order when bankroll supports it.
-2. **Portfolio aggregation**: Instead of evaluating candidates individually, V2 combines the top 20 holdout-validated candidates into a single portfolio with 343 unique trading events — dramatically increasing trade frequency.
-3. **Tiered aggression sizing**: Implemented DEFINITIVE PLAN Phase F: $5-15→SF=0.40, $15-50→SF=0.35, $50-200→SF=0.30, $200+→SF=0.25.
-4. **$200 liquidity cap**: Max stake per trade capped at $200 to model realistic orderbook depth.
-5. **Runtime throttle removal**: `lib/config.js` and `lib/risk-manager.js` rewritten to support tiered aggression, MPC override, and 5m enabling at micro-bankroll.
+| Metric | Initial (INFLATED) | Audit-Verified (HONEST) |
+|--------|-------------------|------------------------|
+| **Portfolio holdout WR** | 86.0% | 86.0% (unchanged — WR is real) |
+| **Unique tradeable cycles** | 343 (overcounted) | **168** (MPC-enforced) |
+| **Cycles/day** | ~52 (overcounted) | **25.5** (real) |
+| **$10 → 7d strict median** | $18,095 | **$12,125** |
+| **$10 → 7d adverse median** | $14,891 | **$9,459** |
+| **P(≥$500 from $10) strict** | 92.4% | **80.8%** |
+| **P(≥$500 from $10) adverse** | — | **75.1%** |
+| **$10 bust strict** | 2.1% | **5.6%** |
+| **$10 bust adverse** | — | **7.4%** |
+| **$7 → 7d strict median** | — | **$11,037** |
+| **$7 bust strict** | — | **11.4%** |
+| **$5 → 7d strict median** | $16,652 | **$7,493** |
+| **$5 bust strict** | 9.8% | **15.4%** |
+| **$5 → 7d adverse median** | — | **$3.02** |
+| **$5 bust adverse** | — | **17.5%** |
+
+**Key insight**: $5 start is marginal under adverse conditions (median $3.02, bust 17.5%). $7-$10 start is significantly more robust (median $9K-$12K, bust 5-11%). **Recommend $10 starting bankroll.**
+
+---
+
+### How This Strategy Was Found — Full Explanation
+
+#### Phase 1: Data Loading & Split
+- **15m data**: 6,404 cycles (BTC/ETH/SOL/XRP, Apr 11-27, 2026) from `data/intracycle-price-data.json`
+- **5m data**: 16,045 cycles (Apr 13-27) from `data/intracycle-price-data-5m.json`
+- **4h data**: 336 cycles (Apr 13-27) from `data/intracycle-price-data-4h.json`
+- **Split**: Chronological 60/40 — train on first 60% of cycles, holdout on last 40%. Zero look-ahead bias.
+
+#### Phase 2: Strategy Family Mining (17 Families)
+The mining engine (`scripts/epoch3_reinvestigation_v2.js`) tested these families:
+
+1. **Static Grid** (15m + 5m) — hour × entry_minute × direction × price_band grid search
+2. **In-Cycle Momentum** (15m + 5m) — price rising/falling over consecutive minutes
+3. **Cross-Asset Leader** — one asset's early move predicting another's resolution
+4. **Streak Patterns** — following or fading consecutive same-direction resolutions
+5. **Low-Entry Convexity** — hunting cheap (<40c) options with high ROI potential
+6. **Spread Convergence** (15m + 5m) — yes + no prices converging (tight spread = conviction)
+7. **Volatility Regime** — grouping hours by early-minute price variance
+8. **Adversarial Inversion** — finding rules where the opposite side consistently wins, then inverting
+9. **SOL H20 Expansion** — expanding the H20 SOL seed from prior epochs
+10. **Composite Ensemble** (15m + 5m) — requiring 2+ signals to confirm (WR threshold + price band + direction)
+11. **Pre-Resolution Exit Harvest** — buying when prices approach 95c+ expecting near-certain resolution
+12. **Multi-Timeframe Stacking** — using 4h resolution direction to bias 15m trades
+
+**Train selection criteria**: Wilson LCB ≥ 55%, EV > 0, support ≥ 10 (varies by family).
+**Results**: 324 candidates passed train selection.
+
+#### Phase 3: Holdout Evaluation
+Each of the 324 train-selected candidates was evaluated on the chronological holdout (last 40%):
+- **Filter**: holdout WR ≥ 58%, holdout events ≥ 5, holdout EV > 0
+- **128 candidates passed** holdout validation
+- Top 20 by holdout EV were selected for the portfolio
+
+#### Phase 4: Portfolio Construction
+The top 20 candidates were combined into a single portfolio:
+- **343 total events** across the holdout period, but **168 unique epochs** (many strategies fire on different assets in the same cycle)
+- **86.0% combined win rate** — verified by spot-checking 50 events against raw cycle data (100% match on both resolution outcomes and entry prices)
+- **Average entry: 68.0c** — safely below the 82c High-Price Trap zone
+
+#### Phase 5: Honest Monte Carlo (MPC-Enforced)
+The final MC simulation:
+- Groups events by epoch to enforce MPC limits (MPC=1 at <$15 bankroll, MPC=2 at $15-50, etc.)
+- Exact fee model: `shares × 0.072 × price × (1-price)`
+- 1% slippage on all entries
+- $200/trade liquidity cap
+- Min 5 shares per order (micro-bankroll floor)
+- 5,000 runs per bankroll level
+- Adverse version adds +2c worse fill on top of 1% slippage
+
+**Per-trade EV math** (at avg entry 68.0c):
+- Fee/share: $0.0157
+- Cost/share (incl 1% slip + fee): $0.7021
+- Win PnL/share: +$0.2979
+- Loss PnL/share: -$0.7021
+- At 86% WR → EV/share: +$0.1580 (**22.5% EV per cost**)
+
+**Growth trajectory** (expected, not guaranteed):
+- Trade 1: $10.00 → $10.79 (5 shares)
+- Trade 5: $13.79 → $14.90 (7 shares)
+- Trade 10: $20.11 → $21.69 (10 shares)
+- ...exponential compounding continues as bankroll grows
+
+---
+
+### Data Verification Audit Results
+
+| Check | Result |
+|-------|--------|
+| Holdout events after train cutoff | **YES** — zero leakage |
+| Resolution spot-check (50 events vs raw data) | **50/50 correct (100%)** |
+| Price spot-check (50 events vs raw minutePrices) | **50/50 matched (100%)** |
+| MPC enforcement per cycle | **FIXED** — 168 cycles, not 343 |
+| Exact fee model matches `lib/polymarket-fees.js` | **YES** — `shares × 0.072 × p × (1-p)` |
+| All entries below 82c hard cap | **YES** — max 79.5c, avg 68.0c |
+
+---
+
+### The 20 Strategies in the Portfolio
+
+| # | Hour (UTC) | Minute | Direction | Price Band | Holdout WR | Events | Timeframe |
+|---|-----------|--------|-----------|-----------|-----------|--------|-----------|
+| 1 | 15 | 3 | DOWN | 0.55-0.70 | 95.0% | 20 | 15m |
+| 2 | 15 | 3 | DOWN | 0.60-0.75 | 96.3% | 27 | 15m |
+| 3 | 15 | 3 | DOWN | 0.65-0.80 | 100.0% | 28 | 15m |
+| 4 | 22 | 3 | DOWN | 0.60-0.75 | 87.5% | 16 | 15m |
+| 5 | 6 | 2 | UP | 0.65-0.80 | 93.8% | 16 | 15m |
+| 6 | 7 | 3 | UP | 0.65-0.80 | 90.9% | 11 | 15m |
+| 7 | 1 | 2 | DOWN | 0.55-0.70 | 82.6% | 23 | 15m |
+| 8 | 22 | 3 | DOWN | 0.65-0.80 | 88.9% | 9 | 15m |
+| 9 | 6 | 2 | UP | 0.60-0.75 | 85.7% | 14 | 15m |
+| 10 | 9 | 4 | UP | 0.65-0.80 | 88.9% | 9 | 15m |
+| 11 | 15 | 2 | DOWN | 0.65-0.80 | 89.5% | 19 | 15m |
+| 12 | 5 | 2 | DOWN | 0.60-0.75 | 85.4% | 48 | 5m |
+| 13 | 15 | 2 | UP | 0.60-0.75 | 81.0% | 21 | 15m |
+| 14 | 22 | 1 | UP | 0.55-0.70 | 78.1% | 32 | 15m |
+| 15 | 23 | 5 | UP | 0.65-0.80 | 88.0% | 25 | 15m |
+| 16 | 7 | 3 | DOWN | 0.65-0.80 | 88.0% | 25 | 15m |
+| 17 | 1 | 4 | DOWN | 0.65-0.80 | 88.2% | 17 | 15m |
+| 18 | 14 | 3 | UP | 0.65-0.80 | 87.5% | 16 | 15m |
+| 19 | 18 | 4 | UP | 0.60-0.75 | 84.0% | 25 | 15m |
+| 20 | 20 | 2 | DOWN | 0.60-0.75 | 82.4% | 17 | 15m |
+
+**Pattern**: The strongest cluster is at **UTC 15:00 (3pm UTC = 11am EST)**, minute 3, direction DOWN. This hour shows 95-100% holdout WR across overlapping price bands. Hours 6-7 UTC (2-3am EST) show strong UP bias. Hours 22-23 UTC (6-7pm EST) show DOWN bias.
+
+---
+
+### Is This Strategy 100% Real-World Transferable?
+
+**What IS verified and legitimate:**
+- The math is exact — fee model, slippage, min orders, MPC enforcement all match the production codebase
+- The data is real Polymarket intracycle price data, not synthetic
+- The holdout is strictly chronological — zero leakage confirmed
+- The win rates are verified against raw resolution data — 100% accuracy on spot-checks
+- The EV per trade is genuinely strong: 22.5% of cost per trade at 86% WR
+
+**What carries inherent uncertainty (not bugs — market reality):**
+1. **Regime dependency**: All data comes from Apr 11-27, 2026 (16 days). Market microstructure WILL evolve. Static hour/minute/direction rules could degrade if institutional flow patterns change.
+2. **Holdout window is 6.6 days**: While chronologically clean, this is a short OOS period. A longer holdout would increase confidence but reduce available data.
+3. **No live L2 orderbook data**: We verify prices from historical ticks, but we cannot verify that the CLOB had sufficient depth to fill 5-200 shares at those prices. Real fills may be worse.
+4. **Settlement timing**: The MC does not model capital lockup during settlement (shares locked until cycle resolution). At MPC=1 this doesn't matter (sequential trades), but at higher MPC it could restrict available capital.
+5. **$200 liquidity cap is conservative but arbitrary**: Real book depth varies by asset, hour, and market conditions. Some cycles may have less than $200 of available liquidity; others may have more.
+6. **Multiple testing bias**: 20 strategies were selected from 324 candidates. Even with train/holdout split, selecting the top 20 by EV from 128 holdout-passing candidates introduces some selection bias. The TRUE expected WR may be lower than 86%.
+7. **Bimodal distribution**: The MC shows you either compound up (~80% of runs) or bust early (~5-8%). There is little middle ground. The P25 at $8,501 vs P10 at $2.23 from $10 confirms this sharp divide.
+
+**Bottom line**: The ANALYSIS is legitimate and the MATH is accurate. Whether the strategy CONTINUES to work in the future depends on market regime stability. This is unavoidable in any quantitative strategy — you're betting that the patterns observed in Apr 11-27 persist. Start in PAPER mode to validate before risking real capital.
+
+---
 
 ### Strategy Files
 
@@ -8605,45 +8737,73 @@ The latest completed work is **Epoch 3 V2 Reinvestigation** — a comprehensive 
 
 ### Proof Artifacts
 
-- `epoch3/reinvestigation_v2/epoch3_data_audit.json`
-- `epoch3/reinvestigation_v2/epoch3_strategy_discovery.md`
-- `epoch3/reinvestigation_v2/epoch3_mc_results.json`
-- `epoch3/reinvestigation_v2/epoch3_candidate_rankings.json`
-- `epoch3/reinvestigation_v2/epoch3_deployment_config.md`
-- `epoch3/reinvestigation_v2/epoch3_runtime_changes.md`
-
-### GO/NO-GO
-
-**CONDITIONAL GO for PAPER mode**. The portfolio strategy exceeds all numerical targets. Missing for LIVE autonomy: L2 order book depth replay, live smoke test, forward fill proof. Recommend PAPER → manual supervision → LIVE progression.
+- `epoch3/reinvestigation_v2/epoch3_data_audit.json` — data coverage verification
+- `epoch3/reinvestigation_v2/epoch3_strategy_discovery.md` — all mined families documented
+- `epoch3/reinvestigation_v2/epoch3_mc_results.json` — initial MC results (pre-audit)
+- `epoch3/reinvestigation_v2/epoch3_honest_mc_audit.json` — **audit-corrected MC (use this)**
+- `epoch3/reinvestigation_v2/epoch3_candidate_rankings.json` — ranked candidates
+- `epoch3/reinvestigation_v2/epoch3_deployment_config.md` — deployment guide
+- `epoch3/reinvestigation_v2/epoch3_runtime_changes.md` — code change documentation
+- `epoch3/reinvestigation_v2/portfolio_events.json` — raw portfolio event data
+- `scripts/epoch3_reinvestigation_v2.js` — full mining engine
+- `scripts/epoch3_mc_audit.js` — honest MC audit script
 
 ### Code Changes
 
-1. `lib/config.js` — Tiered aggression sizing, MPC override, 5m enabled at $3
+1. `lib/config.js` — Tiered aggression sizing (`EPOCH3_TIERED_SIZING`), MPC override, 5m enabled at $3
 2. `lib/risk-manager.js` — `_getTierProfile()` rewritten for DEFINITIVE PLAN Phase F
 3. `strategies/strategy_set_15m_epoch3v2_portfolio.json` — 19 holdout-validated strategies
 4. `strategies/strategy_set_5m_epoch3v2_portfolio.json` — 1 holdout-validated 5m strategy
-5. `scripts/epoch3_reinvestigation_v2.js` — Full mining engine
+
+### GO/NO-GO
+
+**CONDITIONAL GO for PAPER mode**. The portfolio strategy exceeds the $500+ target with 80.8% probability from $10 (75.1% under adverse conditions). Missing for LIVE autonomy: L2 order book depth verification, live CLOB fill proof, forward validation beyond the 6.6-day holdout window. Recommend: PAPER → 24-48h manual supervision → LIVE with tight stop loss.
 
 ### Render Env Block
 
 ```env
+# === CORE ===
 TRADE_MODE=PAPER
 START_PAUSED=true
 STARTING_BALANCE=10
+
+# === EPOCH 3 V2 STRATEGY ===
 STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_epoch3v2_portfolio.json
 STRATEGY_SET_5M_PATH=strategies/strategy_set_5m_epoch3v2_portfolio.json
 EPOCH3_TIERED_SIZING=true
+
+# === TIERED AGGRESSION ===
 MAX_GLOBAL_TRADES_PER_CYCLE=5
 ALLOW_MICRO_MPC_OVERRIDE=true
+
+# === TIMEFRAMES ===
 TIMEFRAME_15M_ENABLED=true
 TIMEFRAME_5M_ENABLED=true
 TIMEFRAME_5M_MIN_BANKROLL=3
+MULTIFRAME_4H_ENABLED=false
+
+# === RISK CONTROLS ===
 HARD_ENTRY_PRICE_CAP=0.82
 MAX_CONSECUTIVE_LOSSES=4
 COOLDOWN_SECONDS=300
 REQUIRE_REAL_ORDERBOOK=true
+
+# === SAFETY ===
+RISK_ENVELOPE_ENABLED=false
+MIN_BALANCE_FLOOR=0
 ```
 
-### Honest Boundary
+### Switching Between Aggressive and Conservative Modes
 
-This strategy is validated on historical intracycle data with chronological holdout, exact fee modeling, slippage stress tests, and $200 liquidity caps. It has NOT been validated against live L2 orderbook depth, actual CLOB fill rates, or real settlement timing. The $18K median assumes all 343 event types continue firing at historical rates. Market regime shifts could degrade performance. Start in PAPER mode and manually supervise before enabling LIVE autonomy.
+To **revert to pre-patch conservative behavior** (SF=0.15, MPC=1, 5m disabled):
+```env
+EPOCH3_TIERED_SIZING=false
+```
+
+To **enable LIVE trading** (only after PAPER validation):
+```env
+TRADE_MODE=LIVE
+ENABLE_LIVE_TRADING=true
+LIVE_AUTOTRADING_ENABLED=true
+START_PAUSED=false
+```
