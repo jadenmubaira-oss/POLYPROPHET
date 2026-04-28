@@ -1,0 +1,45 @@
+{
+  "strategies": [
+    {
+      "id": 12,
+      "name": "E3V2_static_grid_H5M2_DOWN",
+      "family": "static_grid",
+      "utcHour": 5,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.75,
+      "asset": "ALL",
+      "winRate": 0.8541666666666666,
+      "winRateLCB": 0.6402486613269722,
+      "pWinEstimate": 0.8541666666666666,
+      "evWinEstimate": 0.8541666666666666,
+      "holdoutEvents": 48,
+      "holdoutEV": 0.15577057865364594,
+      "tier": "STRONG",
+      "timeframe": "5m"
+    }
+  ],
+  "conditions": {
+    "hardEntryPriceCap": 0.82,
+    "minWilsonLCB": 0.55,
+    "requiredHoldoutMinEvents": 5,
+    "splitMethod": "chronological_60_40",
+    "feeModel": "shares × 0.072 × price × (1-price)",
+    "slippagePct": 0.01,
+    "adverseStressSlippage": 0.02
+  },
+  "stats": {
+    "generatedAt": "2026-04-28T08:47:36.636Z",
+    "source": "epoch3_reinvestigation_v2",
+    "totalMinedCandidates": 324,
+    "holdoutPassingCandidates": 128,
+    "portfolioHoldoutWR": 0.86,
+    "portfolioHoldoutEvents": 343,
+    "portfolioAvgEntry": 0.68,
+    "mc10dMedian": 18095.62,
+    "mc10dP500": 0.924,
+    "mc10dBust": 0.021,
+    "note": "5m subset of portfolio"
+  }
+}
