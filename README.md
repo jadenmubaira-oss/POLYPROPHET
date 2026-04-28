@@ -8807,3 +8807,85 @@ ENABLE_LIVE_TRADING=true
 LIVE_AUTOTRADING_ENABLED=true
 START_PAUSED=false
 ```
+
+---
+
+### Bot Runtime Readiness Audit (28 April 2026)
+
+Full code audit of the runtime to verify the bot is **100% ready to autonomously trade** the Epoch 3 V2 strategy once Render env vars are set.
+
+#### Strategy Loading ✓ PASS
+- `server.js:loadAllStrategySets()` honors `STRATEGY_SET_15M_PATH` and `STRATEGY_SET_5M_PATH` env vars
+- When env vars are set, uses exclusively those files (no silent fallback to old strategies)
+- `lib/strategy-matcher.js:loadStrategySet()` parses JSON `{ strategies: [...] }` format — matches our files
+- Dry-run test: **19 strategies loaded for 15m, 1 for 5m** ✓
+
+#### Strategy Matching ✓ PASS
+- `evaluateMatch()` checks: asset match, utcHour, entryMinute, direction, priceMin/priceMax band
+- All 20 strategies use `asset: "ALL"` — will match BTC, ETH, SOL, XRP on any matching cycle
+- Returns candidates with pWinEstimate, evWinEstimate, tier, name — all populated from our JSON ✓
+
+#### Trade Execution ✓ PASS
+- **PAPER mode**: `_executePaperTrade()` creates simulated positions with paper balance tracking ✓
+- **LIVE mode**: `_executeLiveTrade()` sends real CLOB orders via `lib/clob-client.js` ✓
+- **Spread check**: Rejects if `|yesPrice + noPrice - 1| > 0.08` — prevents stale/illiquid fills ✓
+- **HARD_ENTRY_PRICE_CAP**: Now enforced at both discovery price AND live orderbook price (was missing — fixed) ✓
+- **Live orderbook gate**: When `REQUIRE_REAL_ORDERBOOK=true`, fetches fresh CLOB book and uses live best ask price ✓
+- **Live price band re-check**: After fetching orderbook, re-verifies price falls within strategy's priceMin/priceMax ✓
+- **Duplicate position guard**: Won't open same asset+direction+epoch twice ✓
+- **Min shares**: Enforces minimum 5 shares per order ✓
+- **Insufficient cash guard**: Checks total debit (size + fees) vs available cash ✓
+
+#### Risk Management ✓ PASS
+- **canTrade()**: Checks pause, cooldown (300s after 4 losses), min balance floor, MPC per cycle ✓
+- **MPC enforcement**: Uses `_getTierProfile(runtime bankroll)` — correctly tiers by CURRENT bankroll, not starting balance ✓
+- **Tiered sizing verified**:
+  - $5-14: SF=0.40, MPC=1, BOOTSTRAP ✓
+  - $15-49: SF=0.35, MPC=2, GROWTH ✓
+  - $50-199: SF=0.30, MPC=3, ACCELERATE ✓
+  - $200+: SF=0.25, MPC=5, PRESERVE ✓
+- **calculateSize()**: Applies Kelly sizing cap, tiered absolute stake limits, min order floor ✓
+- **Peak drawdown brake**: Active above $20 bankroll — reduces SF if drawdown exceeds 20% from peak ✓
+
+#### Configuration ✓ PASS
+- `EPOCH3_TIERED_SIZING=true` correctly sets SF=0.40 for starting balance ≤$15 ✓
+- `ALLOW_MICRO_MPC_OVERRIDE=true` allows MPC>1 at micro-bankroll ✓
+- `HARD_ENTRY_PRICE_CAP=0.82` now wired to config.js and enforced in trade-executor.js ✓
+- `COOLDOWN_SECONDS=300` and `MAX_CONSECUTIVE_LOSSES=4` wired correctly ✓
+- `REQUIRE_REAL_ORDERBOOK=true` forces live CLOB book fetch before every trade ✓
+- Reverting to conservative: `EPOCH3_TIERED_SIZING=false` restores SF=0.15 correctly ✓
+
+#### Orchestration ✓ PASS
+- Tick interval: 2 seconds (frequent enough to catch all 15m and 5m cycles) ✓
+- Market discovery across all enabled timeframes and assets ✓
+- Candidates sorted by pWinEstimate descending — best strategy fires first ✓
+- Error halt: 5 consecutive tick errors → pause (POST /api/resume-errors to recover) ✓
+- Trade failure halt: 3+ consecutive CLOB failures → pause ✓
+- Pre-resolution exit: Can sell winners on CLOB before cycle ends ✓
+- Position resolution: Handles both PAPER and LIVE settlement ✓
+
+#### Safety Gates ✓ PASS
+- `HARD_ENTRY_PRICE_CAP`: 82c cap enforced on both discovery and live prices ✓
+- `SPREAD_TOO_WIDE`: Rejects stale pricing ✓
+- `REQUIRES_REAL_ORDERBOOK`: Won't trade without live book data ✓
+- `DUPLICATE_POSITION`: Won't double-enter same cycle ✓
+- `COOLDOWN`: 300s pause after 4 consecutive losses ✓
+- `PEAK_DRAWDOWN_BRAKE`: Auto-reduces sizing on drawdown ✓
+- `TRADE_FAILURE_HALT`: Auto-pauses on CLOB errors ✓
+- `ERROR_HALT`: Auto-pauses on infrastructure errors ✓
+
+#### What's Needed From Operator (Pending Render Env)
+1. **Set all env vars from the Render Env Block above**
+2. **Set Polymarket credentials** (if LIVE): `POLYMARKET_PRIVATE_KEY`, `POLYMARKET_API_KEY`, `POLYMARKET_SECRET`, `POLYMARKET_PASSPHRASE`
+3. **Optional**: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` for trade notifications
+4. **Optional**: `REDIS_URL` for persistent state across deploys
+5. **First deploy**: Set `START_PAUSED=true`, hit `/api/health` to verify, then POST `/api/resume` to start
+6. **Monitor**: Watch `/api/status` for 24-48h in PAPER mode before switching to LIVE
+
+#### Remaining Risks (Not Bot Bugs — Market Reality)
+- No live L2 orderbook depth verification (can't know fill quality until live)
+- Strategy based on Apr 11-27 data — regime shifts could degrade WR
+- 6.6-day holdout window is short for high confidence
+- Distribution is bimodal (~80% compound up, ~6% bust early)
+
+**Verdict: Bot is 100% code-ready for autonomous trading. Pending only: Render env vars + PAPER validation run.**
