@@ -1,0 +1,20 @@
+{
+  "generatedAt": "2026-04-28T08:47:11.276Z",
+  "datasets": {
+    "15m": {
+      "cycles": 6404,
+      "train": 3842,
+      "holdout": 2562
+    },
+    "5m": {
+      "cycles": 16045,
+      "train": 9627,
+      "holdout": 6418
+    },
+    "4h": {
+      "cycles": 336,
+      "train": 201,
+      "holdout": 135
+    }
+  }
+}
