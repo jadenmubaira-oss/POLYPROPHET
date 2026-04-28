@@ -1,0 +1,283 @@
+{
+  "generatedAt": "2026-04-27T19:22:52.059Z",
+  "datasets": [
+    {
+      "label": "15m",
+      "relativePath": "data/intracycle-price-data.json",
+      "exists": true,
+      "fileModifiedAt": "2026-04-27T18:02:37.450Z",
+      "generatedAt": "2026-04-27T18:02:37.197Z",
+      "timeframe": "15m",
+      "cycleSeconds": 900,
+      "totalCycles": 6404,
+      "startEpoch": 1775867400,
+      "endEpoch": 1777311000,
+      "start": "2026-04-11T00:30:00.000Z",
+      "end": "2026-04-27T17:30:00.000Z",
+      "ageSeconds": 6770,
+      "stale": false,
+      "freshnessThresholdSeconds": 86400,
+      "uniqueEpochs": 1601,
+      "expectedEpochSlots": 1605,
+      "missingEpochSlots": 4,
+      "assets": {
+        "BTC": {
+          "total": 1601,
+          "up": 829,
+          "down": 772,
+          "other": 0,
+          "minEpoch": 1775867400,
+          "maxEpoch": 1777311000,
+          "start": "2026-04-11T00:30:00.000Z",
+          "end": "2026-04-27T17:30:00.000Z",
+          "upRate": 0.5178013741411618,
+          "downRate": 0.4821986258588382
+        },
+        "ETH": {
+          "total": 1601,
+          "up": 813,
+          "down": 788,
+          "other": 0,
+          "minEpoch": 1775867400,
+          "maxEpoch": 1777311000,
+          "start": "2026-04-11T00:30:00.000Z",
+          "end": "2026-04-27T17:30:00.000Z",
+          "upRate": 0.5078076202373517,
+          "downRate": 0.49219237976264835
+        },
+        "SOL": {
+          "total": 1601,
+          "up": 823,
+          "down": 778,
+          "other": 0,
+          "minEpoch": 1775867400,
+          "maxEpoch": 1777311000,
+          "start": "2026-04-11T00:30:00.000Z",
+          "end": "2026-04-27T17:30:00.000Z",
+          "upRate": 0.514053716427233,
+          "downRate": 0.48594628357276703
+        },
+        "XRP": {
+          "total": 1601,
+          "up": 802,
+          "down": 799,
+          "other": 0,
+          "minEpoch": 1775867400,
+          "maxEpoch": 1777311000,
+          "start": "2026-04-11T00:30:00.000Z",
+          "end": "2026-04-27T17:30:00.000Z",
+          "upRate": 0.5009369144284822,
+          "downRate": 0.4990630855715178
+        }
+      },
+      "resolutions": {
+        "UP": 3267,
+        "DOWN": 3137,
+        "OTHER": 0
+      },
+      "upRate": 0.5101499063085572,
+      "downRate": 0.48985009369144283,
+      "priceSanity": {
+        "totalPrices": 189565,
+        "exactHalfPrices": 623,
+        "exactHalfFraction": 0.0032864716587977737,
+        "min": 0.0005,
+        "p10": 0.06,
+        "median": 0.5,
+        "p90": 0.94,
+        "max": 0.9995
+      },
+      "minuteCoverage": {
+        "median": 15,
+        "p10": 14,
+        "p90": 15
+      }
+    },
+    {
+      "label": "5m",
+      "relativePath": "data/intracycle-price-data-5m.json",
+      "exists": true,
+      "fileModifiedAt": "2026-04-27T19:22:06.771Z",
+      "generatedAt": "2026-04-27T19:22:06.356Z",
+      "timeframe": "5m",
+      "cycleSeconds": 300,
+      "totalCycles": 16045,
+      "startEpoch": 1776103200,
+      "endEpoch": 1777312500,
+      "start": "2026-04-13T18:00:00.000Z",
+      "end": "2026-04-27T17:55:00.000Z",
+      "ageSeconds": 5270,
+      "stale": false,
+      "freshnessThresholdSeconds": 86400,
+      "uniqueEpochs": 4012,
+      "expectedEpochSlots": 4032,
+      "missingEpochSlots": 20,
+      "assets": {
+        "BTC": {
+          "total": 4011,
+          "up": 2045,
+          "down": 1966,
+          "other": 0,
+          "minEpoch": 1776103200,
+          "maxEpoch": 1777312200,
+          "start": "2026-04-13T18:00:00.000Z",
+          "end": "2026-04-27T17:50:00.000Z",
+          "upRate": 0.5098479182248816,
+          "downRate": 0.49015208177511843
+        },
+        "ETH": {
+          "total": 4011,
+          "up": 2033,
+          "down": 1978,
+          "other": 0,
+          "minEpoch": 1776103200,
+          "maxEpoch": 1777312500,
+          "start": "2026-04-13T18:00:00.000Z",
+          "end": "2026-04-27T17:55:00.000Z",
+          "upRate": 0.5068561455996011,
+          "downRate": 0.49314385440039893
+        },
+        "SOL": {
+          "total": 4012,
+          "up": 2024,
+          "down": 1988,
+          "other": 0,
+          "minEpoch": 1776103200,
+          "maxEpoch": 1777312500,
+          "start": "2026-04-13T18:00:00.000Z",
+          "end": "2026-04-27T17:55:00.000Z",
+          "upRate": 0.5044865403788634,
+          "downRate": 0.4955134596211366
+        },
+        "XRP": {
+          "total": 4011,
+          "up": 2018,
+          "down": 1993,
+          "other": 0,
+          "minEpoch": 1776103200,
+          "maxEpoch": 1777312500,
+          "start": "2026-04-13T18:00:00.000Z",
+          "end": "2026-04-27T17:55:00.000Z",
+          "upRate": 0.5031164298180005,
+          "downRate": 0.4968835701819995
+        }
+      },
+      "resolutions": {
+        "UP": 8120,
+        "DOWN": 7925,
+        "OTHER": 0
+      },
+      "upRate": 0.5060766593954503,
+      "downRate": 0.4939233406045497,
+      "priceSanity": {
+        "totalPrices": 157395,
+        "exactHalfPrices": 993,
+        "exactHalfFraction": 0.006308967883350805,
+        "min": 0.0005,
+        "p10": 0.115,
+        "median": 0.5,
+        "p90": 0.885,
+        "max": 0.9995
+      },
+      "minuteCoverage": {
+        "median": 5,
+        "p10": 5,
+        "p90": 5
+      }
+    },
+    {
+      "label": "4h",
+      "relativePath": "data/intracycle-price-data-4h.json",
+      "exists": true,
+      "fileModifiedAt": "2026-04-27T18:04:58.611Z",
+      "generatedAt": "2026-04-27T18:04:58.483Z",
+      "timeframe": "4h",
+      "cycleSeconds": 14400,
+      "totalCycles": 336,
+      "startEpoch": 1776081600,
+      "endEpoch": 1777276800,
+      "start": "2026-04-13T12:00:00.000Z",
+      "end": "2026-04-27T08:00:00.000Z",
+      "ageSeconds": 40971,
+      "stale": false,
+      "freshnessThresholdSeconds": 172800,
+      "uniqueEpochs": 84,
+      "expectedEpochSlots": 84,
+      "missingEpochSlots": 0,
+      "assets": {
+        "BTC": {
+          "total": 84,
+          "up": 43,
+          "down": 41,
+          "other": 0,
+          "minEpoch": 1776081600,
+          "maxEpoch": 1777276800,
+          "start": "2026-04-13T12:00:00.000Z",
+          "end": "2026-04-27T08:00:00.000Z",
+          "upRate": 0.5119047619047619,
+          "downRate": 0.4880952380952381
+        },
+        "ETH": {
+          "total": 84,
+          "up": 44,
+          "down": 40,
+          "other": 0,
+          "minEpoch": 1776081600,
+          "maxEpoch": 1777276800,
+          "start": "2026-04-13T12:00:00.000Z",
+          "end": "2026-04-27T08:00:00.000Z",
+          "upRate": 0.5238095238095238,
+          "downRate": 0.47619047619047616
+        },
+        "SOL": {
+          "total": 84,
+          "up": 41,
+          "down": 43,
+          "other": 0,
+          "minEpoch": 1776081600,
+          "maxEpoch": 1777276800,
+          "start": "2026-04-13T12:00:00.000Z",
+          "end": "2026-04-27T08:00:00.000Z",
+          "upRate": 0.4880952380952381,
+          "downRate": 0.5119047619047619
+        },
+        "XRP": {
+          "total": 84,
+          "up": 47,
+          "down": 37,
+          "other": 0,
+          "minEpoch": 1776081600,
+          "maxEpoch": 1777276800,
+          "start": "2026-04-13T12:00:00.000Z",
+          "end": "2026-04-27T08:00:00.000Z",
+          "upRate": 0.5595238095238095,
+          "downRate": 0.44047619047619047
+        }
+      },
+      "resolutions": {
+        "UP": 175,
+        "DOWN": 161,
+        "OTHER": 0
+      },
+      "upRate": 0.5208333333333334,
+      "downRate": 0.4791666666666667,
+      "priceSanity": {
+        "totalPrices": 160834,
+        "exactHalfPrices": 1326,
+        "exactHalfFraction": 0.008244525411293632,
+        "min": 0.0005,
+        "p10": 0.075,
+        "median": 0.5,
+        "p90": 0.925,
+        "max": 0.9995
+      },
+      "minuteCoverage": {
+        "median": 240,
+        "p10": 239,
+        "p90": 240
+      }
+    }
+  ],
+  "allFresh": true,
+  "primaryBlockers": []
+}

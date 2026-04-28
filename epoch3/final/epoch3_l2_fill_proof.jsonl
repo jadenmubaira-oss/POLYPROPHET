@@ -1,0 +1,1 @@
+{"generatedAt":"2026-04-27T19:24:00.000Z","type":"NO_HISTORICAL_L2_FILL_PROOF","status":"not_captured","reason":"Epoch 3 mining result was NO-GO before any candidate justified forward L2 capture; do not treat this file as fill evidence.","forwardCaptureScript":"scripts/collect_live_l2_snapshots.js"}
