@@ -8,7 +8,41 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 27 April 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$3.73 USDC
+**Last Updated**: 28 April 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$3.73 USDC
+
+---
+
+## 🔬 EPOCH 3 UNRESTRICTED ALPHA MINING RESULTS — 28 April 2026
+
+> **STATUS**: Full mining pass completed. 31 approach families tested with 5,000 MC runs each. Runtime code patched for aggressive compounding. Strategy set generated. PR created.
+>
+> **PROOF ARTIFACTS**:
+> - `epoch3/unrestricted/epoch3_strategy_discovery_report.md` — Full results
+> - `epoch3/unrestricted/epoch3_mc_results.json` — Raw MC simulation data
+> - `epoch3/unrestricted/epoch3_candidate_rankings.json` — Ranked approaches
+> - `strategies/strategy_set_epoch3_unrestricted.json` — Deployable strategy set (216 rules)
+> - `scripts/epoch3_unrestricted_alpha_harness.js` — Mining harness (1400+ lines)
+>
+> **DATA**: 15m=6,404 cycles, 5m=16,045 cycles, 4h=336 cycles (Apr 11-26, 2026)
+>
+> **TOP RESULTS** (strict_repriced friction, $10 start, 7-day horizon):
+>
+> | Approach | Median | Bust | P(≥$20) | P(≥$100) | Holdout WR | Avg Entry |
+> |----------|--------|------|---------|----------|------------|-----------|
+> | theta_sniping_extended | $33.38 | 0.0% | 85.7% | 0.0% | 100.0% | 0.686 |
+> | early_breakout_aggressive | $14.62 | 12.8% | 6.0% | 0.0% | 59.8% | 0.635 |
+> | multi_min_momentum_wide | $9.85 | 16.8% | — | 0.0% | 63.6% | 0.621 |
+> | ultra_low_entry_growth | $9.10 | 25.2% | — | 0.0% | 55.3% | 0.506 |
+> | ensemble_combined (19 streams) | $5.53 | 8.9% | — | 0.0% | 61.2% | 0.567 |
+>
+> **CRITICAL FINDING**: After exhaustive mining across 31 families, **P(≥$100) = 0.0% and P(≥$500) = 0.0%** for ALL approaches from any starting balance.
+> The best achievable is 3.3x ($10→$33) via theta sniping with 100% holdout WR.
+> The $500+ target requires edges that do not exist in current Polymarket crypto up/down data.
+>
+> **RUNTIME CHANGES**:
+> - `lib/config.js`: Env-controlled micro-bankroll overrides (MPC, 5m/4h enablement), net edge gate, tighter high-price floor
+> - `lib/risk-manager.js`: Tiered stake sizing for micro-bankroll escape (55% at <$6, scaling down)
+> - `lib/strategy-matcher.js`: Dynamic direction evaluation (streak_fade, alternating, cross-asset)
 
 ---
 
