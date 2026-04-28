@@ -1,0 +1,46 @@
+# EPOCH 3 Deployment Configuration
+
+Generated: 2026-04-28T06:40:45.441Z
+
+## Strategy: Aggressive Early Breakout
+
+## Render Environment Variables
+
+```env
+TRADE_MODE=PAPER
+START_PAUSED=true
+STARTING_BALANCE=10
+OPERATOR_STAKE_FRACTION=0.40
+MAX_GLOBAL_TRADES_PER_CYCLE=5
+ALLOW_MICRO_MPC_OVERRIDE=true
+MICRO_BANKROLL_MPC_CAP=5
+STRATEGY_SET_15M_PATH=strategies/strategy_set_epoch3_unrestricted.json
+TIMEFRAME_15M_ENABLED=true
+TIMEFRAME_15M_MIN_BANKROLL=3
+TIMEFRAME_5M_ENABLED=true
+TIMEFRAME_5M_MIN_BANKROLL=3
+ALLOW_MICRO_TIMEFRAME_OVERRIDE=true
+MICRO_BANKROLL_ALLOW_5M=true
+MULTIFRAME_4H_ENABLED=true
+MICRO_BANKROLL_ALLOW_4H=true
+TIMEFRAME_4H_MIN_BANKROLL=3
+HARD_ENTRY_PRICE_CAP=0.78
+HIGH_PRICE_EDGE_FLOOR_PRICE=0.78
+ENFORCE_NET_EDGE_GATE=true
+MIN_NET_EDGE_ROI=0.005
+MAX_CONSECUTIVE_LOSSES=4
+COOLDOWN_SECONDS=600
+KELLY_MAX_FRACTION=0.55
+PRE_RESOLUTION_EXIT_ENABLED=true
+PRE_RESOLUTION_MIN_BID=0.94
+```
+
+## Deployment Steps
+
+1. Start in PAPER mode, paused
+2. Set all env vars in Render dashboard
+3. Push to main/master to trigger deploy
+4. Verify /api/health shows correct strategy loaded
+5. Unpause via Telegram or API
+6. Monitor first 5-10 trades manually
+7. Switch to LIVE only after PAPER validation

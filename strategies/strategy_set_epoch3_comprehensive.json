@@ -1,0 +1,199 @@
+{
+  "epoch": 3,
+  "variant": "comprehensive_alpha_v3_adaptive",
+  "generatedAt": "2026-04-28T08:30:00.000Z",
+  "dataRange": "2026-04-11 to 2026-04-26 (15-day window)",
+  "dataCycles": { "15m": 6404, "5m": 16045, "4h": 336 },
+  "validation": {
+    "method": "walk-forward 65/35 chronological split",
+    "trainPeriod": "Apr 11-20",
+    "holdoutPeriod": "Apr 20-26 (~5.8 days)",
+    "friction": {
+      "noFillRate": 0.107,
+      "adverseShift": 0.01,
+      "minShares": 5,
+      "minOrderSize": 1.75
+    },
+    "mcRuns": 10000
+  },
+  "bestConfiguration": {
+    "signalSet": "momentum_top5_15m",
+    "stakingStrategy": "target_50_500",
+    "stakingDetail": {
+      "type": "target_ladder",
+      "aggressive": 0.60,
+      "aggressiveUntil": 50,
+      "moderate": 0.30,
+      "moderateUntil": 500,
+      "conservative": 0.10
+    },
+    "from10_7d": {
+      "pGte500": 0.2059,
+      "pGte1000": 0.2052,
+      "pGte100": 0.206,
+      "pGte50": 0.206,
+      "median": 3.60,
+      "bust": 0.056,
+      "p90": 33317.21,
+      "p95": 99494.71,
+      "p99": 377095.23,
+      "max": 11021973.73,
+      "medianTrades": 6
+    },
+    "from5_7d": {
+      "pGte500": 0.0789,
+      "pGte1000": 0.0788,
+      "pGte100": 0.079,
+      "median": 3.14,
+      "bust": 0.030,
+      "max": 10689139.50
+    }
+  },
+  "alternativeConfigs": [
+    {
+      "name": "fixed_30_zero_bust",
+      "description": "Conservative: 30% flat stake, 0% bust rate",
+      "from10_7d": { "pGte500": 0.1341, "bust": 0, "median": 8.96 }
+    },
+    {
+      "name": "target_50_250_aggressive",
+      "description": "70% until $50, 40% until $250, 20% after",
+      "from10_7d": { "pGte500": 0.1657, "bust": 0.21, "median": 3.04 }
+    },
+    {
+      "name": "allin_first_3",
+      "description": "95% for first 3 trades, then 30%",
+      "from10_7d": { "pGte500": 0.1626, "bust": 0.649, "median": 1.18 }
+    }
+  ],
+  "strategies": [
+    {
+      "id": "mom_follow_1",
+      "type": "momentum_follow",
+      "description": "Strong UP momentum (>25%) at m0-m3, buy YES at m5 in [0.25-0.50]",
+      "direction": "UP",
+      "holdoutWR": 0.569,
+      "holdoutEV": 0.162,
+      "holdoutN": 72,
+      "holdoutAvgEntry": 0.407,
+      "momThresh": 0.25,
+      "momObserveStart": 0,
+      "momObserveEnd": 3,
+      "entryMinute": 5,
+      "entryBandLo": 0.25,
+      "entryBandHi": 0.50,
+      "timeframe": "15m"
+    },
+    {
+      "id": "mom_follow_2",
+      "type": "momentum_follow",
+      "description": "Strong UP momentum (>25%) at m0-m3, buy YES at m5 in [0.20-0.40] (convex)",
+      "direction": "UP",
+      "holdoutWR": 0.483,
+      "holdoutEV": 0.154,
+      "holdoutN": 29,
+      "holdoutAvgEntry": 0.328,
+      "momThresh": 0.25,
+      "momObserveStart": 0,
+      "momObserveEnd": 3,
+      "entryMinute": 5,
+      "entryBandLo": 0.20,
+      "entryBandHi": 0.40,
+      "timeframe": "15m"
+    },
+    {
+      "id": "mom_follow_3",
+      "type": "momentum_follow",
+      "description": "Strong UP momentum (>25%) at m0-m3, buy YES at m10 in [0.50-0.70]",
+      "direction": "UP",
+      "holdoutWR": 0.743,
+      "holdoutEV": 0.136,
+      "holdoutN": 70,
+      "holdoutAvgEntry": 0.607,
+      "momThresh": 0.25,
+      "momObserveStart": 0,
+      "momObserveEnd": 3,
+      "entryMinute": 10,
+      "entryBandLo": 0.50,
+      "entryBandHi": 0.70,
+      "timeframe": "15m"
+    },
+    {
+      "id": "mom_follow_4",
+      "type": "momentum_follow",
+      "description": "Moderate UP momentum (>20%) at m0-m3, buy YES at m10 in [0.50-0.70]",
+      "direction": "UP",
+      "holdoutWR": 0.736,
+      "holdoutEV": 0.135,
+      "holdoutN": 91,
+      "holdoutAvgEntry": 0.601,
+      "momThresh": 0.20,
+      "momObserveStart": 0,
+      "momObserveEnd": 3,
+      "entryMinute": 10,
+      "entryBandLo": 0.50,
+      "entryBandHi": 0.70,
+      "timeframe": "15m"
+    },
+    {
+      "id": "mom_follow_5",
+      "type": "momentum_follow",
+      "description": "Moderate UP momentum (>15%) at m0-m3, buy YES at m5 in [0.25-0.50]",
+      "direction": "UP",
+      "holdoutWR": 0.527,
+      "holdoutEV": 0.119,
+      "holdoutN": 129,
+      "holdoutAvgEntry": 0.408,
+      "momThresh": 0.15,
+      "momObserveStart": 0,
+      "momObserveEnd": 3,
+      "entryMinute": 5,
+      "entryBandLo": 0.25,
+      "entryBandHi": 0.50,
+      "timeframe": "15m"
+    }
+  ],
+  "deployment": {
+    "stakingStrategy": {
+      "type": "target_ladder",
+      "tiers": [
+        { "maxBankroll": 50, "stakeFraction": 0.60, "label": "Aggressive phase" },
+        { "maxBankroll": 500, "stakeFraction": 0.30, "label": "Growth phase" },
+        { "maxBankroll": null, "stakeFraction": 0.10, "label": "Preservation phase" }
+      ]
+    },
+    "signalDetection": {
+      "observeWindow": { "startMinute": 0, "endMinute": 3 },
+      "entryWindows": [5, 10],
+      "minMomentumThreshold": 0.15,
+      "entryBands": [[0.20, 0.50], [0.50, 0.70]]
+    },
+    "riskLimits": {
+      "maxGlobalTradesPerCycle": 2,
+      "maxConsecutiveLosses": 6,
+      "minBankrollToTrade": 1.75,
+      "minSharesPerOrder": 5
+    },
+    "envOverrides": {
+      "STAKING_STRATEGY": "target_ladder",
+      "STAKING_TIER1_MAX": "50",
+      "STAKING_TIER1_FRACTION": "0.60",
+      "STAKING_TIER2_MAX": "500",
+      "STAKING_TIER2_FRACTION": "0.30",
+      "STAKING_TIER3_FRACTION": "0.10",
+      "MIN_MOMENTUM_THRESHOLD": "0.15",
+      "MOMENTUM_OBSERVE_END": "3",
+      "ENTRY_MIN_MINUTE": "5",
+      "MAX_GLOBAL_TRADES_PER_CYCLE": "2",
+      "ALLOW_MICRO_MPC_OVERRIDE": "true"
+    },
+    "warnings": [
+      "Strategy optimizes P(≥$500) from $10 starting capital (20.6% probability)",
+      "Median outcome is ~$3.60 — most paths lose money; the strategy bets on explosive right-tail compounding",
+      "5.6% bust rate (bankroll falls below tradeable minimum)",
+      "Paper validate on fresh data before live deployment",
+      "Refresh data and re-mine signals every 14 days",
+      "Momentum signals derived from Apr 11-26, 2026 Polymarket crypto 15m cycles"
+    ]
+  }
+}
