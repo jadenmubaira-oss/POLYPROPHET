@@ -16,6 +16,50 @@ const telegram = require('./lib/telegram');
 const strategyValidator = require('./lib/strategy-validator');
 const telegramCommands = require('./lib/telegram-commands');
 
+// EPOCH 2: V2 SDK dual-path loader (shared across server.js endpoints)
+function loadClobClientSdk() {
+    try {
+        const { ClobClient: V2ClobClient } = require('@polymarket/clob-client-v2');
+        if (V2ClobClient) {
+            const Original = V2ClobClient;
+            const Wrapper = function(...args) {
+                if (args.length >= 2 && typeof args[0] === 'string' && typeof args[1] === 'number') {
+                    const [host, chain, signer, creds, signatureType, funder] = args;
+                    return new Original({ host, chain, signer, creds, signatureType, funder });
+                }
+                return new Original(...args);
+            };
+            Object.setPrototypeOf(Wrapper, Original);
+            Wrapper.prototype = Original.prototype;
+            return { ClobClient: Wrapper, version: 'v2', source: '@polymarket/clob-client-v2' };
+        }
+    } catch (e) {
+        // fall through to V1
+    }
+    try {
+        const V1 = require('@polymarket/clob-client').ClobClient;
+        return { ClobClient: V1, version: 'v1', source: '@polymarket/clob-client' };
+    } catch (e) {
+        return { ClobClient: null, version: null, source: null };
+    }
+}
+
+// V2-compatible header loader (createL1Headers moved to main export in V2)
+function loadClobHeaders() {
+    try {
+        const v2 = require('@polymarket/clob-client-v2');
+        if (v2.createL1Headers) return { createL1Headers: v2.createL1Headers, version: 'v2' };
+    } catch (e) {
+        // fall through
+    }
+    try {
+        const v1 = require('@polymarket/clob-client/dist/headers');
+        if (v1.createL1Headers) return { createL1Headers: v1.createL1Headers, version: 'v1' };
+    } catch (e) {
+        return { createL1Headers: null, version: null };
+    }
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -63,6 +107,7 @@ function buildStrategyPathDebug() {
         : null;
 
     const fallbackCandidates15m = [
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_epoch3v2_portfolio.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_optimal_10usd_v3.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_elite_recency.json'),
         path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json'),
@@ -87,7 +132,14 @@ function buildStrategyPathDebug() {
             STRATEGY_SET_15M_PATH: envStrat15,
             START_PAUSED: process.env.START_PAUSED,
             TIMEFRAME_15M_ENABLED: process.env.TIMEFRAME_15M_ENABLED,
-            TIMEFRAME_15M_MIN_BANKROLL: process.env.TIMEFRAME_15M_MIN_BANKROLL
+            TIMEFRAME_15M_MIN_BANKROLL: process.env.TIMEFRAME_15M_MIN_BANKROLL,
+            ALLOW_MICRO_MPC_OVERRIDE: process.env.ALLOW_MICRO_MPC_OVERRIDE,
+            EPOCH3_ALLOW_MICRO_MPC_OVERRIDE: process.env.EPOCH3_ALLOW_MICRO_MPC_OVERRIDE,
+            ALLOW_MICRO_TIMEFRAME_OVERRIDE: process.env.ALLOW_MICRO_TIMEFRAME_OVERRIDE,
+            EPOCH3_ALLOW_MICRO_TIMEFRAME_OVERRIDE: process.env.EPOCH3_ALLOW_MICRO_TIMEFRAME_OVERRIDE,
+            MICRO_BANKROLL_ALLOW_5M: process.env.MICRO_BANKROLL_ALLOW_5M,
+            MICRO_BANKROLL_ALLOW_4H: process.env.MICRO_BANKROLL_ALLOW_4H,
+            MICRO_BANKROLL_MPC_CAP: process.env.MICRO_BANKROLL_MPC_CAP
         },
         candidates: {
             '15m': candidates15m.map(fp => ({
@@ -282,23 +334,21 @@ async function loadRuntimeState() {
 function loadAllStrategySets() {
     const strategiesDir = path.join(__dirname, 'strategies');
 
-    // PRIMARY 15m strategy: optimal_10usd_v3 — 23 elite strategies, 23-hour coverage,
-    //   dual-validated on 30d history (WR≥70%) + 14d intracycle OOS (WR≥75%), split-half consistent.
-    //   Walk-forward on IC test half: 85.7% WR, 39.2 trades/day.
-    //   MC projections ($10 start): 24h median $44, 72h median $445, 7d median $40k.
-    //   Conservative (-10% WR haircut): 24h median $19, 72h median $29, 7d median $62.
+    // PRIMARY 15m strategy: Epoch3 V2 portfolio unless STRATEGY_SET_15M_PATH explicitly overrides it.
+    //   Rationale: current README handoff marks Epoch3 V2 as the closest high-upside paper/smoke strategy.
+    //   Render should still set STRATEGY_SET_15M_PATH explicitly so /api/debug/strategy-paths proves intent.
     // FIXED: Always honor explicit STRATEGY_SET_15M_PATH env var, even under micro-bankroll profile.
     // Previous code silently ignored the env var when STARTING_BALANCE <= $10, forcing combined_sub50c_tight fallback.
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
-    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_optimal_10usd_v3.json');
-    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_elite_recency.json');
-    const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json');
-    const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json');
-    const quinary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json');
-    const senary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json');
+    const primary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_epoch3v2_portfolio.json');
+    const secondary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_optimal_10usd_v3.json');
+    const tertiary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_elite_recency.json');
+    const quaternary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_dense.json');
+    const quinary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_24h_filtered.json');
+    const senary15mPath = path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v5.json');
 
     for (const tf of getConfiguredTimeframes()) {
         let loaded = false;
@@ -311,6 +361,7 @@ function loadAllStrategySets() {
                 quaternary15mPath,
                 quinary15mPath,
                 senary15mPath,
+                path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_maxgrowth_v4.json'),
                 path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_micro_recovery.json'),
                 path.join(REPO_ROOT, 'strategies', 'strategy_set_15m_apr21_edge32.json'),
                 path.join(REPO_ROOT, 'debug', 'strategy_set_15m_nc_beam_best_12.json'),
@@ -1148,6 +1199,10 @@ app.get('/api/health', (req, res) => {
             benignRecoveryQueue: Number(recoveryQueueSummary.benign || 0) > 0
         },
         riskControls: {
+            microBankrollDeployProfile: !!CONFIG.MICRO_BANKROLL_DEPLOY_PROFILE,
+            microBankrollAllowMpcOverride: !!CONFIG.MICRO_BANKROLL_ALLOW_MPC_OVERRIDE,
+            microBankrollAllow5m: !!CONFIG.MICRO_BANKROLL_ALLOW_5M,
+            microBankrollAllow4h: !!CONFIG.MICRO_BANKROLL_ALLOW_4H,
             requireRealOrderBook: !!CONFIG.RISK.requireRealOrderBook,
             enforceNetEdgeGate: !!CONFIG.RISK.enforceNetEdgeGate,
             enforceHighPriceEdgeFloor: !!CONFIG.RISK.enforceHighPriceEdgeFloor,
@@ -1156,6 +1211,8 @@ app.get('/api/health', (req, res) => {
             minBalanceFloor: Number(CONFIG.RISK.minBalanceFloor || 0),
             minOrderShares: Number(CONFIG.RISK.minOrderShares || 0),
             entryPriceBufferCents: Number(CONFIG.RISK.entryPriceBufferCents || 0),
+            maxGlobalTradesPerCycle: Number(CONFIG.RISK.maxGlobalTradesPerCycle || 0),
+            microBankrollMpcCap: Number(CONFIG.RISK.microBankrollMpcCap || 0),
             maxTotalExposure: Number(CONFIG.RISK.maxTotalExposure || 0),
             maxTotalExposureMinBankroll: Number(CONFIG.RISK.maxTotalExposureMinBankroll || 0),
             riskEnvelopeEnabled: !!CONFIG.RISK.riskEnvelopeEnabled,
@@ -1495,7 +1552,7 @@ app.get('/api/clob-status', async (req, res) => {
 
 app.get('/api/derive-debug', async (req, res) => {
     try {
-        const ClobClientClass = require('@polymarket/clob-client').ClobClient;
+        const { ClobClient: ClobClientClass, version: sdkVersion } = loadClobClientSdk();
         if (!ClobClientClass || !tradeExecutor.clob?.wallet) {
             return res.json({ error: 'No ClobClient or wallet' });
         }
@@ -1584,7 +1641,7 @@ app.get('/api/derive-debug', async (req, res) => {
         try {
             const axios = require('axios');
             const ethers = require('ethers');
-            const { createL1Headers } = require('@polymarket/clob-client/dist/headers');
+            const { createL1Headers } = loadClobHeaders();
             const signer = wallet;
             const headers = await createL1Headers(signer, 137);
             const rawResp = await Promise.race([
@@ -1596,6 +1653,7 @@ app.get('/api/derive-debug', async (req, res) => {
             results.rawCreateApiKey = { error: e.message, response: e.response ? { status: e.response.status, data: e.response.data } : null };
         }
 
+        results.sdkVersion = sdkVersion || 'unknown';
         results.walletAddress = wallet.address;
         results.proxyConfigured = !!CONFIG.PROXY_URL;
         results.clobForceProxy = !!CONFIG.CLOB_FORCE_PROXY;

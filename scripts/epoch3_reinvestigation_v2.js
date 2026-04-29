@@ -739,7 +739,7 @@ function evaluateOnHoldout(candidate, holdoutCycles) {
 
     if (!price || !dir) continue;
     const won = cycleWon(c, dir);
-    events.push({ epoch: c.epoch, asset: c.asset, dir, price, won });
+    events.push({ epoch: c.epoch, asset: c.asset, timeframe: candidate.timeframe || '15m', dir, price, won });
     if (won) { wins++; totalEntry += price; }
     else { losses++; totalEntry += price; }
   }

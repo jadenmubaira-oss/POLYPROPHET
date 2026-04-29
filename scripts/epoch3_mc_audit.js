@@ -26,6 +26,36 @@ const portfolioData = JSON.parse(fs.readFileSync(
   path.join(__dirname, '../epoch3/reinvestigation_v2/portfolio_events.json'), 'utf8'));
 const events = portfolioData.events;
 
+function loadCycles(relativePath) {
+  const raw = JSON.parse(fs.readFileSync(path.join(__dirname, '..', relativePath), 'utf8'));
+  return raw.cycles || [];
+}
+
+function splitEpoch(cycles, trainFraction = 0.6) {
+  const sorted = cycles.slice().sort((a, b) => a.epoch - b.epoch);
+  const splitIdx = Math.floor(sorted.length * trainFraction);
+  return sorted[splitIdx]?.epoch || 0;
+}
+
+function buildCycleIndex(cycles) {
+  const index = {};
+  cycles.forEach(c => {
+    index[`${c.epoch}_${c.asset}`] = c;
+  });
+  return index;
+}
+
+const rawDatasets = {
+  '15m': loadCycles('data/intracycle-price-data.json'),
+  '5m': loadCycles('data/intracycle-price-data-5m.json'),
+};
+const splitEpochs = Object.fromEntries(Object.entries(rawDatasets).map(([tf, cycles]) => [tf, splitEpoch(cycles)]));
+const cycleIndexes = Object.fromEntries(Object.entries(rawDatasets).map(([tf, cycles]) => [tf, buildCycleIndex(cycles)]));
+function hasNoLeakage(ev) {
+  const tf = ev.timeframe || '15m';
+  return ev.epoch >= (splitEpochs[tf] || 0);
+}
+
 console.log('╔══════════════════════════════════════════════════╗');
 console.log('║  EPOCH 3 V2 — HONEST MC AUDIT & VERIFICATION   ║');
 console.log('╚══════════════════════════════════════════════════╝\n');
@@ -61,28 +91,22 @@ console.log(`Holdout range: ${minDate} to ${maxDate}`);
 console.log(`Range: ${rangeDays.toFixed(1)} days`);
 console.log(`Cycles/day: ${(uniqueEpochs / rangeDays).toFixed(1)}`);
 
-// Load original data to verify holdout split
-const rawData = JSON.parse(fs.readFileSync(
-  path.join(__dirname, '../data/intracycle-price-data.json'), 'utf8'));
-const allCycles = rawData.cycles;
-const allEpochs = allCycles.map(c => c.epoch).sort((a,b) => a-b);
-const trainCutoff = allEpochs[Math.floor(allEpochs.length * 0.6)];
-console.log(`Train cutoff epoch: ${trainCutoff} (${new Date(trainCutoff*1000).toISOString()})`);
-console.log(`All holdout events after cutoff: ${events.every(e => e.epoch >= trainCutoff) ? 'YES ✓' : 'NO ✗ LEAKAGE DETECTED'}`);
+for (const [tf, cutoff] of Object.entries(splitEpochs)) {
+  const tfEvents = events.filter(e => (e.timeframe || '15m') === tf);
+  if (tfEvents.length === 0) continue;
+  const clean = tfEvents.every(e => e.epoch >= cutoff);
+  console.log(`${tf} train cutoff epoch: ${cutoff} (${new Date(cutoff * 1000).toISOString()})`);
+  console.log(`${tf} holdout events after cutoff: ${clean ? 'YES ✓' : 'NO ✗ LEAKAGE DETECTED'} (${tfEvents.length} events)`);
+}
 
 // ─── AUDIT 3: Win rate verification ───
 console.log('\n═══ AUDIT 3: WIN RATE SPOT-CHECK ═══');
 // Spot-check: verify some events against raw data
 let verified = 0, failed = 0;
 const sample = events.slice(0, 50);
-const cycleIndex = {};
-allCycles.forEach(c => {
-  cycleIndex[c.epoch + '_' + c.asset] = c;
-});
-
 sample.forEach(ev => {
   const key = ev.epoch + '_' + ev.asset;
-  const raw = cycleIndex[key];
+  const raw = cycleIndexes[ev.timeframe || '15m']?.[key];
   if (!raw) { failed++; return; }
   const expectedWon = raw.resolution === ev.dir;
   if (expectedWon === ev.won) verified++;
@@ -101,7 +125,7 @@ console.log('\n═══ AUDIT 4: PRICE VERIFICATION ═══');
 let priceVerified = 0, priceFailed = 0;
 sample.forEach(ev => {
   const key = ev.epoch + '_' + ev.asset;
-  const raw = cycleIndex[key];
+  const raw = cycleIndexes[ev.timeframe || '15m']?.[key];
   if (!raw) return;
   // Check that the price in the event matches the raw data at the stated minute
   // Events come from strategies with entry minute 1-5
@@ -128,7 +152,7 @@ console.log(`Price mismatch: ${priceFailed}`);
 // ─── HONEST MC SIMULATION (MPC-enforced) ───
 console.log('\n═══ HONEST MC SIMULATION (MPC-enforced per cycle) ═══');
 
-function honestMonteCarlo(events, startBankroll, horizonDays, runs = 5000) {
+function honestMonteCarlo(events, startBankroll, horizonDays, runs = 5000, options = {}) {
   // Group events by epoch to enforce MPC
   const byEpoch = {};
   events.forEach(e => {
@@ -196,7 +220,7 @@ function honestMonteCarlo(events, startBankroll, horizonDays, runs = 5000) {
       const epochIdx = Math.floor(Math.random() * epochs.length);
       const cycleEvents = byEpoch[epochs[epochIdx]];
       
-      const mpc = getMPC(bankroll);
+      const mpc = options.forceMpc || getMPC(bankroll);
       const sf = getStakeFraction(bankroll);
       
       // Execute up to MPC trades from this cycle
@@ -244,7 +268,7 @@ function honestMonteCarlo(events, startBankroll, horizonDays, runs = 5000) {
   };
 }
 
-function honestMCAdverse(events, startBankroll, horizonDays, runs = 5000) {
+function honestMCAdverse(events, startBankroll, horizonDays, runs = 5000, options = {}) {
   // Same as above but with +2c adverse slippage
   const byEpoch = {};
   events.forEach(e => {
@@ -306,7 +330,7 @@ function honestMCAdverse(events, startBankroll, horizonDays, runs = 5000) {
       const epochIdx = Math.floor(Math.random() * epochs.length);
       const cycleEvents = byEpoch[epochs[epochIdx]];
       
-      const mpc = getMPC(bankroll);
+      const mpc = options.forceMpc || getMPC(bankroll);
       const sf = getStakeFraction(bankroll);
       
       const shuffled = [...cycleEvents].sort(() => Math.random() - 0.5);
@@ -381,6 +405,34 @@ for (const b of bankrolls) {
   console.log(`  P≥$1000: ${r.pGe1000.toFixed(1)}%`);
 }
 
+console.log('\n── STRICT ONE-TRADE-PER-CYCLE STRESS (force MPC=1 at all bankrolls) ──');
+const oneTradeResults = {};
+for (const b of bankrolls) {
+  const r = honestMonteCarlo(events, b, 7, 5000, { forceMpc: 1 });
+  oneTradeResults[b] = r;
+  console.log(`\n$${b} start (7 days, forced MPC=1):`);
+  console.log(`  Median: $${r.median.toFixed(2)}`);
+  console.log(`  P10/P25/P75/P90: $${r.p10.toFixed(2)} / $${r.p25.toFixed(2)} / $${r.p75.toFixed(2)} / $${r.p90.toFixed(2)}`);
+  console.log(`  Bust: ${r.bustPct.toFixed(1)}%`);
+  console.log(`  P≥$100: ${r.pGe100.toFixed(1)}%`);
+  console.log(`  P≥$500: ${r.pGe500.toFixed(1)}%`);
+  console.log(`  P≥$1000: ${r.pGe1000.toFixed(1)}%`);
+}
+
+console.log('\n── ADVERSE ONE-TRADE-PER-CYCLE STRESS (+2c, force MPC=1) ──');
+const oneTradeAdverseResults = {};
+for (const b of bankrolls) {
+  const r = honestMCAdverse(events, b, 7, 5000, { forceMpc: 1 });
+  oneTradeAdverseResults[b] = r;
+  console.log(`\n$${b} start (7 days, adverse forced MPC=1):`);
+  console.log(`  Median: $${r.median.toFixed(2)}`);
+  console.log(`  P10/P25/P75/P90: $${r.p10.toFixed(2)} / $${r.p25.toFixed(2)} / $${r.p75.toFixed(2)} / $${r.p90.toFixed(2)}`);
+  console.log(`  Bust: ${r.bustPct.toFixed(1)}%`);
+  console.log(`  P≥$100: ${r.pGe100.toFixed(1)}%`);
+  console.log(`  P≥$500: ${r.pGe500.toFixed(1)}%`);
+  console.log(`  P≥$1000: ${r.pGe1000.toFixed(1)}%`);
+}
+
 // ─── AUDIT 5: Per-trade EV math verification ───
 console.log('\n═══ AUDIT 5: PER-TRADE EV MATH ═══');
 const avgPrice = events.reduce((s,e) => s + e.price, 0) / events.length;
@@ -442,13 +494,16 @@ const auditResults = {
     duplicateEpochs: events.length - uniqueEpochs,
     epochDistribution: distrib,
     holdoutRange: { min: minDate, max: maxDate, days: rangeDays },
-    noLeakage: events.every(e => e.epoch >= trainCutoff),
+    noLeakage: events.every(hasNoLeakage),
+    splitEpochs,
     winRate: wr,
     avgEntry: avgPrice,
   },
   mcResults: {
     strict: strictResults,
     adverse: adverseResults,
+    oneTradePerCycle: oneTradeResults,
+    oneTradePerCycleAdverse: oneTradeAdverseResults,
   },
   evMath: {
     avgEntry: avgPrice,

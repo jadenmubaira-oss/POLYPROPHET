@@ -1,2325 +1,9 @@
 {
   "events": [
     {
-      "epoch": 1776784500,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776870000,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1776872700,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.595,
-      "won": true
-    },
-    {
-      "epoch": 1776956400,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1776959100,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1776959100,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777042800,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.67,
-      "won": true
-    },
-    {
-      "epoch": 1777042800,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777042800,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1777045500,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777129200,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.645,
-      "won": false
-    },
-    {
-      "epoch": 1777131000,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1777131000,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.565,
-      "won": true
-    },
-    {
-      "epoch": 1777131000,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1777131000,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777217400,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777217400,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.68,
-      "won": true
-    },
-    {
-      "epoch": 1777302000,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777302000,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.68,
-      "won": true
-    },
-    {
-      "epoch": 1777304700,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.64,
-      "won": true
-    },
-    {
-      "epoch": 1776956400,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1776959100,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777131900,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1777131900,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777217400,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.72,
-      "won": true
-    },
-    {
-      "epoch": 1777302900,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777302900,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777304700,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777304700,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.73,
-      "won": true
-    },
-    {
-      "epoch": 1776870000,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1776870000,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.79,
-      "won": true
-    },
-    {
-      "epoch": 1776956400,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.765,
-      "won": true
-    },
-    {
-      "epoch": 1777131900,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.765,
-      "won": true
-    },
-    {
-      "epoch": 1777217400,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.755,
-      "won": true
-    },
-    {
-      "epoch": 1777302000,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.785,
-      "won": true
-    },
-    {
-      "epoch": 1777302000,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1777304700,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.765,
-      "won": true
-    },
-    {
-      "epoch": 1776809700,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776809700,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.63,
-      "won": true
-    },
-    {
-      "epoch": 1776895200,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": false
-    },
-    {
-      "epoch": 1776895200,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776895200,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776896100,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1776896100,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776897900,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.645,
-      "won": false
-    },
-    {
-      "epoch": 1776984300,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776984300,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777068000,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.6,
-      "won": true
-    },
-    {
-      "epoch": 1777068900,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1777069800,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777154400,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777157100,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777157100,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1776924000,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.69,
-      "won": true
-    },
-    {
-      "epoch": 1776924000,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776924000,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776926700,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.765,
-      "won": true
-    },
-    {
-      "epoch": 1777096800,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1777096800,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777096800,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777097700,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.685,
-      "won": false
-    },
-    {
-      "epoch": 1777098600,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.795,
-      "won": true
-    },
-    {
-      "epoch": 1777183200,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777183200,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.785,
-      "won": true
-    },
-    {
-      "epoch": 1777183200,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.77,
-      "won": true
-    },
-    {
-      "epoch": 1777183200,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.755,
-      "won": true
-    },
-    {
-      "epoch": 1777272300,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.755,
-      "won": true
-    },
-    {
-      "epoch": 1777272300,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1777272300,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776843900,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777014000,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1777014000,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777014000,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777016700,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.735,
-      "won": false
-    },
-    {
-      "epoch": 1777016700,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777016700,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777101300,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1777101300,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777187700,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777187700,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1776735900,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776735900,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.66,
-      "won": true
-    },
-    {
-      "epoch": 1776819600,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.595,
-      "won": true
-    },
-    {
-      "epoch": 1776820500,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.69,
-      "won": true
-    },
-    {
-      "epoch": 1776820500,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.59,
-      "won": true
-    },
-    {
-      "epoch": 1776820500,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.67,
-      "won": true
-    },
-    {
-      "epoch": 1776906000,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.595,
-      "won": true
-    },
-    {
-      "epoch": 1776906000,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1776906000,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.565,
-      "won": true
-    },
-    {
-      "epoch": 1776906900,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1776906900,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.595,
-      "won": true
-    },
-    {
-      "epoch": 1776906900,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1776993300,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1776993300,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776993300,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1776994200,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.565,
-      "won": false
-    },
-    {
-      "epoch": 1776994200,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": false
-    },
-    {
-      "epoch": 1776994200,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777080600,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.605,
-      "won": false
-    },
-    {
-      "epoch": 1777165200,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.595,
-      "won": false
-    },
-    {
-      "epoch": 1777167900,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1777252500,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777252500,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777069800,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1777242600,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.785,
-      "won": true
-    },
-    {
-      "epoch": 1776924000,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1776924900,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1776925800,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.615,
-      "won": false
-    },
-    {
-      "epoch": 1777099500,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777272300,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1776762900,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.74,
-      "won": false
-    },
-    {
-      "epoch": 1776763800,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1776763800,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776935700,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1776936600,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1776936600,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777023000,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.67,
-      "won": true
-    },
-    {
-      "epoch": 1777280400,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777282200,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.77,
-      "won": true
-    },
-    {
-      "epoch": 1776870000,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1776956400,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777042800,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1777218300,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": false
-    },
-    {
-      "epoch": 1777218300,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": false
-    },
-    {
-      "epoch": 1777302900,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777302900,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.68,
-      "won": true
-    },
-    {
-      "epoch": 1776834300,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": false
-    },
-    {
-      "epoch": 1776834600,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.6,
-      "won": false
-    },
-    {
-      "epoch": 1776834600,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.71,
-      "won": true
-    },
-    {
-      "epoch": 1776835800,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1776836700,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776837300,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1776837300,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.62,
-      "won": true
-    },
-    {
-      "epoch": 1776920700,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1776920700,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1776921600,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776921900,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1776922200,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1776922500,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1777006800,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777006800,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777007100,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.64,
-      "won": true
-    },
-    {
-      "epoch": 1777007400,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777007400,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777007700,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.625,
-      "won": false
-    },
-    {
-      "epoch": 1777008900,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.645,
-      "won": false
-    },
-    {
-      "epoch": 1777008900,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": false
-    },
-    {
-      "epoch": 1777008900,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.615,
-      "won": false
-    },
-    {
-      "epoch": 1777093800,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1777094100,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1777094100,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777094400,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1777094700,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777094700,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1777094700,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777096500,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777180800,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1777181400,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1777181400,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.66,
-      "won": true
-    },
-    {
-      "epoch": 1777182000,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777182000,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777182900,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1777182900,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.64,
-      "won": true
-    },
-    {
-      "epoch": 1777266300,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777266600,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.67,
-      "won": true
-    },
-    {
-      "epoch": 1777267200,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777267200,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.67,
-      "won": true
-    },
-    {
-      "epoch": 1777267500,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777267500,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777267800,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777268400,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777268400,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777268700,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777269000,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.605,
-      "won": false
-    },
-    {
-      "epoch": 1776783600,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1776783600,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776783600,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.63,
-      "won": false
-    },
-    {
-      "epoch": 1776784500,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.63,
-      "won": false
-    },
-    {
-      "epoch": 1776786300,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1776786300,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.6,
-      "won": true
-    },
-    {
-      "epoch": 1776870900,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.605,
-      "won": false
-    },
-    {
-      "epoch": 1776871800,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1776871800,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1776871800,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1776872700,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.65,
-      "won": false
-    },
-    {
-      "epoch": 1776872700,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.65,
-      "won": true
-    },
-    {
-      "epoch": 1777043700,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1777043700,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.625,
-      "won": true
-    },
-    {
-      "epoch": 1777045500,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777045500,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1777130100,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777215600,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1777215600,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777216500,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777303800,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.68,
-      "won": true
-    },
-    {
-      "epoch": 1776808800,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1776810600,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.575,
-      "won": true
-    },
-    {
-      "epoch": 1776810600,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.555,
-      "won": true
-    },
-    {
-      "epoch": 1776810600,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1776810600,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.565,
-      "won": true
-    },
-    {
-      "epoch": 1776895200,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776897000,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.685,
-      "won": false
-    },
-    {
-      "epoch": 1776897000,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.67,
-      "won": false
-    },
-    {
-      "epoch": 1776897900,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776897900,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1776897900,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1776897900,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.585,
-      "won": true
-    },
-    {
-      "epoch": 1776983400,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.555,
-      "won": true
-    },
-    {
-      "epoch": 1776983400,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.595,
-      "won": true
-    },
-    {
-      "epoch": 1776984300,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.565,
-      "won": false
-    },
-    {
-      "epoch": 1776984300,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.655,
-      "won": false
-    },
-    {
-      "epoch": 1777068000,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777068000,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777068000,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.595,
-      "won": false
-    },
-    {
-      "epoch": 1777070700,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777070700,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1777070700,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.655,
-      "won": false
-    },
-    {
-      "epoch": 1777070700,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.575,
-      "won": false
-    },
-    {
-      "epoch": 1777155300,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.575,
-      "won": true
-    },
-    {
-      "epoch": 1777155300,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.585,
-      "won": true
-    },
-    {
-      "epoch": 1777156200,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1777240800,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.565,
-      "won": true
-    },
-    {
-      "epoch": 1777240800,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.565,
-      "won": true
-    },
-    {
-      "epoch": 1777240800,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.585,
-      "won": true
-    },
-    {
-      "epoch": 1777243500,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777243500,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1777243500,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1776813300,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1776814200,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.74,
-      "won": true
-    },
-    {
-      "epoch": 1776814200,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.76,
-      "won": true
-    },
-    {
-      "epoch": 1776815100,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1776815100,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.795,
-      "won": true
-    },
-    {
-      "epoch": 1776901500,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.745,
-      "won": false
-    },
-    {
-      "epoch": 1776986100,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.785,
-      "won": true
-    },
-    {
-      "epoch": 1776987000,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776987000,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1776987000,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776987900,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.66,
-      "won": true
-    },
-    {
-      "epoch": 1776987900,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777071600,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777071600,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777071600,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777072500,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.665,
-      "won": false
-    },
-    {
-      "epoch": 1777073400,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777073400,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.755,
-      "won": true
-    },
-    {
-      "epoch": 1777159800,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777159800,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.72,
-      "won": true
-    },
-    {
-      "epoch": 1777246200,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1777246200,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1777246200,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777247100,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.795,
-      "won": true
-    },
-    {
-      "epoch": 1777247100,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.775,
-      "won": false
-    },
-    {
-      "epoch": 1776757500,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1776757500,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1776757500,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1776757500,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776841200,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.78,
-      "won": false
-    },
-    {
-      "epoch": 1776842100,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1776842100,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.795,
-      "won": true
-    },
-    {
-      "epoch": 1776928500,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1776930300,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1776930300,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777015800,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1777015800,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.67,
-      "won": true
-    },
-    {
-      "epoch": 1777100400,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1777102200,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1777103100,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1777103100,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.765,
-      "won": false
-    },
-    {
-      "epoch": 1777103100,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777103100,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.765,
-      "won": true
-    },
-    {
-      "epoch": 1777188600,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777188600,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.755,
-      "won": true
-    },
-    {
-      "epoch": 1777274100,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777275000,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1777275000,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1777275000,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": false
-    },
-    {
-      "epoch": 1777275900,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": true
-    },
-    {
-      "epoch": 1776735900,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.66,
-      "won": true
-    },
-    {
-      "epoch": 1776735900,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.69,
-      "won": true
-    },
-    {
-      "epoch": 1776819600,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.74,
-      "won": true
-    },
-    {
-      "epoch": 1776906000,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776908700,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.655,
-      "won": false
-    },
-    {
-      "epoch": 1777167900,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.785,
-      "won": true
-    },
-    {
-      "epoch": 1777252500,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.765,
-      "won": true
-    },
-    {
-      "epoch": 1777253400,
-      "asset": "ETH",
-      "dir": "DOWN",
-      "price": 0.725,
-      "won": false
-    },
-    {
-      "epoch": 1776781800,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1776869100,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1776869100,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1776869100,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.72,
-      "won": true
-    },
-    {
-      "epoch": 1776953700,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.695,
-      "won": true
-    },
-    {
-      "epoch": 1776953700,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1776953700,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.67,
-      "won": true
-    },
-    {
-      "epoch": 1776954600,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.69,
-      "won": true
-    },
-    {
-      "epoch": 1776954600,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.77,
-      "won": true
-    },
-    {
-      "epoch": 1777040100,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.7,
-      "won": false
-    },
-    {
-      "epoch": 1777041000,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1777041000,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.775,
-      "won": true
-    },
-    {
-      "epoch": 1777041000,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.795,
-      "won": true
-    },
-    {
-      "epoch": 1777125600,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1777127400,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.675,
-      "won": true
-    },
-    {
-      "epoch": 1777128300,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.735,
-      "won": false
-    },
-    {
-      "epoch": 1776794400,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.615,
-      "won": true
-    },
-    {
-      "epoch": 1776794400,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.6,
-      "won": false
-    },
-    {
-      "epoch": 1776794400,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.65,
-      "won": true
-    },
-    {
-      "epoch": 1776796200,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1776796200,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.745,
-      "won": true
-    },
-    {
-      "epoch": 1776796200,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.75,
-      "won": true
-    },
-    {
-      "epoch": 1776880800,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1776967200,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1776967200,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1776968100,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.64,
-      "won": false
-    },
-    {
-      "epoch": 1776969000,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.665,
-      "won": true
-    },
-    {
-      "epoch": 1776969000,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.7,
-      "won": true
-    },
-    {
-      "epoch": 1776969000,
-      "asset": "SOL",
-      "dir": "UP",
-      "price": 0.73,
-      "won": true
-    },
-    {
-      "epoch": 1777055400,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1777055400,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777055400,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.635,
-      "won": true
-    },
-    {
-      "epoch": 1777056300,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.645,
-      "won": true
-    },
-    {
-      "epoch": 1777140900,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.655,
-      "won": true
-    },
-    {
-      "epoch": 1777141800,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.695,
-      "won": false
-    },
-    {
-      "epoch": 1777141800,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1777142700,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.655,
-      "won": false
-    },
-    {
-      "epoch": 1777226400,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.605,
-      "won": true
-    },
-    {
-      "epoch": 1777227300,
-      "asset": "XRP",
-      "dir": "UP",
-      "price": 0.725,
-      "won": true
-    },
-    {
-      "epoch": 1777229100,
-      "asset": "BTC",
-      "dir": "UP",
-      "price": 0.715,
-      "won": true
-    },
-    {
-      "epoch": 1777229100,
-      "asset": "ETH",
-      "dir": "UP",
-      "price": 0.705,
-      "won": true
-    },
-    {
-      "epoch": 1776802500,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.685,
-      "won": false
-    },
-    {
-      "epoch": 1776802500,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.635,
-      "won": false
-    },
-    {
-      "epoch": 1776804300,
-      "asset": "BTC",
-      "dir": "DOWN",
-      "price": 0.705,
-      "won": false
-    },
-    {
-      "epoch": 1776804300,
-      "asset": "SOL",
-      "dir": "DOWN",
-      "price": 0.735,
-      "won": true
-    },
-    {
-      "epoch": 1776804300,
-      "asset": "XRP",
-      "dir": "DOWN",
-      "price": 0.695,
-      "won": true
-    },
-    {
       "epoch": 1776888900,
       "asset": "SOL",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.675,
       "won": true
@@ -2327,6 +11,7 @@
     {
       "epoch": 1776890700,
       "asset": "SOL",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.63,
       "won": true
@@ -2334,6 +19,7 @@
     {
       "epoch": 1776890700,
       "asset": "XRP",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.74,
       "won": true
@@ -2341,6 +27,7 @@
     {
       "epoch": 1777061700,
       "asset": "BTC",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.625,
       "won": true
@@ -2348,6 +35,7 @@
     {
       "epoch": 1777061700,
       "asset": "ETH",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.695,
       "won": true
@@ -2355,6 +43,7 @@
     {
       "epoch": 1777061700,
       "asset": "SOL",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.735,
       "won": true
@@ -2362,6 +51,7 @@
     {
       "epoch": 1777147200,
       "asset": "XRP",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.73,
       "won": true
@@ -2369,6 +59,7 @@
     {
       "epoch": 1777149000,
       "asset": "BTC",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.625,
       "won": true
@@ -2376,6 +67,7 @@
     {
       "epoch": 1777149000,
       "asset": "XRP",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.61,
       "won": true
@@ -2383,6 +75,7 @@
     {
       "epoch": 1777233600,
       "asset": "BTC",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.635,
       "won": true
@@ -2390,6 +83,7 @@
     {
       "epoch": 1777233600,
       "asset": "ETH",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.645,
       "won": true
@@ -2397,10 +91,2387 @@
     {
       "epoch": 1777233600,
       "asset": "SOL",
+      "timeframe": "15m",
       "dir": "DOWN",
       "price": 0.625,
       "won": true
+    },
+    {
+      "epoch": 1777320000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777322700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777322700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777322700,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.645,
+      "won": true
+    },
+    {
+      "epoch": 1777322700,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777407300,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777407300,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.615,
+      "won": true
+    },
+    {
+      "epoch": 1776935700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1776936600,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1776936600,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777023000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1777280400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777282200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.77,
+      "won": true
+    },
+    {
+      "epoch": 1777455000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777455000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.785,
+      "won": true
+    },
+    {
+      "epoch": 1776870000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1776872700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.595,
+      "won": true
+    },
+    {
+      "epoch": 1776956400,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1776959100,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1776959100,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777042800,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1777042800,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777042800,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777045500,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1777129200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.645,
+      "won": false
+    },
+    {
+      "epoch": 1777131000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777131000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.565,
+      "won": true
+    },
+    {
+      "epoch": 1777131000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.605,
+      "won": true
+    },
+    {
+      "epoch": 1777131000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777217400,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777217400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.68,
+      "won": true
+    },
+    {
+      "epoch": 1777302000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1777302000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.68,
+      "won": true
+    },
+    {
+      "epoch": 1777304700,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.64,
+      "won": true
+    },
+    {
+      "epoch": 1777390200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.585,
+      "won": false
+    },
+    {
+      "epoch": 1777474800,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.575,
+      "won": true
+    },
+    {
+      "epoch": 1777474800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.605,
+      "won": true
+    },
+    {
+      "epoch": 1777474800,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1777476600,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.56,
+      "won": true
+    },
+    {
+      "epoch": 1777476600,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.585,
+      "won": true
+    },
+    {
+      "epoch": 1776956400,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1776959100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777131900,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777131900,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777217400,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.72,
+      "won": true
+    },
+    {
+      "epoch": 1777302900,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777302900,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777304700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777304700,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.73,
+      "won": true
+    },
+    {
+      "epoch": 1777390200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1777390200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.71,
+      "won": false
+    },
+    {
+      "epoch": 1777474800,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1776870000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.775,
+      "won": true
+    },
+    {
+      "epoch": 1776870000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.79,
+      "won": true
+    },
+    {
+      "epoch": 1776956400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777131900,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777217400,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777302000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.785,
+      "won": true
+    },
+    {
+      "epoch": 1777302000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.775,
+      "won": true
+    },
+    {
+      "epoch": 1777304700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777390200,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1776843900,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777014000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.775,
+      "won": true
+    },
+    {
+      "epoch": 1777014000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777014000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777016700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.735,
+      "won": false
+    },
+    {
+      "epoch": 1777016700,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777016700,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777101300,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777101300,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777187700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777187700,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777361400,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777361400,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777361400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.795,
+      "won": true
+    },
+    {
+      "epoch": 1777446000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1777447800,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1776890700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.485,
+      "won": true
+    },
+    {
+      "epoch": 1776975300,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1776975300,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.67,
+      "won": false
+    },
+    {
+      "epoch": 1776977100,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777061700,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.595,
+      "won": true
+    },
+    {
+      "epoch": 1777147200,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.565,
+      "won": false
+    },
+    {
+      "epoch": 1777234500,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.495,
+      "won": false
+    },
+    {
+      "epoch": 1777407300,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.715,
+      "won": true
+    },
+    {
+      "epoch": 1776924000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.69,
+      "won": true
+    },
+    {
+      "epoch": 1776924000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1776924000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1776926700,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777096800,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1777096800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777096800,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777097700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.685,
+      "won": false
+    },
+    {
+      "epoch": 1777098600,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.795,
+      "won": true
+    },
+    {
+      "epoch": 1777183200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777183200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.785,
+      "won": true
+    },
+    {
+      "epoch": 1777183200,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.77,
+      "won": true
+    },
+    {
+      "epoch": 1777183200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777272300,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777272300,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.775,
+      "won": true
+    },
+    {
+      "epoch": 1777272300,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777356000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777356000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777358700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.715,
+      "won": true
+    },
+    {
+      "epoch": 1777358700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777358700,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777358700,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777444200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.655,
+      "won": false
+    },
+    {
+      "epoch": 1776924900,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.655,
+      "won": false
+    },
+    {
+      "epoch": 1776924900,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.605,
+      "won": false
+    },
+    {
+      "epoch": 1776925800,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.585,
+      "won": true
+    },
+    {
+      "epoch": 1776925800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.585,
+      "won": true
+    },
+    {
+      "epoch": 1777010400,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1777012200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777185000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.575,
+      "won": false
+    },
+    {
+      "epoch": 1777269600,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.595,
+      "won": true
+    },
+    {
+      "epoch": 1777269600,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777356900,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777357800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.575,
+      "won": true
+    },
+    {
+      "epoch": 1777357800,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777357800,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.59,
+      "won": true
+    },
+    {
+      "epoch": 1777442400,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.565,
+      "won": true
+    },
+    {
+      "epoch": 1777442400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.63,
+      "won": true
+    },
+    {
+      "epoch": 1777443300,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.595,
+      "won": true
+    },
+    {
+      "epoch": 1777443300,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.605,
+      "won": true
+    },
+    {
+      "epoch": 1777443300,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": false
+    },
+    {
+      "epoch": 1777444200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777444200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777445100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.585,
+      "won": true
+    },
+    {
+      "epoch": 1777445100,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1776924000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1776924900,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1776925800,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.615,
+      "won": false
+    },
+    {
+      "epoch": 1777099500,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1777272300,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777356000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777445100,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1776834300,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": false
+    },
+    {
+      "epoch": 1776834600,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.6,
+      "won": false
+    },
+    {
+      "epoch": 1776834600,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.71,
+      "won": true
+    },
+    {
+      "epoch": 1776835800,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1776836700,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1776837300,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1776837300,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.62,
+      "won": true
+    },
+    {
+      "epoch": 1776920700,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1776920700,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1776921600,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1776921900,
+      "asset": "ETH",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1776922200,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1776922500,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777006800,
+      "asset": "ETH",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777006800,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777007100,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.64,
+      "won": true
+    },
+    {
+      "epoch": 1777007400,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1777007400,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777007700,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.625,
+      "won": false
+    },
+    {
+      "epoch": 1777008900,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.645,
+      "won": false
+    },
+    {
+      "epoch": 1777008900,
+      "asset": "ETH",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": false
+    },
+    {
+      "epoch": 1777008900,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.615,
+      "won": false
+    },
+    {
+      "epoch": 1777093800,
+      "asset": "ETH",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1777094100,
+      "asset": "ETH",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777094100,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777094400,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.615,
+      "won": true
+    },
+    {
+      "epoch": 1777094700,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777094700,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777094700,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777096500,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777180800,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.645,
+      "won": true
+    },
+    {
+      "epoch": 1777181400,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.615,
+      "won": true
+    },
+    {
+      "epoch": 1777181400,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.66,
+      "won": true
+    },
+    {
+      "epoch": 1777182000,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777182000,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777182900,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.615,
+      "won": true
+    },
+    {
+      "epoch": 1777182900,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.64,
+      "won": true
+    },
+    {
+      "epoch": 1777266300,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777266600,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1777267200,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777267200,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1777267500,
+      "asset": "BTC",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777267500,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777267800,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777268400,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777268400,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777268700,
+      "asset": "SOL",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777269000,
+      "asset": "XRP",
+      "timeframe": "5m",
+      "dir": "DOWN",
+      "price": 0.605,
+      "won": false
+    },
+    {
+      "epoch": 1776916800,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777004100,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.605,
+      "won": false
+    },
+    {
+      "epoch": 1777004100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.615,
+      "won": false
+    },
+    {
+      "epoch": 1777005000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777092300,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777092300,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.61,
+      "won": true
+    },
+    {
+      "epoch": 1777176000,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.605,
+      "won": true
+    },
+    {
+      "epoch": 1777176000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.66,
+      "won": true
+    },
+    {
+      "epoch": 1777176900,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.62,
+      "won": true
+    },
+    {
+      "epoch": 1777350600,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777436100,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777436100,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.75,
+      "won": true
+    },
+    {
+      "epoch": 1777005900,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777005900,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1777005900,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.715,
+      "won": false
+    },
+    {
+      "epoch": 1777092300,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.665,
+      "won": false
+    },
+    {
+      "epoch": 1777176000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777176900,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.685,
+      "won": false
+    },
+    {
+      "epoch": 1777177800,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.62,
+      "won": true
+    },
+    {
+      "epoch": 1777350600,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1777350600,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1777351500,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777351500,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777351500,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.715,
+      "won": true
+    },
+    {
+      "epoch": 1777436100,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1777436100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1776877200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1776877200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.795,
+      "won": true
+    },
+    {
+      "epoch": 1776877200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.79,
+      "won": true
+    },
+    {
+      "epoch": 1776879000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1776879900,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.715,
+      "won": true
+    },
+    {
+      "epoch": 1776879900,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1776879900,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.69,
+      "won": true
+    },
+    {
+      "epoch": 1776965400,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.655,
+      "won": false
+    },
+    {
+      "epoch": 1776965400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.7,
+      "won": false
+    },
+    {
+      "epoch": 1777050000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777139100,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.71,
+      "won": false
+    },
+    {
+      "epoch": 1777223700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777309200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777309200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777309200,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.71,
+      "won": true
+    },
+    {
+      "epoch": 1777309200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777310100,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777311000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777397400,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777397400,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.775,
+      "won": true
+    },
+    {
+      "epoch": 1777397400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777482000,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.775,
+      "won": true
+    },
+    {
+      "epoch": 1777483800,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1777483800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1777483800,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777483800,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.65,
+      "won": true
+    },
+    {
+      "epoch": 1776869100,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.765,
+      "won": true
+    },
+    {
+      "epoch": 1776869100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.725,
+      "won": true
+    },
+    {
+      "epoch": 1776869100,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.715,
+      "won": true
+    },
+    {
+      "epoch": 1776869100,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.78,
+      "won": true
+    },
+    {
+      "epoch": 1776952800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1776954600,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1776954600,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.8,
+      "won": true
+    },
+    {
+      "epoch": 1776955500,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1776955500,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.67,
+      "won": true
+    },
+    {
+      "epoch": 1777040100,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.65,
+      "won": false
+    },
+    {
+      "epoch": 1777041000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777125600,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777127400,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.74,
+      "won": true
+    },
+    {
+      "epoch": 1777301100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.665,
+      "won": false
+    },
+    {
+      "epoch": 1777472100,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1777472100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.755,
+      "won": true
+    },
+    {
+      "epoch": 1777472100,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "UP",
+      "price": 0.8,
+      "won": true
+    },
+    {
+      "epoch": 1776921300,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.69,
+      "won": true
+    },
+    {
+      "epoch": 1777007700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.625,
+      "won": false
+    },
+    {
+      "epoch": 1777008600,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": false
+    },
+    {
+      "epoch": 1777095900,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.73,
+      "won": true
+    },
+    {
+      "epoch": 1777179600,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": false
+    },
+    {
+      "epoch": 1777180500,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.645,
+      "won": true
+    },
+    {
+      "epoch": 1777181400,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.68,
+      "won": true
+    },
+    {
+      "epoch": 1777267800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.625,
+      "won": true
+    },
+    {
+      "epoch": 1777268700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777268700,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777354200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777440600,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777440600,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.735,
+      "won": true
+    },
+    {
+      "epoch": 1776888900,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.635,
+      "won": true
+    },
+    {
+      "epoch": 1776888900,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777060800,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777148100,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": false
+    },
+    {
+      "epoch": 1777407300,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.62,
+      "won": false
+    },
+    {
+      "epoch": 1776867300,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1776867300,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.715,
+      "won": true
+    },
+    {
+      "epoch": 1776868200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.795,
+      "won": true
+    },
+    {
+      "epoch": 1776868200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.785,
+      "won": true
+    },
+    {
+      "epoch": 1776952800,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.665,
+      "won": true
+    },
+    {
+      "epoch": 1777039200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777039200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777039200,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.745,
+      "won": true
+    },
+    {
+      "epoch": 1777039200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.72,
+      "won": true
+    },
+    {
+      "epoch": 1777212000,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777212000,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.68,
+      "won": false
+    },
+    {
+      "epoch": 1777214700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777214700,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
+    },
+    {
+      "epoch": 1777385700,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777385700,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777385700,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.655,
+      "won": true
+    },
+    {
+      "epoch": 1777387500,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.705,
+      "won": false
+    },
+    {
+      "epoch": 1777387500,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": false
+    },
+    {
+      "epoch": 1777387500,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": false
+    },
+    {
+      "epoch": 1777387500,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.705,
+      "won": true
+    },
+    {
+      "epoch": 1777471200,
+      "asset": "BTC",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.675,
+      "won": true
+    },
+    {
+      "epoch": 1777471200,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.695,
+      "won": true
+    },
+    {
+      "epoch": 1777471200,
+      "asset": "SOL",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.7,
+      "won": true
+    },
+    {
+      "epoch": 1777471200,
+      "asset": "XRP",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.71,
+      "won": true
+    },
+    {
+      "epoch": 1777473900,
+      "asset": "ETH",
+      "timeframe": "15m",
+      "dir": "DOWN",
+      "price": 0.685,
+      "won": true
     }
   ],
-  "count": 343
+  "count": 309
 }
