@@ -1147,6 +1147,7 @@ app.get('/api/health', (req, res) => {
     const riskStatus = riskManager.getStatus();
     const activeTimeframes = getEnabledTimeframes();
     const runtimeBankrollForTimeframes = getRuntimeBankrollForTimeframes();
+    const telegramState = telegram.getQueueState();
     const currentTierProfile = typeof riskManager._getTierProfile === 'function'
         ? riskManager._getTierProfile(runtimeBankrollForTimeframes)
         : null;
@@ -1185,6 +1186,7 @@ app.get('/api/health', (req, res) => {
         recoveryQueue: executorStatus.recoveryQueue.length,
         recoveryQueueSummary,
         redemptionQueue: executorStatus.redemptionQueue.length,
+        telegram: telegramState,
         runtimeState: getRuntimeStateStatus(),
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
         tradeFailureHalt: { halted: tradeFailureHalted, consecutiveFailures: consecutiveTradeFailures, threshold: TRADE_FAILURE_HALT_THRESHOLD, windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000 },
@@ -1234,6 +1236,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/status', (req, res) => {
     const riskStatus = riskManager.getStatus();
     const executorStatus = tradeExecutor.getStatus();
+    const telegramState = telegram.getQueueState();
     const hasPendingSettlements = executorStatus.pendingSettlements.length > 0;
     const recoveryQueueSummary = executorStatus.recoveryQueueSummary || { total: executorStatus.recoveryQueue.length, actionable: executorStatus.recoveryQueue.length, benign: 0 };
     const hasRecoveryQueue = Number(recoveryQueueSummary.actionable || 0) > 0;
@@ -1255,6 +1258,7 @@ app.get('/api/status', (req, res) => {
             }])
         ),
         orchestrator: orchestratorHeartbeat,
+        telegram: telegramState,
         strategies: getAllLoadedSets(),
         runtimeState: getRuntimeStateStatus(),
         tradingSuppression: {
