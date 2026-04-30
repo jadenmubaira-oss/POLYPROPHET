@@ -12151,3 +12151,15 @@ No current high-growth candidate has been appended under the corrected gate. Low
 
 **Operator recommendation**: leave withdrawal envs disabled unless you explicitly need emergency fund movement from Telegram. For normal operation, deposits should be done manually through the wallet/Polymarket UI and Telegram should be used for address/balance verification plus pause/resume/mode control.
 
+---
+
+### 30 Apr 2026 Junie Deposit Balance Discrepancy Addendum — `$10` CLOB Funds Visible, `$5.29` Was Stale PAPER Cache
+
+**Incident**: after the operator deposited/top-filled, the Polymarket website showed roughly `$10` while the bot balance surface still showed about `$5.29`. Render endpoint audit showed the important split: `/api/wallet/balance.balanceBreakdown.tradingBalanceUsdc` and the paper/runtime bankroll were stale at `$5.285043`, but the independent CLOB/trade-ready path already saw about `$10.563112` on the selected proxy/funder address. Wallet readiness, signature type, proxy/funder selection, allowance, and no-exposure checks remained OK.
+
+**Root cause**: while Telegram/runtime mode was `PAPER`, `/api/wallet/balance` returned `tradeExecutor.getCachedBalanceBreakdown()` instead of forcing `tradeExecutor.refreshLiveBalance(true)`. `/api/clob-status` did force a fresh CLOB/trade-ready read, which is why it saw the deposit correctly. The missing funds were therefore a reporting/cache issue, not evidence that the deposit failed or was unavailable to the CLOB trading wallet.
+
+**Patch**: `/api/wallet/balance` now force-refreshes the live wallet/CLOB balance whenever the wallet client is loaded, regardless of whether the runtime is currently `PAPER` or `LIVE`, and exposes `diagnostics.balanceRefresh` so future audits can see whether the refresh was attempted and successful. Telegram `/balance`, `/dashboard`, and `/status` also force-refresh before reporting. The Telegram dashboard now labels paper simulation bankroll separately from real wallet cash so a paper bankroll/PnL value is not mistaken for actual deposited pUSD/CLOB collateral.
+
+**Operational meaning**: if the bot is still in `PAPER`, a lower paper simulation bankroll can still appear as `Paper sim`, but `Wallet cash` / `/balance` / `/api/wallet/balance.balanceBreakdown.tradingBalanceUsdc` should now show the real refreshed CLOB collateral. Before a live smoke, switch/confirm `LIVE` mode only when ready, keep paused, confirm no pending exposure or halts, and use the refreshed wallet balance as the `$10` starting-balance readiness signal.
+

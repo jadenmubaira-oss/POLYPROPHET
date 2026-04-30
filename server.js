@@ -1583,9 +1583,27 @@ app.get('/api/trades', (req, res) => {
 
 app.get('/api/wallet/balance', async (req, res) => {
     try {
-        const balanceBreakdown = CONFIG.TRADE_MODE === 'LIVE'
-            ? await tradeExecutor.refreshLiveBalance(true)
-            : tradeExecutor.getCachedBalanceBreakdown();
+        const balanceRefresh = {
+            attempted: false,
+            forced: false,
+            ok: null,
+            error: null
+        };
+        let balanceBreakdown = null;
+        if (tradeExecutor.clob?.wallet && typeof tradeExecutor.refreshLiveBalance === 'function') {
+            balanceRefresh.attempted = true;
+            balanceRefresh.forced = true;
+            try {
+                balanceBreakdown = await tradeExecutor.refreshLiveBalance(true);
+                balanceRefresh.ok = true;
+            } catch (e) {
+                balanceRefresh.ok = false;
+                balanceRefresh.error = e.message;
+            }
+        }
+        if (!balanceBreakdown) {
+            balanceBreakdown = tradeExecutor.getCachedBalanceBreakdown();
+        }
         const clobStatus = tradeExecutor.clob?.getStatus?.() || null;
         res.json({
             mode: CONFIG.TRADE_MODE,
@@ -1597,6 +1615,7 @@ app.get('/api/wallet/balance', async (req, res) => {
             runtimeBankrollForTimeframes: getRuntimeBankrollForTimeframes(),
             activeTimeframes: getEnabledTimeframes().map(t => t.key),
             diagnostics: {
+                balanceRefresh,
                 liveBalanceSource: tradeExecutor.liveBalanceSource,
                 lastBalanceFetch: tradeExecutor.lastBalanceFetch || null,
                 selectedFunderAddress: clobStatus?.tradeReady?.selected?.funderAddress || null,
