@@ -211,6 +211,12 @@ function getEnabledTimeframes() {
 function buildRuntimeStateSnapshot() {
     return {
         savedAt: new Date().toISOString(),
+        runtimeMode: {
+            tradeMode: CONFIG.TRADE_MODE,
+            isLive: CONFIG.IS_LIVE,
+            source: CONFIG.RUNTIME_MODE_SOURCE || 'env',
+            updatedAt: CONFIG.RUNTIME_MODE_UPDATED_AT || null
+        },
         risk: riskManager.exportState(),
         executor: tradeExecutor.exportState(),
         orchestratorHeartbeat,
@@ -218,10 +224,83 @@ function buildRuntimeStateSnapshot() {
     };
 }
 
+function recomputeRuntimeLiveFlag() {
+    CONFIG.IS_LIVE = CONFIG.TRADE_MODE === 'LIVE' && CONFIG.ENABLE_LIVE_TRADING && CONFIG.LIVE_AUTOTRADING_ENABLED && !CONFIG.TELEGRAM.signalsOnly;
+    return CONFIG.IS_LIVE;
+}
+
+function getLiveModeBlockers() {
+    const blockers = [];
+    if (CONFIG.TRADE_MODE !== 'LIVE') blockers.push('TRADE_MODE is not LIVE');
+    if (!CONFIG.ENABLE_LIVE_TRADING) blockers.push('ENABLE_LIVE_TRADING is false');
+    if (!CONFIG.LIVE_AUTOTRADING_ENABLED) blockers.push('LIVE_AUTOTRADING_ENABLED is false');
+    if (CONFIG.TELEGRAM.signalsOnly) blockers.push('TELEGRAM_SIGNALS_ONLY is true');
+    if (!CONFIG.POLYMARKET_PRIVATE_KEY) blockers.push('POLYMARKET_PRIVATE_KEY missing');
+    return blockers;
+}
+
+async function switchRuntimeTradeMode(nextMode, options = {}) {
+    const normalizedMode = String(nextMode || '').trim().toUpperCase();
+    if (!['PAPER', 'LIVE'].includes(normalizedMode)) {
+        throw new Error(`Unsupported trade mode: ${nextMode}`);
+    }
+
+    const previousMode = CONFIG.TRADE_MODE;
+    CONFIG.TRADE_MODE = normalizedMode;
+    process.env.TRADE_MODE = normalizedMode;
+    recomputeRuntimeLiveFlag();
+    CONFIG.RUNTIME_MODE_SOURCE = options.source || 'runtime';
+    CONFIG.RUNTIME_MODE_UPDATED_AT = new Date().toISOString();
+    tradeExecutor.mode = normalizedMode;
+
+    if (normalizedMode === 'LIVE') {
+        await tradeExecutor.refreshLiveBalance().catch((e) => {
+            diagnosticLog.push({
+                ts: new Date().toISOString(),
+                type: 'LIVE_MODE_BALANCE_REFRESH_ERROR',
+                error: e.message
+            });
+        });
+    }
+
+    // Safety invariant: mode switches never auto-start trading. The operator must inspect status, then resume explicitly.
+    riskManager.tradingPaused = true;
+    diagnosticLog.push({
+        ts: new Date().toISOString(),
+        type: 'RUNTIME_TRADE_MODE_SWITCH',
+        previousMode,
+        nextMode: normalizedMode,
+        isLive: CONFIG.IS_LIVE,
+        source: options.source || 'runtime',
+        liveModeBlockers: getLiveModeBlockers()
+    });
+    await saveRuntimeState();
+    return {
+        previousMode,
+        mode: CONFIG.TRADE_MODE,
+        isLive: CONFIG.IS_LIVE,
+        paused: riskManager.tradingPaused,
+        source: CONFIG.RUNTIME_MODE_SOURCE,
+        updatedAt: CONFIG.RUNTIME_MODE_UPDATED_AT,
+        liveModeBlockers: getLiveModeBlockers()
+    };
+}
+
 function applyRuntimeState(parsed, sourceLabel) {
     if (!parsed || typeof parsed !== 'object') return false;
+    if (parsed.runtimeMode && typeof parsed.runtimeMode === 'object') {
+        const restoredMode = String(parsed.runtimeMode.tradeMode || '').trim().toUpperCase();
+        if (['PAPER', 'LIVE'].includes(restoredMode)) {
+            CONFIG.TRADE_MODE = restoredMode;
+            process.env.TRADE_MODE = restoredMode;
+            CONFIG.RUNTIME_MODE_SOURCE = parsed.runtimeMode.source || sourceLabel || 'runtime_state';
+            CONFIG.RUNTIME_MODE_UPDATED_AT = parsed.runtimeMode.updatedAt || parsed.savedAt || null;
+            recomputeRuntimeLiveFlag();
+        }
+    }
     riskManager.importState(parsed.risk || {});
     tradeExecutor.importState(parsed.executor || {});
+    tradeExecutor.mode = CONFIG.TRADE_MODE;
     if (parsed.orchestratorHeartbeat && typeof parsed.orchestratorHeartbeat === 'object') {
         orchestratorHeartbeat = { ...orchestratorHeartbeat, ...parsed.orchestratorHeartbeat };
     }
@@ -1166,6 +1245,13 @@ app.get('/api/health', (req, res) => {
         uptime,
         mode: CONFIG.TRADE_MODE,
         isLive: CONFIG.IS_LIVE,
+        runtimeMode: {
+            mode: CONFIG.TRADE_MODE,
+            isLive: CONFIG.IS_LIVE,
+            source: CONFIG.RUNTIME_MODE_SOURCE || 'env',
+            updatedAt: CONFIG.RUNTIME_MODE_UPDATED_AT || null,
+            liveModeBlockers: getLiveModeBlockers()
+        },
         balance: riskManager.bankroll,
         balanceBreakdown: executorStatus.balanceBreakdown,
         baselineBankroll: executorStatus.baselineBankroll,
@@ -1246,6 +1332,15 @@ app.get('/api/status', (req, res) => {
     const isDegraded = isManuallyPaused || errorHalted || tradeFailureHalted || hasPendingSettlements || hasRecoveryQueue || hasPendingBuys || hasPendingSells;
     res.json({
         status: isDegraded ? 'degraded' : 'ok',
+        mode: CONFIG.TRADE_MODE,
+        isLive: CONFIG.IS_LIVE,
+        runtimeMode: {
+            mode: CONFIG.TRADE_MODE,
+            isLive: CONFIG.IS_LIVE,
+            source: CONFIG.RUNTIME_MODE_SOURCE || 'env',
+            updatedAt: CONFIG.RUNTIME_MODE_UPDATED_AT || null,
+            liveModeBlockers: getLiveModeBlockers()
+        },
         risk: riskStatus,
         executor: executorStatus,
         timeframes: getEnabledTimeframes().map(t => t.key),
@@ -1951,6 +2046,8 @@ async function startServer() {
                 clearHalts: clearAllHalts,
                 saveRuntimeState,
                 resetValidatorBaseline,
+                switchRuntimeTradeMode,
+                getLiveModeBlockers,
                 runValidator: () => strategyValidator.runCheck({
                     risk: riskManager.getStatus(),
                     executor: tradeExecutor.getStatus(),
