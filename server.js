@@ -2042,6 +2042,7 @@ async function startServer() {
             telegramCommands.startCommandLoop({
                 riskManager,
                 tradeExecutor,
+                clobClient: tradeExecutor?.clob,
                 getHalts: getHaltsSnapshot,
                 clearHalts: clearAllHalts,
                 saveRuntimeState,

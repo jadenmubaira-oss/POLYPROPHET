@@ -12137,3 +12137,17 @@ No current high-growth candidate has been appended under the corrected gate. Low
 
 **Pre-unpause checklist**: keep the service paused after deploy; deposit/top up to about `$10`; verify `/api/health`, `/api/status`, `/api/wallet/balance`, `/api/debug/strategy-paths`, and `/api/telegram/state`; ensure `runtimeMode.mode=LIVE`, `runtimeMode.isLive=true`, `liveModeBlockers=[]`, `manualPause=true`, strategy path ends in `strategy_set_15m_epoch3v2_portfolio.json`, wallet trade-ready is OK, Telegram test succeeds, and there are no pending buys/sells/settlements or halts. Only then use Telegram `/resume` or the `Resume` button during the chosen pre-window.
 
+---
+
+### 30 Apr 2026 Junie Telegram Wallet-Control Addendum — Deposit/Withdraw Safety Boundary
+
+**Current deployed state before this patch**: the operator switched Render to `PAPER` and resumed it. Endpoint audit showed deployed commit `a0f4703`, health `ok`, runtime mode `PAPER`, `isLive=false`, manual pause `false`, Epoch3 V2 `15m` strategy loaded, no open positions, no pending buys/sells/settlements, Telegram enabled, and wallet trade readiness still OK. This is the correct safe posture for observing signals without live orders; it is not a live-profit proof.
+
+**Deposit via Telegram**: Telegram cannot initiate an inbound deposit because deposits are an external wallet/Polymarket UI funding action. It now supports `/deposit` and a `Deposit` dashboard button that show the configured signer/proxy/funder address, Polygon/pUSD funding guidance, current proxy pUSD read when available, and the warning to never paste private keys or seed phrases into Telegram. After funding, verify `/balance`, `/api/wallet/balance`, and the Polymarket UI before resuming or switching live.
+
+**Withdraw via Telegram**: a guarded withdrawal path now exists for V2 pUSD from the selected Polymarket proxy/funder wallet through the same audited builder-relayer path already used for proxy redemption. It is deliberately disabled unless all safety envs are set: `TELEGRAM_WALLET_CONTROLS_ENABLED=true`, `TELEGRAM_WITHDRAW_ENABLED=true`, `TELEGRAM_WITHDRAW_TO_ADDRESS=<fixed trusted 0x destination>`, and `TELEGRAM_WITHDRAW_MAX_USDC=<hard max per request>`. The bot will not accept arbitrary withdrawal addresses from chat.
+
+**Withdrawal safety checks**: `/withdraw AMOUNT` only creates a short-lived confirmation token if trading is paused, no open positions exist, there are no pending buys/sells/settlements, the fixed destination is valid, the amount is below the configured max, and proxy pUSD balance is re-read successfully. `/confirm_withdraw TOKEN` or the confirm button rechecks those same gates before submitting. Failed checks cancel the request and move no funds.
+
+**Operator recommendation**: leave withdrawal envs disabled unless you explicitly need emergency fund movement from Telegram. For normal operation, deposits should be done manually through the wallet/Polymarket UI and Telegram should be used for address/balance verification plus pause/resume/mode control.
+
