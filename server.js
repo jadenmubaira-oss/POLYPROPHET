@@ -954,7 +954,7 @@ async function orchestrate() {
     tradeExecutor.checkAndResolveExpiredPositions(currentMarkets);
 
     // Resolve pending paper positions
-    await resolvePendingPaperPositions();
+    const paperSettlements = await resolvePendingPaperPositions();
 
     // Resolve pending live positions, retry pending sells, and redeem winners
     const liveSettlements = CONFIG.TRADE_MODE === 'LIVE'
@@ -967,10 +967,12 @@ async function orchestrate() {
         ? await tradeExecutor.checkAndRedeemPositions()
         : { success: true, redeemed: 0, failed: 0, skipped: 0, remaining: 0 };
 
-    if (liveSettlements.length > 0 || pendingSellResults.closed > 0 || redemptionResults.redeemed > 0) {
+    if (paperSettlements.resolved > 0 || liveSettlements.length > 0 || pendingSellResults.closed > 0 || redemptionResults.redeemed > 0) {
         diagnosticLog.push({
             ts: new Date().toISOString(),
             type: 'LIFECYCLE_MAINTENANCE',
+            paperSettlementsResolved: paperSettlements.resolved || 0,
+            paperSettlementsRemaining: paperSettlements.remaining || 0,
             liveSettlements: liveSettlements.length,
             pendingSellsClosed: pendingSellResults.closed || 0,
             pendingSellsFailed: pendingSellResults.failed || 0,
@@ -1015,14 +1017,40 @@ async function orchestrate() {
 }
 
 async function resolvePendingPaperPositions() {
+    if (CONFIG.TRADE_MODE === 'PAPER') {
+        const queuedIds = new Set((tradeExecutor.pendingRedemptions || []).map((p) => p?.positionId).filter(Boolean));
+        const pendingPositions = tradeExecutor.getPendingSettlements()
+            .filter((pos) => !pos.isLive && pos.status === 'PENDING_RESOLUTION');
+        for (const pos of pendingPositions) {
+            if (queuedIds.has(pos.id)) continue;
+            tradeExecutor.pendingRedemptions.push({
+                positionId: pos.id,
+                slug: pos.slug,
+                asset: pos.asset,
+                timeframe: pos.timeframe,
+                direction: pos.direction,
+                queuedAt: new Date().toISOString(),
+                source: 'PAPER_PENDING_RECONCILIATION'
+            });
+            queuedIds.add(pos.id);
+        }
+    }
+
     const pending = [...tradeExecutor.pendingRedemptions];
     tradeExecutor.pendingRedemptions = [];
+    let resolved = 0;
+    let requeued = 0;
 
     for (const p of pending) {
         try {
+            if (!p?.slug || !p?.positionId) {
+                requeued++;
+                continue;
+            }
             const market = await fetchMarketBySlug(p.slug);
             if (!market || !market.closed) {
                 tradeExecutor.pendingRedemptions.push(p);
+                requeued++;
                 continue;
             }
 
@@ -1049,15 +1077,31 @@ async function resolvePendingPaperPositions() {
                     const result = tradeExecutor.resolvePosition(p.positionId, won);
                     if (result) {
                         telegram.notifyTradeClose(result);
+                        resolved++;
                     }
                 }
             } else {
                 tradeExecutor.pendingRedemptions.push(p);
+                requeued++;
             }
         } catch {
             tradeExecutor.pendingRedemptions.push(p);
+            requeued++;
         }
     }
+
+    if (resolved > 0 || requeued > 0) {
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'PAPER_SETTLEMENT_RECONCILIATION',
+            processed: pending.length,
+            resolved,
+            requeued,
+            remaining: tradeExecutor.pendingRedemptions.length
+        });
+    }
+
+    return { processed: pending.length, resolved, requeued, remaining: tradeExecutor.pendingRedemptions.length };
 }
 
 // ==================== TELEGRAM + VALIDATOR HELPERS ====================
@@ -1395,6 +1439,7 @@ app.get('/api/reconcile-pending', (req, res) => {
 
 app.post('/api/reconcile-pending', async (req, res) => {
     try {
+        const paperSettlements = await resolvePendingPaperPositions();
         const pendingBuys = CONFIG.TRADE_MODE === 'LIVE'
             ? await tradeExecutor.processPendingBuys(50)
             : { success: true, processed: 0, recovered: 0, failed: 0 };
@@ -1414,6 +1459,7 @@ app.post('/api/reconcile-pending', async (req, res) => {
 
         res.json({
             success: true,
+            paperSettlements,
             pendingBuys,
             liveSettlements,
             pendingSells,

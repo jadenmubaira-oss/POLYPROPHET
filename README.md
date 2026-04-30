@@ -12163,3 +12163,17 @@ No current high-growth candidate has been appended under the corrected gate. Low
 
 **Operational meaning**: if the bot is still in `PAPER`, a lower paper simulation bankroll can still appear as `Paper sim`, but `Wallet cash` / `/balance` / `/api/wallet/balance.balanceBreakdown.tradingBalanceUsdc` should now show the real refreshed CLOB collateral. Before a live smoke, switch/confirm `LIVE` mode only when ready, keep paused, confirm no pending exposure or halts, and use the refreshed wallet balance as the `$10` starting-balance readiness signal.
 
+---
+
+### 30 Apr 2026 Junie Paper/Live Settlement Reconciliation Addendum — Stuck PAPER Settlements Fix
+
+**Incident**: while Render was runtime-switched to `PAPER` and resumed on commit `ecd47a1`, two paper trades were visible as stuck `PENDING_RESOLUTION`/settlement items. Endpoint audit confirmed this was not a rollback: local `main` and Render were both on `ecd47a1`; the bot was running the current Epoch3 V2 code path, with runtime mode `PAPER` and two pending paper settlements.
+
+**Root cause**: expired PAPER positions are moved to `PENDING_RESOLUTION` and should resolve from the final Polymarket/Gamma market winner. The paper resolver only processed `tradeExecutor.pendingRedemptions`; if that queue was missing/stale after runtime persistence or restart while the position itself remained `PENDING_RESOLUTION`, the paper trade stayed open. LIVE settlement/redeem was separate and already gated to live positions, but the paper path lacked an autonomous queue rebuild.
+
+**Patch**: `server.js` now rebuilds the paper settlement queue from `tradeExecutor.getPendingSettlements()` whenever runtime mode is `PAPER`, adding any non-live `PENDING_RESOLUTION` position that is missing from `pendingRedemptions`. It then uses the existing market-winner resolver to finalize the paper trade, credit/debit paper bankroll through `_finalizePosition()`/risk accounting, emit Telegram trade-close notifications, and log `PAPER_SETTLEMENT_RECONCILIATION`. `POST /api/reconcile-pending` now also runs this paper resolver and returns `paperSettlements`, so an operator/admin reconcile request can clear paper settlement state immediately instead of waiting for the next orchestrator tick.
+
+**LIVE settlement boundary**: this patch does not fake live settlement or alter the safety gates for live orders. LIVE still uses the separate pending-buy, `reconcilePendingLivePositions()`, pending-sell, and V2 redemption queue paths, with actual live positions requiring real order/fill/settlement/redeem lifecycle proof. If live settlement stalls after a real trade, the bot should autonomously retry the existing live paths first; manual Polymarket redemption remains a last-resort operator backup, not the normal expected path.
+
+**Strategy/readiness meaning**: this fix improves lifecycle autonomy and paper/live status truth, but it does not change Epoch3 V2's backtest edge or remove the remaining real-world caveats: live order acceptance, queue/fill quality, realized spread, first pUSD/V2 settlement/redeem timing, and finalized live PnL parity still need to be observed during the first live smoke.
+
