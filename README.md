@@ -12189,3 +12189,17 @@ No current high-growth candidate has been appended under the corrected gate. Low
 
 **Current operational boundary**: do not treat `tradeReady.ok=true` as proof that authenticated orders will be accepted; it proves wallet/CLOB credential readiness, not jurisdiction/order acceptance. The next live attempt should remain paused until `/api/network-diagnostics` shows a non-blocked proxy route and any subsequent failure diagnostic can be inspected for the exact CLOB body.
 
+---
+
+### 1 May 2026 Junie Live Order Routing Fix — Proxy/V2 Funder Audit Before Next Smoke
+
+**Incident follow-up**: after deploying `bcaff42`, Render showed `LIVE`, manually paused, no halt/exposure, wallet cash about `$10.563112`, Epoch3 V2 loaded, and `/api/network-diagnostics` showed direct Render as geoblocked (`US/OR`) while the configured proxy route was `blocked=false` (`ES/MD`) with CLOB `/time` reachable. That proved the proxy itself was currently accepted by Polymarket's read-only geoblock endpoint, but it did not yet prove that the SDK's authenticated order-post request was actually using the proxy.
+
+**Root-cause risk found in code review**: the global Axios interceptor in `lib/clob-client.js` only checked `requestConfig.url` for `clob.polymarket.com`. The Polymarket SDK can issue requests with a relative `url` plus `baseURL=https://clob.polymarket.com`; those write/order requests could bypass the proxy interceptor and go direct from Render's blocked `US/OR` route. This is the most likely explanation for repeated `403 Trading restricted in your region` order failures despite `proxyConfigured=true` and a proxy geoblock check returning `blocked=false`.
+
+**Patch**: `lib/clob-client.js` now checks `baseURL + url` before deciding whether the request is a CLOB request, so SDK auth/order/cancel writes should route through the configured proxy agent. The V2 positional adapter now passes both `funder` and `funderAddress` to match current TypeScript V2 docs while preserving compatibility. `lib/clob-client.js` and `lib/trade-executor.js` also propagate `clobFailureSummary` through to `server.js` so any future rejection is visible in `/api/diagnostics` instead of collapsing to opaque `CLOB_ORDER_FAILED`.
+
+**Operational status after local verification**: syntax checks passed for `server.js`, `lib/clob-client.js`, and `lib/trade-executor.js`, and `node scripts\verify-harness.js` passed `35/35`. Deploy this patch before any next `/resume`; after Render reaches the new commit, verify `/api/health`, `/api/clob-status`, `/api/wallet/balance`, `/api/network-diagnostics`, and `/api/debug/strategy-paths`. Required truth before any live smoke: `LIVE`, `manualPause=true`, `tradeFailureHalt=false`, `pendingBuys=0`, `pendingSells=0`, `pendingSettlements=0`, wallet cash still about `$10.56`, Epoch3 V2 path loaded, `proxyGeoblock.data.blocked=false`, and proxy CLOB time OK.
+
+**Accepted-order proof boundary**: this patch fixes the most likely routing/funder bug, but it still is not a real accepted-order proof until the next live order returns an `orderID` or a deliberately supervised micro order is accepted. If the next live attempt fails, inspect `/api/diagnostics` immediately for `clobFailureSummary`; if it says geoblock again, the proxy/order route is still not accepted and trading should stay paused.
+
