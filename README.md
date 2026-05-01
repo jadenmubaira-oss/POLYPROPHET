@@ -12177,3 +12177,15 @@ No current high-growth candidate has been appended under the corrected gate. Low
 
 **Strategy/readiness meaning**: this fix improves lifecycle autonomy and paper/live status truth, but it does not change Epoch3 V2's backtest edge or remove the remaining real-world caveats: live order acceptance, queue/fill quality, realized spread, first pUSD/V2 settlement/redeem timing, and finalized live PnL parity still need to be observed during the first live smoke.
 
+---
+
+### 1 May 2026 Junie Live Order Rejection Diagnostic Patch
+
+**Incident**: the first live smoke attempts reached the Epoch3 V2 entry windows but halted with `TRADE_FAILURE_HALT` after `8/8` consecutive live order failures. Endpoint audits showed no filled/stuck exposure, wallet cash still around `$10.563112`, no pending buys/sells/settlements, CLOB creds/trade-ready OK, and proxy routing configured/forced. The previous diagnostic surface did not retain the raw CLOB rejection details for the second halt, so the exact post-proxy rejection body was not recoverable from Render after the fact.
+
+**Patch**: `lib/clob-client.js` now captures redacted CLOB failure diagnostics from thrown SDK/Axios errors and no-`orderID` responses (`status`, `statusText`, safe request headers, error code/message, and sanitized body). `lib/trade-executor.js` preserves those fields as `clobFailure` / `clobFailureSummary` instead of collapsing them to only `CLOB_ORDER_FAILED`, and `server.js` writes them into `TRADE_FAILED` and `TRADE_FAILURE_HALT` diagnostic entries.
+
+**Read-only network audit endpoint**: `GET /api/network-diagnostics` now checks `https://polymarket.com/api/geoblock` directly and through the configured `PROXY_URL`, plus `https://clob.polymarket.com/time` through the proxy. It does not create, sign, post, cancel, or fill orders. Use it after any Render proxy/env change to see whether the deployed server's proxy route is `blocked=false` before clearing halts or resuming.
+
+**Current operational boundary**: do not treat `tradeReady.ok=true` as proof that authenticated orders will be accepted; it proves wallet/CLOB credential readiness, not jurisdiction/order acceptance. The next live attempt should remain paused until `/api/network-diagnostics` shows a non-blocked proxy route and any subsequent failure diagnostic can be inspected for the exact CLOB body.
+

@@ -897,6 +897,8 @@ async function orchestrate() {
                         direction: candidate.direction,
                         entryPrice: candidate.entryPrice,
                         reason: result.error,
+                        clobFailure: result.clobFailure || null,
+                        clobFailureSummary: result.clobFailureSummary || null,
                         consecutiveTradeFailures,
                         strategy: candidate.name
                     });
@@ -910,6 +912,8 @@ async function orchestrate() {
                             consecutiveTradeFailures,
                             threshold: TRADE_FAILURE_HALT_THRESHOLD,
                             lastError: result.error,
+                            clobFailure: result.clobFailure || null,
+                            clobFailureSummary: result.clobFailureSummary || null,
                             strategy: candidate.name
                         });
                         break;
@@ -1711,6 +1715,74 @@ app.get('/api/clob-status', async (req, res) => {
         });
     } catch (e) {
         res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/network-diagnostics', async (req, res) => {
+    try {
+        const axios = require('axios');
+        let HttpsProxyAgent = null;
+        try { ({ HttpsProxyAgent } = require('https-proxy-agent')); } catch {}
+        const timeout = 12000;
+        const proxyAgent = CONFIG.PROXY_URL && HttpsProxyAgent
+            ? new HttpsProxyAgent(CONFIG.PROXY_URL)
+            : null;
+        const redact = (value) => String(typeof value === 'string' ? value : JSON.stringify(value || null))
+            .replace(/0x[a-fA-F0-9]{64,}/g, (m) => `${m.slice(0, 10)}…${m.slice(-6)}`)
+            .replace(/Bearer\s+[A-Za-z0-9._~+\-/=]+/gi, 'Bearer [REDACTED]')
+            .replace(/"?(apiKey|secret|passphrase|privateKey|proxyPassword|password)"?\s*[:=]\s*"?[^",\s}]+"?/gi, '$1=[REDACTED]')
+            .slice(0, 1000);
+        const request = async (label, url, agent) => {
+            try {
+                const resp = await axios.get(url, {
+                    timeout,
+                    proxy: false,
+                    httpsAgent: agent || undefined,
+                    validateStatus: () => true
+                });
+                return {
+                    label,
+                    ok: resp.status >= 200 && resp.status < 300,
+                    status: resp.status,
+                    data: resp.data,
+                    headers: {
+                        'content-type': resp.headers?.['content-type'] || null,
+                        'cf-ray': resp.headers?.['cf-ray'] || null,
+                        server: resp.headers?.server || null,
+                        'x-request-id': resp.headers?.['x-request-id'] || null
+                    }
+                };
+            } catch (e) {
+                return {
+                    label,
+                    ok: false,
+                    error: e.message,
+                    status: e.response?.status || null,
+                    data: e.response?.data == null ? null : redact(e.response.data)
+                };
+            }
+        };
+
+        const directGeoblock = await request('direct_geoblock', 'https://polymarket.com/api/geoblock', null);
+        const proxyGeoblock = proxyAgent
+            ? await request('proxy_geoblock', 'https://polymarket.com/api/geoblock', proxyAgent)
+            : { label: 'proxy_geoblock', ok: false, error: 'PROXY_NOT_CONFIGURED' };
+        const proxyClobTime = proxyAgent
+            ? await request('proxy_clob_time', 'https://clob.polymarket.com/time', proxyAgent)
+            : { label: 'proxy_clob_time', ok: false, error: 'PROXY_NOT_CONFIGURED' };
+
+        res.json({
+            success: true,
+            checkedAt: new Date().toISOString(),
+            proxyConfigured: !!CONFIG.PROXY_URL,
+            clobForceProxy: !!CONFIG.CLOB_FORCE_PROXY,
+            note: 'Read-only diagnostics only; does not create, post, cancel, or fill orders.',
+            directGeoblock,
+            proxyGeoblock,
+            proxyClobTime
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
     }
 });
 
