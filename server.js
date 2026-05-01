@@ -869,8 +869,28 @@ async function orchestrate() {
                         direction: candidate.direction,
                         entryPrice: candidate.entryPrice,
                         reason: result.error,
+                        nonRetryable: !!result.nonRetryable,
+                        clobFailure: result.clobFailure || null,
+                        clobFailureSummary: result.clobFailureSummary || null,
                         strategy: candidate.name
                     });
+                    if (result.nonRetryable || String(result.error || '').includes('CLOB_ORDER_ENDPOINT_GEOBLOCKED') || String(result.error || '').includes('NON_RETRYABLE_CLOB_GEOBLOCK')) {
+                        tradeFailureHalted = true;
+                        consecutiveTradeFailures = TRADE_FAILURE_HALT_THRESHOLD;
+                        lastTradeFailureAt = Date.now();
+                        diagnosticLog.push({
+                            ts: new Date().toISOString(),
+                            type: 'TRADE_FAILURE_HALT',
+                            consecutiveTradeFailures,
+                            threshold: TRADE_FAILURE_HALT_THRESHOLD,
+                            lastError: result.error,
+                            clobFailure: result.clobFailure || null,
+                            clobFailureSummary: result.clobFailureSummary || null,
+                            strategy: candidate.name,
+                            nonRetryable: true
+                        });
+                        break;
+                    }
                 } else if (!result.success) {
                     const reason = String(result.error || '');
                     const pendingBuyOpen = reason.includes('NO_FILL_AFTER_RETRIES');
@@ -1770,16 +1790,20 @@ app.get('/api/network-diagnostics', async (req, res) => {
         const proxyClobTime = proxyAgent
             ? await request('proxy_clob_time', 'https://clob.polymarket.com/time', proxyAgent)
             : { label: 'proxy_clob_time', ok: false, error: 'PROXY_NOT_CONFIGURED' };
+        const clobOrderEndpointPreflight = tradeExecutor.clob?.checkClobOrderEndpointPreflight
+            ? await tradeExecutor.clob.checkClobOrderEndpointPreflight({ force: true, ttlMs: 60000 }).catch(e => ({ ok: false, blocked: false, reason: e.message }))
+            : { ok: false, blocked: false, reason: 'CLOB_PREFLIGHT_UNAVAILABLE' };
 
         res.json({
             success: true,
             checkedAt: new Date().toISOString(),
             proxyConfigured: !!CONFIG.PROXY_URL,
             clobForceProxy: !!CONFIG.CLOB_FORCE_PROXY,
-            note: 'Read-only diagnostics only; does not create, post, cancel, or fill orders.',
+            note: 'Diagnostics only; order-endpoint preflight posts an intentionally invalid non-trading payload to prove whether CLOB /order reaches validation/auth rather than geoblock. It must not create, cancel, or fill orders.',
             directGeoblock,
             proxyGeoblock,
-            proxyClobTime
+            proxyClobTime,
+            clobOrderEndpointPreflight
         });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });

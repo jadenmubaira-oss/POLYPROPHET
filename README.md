@@ -12203,3 +12203,15 @@ No current high-growth candidate has been appended under the corrected gate. Low
 
 **Accepted-order proof boundary**: this patch fixes the most likely routing/funder bug, but it still is not a real accepted-order proof until the next live order returns an `orderID` or a deliberately supervised micro order is accepted. If the next live attempt fails, inspect `/api/diagnostics` immediately for `clobFailureSummary`; if it says geoblock again, the proxy/order route is still not accepted and trading should stay paused.
 
+---
+
+### 1 May 2026 Junie Post-16:03 BST Halt Root Cause — CLOB `/order` Endpoint Still Geoblocked
+
+**Incident**: after deploying commit `72a433e` and resuming for the `16:03 BST` Epoch3 V2 window, Render halted again almost immediately with `TRADE_FAILURE_HALT`. The captured diagnostic now proves the live order failed before any fill: authenticated CLOB order placement returned `403` with `Trading restricted in your region` for `E3V2_static_grid_H15M2_DOWN`. Wallet cash remained about `$10.563112`, no `orderID` was accepted, and there were no pending buys, sells, settlements, or live exposure.
+
+**New root cause detail**: public `https://polymarket.com/api/geoblock` and CLOB `/time` checks are not sufficient proof that live orders will be accepted. Non-trading probes against the actual CLOB write endpoint `POST https://clob.polymarket.com/order` showed that the current proxy route can return `403` at the order endpoint even when the public geoblock endpoint reports `blocked=false`. This means the remaining blocker is Polymarket rejecting the actual CLOB order-write surface for the current network route, not strategy logic, pUSD balance, MPC, settlement, or Telegram controls.
+
+**Patch**: `lib/clob-client.js` now runs a fail-closed preflight against the exact CLOB `/order` endpoint before attempting a real live order. The preflight deliberately sends an invalid non-trading payload; a usable route should reach validation/auth failure, while a route that returns `403 Trading restricted` is classified as `CLOB_ORDER_ENDPOINT_GEOBLOCKED`. Geoblock is no longer treated as retryable auth failure. `lib/trade-executor.js` now propagates `blocked` and `nonRetryable`; `server.js` halts immediately on this non-retryable condition and records the sanitized CLOB failure instead of burning through eight live candidates.
+
+**Operational meaning**: do not clear halts and resume just because `/api/network-diagnostics.proxyGeoblock.data.blocked=false`. The next live attempt is only defensible after the actual CLOB `/order` preflight does **not** return geoblock from the deployed Render route. If it still returns `CLOB_ORDER_ENDPOINT_GEOBLOCKED`, no strategy entry should be allowed because Polymarket will reject order placement before profit/loss can exist.
+
