@@ -12215,3 +12215,15 @@ No current high-growth candidate has been appended under the corrected gate. Low
 
 **Operational meaning**: do not clear halts and resume just because `/api/network-diagnostics.proxyGeoblock.data.blocked=false`. The next live attempt is only defensible after the actual CLOB `/order` preflight does **not** return geoblock from the deployed Render route. If it still returns `CLOB_ORDER_ENDPOINT_GEOBLOCKED`, no strategy entry should be allowed because Polymarket will reject order placement before profit/loss can exist.
 
+---
+
+### 1 May 2026 Junie Final Order-Acceptance Audit — Bot Ready, Current Network Route NO-GO
+
+**Current deployed truth at 18:31 BST**: Render is on commit `258df3903d74efeebe7399541cefaddad888e93a`, `mode=LIVE`, `isLive=true`, `manualPause=true`, `tradeFailureHalt=false`, wallet cash is still about `$10.563112`, Epoch3 V2 remains loaded, and there are no live pending buys, pending sells, pending settlements, or open positions. This means the bot is safe/paused and mechanically armed, but it does not mean the next order will be accepted.
+
+**Decisive blocker**: `/api/network-diagnostics` shows direct Render is blocked as `US/OR`; the configured proxy route reports public geoblock `blocked=false` as `ES/MD` and CLOB `/time` returns `200`, but the actual CLOB write surface still fails: `clobOrderEndpointPreflight.ok=false`, `blocked=true`, `status=403`, reason `CLOB_ORDER_ENDPOINT_GEOBLOCKED: Trading restricted in your region`. This is the exact endpoint the live bot must pass before a real order can be posted.
+
+**Extra non-trading proxy probe**: the four candidate proxy hosts supplied by the operator (`216.26.247.66:3129`, `209.50.184.144:3129`, `209.50.184.151:3129`, `65.111.26.209:3129`) all returned public Polymarket geoblock `blocked=false` as `ES/MD`, but all also returned `403 Forbidden` from a non-trading invalid `POST https://clob.polymarket.com/order` probe. Therefore none of those routes are currently proven able to submit accepted CLOB orders.
+
+**Final GO/NO-GO**: the application code, V2 SDK adapter, pUSD/funder configuration, strategy loading, wallet balance reporting, halt logic, and diagnostics are ready for a supervised live smoke only after the order endpoint preflight is clean. With the current network route, the correct live verdict is `NO-GO`: resuming now should be expected to hit the fail-closed geoblock guard rather than place a trade. The required precondition before `/resume` is `GET /api/network-diagnostics` showing `clobOrderEndpointPreflight.ok=true` or at minimum a non-geoblock validation/auth response from `/order`; until then, this is not a bot/strategy fixable issue.
+
