@@ -92,6 +92,10 @@ let lastKnownPeakBalance = 0;
 let lastKnownBankroll = 0;
 let lastCooldownActive = false;
 let lastHaltStates = { errorHalt: false, tradeFailureHalt: false };
+let lastTradeFailureDetail = null;
+let recentTradeFailureDetails = [];
+let lastPaperSettlementReconLogAt = 0;
+let lastPaperSettlementReconFingerprint = '';
 let cachedBestWindows = null;
 let cachedBestWindowsAt = 0;
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'strategies')) ? __dirname : path.join(__dirname, '..');
@@ -149,6 +153,40 @@ function buildStrategyPathDebug() {
         },
         loaded: getAllLoadedSets()
     };
+}
+
+function buildTradeFailureDetail(type, candidate, result, extra = {}) {
+    return {
+        ts: new Date().toISOString(),
+        type,
+        mode: CONFIG.TRADE_MODE,
+        isLive: CONFIG.IS_LIVE,
+        asset: candidate?.asset || null,
+        timeframe: candidate?.timeframe || null,
+        direction: candidate?.direction || null,
+        entryPrice: candidate?.entryPrice ?? null,
+        strategy: candidate?.name || null,
+        success: !!result?.success,
+        blocked: !!result?.blocked,
+        nonRetryable: !!result?.nonRetryable,
+        error: result?.error || null,
+        clobFailure: result?.clobFailure || null,
+        clobFailureSummary: result?.clobFailureSummary || null,
+        orderID: result?.orderID || result?.orderId || null,
+        consecutiveTradeFailures,
+        threshold: TRADE_FAILURE_HALT_THRESHOLD,
+        ...extra
+    };
+}
+
+function recordTradeFailureDetail(type, candidate, result, extra = {}) {
+    const detail = buildTradeFailureDetail(type, candidate, result, extra);
+    lastTradeFailureDetail = detail;
+    recentTradeFailureDetails.push(detail);
+    if (recentTradeFailureDetails.length > 25) {
+        recentTradeFailureDetails = recentTradeFailureDetails.slice(-25);
+    }
+    return detail;
 }
 
 if (REDIS_RUNTIME_ENABLED && process.env.REDIS_URL) {
@@ -861,34 +899,22 @@ async function orchestrate() {
                         strategy: candidate.name
                     });
                 } else if (result.blocked) {
-                    diagnosticLog.push({
-                        ts: new Date().toISOString(),
-                        type: 'BLOCKED',
-                        asset: candidate.asset,
-                        timeframe: candidate.timeframe,
-                        direction: candidate.direction,
-                        entryPrice: candidate.entryPrice,
+                    const detail = recordTradeFailureDetail('BLOCKED', candidate, result, {
                         reason: result.error,
-                        nonRetryable: !!result.nonRetryable,
-                        clobFailure: result.clobFailure || null,
-                        clobFailureSummary: result.clobFailureSummary || null,
-                        strategy: candidate.name
+                        consecutiveTradeFailures
                     });
+                    diagnosticLog.push(detail);
                     if (result.nonRetryable || String(result.error || '').includes('CLOB_ORDER_ENDPOINT_GEOBLOCKED') || String(result.error || '').includes('NON_RETRYABLE_CLOB_GEOBLOCK')) {
                         tradeFailureHalted = true;
                         consecutiveTradeFailures = TRADE_FAILURE_HALT_THRESHOLD;
                         lastTradeFailureAt = Date.now();
-                        diagnosticLog.push({
-                            ts: new Date().toISOString(),
-                            type: 'TRADE_FAILURE_HALT',
-                            consecutiveTradeFailures,
-                            threshold: TRADE_FAILURE_HALT_THRESHOLD,
+                        const haltDetail = recordTradeFailureDetail('TRADE_FAILURE_HALT', candidate, result, {
                             lastError: result.error,
-                            clobFailure: result.clobFailure || null,
-                            clobFailureSummary: result.clobFailureSummary || null,
-                            strategy: candidate.name,
+                            reason: result.error,
+                            consecutiveTradeFailures,
                             nonRetryable: true
                         });
+                        diagnosticLog.push(haltDetail);
                         break;
                     }
                 } else if (!result.success) {
@@ -909,33 +935,21 @@ async function orchestrate() {
                         lastTradeFailureAt = 0;
                     }
 
-                    diagnosticLog.push({
-                        ts: new Date().toISOString(),
-                        type: pendingBuyOpen ? 'PENDING_BUY_OPEN' : 'TRADE_FAILED',
-                        asset: candidate.asset,
-                        timeframe: candidate.timeframe,
-                        direction: candidate.direction,
-                        entryPrice: candidate.entryPrice,
+                    const failureDetail = recordTradeFailureDetail(pendingBuyOpen ? 'PENDING_BUY_OPEN' : 'TRADE_FAILED', candidate, result, {
                         reason: result.error,
-                        clobFailure: result.clobFailure || null,
-                        clobFailureSummary: result.clobFailureSummary || null,
-                        consecutiveTradeFailures,
-                        strategy: candidate.name
+                        consecutiveTradeFailures
                     });
+                    diagnosticLog.push(failureDetail);
 
                     if (!pendingBuyOpen && consecutiveTradeFailures >= TRADE_FAILURE_HALT_THRESHOLD) {
                         tradeFailureHalted = true;
                         console.error(`🛑 TRADE FAILURE HALT: ${consecutiveTradeFailures} consecutive live trade failures — automated entries paused. POST /api/resume-errors to recover.`);
-                        diagnosticLog.push({
-                            ts: new Date().toISOString(),
-                            type: 'TRADE_FAILURE_HALT',
-                            consecutiveTradeFailures,
-                            threshold: TRADE_FAILURE_HALT_THRESHOLD,
+                        const haltDetail = recordTradeFailureDetail('TRADE_FAILURE_HALT', candidate, result, {
                             lastError: result.error,
-                            clobFailure: result.clobFailure || null,
-                            clobFailureSummary: result.clobFailureSummary || null,
-                            strategy: candidate.name
+                            reason: result.error,
+                            consecutiveTradeFailures
                         });
+                        diagnosticLog.push(haltDetail);
                         break;
                     }
                 }
@@ -1114,7 +1128,16 @@ async function resolvePendingPaperPositions() {
         }
     }
 
-    if (resolved > 0 || requeued > 0) {
+    const reconFingerprint = `${pending.length}|${resolved}|${requeued}|${tradeExecutor.pendingRedemptions.length}`;
+    const shouldLogPaperRecon = resolved > 0 || (
+        requeued > 0 && (
+            reconFingerprint !== lastPaperSettlementReconFingerprint ||
+            (Date.now() - lastPaperSettlementReconLogAt) > 10 * 60 * 1000
+        )
+    );
+    if (shouldLogPaperRecon) {
+        lastPaperSettlementReconLogAt = Date.now();
+        lastPaperSettlementReconFingerprint = reconFingerprint;
         diagnosticLog.push({
             ts: new Date().toISOString(),
             type: 'PAPER_SETTLEMENT_RECONCILIATION',
@@ -1343,7 +1366,14 @@ app.get('/api/health', (req, res) => {
         telegram: telegramState,
         runtimeState: getRuntimeStateStatus(),
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
-        tradeFailureHalt: { halted: tradeFailureHalted, consecutiveFailures: consecutiveTradeFailures, threshold: TRADE_FAILURE_HALT_THRESHOLD, windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000 },
+        tradeFailureHalt: {
+            halted: tradeFailureHalted,
+            consecutiveFailures: consecutiveTradeFailures,
+            threshold: TRADE_FAILURE_HALT_THRESHOLD,
+            windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000,
+            lastFailure: lastTradeFailureDetail,
+            recentFailures: recentTradeFailureDetails.slice(-10)
+        },
         tradingSuppression: {
             manualPause: isManuallyPaused,
             inCooldown: !!riskStatus.inCooldown,
@@ -1444,7 +1474,14 @@ app.get('/api/status', (req, res) => {
             pendingSettlements: hasPendingSettlements
         },
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
-        tradeFailureHalt: { halted: tradeFailureHalted, consecutiveFailures: consecutiveTradeFailures, threshold: TRADE_FAILURE_HALT_THRESHOLD, windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000 }
+        tradeFailureHalt: {
+            halted: tradeFailureHalted,
+            consecutiveFailures: consecutiveTradeFailures,
+            threshold: TRADE_FAILURE_HALT_THRESHOLD,
+            windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000,
+            lastFailure: lastTradeFailureDetail,
+            recentFailures: recentTradeFailureDetails.slice(-10)
+        }
     });
 });
 
@@ -1558,6 +1595,14 @@ app.get('/api/diagnostics', (req, res) => {
             pendingSettlements: executorStatus.pendingSettlements.length,
             liveBalanceSource: executorStatus.liveBalanceSource,
             balanceDivergenceUsdc: Number.isFinite(divergenceUsdc) ? divergenceUsdc : null
+        },
+        tradeFailureHalt: {
+            halted: tradeFailureHalted,
+            consecutiveFailures: consecutiveTradeFailures,
+            threshold: TRADE_FAILURE_HALT_THRESHOLD,
+            windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000,
+            lastFailure: lastTradeFailureDetail,
+            recentFailures: recentTradeFailureDetails.slice(-25)
         },
         log: diagnosticLog.slice(-200)
     });
