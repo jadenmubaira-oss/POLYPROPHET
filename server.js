@@ -1793,7 +1793,8 @@ app.get('/api/clob-status', async (req, res) => {
             collateralProbe,
             hasCreds: !!(CONFIG.POLYMARKET_API_KEY && CONFIG.POLYMARKET_SECRET && CONFIG.POLYMARKET_PASSPHRASE),
             proxyConfigured: !!CONFIG.PROXY_URL,
-            clobForceProxy: !!CONFIG.CLOB_FORCE_PROXY
+            clobForceProxy: !!CONFIG.CLOB_FORCE_PROXY,
+            clobRouting: status?.clobRouting || null
         });
     } catch (e) {
         res.status(500).json({ error: e.message });
