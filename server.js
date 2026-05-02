@@ -1874,8 +1874,15 @@ function makeHttpError(status, message, extra = {}) {
 }
 
 async function runLiveOrderProof(body = {}) {
-        if (!CONFIG.IS_LIVE || !runtimeModeState.isLive) {
-            throw makeHttpError(409, 'LIVE_MODE_REQUIRED');
+        const liveModeBlockers = getLiveModeBlockers();
+        if (!CONFIG.IS_LIVE || liveModeBlockers.length > 0) {
+            throw makeHttpError(409, 'LIVE_MODE_REQUIRED', {
+                runtimeMode: {
+                    mode: CONFIG.TRADE_MODE,
+                    isLive: CONFIG.IS_LIVE,
+                    liveModeBlockers
+                }
+            });
         }
         if (tradeFailureHalted) {
             throw makeHttpError(409, 'TRADE_FAILURE_HALT_ACTIVE');
@@ -1913,6 +1920,7 @@ async function runLiveOrderProof(body = {}) {
         const proofPrice = fillProof
             ? Math.min(0.98, Number.isFinite(requestedPrice) ? requestedPrice : Number(bestAsk || 0.01))
             : Math.max(0.01, Math.min(0.05, Number.isFinite(requestedPrice) ? requestedPrice : 0.01));
+        const maxNotionalUsd = proofPrice * shares;
 
         if (!tokenId || !Number.isFinite(proofPrice) || proofPrice <= 0 || proofPrice >= 1) {
             throw makeHttpError(400, 'INVALID_PROOF_ORDER_INPUT', { tokenId, proofPrice });
@@ -1947,6 +1955,13 @@ async function runLiveOrderProof(body = {}) {
         return {
             success: !!(result?.acceptedOrder || result?.success),
             proofType: fillProof ? 'LIVE_FILL_PROOF' : 'ACCEPTED_ORDER_CANCEL_PROOF',
+            requestedExposure: {
+                shares,
+                price: proofPrice,
+                maxNotionalUsd,
+                fillProof,
+                defaultNoFillCancelProof: !fillProof
+            },
             market: {
                 asset,
                 timeframe,
@@ -1962,7 +1977,9 @@ async function runLiveOrderProof(body = {}) {
             beforeBalance,
             afterBalance,
             note: result?.acceptedOrder
-                ? 'Authenticated CLOB order was accepted and returned an orderID; no-fill/cancel is expected for the default proof.'
+                ? (fillProof
+                    ? 'Authenticated CLOB order was accepted. fillProof=true can intentionally use funds and create live exposure.'
+                    : 'Authenticated CLOB order was accepted and returned an orderID. Default proof posts a deliberately low-price GTC order, then cancels any unfilled remainder; a fill is not intended but is still theoretically possible in a live book.')
                 : 'Authenticated CLOB order was not accepted; inspect order.clobFailureSummary/order.clobFailure.'
         };
 }
@@ -1978,6 +1995,7 @@ app.post('/api/live-order-proof', async (req, res) => {
             error: e.message,
             openPositions: e.openPositions,
             pendingExposure: e.pendingExposure,
+            runtimeMode: e.runtimeMode,
             asset: e.asset,
             timeframe: e.timeframe,
             market: e.market,
