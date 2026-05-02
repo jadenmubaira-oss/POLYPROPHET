@@ -8,9 +8,9 @@ Generated: 2026-04-28
 - 19 strategies across 15m timeframe, targeting hours 1, 5, 6, 7, 9, 14, 15, 18, 20, 22, 23
 - Portfolio holdout WR: 86.0% across 343 events
 - Average entry: 68.0c (well below 82c hard cap)
-- MC $10→7d median: $18,095 (strict), $14,891 (adverse +2c stress)
-- P(≥$500 from $10): 92.4%
-- Bust rate from $10: 2.1%
+- Honest MPC-enforced rerun, 29 Apr 2026: $10→7d median $12,271 strict / $9,329 adverse +2c stress
+- Honest MPC-enforced rerun, 29 Apr 2026: P(≥$500 from $10) 81.5% strict / 74.6% adverse
+- Honest MPC-enforced rerun, 29 Apr 2026: bust rate 5.9% strict / 7.5% adverse
 
 **Secondary strategy set**: `strategies/strategy_set_5m_epoch3v2_portfolio.json`
 - 1 strategy for 5m timeframe (H5 M2 DOWN 0.60-0.75)
@@ -69,8 +69,8 @@ Justification:
 - Portfolio holdout WR of 86.0% across 343 chronological OOS events
 - All 20 strategies pass train-only selection → chronological holdout → MC validation
 - Average entry 68.0c is safely below the High-Price Trap zone
-- MC shows 92.4% probability of reaching $500+ from $10 within 7 days
-- Adverse stress test (+2c worse fill) still shows $14,891 median
+- MPC-enforced MC rerun shows 81.5% strict / 74.6% adverse probability of reaching $500+ from $10 within 7 days
+- Adverse stress test (+2c worse fill) still shows a high non-low-median result around $9,329 from $10, but remains unproven LIVE
 
 Missing for LIVE autonomy:
 - No L2 order book depth replay (no historical L2 data available)
