@@ -246,6 +246,12 @@ function getEnabledTimeframes() {
     return getConfiguredTimeframes().filter(tf => bankroll >= Number(tf.minBankroll || 0));
 }
 
+function getRuntimeTimeframes() {
+    const enabled = getEnabledTimeframes();
+    if (enabled.length > 0) return enabled;
+    return getConfiguredTimeframes();
+}
+
 function buildRuntimeStateSnapshot() {
     return {
         savedAt: new Date().toISOString(),
