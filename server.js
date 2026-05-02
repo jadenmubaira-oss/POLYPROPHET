@@ -1879,6 +1879,41 @@ function makeHttpError(status, message, extra = {}) {
     return error;
 }
 
+async function getLiveProofBalanceSnapshot(force = false) {
+    const snapshot = {
+        success: false,
+        source: null,
+        balanceBreakdown: null,
+        error: null
+    };
+
+    try {
+        if (tradeExecutor.clob?.wallet && typeof tradeExecutor.refreshLiveBalance === 'function') {
+            snapshot.source = 'refreshLiveBalance';
+            snapshot.balanceBreakdown = await tradeExecutor.refreshLiveBalance(!!force);
+        }
+        if (!snapshot.balanceBreakdown && typeof tradeExecutor.getCachedBalanceBreakdown === 'function') {
+            snapshot.source = snapshot.source ? `${snapshot.source}+cachedFallback` : 'getCachedBalanceBreakdown';
+            snapshot.balanceBreakdown = tradeExecutor.getCachedBalanceBreakdown();
+        }
+        snapshot.success = !!snapshot.balanceBreakdown;
+        if (!snapshot.success) snapshot.error = 'BALANCE_BREAKDOWN_UNAVAILABLE';
+    } catch (e) {
+        snapshot.error = e.message;
+        try {
+            if (typeof tradeExecutor.getCachedBalanceBreakdown === 'function') {
+                snapshot.source = snapshot.source ? `${snapshot.source}+cachedAfterError` : 'getCachedBalanceBreakdownAfterError';
+                snapshot.balanceBreakdown = tradeExecutor.getCachedBalanceBreakdown();
+                snapshot.success = !!snapshot.balanceBreakdown;
+            }
+        } catch (fallbackError) {
+            snapshot.error = `${snapshot.error}; fallback=${fallbackError.message}`;
+        }
+    }
+
+    return snapshot;
+}
+
 async function runLiveOrderProof(body = {}) {
         const liveModeBlockers = getLiveModeBlockers();
         if (!CONFIG.IS_LIVE || liveModeBlockers.length > 0) {
@@ -1937,9 +1972,9 @@ async function runLiveOrderProof(body = {}) {
             });
         }
 
-        const beforeBalance = await tradeExecutor.clob.getBalanceBreakdown().catch(e => ({ success: false, error: e.message }));
+        const beforeBalance = await getLiveProofBalanceSnapshot(true);
         const result = await tradeExecutor.clob.placeOrder(tokenId, proofPrice, shares, 'BUY');
-        const afterBalance = await tradeExecutor.clob.getBalanceBreakdown().catch(e => ({ success: false, error: e.message }));
+        const afterBalance = await getLiveProofBalanceSnapshot(true);
         diagnosticLog.push({
             ts: new Date().toISOString(),
             type: 'LIVE_ORDER_PROOF',
@@ -1955,7 +1990,9 @@ async function runLiveOrderProof(body = {}) {
             orderID: result?.orderID || null,
             success: !!result?.success,
             error: result?.error || null,
-            clobFailureSummary: result?.clobFailureSummary || null
+            clobFailureSummary: result?.clobFailureSummary || null,
+            beforeBalanceSource: beforeBalance?.source || null,
+            afterBalanceSource: afterBalance?.source || null
         });
 
         return {
@@ -1988,6 +2025,33 @@ async function runLiveOrderProof(body = {}) {
                     : 'Authenticated CLOB order was accepted and returned an orderID. Default proof posts a deliberately low-price GTC order, then cancels any unfilled remainder; a fill is not intended but is still theoretically possible in a live book.')
                 : 'Authenticated CLOB order was not accepted; inspect order.clobFailureSummary/order.clobFailure.'
         };
+}
+
+async function runLiveProofSelfTest() {
+    const checks = {
+        runLiveOrderProof: typeof runLiveOrderProof === 'function',
+        getRuntimeTimeframes: typeof getRuntimeTimeframes === 'function',
+        getLiveProofBalanceSnapshot: typeof getLiveProofBalanceSnapshot === 'function',
+        executorCachedBalance: typeof tradeExecutor.getCachedBalanceBreakdown === 'function',
+        executorRefreshBalance: typeof tradeExecutor.refreshLiveBalance === 'function',
+        clobPlaceOrder: typeof tradeExecutor.clob?.placeOrder === 'function',
+        clobInvalidBalanceCallAbsent: typeof tradeExecutor.clob?.getBalanceBreakdown !== 'function'
+    };
+    const balanceSnapshot = await getLiveProofBalanceSnapshot(false);
+    const failures = Object.entries(checks)
+        .filter(([, ok]) => !ok)
+        .map(([name]) => name);
+    if (!balanceSnapshot || balanceSnapshot.success !== true) {
+        failures.push(`balanceSnapshot:${balanceSnapshot?.error || 'unknown'}`);
+    }
+    return {
+        success: failures.length === 0,
+        checkedAt: new Date().toISOString(),
+        checks,
+        balanceSnapshot,
+        failures,
+        note: 'Non-trading self-test only: verifies live proof helper wiring and balance snapshot path without placing or cancelling any order.'
+    };
 }
 
 app.post('/api/live-order-proof', async (req, res) => {
@@ -2473,10 +2537,22 @@ async function shutdown(signal) {
     server.close(() => process.exit(0));
 }
 
-startServer().catch((err) => {
-    console.error(`🔴 Startup failed: ${err.message}`);
-    process.exit(1);
-});
+if (process.env.LIVEPROOF_SELFTEST === '1') {
+    runLiveProofSelfTest()
+        .then(result => {
+            console.log(JSON.stringify(result, null, 2));
+            process.exit(result.success ? 0 : 1);
+        })
+        .catch(err => {
+            console.error(JSON.stringify({ success: false, error: err.message }, null, 2));
+            process.exit(1);
+        });
+} else {
+    startServer().catch((err) => {
+        console.error(`🔴 Startup failed: ${err.message}`);
+        process.exit(1);
+    });
+}
 
 process.on('SIGTERM', () => { void shutdown('SIGTERM'); });
 process.on('SIGINT', () => { void shutdown('SIGINT'); });

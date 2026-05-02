@@ -77,6 +77,13 @@ Individual full candidate files are written as `candidate_epoch3_*.json` in the 
 - Recent-regime evidence from regenerated `portfolio_events.json`: trailing portfolio-event window ending `2026-05-02T05:15Z` shows last 24h `36W/7L` (`83.7%`), last 48h `74W/12L` (`86.0%`), last 72h `104W/18L` (`85.3%`). This supports continued edge, but the strict adverse/forced-MPC stress numbers are lower than earlier headline medians, so first live execution still needs supervised proof.
 - L2 proof boundary: the bot's diagnostics still do not provide enough durable historical L2/fill data to prove queue priority/slippage across the last day; they prove route/order-preflight health and simulated/paper outcomes, not real filled orderbook transfer. The next proof is Telegram `/liveproof BTC UP` while paused, followed by checking for an accepted `orderID` and cancellation result.
 
+### 2 May 2026 Junie Addendum — liveproof balance snapshot fix
+
+- New `/liveproof` failure: Telegram reported `tradeExecutor.clob.getBalanceBreakdown is not a function`. Root cause: `runLiveOrderProof()` called a nonexistent CLOB-client balance method after the previous `getRuntimeTimeframes()` fix. The valid balance APIs live on `tradeExecutor` (`refreshLiveBalance()` / `getCachedBalanceBreakdown()`), so the proof crashed before making any authenticated CLOB order call.
+- Patch: `server.js` now uses `getLiveProofBalanceSnapshot()` for before/after proof balances. It force-refreshes live wallet/CLOB balance when available, falls back to the executor cached breakdown, and records snapshot sources in `LIVE_ORDER_PROOF` diagnostics without blocking order acceptance due to a balance-reporting helper mismatch.
+- Added verification gate: `LIVEPROOF_SELFTEST=1 node server.js` runs a non-trading proof-path self-test that checks `runLiveOrderProof`, `getRuntimeTimeframes`, `getLiveProofBalanceSnapshot`, executor balance APIs, and `clob.placeOrder` are present. It does **not** place/cancel/fill any order; it exists specifically to catch this class of undefined-helper regression before deploy.
+- Operational boundary remains unchanged: `/liveproof BTC UP` is the next owner-authorized real order-acceptance proof. Default proof is a low-price live GTC order that should cancel any unfilled remainder, but it can briefly reserve up to `shares * proofPrice` and a tiny live fill remains theoretically possible.
+
 ### Expand the local dataset before mining
 
 The current local proof set is only as strong as the resolved intracycle files in `data\`. Before a serious `OMEGA_UNBOUNDED` run, refresh/expand the evidence base:
