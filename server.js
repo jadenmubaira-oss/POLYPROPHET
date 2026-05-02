@@ -899,11 +899,22 @@ async function orchestrate() {
                         strategy: candidate.name
                     });
                 } else if (result.blocked) {
-                    const detail = recordTradeFailureDetail('BLOCKED', candidate, result, {
+                    const blockedDetail = buildTradeFailureDetail('BLOCKED', candidate, result, {
                         reason: result.error,
                         consecutiveTradeFailures
                     });
-                    diagnosticLog.push(detail);
+                    const blockedReason = String(result.error || '');
+                    const shouldPreserveBlockedFailure = !!result.nonRetryable || isCountableTradeFailure(result) ||
+                        blockedReason.includes('CLOB_ORDER_ENDPOINT_GEOBLOCKED') ||
+                        blockedReason.includes('NON_RETRYABLE_CLOB_GEOBLOCK');
+                    if (shouldPreserveBlockedFailure) {
+                        lastTradeFailureDetail = blockedDetail;
+                        recentTradeFailureDetails.push(blockedDetail);
+                        if (recentTradeFailureDetails.length > 25) {
+                            recentTradeFailureDetails = recentTradeFailureDetails.slice(-25);
+                        }
+                    }
+                    diagnosticLog.push(blockedDetail);
                     if (result.nonRetryable || String(result.error || '').includes('CLOB_ORDER_ENDPOINT_GEOBLOCKED') || String(result.error || '').includes('NON_RETRYABLE_CLOB_GEOBLOCK')) {
                         tradeFailureHalted = true;
                         consecutiveTradeFailures = TRADE_FAILURE_HALT_THRESHOLD;
