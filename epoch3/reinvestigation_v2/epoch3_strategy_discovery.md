@@ -1,41 +1,41 @@
 # EPOCH 3 Reinvestigation V2 — Strategy Discovery Report
 
-Generated: 2026-05-02T09:20:56.310Z
+Generated: 2026-05-02T21:04:33.806Z
 
 ## Data Sources
-- 15m: 8174 cycles (train=4904, holdout=3270)
+- 15m: 8366 cycles (train=5019, holdout=3347)
 - 5m: 16045 cycles (train=9627, holdout=6418)
 - 4h: 336 cycles (train=201, holdout=135)
 
 ## Mining Results
-- Total train-selected candidates: 342
-- Holdout-passing (WR≥58%, events≥5, EV>0): 134
+- Total train-selected candidates: 353
+- Holdout-passing (WR≥58%, events≥5, EV>0): 135
 
 ## Top Candidates by Holdout EV
 
 ### static_grid
-- Params: {"hour":17,"minute":3,"dir":"UP","pMin":0.6,"pMax":0.75}
-- Train WR: 76.4%, LCB: 63.7%
-- Holdout WR: 92.0%, Events: 25, Avg Entry: 0.664
-- Holdout EV/trade: 0.2331
-
-### static_grid
-- Params: {"hour":17,"minute":3,"dir":"UP","pMin":0.65,"pMax":0.8}
-- Train WR: 78.3%, LCB: 64.4%
-- Holdout WR: 95.2%, Events: 21, Avg Entry: 0.723
-- Holdout EV/trade: 0.2076
-
-### static_grid
 - Params: {"hour":18,"minute":1,"dir":"UP","pMin":0.6,"pMax":0.75}
 - Train WR: 79.5%, LCB: 64.5%
-- Holdout WR: 87.0%, Events: 23, Avg Entry: 0.647
-- Holdout EV/trade: 0.2003
+- Holdout WR: 88.0%, Events: 25, Avg Entry: 0.646
+- Holdout EV/trade: 0.2108
+
+### static_grid
+- Params: {"hour":20,"minute":2,"dir":"DOWN","pMin":0.65,"pMax":0.8}
+- Train WR: 80.9%, LCB: 67.5%
+- Holdout WR: 93.8%, Events: 16, Avg Entry: 0.709
+- Holdout EV/trade: 0.2067
 
 ### static_grid
 - Params: {"hour":19,"minute":5,"dir":"UP","pMin":0.65,"pMax":0.8}
 - Train WR: 91.4%, LCB: 77.6%
-- Holdout WR: 90.0%, Events: 20, Avg Entry: 0.704
-- Holdout EV/trade: 0.1742
+- Holdout WR: 91.3%, Events: 23, Avg Entry: 0.698
+- Holdout EV/trade: 0.1926
+
+### static_grid
+- Params: {"hour":20,"minute":2,"dir":"DOWN","pMin":0.6,"pMax":0.75}
+- Train WR: 81.4%, LCB: 67.4%
+- Holdout WR: 85.7%, Events: 28, Avg Entry: 0.668
+- Holdout EV/trade: 0.1670
 
 ### static_grid
 - Params: {"hour":8,"minute":1,"dir":"UP","pMin":0.65,"pMax":0.8}
@@ -44,10 +44,10 @@ Generated: 2026-05-02T09:20:56.310Z
 - Holdout EV/trade: 0.1622
 
 ### static_grid
-- Params: {"hour":20,"minute":2,"dir":"DOWN","pMin":0.6,"pMax":0.75}
-- Train WR: 81.4%, LCB: 67.4%
-- Holdout WR: 84.0%, Events: 25, Avg Entry: 0.659
-- Holdout EV/trade: 0.1582
+- Params: {"hour":19,"minute":3,"dir":"UP","pMin":0.6,"pMax":0.75}
+- Train WR: 81.3%, LCB: 68.1%
+- Holdout WR: 84.0%, Events: 25, Avg Entry: 0.655
+- Holdout EV/trade: 0.1619
 
 ### static_grid
 - Params: {"hour":6,"minute":5,"dir":"DOWN","pMin":0.65,"pMax":0.8}
@@ -62,46 +62,28 @@ Generated: 2026-05-02T09:20:56.310Z
 - Holdout EV/trade: 0.1558
 
 ### static_grid
-- Params: {"hour":23,"minute":5,"dir":"UP","pMin":0.65,"pMax":0.8}
-- Train WR: 83.7%, LCB: 70.0%
-- Holdout WR: 88.4%, Events: 43, Avg Entry: 0.713
-- Holdout EV/trade: 0.1486
-
-### static_grid
-- Params: {"hour":17,"minute":4,"dir":"UP","pMin":0.6,"pMax":0.75}
-- Train WR: 76.0%, LCB: 62.6%
-- Holdout WR: 84.0%, Events: 25, Avg Entry: 0.670
-- Holdout EV/trade: 0.1474
-
-### static_grid
 - Params: {"hour":6,"minute":5,"dir":"DOWN","pMin":0.6,"pMax":0.75}
 - Train WR: 78.0%, LCB: 63.3%
 - Holdout WR: 84.2%, Events: 19, Avg Entry: 0.676
 - Holdout EV/trade: 0.1434
 
 ### static_grid
+- Params: {"hour":17,"minute":3,"dir":"UP","pMin":0.6,"pMax":0.75}
+- Train WR: 76.4%, LCB: 63.7%
+- Holdout WR: 82.8%, Events: 29, Avg Entry: 0.668
+- Holdout EV/trade: 0.1372
+
+### static_grid
 - Params: {"hour":22,"minute":2,"dir":"UP","pMin":0.6,"pMax":0.75}
-- Train WR: 74.5%, LCB: 60.5%
-- Holdout WR: 84.0%, Events: 50, Avg Entry: 0.681
-- Holdout EV/trade: 0.1370
+- Train WR: 75.5%, LCB: 62.4%
+- Holdout WR: 84.1%, Events: 44, Avg Entry: 0.686
+- Holdout EV/trade: 0.1328
 
 ### static_grid
-- Params: {"hour":19,"minute":3,"dir":"UP","pMin":0.6,"pMax":0.75}
-- Train WR: 81.3%, LCB: 68.1%
-- Holdout WR: 81.8%, Events: 22, Avg Entry: 0.659
-- Holdout EV/trade: 0.1365
-
-### static_grid
-- Params: {"hour":21,"minute":1,"dir":"UP","pMin":0.65,"pMax":0.8}
-- Train WR: 78.6%, LCB: 60.5%
-- Holdout WR: 83.3%, Events: 12, Avg Entry: 0.684
-- Holdout EV/trade: 0.1270
-
-### static_grid
-- Params: {"hour":20,"minute":2,"dir":"DOWN","pMin":0.65,"pMax":0.8}
-- Train WR: 82.2%, LCB: 68.7%
-- Holdout WR: 85.7%, Events: 14, Avg Entry: 0.709
-- Holdout EV/trade: 0.1268
+- Params: {"hour":23,"minute":5,"dir":"UP","pMin":0.65,"pMax":0.8}
+- Train WR: 85.7%, LCB: 73.3%
+- Holdout WR: 86.5%, Events: 37, Avg Entry: 0.716
+- Holdout EV/trade: 0.1275
 
 ### static_grid
 - Params: {"hour":5,"minute":5,"dir":"DOWN","pMin":0.55,"pMax":0.7}
@@ -110,16 +92,16 @@ Generated: 2026-05-02T09:20:56.310Z
 - Holdout EV/trade: 0.1266
 
 ### static_grid
-- Params: {"hour":17,"minute":4,"dir":"UP","pMin":0.65,"pMax":0.8}
-- Train WR: 78.8%, LCB: 66.0%
-- Holdout WR: 86.4%, Events: 22, Avg Entry: 0.716
-- Holdout EV/trade: 0.1262
+- Params: {"hour":13,"minute":1,"dir":"UP","pMin":0.65,"pMax":0.8}
+- Train WR: 100.0%, LCB: 67.6%
+- Holdout WR: 84.6%, Events: 13, Avg Entry: 0.698
+- Holdout EV/trade: 0.1261
 
 ### static_grid
-- Params: {"hour":16,"minute":5,"dir":"DOWN","pMin":0.6,"pMax":0.75}
-- Train WR: 77.8%, LCB: 61.9%
-- Holdout WR: 83.3%, Events: 24, Avg Entry: 0.686
-- Holdout EV/trade: 0.1251
+- Params: {"hour":22,"minute":1,"dir":"UP","pMin":0.6,"pMax":0.75}
+- Train WR: 76.3%, LCB: 60.8%
+- Holdout WR: 82.4%, Events: 34, Avg Entry: 0.675
+- Holdout EV/trade: 0.1257
 
 ### static_grid
 - Params: {"hour":6,"minute":4,"dir":"DOWN","pMin":0.65,"pMax":0.8}
@@ -128,7 +110,25 @@ Generated: 2026-05-02T09:20:56.310Z
 - Holdout EV/trade: 0.1239
 
 ### static_grid
-- Params: {"hour":22,"minute":3,"dir":"UP","pMin":0.65,"pMax":0.8}
-- Train WR: 85.2%, LCB: 67.5%
-- Holdout WR: 88.2%, Events: 34, Avg Entry: 0.739
-- Holdout EV/trade: 0.1219
+- Params: {"hour":17,"minute":4,"dir":"UP","pMin":0.6,"pMax":0.75}
+- Train WR: 76.0%, LCB: 62.6%
+- Holdout WR: 81.5%, Events: 27, Avg Entry: 0.671
+- Holdout EV/trade: 0.1209
+
+### static_grid
+- Params: {"hour":22,"minute":1,"dir":"UP","pMin":0.55,"pMax":0.7}
+- Train WR: 74.6%, LCB: 62.7%
+- Holdout WR: 76.3%, Events: 38, Avg Entry: 0.620
+- Holdout EV/trade: 0.1200
+
+### static_grid
+- Params: {"hour":22,"minute":2,"dir":"UP","pMin":0.55,"pMax":0.7}
+- Train WR: 75.0%, LCB: 61.8%
+- Holdout WR: 78.4%, Events: 37, Avg Entry: 0.641
+- Holdout EV/trade: 0.1195
+
+### static_grid
+- Params: {"hour":12,"minute":3,"dir":"DOWN","pMin":0.6,"pMax":0.75}
+- Train WR: 80.6%, LCB: 65.0%
+- Holdout WR: 81.8%, Events: 22, Avg Entry: 0.677
+- Holdout EV/trade: 0.1186

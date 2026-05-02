@@ -1,10 +1,10 @@
 {
-  "generatedAt": "2026-05-02T09:20:56.301Z",
+  "generatedAt": "2026-05-02T21:04:33.799Z",
   "datasets": {
     "15m": {
-      "cycles": 8174,
-      "train": 4904,
-      "holdout": 3270
+      "cycles": 8366,
+      "train": 5019,
+      "holdout": 3347
     },
     "5m": {
       "cycles": 16045,

@@ -1,42 +1,8 @@
 {
-  "generatedAt": "2026-05-02T09:20:56.307Z",
-  "totalMinedCandidates": 342,
-  "holdoutPassingCandidates": 134,
+  "generatedAt": "2026-05-02T21:04:33.802Z",
+  "totalMinedCandidates": 353,
+  "holdoutPassingCandidates": 135,
   "top20": [
-    {
-      "family": "static_grid",
-      "params": {
-        "hour": 17,
-        "minute": 3,
-        "dir": "UP",
-        "pMin": 0.6,
-        "pMax": 0.75
-      },
-      "trainWR": 0.7636363636363637,
-      "trainLCB": 0.6365138127856039,
-      "holdoutWR": 0.92,
-      "holdoutEvents": 25,
-      "holdoutAvgEntry": 0.6644,
-      "holdoutEV": 0.23306243559539208,
-      "timeframe": "15m"
-    },
-    {
-      "family": "static_grid",
-      "params": {
-        "hour": 17,
-        "minute": 3,
-        "dir": "UP",
-        "pMin": 0.65,
-        "pMax": 0.8
-      },
-      "trainWR": 0.782608695652174,
-      "trainLCB": 0.6442603416081054,
-      "holdoutWR": 0.9523809523809523,
-      "holdoutEvents": 21,
-      "holdoutAvgEntry": 0.7233333333333334,
-      "holdoutEV": 0.2076418768342856,
-      "timeframe": "15m"
-    },
     {
       "family": "static_grid",
       "params": {
@@ -48,10 +14,27 @@
       },
       "trainWR": 0.7948717948717948,
       "trainLCB": 0.6446572703687137,
-      "holdoutWR": 0.8695652173913043,
-      "holdoutEvents": 23,
-      "holdoutAvgEntry": 0.6465217391304349,
-      "holdoutEV": 0.20026342150790155,
+      "holdoutWR": 0.88,
+      "holdoutEvents": 25,
+      "holdoutAvgEntry": 0.6464000000000002,
+      "holdoutEV": 0.2108184529797118,
+      "timeframe": "15m"
+    },
+    {
+      "family": "static_grid",
+      "params": {
+        "hour": 20,
+        "minute": 2,
+        "dir": "DOWN",
+        "pMin": 0.65,
+        "pMax": 0.8
+      },
+      "trainWR": 0.8085106382978723,
+      "trainLCB": 0.674557199356223,
+      "holdoutWR": 0.9375,
+      "holdoutEvents": 16,
+      "holdoutAvgEntry": 0.7090624999999999,
+      "holdoutEV": 0.2067108714882032,
       "timeframe": "15m"
     },
     {
@@ -65,10 +48,27 @@
       },
       "trainWR": 0.9142857142857143,
       "trainLCB": 0.7762040092883749,
-      "holdoutWR": 0.9,
-      "holdoutEvents": 20,
-      "holdoutAvgEntry": 0.704,
-      "holdoutEV": 0.1741667274752,
+      "holdoutWR": 0.9130434782608695,
+      "holdoutEvents": 23,
+      "holdoutAvgEntry": 0.6984782608695653,
+      "holdoutEV": 0.1926199192635537,
+      "timeframe": "15m"
+    },
+    {
+      "family": "static_grid",
+      "params": {
+        "hour": 20,
+        "minute": 2,
+        "dir": "DOWN",
+        "pMin": 0.6,
+        "pMax": 0.75
+      },
+      "trainWR": 0.813953488372093,
+      "trainLCB": 0.6738270676469403,
+      "holdoutWR": 0.8571428571428571,
+      "holdoutEvents": 28,
+      "holdoutAvgEntry": 0.6676785714285715,
+      "holdoutEV": 0.16697628492063762,
       "timeframe": "15m"
     },
     {
@@ -91,18 +91,18 @@
     {
       "family": "static_grid",
       "params": {
-        "hour": 20,
-        "minute": 2,
-        "dir": "DOWN",
+        "hour": 19,
+        "minute": 3,
+        "dir": "UP",
         "pMin": 0.6,
         "pMax": 0.75
       },
-      "trainWR": 0.813953488372093,
-      "trainLCB": 0.6738270676469403,
+      "trainWR": 0.8125,
+      "trainLCB": 0.6805986065115378,
       "holdoutWR": 0.84,
       "holdoutEvents": 25,
-      "holdoutAvgEntry": 0.6592,
-      "holdoutEV": 0.1581870630830079,
+      "holdoutAvgEntry": 0.6554000000000001,
+      "holdoutEV": 0.16193449506435184,
       "timeframe": "15m"
     },
     {
@@ -142,40 +142,6 @@
     {
       "family": "static_grid",
       "params": {
-        "hour": 23,
-        "minute": 5,
-        "dir": "UP",
-        "pMin": 0.65,
-        "pMax": 0.8
-      },
-      "trainWR": 0.8372093023255814,
-      "trainLCB": 0.7002730466408176,
-      "holdoutWR": 0.8837209302325582,
-      "holdoutEvents": 43,
-      "holdoutAvgEntry": 0.7134883720930233,
-      "holdoutEV": 0.14860224713103298,
-      "timeframe": "15m"
-    },
-    {
-      "family": "static_grid",
-      "params": {
-        "hour": 17,
-        "minute": 4,
-        "dir": "UP",
-        "pMin": 0.6,
-        "pMax": 0.75
-      },
-      "trainWR": 0.76,
-      "trainLCB": 0.6258705062480764,
-      "holdoutWR": 0.84,
-      "holdoutEvents": 25,
-      "holdoutAvgEntry": 0.6701999999999999,
-      "holdoutEV": 0.14735119086748802,
-      "timeframe": "15m"
-    },
-    {
-      "family": "static_grid",
-      "params": {
         "hour": 6,
         "minute": 5,
         "dir": "DOWN",
@@ -193,69 +159,52 @@
     {
       "family": "static_grid",
       "params": {
+        "hour": 17,
+        "minute": 3,
+        "dir": "UP",
+        "pMin": 0.6,
+        "pMax": 0.75
+      },
+      "trainWR": 0.7636363636363637,
+      "trainLCB": 0.6365138127856039,
+      "holdoutWR": 0.8275862068965517,
+      "holdoutEvents": 29,
+      "holdoutAvgEntry": 0.6679310344827585,
+      "holdoutEV": 0.13717105369046392,
+      "timeframe": "15m"
+    },
+    {
+      "family": "static_grid",
+      "params": {
         "hour": 22,
         "minute": 2,
         "dir": "UP",
         "pMin": 0.6,
         "pMax": 0.75
       },
-      "trainWR": 0.7446808510638298,
-      "trainLCB": 0.604915508600796,
-      "holdoutWR": 0.84,
-      "holdoutEvents": 50,
-      "holdoutAvgEntry": 0.6807,
-      "holdoutEV": 0.137024439003528,
+      "trainWR": 0.7547169811320755,
+      "trainLCB": 0.6243318493782993,
+      "holdoutWR": 0.8409090909090909,
+      "holdoutEvents": 44,
+      "holdoutAvgEntry": 0.6859090909090909,
+      "holdoutEV": 0.13281639826925629,
       "timeframe": "15m"
     },
     {
       "family": "static_grid",
       "params": {
-        "hour": 19,
-        "minute": 3,
-        "dir": "UP",
-        "pMin": 0.6,
-        "pMax": 0.75
-      },
-      "trainWR": 0.8125,
-      "trainLCB": 0.6805986065115378,
-      "holdoutWR": 0.8181818181818182,
-      "holdoutEvents": 22,
-      "holdoutAvgEntry": 0.6590909090909091,
-      "holdoutEV": 0.1364764334710744,
-      "timeframe": "15m"
-    },
-    {
-      "family": "static_grid",
-      "params": {
-        "hour": 21,
-        "minute": 1,
+        "hour": 23,
+        "minute": 5,
         "dir": "UP",
         "pMin": 0.65,
         "pMax": 0.8
       },
-      "trainWR": 0.7857142857142857,
-      "trainLCB": 0.6046105292072612,
-      "holdoutWR": 0.8333333333333334,
-      "holdoutEvents": 12,
-      "holdoutAvgEntry": 0.6841666666666666,
-      "holdoutEV": 0.12695186120500013,
-      "timeframe": "15m"
-    },
-    {
-      "family": "static_grid",
-      "params": {
-        "hour": 20,
-        "minute": 2,
-        "dir": "DOWN",
-        "pMin": 0.65,
-        "pMax": 0.8
-      },
-      "trainWR": 0.8222222222222222,
-      "trainLCB": 0.6866989315634586,
-      "holdoutWR": 0.8571428571428571,
-      "holdoutEvents": 14,
-      "holdoutAvgEntry": 0.7085714285714285,
-      "holdoutEV": 0.1268342905208164,
+      "trainWR": 0.8571428571428571,
+      "trainLCB": 0.7333202681083708,
+      "holdoutWR": 0.8648648648648649,
+      "holdoutEvents": 37,
+      "holdoutAvgEntry": 0.7158108108108107,
+      "holdoutEV": 0.1274754359398249,
       "timeframe": "15m"
     },
     {
@@ -278,35 +227,35 @@
     {
       "family": "static_grid",
       "params": {
-        "hour": 17,
-        "minute": 4,
+        "hour": 13,
+        "minute": 1,
         "dir": "UP",
         "pMin": 0.65,
         "pMax": 0.8
       },
-      "trainWR": 0.7884615384615384,
-      "trainLCB": 0.6596763486408991,
-      "holdoutWR": 0.8636363636363636,
-      "holdoutEvents": 22,
-      "holdoutAvgEntry": 0.715909090909091,
-      "holdoutEV": 0.12615085960743788,
+      "trainWR": 1,
+      "trainLCB": 0.6755843804891231,
+      "holdoutWR": 0.8461538461538461,
+      "holdoutEvents": 13,
+      "holdoutAvgEntry": 0.6980769230769232,
+      "holdoutEV": 0.12612365716272178,
       "timeframe": "15m"
     },
     {
       "family": "static_grid",
       "params": {
-        "hour": 16,
-        "minute": 5,
-        "dir": "DOWN",
+        "hour": 22,
+        "minute": 1,
+        "dir": "UP",
         "pMin": 0.6,
         "pMax": 0.75
       },
-      "trainWR": 0.7777777777777778,
-      "trainLCB": 0.6191498017214091,
-      "holdoutWR": 0.8333333333333334,
-      "holdoutEvents": 24,
-      "holdoutAvgEntry": 0.6860416666666665,
-      "holdoutEV": 0.12511045739031257,
+      "trainWR": 0.7631578947368421,
+      "trainLCB": 0.6079288083466214,
+      "holdoutWR": 0.8235294117647058,
+      "holdoutEvents": 34,
+      "holdoutAvgEntry": 0.6754411764705883,
+      "holdoutEV": 0.12572388026022474,
       "timeframe": "15m"
     },
     {
@@ -329,18 +278,69 @@
     {
       "family": "static_grid",
       "params": {
-        "hour": 22,
-        "minute": 3,
+        "hour": 17,
+        "minute": 4,
         "dir": "UP",
-        "pMin": 0.65,
-        "pMax": 0.8
+        "pMin": 0.6,
+        "pMax": 0.75
       },
-      "trainWR": 0.8518518518518519,
-      "trainLCB": 0.6752093665317053,
-      "holdoutWR": 0.8823529411764706,
-      "holdoutEvents": 34,
-      "holdoutAvgEntry": 0.7394117647058823,
-      "holdoutEV": 0.12193280516013838,
+      "trainWR": 0.76,
+      "trainLCB": 0.6258705062480764,
+      "holdoutWR": 0.8148148148148148,
+      "holdoutEvents": 27,
+      "holdoutAvgEntry": 0.6714814814814815,
+      "holdoutEV": 0.12090480075950616,
+      "timeframe": "15m"
+    },
+    {
+      "family": "static_grid",
+      "params": {
+        "hour": 22,
+        "minute": 1,
+        "dir": "UP",
+        "pMin": 0.55,
+        "pMax": 0.7
+      },
+      "trainWR": 0.746031746031746,
+      "trainLCB": 0.6265857791515483,
+      "holdoutWR": 0.7631578947368421,
+      "holdoutEvents": 38,
+      "holdoutAvgEntry": 0.6201315789473684,
+      "holdoutEV": 0.11997412002106655,
+      "timeframe": "15m"
+    },
+    {
+      "family": "static_grid",
+      "params": {
+        "hour": 22,
+        "minute": 2,
+        "dir": "UP",
+        "pMin": 0.55,
+        "pMax": 0.7
+      },
+      "trainWR": 0.75,
+      "trainLCB": 0.6179328224079476,
+      "holdoutWR": 0.7837837837837838,
+      "holdoutEvents": 37,
+      "holdoutAvgEntry": 0.6414864864864864,
+      "holdoutEV": 0.11945741873310448,
+      "timeframe": "15m"
+    },
+    {
+      "family": "static_grid",
+      "params": {
+        "hour": 12,
+        "minute": 3,
+        "dir": "DOWN",
+        "pMin": 0.6,
+        "pMax": 0.75
+      },
+      "trainWR": 0.8055555555555556,
+      "trainLCB": 0.6497163793648479,
+      "holdoutWR": 0.8181818181818182,
+      "holdoutEvents": 22,
+      "holdoutAvgEntry": 0.6772727272727272,
+      "holdoutEV": 0.11857520014876044,
       "timeframe": "15m"
     }
   ]
