@@ -57,6 +57,14 @@ debug/epoch3_mega_strategy_miner/omega_unbounded/epoch3_data_audit.json
 
 Individual full candidate files are written as `candidate_epoch3_*.json` in the same directory whenever a rolling candidate passes the harness gate.
 
+### 2 May 2026 Junie Addendum — authenticated V2 order proof hardening
+
+- Root-cause class for the repeated live halts: previous checks proved route-level access (`/api/geoblock=false`, unauthenticated CLOB `/order` reaching `401`) but did **not** prove the bot's authenticated V2 SDK order payload/API-key/funder path would be accepted. The 16:02 failure happened before durable authenticated rejection capture was deployed, so its exact body was unrecoverable.
+- Patch: `lib/clob-client.js` now uses the V2 SDK `createAndPostOrder` path when available, passes explicit `OrderType.GTC`, and supplies explicit V2 order options `{ tickSize: "0.01", negRisk: false }` instead of relying on implicit SDK metadata lookups. Returned results now distinguish `acceptedOrder`/`orderID` from actual matched-fill success.
+- Patch: `server.js` V2 diagnostic adapter now passes both `funder` and `funderAddress`, matching the runtime CLOB client and Polymarket V2 docs for proxy wallet/signature type `1` initialization.
+- New guarded endpoint: `POST /api/live-order-proof` requires `MANUAL_SMOKE_TEST_KEY`/`AUTH_PASSWORD` via `x-manual-smoke-key` (or body `manualSmokeKey`), requires `LIVE`, no halt, and zero exposure. Default proof posts a tiny low-price order and cancels it; an accepted `orderID` proves authenticated CLOB order placement without needing a perfect strategy window. Deliberate fill testing requires `fillProof=true` and `confirmFillProof=true`.
+- Honest boundary: this improves and proves the execution pipe; it does not make profit guaranteed. Epoch3 V2 remains a high-upside conditional strategy whose first live fill/settle/redeem lifecycle must still be supervised.
+
 ### Expand the local dataset before mining
 
 The current local proof set is only as strong as the resolved intracycle files in `data\`. Before a serious `OMEGA_UNBOUNDED` run, refresh/expand the evidence base:
