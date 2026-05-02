@@ -84,6 +84,14 @@ Individual full candidate files are written as `candidate_epoch3_*.json` in the 
 - Added verification gate: `LIVEPROOF_SELFTEST=1 node server.js` runs a non-trading proof-path self-test that checks `runLiveOrderProof`, `getRuntimeTimeframes`, `getLiveProofBalanceSnapshot`, executor balance APIs, and `clob.placeOrder` are present. It does **not** place/cancel/fill any order; it exists specifically to catch this class of undefined-helper regression before deploy.
 - Operational boundary remains unchanged: `/liveproof BTC UP` is the next owner-authorized real order-acceptance proof. Default proof is a low-price live GTC order that should cancel any unfilled remainder, but it can briefly reserve up to `shares * proofPrice` and a tiny live fill remains theoretically possible.
 
+### 2 May 2026 Junie Addendum — signed CLOB order still geoblocked, route diagnostics hardened
+
+- Latest owner `/liveproof BTC UP` reached authenticated order placement and failed with `403 Trading restricted in your region`. This is a decisive CLOB order-write rejection, not a strategy miss, no-fill, settlement issue, Telegram crash, or missing wallet balance.
+- Important correction: the Telegram line `Balance before/after: $0.00 → $0.00` was a display bug. The proof object nests wallet cash under `balanceBreakdown.tradingBalanceUsdc`; wallet endpoints still reported about `$10.563112`. `lib/telegram-commands.js` now reads the nested field correctly.
+- Patch: `lib/clob-client.js` now records signed CLOB route metadata from the global Axios interceptor: method/path, `agent=proxy|direct`, `proxied`, L2-auth-header presence, signature type, funder presence, and the last/recent request route. `_placeOrderWithCandidate()` attaches this to proof failures/successes, and `/api/clob-status` exposes it under `clobRouting`.
+- Expected next `/liveproof` output should explicitly show whether the signed `POST /order` used `agent=proxy` and `proxied=true`. If it still returns `403` while route metadata shows `proxy`, the remaining root cause is external Polymarket order-write policy/route acceptance, not a bot code path that can force acceptance.
+- Safe state target remains: keep Render `LIVE` but manually paused, not halted, zero pending exposure, Epoch3 V2 loaded, Telegram healthy. Do not run strategy `/resume` until an owner proof returns an accepted `orderID` or you intentionally accept another supervised rejection test.
+
 ### Expand the local dataset before mining
 
 The current local proof set is only as strong as the resolved intracycle files in `data\`. Before a serious `OMEGA_UNBOUNDED` run, refresh/expand the evidence base:
