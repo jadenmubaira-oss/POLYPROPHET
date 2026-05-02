@@ -1866,14 +1866,19 @@ app.get('/api/network-diagnostics', async (req, res) => {
     }
 });
 
-app.post('/api/live-order-proof', async (req, res) => {
-    try {
-        if (!requireAdminControlSecret(req, res)) return;
+function makeHttpError(status, message, extra = {}) {
+    const error = new Error(message);
+    error.httpStatus = status;
+    Object.assign(error, extra);
+    return error;
+}
+
+async function runLiveOrderProof(body = {}) {
         if (!CONFIG.IS_LIVE || !runtimeModeState.isLive) {
-            return res.status(409).json({ success: false, error: 'LIVE_MODE_REQUIRED' });
+            throw makeHttpError(409, 'LIVE_MODE_REQUIRED');
         }
         if (tradeFailureHalted) {
-            return res.status(409).json({ success: false, error: 'TRADE_FAILURE_HALT_ACTIVE' });
+            throw makeHttpError(409, 'TRADE_FAILURE_HALT_ACTIVE');
         }
 
         const executorStatus = tradeExecutor.getStatus();
@@ -1882,15 +1887,12 @@ app.post('/api/live-order-proof', async (req, res) => {
             Number(executorStatus.pendingSells?.length || 0) +
             Number(executorStatus.pendingSettlements?.length || 0);
         if (openExposure > 0 || pendingExposure > 0) {
-            return res.status(409).json({
-                success: false,
-                error: 'EXPOSURE_NOT_CLEAN',
+            throw makeHttpError(409, 'EXPOSURE_NOT_CLEAN', {
                 openPositions: openExposure,
                 pendingExposure
             });
         }
 
-        const body = req.body || {};
         const asset = String(body.asset || 'BTC').trim().toUpperCase();
         const timeframe = String(body.timeframe || '15m').trim();
         const direction = String(body.direction || 'UP').trim().toUpperCase();
@@ -1898,7 +1900,7 @@ app.post('/api/live-order-proof', async (req, res) => {
         const markets = await discoverAllMarkets(nowSec, getRuntimeTimeframes());
         const market = markets[`${asset}_${timeframe}`];
         if (!market || market.status !== 'ACTIVE') {
-            return res.status(404).json({ success: false, error: 'ACTIVE_MARKET_NOT_FOUND', asset, timeframe, market });
+            throw makeHttpError(404, 'ACTIVE_MARKET_NOT_FOUND', { asset, timeframe, market });
         }
 
         const tokenId = direction === 'DOWN' ? market.noTokenId : market.yesTokenId;
@@ -1913,12 +1915,10 @@ app.post('/api/live-order-proof', async (req, res) => {
             : Math.max(0.01, Math.min(0.05, Number.isFinite(requestedPrice) ? requestedPrice : 0.01));
 
         if (!tokenId || !Number.isFinite(proofPrice) || proofPrice <= 0 || proofPrice >= 1) {
-            return res.status(400).json({ success: false, error: 'INVALID_PROOF_ORDER_INPUT', tokenId, proofPrice });
+            throw makeHttpError(400, 'INVALID_PROOF_ORDER_INPUT', { tokenId, proofPrice });
         }
         if (fillProof && !body.confirmFillProof) {
-            return res.status(400).json({
-                success: false,
-                error: 'FILL_PROOF_REQUIRES_confirmFillProof_TRUE',
+            throw makeHttpError(400, 'FILL_PROOF_REQUIRES_confirmFillProof_TRUE', {
                 note: 'Default proof is a low-price accepted-order/cancel test. Set fillProof=true and confirmFillProof=true only for deliberate live fill exposure.'
             });
         }
@@ -1944,7 +1944,7 @@ app.post('/api/live-order-proof', async (req, res) => {
             clobFailureSummary: result?.clobFailureSummary || null
         });
 
-        return res.json({
+        return {
             success: !!(result?.acceptedOrder || result?.success),
             proofType: fillProof ? 'LIVE_FILL_PROOF' : 'ACCEPTED_ORDER_CANCEL_PROOF',
             market: {
@@ -1964,9 +1964,27 @@ app.post('/api/live-order-proof', async (req, res) => {
             note: result?.acceptedOrder
                 ? 'Authenticated CLOB order was accepted and returned an orderID; no-fill/cancel is expected for the default proof.'
                 : 'Authenticated CLOB order was not accepted; inspect order.clobFailureSummary/order.clobFailure.'
-        });
+        };
+}
+
+app.post('/api/live-order-proof', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        const result = await runLiveOrderProof(req.body || {});
+        return res.json(result);
     } catch (e) {
-        return res.status(500).json({ success: false, error: e.message });
+        return res.status(e.httpStatus || 500).json({
+            success: false,
+            error: e.message,
+            openPositions: e.openPositions,
+            pendingExposure: e.pendingExposure,
+            asset: e.asset,
+            timeframe: e.timeframe,
+            market: e.market,
+            tokenId: e.tokenId,
+            proofPrice: e.proofPrice,
+            note: e.note
+        });
     }
 });
 
@@ -2370,6 +2388,7 @@ async function startServer() {
                 resetValidatorBaseline,
                 switchRuntimeTradeMode,
                 getLiveModeBlockers,
+                runLiveOrderProof,
                 runValidator: () => strategyValidator.runCheck({
                     risk: riskManager.getStatus(),
                     executor: tradeExecutor.getStatus(),
