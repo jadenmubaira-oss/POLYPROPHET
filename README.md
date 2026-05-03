@@ -92,6 +92,14 @@ Individual full candidate files are written as `candidate_epoch3_*.json` in the 
 - Expected next `/liveproof` output should explicitly show whether the signed `POST /order` used `agent=proxy` and `proxied=true`. If it still returns `403` while route metadata shows `proxy`, the remaining root cause is external Polymarket order-write policy/route acceptance, not a bot code path that can force acceptance.
 - Safe state target remains: keep Render `LIVE` but manually paused, not halted, zero pending exposure, Epoch3 V2 loaded, Telegram healthy. Do not run strategy `/resume` until an owner proof returns an accepted `orderID` or you intentionally accept another supervised rejection test.
 
+### 3 May 2026 Junie Addendum — reusable proxy acceptance tester
+
+- Added a reusable non-trading proxy tester for the current Bright Data/proxy investigation: `lib/proxy-tester.js` plus CLI `scripts\test-proxy.js` and Telegram owner command `/proxytest`.
+- Accepted input formats: raw curl such as `curl -i --proxy brd.superproxy.io:33335 --proxy-user USER:PASS -k`, full proxy URL `http://USER:PASS@HOST:PORT`, or bare `USER:PASS@HOST:PORT`. The parser also removes pasted `(remove space)` markers and normalizes accidental spaces around hyphens.
+- The test performs real network checks through the supplied proxy but does **not** place trades: Bright Data welcome/IP info, Polymarket public geoblock, CLOB `/time`, and an invalid-payload unauthenticated `POST https://clob.polymarket.com/order` preflight. It deliberately runs in curl `-k` style diagnostic mode because several Bright Data routes present a proxy certificate chain that otherwise prevents testing. A usable candidate must avoid the `403 Trading restricted in your region` order-layer block; expected clean order-preflight status is usually `401`.
+- CLI usage: `node scripts\test-proxy.js "curl -i --proxy HOST:PORT --proxy-user USER:PASS -k"`. If the route passes, the script prints exact Render envs: `PROXY_URL=http://USER:PASS@HOST:PORT` and `CLOB_FORCE_PROXY=1`; if it fails, it prints `NO-GO` and does not recommend Render envs.
+- Telegram usage: send `/proxytest curl -i --proxy HOST:PORT --proxy-user USER:PASS -k` from the owner chat. This runs the same server-side non-trading checks and returns the Render env block only for a pass/candidate route. Final authenticated acceptance still requires `/liveproof` while paused because public/non-auth checks cannot prove signed order acceptance.
+
 ### Expand the local dataset before mining
 
 The current local proof set is only as strong as the resolved intracycle files in `data\`. Before a serious `OMEGA_UNBOUNDED` run, refresh/expand the evidence base:
