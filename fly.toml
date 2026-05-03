@@ -1,16 +1,32 @@
 # POLYPROPHET Fly.io Configuration
-# Region: Amsterdam, Netherlands (NOT geo-blocked by Polymarket)
+# Region: São Paulo, Brazil
 
 app = "polyprophet"
-primary_region = "ams"
+primary_region = "gru"
 
 [build]
-  # Use Node.js buildpack
-  builder = "heroku/buildpacks:20"
+  dockerfile = "Dockerfile"
 
 [env]
   NODE_ENV = "production"
   PORT = "8080"
+  START_PAUSED = "true"
+  TRADE_MODE = "LIVE"
+  ENABLE_LIVE_TRADING = "true"
+  LIVE_AUTOTRADING_ENABLED = "false"
+  TIMEFRAME_15M_ENABLED = "true"
+  TIMEFRAME_15M_MIN_BANKROLL = "3"
+  TIMEFRAME_5M_ENABLED = "false"
+  MULTIFRAME_4H_ENABLED = "false"
+  STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_epoch3v2_portfolio.json"
+  POLYMARKET_SIGNATURE_TYPE = "1"
+  POLYMARKET_AUTO_DERIVE_CREDS = "true"
+  CLOB_FORCE_PROXY = "0"
+  DEFAULT_MIN_ORDER_SHARES = "5"
+  REQUIRE_REAL_ORDERBOOK = "true"
+  HARD_ENTRY_PRICE_CAP = "0.82"
+  MAX_GLOBAL_TRADES_PER_CYCLE = "1"
+  OPERATOR_STAKE_FRACTION = "0.25"
 
 [http_service]
   internal_port = 8080
@@ -27,4 +43,4 @@ primary_region = "ams"
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
-  memory_mb = 512
+  memory_mb = 1024
