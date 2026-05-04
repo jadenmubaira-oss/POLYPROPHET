@@ -15,6 +15,22 @@ const TradeExecutor = require('./lib/trade-executor');
 const telegram = require('./lib/telegram');
 const strategyValidator = require('./lib/strategy-validator');
 const telegramCommands = require('./lib/telegram-commands');
+const flySecrets = require('./lib/fly-secrets');
+
+async function persistDerivedPolymarketSecrets() {
+    const clob = tradeExecutor?.clob;
+    if (!clob || typeof clob.ensureCreds !== 'function') {
+        return { success: false, skipped: true, reason: 'CLOB_UNAVAILABLE', state: flySecrets.publicState() };
+    }
+    await clob.ensureCreds().catch(() => null);
+    const secrets = typeof clob.getLastDerivedClobSecrets === 'function'
+        ? clob.getLastDerivedClobSecrets()
+        : null;
+    if (!secrets || !Object.keys(secrets).length) {
+        return { success: false, skipped: true, reason: 'NO_DERIVED_CLOB_SECRETS', state: flySecrets.publicState() };
+    }
+    return await flySecrets.setSecrets(secrets);
+}
 
 // EPOCH 2: V2 SDK dual-path loader (shared across server.js endpoints)
 function loadClobClientSdk() {
@@ -1613,11 +1629,13 @@ app.post('/api/redeem-auth/derive', async (req, res) => {
             });
         }
         const auth = await tradeExecutor.clob.ensureProxyRedeemAuth();
+        const flyPersistence = await persistDerivedPolymarketSecrets();
         const executorStatus = tradeExecutor.getStatus();
         const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
         res.json({
             success: !!auth?.ok,
             auth,
+            flyPersistence,
             redemptionReadiness: lifecycleQueueStatus,
             walletStatus: tradeExecutor.clob?.getStatus?.() || null
         });
@@ -1636,6 +1654,7 @@ app.post('/api/auto-redeem', async (req, res) => {
         const auth = tradeExecutor.clob?.ensureProxyRedeemAuth
             ? await tradeExecutor.clob.ensureProxyRedeemAuth()
             : { ok: false, error: 'REDEEM_AUTH_DERIVATION_UNAVAILABLE' };
+        const flyPersistence = await persistDerivedPolymarketSecrets();
         const redemptions = await tradeExecutor.checkAndRedeemPositions();
         const balance = await tradeExecutor.refreshLiveBalance(true).catch((e) => ({
             success: false,
@@ -1654,6 +1673,7 @@ app.post('/api/auto-redeem', async (req, res) => {
                 balanceBreakdown: before.balanceBreakdown
             },
             redemptions,
+            flyPersistence,
             balance,
             after: {
                 recoveryQueueSummary: after.recoveryQueueSummary,
