@@ -96,6 +96,8 @@ let lastTradeFailureDetail = null;
 let recentTradeFailureDetails = [];
 let lastPaperSettlementReconLogAt = 0;
 let lastPaperSettlementReconFingerprint = '';
+let lastLifecycleSuppressionLogAt = 0;
+let lastLifecycleSuppressionFingerprint = '';
 let cachedBestWindows = null;
 let cachedBestWindowsAt = 0;
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'strategies')) ? __dirname : path.join(__dirname, '..');
@@ -250,6 +252,47 @@ function getRuntimeTimeframes() {
     const enabled = getEnabledTimeframes();
     if (enabled.length > 0) return enabled;
     return getConfiguredTimeframes();
+}
+
+function getLifecycleQueueStatus(executorStatus = null) {
+    const status = executorStatus || tradeExecutor.getStatus();
+    const recoveryQueue = Array.isArray(status.recoveryQueue) ? status.recoveryQueue : [];
+    const redemptionQueue = Array.isArray(status.redemptionQueue) ? status.redemptionQueue : [];
+    const recoveryQueueSummary = status.recoveryQueueSummary || {
+        total: recoveryQueue.length,
+        actionable: recoveryQueue.length,
+        benign: 0
+    };
+    const redemptionQueueSummary = status.redemptionQueueSummary || {
+        total: redemptionQueue.length,
+        actionable: redemptionQueue.length,
+        manualRequired: redemptionQueue.filter(item => !!item?.requiresManual).length,
+        authBlocked: redemptionQueue.filter(item => String(item?.lastError || '').includes('PROXY_REDEEM_AUTH')).length,
+        zeroVerified: redemptionQueue.filter(item => !!item?.zeroVerified).length
+    };
+    const clobStatus = tradeExecutor.clob?.getStatus?.() || null;
+    const actionableRecoveryQueue = Number(recoveryQueueSummary.actionable || 0) > 0;
+    const actionableRedemptionQueue = Number(redemptionQueueSummary.actionable || 0) > 0;
+    const autoRedeemAuthReady = !!clobStatus?.proxyRedeemAuthReady;
+    const reasons = [];
+    if (actionableRecoveryQueue) reasons.push('ACTIONABLE_RECOVERY_QUEUE');
+    if (actionableRedemptionQueue) reasons.push('ACTIONABLE_REDEMPTION_QUEUE');
+    if (actionableRedemptionQueue && !autoRedeemAuthReady) reasons.push('PROXY_REDEEM_AUTH_NOT_READY');
+    return {
+        entriesBlocked: CONFIG.TRADE_MODE === 'LIVE' && (actionableRecoveryQueue || actionableRedemptionQueue),
+        reasons,
+        recoveryQueueSummary,
+        redemptionQueueSummary,
+        actionableRecoveryQueue,
+        actionableRedemptionQueue,
+        autoRedeemAuthReady,
+        relayerAuthMode: clobStatus?.relayerAuthMode || null,
+        relayerAuthConfigured: !!clobStatus?.relayerAuthConfigured,
+        proxyRedeemAuthReady: !!clobStatus?.proxyRedeemAuthReady,
+        proxyRedeemAuthDerivable: !!(clobStatus?.proxyRedeemAuthDerivable || clobStatus?.builderAutoDerivable),
+        builderAutoDerivable: !!clobStatus?.builderAutoDerivable,
+        lastBuilderDerive: clobStatus?.lastBuilderDerive || null
+    };
 }
 
 function buildRuntimeStateSnapshot() {
@@ -881,8 +924,26 @@ async function orchestrate() {
         ).join(' | ');
         console.log(`🎯 STRATEGY WINDOWS: ${windowLog}`);
 
+        const lifecycleQueueStatus = getLifecycleQueueStatus();
         if (tradeFailureHalted) {
             console.warn(`🛑 TRADE FAILURE HALT active — skipping ${allCandidates.length} candidate(s) until POST /api/resume-errors`);
+        } else if (lifecycleQueueStatus.entriesBlocked) {
+            const fingerprint = lifecycleQueueStatus.reasons.join('|');
+            if (fingerprint !== lastLifecycleSuppressionFingerprint || (Date.now() - lastLifecycleSuppressionLogAt) > 60000) {
+                lastLifecycleSuppressionFingerprint = fingerprint;
+                lastLifecycleSuppressionLogAt = Date.now();
+                diagnosticLog.push({
+                    ts: new Date().toISOString(),
+                    type: 'LIFECYCLE_QUEUE_SUPPRESSION',
+                    candidatesSuppressed: allCandidates.length,
+                    reasons: lifecycleQueueStatus.reasons,
+                    recoveryQueueSummary: lifecycleQueueStatus.recoveryQueueSummary,
+                    redemptionQueueSummary: lifecycleQueueStatus.redemptionQueueSummary,
+                    autoRedeemAuthReady: lifecycleQueueStatus.autoRedeemAuthReady,
+                    relayerAuthMode: lifecycleQueueStatus.relayerAuthMode
+                });
+            }
+            console.warn(`🛑 Lifecycle queue suppression active — skipping ${allCandidates.length} candidate(s): ${lifecycleQueueStatus.reasons.join(', ')}`);
         } else {
             // Execute best candidates (risk manager limits how many per cycle)
             for (const { candidate, market } of allCandidates) {
@@ -1340,11 +1401,13 @@ app.get('/api/health', (req, res) => {
         : null;
     const hasPendingSettlements = executorStatus.pendingSettlements.length > 0;
     const recoveryQueueSummary = executorStatus.recoveryQueueSummary || { total: executorStatus.recoveryQueue.length, actionable: executorStatus.recoveryQueue.length, benign: 0 };
+    const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
     const hasRecoveryQueue = Number(recoveryQueueSummary.actionable || 0) > 0;
+    const hasRedemptionQueue = lifecycleQueueStatus.actionableRedemptionQueue;
     const hasPendingBuys = executorStatus.pendingBuys.length > 0;
     const hasPendingSells = executorStatus.pendingSells.length > 0;
     const isManuallyPaused = !!riskStatus.tradingPaused;
-    const isDegraded = isManuallyPaused || errorHalted || tradeFailureHalted || hasPendingSettlements || hasRecoveryQueue || hasPendingBuys || hasPendingSells;
+    const isDegraded = isManuallyPaused || errorHalted || tradeFailureHalted || hasPendingSettlements || hasRecoveryQueue || hasRedemptionQueue || hasPendingBuys || hasPendingSells;
     res.json({
         status: isDegraded ? 'degraded' : 'ok',
         version: 'polyprophet-lite-1.0.0',
@@ -1380,6 +1443,8 @@ app.get('/api/health', (req, res) => {
         recoveryQueue: executorStatus.recoveryQueue.length,
         recoveryQueueSummary,
         redemptionQueue: executorStatus.redemptionQueue.length,
+        redemptionQueueSummary: lifecycleQueueStatus.redemptionQueueSummary,
+        redemptionReadiness: lifecycleQueueStatus,
         telegram: telegramState,
         runtimeState: getRuntimeStateStatus(),
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
@@ -1398,8 +1463,11 @@ app.get('/api/health', (req, res) => {
             pendingSells: hasPendingSells,
             pendingSettlements: hasPendingSettlements,
             recoveryQueue: hasRecoveryQueue,
+            redemptionQueue: hasRedemptionQueue,
             actionableRecoveryQueue: Number(recoveryQueueSummary.actionable || 0) > 0,
-            benignRecoveryQueue: Number(recoveryQueueSummary.benign || 0) > 0
+            actionableRedemptionQueue: hasRedemptionQueue,
+            benignRecoveryQueue: Number(recoveryQueueSummary.benign || 0) > 0,
+            proxyRedeemAuthReady: lifecycleQueueStatus.proxyRedeemAuthReady
         },
         riskControls: {
             microBankrollDeployProfile: !!CONFIG.MICRO_BANKROLL_DEPLOY_PROFILE,
@@ -1440,11 +1508,13 @@ app.get('/api/status', (req, res) => {
     const telegramState = telegram.getQueueState();
     const hasPendingSettlements = executorStatus.pendingSettlements.length > 0;
     const recoveryQueueSummary = executorStatus.recoveryQueueSummary || { total: executorStatus.recoveryQueue.length, actionable: executorStatus.recoveryQueue.length, benign: 0 };
+    const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
     const hasRecoveryQueue = Number(recoveryQueueSummary.actionable || 0) > 0;
+    const hasRedemptionQueue = lifecycleQueueStatus.actionableRedemptionQueue;
     const hasPendingBuys = executorStatus.pendingBuys.length > 0;
     const hasPendingSells = executorStatus.pendingSells.length > 0;
     const isManuallyPaused = !!riskStatus.tradingPaused;
-    const isDegraded = isManuallyPaused || errorHalted || tradeFailureHalted || hasPendingSettlements || hasRecoveryQueue || hasPendingBuys || hasPendingSells;
+    const isDegraded = isManuallyPaused || errorHalted || tradeFailureHalted || hasPendingSettlements || hasRecoveryQueue || hasRedemptionQueue || hasPendingBuys || hasPendingSells;
     res.json({
         status: isDegraded ? 'degraded' : 'ok',
         mode: CONFIG.TRADE_MODE,
@@ -1478,12 +1548,18 @@ app.get('/api/status', (req, res) => {
             pendingSells: hasPendingSells,
             pendingSettlements: hasPendingSettlements,
             recoveryQueue: hasRecoveryQueue,
+            redemptionQueue: hasRedemptionQueue,
             actionableRecoveryQueue: Number(recoveryQueueSummary.actionable || 0) > 0,
-            benignRecoveryQueue: Number(recoveryQueueSummary.benign || 0) > 0
+            actionableRedemptionQueue: hasRedemptionQueue,
+            benignRecoveryQueue: Number(recoveryQueueSummary.benign || 0) > 0,
+            proxyRedeemAuthReady: lifecycleQueueStatus.proxyRedeemAuthReady
         },
         degradedSummary: {
             recoveryQueue: executorStatus.recoveryQueue.length,
             recoveryQueueSummary,
+            redemptionQueue: executorStatus.redemptionQueue.length,
+            redemptionQueueSummary: lifecycleQueueStatus.redemptionQueueSummary,
+            redemptionReadiness: lifecycleQueueStatus,
             manualPause: isManuallyPaused,
             inCooldown: !!riskStatus.inCooldown,
             pendingBuys: hasPendingBuys,
@@ -1504,19 +1580,97 @@ app.get('/api/status', (req, res) => {
 
 app.get('/api/reconcile-pending', (req, res) => {
     const executorStatus = tradeExecutor.getStatus();
+    const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
     res.json({
         pendingBuys: executorStatus.pendingBuys,
         pendingSettlements: executorStatus.pendingSettlements,
         pendingSells: executorStatus.pendingSells,
         recoveryQueue: executorStatus.recoveryQueue,
+        recoveryQueueSummary: executorStatus.recoveryQueueSummary,
         redemptionQueue: executorStatus.redemptionQueue,
+        redemptionQueueSummary: lifecycleQueueStatus.redemptionQueueSummary,
+        redemptionReadiness: lifecycleQueueStatus,
         baselineBankroll: executorStatus.baselineBankroll,
         balanceBreakdown: executorStatus.balanceBreakdown
     });
 });
 
+app.post('/api/redeem-auth/derive', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (CONFIG.TRADE_MODE !== 'LIVE') {
+            return res.json({
+                success: true,
+                skipped: true,
+                reason: 'NOT_LIVE_MODE',
+                walletStatus: tradeExecutor.clob?.getStatus?.() || null
+            });
+        }
+        if (!tradeExecutor.clob?.ensureProxyRedeemAuth) {
+            return res.status(500).json({
+                success: false,
+                error: 'REDEEM_AUTH_DERIVATION_UNAVAILABLE'
+            });
+        }
+        const auth = await tradeExecutor.clob.ensureProxyRedeemAuth();
+        const executorStatus = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
+        res.json({
+            success: !!auth?.ok,
+            auth,
+            redemptionReadiness: lifecycleQueueStatus,
+            walletStatus: tradeExecutor.clob?.getStatus?.() || null
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/auto-redeem', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (CONFIG.TRADE_MODE !== 'LIVE') {
+            return res.json({ success: true, skipped: true, reason: 'NOT_LIVE_MODE' });
+        }
+        const before = tradeExecutor.getStatus();
+        const auth = tradeExecutor.clob?.ensureProxyRedeemAuth
+            ? await tradeExecutor.clob.ensureProxyRedeemAuth()
+            : { ok: false, error: 'REDEEM_AUTH_DERIVATION_UNAVAILABLE' };
+        const redemptions = await tradeExecutor.checkAndRedeemPositions();
+        const balance = await tradeExecutor.refreshLiveBalance(true).catch((e) => ({
+            success: false,
+            error: e.message
+        }));
+        const after = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(after);
+        saveRuntimeState();
+        res.json({
+            success: !!redemptions?.success && Number(lifecycleQueueStatus.redemptionQueueSummary?.actionable || 0) === 0,
+            auth,
+            before: {
+                recoveryQueueSummary: before.recoveryQueueSummary,
+                redemptionQueueSummary: before.redemptionQueueSummary,
+                provisionalOutcomeSummary: before.provisionalOutcomeSummary,
+                balanceBreakdown: before.balanceBreakdown
+            },
+            redemptions,
+            balance,
+            after: {
+                recoveryQueueSummary: after.recoveryQueueSummary,
+                redemptionQueueSummary: after.redemptionQueueSummary,
+                provisionalOutcomeSummary: after.provisionalOutcomeSummary,
+                balanceBreakdown: after.balanceBreakdown
+            },
+            redemptionReadiness: lifecycleQueueStatus
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.post('/api/reconcile-pending', async (req, res) => {
     try {
+        if (!requireAdminControlSecret(req, res)) return;
         const paperSettlements = await resolvePendingPaperPositions();
         const pendingBuys = CONFIG.TRADE_MODE === 'LIVE'
             ? await tradeExecutor.processPendingBuys(50)
@@ -1527,12 +1681,17 @@ app.post('/api/reconcile-pending', async (req, res) => {
         const pendingSells = CONFIG.TRADE_MODE === 'LIVE'
             ? await tradeExecutor.processPendingSells(currentMarkets, 10)
             : { success: true, processed: 0, closed: 0, failed: 0 };
+        const redeemAuth = CONFIG.TRADE_MODE === 'LIVE' && tradeExecutor.clob?.ensureProxyRedeemAuth
+            ? await tradeExecutor.clob.ensureProxyRedeemAuth()
+            : null;
         const redemptions = CONFIG.TRADE_MODE === 'LIVE'
             ? await tradeExecutor.checkAndRedeemPositions()
             : { success: true, redeemed: 0, failed: 0, skipped: 0, remaining: 0 };
         const balance = CONFIG.TRADE_MODE === 'LIVE'
             ? await tradeExecutor.refreshLiveBalance(true)
             : null;
+        const executorStatus = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
         saveRuntimeState();
 
         res.json({
@@ -1541,9 +1700,11 @@ app.post('/api/reconcile-pending', async (req, res) => {
             pendingBuys,
             liveSettlements,
             pendingSells,
+            redeemAuth,
             redemptions,
             balance,
-            executor: tradeExecutor.getStatus()
+            redemptionReadiness: lifecycleQueueStatus,
+            executor: executorStatus
         });
     } catch (e) {
         res.status(500).json({ success: false, error: e.message });
@@ -1552,6 +1713,7 @@ app.post('/api/reconcile-pending', async (req, res) => {
 
 app.post('/api/force-recovery', (req, res) => {
     try {
+        if (!requireAdminControlSecret(req, res)) return;
         const positionId = String(req.body?.positionId || '').trim();
         const reason = String(req.body?.reason || 'ADMIN_FORCE_MANUAL_RECOVERY').trim() || 'ADMIN_FORCE_MANUAL_RECOVERY';
         if (!positionId) {
@@ -1596,8 +1758,62 @@ app.post('/api/force-recovery', (req, res) => {
     }
 });
 
+app.post('/api/rotation-reset', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (req.body?.confirmRotationReset !== true) {
+            return res.status(400).json({
+                success: false,
+                error: 'CONFIRM_ROTATION_RESET_REQUIRED'
+            });
+        }
+        riskManager.tradingPaused = true;
+        const reset = tradeExecutor.resetForAccountRotation({
+            preserveClosedPositions: req.body?.preserveClosedPositions !== false
+        });
+        const balance = await tradeExecutor.refreshLiveBalance(true).catch((e) => ({
+            success: false,
+            error: e.message
+        }));
+        const balanceUsd = Number(balance?.tradingBalanceUsdc);
+        if (Number.isFinite(balanceUsd)) {
+            tradeExecutor.resetMonitoringBaseline(balanceUsd, {
+                source: 'rotation_reset_live_balance',
+                markInternalEvent: false
+            });
+            riskManager.bankroll = balanceUsd;
+        }
+        const executorStatus = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'ADMIN_ROTATION_RESET',
+            before: reset.before,
+            after: reset.after,
+            preserveClosedPositions: reset.preserveClosedPositions,
+            balanceSource: balance?.source || null,
+            tradingBalanceUsdc: Number.isFinite(balanceUsd) ? balanceUsd : null
+        });
+        await saveRuntimeState();
+        return res.json({
+            success: true,
+            reset,
+            balance,
+            redemptionReadiness: lifecycleQueueStatus,
+            executor: {
+                recoveryQueueSummary: executorStatus.recoveryQueueSummary,
+                redemptionQueueSummary: executorStatus.redemptionQueueSummary,
+                balanceBreakdown: executorStatus.balanceBreakdown
+            }
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.get('/api/diagnostics', (req, res) => {
     const executorStatus = tradeExecutor.getStatus();
+    const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
     const balanceBreakdown = executorStatus.balanceBreakdown || {};
     const divergenceUsdc = Number(balanceBreakdown.divergenceUsdc || 0);
     res.json({
@@ -1607,6 +1823,9 @@ app.get('/api/diagnostics', (req, res) => {
         summary: {
             recoveryQueue: executorStatus.recoveryQueue.length,
             redemptionQueue: executorStatus.redemptionQueue.length,
+            recoveryQueueSummary: executorStatus.recoveryQueueSummary,
+            redemptionQueueSummary: lifecycleQueueStatus.redemptionQueueSummary,
+            redemptionReadiness: lifecycleQueueStatus,
             pendingBuys: executorStatus.pendingBuys.length,
             pendingSells: executorStatus.pendingSells.length,
             pendingSettlements: executorStatus.pendingSettlements.length,
@@ -1737,6 +1956,8 @@ app.get('/api/wallet/balance', async (req, res) => {
             balanceBreakdown = tradeExecutor.getCachedBalanceBreakdown();
         }
         const clobStatus = tradeExecutor.clob?.getStatus?.() || null;
+        const executorStatus = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
         res.json({
             mode: CONFIG.TRADE_MODE,
             balanceBreakdown,
@@ -1744,6 +1965,9 @@ app.get('/api/wallet/balance', async (req, res) => {
             baselineBankrollInitialized: tradeExecutor.baselineBankrollInitialized,
             walletLoaded: !!tradeExecutor.clob?.wallet,
             walletStatus: clobStatus,
+            redemptionReadiness: lifecycleQueueStatus,
+            recoveryQueueSummary: executorStatus.recoveryQueueSummary,
+            redemptionQueueSummary: lifecycleQueueStatus.redemptionQueueSummary,
             runtimeBankrollForTimeframes: getRuntimeBankrollForTimeframes(),
             activeTimeframes: getEnabledTimeframes().map(t => t.key),
             diagnostics: {
