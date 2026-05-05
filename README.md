@@ -12529,3 +12529,96 @@ Alternative: `POLYMARKET_RELAYER_API_KEY` and `POLYMARKET_RELAYER_API_KEY_ADDRES
 **Fee-adjusted share decision**: Do not add a separate new toggle unless future code introduces one. The deployed runtime is already fee-aware at entry sizing: it uses `getMaxAffordableSharesForEntry(cash, price)` to cap shares by `price + taker-fee-per-share`, then blocks with `INSUFFICIENT_CASH_WITH_FEES` if `size + estimatedEntryFee` exceeds available cash. It also records entry/exit fees in PnL. Therefore the intended answer is: fee-adjusted share behavior is already effectively enabled in code; do not enable an unknown external duplicate setting without verifying it maps to this runtime path.
 
 **Closer BST windows from current p64 schedule**: the `10:07 BST` window was too close/missed during this check and should not be used. Closer alternatives before the best `20:05 BST` window are `13:03 BST` (`fresh_ALL_H12_M3_UP_70_79`, pWinEstimate `0.6892`) and `16:13 BST` (`fresh_ALL_H15_M13_UP_45_79`, pWinEstimate `0.7688`). If the operator wants an earlier start than `20:05 BST`, prefer `16:13 BST`; `13:03 BST` is acceptable but lower-confidence. In all cases, re-run endpoint gates 5-10 minutes before entry and only then unpause.
+
+---
+
+### 5 May 2026 Windsurf Final Extensive Audit Addendum - Strategy Autopilot, p64 Bankroll Sims, Live Readiness
+
+**Audit timestamp**: `2026-05-05T17:30Z`.
+
+**Scope**: Final pre-deploy/readiness pass over `POLYPROPHET-main-push`, focused on runtime safety, strategy truth, p64 deployment posture, notify-only strategy autopilot, live Fly state, and requested `$15/$20/$25/$30` bankroll simulations.
+
+**Data sources**:
+- Code analysis: `server.js`, `lib/strategy-autopilot.js`, `scripts/fresh-strategy-search.js`, `scripts/validate-fresh-strategy.js`, `fly.toml`, `render.yaml`, `strategies/strategy_set_15m_fresh_best_may5_p64.json`.
+- Local validation: `debug/fresh_strategy_validation_may5_p64.json` plus generated `debug/final_audit_p64_start_15.json`, `debug/final_audit_p64_start_20.json`, `debug/final_audit_p64_start_25.json`, `debug/final_audit_p64_start_30.json`.
+- Live API snapshots: `local_proof/final_audit_live_*.json` from `https://polyprophet.fly.dev`.
+- Verification commands: `node --check server.js`, `node --check lib/strategy-autopilot.js`, and `node scripts/verify-harness.js` (`35 passed, 0 failed`).
+
+#### Strategy autopilot audit
+
+- `lib/strategy-autopilot.js` is present and integrated into runtime state export/import, server startup, and shutdown.
+- Autopilot is notify-only: `autoDeployEnabled=false`; accepting a candidate records manual intent only and sets `autoDeployPerformed=false`.
+- Candidate search/validation path in this checkout is `scripts/fresh-strategy-search.js` plus `scripts/validate-fresh-strategy.js`.
+- Manual candidate `ACCEPT` does **not** edit Fly secrets, deploy, resume trading, or change `STRATEGY_SET_15M_PATH`.
+- Security fix applied during this audit: all strategy-autopilot GET and POST endpoints now require `requireAdminControlSecret`.
+- Remaining boundary: generated candidates still require human review, conservative validation, paused deploy, validator reset, and live endpoint verification before use.
+
+#### p64 strategy evidence boundary
+
+Active target remains `strategies/strategy_set_15m_fresh_best_may5_p64.json` with 6 legs:
+
+| UTC window | Strategy | pWinEstimate | Notes |
+|---:|---|---:|---|
+| 06:05 | `fresh_ALL_H06_M5_DOWN_55_79` | 0.7870 | Good early window |
+| 09:07 | `fresh_ALL_H09_M7_UP_50_69` | 0.6470 | Lower-confidence p64 leg |
+| 12:03 | `fresh_ALL_H12_M3_UP_70_79` | 0.6892 | Higher entry band, lower pWin |
+| 15:13 | `fresh_ALL_H15_M13_UP_45_79` | 0.7688 | Good afternoon window |
+| 19:05 | `fresh_ALL_H19_M5_UP_55_74` | 0.8160 | Best pWin leg |
+| 21:00 | `fresh_ALL_H21_M0_UP_55_59` | 0.6488 | Lower-confidence p64 leg |
+
+Conservative validation authority remains `debug/fresh_strategy_validation_may5_p64.json`, not optimistic embedded strategy stats. It uses `9258` merged cycles from `2026-04-11T00:30:00Z` through `2026-05-05T04:15:00Z`, including `1156` fresh cycles. All matches: `404`, `333W-71L`, WR `82.43%`, avg entry `0.6417`. One-per-cycle: `227`, `181W-46L`, WR `79.74%`, avg entry `0.6206`.
+
+#### Additional requested bankroll simulations
+
+Method: `scripts/validate-fresh-strategy.js` with p64 strategy, fresh May5 data, `TAKER_FEE=3.15%`, `SLIPPAGE=1%`, `MIN_SHARES=5`, `HARD_ENTRY_PRICE_CAP=0.82`, cooldown after 4 consecutive losses, 20% daily global stop logic, and 3000 bootstrap trials. These are local replay/bootstrap simulations, not guaranteed live outcomes.
+
+| Start | 1d final | 2d final | 3d final | 7d final | 14d final | 7d trades | 7d WR | 7d max DD | 7d worst cash | 7d bootstrap p10 | 7d bootstrap median | 7d bootstrap p90 | Bootstrap bust | Source days |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `$15` | `$58.31` | `$342.54` | `$830.23` | `$3770.90` | `$4925.70` | 114 | 92.11% | 32.48% | `$6.95` | `$6009.15` | `$7749.61` | `$9519.10` | 0% | 3 |
+| `$20` | `$70.54` | `$422.74` | `$995.32` | `$4245.06` | `$4889.63` | 114 | 92.11% | 32.65% | `$9.34` | `$6255.40` | `$8062.13` | `$9803.60` | 0% | 3 |
+| `$25` | `$90.76` | `$514.80` | `$1112.22` | `$4505.72` | `$6650.73` | 115 | 92.17% | 32.16% | `$12.19` | `$6605.64` | `$8404.39` | `$10094.40` | 0% | 3 |
+| `$30` | `$104.80` | `$660.78` | `$1294.04` | `$4782.45` | `$6650.71` | 115 | 92.17% | 32.47% | `$14.43` | `$6922.44` | `$8766.47` | `$11083.32` | 0% | 3 |
+
+Important caveat: 7d bootstrap source has only `3` fresh holdout days, so bootstrap medians are fragile and must not be treated as prophecy. Deterministic recent replay is useful for bankroll sensitivity, but future live transfer remains unproven until actual p64-era fills settle.
+
+#### Stress and failure audit
+
+- Forced-loss stress only executed one trade in the ten-loss sequence because daily global stop/cooldown logic suppressed subsequent entries after the first forced loss.
+- Final cash after one forced avg-entry loss: `$9.87` from `$15`, `$13.58` from `$20`, `$16.66` from `$25`, `$19.73` from `$30`.
+- Larger starts reduce min-order domination and improve first-loss survivability, but do not remove live risks such as partial fills, FAK non-fills, price drift, stale balance refresh, market discovery misses, or settlement timing.
+
+#### Live Fly runtime verification
+
+Live endpoint snapshots around `2026-05-05T17:26Z` showed:
+
+- `/api/health`: `mode=LIVE`, `isLive=true`.
+- `/api/status`: `mode=LIVE`, `status=degraded` due intentional manual pause; `timeframes=[15m]`; `tradingSuppression.manualPause=true`; no cooldown; pending buys/sells/settlements false; redemption queue `0`; recovery queue `0`; error halt false; trade-failure halt false; risk bankroll `$10.43`.
+- `/api/debug/strategy-paths`: p64 loaded from `/app/strategies/strategy_set_15m_fresh_best_may5_p64.json` with 6 strategies.
+- `/api/wallet/balance?refresh=1`: trading/equity/on-chain pUSD all `$10.43`; source `ON_CHAIN_PUSD`; usable for trading true; selected funder `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`.
+- `/api/clob-status`: `tradeReady.ok=true`, summary `OK sigType=1`, selected signature type `1`, selected funder pUSD raw balance `10430000`.
+- `/api/network-diagnostics`: direct geoblock check `blocked=false`; CLOB invalid-order preflight reached auth validation with HTTP `401 Unauthorized/Invalid api key`, not a regional block.
+
+#### Final readiness verdict
+
+- **Runtime mechanical readiness**: `GO` while paused. Wallet, pUSD balance, p64 file, CLOB trade-ready, queues, and endpoint posture are coherent.
+- **Strategy readiness**: `GO for supervised p64 smoke/live operation only`. p64 is the best currently loaded evidence-backed candidate in this checkout, but it is not a 100/100 guaranteed or unattended-autonomy proof.
+- **Autonomy score**: not 100/100. Honest score is approximately `85/100` for supervised live readiness and lower for unattended autonomy because p64 has no completed live p64-era rolling accuracy yet, bootstrap source-days are only 3, and first-fill/settlement/redeem lifecycle still needs observation.
+- **Do not claim**: guaranteed high-XXX/XXXX, 100% win rate, or true prophecy. The honest claim is that local p64 evidence supports high-upside supervised operation, with real risk still present.
+
+#### Best unpause timing
+
+Best first unpause window remains the p64 `19:05 UTC / 20:05 BST` leg (`fresh_ALL_H19_M5_UP_55_74`, pWinEstimate `0.8160`). Unpause approximately `5-10 minutes before entry`, around `19:55-20:00 BST`, only if all live gates still pass immediately beforehand.
+
+If that window is missed, next preference is the `15:13 UTC / 16:13 BST` leg (`pWinEstimate=0.7688`), then `06:05 UTC / 07:05 BST` (`pWinEstimate=0.7870`) the next day. Avoid unpausing into a window with less than 5 minutes of discovery/balance-refresh time.
+
+#### Mandatory pre-unpause gates
+
+Before pressing resume/unpause, re-check:
+
+1. `/api/health`: `LIVE`, `isLive=true`.
+2. `/api/status`: manual pause still true before unpause, no error/trade-failure halt, no cooldown, no open/pending lifecycle queues, redemption/recovery queues `0`, active `15m`.
+3. `/api/debug/strategy-paths`: p64 loaded with 6 strategies.
+4. `/api/wallet/balance?refresh=1`: pUSD/trading/equity balance coherent and usable.
+5. `/api/clob-status`: `tradeReady.ok=true`, sigType `1`, selected funder balance present.
+6. `/api/network-diagnostics`: CLOB order preflight not geoblocked.
+7. After the first trade: monitor fill, settlement, redemption/reconciliation, and pause immediately on any divergence.

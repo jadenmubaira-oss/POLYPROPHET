@@ -16,6 +16,7 @@ const telegram = require('./lib/telegram');
 const strategyValidator = require('./lib/strategy-validator');
 const telegramCommands = require('./lib/telegram-commands');
 const flySecrets = require('./lib/fly-secrets');
+const StrategyAutopilot = require('./lib/strategy-autopilot');
 
 async function persistDerivedPolymarketSecrets() {
     const clob = tradeExecutor?.clob;
@@ -117,10 +118,28 @@ let lastLifecycleSuppressionFingerprint = '';
 let cachedBestWindows = null;
 let cachedBestWindowsAt = 0;
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'strategies')) ? __dirname : path.join(__dirname, '..');
+let strategyAutopilot = null;
 let redis = null;
 let redisAvailable = false;
 let runtimeStateLastSavedAt = 0;
 let runtimeStateLastLoadSource = 'FRESH_START';
+
+strategyAutopilot = new StrategyAutopilot({
+    root: REPO_ROOT,
+    telegram,
+    getRuntimeContext: () => ({
+        bankroll: Number(riskManager?.bankroll || 0),
+        activeStrategyFiles: getActiveStrategyFilePaths(),
+        deployVersion: DEPLOY_VERSION,
+        mode: CONFIG.TRADE_MODE,
+        isLive: CONFIG.IS_LIVE
+    }),
+    onStateChange: () => saveRuntimeState(),
+    appendDiagnostic: (entry) => {
+        diagnosticLog.push(entry);
+        if (diagnosticLog.length > 500) diagnosticLog.splice(0, diagnosticLog.length - 500);
+    }
+});
 
 function buildStrategyPathDebug() {
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
@@ -322,6 +341,7 @@ function buildRuntimeStateSnapshot() {
         },
         risk: riskManager.exportState(),
         executor: tradeExecutor.exportState(),
+        strategyAutopilot: strategyAutopilot?.exportState?.() || null,
         orchestratorHeartbeat,
         diagnosticLog: diagnosticLog.slice(-200)
     };
@@ -404,6 +424,9 @@ function applyRuntimeState(parsed, sourceLabel) {
     riskManager.importState(parsed.risk || {});
     tradeExecutor.importState(parsed.executor || {});
     tradeExecutor.mode = CONFIG.TRADE_MODE;
+    if (parsed.strategyAutopilot && strategyAutopilot?.importState) {
+        strategyAutopilot.importState(parsed.strategyAutopilot);
+    }
     if (parsed.orchestratorHeartbeat && typeof parsed.orchestratorHeartbeat === 'object') {
         orchestratorHeartbeat = { ...orchestratorHeartbeat, ...parsed.orchestratorHeartbeat };
     }
@@ -1894,6 +1917,94 @@ function requireAdminControlSecret(req, res) {
     return true;
 }
 
+app.get('/api/strategy-autopilot/status', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    res.json({
+        success: true,
+        status: strategyAutopilot?.status?.() || { enabled: false, error: 'AUTOPILOT_UNAVAILABLE' }
+    });
+});
+
+app.get('/api/strategy-autopilot/candidates', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    const requestedLimit = Number.parseInt(String(req.query?.limit || '10'), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, requestedLimit)) : 10;
+    res.json({
+        success: true,
+        limit,
+        candidates: strategyAutopilot?.list?.(limit) || []
+    });
+});
+
+app.get('/api/strategy-autopilot/candidates/:id', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    const candidate = strategyAutopilot?.get?.(String(req.params.id || '')) || null;
+    if (!candidate) {
+        return res.status(404).json({ success: false, error: 'CANDIDATE_NOT_FOUND' });
+    }
+    return res.json({ success: true, candidate });
+});
+
+app.post('/api/strategy-autopilot/run', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (!strategyAutopilot) return res.status(503).json({ success: false, error: 'AUTOPILOT_UNAVAILABLE' });
+        const force = parseEnvBool(req.body?.force, false);
+        if (strategyAutopilot.status?.().running) {
+            return res.status(409).json({ success: false, error: 'AUTOPILOT_ALREADY_RUNNING', status: strategyAutopilot.status() });
+        }
+        const trigger = force ? 'API_FORCE' : 'API_MANUAL';
+        const eligibility = force ? { ok: true } : strategyAutopilot.shouldRunNow?.();
+        if (!eligibility?.ok) {
+            return res.json({ success: true, skipped: true, eligibility, status: strategyAutopilot.status() });
+        }
+        const startedAt = new Date().toISOString();
+        Promise.resolve(force ? strategyAutopilot.run(trigger) : strategyAutopilot.maybeRun(trigger))
+            .catch((e) => console.error(`⚠️ strategy autopilot background run failed: ${e.message}`));
+        return res.json({ success: true, started: true, trigger, startedAt, status: strategyAutopilot.status() });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message, status: strategyAutopilot?.status?.() || null });
+    }
+});
+
+app.post('/api/strategy-autopilot/candidates/:id/accept', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (!strategyAutopilot) return res.status(503).json({ success: false, error: 'AUTOPILOT_UNAVAILABLE' });
+        const record = strategyAutopilot.decide(String(req.params.id || ''), 'ACCEPT', {
+            operator: req.body?.operator || 'api',
+            notes: req.body?.notes || ''
+        });
+        await saveRuntimeState();
+        return res.json({
+            success: true,
+            decision: record,
+            warning: 'No live deployment or STRATEGY_SET_15M_PATH change was performed. Manual promotion is still required.'
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/strategy-autopilot/candidates/:id/decline', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (!strategyAutopilot) return res.status(503).json({ success: false, error: 'AUTOPILOT_UNAVAILABLE' });
+        const record = strategyAutopilot.decide(String(req.params.id || ''), 'DECLINE', {
+            operator: req.body?.operator || 'api',
+            notes: req.body?.notes || ''
+        });
+        await saveRuntimeState();
+        return res.json({
+            success: true,
+            decision: record,
+            retained: true
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.post('/api/pause', async (req, res) => {
     try {
         if (!requireAdminControlSecret(req, res)) return;
@@ -2752,6 +2863,13 @@ async function startServer() {
             console.log(`⚠️ boot telegram notify failed: ${e.message}`);
         }
 
+        try {
+            strategyAutopilot?.start?.();
+            console.log(`🔬 Strategy Autopilot: ${JSON.stringify(strategyAutopilot?.status?.() || {})}`);
+        } catch (e) {
+            console.log(`⚠️ strategy autopilot failed to start: ${e.message}`);
+        }
+
         tick();
     });
 
@@ -2768,6 +2886,7 @@ async function shutdown(signal) {
     console.log(`Received ${signal}, shutting down...`);
     shuttingDown = true;
     try { telegramCommands.stopCommandLoop(); } catch {}
+    try { strategyAutopilot?.stop?.(); } catch {}
     if (tickTimer) clearTimeout(tickTimer);
     await saveRuntimeState();
     if (redis) {
