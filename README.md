@@ -12507,3 +12507,25 @@ Alternative: `POLYMARKET_RELAYER_API_KEY` and `POLYMARKET_RELAYER_API_KEY_ADDRES
 **Final verdict**: `GO for supervised unpause only`, not autonomous guarantee. The bot is deployed, p64 is loaded, live trading credentials/balance are ready, queues are clean, and order type is `FAK`. It remains intentionally paused. Do not cite old pre-reset live WR as p64 performance. First p64-era live trades have not occurred yet.
 
 **Best unpause timing**: Prefer the next `19:05 UTC / 20:05 BST` p64 window (`fresh_ALL_H19_M5_UP_55_74`, highest pWinEstimate in p64). Unpause approximately `5-10 minutes before entry`, around `19:55-20:00 BST`, only if the same endpoint gates above still pass. If that window is missed, use the next available p64 window with fresh endpoint verification first.
+
+---
+
+### 5 May 2026 10:09 BST Final Runtime Hardening Check - Single Machine, Fee-Aware Shares, and Earlier Windows
+
+**Reason for this addendum**: A final post-deploy check found Fly was running `2` app machines on the same bot image. That is unsafe for a single autonomous trading wallet because two orchestrators can race. The app was scaled down to `1` machine with `flyctl scale count 1 --app polyprophet --yes`.
+
+**Current Fly topology**: `1` started machine in `gru`, image `polyprophet:deployment-01KQVN8ZCSFTRVT5P36QNWFTTT`, release `v21` complete.
+
+**Post-scale live verification timestamp**: `2026-05-05T09:09:30Z`.
+
+**Post-scale live gates**:
+- `/api/health`: HTTP 200, `mode=LIVE`, `isLive=true`.
+- `/api/status`: `manualPause=true`, `tradingPaused=true`, `liveModeBlockers=[]`, `timeframes=[15m]`, `bankroll=10.43`, `totalTrades=0`, `openPositions=0`, `pendingBuys=0`, `pendingSells=0`, `pendingSettlements=0`, `redemptionQueue=0`, `recoveryQueue=0`, no cooldown.
+- `/api/debug/strategy-paths`: `strategies/strategy_set_15m_fresh_best_may5_p64.json` loaded; `strategies=6`; `loadError=null`.
+- `/api/wallet/balance?refresh=1`: trading/equity/on-chain pUSD all `$10.43`; `usableForTrading=true`; source `ON_CHAIN_PUSD`.
+- `/api/clob-status`: `tradeReady.ok=true`; selected signature type `1`; funder `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`.
+- `/api/validator/reset` was rerun after scale-down with `preservePause=true` and `clearTradeLog=true`; validator now reports `TotalTrades: 0`, no rolling WR, and `All checks passed`.
+
+**Fee-adjusted share decision**: Do not add a separate new toggle unless future code introduces one. The deployed runtime is already fee-aware at entry sizing: it uses `getMaxAffordableSharesForEntry(cash, price)` to cap shares by `price + taker-fee-per-share`, then blocks with `INSUFFICIENT_CASH_WITH_FEES` if `size + estimatedEntryFee` exceeds available cash. It also records entry/exit fees in PnL. Therefore the intended answer is: fee-adjusted share behavior is already effectively enabled in code; do not enable an unknown external duplicate setting without verifying it maps to this runtime path.
+
+**Closer BST windows from current p64 schedule**: the `10:07 BST` window was too close/missed during this check and should not be used. Closer alternatives before the best `20:05 BST` window are `13:03 BST` (`fresh_ALL_H12_M3_UP_70_79`, pWinEstimate `0.6892`) and `16:13 BST` (`fresh_ALL_H15_M13_UP_45_79`, pWinEstimate `0.7688`). If the operator wants an earlier start than `20:05 BST`, prefer `16:13 BST`; `13:03 BST` is acceptable but lower-confidence. In all cases, re-run endpoint gates 5-10 minutes before entry and only then unpause.
