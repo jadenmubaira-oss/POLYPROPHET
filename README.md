@@ -12478,3 +12478,32 @@ Alternative: `POLYMARKET_RELAYER_API_KEY` and `POLYMARKET_RELAYER_API_KEY_ADDRES
 **Unpause timing rule**: Choose the next p64 window with the highest `pWinEstimate`, while giving the bot at least 5-10 minutes before the target entry minute to discover markets and refresh live balance. p64 UTC windows are: `06:05 DOWN` (`pWinEstimate=0.7870`), `09:07 UP` (`0.6470`), `12:03 UP` (`0.6892`), `15:13 UP` (`0.7688`), `19:05 UP` (`0.8160`, highest), and `21:00 UP` (`0.6488`). In BST on 5 May, add one hour: `07:05`, `10:07`, `13:03`, `16:13`, `20:05`, and `22:00`. The best median/success first unpause target is the `19:05 UTC / 20:05 BST` p64 window, ideally unpause around `19:50-19:58 BST` only if all live checks pass. If that is missed, use `16:13 BST` or the next day's `07:05 BST` only if endpoint checks still show the p64 strategy loaded and no blockers.
 
 **Do not unpause unless all final gates pass**: `/api/status` and `/api/health` must show `mode=LIVE`, `isLive=true`, `manualPause=true`, no trade-failure halt, no open positions, no pending buys/sells/settlements, `redemptionQueue=0`, `recoveryQueue=0`, active `15m`, wallet/trading balance about `$10.43`, and no lifecycle suppression. `/api/debug/strategy-paths` must prove `strategy_set_15m_fresh_best_may5_p64.json` is loaded with 6 strategies. `/api/clob-status` must show `tradeReadyOk=true` with the selected pUSD/funder balance. `/api/network-diagnostics` must show the CLOB order endpoint is not geoblocked. Telegram/dashboard should be reachable. If any first live order/settlement/redeem behavior diverges, pause immediately and inspect diagnostics before retrying.
+
+---
+
+### 5 May 2026 Final Live Deployment Verification - p64 Loaded, Paused, and Ready for Supervised Unpause
+
+**Verification timestamp**: `2026-05-05T08:54:42Z`.
+
+**Deployment result**: Fly app `polyprophet` was deployed successfully from commit `1afbc30` with the fresh p64 strategy bundle included in the Docker image. Fly release completed and both machines passed smoke checks.
+
+**Active live config proof**:
+- `TRADE_MODE=LIVE`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`.
+- `START_PAUSED=true`; live `/api/status` confirms `manualPause=true` and `tradingPaused=true`.
+- `STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_fresh_best_may5_p64.json`.
+- `CLOB_ORDER_TYPE=FAK` verified from the running Fly VM environment.
+- `TIMEFRAME_15M_ENABLED=true`; live runtime shows only `15m` active.
+- `TIMEFRAME_5M_ENABLED=false`, `MULTIFRAME_4H_ENABLED=false`, `ENABLE_4H_TRADING=false`.
+- `MAX_GLOBAL_TRADES_PER_CYCLE=1`, `OPERATOR_STAKE_FRACTION=0.40`, `HARD_ENTRY_PRICE_CAP=0.82`, `DEFAULT_MIN_ORDER_SHARES=5`, `REQUIRE_REAL_ORDERBOOK=true`.
+
+**Live endpoint proof**:
+- `/api/health`: HTTP 200, `mode=LIVE`, `isLive=true`.
+- `/api/debug/strategy-paths`: p64 path exists and is loaded from `/app/strategies/strategy_set_15m_fresh_best_may5_p64.json`; `strategies=6`; `loadError=null`.
+- `/api/status`: `manualPause=true`, `liveModeBlockers=[]`, `openPositions=0`, `pendingBuys=0`, `pendingSells=0`, `pendingSettlements=0`, `redemptionQueue=0`, `recoveryQueue=0`, `inCooldown=false`.
+- `/api/wallet/balance?refresh=1`: trading/equity balance `$10.43`; on-chain pUSD `$10.43`; `usableForTrading=true`; source `ON_CHAIN_PUSD`.
+- `/api/clob-status`: `tradeReady.ok=true`; selected signature type `1`; selected funder `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`; balance path ready.
+- `/api/validator/reset` was run with `preservePause=true` and `clearTradeLog=true`; validator now truthfully reports `TotalTrades: 0`, no rolling WR, and `All checks passed` for the p64 deployment baseline.
+
+**Final verdict**: `GO for supervised unpause only`, not autonomous guarantee. The bot is deployed, p64 is loaded, live trading credentials/balance are ready, queues are clean, and order type is `FAK`. It remains intentionally paused. Do not cite old pre-reset live WR as p64 performance. First p64-era live trades have not occurred yet.
+
+**Best unpause timing**: Prefer the next `19:05 UTC / 20:05 BST` p64 window (`fresh_ALL_H19_M5_UP_55_74`, highest pWinEstimate in p64). Unpause approximately `5-10 minutes before entry`, around `19:55-20:00 BST`, only if the same endpoint gates above still pass. If that window is missed, use the next available p64 window with fresh endpoint verification first.
