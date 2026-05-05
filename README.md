@@ -12443,7 +12443,7 @@ Alternative: `POLYMARKET_RELAYER_API_KEY` and `POLYMARKET_RELAYER_API_KEY_ADDRES
 
 ---
 
-### 5 May 2026 Cascade Fresh Replacement Strategy Search — p64 Candidate Selected, Deployment Still Paused
+### 5 May 2026 Cascade Fresh Replacement Strategy Search ï¿½ p64 Candidate Selected, Deployment Still Paused
 
 **Scope and data source**: this addendum continues the `NO-GO` finding for the degraded active Epoch3 V2 portfolio and documents the fresh replacement search. The non-destructive collector wrote `debug/fresh_full_intracycle_may5_fresh_v1.json` using public Gamma `/events?series_id=` plus CLOB `/prices-history`, with `1156` fresh full minute-level cycles (`289` each for BTC/ETH/SOL/XRP), `0` fetch errors, range `2026-05-02T04:15:00Z` through `2026-05-05T04:15:00Z`. Merged with local archive, validation used `9258` cycles from `2026-04-11T00:30:00Z` through `2026-05-05T04:15:00Z`.
 
@@ -12597,6 +12597,17 @@ Live endpoint snapshots around `2026-05-05T17:26Z` showed:
 - `/api/wallet/balance?refresh=1`: trading/equity/on-chain pUSD all `$10.43`; source `ON_CHAIN_PUSD`; usable for trading true; selected funder `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`.
 - `/api/clob-status`: `tradeReady.ok=true`, summary `OK sigType=1`, selected signature type `1`, selected funder pUSD raw balance `10430000`.
 - `/api/network-diagnostics`: direct geoblock check `blocked=false`; CLOB invalid-order preflight reached auth validation with HTTP `401 Unauthorized/Invalid api key`, not a regional block.
+
+#### Prior-bust concern: what makes this different, and what does not
+
+The correct answer is **not** "this strategy is best, therefore this time is safe." That answer was effectively used in earlier cycles and was not enough. The more honest answer is:
+
+- **What is different**: the current recommendation explicitly separates mechanical runtime readiness from strategy edge. The bot is deployed paused, p64 is loaded, wallet/CLOB/queues are coherent, strategy-autopilot endpoints are protected, and the autopilot is notify-only with no auto-promotion or auto-switch path. The current audit also uses conservative validation numbers rather than optimistic embedded strategy stats.
+- **What is also different**: the pre-unpause gate now requires live verification immediately before entry, and the first p64 trade must be treated as a supervised smoke test of discovery, sizing, fill, settlement, redemption, and ledger reconciliation.
+- **What is not different enough to guarantee success**: the bankroll is still tiny, min-order mechanics still dominate, p64 has no completed post-reset live rolling accuracy yet, bootstrap source-days are only `3`, and real execution can still diverge through partial fills, FAK non-fills, price drift, stale balance refresh, API/geo/auth changes, delayed settlement, or redeem/reconciliation bugs.
+- **Could the account return to starting balance or bust again?** Yes. That remains possible. The local sims show upside but do not eliminate first-trade loss, clustered-loss, or execution-bug risk. A `$15-$30` start improves first-loss survivability versus `$10.43`, but prior history proves that "more starting cash plus confidence" is not sufficient by itself.
+- **What would make this time genuinely different operationally**: do not run unattended from the start. Unpause only for the strongest scheduled p64 window after all gates pass, observe the first fill live, verify settlement/redeem/reconciliation after resolution, then pause and review before allowing additional autonomous cycles. If any endpoint, fill, price, strategy-path, balance, queue, or ledger value diverges from expectation, pause immediately.
+- **Bottom line**: the current state is better described as `supervised smoke-test GO`, not `autonomous profit guarantee`. If the operator uses it the old way, by trusting the "best current strategy" narrative and letting it run blind, the risk of repeating prior unseen failure modes remains materially high.
 
 #### Final readiness verdict
 
