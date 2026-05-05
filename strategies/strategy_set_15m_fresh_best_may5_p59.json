@@ -1,0 +1,228 @@
+{
+  "name": "fresh_best_may5_p59",
+  "description": "Pruned fresh May5 strategy set requiring pWinEstimate >= 0.59; not deployed.",
+  "generatedAt": "2026-05-05T05:27:52.784Z",
+  "sourceReport": "debug/fresh_strategy_search_may5_fresh_v1.json",
+  "methodology": "Mined static grid candidates with fresh chronological holdout and beam-selected by recent short-horizon simulation under micro-bankroll one-trade-per-cycle mechanics.",
+  "stats": {
+    "tradeCount": 820,
+    "stats": {
+      "n": 820,
+      "w": 664,
+      "l": 156,
+      "wr": 0.8097560975609757,
+      "lcb": 0.7862041809716603,
+      "avgEntry": 0.624987804878049,
+      "edgeRoiAtWR": 0.26790586471930666,
+      "edgeRoiAtLCB": 0.23102857134798477
+    },
+    "windows": {
+      "1d": {
+        "stats": {
+          "n": 41,
+          "w": 39,
+          "l": 2,
+          "wr": 0.9512195121951219,
+          "lcb": 0.8628396519011228,
+          "avgEntry": 0.631341463414634,
+          "edgeRoiAtWR": 0.4747200208723248,
+          "edgeRoiAtLCB": 0.3377005971257648
+        },
+        "sim": {
+          "finalBalance": 410.87,
+          "trades": 34,
+          "wins": 32,
+          "losses": 2,
+          "winRate": 0.9412,
+          "maxDD": 0.2492,
+          "busted": false
+        }
+      },
+      "2d": {
+        "stats": {
+          "n": 87,
+          "w": 82,
+          "l": 5,
+          "wr": 0.9425287356321839,
+          "lcb": 0.8866095697104751,
+          "avgEntry": 0.6238505747126439,
+          "edgeRoiAtWR": 0.47843572738442475,
+          "edgeRoiAtLCB": 0.3907218045948554
+        },
+        "sim": {
+          "finalBalance": 4642.38,
+          "trades": 69,
+          "wins": 66,
+          "losses": 3,
+          "winRate": 0.9565,
+          "maxDD": 0.2616,
+          "busted": false
+        }
+      },
+      "3d": {
+        "stats": {
+          "n": 122,
+          "w": 107,
+          "l": 15,
+          "wr": 0.8770491803278688,
+          "lcb": 0.8198078141470222,
+          "avgEntry": 0.6234016393442622,
+          "edgeRoiAtWR": 0.37669634569646304,
+          "edgeRoiAtLCB": 0.28684507918665886
+        },
+        "sim": {
+          "finalBalance": 7983.81,
+          "trades": 102,
+          "wins": 91,
+          "losses": 11,
+          "winRate": 0.8922,
+          "maxDD": 0.6314,
+          "busted": false
+        }
+      },
+      "7d": {
+        "stats": {
+          "n": 267,
+          "w": 236,
+          "l": 31,
+          "wr": 0.8838951310861424,
+          "lcb": 0.8477248165124593,
+          "avgEntry": 0.6257116104868911,
+          "edgeRoiAtWR": 0.38242307131589137,
+          "edgeRoiAtLCB": 0.3258522456547421
+        },
+        "sim": {
+          "finalBalance": 3772397.81,
+          "trades": 220,
+          "wins": 196,
+          "losses": 24,
+          "winRate": 0.8909,
+          "maxDD": 0.3185,
+          "busted": false
+        }
+      }
+    }
+  },
+  "strategies": [
+    {
+      "id": 1,
+      "name": "fresh_ALL_H12_M6_DOWN_45_64",
+      "asset": "ALL",
+      "utcHour": 12,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.64,
+      "pWinEstimate": 0.5912,
+      "evWinEstimate": 0.8,
+      "winRate": 0.8,
+      "winRateLCB": 0.5911935102346927,
+      "tier": "FRESH_HOLDOUT"
+    },
+    {
+      "id": 2,
+      "name": "fresh_ALL_H15_M13_UP_45_79",
+      "asset": "ALL",
+      "utcHour": 15,
+      "entryMinute": 13,
+      "direction": "UP",
+      "priceMin": 0.45,
+      "priceMax": 0.79,
+      "pWinEstimate": 0.7688,
+      "evWinEstimate": 1,
+      "winRate": 1,
+      "winRateLCB": 0.7688348521381084,
+      "tier": "FRESH_HOLDOUT"
+    },
+    {
+      "id": 3,
+      "name": "fresh_ALL_H19_M5_UP_55_74",
+      "asset": "ALL",
+      "utcHour": 19,
+      "entryMinute": 5,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.74,
+      "pWinEstimate": 0.816,
+      "evWinEstimate": 1,
+      "winRate": 1,
+      "winRateLCB": 0.8159920848767768,
+      "tier": "FRESH_HOLDOUT"
+    },
+    {
+      "id": 4,
+      "name": "fresh_ALL_H06_M5_DOWN_55_79",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 5,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.79,
+      "pWinEstimate": 0.787,
+      "evWinEstimate": 1,
+      "winRate": 1,
+      "winRateLCB": 0.7870282011880192,
+      "tier": "FRESH_HOLDOUT"
+    },
+    {
+      "id": 5,
+      "name": "fresh_ALL_H09_M7_UP_50_69",
+      "asset": "ALL",
+      "utcHour": 9,
+      "entryMinute": 7,
+      "direction": "UP",
+      "priceMin": 0.5,
+      "priceMax": 0.69,
+      "pWinEstimate": 0.647,
+      "evWinEstimate": 0.8571,
+      "winRate": 0.8571428571428571,
+      "winRateLCB": 0.647040986720709,
+      "tier": "FRESH_HOLDOUT"
+    },
+    {
+      "id": 6,
+      "name": "fresh_ALL_H21_M0_UP_55_59",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 0,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.59,
+      "pWinEstimate": 0.6488,
+      "evWinEstimate": 1,
+      "winRate": 1,
+      "winRateLCB": 0.6488429508079716,
+      "tier": "FRESH_HOLDOUT"
+    },
+    {
+      "id": 7,
+      "name": "fresh_ALL_H12_M3_UP_70_79",
+      "asset": "ALL",
+      "utcHour": 12,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.79,
+      "pWinEstimate": 0.6892,
+      "evWinEstimate": 1,
+      "winRate": 1,
+      "winRateLCB": 0.689177896916216,
+      "tier": "FRESH_HOLDOUT"
+    },
+    {
+      "id": 8,
+      "name": "fresh_ALL_H17_M3_UP_60_79",
+      "asset": "ALL",
+      "utcHour": 17,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.79,
+      "pWinEstimate": 0.605,
+      "evWinEstimate": 0.7895,
+      "winRate": 0.7894736842105263,
+      "winRateLCB": 0.6049857093177855,
+      "tier": "FRESH_HOLDOUT"
+    }
+  ]
+}

@@ -2267,7 +2267,7 @@ async function runLiveOrderProof(body = {}) {
             note: result?.acceptedOrder
                 ? (fillProof
                     ? 'Authenticated CLOB order was accepted. fillProof=true can intentionally use funds and create live exposure.'
-                    : 'Authenticated CLOB order was accepted and returned an orderID. Default proof posts a deliberately low-price GTC order, then cancels any unfilled remainder; a fill is not intended but is still theoretically possible in a live book.')
+                    : `Authenticated CLOB order was accepted and returned an orderID. Default proof posts a deliberately low-price ${CONFIG.CLOB_ORDER_TYPE || 'FAK'} order; a fill is not intended but is still theoretically possible in a live book.`)
                 : 'Authenticated CLOB order was not accepted; inspect order.clobFailureSummary/order.clobFailure.'
         };
 }
