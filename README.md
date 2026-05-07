@@ -59,6 +59,13 @@ It lists every required env/secret name, where to get it in the Polymarket/Fly/T
 - Best next timing as of this audit: local time was `2026-05-07 15:35 BST` (`14:35Z`); the next 15m boundary was `15:45 BST` (`14:45Z`). Best practice is to enable about `2` minutes before a 15m boundary only if the operator can supervise until at least the next `60` minutes. If that window is missed, use the same rule for the next `:00`, `:15`, `:30`, or `:45` boundary; do not unpause immediately after a boundary or right before being away/asleep.
 - Git/worktree truth: local `main` remains unsafe for direct push (`ahead 3, behind 17`) and the worktree has a large unrelated dirty/untracked set. Verified readiness commits are on remote branch `junie/deposit-wallet-clob-readiness-20260507`; final cleanup should merge/open that branch via PR or explicitly approve a separate rebase/merge-cleanup session rather than mixing unrelated files into this deployment branch.
 
+## 7 May 2026 Junie Cycle-Cap Addendum — not restricted to one trade per 15m cycle
+
+- User asked to ensure production is not stuck at one trade per cycle. Fresh audit found the concern was real: Fly `/api/health` showed `maxGlobalTradesPerCycle=1`, current tier `GROWTH`, `currentTierMaxPerCycle=1`, and bankroll `$19.752588` because the micro-bankroll deploy profile had `ALLOW_MICRO_MPC_OVERRIDE=false`.
+- Fix applied on Fly: `ALLOW_MICRO_MPC_OVERRIDE=true` and `MAX_GLOBAL_TRADES_PER_CYCLE=2`. Follow-up `/api/health` confirmed `maxGlobalTradesPerCycle=2`, current tier `GROWTH`, `currentTierMaxPerCycle=2`, stake fraction `0.35`, bankroll `$19.752588`, and zero pending/open exposure. This means production can attempt up to two opens in the same 15m epoch when two distinct candidates pass all strategy/orderbook/risk gates.
+- Code truth: `lib/risk-manager.js` still caps `<$15` bankroll to one trade per cycle, `$15-$50` bankroll to two, `$50-$200` to three, and `$200+` to the configured global cap. Duplicate-position, affordability, hard entry cap, pending-order reservation, manual pause, and live-autotrading gates are intentionally still preserved.
+- Observability fix: `lib/config.js` now exposes `MICRO_BANKROLL_ALLOW_MPC_OVERRIDE` so deployed `/api/health` reports the override flag truthfully after the next image deploy, rather than showing a misleading false value while the effective cap is already two.
+
 ---
 
 ## ðŸ”¥ EPOCH 3 Mega Strategy Miner Harness â€” Rolling Exhaustive Search (28 April 2026)
