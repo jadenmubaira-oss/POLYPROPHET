@@ -13,7 +13,14 @@
 > **THE IMMORTAL MANIFESTO** â€” Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 7 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$19.75 pUSD; CLOB deposit-wallet/POLY_1271 order-write proof passed, 15m strategy loaded on Fly, autotrading still disabled/manual-paused
+**Last Updated**: 7 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$19.75 pUSD; CLOB deposit-wallet/POLY_1271 order-write proof passed, 15m strategy loaded on Fly, live autotrading enabled and unpaused on production
+
+## 7 May 2026 Junie Activation Addendum — live autotrading enabled/unpaused
+
+- Operator resumed trading and asked whether `LIVE_AUTOTRADING_ENABLED` also needed to be true. Fresh Fly audit confirmed yes: runtime was `LIVE` and wallet/strategy were ready, but `LIVE_AUTOTRADING_ENABLED=false` still blocked autonomous execution.
+- Production changes applied on Fly: `LIVE_AUTOTRADING_ENABLED=true`, `START_PAUSED=false`, existing deposit-wallet `POLYMARKET_SIGNATURE_TYPE=3`, 15m strategy path, and two-trades-per-cycle cap retained. The app was redeployed after enabling live autotrading, and `START_PAUSED=false` was then set because the first post-deploy check showed restart had restored manual pause.
+- Final post-deploy verification at `2026-05-07 16:54 BST` after Fly image `deployment-01KR1J6PMHMAZM4XBD3FJW43G5`: `/api/health` reported `status=ok`, `isLive=true`; `/api/status` reported `runtimeMode.isLive=true`, no live blockers, `manualPause=false`, `risk.tradingPaused=false`; `/api/debug/strategy-paths` showed `START_PAUSED=false` and the 15m portfolio file exists; `/api/wallet/balance` showed `tradeReady.ok=true` and `$19.752588` pUSD trade-ready.
+- Current operator posture: bot is now genuinely live/unpaused. The next full 15m boundary after verification was `17:00 BST`; supervise closely for the first hour and pause immediately if fills/exits/balance reconciliation diverge from expectations.
 
 ## ðŸš€ New Operator Setup / Key Rotation Guide
 
