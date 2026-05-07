@@ -15,6 +15,13 @@
 
 **Last Updated**: 7 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$19.75 pUSD; CLOB deposit-wallet/POLY_1271 order-write proof passed, 15m strategy loaded on Fly, live autotrading enabled and unpaused on production
 
+## 7 May 2026 Junie Live Observation Addendum — no trades yet because no active strategy window
+
+- Operator reported the bot had been live for roughly `30-45` minutes with no trades. Fresh Fly observation at `2026-05-07 16:52-16:57 UTC` confirmed production is genuinely live (`/api/health status=ok`, `/api/status isLive=true`, `manualPause=false`) with `4/4` active 15m markets, no pending buys/sells/settlements, no halt, and stable trade-ready balance around `$19.75`.
+- Recent Fly heartbeats from `16:02-16:57 UTC` all showed `Markets: 4/4 active | Candidates: 0 | Trades: 0 | Balance: $19.75`. This means no order attempts are being made; it is not currently a CLOB/auth/funds failure.
+- Root cause of no trades in this observation window: the loaded `strategies/strategy_set_15m_epoch3v2_portfolio.json` has exact UTC-hour/entry-minute gates and contains no `utcHour=16` or `utcHour=17` strategies. The next loaded windows after the observation were `19:04/19:19/19:34/19:49 BST` (`18:04/18:19/18:34/18:49 UTC`) for `UP` entries in the `0.60-0.75` band, then `21:02/21:17/21:32/21:47 BST` for `DOWN` entries in the `0.60-0.75` band.
+- Current decision: do not loosen strategy gates merely to force a trade; that would invalidate the audited portfolio. Keep observing through the next scheduled strategy windows and only intervene if the bot reaches a valid window/price band and still reports `Candidates: 0` unexpectedly, or if it finds candidates but suppresses/failed order execution.
+
 ## 7 May 2026 Junie Activation Addendum — live autotrading enabled/unpaused
 
 - Operator resumed trading and asked whether `LIVE_AUTOTRADING_ENABLED` also needed to be true. Fresh Fly audit confirmed yes: runtime was `LIVE` and wallet/strategy were ready, but `LIVE_AUTOTRADING_ENABLED=false` still blocked autonomous execution.
