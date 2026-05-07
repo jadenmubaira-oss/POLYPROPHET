@@ -70,11 +70,58 @@ backtest-data/
 local-archive/
 local_archive/
 cursor_*.md
+cursor_*
 **/*.out.txt
+
+# Research / local analysis artifacts not needed by the Fly runtime
+.agent/
+.claude/
+.codex/
+.cursor/
+.factory/
+.windsurf/
+external/
+epoch2/
+epoch3/
+exhaustive_analysis/
+debg/
+legacy-root-runtime/
+.tmp-origin-review/
+assistant/
+memory/
+docs/
+polyprophet-lite/
+telegram_ai_media_bot/
+data/
+local_proof/
+print/
+generated_orca_profiles_*/
+generated_*/
+strategies/candidates/
+
+# Local snapshots, screenshots, and scratch diagnostics
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.bmp
+health.json
+status.json
+diag.json
+reconcile.json
+state_public*.json
+state_public_raw.txt
+tmp_trades.json
+wallet.json
+fetch_api.ps1
+parse_state.js
 
 # Scripts not needed in production
 _deploy.bat
 scripts/migrate-redis.js
+scripts/_tmp_*.js
+scripts/*.txt
 
 # Export files
 redis-export.json

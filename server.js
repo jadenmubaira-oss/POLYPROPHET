@@ -15,6 +15,24 @@ const TradeExecutor = require('./lib/trade-executor');
 const telegram = require('./lib/telegram');
 const strategyValidator = require('./lib/strategy-validator');
 const telegramCommands = require('./lib/telegram-commands');
+const flySecrets = require('./lib/fly-secrets');
+const StrategyAutopilot = require('./lib/strategy-autopilot');
+const depositWallet = require('./lib/deposit-wallet');
+
+async function persistDerivedPolymarketSecrets() {
+    const clob = tradeExecutor?.clob;
+    if (!clob || typeof clob.ensureCreds !== 'function') {
+        return { success: false, skipped: true, reason: 'CLOB_UNAVAILABLE', state: flySecrets.publicState() };
+    }
+    await clob.ensureCreds().catch(() => null);
+    const secrets = typeof clob.getLastDerivedClobSecrets === 'function'
+        ? clob.getLastDerivedClobSecrets()
+        : null;
+    if (!secrets || !Object.keys(secrets).length) {
+        return { success: false, skipped: true, reason: 'NO_DERIVED_CLOB_SECRETS', state: flySecrets.publicState() };
+    }
+    return await flySecrets.setSecrets(secrets);
+}
 
 // EPOCH 2: V2 SDK dual-path loader (shared across server.js endpoints)
 function loadClobClientSdk() {
@@ -101,10 +119,28 @@ let lastLifecycleSuppressionFingerprint = '';
 let cachedBestWindows = null;
 let cachedBestWindowsAt = 0;
 const REPO_ROOT = fs.existsSync(path.join(__dirname, 'strategies')) ? __dirname : path.join(__dirname, '..');
+let strategyAutopilot = null;
 let redis = null;
 let redisAvailable = false;
 let runtimeStateLastSavedAt = 0;
 let runtimeStateLastLoadSource = 'FRESH_START';
+
+strategyAutopilot = new StrategyAutopilot({
+    root: REPO_ROOT,
+    telegram,
+    getRuntimeContext: () => ({
+        bankroll: Number(riskManager?.bankroll || 0),
+        activeStrategyFiles: getActiveStrategyFilePaths(),
+        deployVersion: DEPLOY_VERSION,
+        mode: CONFIG.TRADE_MODE,
+        isLive: CONFIG.IS_LIVE
+    }),
+    onStateChange: () => saveRuntimeState(),
+    appendDiagnostic: (entry) => {
+        diagnosticLog.push(entry);
+        if (diagnosticLog.length > 500) diagnosticLog.splice(0, diagnosticLog.length - 500);
+    }
+});
 
 function buildStrategyPathDebug() {
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
@@ -306,6 +342,7 @@ function buildRuntimeStateSnapshot() {
         },
         risk: riskManager.exportState(),
         executor: tradeExecutor.exportState(),
+        strategyAutopilot: strategyAutopilot?.exportState?.() || null,
         orchestratorHeartbeat,
         diagnosticLog: diagnosticLog.slice(-200)
     };
@@ -324,6 +361,10 @@ function getLiveModeBlockers() {
     if (CONFIG.TELEGRAM.signalsOnly) blockers.push('TELEGRAM_SIGNALS_ONLY is true');
     if (!CONFIG.POLYMARKET_PRIVATE_KEY) blockers.push('POLYMARKET_PRIVATE_KEY missing');
     return blockers;
+}
+
+function isManualLiveProofAllowed(liveModeBlockers = getLiveModeBlockers()) {
+    return liveModeBlockers.every((blocker) => blocker === 'LIVE_AUTOTRADING_ENABLED is false');
 }
 
 async function switchRuntimeTradeMode(nextMode, options = {}) {
@@ -388,6 +429,9 @@ function applyRuntimeState(parsed, sourceLabel) {
     riskManager.importState(parsed.risk || {});
     tradeExecutor.importState(parsed.executor || {});
     tradeExecutor.mode = CONFIG.TRADE_MODE;
+    if (parsed.strategyAutopilot && strategyAutopilot?.importState) {
+        strategyAutopilot.importState(parsed.strategyAutopilot);
+    }
     if (parsed.orchestratorHeartbeat && typeof parsed.orchestratorHeartbeat === 'object') {
         orchestratorHeartbeat = { ...orchestratorHeartbeat, ...parsed.orchestratorHeartbeat };
     }
@@ -1613,11 +1657,13 @@ app.post('/api/redeem-auth/derive', async (req, res) => {
             });
         }
         const auth = await tradeExecutor.clob.ensureProxyRedeemAuth();
+        const flyPersistence = await persistDerivedPolymarketSecrets();
         const executorStatus = tradeExecutor.getStatus();
         const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
         res.json({
             success: !!auth?.ok,
             auth,
+            flyPersistence,
             redemptionReadiness: lifecycleQueueStatus,
             walletStatus: tradeExecutor.clob?.getStatus?.() || null
         });
@@ -1626,7 +1672,56 @@ app.post('/api/redeem-auth/derive', async (req, res) => {
     }
 });
 
+
+app.post('/api/clob-auth/derive', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        const clob = tradeExecutor.clob;
+        if (!clob || typeof clob.rederiveCreds !== 'function') {
+            return res.status(500).json({ success: false, error: 'CLOB_AUTH_DERIVATION_UNAVAILABLE' });
+        }
+        riskManager.tradingPaused = true;
+        await saveRuntimeState();
+        const derive = await clob.rederiveCreds().catch((e) => ({ ok: false, reason: e.message }));
+        const secrets = typeof clob.getLastDerivedClobSecrets === 'function'
+            ? clob.getLastDerivedClobSecrets()
+            : null;
+        const flyPersistence = secrets
+            ? await flySecrets.setSecrets(secrets)
+            : { success: false, skipped: true, reason: 'NO_DERIVED_CLOB_SECRETS', state: flySecrets.publicState() };
+        const tradeReady = typeof clob.getTradeReadyClient === 'function'
+            ? await clob.getTradeReadyClient({ force: true, ttlMs: 5000 }).catch((e) => ({ ok: false, reason: e.message }))
+            : { ok: false, reason: 'TRADE_READY_CHECK_UNAVAILABLE' };
+        const selected = tradeReady?.selected || null;
+        return res.json({
+            success: !!(derive?.ok && tradeReady?.ok),
+            derive,
+            derivedSecrets: !!secrets,
+            flyPersistence,
+            tradeReady: {
+                ok: !!tradeReady?.ok,
+                summary: tradeReady?.summary || null,
+                reason: tradeReady?.reason || null,
+                sigType: tradeReady?.sigType ?? null,
+                selected: selected ? {
+                    signatureType: selected.signatureType ?? null,
+                    funderAddress: selected.funderAddress || null,
+                    source: selected.source || null,
+                    balanceRaw: selected.balanceRaw ?? null,
+                    refreshError: selected.refreshError || null,
+                    error: selected.error || null,
+                    status: selected.status ?? null
+                } : null
+            },
+            walletStatus: clob.getStatus?.() || null,
+            paused: true
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
 app.post('/api/auto-redeem', async (req, res) => {
+
     try {
         if (!requireAdminControlSecret(req, res)) return;
         if (CONFIG.TRADE_MODE !== 'LIVE') {
@@ -1636,6 +1731,7 @@ app.post('/api/auto-redeem', async (req, res) => {
         const auth = tradeExecutor.clob?.ensureProxyRedeemAuth
             ? await tradeExecutor.clob.ensureProxyRedeemAuth()
             : { ok: false, error: 'REDEEM_AUTH_DERIVATION_UNAVAILABLE' };
+        const flyPersistence = await persistDerivedPolymarketSecrets();
         const redemptions = await tradeExecutor.checkAndRedeemPositions();
         const balance = await tradeExecutor.refreshLiveBalance(true).catch((e) => ({
             success: false,
@@ -1654,6 +1750,7 @@ app.post('/api/auto-redeem', async (req, res) => {
                 balanceBreakdown: before.balanceBreakdown
             },
             redemptions,
+            flyPersistence,
             balance,
             after: {
                 recoveryQueueSummary: after.recoveryQueueSummary,
@@ -1874,6 +1971,186 @@ function requireAdminControlSecret(req, res) {
     return true;
 }
 
+function sendDepositWalletError(res, e) {
+    console.error('[deposit-wallet]', e?.message || e);
+    const status = String(e?.message || '').includes('MISSING') || String(e?.message || '').includes('UNAVAILABLE')
+        ? 400
+        : 500;
+    res.status(status).json({
+        success: false,
+        error: e?.message || String(e),
+    });
+}
+
+app.get('/api/deposit-wallet/status', async (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    try {
+        const status = await depositWallet.getDepositWalletStatus();
+        res.json({
+            success: true,
+            maxTestFundUsd: depositWallet.MAX_TEST_FUND_USD,
+            flow: [
+                'derive deterministic deposit wallet from exported owner signer',
+                'deploy wallet with relayer WALLET-CREATE if not deployed',
+                'transfer at most $5 pUSD from current Polymarket proxy to deposit wallet for the test',
+                'approve trading contracts from the deposit wallet via relayer WALLET batch',
+                'switch order proof to signatureType=3/POLY_1271 with maker+signer as the deposit wallet',
+            ],
+            status,
+        });
+    } catch (e) {
+        sendDepositWalletError(res, e);
+    }
+});
+
+app.post('/api/deposit-wallet/deploy', async (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    try {
+        const before = await depositWallet.getDepositWalletStatus();
+        if (before.deployed) {
+            res.json({ success: true, skipped: true, reason: 'ALREADY_DEPLOYED', before });
+            return;
+        }
+        const deploy = await depositWallet.deployDepositWallet();
+        const after = await depositWallet.getDepositWalletStatus();
+        res.json({ success: true, before, deploy, after });
+    } catch (e) {
+        sendDepositWalletError(res, e);
+    }
+});
+
+app.post('/api/deposit-wallet/approve', async (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    try {
+        const before = await depositWallet.getDepositWalletStatus();
+        if (!before.deployed) {
+            res.status(409).json({ success: false, error: 'DEPOSIT_WALLET_NOT_DEPLOYED', before });
+            return;
+        }
+        const approve = await depositWallet.approveDepositWallet();
+        const after = await depositWallet.getDepositWalletStatus();
+        res.json({ success: true, before, approve, after });
+    } catch (e) {
+        sendDepositWalletError(res, e);
+    }
+});
+
+app.post('/api/deposit-wallet/fund-test', async (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    try {
+        const amountUsd = Number(req.body?.amountUsd || req.body?.amount || 0);
+        if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > depositWallet.MAX_TEST_FUND_USD) {
+            res.status(400).json({
+                success: false,
+                error: `amountUsd must be > 0 and <= ${depositWallet.MAX_TEST_FUND_USD}`,
+            });
+            return;
+        }
+        const before = await depositWallet.getDepositWalletStatus();
+        if (!before.deployed) {
+            res.status(409).json({ success: false, error: 'DEPOSIT_WALLET_NOT_DEPLOYED', before });
+            return;
+        }
+        if (before.balances.proxyPusd < amountUsd) {
+            res.status(409).json({ success: false, error: 'INSUFFICIENT_PROXY_PUSD', before, amountUsd });
+            return;
+        }
+        const fund = await depositWallet.fundDepositWalletFromProxy(amountUsd);
+        const after = await depositWallet.getDepositWalletStatus();
+        res.json({ success: true, before, fund, after });
+    } catch (e) {
+        sendDepositWalletError(res, e);
+    }
+});
+
+app.get('/api/strategy-autopilot/status', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    res.json({
+        success: true,
+        status: strategyAutopilot?.status?.() || { enabled: false, error: 'AUTOPILOT_UNAVAILABLE' }
+    });
+});
+
+app.get('/api/strategy-autopilot/candidates', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    const requestedLimit = Number.parseInt(String(req.query?.limit || '10'), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(50, requestedLimit)) : 10;
+    res.json({
+        success: true,
+        limit,
+        candidates: strategyAutopilot?.list?.(limit) || []
+    });
+});
+
+app.get('/api/strategy-autopilot/candidates/:id', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
+    const candidate = strategyAutopilot?.get?.(String(req.params.id || '')) || null;
+    if (!candidate) {
+        return res.status(404).json({ success: false, error: 'CANDIDATE_NOT_FOUND' });
+    }
+    return res.json({ success: true, candidate });
+});
+
+app.post('/api/strategy-autopilot/run', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (!strategyAutopilot) return res.status(503).json({ success: false, error: 'AUTOPILOT_UNAVAILABLE' });
+        const force = parseEnvBool(req.body?.force, false);
+        if (strategyAutopilot.status?.().running) {
+            return res.status(409).json({ success: false, error: 'AUTOPILOT_ALREADY_RUNNING', status: strategyAutopilot.status() });
+        }
+        const trigger = force ? 'API_FORCE' : 'API_MANUAL';
+        const eligibility = force ? { ok: true } : strategyAutopilot.shouldRunNow?.();
+        if (!eligibility?.ok) {
+            return res.json({ success: true, skipped: true, eligibility, status: strategyAutopilot.status() });
+        }
+        const startedAt = new Date().toISOString();
+        Promise.resolve(force ? strategyAutopilot.run(trigger) : strategyAutopilot.maybeRun(trigger))
+            .catch((e) => console.error(`⚠️ strategy autopilot background run failed: ${e.message}`));
+        return res.json({ success: true, started: true, trigger, startedAt, status: strategyAutopilot.status() });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message, status: strategyAutopilot?.status?.() || null });
+    }
+});
+
+app.post('/api/strategy-autopilot/candidates/:id/accept', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (!strategyAutopilot) return res.status(503).json({ success: false, error: 'AUTOPILOT_UNAVAILABLE' });
+        const record = strategyAutopilot.decide(String(req.params.id || ''), 'ACCEPT', {
+            operator: req.body?.operator || 'api',
+            notes: req.body?.notes || ''
+        });
+        await saveRuntimeState();
+        return res.json({
+            success: true,
+            decision: record,
+            warning: 'No live deployment or STRATEGY_SET_15M_PATH change was performed. Manual promotion is still required.'
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/strategy-autopilot/candidates/:id/decline', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (!strategyAutopilot) return res.status(503).json({ success: false, error: 'AUTOPILOT_UNAVAILABLE' });
+        const record = strategyAutopilot.decide(String(req.params.id || ''), 'DECLINE', {
+            operator: req.body?.operator || 'api',
+            notes: req.body?.notes || ''
+        });
+        await saveRuntimeState();
+        return res.json({
+            success: true,
+            decision: record,
+            retained: true
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 app.post('/api/pause', async (req, res) => {
     try {
         if (!requireAdminControlSecret(req, res)) return;
@@ -1990,7 +2267,7 @@ app.get('/api/markets', (req, res) => {
 
 app.get('/api/clob-status', async (req, res) => {
     try {
-        const status = tradeExecutor.clob?.getStatus?.() || {};
+        const initialStatus = tradeExecutor.clob?.getStatus?.() || {};
         const deriveResult = await tradeExecutor.clob?.ensureCreds?.().catch(e => ({ ok: false, reason: e.message })) || { ok: false, reason: 'no clob' };
         const liveTradeReady = await Promise.race([
             tradeExecutor.clob?.getTradeReadyClient?.({ force: true, ttlMs: 5000 }),
@@ -1998,8 +2275,9 @@ app.get('/api/clob-status', async (req, res) => {
         ]).catch(e => ({ ok: false, reason: e.message }));
         const tradeReady = liveTradeReady?.ok
             ? liveTradeReady
-            : (status?.tradeReady?.ok ? status.tradeReady : liveTradeReady);
+            : (initialStatus?.tradeReady?.ok ? initialStatus.tradeReady : liveTradeReady);
         const collateralProbe = await tradeExecutor.clob?.getClobCollateralBalance?.(true).catch(e => ({ success: false, error: e.message })) || { success: false, error: 'no clob' };
+        const status = tradeExecutor.clob?.getStatus?.() || initialStatus;
         res.json({
             clobStatus: status,
             credsDerived: deriveResult,
@@ -2141,12 +2419,14 @@ async function getLiveProofBalanceSnapshot(force = false) {
 
 async function runLiveOrderProof(body = {}) {
         const liveModeBlockers = getLiveModeBlockers();
-        if (!CONFIG.IS_LIVE || liveModeBlockers.length > 0) {
+        const manualProofAllowed = isManualLiveProofAllowed(liveModeBlockers);
+        if ((!CONFIG.IS_LIVE || liveModeBlockers.length > 0) && !manualProofAllowed) {
             throw makeHttpError(409, 'LIVE_MODE_REQUIRED', {
                 runtimeMode: {
                     mode: CONFIG.TRADE_MODE,
                     isLive: CONFIG.IS_LIVE,
-                    liveModeBlockers
+                    liveModeBlockers,
+                    manualProofAllowed
                 }
             });
         }
@@ -2180,7 +2460,12 @@ async function runLiveOrderProof(body = {}) {
         const bestAsk = direction === 'DOWN' ? market.noBestAsk : market.yesBestAsk;
         const bestBid = direction === 'DOWN' ? market.noBestBid : market.yesBestBid;
         const minOrderSize = Number(direction === 'DOWN' ? market.noMinOrderSize : market.yesMinOrderSize);
-        const shares = Math.max(5, Number.isFinite(minOrderSize) && minOrderSize > 0 ? minOrderSize : 5);
+        const requestedShares = Number(body.shares || body.size);
+        const shares = Math.max(
+            5,
+            Number.isFinite(minOrderSize) && minOrderSize > 0 ? minOrderSize : 5,
+            Number.isFinite(requestedShares) && requestedShares > 0 ? requestedShares : 0
+        );
         const fillProof = body.fillProof === true || String(body.fillProof || '').toLowerCase() === 'true';
         const requestedPrice = Number(body.price);
         const proofPrice = fillProof
@@ -2191,6 +2476,13 @@ async function runLiveOrderProof(body = {}) {
         if (!tokenId || !Number.isFinite(proofPrice) || proofPrice <= 0 || proofPrice >= 1) {
             throw makeHttpError(400, 'INVALID_PROOF_ORDER_INPUT', { tokenId, proofPrice });
         }
+        if (!fillProof && maxNotionalUsd > 5) {
+            throw makeHttpError(400, 'PROOF_NOTIONAL_CAP_EXCEEDED', {
+                maxNotionalUsd,
+                capUsd: 5,
+                note: 'Default proof is intended to be a small low-price accepted-order/cancel test.'
+            });
+        }
         if (fillProof && !body.confirmFillProof) {
             throw makeHttpError(400, 'FILL_PROOF_REQUIRES_confirmFillProof_TRUE', {
                 note: 'Default proof is a low-price accepted-order/cancel test. Set fillProof=true and confirmFillProof=true only for deliberate live fill exposure.'
@@ -2198,7 +2490,9 @@ async function runLiveOrderProof(body = {}) {
         }
 
         const beforeBalance = await getLiveProofBalanceSnapshot(true);
-        const result = await tradeExecutor.clob.placeOrder(tokenId, proofPrice, shares, 'BUY');
+        const result = await tradeExecutor.clob.placeOrder(tokenId, proofPrice, shares, 'BUY', {
+            bypassReadinessForProof: !fillProof
+        });
         const afterBalance = await getLiveProofBalanceSnapshot(true);
         diagnosticLog.push({
             ts: new Date().toISOString(),
@@ -2247,7 +2541,7 @@ async function runLiveOrderProof(body = {}) {
             note: result?.acceptedOrder
                 ? (fillProof
                     ? 'Authenticated CLOB order was accepted. fillProof=true can intentionally use funds and create live exposure.'
-                    : 'Authenticated CLOB order was accepted and returned an orderID. Default proof posts a deliberately low-price GTC order, then cancels any unfilled remainder; a fill is not intended but is still theoretically possible in a live book.')
+                    : `Authenticated CLOB order was accepted and returned an orderID. Default proof posts a deliberately low-price ${CONFIG.CLOB_ORDER_TYPE || 'FAK'} order; a fill is not intended but is still theoretically possible in a live book.`)
                 : 'Authenticated CLOB order was not accepted; inspect order.clobFailureSummary/order.clobFailure.'
         };
 }
@@ -2303,6 +2597,7 @@ app.post('/api/live-order-proof', async (req, res) => {
 
 app.get('/api/derive-debug', async (req, res) => {
     try {
+        if (!requireAdminControlSecret(req, res)) return;
         const { ClobClient: ClobClientClass, version: sdkVersion } = loadClobClientSdk();
         if (!ClobClientClass || !tradeExecutor.clob?.wallet) {
             return res.json({ error: 'No ClobClient or wallet' });
@@ -2732,6 +3027,13 @@ async function startServer() {
             console.log(`⚠️ boot telegram notify failed: ${e.message}`);
         }
 
+        try {
+            strategyAutopilot?.start?.();
+            console.log(`🔬 Strategy Autopilot: ${JSON.stringify(strategyAutopilot?.status?.() || {})}`);
+        } catch (e) {
+            console.log(`⚠️ strategy autopilot failed to start: ${e.message}`);
+        }
+
         tick();
     });
 
@@ -2748,6 +3050,7 @@ async function shutdown(signal) {
     console.log(`Received ${signal}, shutting down...`);
     shuttingDown = true;
     try { telegramCommands.stopCommandLoop(); } catch {}
+    try { strategyAutopilot?.stop?.(); } catch {}
     if (tickTimer) clearTimeout(tickTimer);
     await saveRuntimeState();
     if (redis) {

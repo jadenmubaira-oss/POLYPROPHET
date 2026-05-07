@@ -27,6 +27,8 @@ telegram_config.json
 
 # Local script outputs (keep out of repo)
 backtest_results.json
+auto-redeem-result.json
+post-auto-redeem-status.json
 
 # Local scratch files
 .tmp_*
