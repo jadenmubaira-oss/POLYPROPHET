@@ -1,0 +1,338 @@
+{
+  "generatedAt": "2026-05-08T17:36:35.347Z",
+  "method": "Fresh multi-horizon governance audit. Historical-only evidence is penalized by Wilson lower bounds and live-forward sample adequacy. This is not a profit guarantee.",
+  "currentStrategyFile": "strategies/strategy_set_15m_autopilot_pruned_20260508152930.json",
+  "sourceStrategyFile": null,
+  "bankroll": 22.341031,
+  "horizons": [
+    3,
+    5,
+    7
+  ],
+  "current": [
+    {
+      "days": 3,
+      "observations": 240,
+      "triggered": 37,
+      "wins": 33,
+      "losses": 4,
+      "winRate": 0.8918918918918919,
+      "wilsonWinRateLCB95": 0.7529115358483285,
+      "avgPnlPerShare": 0.1354195807297297,
+      "medianPnlPerShare": 0.24407183682,
+      "p10PnlPerShare": -0.17499780349999994,
+      "avgWinPnlPerShare": 0.24137108831151508,
+      "avgLossPnlPerShare": -0.73868035682,
+      "conservativePnlPerShare": -0.0007883180556571556,
+      "triggersPerDay": 12.333333333333334,
+      "rules": 5,
+      "minRuleTriggers": 6,
+      "worstRuleLCB95": 0.4364905634363539,
+      "weakRules": [
+        {
+          "id": 10,
+          "name": "E3V2_static_grid_H9M4_UP",
+          "triggered": 6,
+          "wins": 6,
+          "losses": 0,
+          "winRate": 1,
+          "avgPnlPerShare": 0.2555,
+          "lcb95": 0.6097
+        },
+        {
+          "id": 15,
+          "name": "E3V2_static_grid_H23M5_UP",
+          "triggered": 10,
+          "wins": 8,
+          "losses": 2,
+          "winRate": 0.8,
+          "avgPnlPerShare": 0.051,
+          "lcb95": 0.4902
+        },
+        {
+          "id": 16,
+          "name": "E3V2_static_grid_H7M3_DOWN",
+          "triggered": 6,
+          "wins": 5,
+          "losses": 1,
+          "winRate": 0.8333,
+          "avgPnlPerShare": 0.0759,
+          "lcb95": 0.4365
+        },
+        {
+          "id": 18,
+          "name": "E3V2_static_grid_H14M3_UP",
+          "triggered": 6,
+          "wins": 6,
+          "losses": 0,
+          "winRate": 1,
+          "avgPnlPerShare": 0.1964,
+          "lcb95": 0.6097
+        },
+        {
+          "id": 20,
+          "name": "E3V2_static_grid_H20M2_DOWN",
+          "triggered": 9,
+          "wins": 8,
+          "losses": 1,
+          "winRate": 0.8889,
+          "avgPnlPerShare": 0.1482,
+          "lcb95": 0.565
+        }
+      ]
+    },
+    {
+      "days": 5,
+      "observations": 400,
+      "triggered": 74,
+      "wins": 59,
+      "losses": 15,
+      "winRate": 0.7972972972972973,
+      "wilsonWinRateLCB95": 0.692120095441773,
+      "avgPnlPerShare": 0.04169265221270268,
+      "medianPnlPerShare": 0.23189900069000002,
+      "p10PnlPerShare": -0.753001614652,
+      "avgWinPnlPerShare": 0.24237849827830502,
+      "avgLossPnlPerShare": -0.7476716756453333,
+      "conservativePnlPerShare": -0.06243805477716077,
+      "triggersPerDay": 14.8,
+      "rules": 5,
+      "minRuleTriggers": 12,
+      "worstRuleLCB95": 0.4440393186673406,
+      "weakRules": [
+        {
+          "id": 15,
+          "name": "E3V2_static_grid_H23M5_UP",
+          "triggered": 16,
+          "wins": 11,
+          "losses": 5,
+          "winRate": 0.6875,
+          "avgPnlPerShare": -0.0659,
+          "lcb95": 0.444
+        },
+        {
+          "id": 16,
+          "name": "E3V2_static_grid_H7M3_DOWN",
+          "triggered": 13,
+          "wins": 10,
+          "losses": 3,
+          "winRate": 0.7692,
+          "avgPnlPerShare": 0.0044,
+          "lcb95": 0.4974
+        }
+      ]
+    },
+    {
+      "days": 7,
+      "observations": 556,
+      "triggered": 99,
+      "wins": 80,
+      "losses": 19,
+      "winRate": 0.8080808080808081,
+      "wilsonWinRateLCB95": 0.7195945946411957,
+      "avgPnlPerShare": 0.05263074941696969,
+      "medianPnlPerShare": 0.22460558162,
+      "p10PnlPerShare": -0.748124033772,
+      "avgWinPnlPerShare": 0.24286711387000018,
+      "avgLossPnlPerShare": -0.7483644693326316,
+      "conservativePnlPerShare": -0.03507958002238312,
+      "triggersPerDay": 14.142857142857142,
+      "rules": 5,
+      "minRuleTriggers": 18,
+      "worstRuleLCB95": 0.547849735476945,
+      "weakRules": [
+        {
+          "id": 18,
+          "name": "E3V2_static_grid_H14M3_UP",
+          "triggered": 21,
+          "wins": 16,
+          "losses": 5,
+          "winRate": 0.7619,
+          "avgPnlPerShare": -0.0175,
+          "lcb95": 0.5491
+        }
+      ]
+    }
+  ],
+  "source": [],
+  "liveForward": {
+    "fetched": true,
+    "endpointCount": {
+      "riskRecentTrades": 5,
+      "executorRecentTrades": 77,
+      "executorRecentTradesSinceBaseline": 5,
+      "riskTotalTrades": 5,
+      "executorTotalTrades": 77,
+      "executorTotalTradesSinceBaseline": 5,
+      "discrepancy": 0,
+      "allTimeDiscrepancy": 72
+    },
+    "inspectedRecentTrades": 5,
+    "settledWithNumericPnl": 5,
+    "wins": 4,
+    "losses": 1,
+    "winRate": 0.8,
+    "pnl": 2.0844781455943995,
+    "sampleAdequateForProjection": false
+  },
+  "sevenDayProjection": [
+    {
+      "name": "adverse_lcb95",
+      "pnlPerShare": -0.0351,
+      "daily": [
+        {
+          "day": 1,
+          "tradesPerDay": 9.19,
+          "dailyPnl": -1.61,
+          "endBankroll": 20.73
+        },
+        {
+          "day": 2,
+          "tradesPerDay": 9.19,
+          "dailyPnl": -1.61,
+          "endBankroll": 19.12
+        },
+        {
+          "day": 3,
+          "tradesPerDay": 9.19,
+          "dailyPnl": -1.61,
+          "endBankroll": 17.5
+        },
+        {
+          "day": 4,
+          "tradesPerDay": 9.19,
+          "dailyPnl": -1.61,
+          "endBankroll": 15.89
+        },
+        {
+          "day": 5,
+          "tradesPerDay": 9.19,
+          "dailyPnl": -1.61,
+          "endBankroll": 14.28
+        },
+        {
+          "day": 6,
+          "tradesPerDay": 9.19,
+          "dailyPnl": -1.61,
+          "endBankroll": 12.67
+        },
+        {
+          "day": 7,
+          "tradesPerDay": 9.19,
+          "dailyPnl": -1.61,
+          "endBankroll": 11.05
+        }
+      ],
+      "day7Bankroll": 11.05
+    },
+    {
+      "name": "base_recent_mean",
+      "pnlPerShare": 0.0526,
+      "daily": [
+        {
+          "day": 1,
+          "tradesPerDay": 14.14,
+          "dailyPnl": 3.72,
+          "endBankroll": 26.06
+        },
+        {
+          "day": 2,
+          "tradesPerDay": 14.14,
+          "dailyPnl": 4.28,
+          "endBankroll": 30.34
+        },
+        {
+          "day": 3,
+          "tradesPerDay": 14.14,
+          "dailyPnl": 4.98,
+          "endBankroll": 35.32
+        },
+        {
+          "day": 4,
+          "tradesPerDay": 14.14,
+          "dailyPnl": 5.8,
+          "endBankroll": 41.12
+        },
+        {
+          "day": 5,
+          "tradesPerDay": 14.14,
+          "dailyPnl": 6.75,
+          "endBankroll": 47.88
+        },
+        {
+          "day": 6,
+          "tradesPerDay": 14.14,
+          "dailyPnl": 7.86,
+          "endBankroll": 55.74
+        },
+        {
+          "day": 7,
+          "tradesPerDay": 14.14,
+          "dailyPnl": 9.15,
+          "endBankroll": 64.89
+        }
+      ],
+      "day7Bankroll": 64.89
+    },
+    {
+      "name": "optimistic_recent",
+      "pnlPerShare": 0.2246,
+      "daily": [
+        {
+          "day": 1,
+          "tradesPerDay": 16.26,
+          "dailyPnl": 18.27,
+          "endBankroll": 40.61
+        },
+        {
+          "day": 2,
+          "tradesPerDay": 16.26,
+          "dailyPnl": 32.72,
+          "endBankroll": 73.33
+        },
+        {
+          "day": 3,
+          "tradesPerDay": 16.26,
+          "dailyPnl": 59.09,
+          "endBankroll": 132.42
+        },
+        {
+          "day": 4,
+          "tradesPerDay": 16.26,
+          "dailyPnl": 106.7,
+          "endBankroll": 239.12
+        },
+        {
+          "day": 5,
+          "tradesPerDay": 16.26,
+          "dailyPnl": 192.69,
+          "endBankroll": 431.81
+        },
+        {
+          "day": 6,
+          "tradesPerDay": 16.26,
+          "dailyPnl": 347.96,
+          "endBankroll": 779.77
+        },
+        {
+          "day": 7,
+          "tradesPerDay": 16.26,
+          "dailyPnl": 628.35,
+          "endBankroll": 1408.12
+        }
+      ],
+      "day7Bankroll": 1408.12
+    }
+  ],
+  "verdict": {
+    "goForCurrentRisk": true,
+    "noGoForSurefireClaim": true,
+    "noGoForRiskIncrease": true,
+    "confidence": "LOW_TO_MEDIUM",
+    "issues": [
+      "FRESH_SAMPLE_UNDER_100_TRIGGERS",
+      "LCB95_CONSERVATIVE_EXPECTANCY_NOT_POSITIVE",
+      "LIVE_FORWARD_SAMPLE_UNDER_30_NUMERIC_SETTLED_TRADES"
+    ]
+  }
+}
