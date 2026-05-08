@@ -13,7 +13,15 @@
 > **THE IMMORTAL MANIFESTO** â€” Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 8 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$22.34 pUSD; CLOB deposit-wallet/POLY_1271 trading live, 15m fresh-pruned strategy loaded on Fly, live autotrading enabled and unpaused on production
+**Last Updated**: 8 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$22.34 pUSD; CLOB deposit-wallet/POLY_1271 trading live, 15m 5-rule autopilot-pruned strategy loaded on Fly, live autotrading enabled and unpaused on production
+
+## 8 May 2026 Junie Promotion Addendum — 5-rule candidate promoted; 7-day projection is scenario-based
+
+- Operator asked to re-evaluate the autopilot candidate and promote only if sound. Independent local fresh audit matched Fly: current 4-rule strategy `31` recent triggers, `27W/4L`, `87.10%`, avg adverse PnL/share `+0.1236`; promoted 5-rule candidate IDs `10,15,16,18,20` produced `37` triggers, `33W/4L`, `89.19%`, avg adverse PnL/share `+0.1354`. The added rule is ID `18` (`H14M3 UP 0.65-0.80`), audited at `6W/0L`, avg `+0.1964` per share over the same 3-day window.
+- Promotion completed and made restart-durable: added `strategies/strategy_set_15m_autopilot_pruned_20260508152930.json`, set Fly secret/config `STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_autopilot_pruned_20260508152930.json`, updated `fly.toml`, and redeployed. Post-deploy `/api/status` confirmed `15m.loaded=true`, `strategies=5`, no load error, file path `/app/strategies/strategy_set_15m_autopilot_pruned_20260508152930.json`; `/api/debug/strategy-paths` confirms the file exists.
+- Readiness after promotion: production remains `isLive=true`, `manualPause=false`, `riskTradingPaused=false`, no pending buys/sells/settlements, no open exposure, trade-ready deposit-wallet `sigType=3` balance `$22.341031`. Logs show no autopilot timeout spam; legacy `sigType=1` probe attempts still log `Could not create api key` before the selected `sigType=3 READY` path and are currently non-blocking/noisy rather than an execution blocker.
+- Profit projection from current `$22.34` bankroll is scenario-based, not a guarantee. Using recent trigger frequency (`37`/3 days), min-share/live sizing, and adverse PnL assumptions: adverse-decay path ends around `$37.06` after 7d; conservative path around `$52.84`; live-forward small-N path around `$85.68`; base fresh-audit path around `$150.95`. Daily base-fresh-audit endpoints: day 1 `$29.44`, day 2 `$38.66`, day 3 `$50.76`, day 4 `$66.66`, day 5 `$87.54`, day 6 `$114.95`, day 7 `$150.95`.
+- Truth verdict: this is currently the best verified production 15m strategy found by the bounded fresh-audit/prune method, and promotion is justified at current risk. It is still not mathematically `100/100` or a surefire profit machine because the promotion evidence is only 3 recent days plus 5 forward settled live trades (`4W/1L`). Keep the bot live at current risk, do not increase risk until more forward samples settle, and reassess after `20-30` promoted-strategy live trades or any stuck queue/drawdown event.
 
 ## 8 May 2026 Junie Strategy Autopilot Addendum — bounded audit/prune with operator approval, not prophecy
 
