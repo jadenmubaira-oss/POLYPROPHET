@@ -13,7 +13,16 @@
 > **THE IMMORTAL MANIFESTO** â€” Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 7 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$19.75 pUSD; CLOB deposit-wallet/POLY_1271 order-write proof passed, 15m strategy loaded on Fly, live autotrading enabled and unpaused on production
+**Last Updated**: 8 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$22.34 pUSD; CLOB deposit-wallet/POLY_1271 trading live, 15m fresh-pruned strategy loaded on Fly, live autotrading enabled and unpaused on production
+
+## 8 May 2026 Junie Strategy Freshness Addendum — full set failed fresh audit, production pruned to 4 rules
+
+- Operator requested a no-bullshit full strategy/server reaudit after several live hours. Fresh Fly check at `2026-05-08 11:36-11:42 UTC` confirmed execution infrastructure is still healthy: `isLive=true`, `manualPause=false`, `riskTradingPaused=false`, no pending buys/sells/settlements, no open exposure, no error/trade-failure halt, `tradeReady.ok=true`, and trade-ready balance/bankroll about `$22.341031` pUSD.
+- Important correction to prior confidence: local historical strategy data behind `scripts/epoch3_mc_audit.js` and `strategies/strategy_set_15m_epoch3v2_portfolio.json` only covered resolved cycles through roughly `2026-05-02`; it did not by itself prove May 3-8 freshness. The early live sample was positive (`5` settled forward trades, `4W/1L`) but still far too small to justify “100/100” or prophecy-level profit certainty.
+- Added `scripts/fresh-15m-strategy-audit.js` for targeted recent validation of the active 15m rule windows against newly fetched resolved Polymarket crypto 15m markets. Completed 3-day audit of the prior 19-rule production set checked `480` unique resolved markets and found `177` triggered observations, only `93W/84L` (`52.5%`) with adverse fee/slippage average about `-0.2006` per share. Verdict: the old 19-rule set was **not** fresh/best enough to keep running unchanged.
+- Fresh-pruned replacement keeps only IDs `10,15,16,20` from the prior audited portfolio: `H9M4 UP 0.65-0.80`, `H23M5 UP 0.65-0.80`, `H7M3 DOWN 0.65-0.80`, and `H20M2 DOWN 0.60-0.75`. On the same targeted recent 3-day audit this subset produced `31` triggers, `27W/4L` (`87.1%`) and positive adverse fee/slippage average about `+0.1236` per share. This is materially better and more realistic than leaving the stale full set live, but still not enough sample to guarantee future results.
+- Production has been switched and redeployed: Fly image `deployment-01KR3P3VE6X0EPG9G3E3JHSXZD`, Fly secret/config `STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_epoch3v2_fresh_pruned_20260508.json`, `/api/status` confirms `15m.loaded=true`, `strategies=4`, no load error, and `/api/debug/strategy-paths` confirms the pruned file exists in `/app`.
+- Current GO/NO-GO: `GO` to continue live at current risk on the fresh-pruned 4-rule set under supervision; `NO-GO` to claim the bot/strategy is literally `100/100`, to increase risk, or to promise a highly accurate profit projection until at least `20-30` fresh-pruned forward settled trades confirm the recent audit. Reassess immediately if bankroll falls below the pre-switch `$22.34`, queues stick, or the pruned set’s next `10+` settled trades are not strongly positive.
 
 ## 7 May 2026 Junie Live Observation Addendum — no trades yet because no active strategy window
 
