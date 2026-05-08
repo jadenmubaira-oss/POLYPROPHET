@@ -2117,15 +2117,63 @@ app.post('/api/strategy-autopilot/candidates/:id/accept', async (req, res) => {
     try {
         if (!requireAdminControlSecret(req, res)) return;
         if (!strategyAutopilot) return res.status(503).json({ success: false, error: 'AUTOPILOT_UNAVAILABLE' });
+        const candidate = strategyAutopilot.get?.(String(req.params.id || '')) || null;
+        if (!candidate) return res.status(404).json({ success: false, error: 'CANDIDATE_NOT_FOUND' });
+        const shouldActivate = parseEnvBool(req.body?.activate, true);
+        let activation = null;
+        if (shouldActivate && candidate.runtimeStrategyFile) {
+            if (candidate.candidateType !== 'FRESH_AUDIT_PRUNED_RUNTIME_STRATEGY') {
+                return res.status(409).json({ success: false, error: 'CANDIDATE_NOT_RUNTIME_PROMOTABLE', candidateType: candidate.candidateType });
+            }
+            const verdict = String(candidate.recommendation?.verdict || '').toUpperCase();
+            if (verdict !== 'REVIEW_CANDIDATE' && !parseEnvBool(req.body?.forceActivation, false)) {
+                return res.status(409).json({
+                    success: false,
+                    error: 'CANDIDATE_NOT_RECOMMENDED_FOR_REVIEW',
+                    verdict,
+                    issues: candidate.recommendation?.issues || []
+                });
+            }
+            const candidateAbs = path.resolve(REPO_ROOT, candidate.runtimeStrategyFile);
+            const rootAbs = path.resolve(REPO_ROOT);
+            if (!candidateAbs.startsWith(rootAbs + path.sep) || !/\.json$/i.test(candidateAbs) || !fs.existsSync(candidateAbs)) {
+                return res.status(409).json({ success: false, error: 'INVALID_RUNTIME_STRATEGY_FILE', runtimeStrategyFile: candidate.runtimeStrategyFile });
+            }
+            const parsed = JSON.parse(fs.readFileSync(candidateAbs, 'utf8'));
+            const strategyCount = Array.isArray(parsed.strategies) ? parsed.strategies.length : 0;
+            if (strategyCount <= 0) {
+                return res.status(409).json({ success: false, error: 'RUNTIME_STRATEGY_HAS_NO_RULES', runtimeStrategyFile: candidate.runtimeStrategyFile });
+            }
+            const loaded = loadStrategySet('15m', candidateAbs);
+            if (loaded <= 0) {
+                return res.status(500).json({ success: false, error: 'RUNTIME_STRATEGY_LOAD_FAILED', runtimeStrategyFile: candidate.runtimeStrategyFile, loadedSets: getAllLoadedSets() });
+            }
+            process.env.STRATEGY_SET_15M_PATH = candidate.runtimeStrategyFile;
+            activation = {
+                success: true,
+                hotLoaded: true,
+                persistent: false,
+                timeframe: '15m',
+                strategyFile: candidate.runtimeStrategyFile,
+                strategyCount: loaded,
+                activatedAt: new Date().toISOString(),
+                durabilityWarning: 'Runtime hot-load is active for this process. Persist the file and STRATEGY_SET_15M_PATH in Fly/config before restart.'
+            };
+            diagnosticLog.push({ ts: activation.activatedAt, type: 'STRATEGY_AUTOPILOT_RUNTIME_ACTIVATED', candidateId: candidate.id, ...activation });
+        }
         const record = strategyAutopilot.decide(String(req.params.id || ''), 'ACCEPT', {
             operator: req.body?.operator || 'api',
-            notes: req.body?.notes || ''
+            notes: req.body?.notes || '',
+            activation
         });
         await saveRuntimeState();
         return res.json({
             success: true,
             decision: record,
-            warning: 'No live deployment or STRATEGY_SET_15M_PATH change was performed. Manual promotion is still required.'
+            activation,
+            warning: activation?.success
+                ? 'Runtime strategy hot-load performed. Persist STRATEGY_SET_15M_PATH/Fly config for restart durability.'
+                : 'No live deployment or STRATEGY_SET_15M_PATH change was performed. Manual promotion is still required.'
         });
     } catch (e) {
         return res.status(500).json({ success: false, error: e.message });
