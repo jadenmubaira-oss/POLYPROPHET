@@ -978,7 +978,8 @@ async function orchestrate() {
             if (!market || market.status !== 'ACTIVE') continue;
             marketsChecked++;
 
-            const matches = evaluateMatch(market, nowSec, tf, structuralSignals);
+            const matchNowSec = Math.floor(Date.now() / 1000);
+            const matches = evaluateMatch(market, matchNowSec, tf, structuralSignals);
             if (matches.length > 0) {
                 for (const m of matches) {
                     m.epoch = market.epoch;
