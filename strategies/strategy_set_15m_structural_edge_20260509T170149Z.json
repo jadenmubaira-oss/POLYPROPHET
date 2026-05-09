@@ -1,0 +1,273 @@
+{
+  "name": "15m structural CEX-lag edge candidate",
+  "generatedAt": "2026-05-09T17:01:49.052Z",
+  "sourceReport": "epoch3\\reinvestigation_v2\\structural_edge_search_20260509T170149Z.json",
+  "status": "RESEARCH_CANDIDATE_OPERATOR_APPROVAL_REQUIRED",
+  "conditions": {
+    "requiresStructuralSignal": true,
+    "signalSource": "Binance 1m klines via lib/structural-signal.js",
+    "productionNotes": "Requires runtime structural-edge matcher support and timeframe enablement before use."
+  },
+  "strategies": [
+    {
+      "id": "SE_15m_ALL_1_14_12_0.45_0.12",
+      "name": "Structural CEX lag 1",
+      "kind": "CEX_MOMENTUM_POLYMARKET_LAG",
+      "asset": "ALL",
+      "direction": "SIGNAL",
+      "directionFromSignal": true,
+      "utcHour": -1,
+      "entryMinuteMin": 1,
+      "entryMinuteMax": 14,
+      "priceMin": 0.05,
+      "priceMax": 0.45,
+      "minMoveBps": 12,
+      "minNaiveEdge": 0.12,
+      "maxSignalAgeSec": 120,
+      "pWinEstimate": 0.702702,
+      "evWinEstimate": 0.846154,
+      "winRate": 0.846154,
+      "winRateLCB": 0.702702,
+      "avgPnlPerShare": 0.439746,
+      "source": "structural_edge_search",
+      "notes": "Trades in the live Binance cycle-move direction only when Polymarket odds still satisfy the audited cheapness/edge gate.",
+      "audit": {
+        "all": {
+          "trades": 39,
+          "wins": 33,
+          "losses": 6,
+          "winRate": 0.846154,
+          "wilsonLCB95": 0.702702,
+          "avgPnlPerShare": 0.439746,
+          "avgEntry": 0.389872,
+          "avgMoveBps": 18.58884
+        },
+        "train": {
+          "trades": 23,
+          "wins": 17,
+          "losses": 6,
+          "winRate": 0.73913,
+          "wilsonLCB95": 0.535296,
+          "avgPnlPerShare": 0.327651,
+          "avgEntry": 0.394783,
+          "avgMoveBps": 18.895389
+        },
+        "holdout": {
+          "trades": 8,
+          "wins": 8,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.675584,
+          "avgPnlPerShare": 0.580164,
+          "avgEntry": 0.403125,
+          "avgMoveBps": 15.929981
+        },
+        "recent": {
+          "trades": 8,
+          "wins": 8,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.675584,
+          "avgPnlPerShare": 0.621602,
+          "avgEntry": 0.3625,
+          "avgMoveBps": 20.366371
+        }
+      }
+    },
+    {
+      "id": "SE_15m_ALL_10_14_5_0.45_0.18",
+      "name": "Structural CEX lag 2",
+      "kind": "CEX_MOMENTUM_POLYMARKET_LAG",
+      "asset": "ALL",
+      "direction": "SIGNAL",
+      "directionFromSignal": true,
+      "utcHour": -1,
+      "entryMinuteMin": 10,
+      "entryMinuteMax": 14,
+      "priceMin": 0.05,
+      "priceMax": 0.45,
+      "minMoveBps": 5,
+      "minNaiveEdge": 0.18,
+      "maxSignalAgeSec": 120,
+      "pWinEstimate": 0.709634,
+      "evWinEstimate": 0.836735,
+      "winRate": 0.836735,
+      "winRateLCB": 0.709634,
+      "avgPnlPerShare": 0.49975,
+      "source": "structural_edge_search",
+      "notes": "Trades in the live Binance cycle-move direction only when Polymarket odds still satisfy the audited cheapness/edge gate.",
+      "audit": {
+        "all": {
+          "trades": 49,
+          "wins": 41,
+          "losses": 8,
+          "winRate": 0.836735,
+          "wilsonLCB95": 0.709634,
+          "avgPnlPerShare": 0.49975,
+          "avgEntry": 0.321837,
+          "avgMoveBps": 8.190253
+        },
+        "train": {
+          "trades": 29,
+          "wins": 23,
+          "losses": 6,
+          "winRate": 0.793103,
+          "wilsonLCB95": 0.616096,
+          "avgPnlPerShare": 0.461507,
+          "avgEntry": 0.316552,
+          "avgMoveBps": 7.86585
+        },
+        "holdout": {
+          "trades": 10,
+          "wins": 9,
+          "losses": 1,
+          "winRate": 0.9,
+          "wilsonLCB95": 0.595844,
+          "avgPnlPerShare": 0.509355,
+          "avgEntry": 0.374,
+          "avgMoveBps": 9.266359
+        },
+        "recent": {
+          "trades": 10,
+          "wins": 9,
+          "losses": 1,
+          "winRate": 0.9,
+          "wilsonLCB95": 0.595844,
+          "avgPnlPerShare": 0.60105,
+          "avgEntry": 0.285,
+          "avgMoveBps": 8.054913
+        }
+      }
+    },
+    {
+      "id": "SE_15m_BTC_10_14_2_0.45_0.08",
+      "name": "Structural CEX lag 3",
+      "kind": "CEX_MOMENTUM_POLYMARKET_LAG",
+      "asset": "BTC",
+      "direction": "SIGNAL",
+      "directionFromSignal": true,
+      "utcHour": -1,
+      "entryMinuteMin": 10,
+      "entryMinuteMax": 14,
+      "priceMin": 0.05,
+      "priceMax": 0.45,
+      "minMoveBps": 2,
+      "minNaiveEdge": 0.08,
+      "maxSignalAgeSec": 120,
+      "pWinEstimate": 0.749993,
+      "evWinEstimate": 0.880952,
+      "winRate": 0.880952,
+      "winRateLCB": 0.749993,
+      "avgPnlPerShare": 0.483521,
+      "source": "structural_edge_search",
+      "notes": "Trades in the live Binance cycle-move direction only when Polymarket odds still satisfy the audited cheapness/edge gate.",
+      "audit": {
+        "all": {
+          "trades": 42,
+          "wins": 37,
+          "losses": 5,
+          "winRate": 0.880952,
+          "wilsonLCB95": 0.749993,
+          "avgPnlPerShare": 0.483521,
+          "avgEntry": 0.381202,
+          "avgMoveBps": 3.614817
+        },
+        "train": {
+          "trades": 25,
+          "wins": 22,
+          "losses": 3,
+          "winRate": 0.88,
+          "wilsonLCB95": 0.700438,
+          "avgPnlPerShare": 0.47803,
+          "avgEntry": 0.3856,
+          "avgMoveBps": 3.604981
+        },
+        "holdout": {
+          "trades": 8,
+          "wins": 8,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.675584,
+          "avgPnlPerShare": 0.612263,
+          "avgEntry": 0.371938,
+          "avgMoveBps": 3.299521
+        },
+        "recent": {
+          "trades": 9,
+          "wins": 7,
+          "losses": 2,
+          "winRate": 0.777778,
+          "wilsonLCB95": 0.452583,
+          "avgPnlPerShare": 0.38434,
+          "avgEntry": 0.377222,
+          "avgMoveBps": 3.922403
+        }
+      }
+    },
+    {
+      "id": "SE_15m_ETH_1_14_5_0.45_0.12",
+      "name": "Structural CEX lag 4",
+      "kind": "CEX_MOMENTUM_POLYMARKET_LAG",
+      "asset": "ETH",
+      "direction": "SIGNAL",
+      "directionFromSignal": true,
+      "utcHour": -1,
+      "entryMinuteMin": 1,
+      "entryMinuteMax": 14,
+      "priceMin": 0.05,
+      "priceMax": 0.45,
+      "minMoveBps": 5,
+      "minNaiveEdge": 0.12,
+      "maxSignalAgeSec": 120,
+      "pWinEstimate": 0.704219,
+      "evWinEstimate": 0.833333,
+      "winRate": 0.833333,
+      "winRateLCB": 0.704219,
+      "avgPnlPerShare": 0.417564,
+      "source": "structural_edge_search",
+      "notes": "Trades in the live Binance cycle-move direction only when Polymarket odds still satisfy the audited cheapness/edge gate.",
+      "audit": {
+        "all": {
+          "trades": 48,
+          "wins": 40,
+          "losses": 8,
+          "winRate": 0.833333,
+          "wilsonLCB95": 0.704219,
+          "avgPnlPerShare": 0.417564,
+          "avgEntry": 0.399062,
+          "avgMoveBps": 8.843535
+        },
+        "train": {
+          "trades": 28,
+          "wins": 22,
+          "losses": 6,
+          "winRate": 0.785714,
+          "wilsonLCB95": 0.604611,
+          "avgPnlPerShare": 0.378042,
+          "avgEntry": 0.391071,
+          "avgMoveBps": 8.390596
+        },
+        "holdout": {
+          "trades": 10,
+          "wins": 8,
+          "losses": 2,
+          "winRate": 0.8,
+          "wilsonLCB95": 0.490157,
+          "avgPnlPerShare": 0.351509,
+          "avgEntry": 0.431,
+          "avgMoveBps": 8.940492
+        },
+        "recent": {
+          "trades": 10,
+          "wins": 10,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.72246,
+          "avgPnlPerShare": 0.594283,
+          "avgEntry": 0.3895,
+          "avgMoveBps": 10.014809
+        }
+      }
+    }
+  ]
+}

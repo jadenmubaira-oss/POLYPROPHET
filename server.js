@@ -9,7 +9,8 @@ const DEPLOY_VERSION =
     process.env.GIT_COMMIT ||
     'local-dev';
 const { discoverAllMarkets, computeEpoch, getEntryMinute, fetchMarketBySlug } = require('./lib/market-discovery');
-const { loadStrategySet, evaluateMatch, sortCandidates, getAllLoadedSets } = require('./lib/strategy-matcher');
+const { loadStrategySet, evaluateMatch, sortCandidates, getAllLoadedSets, hasStructuralStrategies } = require('./lib/strategy-matcher');
+const { getStructuralSignals } = require('./lib/structural-signal');
 const RiskManager = require('./lib/risk-manager');
 const TradeExecutor = require('./lib/trade-executor');
 const telegram = require('./lib/telegram');
@@ -937,13 +938,27 @@ async function orchestrate() {
 
     // For each timeframe, evaluate strategy matches
     for (const tf of enabledTimeframes) {
+        let structuralSignals = null;
+        if (hasStructuralStrategies(tf.key)) {
+            try {
+                structuralSignals = await getStructuralSignals(CONFIG.ASSETS, tf, nowSec);
+            } catch (e) {
+                structuralSignals = null;
+                diagnosticLog.push({
+                    ts: new Date().toISOString(),
+                    type: 'STRUCTURAL_SIGNAL_ERROR',
+                    timeframe: tf.key,
+                    error: e.message
+                });
+            }
+        }
         for (const asset of CONFIG.ASSETS) {
             const key = `${asset}_${tf.key}`;
             const market = currentMarkets[key];
             if (!market || market.status !== 'ACTIVE') continue;
             marketsChecked++;
 
-            const matches = evaluateMatch(market, nowSec, tf);
+            const matches = evaluateMatch(market, nowSec, tf, structuralSignals);
             if (matches.length > 0) {
                 for (const m of matches) {
                     m.epoch = market.epoch;

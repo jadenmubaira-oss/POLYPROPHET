@@ -10,7 +10,7 @@ primary_region = "gru"
 [env]
   NODE_ENV = "production"
   PORT = "8080"
-  START_PAUSED = "false"
+  START_PAUSED = "true"
   TRADE_MODE = "LIVE"
   ENABLE_LIVE_TRADING = "true"
   LIVE_AUTOTRADING_ENABLED = "true"
