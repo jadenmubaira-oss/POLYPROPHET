@@ -1102,6 +1102,35 @@ async function orchestrate() {
         }
     }
 
+    const intracycleExits = tradeExecutor.checkIntracycleWatchdogExits
+        ? tradeExecutor.checkIntracycleWatchdogExits(currentMarkets)
+        : [];
+    for (const exit of intracycleExits) {
+        try {
+            const result = await tradeExecutor.closePosition(exit.positionId, exit.exitPrice, exit.reason || 'INTRACYCLE_WATCHDOG');
+            if (result?.success && result?.closed) {
+                telegram.notifyTradeClose(result.closed);
+                diagnosticLog.push({
+                    ts: new Date().toISOString(),
+                    type: 'INTRACYCLE_WATCHDOG_EXIT',
+                    reason: exit.reason,
+                    asset: exit.asset,
+                    timeframe: exit.timeframe,
+                    direction: exit.direction,
+                    entryPrice: exit.entryPrice,
+                    exitPrice: exit.exitPrice,
+                    highBid: exit.highBid,
+                    remaining: exit.remaining,
+                    ageSeconds: exit.ageSeconds,
+                    estimatedPnl: exit.estimatedPnl,
+                    pnl: result.closed?.pnl
+                });
+            }
+        } catch (e) {
+            console.error(`Intracycle watchdog exit failed for ${exit.positionId}: ${e.message}`);
+        }
+    }
+
     // 4h emergency exit: close positions with 20c+ adverse move
     const emergencyExits = tradeExecutor.check4hEmergencyExit(currentMarkets);
     for (const exit of emergencyExits) {

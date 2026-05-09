@@ -1,0 +1,501 @@
+{
+  "generatedAt": "2026-05-09T09:32:50.542Z",
+  "strategyFile": "strategies/strategy_set_15m_definitive_search_20260508T184521Z.json",
+  "cacheFile": "debug/definitive_15m_cycle_cache_7d.json",
+  "liveApi": "https://polyprophet.fly.dev",
+  "assumptions": {
+    "bankroll": 14.690226,
+    "adverseFillCents": 0.02,
+    "slippagePct": 0.01,
+    "minSellNotional": 1
+  },
+  "historical": {
+    "all": {
+      "triggers": 378,
+      "wins": 333,
+      "losses": 45,
+      "winRate": 0.880952,
+      "wilsonLCB95": 0.844412,
+      "avgPnlPerShare": 0.288232,
+      "avgEntry": 0.576475
+    },
+    "recent3": {
+      "triggers": 163,
+      "wins": 140,
+      "losses": 23,
+      "winRate": 0.858896,
+      "wilsonLCB95": 0.797164,
+      "avgPnlPerShare": 0.264568,
+      "avgEntry": 0.578148
+    },
+    "recent1": {
+      "triggers": 49,
+      "wins": 39,
+      "losses": 10,
+      "winRate": 0.795918,
+      "wilsonLCB95": 0.663627,
+      "avgPnlPerShare": 0.216656,
+      "avgEntry": 0.56323
+    },
+    "simulations": {
+      "currentFromCurrentBankroll": {
+        "startBankroll": 14.690226,
+        "endBankroll": 52401.710184,
+        "profit": 52387.019958,
+        "minBankroll": 12.673615,
+        "maxDrawdownPct": 0.363874,
+        "trades": 255,
+        "wins": 219,
+        "losses": 36,
+        "winRate": 0.858824
+      },
+      "currentFromPreDefinitive24_989783": {
+        "startBankroll": 24.989783,
+        "endBankroll": 53650.747989,
+        "profit": 53625.758206,
+        "minBankroll": 23.611436,
+        "maxDrawdownPct": 0.363874,
+        "trades": 257,
+        "wins": 221,
+        "losses": 36,
+        "winRate": 0.859922
+      },
+      "recent3FromCurrentBankroll": {
+        "startBankroll": 14.690226,
+        "endBankroll": 8838.985207,
+        "profit": 8824.294981,
+        "minBankroll": 14.690226,
+        "maxDrawdownPct": 0.359674,
+        "trades": 114,
+        "wins": 95,
+        "losses": 19,
+        "winRate": 0.833333
+      }
+    },
+    "byRule": [
+      {
+        "id": 9001,
+        "name": "DEF15_H14M1_UP_ALL_45_60",
+        "asset": "ALL",
+        "utcHour": 14,
+        "entryMinute": 1,
+        "direction": "UP",
+        "priceMin": 0.45,
+        "priceMax": 0.6,
+        "all": {
+          "triggers": 56,
+          "wins": 48,
+          "losses": 8,
+          "winRate": 0.857143,
+          "wilsonLCB95": 0.742638,
+          "avgPnlPerShare": 0.301164,
+          "avgEntry": 0.538186
+        },
+        "recent3": {
+          "triggers": 19,
+          "wins": 16,
+          "losses": 3,
+          "winRate": 0.842105,
+          "wilsonLCB95": 0.624341,
+          "avgPnlPerShare": 0.286119,
+          "avgEntry": 0.538224
+        }
+      },
+      {
+        "id": 9002,
+        "name": "DEF15_H14M6_UP_ALL_20_40",
+        "asset": "ALL",
+        "utcHour": 14,
+        "entryMinute": 6,
+        "direction": "UP",
+        "priceMin": 0.2,
+        "priceMax": 0.4,
+        "all": {
+          "triggers": 21,
+          "wins": 17,
+          "losses": 4,
+          "winRate": 0.809524,
+          "wilsonLCB95": 0.59999,
+          "avgPnlPerShare": 0.496003,
+          "avgEntry": 0.298671
+        },
+        "recent3": {
+          "triggers": 8,
+          "wins": 6,
+          "losses": 2,
+          "winRate": 0.75,
+          "wilsonLCB95": 0.40927,
+          "avgPnlPerShare": 0.406678,
+          "avgEntry": 0.327619
+        }
+      },
+      {
+        "id": 9003,
+        "name": "DEF15_H11M2_UP_ALL_55_85",
+        "asset": "ALL",
+        "utcHour": 11,
+        "entryMinute": 2,
+        "direction": "UP",
+        "priceMin": 0.55,
+        "priceMax": 0.85,
+        "all": {
+          "triggers": 43,
+          "wins": 39,
+          "losses": 4,
+          "winRate": 0.906977,
+          "wilsonLCB95": 0.78397,
+          "avgPnlPerShare": 0.24307,
+          "avgEntry": 0.647809
+        },
+        "recent3": {
+          "triggers": 26,
+          "wins": 23,
+          "losses": 3,
+          "winRate": 0.884615,
+          "wilsonLCB95": 0.710237,
+          "avgPnlPerShare": 0.205646,
+          "avgEntry": 0.663298
+        }
+      },
+      {
+        "id": 9004,
+        "name": "DEF15_H13M2_DOWN_ALL_35_45",
+        "asset": "ALL",
+        "utcHour": 13,
+        "entryMinute": 2,
+        "direction": "DOWN",
+        "priceMin": 0.35,
+        "priceMax": 0.45,
+        "all": {
+          "triggers": 27,
+          "wins": 21,
+          "losses": 6,
+          "winRate": 0.777778,
+          "wilsonLCB95": 0.592427,
+          "avgPnlPerShare": 0.361051,
+          "avgEntry": 0.399511
+        },
+        "recent3": {
+          "triggers": 13,
+          "wins": 10,
+          "losses": 3,
+          "winRate": 0.769231,
+          "wilsonLCB95": 0.497431,
+          "avgPnlPerShare": 0.364502,
+          "avgEntry": 0.387685
+        }
+      },
+      {
+        "id": 9005,
+        "name": "DEF15_H5M4_DOWN_ALL_60_75",
+        "asset": "ALL",
+        "utcHour": 5,
+        "entryMinute": 4,
+        "direction": "DOWN",
+        "priceMin": 0.6,
+        "priceMax": 0.75,
+        "all": {
+          "triggers": 30,
+          "wins": 29,
+          "losses": 1,
+          "winRate": 0.966667,
+          "wilsonLCB95": 0.833292,
+          "avgPnlPerShare": 0.26715,
+          "avgEntry": 0.684107
+        },
+        "recent3": {
+          "triggers": 8,
+          "wins": 8,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.675584,
+          "avgPnlPerShare": 0.292316,
+          "avgEntry": 0.692481
+        }
+      },
+      {
+        "id": 9006,
+        "name": "DEF15_H1M9_UP_ALL_55_85",
+        "asset": "ALL",
+        "utcHour": 1,
+        "entryMinute": 9,
+        "direction": "UP",
+        "priceMin": 0.55,
+        "priceMax": 0.85,
+        "all": {
+          "triggers": 20,
+          "wins": 20,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.83887,
+          "avgPnlPerShare": 0.264012,
+          "avgEntry": 0.72215
+        },
+        "recent3": {
+          "triggers": 8,
+          "wins": 8,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.675584,
+          "avgPnlPerShare": 0.271616,
+          "avgEntry": 0.713944
+        }
+      },
+      {
+        "id": 9007,
+        "name": "DEF15_H1M8_UP_ALL_40_65",
+        "asset": "ALL",
+        "utcHour": 1,
+        "entryMinute": 8,
+        "direction": "UP",
+        "priceMin": 0.4,
+        "priceMax": 0.65,
+        "all": {
+          "triggers": 20,
+          "wins": 17,
+          "losses": 3,
+          "winRate": 0.85,
+          "wilsonLCB95": 0.639577,
+          "avgPnlPerShare": 0.297435,
+          "avgEntry": 0.535048
+        },
+        "recent3": {
+          "triggers": 7,
+          "wins": 6,
+          "losses": 1,
+          "winRate": 0.857143,
+          "wilsonLCB95": 0.486865,
+          "avgPnlPerShare": 0.320842,
+          "avgEntry": 0.518707
+        }
+      },
+      {
+        "id": 9008,
+        "name": "DEF15_H8M5_DOWN_ALL_35_60",
+        "asset": "ALL",
+        "utcHour": 8,
+        "entryMinute": 5,
+        "direction": "DOWN",
+        "priceMin": 0.35,
+        "priceMax": 0.6,
+        "all": {
+          "triggers": 35,
+          "wins": 27,
+          "losses": 8,
+          "winRate": 0.771429,
+          "wilsonLCB95": 0.609824,
+          "avgPnlPerShare": 0.277065,
+          "avgEntry": 0.47672
+        },
+        "recent3": {
+          "triggers": 15,
+          "wins": 11,
+          "losses": 4,
+          "winRate": 0.733333,
+          "wilsonLCB95": 0.480491,
+          "avgPnlPerShare": 0.281553,
+          "avgEntry": 0.4343
+        }
+      },
+      {
+        "id": 9009,
+        "name": "DEF15_H16M3_DOWN_ALL_40_50",
+        "asset": "ALL",
+        "utcHour": 16,
+        "entryMinute": 3,
+        "direction": "DOWN",
+        "priceMin": 0.4,
+        "priceMax": 0.5,
+        "all": {
+          "triggers": 25,
+          "wins": 20,
+          "losses": 5,
+          "winRate": 0.8,
+          "wilsonLCB95": 0.608687,
+          "avgPnlPerShare": 0.320407,
+          "avgEntry": 0.461772
+        },
+        "recent3": {
+          "triggers": 11,
+          "wins": 9,
+          "losses": 2,
+          "winRate": 0.818182,
+          "wilsonLCB95": 0.523014,
+          "avgPnlPerShare": 0.336647,
+          "avgEntry": 0.463682
+        }
+      },
+      {
+        "id": 9010,
+        "name": "DEF15_H22M6_DOWN_ALL_55_85",
+        "asset": "ALL",
+        "utcHour": 22,
+        "entryMinute": 6,
+        "direction": "DOWN",
+        "priceMin": 0.55,
+        "priceMax": 0.85,
+        "all": {
+          "triggers": 28,
+          "wins": 27,
+          "losses": 1,
+          "winRate": 0.964286,
+          "wilsonLCB95": 0.822874,
+          "avgPnlPerShare": 0.250899,
+          "avgEntry": 0.699064
+        },
+        "recent3": {
+          "triggers": 17,
+          "wins": 17,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.815676,
+          "avgPnlPerShare": 0.286056,
+          "avgEntry": 0.699574
+        }
+      },
+      {
+        "id": 9011,
+        "name": "DEF15_H23M1_DOWN_ALL_55_75",
+        "asset": "ALL",
+        "utcHour": 23,
+        "entryMinute": 1,
+        "direction": "DOWN",
+        "priceMin": 0.55,
+        "priceMax": 0.75,
+        "all": {
+          "triggers": 48,
+          "wins": 43,
+          "losses": 5,
+          "winRate": 0.895833,
+          "wilsonLCB95": 0.778323,
+          "avgPnlPerShare": 0.238634,
+          "avgEntry": 0.640824
+        },
+        "recent3": {
+          "triggers": 17,
+          "wins": 12,
+          "losses": 5,
+          "winRate": 0.705882,
+          "wilsonLCB95": 0.468665,
+          "avgPnlPerShare": 0.071384,
+          "avgEntry": 0.617585
+        }
+      },
+      {
+        "id": 9012,
+        "name": "DEF15_H0M6_DOWN_ALL_60_80",
+        "asset": "ALL",
+        "utcHour": 0,
+        "entryMinute": 6,
+        "direction": "DOWN",
+        "priceMin": 0.6,
+        "priceMax": 0.8,
+        "all": {
+          "triggers": 25,
+          "wins": 25,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.866804,
+          "avgPnlPerShare": 0.241586,
+          "avgEntry": 0.744976
+        },
+        "recent3": {
+          "triggers": 14,
+          "wins": 14,
+          "losses": 0,
+          "winRate": 1,
+          "wilsonLCB95": 0.784683,
+          "avgPnlPerShare": 0.256381,
+          "avgEntry": 0.729725
+        }
+      }
+    ]
+  },
+  "liveForward": {
+    "count": 5,
+    "wins": 2,
+    "losses": 3,
+    "winRate": 0.4,
+    "pnl": -13.802401134160803,
+    "trades": [
+      {
+        "id": "BTC_15m_1778302800_1778303051007",
+        "asset": "BTC",
+        "direction": "DOWN",
+        "size": 7.5600000000000005,
+        "won": true,
+        "pnl": 3.5975615999999975,
+        "reason": "PRE_RESOLUTION_EXIT",
+        "closedAt": "2026-05-09T05:14:55.000Z",
+        "epoch": 1778302800,
+        "matchingRules": []
+      },
+      {
+        "id": "BTC_15m_1778314500_1778314845461",
+        "asset": "BTC",
+        "direction": "DOWN",
+        "size": 5.308162620000001,
+        "won": false,
+        "pnl": -5.495434597233601,
+        "reason": "RESOLVED_LOSS",
+        "closedAt": "2026-05-09T08:35:53.569Z",
+        "epoch": 1778314500,
+        "matchingRules": []
+      },
+      {
+        "id": "BTC_15m_1778315400_1778315701074",
+        "asset": "BTC",
+        "direction": "DOWN",
+        "size": 8.175483360000001,
+        "won": false,
+        "pnl": -8.481573456998401,
+        "reason": "RESOLVED_LOSS",
+        "closedAt": "2026-05-09T08:48:14.747Z",
+        "epoch": 1778315400,
+        "matchingRules": []
+      },
+      {
+        "id": "XRP_15m_1778315400_1778315718054",
+        "asset": "XRP",
+        "direction": "DOWN",
+        "size": 3.4272,
+        "won": false,
+        "pnl": -3.548111616,
+        "reason": "RESOLVED_LOSS",
+        "closedAt": "2026-05-09T08:51:30.081Z",
+        "epoch": 1778315400,
+        "matchingRules": []
+      },
+      {
+        "id": "SOL_15m_1778316300_1778316616633",
+        "asset": "SOL",
+        "direction": "DOWN",
+        "size": 2.47749929,
+        "won": true,
+        "pnl": 0.1251569360712007,
+        "reason": "RESOLVED_WIN",
+        "closedAt": "2026-05-09T09:04:51.945Z",
+        "epoch": 1778316300,
+        "matchingRules": []
+      }
+    ],
+    "counts": {
+      "riskRecentTrades": 11,
+      "executorRecentTrades": 83,
+      "executorRecentTradesSinceBaseline": 5,
+      "riskTotalTrades": 11,
+      "executorTotalTrades": 83,
+      "executorTotalTradesSinceBaseline": 5,
+      "discrepancy": -6,
+      "allTimeDiscrepancy": 72
+    }
+  },
+  "rootCauses": [
+    "LIVE_FORWARD_SAMPLE_FAILED_70_PERCENT_WIN_GATE",
+    "LIVE_FORWARD_PNL_NEGATIVE",
+    "HISTORICAL_SAMPLE_SMALL_FOR_PROPHECY_CLAIM",
+    "RULE_LEVEL_RECENT_WEAKNESS_EXISTS",
+    "CHRONOLOGICAL_REPLAY_HAS_LARGE_DRAWDOWN"
+  ],
+  "verdict": "NO_GO_UNPAUSED_UNTIL_ROOT_CAUSES_FIXED_OR_ACCEPTED"
+}

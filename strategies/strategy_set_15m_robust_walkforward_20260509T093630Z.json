@@ -1,0 +1,6 @@
+{
+  "version": "robust-15m-walkforward-20260509",
+  "generatedAt": "2026-05-09T09:36:30.177Z",
+  "description": "Strict recent 15m strategy candidates requiring rule-level leave-one-day-out positive days, adverse fill modelling, recent 3d profitability, and bounded drawdown.",
+  "strategies": []
+}

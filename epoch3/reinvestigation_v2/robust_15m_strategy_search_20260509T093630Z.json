@@ -1,0 +1,104 @@
+{
+  "generatedAt": "2026-05-09T09:36:30.177Z",
+  "cacheFile": "debug/definitive_15m_cycle_cache_7d.json",
+  "assumptions": {
+    "startBankroll": 14.690226,
+    "adverseFillCents": 0.02,
+    "slippagePct": 0.01,
+    "minTriggersAll": 18,
+    "minRecent3Triggers": 6,
+    "minLeaveOneDayOutWinRate": 0.7,
+    "minWilsonLCB": 0.62,
+    "minAvgPnl": 0.05,
+    "maxRuleDrawdown": 0.45
+  },
+  "totalObservations": 70998,
+  "candidatesFound": 0,
+  "selectedCount": 0,
+  "selected": [],
+  "simulations": {
+    "current": {
+      "startBankroll": 14.690226,
+      "endBankroll": 52401.71018404809,
+      "profit": 52387.01995804809,
+      "minBankroll": 12.673614706130689,
+      "maxDrawdownPct": 0.999758145017374,
+      "trades": 255,
+      "wins": 219,
+      "losses": 36,
+      "winRate": 0.8588235294117647,
+      "days": [
+        {
+          "day": "2026-05-02",
+          "trades": 19,
+          "wins": 17,
+          "losses": 2,
+          "pnl": 250.0719
+        },
+        {
+          "day": "2026-05-03",
+          "trades": 38,
+          "wins": 33,
+          "losses": 5,
+          "pnl": 3330.8582
+        },
+        {
+          "day": "2026-05-04",
+          "trades": 43,
+          "wins": 39,
+          "losses": 4,
+          "pnl": 5572.3308
+        },
+        {
+          "day": "2026-05-05",
+          "trades": 34,
+          "wins": 28,
+          "losses": 6,
+          "pnl": 11296.9092
+        },
+        {
+          "day": "2026-05-06",
+          "trades": 39,
+          "wins": 36,
+          "losses": 3,
+          "pnl": 12114.4012
+        },
+        {
+          "day": "2026-05-07",
+          "trades": 34,
+          "wins": 27,
+          "losses": 7,
+          "pnl": 8256.9726
+        },
+        {
+          "day": "2026-05-08",
+          "trades": 46,
+          "wins": 37,
+          "losses": 9,
+          "pnl": 10920.4437
+        },
+        {
+          "day": "2026-05-09",
+          "trades": 2,
+          "wins": 2,
+          "losses": 0,
+          "pnl": 645.0322
+        }
+      ]
+    },
+    "selected": {
+      "startBankroll": 14.690226,
+      "endBankroll": 14.690226,
+      "profit": 0,
+      "minBankroll": 14.690226,
+      "maxDrawdownPct": 0,
+      "trades": 0,
+      "wins": 0,
+      "losses": 0,
+      "winRate": 0,
+      "days": []
+    }
+  },
+  "strategyArtifact": "strategies\\strategy_set_15m_robust_walkforward_20260509T093630Z.json",
+  "verdict": "NO_STRATEGY_MEETS_STRICT_GOAL_GATE"
+}
