@@ -1,0 +1,294 @@
+{
+  "generatedAt": "2026-05-09T11:02:34.805Z",
+  "parameters": {
+    "START_BANKROLL": 14.690226,
+    "ADVERSE_CENTS": 0.025,
+    "SLIPPAGE_PCT": 0.0125,
+    "MIN_TRIGGERS": 24,
+    "MIN_HOLDOUT_TRIGGERS": 8,
+    "MIN_AVG_PNL_PER_SHARE": 0.025,
+    "MIN_HOLDOUT_AVG_PNL": 0.015,
+    "MAX_DRAWDOWN": 0.45,
+    "MAX_RULES": 12
+  },
+  "datasets": [
+    {
+      "id": "fresh_5m_2d",
+      "file": "debug/recent_5m_cycle_cache_2d.json",
+      "timeframe": "5m",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "fresh_4h_14d",
+      "file": "debug/recent_4h_cycle_cache_14d.json",
+      "timeframe": "4h",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "fresh_15m_7d",
+      "file": "debug/definitive_15m_cycle_cache_7d.json",
+      "timeframe": "15m",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "historical_15m",
+      "file": "data/intracycle-price-data.json",
+      "timeframe": "15m",
+      "freshness": "historical",
+      "exists": true
+    },
+    {
+      "id": "historical_5m",
+      "file": "data/intracycle-price-data-5m.json",
+      "timeframe": "5m",
+      "freshness": "stale",
+      "exists": true
+    },
+    {
+      "id": "historical_4h",
+      "file": "data/intracycle-price-data-4h.json",
+      "timeframe": "4h",
+      "freshness": "stale",
+      "exists": true
+    },
+    {
+      "id": "expanded_epoch3",
+      "file": "data/epoch3-expanded-intracycle-data.json",
+      "timeframe": null,
+      "freshness": "historical",
+      "exists": true
+    }
+  ],
+  "rawCycles": 54851,
+  "cycles": 31738,
+  "mode": "validate-report",
+  "validateReport": "C:\\Users\\voide\\Downloads\\POLYPROPHET-main\\POLYPROPHET-main\\epoch3\\reinvestigation_v2\\intracycle_exit_strategy_search_20260509T110037Z.json",
+  "candidateCount": 0,
+  "topCandidates": [],
+  "selected": [
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.05,
+        "stopLoss": 0.1
+      },
+      "all": {
+        "triggers": 118,
+        "wins": 86,
+        "losses": 32,
+        "winRate": 0.7288135593220338,
+        "avgPnlPerShare": -0.013764267796610188,
+        "takeProfitExits": 60,
+        "stopLossExits": 30,
+        "resolutionExits": 28
+      },
+      "train": {
+        "triggers": 60,
+        "wins": 40,
+        "losses": 20,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": -0.06197775333333335,
+        "takeProfitExits": 28,
+        "stopLossExits": 18,
+        "resolutionExits": 14
+      },
+      "holdout": {
+        "triggers": 58,
+        "wins": 46,
+        "losses": 12,
+        "winRate": 0.7931034482758621,
+        "avgPnlPerShare": 0.0361117517241379,
+        "takeProfitExits": 32,
+        "stopLossExits": 12,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 33,
+        "wins": 29,
+        "losses": 4,
+        "winRate": 0.8787878787878788,
+        "avgPnlPerShare": 0.06513793939393936,
+        "takeProfitExits": 23,
+        "stopLossExits": 4,
+        "resolutionExits": 6
+      },
+      "splitDay": "2026-04-23",
+      "score": 1.544127770544646
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.05,
+        "stopLoss": 0.1
+      },
+      "all": {
+        "triggers": 169,
+        "wins": 109,
+        "losses": 60,
+        "winRate": 0.6449704142011834,
+        "avgPnlPerShare": -0.03567758698224855,
+        "takeProfitExits": 91,
+        "stopLossExits": 58,
+        "resolutionExits": 20
+      },
+      "train": {
+        "triggers": 91,
+        "wins": 55,
+        "losses": 36,
+        "winRate": 0.6043956043956044,
+        "avgPnlPerShare": -0.0723956153846154,
+        "takeProfitExits": 48,
+        "stopLossExits": 35,
+        "resolutionExits": 8
+      },
+      "holdout": {
+        "triggers": 78,
+        "wins": 54,
+        "losses": 24,
+        "winRate": 0.6923076923076923,
+        "avgPnlPerShare": 0.007160112820512799,
+        "takeProfitExits": 43,
+        "stopLossExits": 23,
+        "resolutionExits": 12
+      },
+      "fresh": {
+        "triggers": 32,
+        "wins": 25,
+        "losses": 7,
+        "winRate": 0.78125,
+        "avgPnlPerShare": 0.042297849999999984,
+        "takeProfitExits": 18,
+        "stopLossExits": 7,
+        "resolutionExits": 7
+      },
+      "splitDay": "2026-04-24",
+      "score": 1.4800680028359738
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.05,
+        "stopLoss": 0.1
+      },
+      "all": {
+        "triggers": 117,
+        "wins": 85,
+        "losses": 32,
+        "winRate": 0.7264957264957265,
+        "avgPnlPerShare": -0.009430615384615417,
+        "takeProfitExits": 55,
+        "stopLossExits": 28,
+        "resolutionExits": 34
+      },
+      "train": {
+        "triggers": 57,
+        "wins": 40,
+        "losses": 17,
+        "winRate": 0.7017543859649122,
+        "avgPnlPerShare": -0.041561070175438634,
+        "takeProfitExits": 26,
+        "stopLossExits": 13,
+        "resolutionExits": 18
+      },
+      "holdout": {
+        "triggers": 60,
+        "wins": 45,
+        "losses": 15,
+        "winRate": 0.75,
+        "avgPnlPerShare": 0.021093316666666643,
+        "takeProfitExits": 29,
+        "stopLossExits": 15,
+        "resolutionExits": 16
+      },
+      "fresh": {
+        "triggers": 30,
+        "wins": 25,
+        "losses": 5,
+        "winRate": 0.8333333333333334,
+        "avgPnlPerShare": 0.034233266666666665,
+        "takeProfitExits": 16,
+        "stopLossExits": 5,
+        "resolutionExits": 9
+      },
+      "splitDay": "2026-04-24",
+      "score": 1.0546620493694994
+    }
+  ],
+  "selectedSimulation": {
+    "startBankroll": 14.690226,
+    "endBankroll": 2.373191,
+    "profit": -12.317035,
+    "minBankroll": 2.373191,
+    "maxDrawdownPct": 0.854874,
+    "trades": 39,
+    "wins": 23,
+    "losses": 16,
+    "winRate": 0.589744,
+    "dayStats": [
+      {
+        "day": "2026-04-14",
+        "trades": 16,
+        "wins": 10,
+        "losses": 6,
+        "pnl": -8.356,
+        "endBankroll": 6.3342,
+        "winRate": 0.625
+      },
+      {
+        "day": "2026-04-15",
+        "trades": 8,
+        "wins": 6,
+        "losses": 2,
+        "pnl": 0.3635,
+        "endBankroll": 6.6977,
+        "winRate": 0.75
+      },
+      {
+        "day": "2026-04-16",
+        "trades": 11,
+        "wins": 6,
+        "losses": 5,
+        "pnl": -3.2029,
+        "endBankroll": 3.4948,
+        "winRate": 0.5455
+      },
+      {
+        "day": "2026-04-17",
+        "trades": 4,
+        "wins": 1,
+        "losses": 3,
+        "pnl": -1.1216,
+        "endBankroll": 2.3732,
+        "winRate": 0.25
+      }
+    ]
+  },
+  "verdict": {
+    "status": "NO_GO_PROMOTION",
+    "issues": [
+      "SELECTED_DRAWDOWN_TOO_HIGH",
+      "SELECTED_UPSIDE_TOO_LOW_FOR_OPERATOR_GOAL"
+    ]
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "version": "expanded_multitimeframe_20260509T103235Z",
+  "generatedAt": "2026-05-09T10:32:35.775Z",
+  "source": "expanded-polymarket-strategy-search",
+  "notes": [
+    "Audit artifact only unless promoted manually.",
+    "Uses pessimistic taker fee, adverse fill and slippage assumptions.",
+    "Strategies from stale 5m/4h caches require fresh data before production use."
+  ],
+  "strategies": [
+    {
+      "id": 9501,
+      "name": "EXP-4h-ALL-UP-12-100",
+      "timeframe": "4h",
+      "asset": "ALL",
+      "utcHour": 12,
+      "entryMinute": 100,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "pWinEstimate": 0.8462,
+      "winRate": 0.8462,
+      "winRateLCB": 0.7027,
+      "avgPnlPerShare": 0.0928,
+      "train": {
+        "triggers": 18,
+        "wins": 14,
+        "losses": 4,
+        "winRate": 0.7777777777777778,
+        "wilsonLCB95": 0.547849735476945,
+        "avgEntry": 0.7458333333333332,
+        "avgPnlPerShare": 0.018499344444444423
+      },
+      "holdout": {
+        "triggers": 21,
+        "wins": 19,
+        "losses": 2,
+        "winRate": 0.9047619047619048,
+        "wilsonLCB95": 0.7108541613925933,
+        "avgEntry": 0.7345238095238096,
+        "avgPnlPerShare": 0.15652200952380949
+      },
+      "recent": {
+        "triggers": 22,
+        "wins": 20,
+        "losses": 2,
+        "winRate": 0.9090909090909091,
+        "wilsonLCB95": 0.7218461934161421,
+        "avgEntry": 0.7315909090909092,
+        "avgPnlPerShare": 0.16368377272727272
+      },
+      "source": "expanded-multitimeframe-search"
+    }
+  ]
+}

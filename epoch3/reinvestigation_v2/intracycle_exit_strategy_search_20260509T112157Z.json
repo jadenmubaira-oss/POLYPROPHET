@@ -1,0 +1,320 @@
+{
+  "generatedAt": "2026-05-09T11:21:57.642Z",
+  "parameters": {
+    "START_BANKROLL": 14.690226,
+    "ADVERSE_CENTS": 0.025,
+    "SLIPPAGE_PCT": 0.0125,
+    "MIN_TRIGGERS": 24,
+    "MIN_HOLDOUT_TRIGGERS": 8,
+    "MIN_AVG_PNL_PER_SHARE": 0.025,
+    "MIN_HOLDOUT_AVG_PNL": 0.015,
+    "MAX_DRAWDOWN": 0.45,
+    "MAX_RULES": 12
+  },
+  "datasets": [
+    {
+      "id": "fresh_5m_2d",
+      "file": "debug/recent_5m_cycle_cache_2d.json",
+      "timeframe": "5m",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "fresh_4h_14d",
+      "file": "debug/recent_4h_cycle_cache_14d.json",
+      "timeframe": "4h",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "fresh_15m_7d",
+      "file": "debug/definitive_15m_cycle_cache_7d.json",
+      "timeframe": "15m",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "historical_15m",
+      "file": "data/intracycle-price-data.json",
+      "timeframe": "15m",
+      "freshness": "historical",
+      "exists": true
+    },
+    {
+      "id": "historical_5m",
+      "file": "data/intracycle-price-data-5m.json",
+      "timeframe": "5m",
+      "freshness": "stale",
+      "exists": true
+    },
+    {
+      "id": "historical_4h",
+      "file": "data/intracycle-price-data-4h.json",
+      "timeframe": "4h",
+      "freshness": "stale",
+      "exists": true
+    },
+    {
+      "id": "expanded_epoch3",
+      "file": "data/epoch3-expanded-intracycle-data.json",
+      "timeframe": null,
+      "freshness": "historical",
+      "exists": true
+    }
+  ],
+  "rawCycles": 54851,
+  "cycles": 31738,
+  "mode": "validate-report",
+  "validateReport": "C:\\Users\\voide\\Downloads\\POLYPROPHET-main\\POLYPROPHET-main\\epoch3\\reinvestigation_v2\\intracycle_exit_strategy_search_20260509T112127Z.json",
+  "candidateCount": 0,
+  "topCandidates": [],
+  "selected": [
+    {
+      "timeframe": "15m",
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": 0.2
+      },
+      "all": {
+        "triggers": 175,
+        "wins": 91,
+        "losses": 84,
+        "winRate": 0.52,
+        "avgPnlPerShare": -0.04232691796571432,
+        "takeProfitExits": 88,
+        "stopLossExits": 81,
+        "resolutionExits": 6
+      },
+      "train": {
+        "triggers": 111,
+        "wins": 50,
+        "losses": 61,
+        "winRate": 0.45045045045045046,
+        "avgPnlPerShare": -0.08268834830630631,
+        "takeProfitExits": 49,
+        "stopLossExits": 58,
+        "resolutionExits": 4
+      },
+      "holdout": {
+        "triggers": 64,
+        "wins": 41,
+        "losses": 23,
+        "winRate": 0.640625,
+        "avgPnlPerShare": 0.027674937781249985,
+        "takeProfitExits": 39,
+        "stopLossExits": 23,
+        "resolutionExits": 2
+      },
+      "fresh": {
+        "triggers": 43,
+        "wins": 30,
+        "losses": 13,
+        "winRate": 0.6976744186046512,
+        "avgPnlPerShare": 0.054530414372093,
+        "takeProfitExits": 28,
+        "stopLossExits": 13,
+        "resolutionExits": 2
+      },
+      "splitDay": "2026-04-29",
+      "score": 2.0634228006249327
+    },
+    {
+      "timeframe": "15m",
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": 0.2
+      },
+      "all": {
+        "triggers": 96,
+        "wins": 52,
+        "losses": 44,
+        "winRate": 0.5416666666666666,
+        "avgPnlPerShare": -0.038912677083333375,
+        "takeProfitExits": 34,
+        "stopLossExits": 44,
+        "resolutionExits": 18
+      },
+      "train": {
+        "triggers": 59,
+        "wins": 29,
+        "losses": 30,
+        "winRate": 0.4915254237288136,
+        "avgPnlPerShare": -0.0625294305084746,
+        "takeProfitExits": 20,
+        "stopLossExits": 30,
+        "resolutionExits": 9
+      },
+      "holdout": {
+        "triggers": 37,
+        "wins": 23,
+        "losses": 14,
+        "winRate": 0.6216216216216216,
+        "avgPnlPerShare": -0.001253529729729746,
+        "takeProfitExits": 14,
+        "stopLossExits": 14,
+        "resolutionExits": 9
+      },
+      "fresh": {
+        "triggers": 25,
+        "wins": 19,
+        "losses": 6,
+        "winRate": 0.76,
+        "avgPnlPerShare": 0.072959424,
+        "takeProfitExits": 11,
+        "stopLossExits": 6,
+        "resolutionExits": 8
+      },
+      "splitDay": "2026-04-29",
+      "score": 1.2429210291418746
+    }
+  ],
+  "selectedSimulation": {
+    "startBankroll": 14.690226,
+    "endBankroll": 2.143788,
+    "profit": -12.546438,
+    "minBankroll": 2.143788,
+    "maxDrawdownPct": 0.889888,
+    "trades": 42,
+    "wins": 21,
+    "losses": 21,
+    "winRate": 0.5,
+    "dayStats": [
+      {
+        "day": "2026-04-11",
+        "trades": 3,
+        "wins": 2,
+        "losses": 1,
+        "pnl": 1.5282,
+        "endBankroll": 16.2184,
+        "winRate": 0.6667
+      },
+      {
+        "day": "2026-04-12",
+        "trades": 4,
+        "wins": 2,
+        "losses": 2,
+        "pnl": -2.6401,
+        "endBankroll": 13.5784,
+        "winRate": 0.5
+      },
+      {
+        "day": "2026-04-13",
+        "trades": 5,
+        "wins": 1,
+        "losses": 4,
+        "pnl": -5.1252,
+        "endBankroll": 8.4532,
+        "winRate": 0.2
+      },
+      {
+        "day": "2026-04-14",
+        "trades": 3,
+        "wins": 2,
+        "losses": 1,
+        "pnl": -0.1098,
+        "endBankroll": 8.3434,
+        "winRate": 0.6667
+      },
+      {
+        "day": "2026-04-15",
+        "trades": 4,
+        "wins": 3,
+        "losses": 1,
+        "pnl": 1.7192,
+        "endBankroll": 10.0625,
+        "winRate": 0.75
+      },
+      {
+        "day": "2026-04-16",
+        "trades": 3,
+        "wins": 1,
+        "losses": 2,
+        "pnl": -2.2496,
+        "endBankroll": 7.813,
+        "winRate": 0.3333
+      },
+      {
+        "day": "2026-04-17",
+        "trades": 4,
+        "wins": 3,
+        "losses": 1,
+        "pnl": 0.2759,
+        "endBankroll": 8.0888,
+        "winRate": 0.75
+      },
+      {
+        "day": "2026-04-18",
+        "trades": 4,
+        "wins": 1,
+        "losses": 3,
+        "pnl": -2.9803,
+        "endBankroll": 5.1086,
+        "winRate": 0.25
+      },
+      {
+        "day": "2026-04-19",
+        "trades": 3,
+        "wins": 1,
+        "losses": 2,
+        "pnl": -1.6539,
+        "endBankroll": 3.4547,
+        "winRate": 0.3333
+      },
+      {
+        "day": "2026-04-20",
+        "trades": 2,
+        "wins": 0,
+        "losses": 2,
+        "pnl": -0.9256,
+        "endBankroll": 2.5291,
+        "winRate": 0
+      },
+      {
+        "day": "2026-04-21",
+        "trades": 2,
+        "wins": 2,
+        "losses": 0,
+        "pnl": 0.5273,
+        "endBankroll": 3.0563,
+        "winRate": 1
+      },
+      {
+        "day": "2026-04-22",
+        "trades": 4,
+        "wins": 3,
+        "losses": 1,
+        "pnl": 0.5166,
+        "endBankroll": 3.573,
+        "winRate": 0.75
+      },
+      {
+        "day": "2026-04-23",
+        "trades": 1,
+        "wins": 0,
+        "losses": 1,
+        "pnl": -1.4292,
+        "endBankroll": 2.1438,
+        "winRate": 0
+      }
+    ]
+  },
+  "verdict": {
+    "status": "NO_GO_PROMOTION",
+    "issues": [
+      "SELECTED_DRAWDOWN_TOO_HIGH",
+      "SELECTED_UPSIDE_TOO_LOW_FOR_OPERATOR_GOAL"
+    ]
+  }
+}

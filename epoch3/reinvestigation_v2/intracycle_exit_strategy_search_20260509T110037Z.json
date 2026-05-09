@@ -1,0 +1,3003 @@
+{
+  "generatedAt": "2026-05-09T11:00:37.823Z",
+  "parameters": {
+    "START_BANKROLL": 14.690226,
+    "ADVERSE_CENTS": 0.025,
+    "SLIPPAGE_PCT": 0.0125,
+    "MIN_TRIGGERS": 24,
+    "MIN_HOLDOUT_TRIGGERS": 8,
+    "MIN_AVG_PNL_PER_SHARE": 0.025,
+    "MIN_HOLDOUT_AVG_PNL": 0.015,
+    "MAX_DRAWDOWN": 0.45,
+    "MAX_RULES": 12
+  },
+  "datasets": [
+    {
+      "id": "fresh_5m_2d",
+      "file": "debug/recent_5m_cycle_cache_2d.json",
+      "timeframe": "5m",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "fresh_4h_14d",
+      "file": "debug/recent_4h_cycle_cache_14d.json",
+      "timeframe": "4h",
+      "freshness": "fresh",
+      "exists": true
+    },
+    {
+      "id": "fresh_15m_7d",
+      "file": "debug/definitive_15m_cycle_cache_7d.json",
+      "timeframe": "15m",
+      "freshness": "fresh",
+      "exists": true
+    }
+  ],
+  "rawCycles": 7319,
+  "cycles": 7319,
+  "candidateCount": 688,
+  "topCandidates": [
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 21,
+        "losses": 6,
+        "winRate": 0.7777777777777778,
+        "avgPnlPerShare": 0.1768201407407407,
+        "takeProfitExits": 18,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "train": {
+        "triggers": 15,
+        "wins": 10,
+        "losses": 5,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": 0.02564098666666666,
+        "takeProfitExits": 10,
+        "stopLossExits": 0,
+        "resolutionExits": 5
+      },
+      "holdout": {
+        "triggers": 12,
+        "wins": 11,
+        "losses": 1,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.36579408333333324,
+        "takeProfitExits": 8,
+        "stopLossExits": 0,
+        "resolutionExits": 4
+      },
+      "fresh": {
+        "triggers": 27,
+        "wins": 21,
+        "losses": 6,
+        "winRate": 0.7777777777777778,
+        "avgPnlPerShare": 0.1768201407407407,
+        "takeProfitExits": 18,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "splitDay": "2026-05-09",
+      "score": 6.557796832728484
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 34,
+        "wins": 23,
+        "losses": 11,
+        "winRate": 0.6764705882352942,
+        "avgPnlPerShare": 0.17468724705882346,
+        "takeProfitExits": 17,
+        "stopLossExits": 8,
+        "resolutionExits": 9
+      },
+      "train": {
+        "triggers": 13,
+        "wins": 7,
+        "losses": 6,
+        "winRate": 0.5384615384615384,
+        "avgPnlPerShare": 0.03378924615384612,
+        "takeProfitExits": 6,
+        "stopLossExits": 4,
+        "resolutionExits": 3
+      },
+      "holdout": {
+        "triggers": 21,
+        "wins": 16,
+        "losses": 5,
+        "winRate": 0.7619047619047619,
+        "avgPnlPerShare": 0.26190981904761895,
+        "takeProfitExits": 11,
+        "stopLossExits": 4,
+        "resolutionExits": 6
+      },
+      "fresh": {
+        "triggers": 34,
+        "wins": 23,
+        "losses": 11,
+        "winRate": 0.6764705882352942,
+        "avgPnlPerShare": 0.17468724705882346,
+        "takeProfitExits": 17,
+        "stopLossExits": 8,
+        "resolutionExits": 9
+      },
+      "splitDay": "2026-05-08",
+      "score": 6.49644351584257
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.4,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 25,
+        "wins": 18,
+        "losses": 7,
+        "winRate": 0.72,
+        "avgPnlPerShare": 0.21194756799999998,
+        "takeProfitExits": 13,
+        "stopLossExits": 4,
+        "resolutionExits": 8
+      },
+      "train": {
+        "triggers": 11,
+        "wins": 7,
+        "losses": 4,
+        "winRate": 0.6363636363636364,
+        "avgPnlPerShare": 0.11629556363636362,
+        "takeProfitExits": 6,
+        "stopLossExits": 2,
+        "resolutionExits": 3
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 11,
+        "losses": 3,
+        "winRate": 0.7857142857142857,
+        "avgPnlPerShare": 0.2871027142857142,
+        "takeProfitExits": 7,
+        "stopLossExits": 2,
+        "resolutionExits": 5
+      },
+      "fresh": {
+        "triggers": 25,
+        "wins": 18,
+        "losses": 7,
+        "winRate": 0.72,
+        "avgPnlPerShare": 0.21194756799999998,
+        "takeProfitExits": 13,
+        "stopLossExits": 4,
+        "resolutionExits": 8
+      },
+      "splitDay": "2026-05-08",
+      "score": 6.321933495009973
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 21,
+        "losses": 6,
+        "winRate": 0.7777777777777778,
+        "avgPnlPerShare": 0.15852502962962958,
+        "takeProfitExits": 18,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "train": {
+        "triggers": 15,
+        "wins": 10,
+        "losses": 5,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": 0.007883333333333317,
+        "takeProfitExits": 10,
+        "stopLossExits": 0,
+        "resolutionExits": 5
+      },
+      "holdout": {
+        "triggers": 12,
+        "wins": 11,
+        "losses": 1,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.3468271499999999,
+        "takeProfitExits": 8,
+        "stopLossExits": 0,
+        "resolutionExits": 4
+      },
+      "fresh": {
+        "triggers": 27,
+        "wins": 21,
+        "losses": 6,
+        "winRate": 0.7777777777777778,
+        "avgPnlPerShare": 0.15852502962962958,
+        "takeProfitExits": 18,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "splitDay": "2026-05-09",
+      "score": 6.075494121774793
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 29,
+        "wins": 28,
+        "losses": 1,
+        "winRate": 0.9655172413793104,
+        "avgPnlPerShare": 0.20402068965517245,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 29
+      },
+      "train": {
+        "triggers": 16,
+        "wins": 15,
+        "losses": 1,
+        "winRate": 0.9375,
+        "avgPnlPerShare": 0.16403065000000003,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 16
+      },
+      "holdout": {
+        "triggers": 13,
+        "wins": 13,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.25323919999999994,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "fresh": {
+        "triggers": 29,
+        "wins": 28,
+        "losses": 1,
+        "winRate": 0.9655172413793104,
+        "avgPnlPerShare": 0.20402068965517245,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 29
+      },
+      "splitDay": "2026-05-08",
+      "score": 6.035255875247476
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 20,
+        "losses": 7,
+        "winRate": 0.7407407407407407,
+        "avgPnlPerShare": 0.2016440074074074,
+        "takeProfitExits": 16,
+        "stopLossExits": 5,
+        "resolutionExits": 6
+      },
+      "train": {
+        "triggers": 15,
+        "wins": 10,
+        "losses": 5,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": 0.1345082666666667,
+        "takeProfitExits": 8,
+        "stopLossExits": 4,
+        "resolutionExits": 3
+      },
+      "holdout": {
+        "triggers": 12,
+        "wins": 10,
+        "losses": 2,
+        "winRate": 0.8333333333333334,
+        "avgPnlPerShare": 0.2855636833333333,
+        "takeProfitExits": 8,
+        "stopLossExits": 1,
+        "resolutionExits": 3
+      },
+      "fresh": {
+        "triggers": 27,
+        "wins": 20,
+        "losses": 7,
+        "winRate": 0.7407407407407407,
+        "avgPnlPerShare": 0.2016440074074074,
+        "takeProfitExits": 16,
+        "stopLossExits": 5,
+        "resolutionExits": 6
+      },
+      "splitDay": "2026-05-09",
+      "score": 6.010983842821881
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.3,
+      "priceMax": 0.4,
+      "policy": {
+        "takeProfit": 0.2,
+        "stopLoss": 0.25
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 17,
+        "losses": 7,
+        "winRate": 0.7083333333333334,
+        "avgPnlPerShare": 0.21719165000000004,
+        "takeProfitExits": 12,
+        "stopLossExits": 6,
+        "resolutionExits": 6
+      },
+      "train": {
+        "triggers": 7,
+        "wins": 5,
+        "losses": 2,
+        "winRate": 0.7142857142857143,
+        "avgPnlPerShare": 0.21858942857142855,
+        "takeProfitExits": 4,
+        "stopLossExits": 2,
+        "resolutionExits": 1
+      },
+      "holdout": {
+        "triggers": 17,
+        "wins": 12,
+        "losses": 5,
+        "winRate": 0.7058823529411765,
+        "avgPnlPerShare": 0.21661609411764707,
+        "takeProfitExits": 8,
+        "stopLossExits": 4,
+        "resolutionExits": 5
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 17,
+        "losses": 7,
+        "winRate": 0.7083333333333334,
+        "avgPnlPerShare": 0.21719165000000004,
+        "takeProfitExits": 12,
+        "stopLossExits": 6,
+        "resolutionExits": 6
+      },
+      "splitDay": "2026-05-09",
+      "score": 5.75144542212631
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 29,
+        "wins": 28,
+        "losses": 1,
+        "winRate": 0.9655172413793104,
+        "avgPnlPerShare": 0.19189891034482762,
+        "takeProfitExits": 4,
+        "stopLossExits": 0,
+        "resolutionExits": 25
+      },
+      "train": {
+        "triggers": 16,
+        "wins": 15,
+        "losses": 1,
+        "winRate": 0.9375,
+        "avgPnlPerShare": 0.15536970000000003,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "holdout": {
+        "triggers": 13,
+        "wins": 13,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.23685793846153838,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 11
+      },
+      "fresh": {
+        "triggers": 29,
+        "wins": 28,
+        "losses": 1,
+        "winRate": 0.9655172413793104,
+        "avgPnlPerShare": 0.19189891034482762,
+        "takeProfitExits": 4,
+        "stopLossExits": 0,
+        "resolutionExits": 25
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.662232101920587
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 29,
+        "losses": 3,
+        "winRate": 0.90625,
+        "avgPnlPerShare": 0.15873738125,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 32
+      },
+      "train": {
+        "triggers": 18,
+        "wins": 15,
+        "losses": 3,
+        "winRate": 0.8333333333333334,
+        "avgPnlPerShare": 0.07694587777777781,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 18
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.26389788571428563,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 32,
+        "wins": 29,
+        "losses": 3,
+        "winRate": 0.90625,
+        "avgPnlPerShare": 0.15873738125,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 32
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.65610910934271
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 13,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 36,
+        "wins": 34,
+        "losses": 2,
+        "winRate": 0.9444444444444444,
+        "avgPnlPerShare": 0.19146409444444443,
+        "takeProfitExits": 8,
+        "stopLossExits": 0,
+        "resolutionExits": 28
+      },
+      "train": {
+        "triggers": 22,
+        "wins": 21,
+        "losses": 1,
+        "winRate": 0.9545454545454546,
+        "avgPnlPerShare": 0.18827523636363636,
+        "takeProfitExits": 8,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19647515714285715,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 36,
+        "wins": 34,
+        "losses": 2,
+        "winRate": 0.9444444444444444,
+        "avgPnlPerShare": 0.19146409444444443,
+        "takeProfitExits": 8,
+        "stopLossExits": 0,
+        "resolutionExits": 28
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.651781869123427
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.3,
+      "priceMax": 0.4,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 16,
+        "losses": 8,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": 0.20872288333333336,
+        "takeProfitExits": 10,
+        "stopLossExits": 5,
+        "resolutionExits": 9
+      },
+      "train": {
+        "triggers": 7,
+        "wins": 5,
+        "losses": 2,
+        "winRate": 0.7142857142857143,
+        "avgPnlPerShare": 0.1984722857142857,
+        "takeProfitExits": 4,
+        "stopLossExits": 1,
+        "resolutionExits": 2
+      },
+      "holdout": {
+        "triggers": 17,
+        "wins": 11,
+        "losses": 6,
+        "winRate": 0.6470588235294118,
+        "avgPnlPerShare": 0.21294371764705883,
+        "takeProfitExits": 6,
+        "stopLossExits": 4,
+        "resolutionExits": 7
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 16,
+        "losses": 8,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": 0.20872288333333336,
+        "takeProfitExits": 10,
+        "stopLossExits": 5,
+        "resolutionExits": 9
+      },
+      "splitDay": "2026-05-09",
+      "score": 5.601555691366361
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 51,
+        "wins": 49,
+        "losses": 2,
+        "winRate": 0.9607843137254902,
+        "avgPnlPerShare": 0.14091536470588234,
+        "takeProfitExits": 32,
+        "stopLossExits": 0,
+        "resolutionExits": 19
+      },
+      "train": {
+        "triggers": 26,
+        "wins": 24,
+        "losses": 2,
+        "winRate": 0.9230769230769231,
+        "avgPnlPerShare": 0.11486465384615387,
+        "takeProfitExits": 14,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "holdout": {
+        "triggers": 25,
+        "wins": 25,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.168008104,
+        "takeProfitExits": 18,
+        "stopLossExits": 0,
+        "resolutionExits": 7
+      },
+      "fresh": {
+        "triggers": 51,
+        "wins": 49,
+        "losses": 2,
+        "winRate": 0.9607843137254902,
+        "avgPnlPerShare": 0.14091536470588234,
+        "takeProfitExits": 32,
+        "stopLossExits": 0,
+        "resolutionExits": 19
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.539132534587216
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 13,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 36,
+        "wins": 34,
+        "losses": 2,
+        "winRate": 0.9444444444444444,
+        "avgPnlPerShare": 0.18277269999999998,
+        "takeProfitExits": 11,
+        "stopLossExits": 0,
+        "resolutionExits": 25
+      },
+      "train": {
+        "triggers": 22,
+        "wins": 21,
+        "losses": 1,
+        "winRate": 0.9545454545454546,
+        "avgPnlPerShare": 0.1740529545454545,
+        "takeProfitExits": 11,
+        "stopLossExits": 0,
+        "resolutionExits": 11
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19647515714285715,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 36,
+        "wins": 34,
+        "losses": 2,
+        "winRate": 0.9444444444444444,
+        "avgPnlPerShare": 0.18277269999999998,
+        "takeProfitExits": 11,
+        "stopLossExits": 0,
+        "resolutionExits": 25
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.495336769123426
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.4,
+      "priceMax": 0.5,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 26,
+        "wins": 21,
+        "losses": 5,
+        "winRate": 0.8076923076923077,
+        "avgPnlPerShare": 0.16951959230769226,
+        "takeProfitExits": 15,
+        "stopLossExits": 0,
+        "resolutionExits": 11
+      },
+      "train": {
+        "triggers": 9,
+        "wins": 6,
+        "losses": 3,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": 0.04969437777777773,
+        "takeProfitExits": 3,
+        "stopLossExits": 0,
+        "resolutionExits": 6
+      },
+      "holdout": {
+        "triggers": 17,
+        "wins": 15,
+        "losses": 2,
+        "winRate": 0.8823529411764706,
+        "avgPnlPerShare": 0.23295647058823526,
+        "takeProfitExits": 12,
+        "stopLossExits": 0,
+        "resolutionExits": 5
+      },
+      "fresh": {
+        "triggers": 26,
+        "wins": 21,
+        "losses": 5,
+        "winRate": 0.8076923076923077,
+        "avgPnlPerShare": 0.16951959230769226,
+        "takeProfitExits": 15,
+        "stopLossExits": 0,
+        "resolutionExits": 11
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.4746635305588125
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 29,
+        "wins": 28,
+        "losses": 1,
+        "winRate": 0.9655172413793104,
+        "avgPnlPerShare": 0.17885715172413796,
+        "takeProfitExits": 9,
+        "stopLossExits": 0,
+        "resolutionExits": 20
+      },
+      "train": {
+        "triggers": 16,
+        "wins": 15,
+        "losses": 1,
+        "winRate": 0.9375,
+        "avgPnlPerShare": 0.13373746250000002,
+        "takeProfitExits": 6,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 13,
+        "wins": 13,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.23438907692307687,
+        "takeProfitExits": 3,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "fresh": {
+        "triggers": 29,
+        "wins": 28,
+        "losses": 1,
+        "winRate": 0.9655172413793104,
+        "avgPnlPerShare": 0.17885715172413796,
+        "takeProfitExits": 9,
+        "stopLossExits": 0,
+        "resolutionExits": 20
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.424831222671913
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 13,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 29,
+        "wins": 29,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.21754188275862066,
+        "takeProfitExits": 7,
+        "stopLossExits": 0,
+        "resolutionExits": 22
+      },
+      "train": {
+        "triggers": 20,
+        "wins": 20,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.22260255999999998,
+        "takeProfitExits": 7,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "holdout": {
+        "triggers": 9,
+        "wins": 9,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.20629593333333335,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "fresh": {
+        "triggers": 29,
+        "wins": 29,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.21754188275862066,
+        "takeProfitExits": 7,
+        "stopLossExits": 0,
+        "resolutionExits": 22
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.371160073328513
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 29,
+        "losses": 3,
+        "winRate": 0.90625,
+        "avgPnlPerShare": 0.14775201875,
+        "takeProfitExits": 4,
+        "stopLossExits": 0,
+        "resolutionExits": 28
+      },
+      "train": {
+        "triggers": 18,
+        "wins": 15,
+        "losses": 3,
+        "winRate": 0.8333333333333334,
+        "avgPnlPerShare": 0.0692472555555556,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 16
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.24868671428571423,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "fresh": {
+        "triggers": 32,
+        "wins": 29,
+        "losses": 3,
+        "winRate": 0.90625,
+        "avgPnlPerShare": 0.14775201875,
+        "takeProfitExits": 4,
+        "stopLossExits": 0,
+        "resolutionExits": 28
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.298936349910097
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 31,
+        "wins": 30,
+        "losses": 1,
+        "winRate": 0.967741935483871,
+        "avgPnlPerShare": 0.18554127741935483,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 30
+      },
+      "train": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "avgPnlPerShare": 0.17833395294117646,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 16
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.1942930285714286,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 31,
+        "wins": 30,
+        "losses": 1,
+        "winRate": 0.967741935483871,
+        "avgPnlPerShare": 0.18554127741935483,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 30
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.280084173407226
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.3,
+      "priceMax": 0.4,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 17,
+        "losses": 7,
+        "winRate": 0.7083333333333334,
+        "avgPnlPerShare": 0.18715335000000002,
+        "takeProfitExits": 12,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "train": {
+        "triggers": 7,
+        "wins": 5,
+        "losses": 2,
+        "winRate": 0.7142857142857143,
+        "avgPnlPerShare": 0.15300897142857142,
+        "takeProfitExits": 4,
+        "stopLossExits": 0,
+        "resolutionExits": 3
+      },
+      "holdout": {
+        "triggers": 17,
+        "wins": 12,
+        "losses": 5,
+        "winRate": 0.7058823529411765,
+        "avgPnlPerShare": 0.2012128,
+        "takeProfitExits": 8,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 17,
+        "losses": 7,
+        "winRate": 0.7083333333333334,
+        "avgPnlPerShare": 0.18715335000000002,
+        "takeProfitExits": 12,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "splitDay": "2026-05-09",
+      "score": 5.239446149793904
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 13,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 29,
+        "wins": 29,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.20675256551724136,
+        "takeProfitExits": 10,
+        "stopLossExits": 0,
+        "resolutionExits": 19
+      },
+      "train": {
+        "triggers": 20,
+        "wins": 20,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.20695804999999998,
+        "takeProfitExits": 10,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 9,
+        "wins": 9,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.20629593333333335,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "fresh": {
+        "triggers": 29,
+        "wins": 29,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.20675256551724136,
+        "takeProfitExits": 10,
+        "stopLossExits": 0,
+        "resolutionExits": 19
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.196853318824656
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 31,
+        "wins": 30,
+        "losses": 1,
+        "winRate": 0.967741935483871,
+        "avgPnlPerShare": 0.18261870322580645,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 29
+      },
+      "train": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "avgPnlPerShare": 0.17833395294117646,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 16
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.18782161428571428,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "fresh": {
+        "triggers": 31,
+        "wins": 30,
+        "losses": 1,
+        "winRate": 0.967741935483871,
+        "avgPnlPerShare": 0.18261870322580645,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 29
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.158626114884478
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 63,
+        "wins": 58,
+        "losses": 5,
+        "winRate": 0.9206349206349206,
+        "avgPnlPerShare": 0.12074956825396824,
+        "takeProfitExits": 40,
+        "stopLossExits": 0,
+        "resolutionExits": 23
+      },
+      "train": {
+        "triggers": 31,
+        "wins": 28,
+        "losses": 3,
+        "winRate": 0.9032258064516129,
+        "avgPnlPerShare": 0.10952092903225807,
+        "takeProfitExits": 17,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "holdout": {
+        "triggers": 32,
+        "wins": 30,
+        "losses": 2,
+        "winRate": 0.9375,
+        "avgPnlPerShare": 0.13162731249999998,
+        "takeProfitExits": 23,
+        "stopLossExits": 0,
+        "resolutionExits": 9
+      },
+      "fresh": {
+        "triggers": 63,
+        "wins": 58,
+        "losses": 5,
+        "winRate": 0.9206349206349206,
+        "avgPnlPerShare": 0.12074956825396824,
+        "takeProfitExits": 40,
+        "stopLossExits": 0,
+        "resolutionExits": 23
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.109049522860437
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 51,
+        "wins": 48,
+        "losses": 3,
+        "winRate": 0.9411764705882353,
+        "avgPnlPerShare": 0.13957879607843132,
+        "takeProfitExits": 20,
+        "stopLossExits": 0,
+        "resolutionExits": 31
+      },
+      "train": {
+        "triggers": 26,
+        "wins": 24,
+        "losses": 2,
+        "winRate": 0.9230769230769231,
+        "avgPnlPerShare": 0.13921523076923079,
+        "takeProfitExits": 7,
+        "stopLossExits": 0,
+        "resolutionExits": 19
+      },
+      "holdout": {
+        "triggers": 25,
+        "wins": 24,
+        "losses": 1,
+        "winRate": 0.96,
+        "avgPnlPerShare": 0.13995690399999997,
+        "takeProfitExits": 13,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "fresh": {
+        "triggers": 51,
+        "wins": 48,
+        "losses": 3,
+        "winRate": 0.9411764705882353,
+        "avgPnlPerShare": 0.13957879607843132,
+        "takeProfitExits": 20,
+        "stopLossExits": 0,
+        "resolutionExits": 31
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.089729507008883
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 29,
+        "losses": 3,
+        "winRate": 0.90625,
+        "avgPnlPerShare": 0.135932925,
+        "takeProfitExits": 9,
+        "stopLossExits": 0,
+        "resolutionExits": 23
+      },
+      "train": {
+        "triggers": 18,
+        "wins": 15,
+        "losses": 3,
+        "winRate": 0.8333333333333334,
+        "avgPnlPerShare": 0.05001860000000001,
+        "takeProfitExits": 6,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.24639419999999995,
+        "takeProfitExits": 3,
+        "stopLossExits": 0,
+        "resolutionExits": 11
+      },
+      "fresh": {
+        "triggers": 32,
+        "wins": 29,
+        "losses": 3,
+        "winRate": 0.90625,
+        "avgPnlPerShare": 0.135932925,
+        "takeProfitExits": 9,
+        "stopLossExits": 0,
+        "resolutionExits": 23
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.072626268761304
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 22,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.6,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 26,
+        "wins": 21,
+        "losses": 5,
+        "winRate": 0.8076923076923077,
+        "avgPnlPerShare": 0.16141213076923075,
+        "takeProfitExits": 12,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "train": {
+        "triggers": 11,
+        "wins": 8,
+        "losses": 3,
+        "winRate": 0.7272727272727273,
+        "avgPnlPerShare": 0.08364798181818178,
+        "takeProfitExits": 5,
+        "stopLossExits": 0,
+        "resolutionExits": 6
+      },
+      "holdout": {
+        "triggers": 15,
+        "wins": 13,
+        "losses": 2,
+        "winRate": 0.8666666666666667,
+        "avgPnlPerShare": 0.21843917333333338,
+        "takeProfitExits": 7,
+        "stopLossExits": 0,
+        "resolutionExits": 8
+      },
+      "fresh": {
+        "triggers": 26,
+        "wins": 21,
+        "losses": 5,
+        "winRate": 0.8076923076923077,
+        "avgPnlPerShare": 0.16141213076923075,
+        "takeProfitExits": 12,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "splitDay": "2026-05-08",
+      "score": 5.00716465500664
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 1,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 63,
+        "wins": 49,
+        "losses": 14,
+        "winRate": 0.7777777777777778,
+        "avgPnlPerShare": 0.10261195203174603,
+        "takeProfitExits": 18,
+        "stopLossExits": 12,
+        "resolutionExits": 33
+      },
+      "train": {
+        "triggers": 22,
+        "wins": 15,
+        "losses": 7,
+        "winRate": 0.6818181818181818,
+        "avgPnlPerShare": 0.035768509090909055,
+        "takeProfitExits": 3,
+        "stopLossExits": 5,
+        "resolutionExits": 14
+      },
+      "holdout": {
+        "triggers": 41,
+        "wins": 34,
+        "losses": 7,
+        "winRate": 0.8292682926829268,
+        "avgPnlPerShare": 0.13847916531707322,
+        "takeProfitExits": 15,
+        "stopLossExits": 7,
+        "resolutionExits": 19
+      },
+      "fresh": {
+        "triggers": 63,
+        "wins": 49,
+        "losses": 14,
+        "winRate": 0.7777777777777778,
+        "avgPnlPerShare": 0.10261195203174603,
+        "takeProfitExits": 18,
+        "stopLossExits": 12,
+        "resolutionExits": 33
+      },
+      "splitDay": "2026-05-09",
+      "score": 4.863469259033666
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.12,
+        "stopLoss": 0.18
+      },
+      "all": {
+        "triggers": 34,
+        "wins": 24,
+        "losses": 10,
+        "winRate": 0.7058823529411765,
+        "avgPnlPerShare": 0.1276517176470588,
+        "takeProfitExits": 21,
+        "stopLossExits": 10,
+        "resolutionExits": 3
+      },
+      "train": {
+        "triggers": 13,
+        "wins": 7,
+        "losses": 6,
+        "winRate": 0.5384615384615384,
+        "avgPnlPerShare": 0.007211892307692284,
+        "takeProfitExits": 7,
+        "stopLossExits": 6,
+        "resolutionExits": 0
+      },
+      "holdout": {
+        "triggers": 21,
+        "wins": 17,
+        "losses": 4,
+        "winRate": 0.8095238095238095,
+        "avgPnlPerShare": 0.20220970476190475,
+        "takeProfitExits": 14,
+        "stopLossExits": 4,
+        "resolutionExits": 3
+      },
+      "fresh": {
+        "triggers": 34,
+        "wins": 24,
+        "losses": 10,
+        "winRate": 0.7058823529411765,
+        "avgPnlPerShare": 0.1276517176470588,
+        "takeProfitExits": 21,
+        "stopLossExits": 10,
+        "resolutionExits": 3
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.812916909661427
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 63,
+        "wins": 57,
+        "losses": 6,
+        "winRate": 0.9047619047619048,
+        "avgPnlPerShare": 0.12376787301587297,
+        "takeProfitExits": 27,
+        "stopLossExits": 0,
+        "resolutionExits": 36
+      },
+      "train": {
+        "triggers": 31,
+        "wins": 28,
+        "losses": 3,
+        "winRate": 0.9032258064516129,
+        "avgPnlPerShare": 0.1382768387096774,
+        "takeProfitExits": 9,
+        "stopLossExits": 0,
+        "resolutionExits": 22
+      },
+      "holdout": {
+        "triggers": 32,
+        "wins": 29,
+        "losses": 3,
+        "winRate": 0.90625,
+        "avgPnlPerShare": 0.10971231249999996,
+        "takeProfitExits": 18,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 63,
+        "wins": 57,
+        "losses": 6,
+        "winRate": 0.9047619047619048,
+        "avgPnlPerShare": 0.12376787301587297,
+        "takeProfitExits": 27,
+        "stopLossExits": 0,
+        "resolutionExits": 36
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.809010794256578
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 28,
+        "wins": 27,
+        "losses": 1,
+        "winRate": 0.9642857142857143,
+        "avgPnlPerShare": 0.16494163571428572,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 27
+      },
+      "train": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.13559024285714286,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.1942930285714286,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 28,
+        "wins": 27,
+        "losses": 1,
+        "winRate": 0.9642857142857143,
+        "avgPnlPerShare": 0.16494163571428572,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 27
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.799301130300156
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 34,
+        "wins": 26,
+        "losses": 8,
+        "winRate": 0.7647058823529411,
+        "avgPnlPerShare": 0.13476511176470587,
+        "takeProfitExits": 22,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "train": {
+        "triggers": 13,
+        "wins": 9,
+        "losses": 4,
+        "winRate": 0.6923076923076923,
+        "avgPnlPerShare": 0.06600453846153843,
+        "takeProfitExits": 8,
+        "stopLossExits": 0,
+        "resolutionExits": 5
+      },
+      "holdout": {
+        "triggers": 21,
+        "wins": 17,
+        "losses": 4,
+        "winRate": 0.8095238095238095,
+        "avgPnlPerShare": 0.17733118095238093,
+        "takeProfitExits": 14,
+        "stopLossExits": 0,
+        "resolutionExits": 7
+      },
+      "fresh": {
+        "triggers": 34,
+        "wins": 26,
+        "losses": 8,
+        "winRate": 0.7647058823529411,
+        "avgPnlPerShare": 0.13476511176470587,
+        "takeProfitExits": 22,
+        "stopLossExits": 0,
+        "resolutionExits": 12
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.7953273307809425
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 37,
+        "wins": 24,
+        "losses": 13,
+        "winRate": 0.6486486486486487,
+        "avgPnlPerShare": 0.12308770810810812,
+        "takeProfitExits": 16,
+        "stopLossExits": 8,
+        "resolutionExits": 13
+      },
+      "train": {
+        "triggers": 20,
+        "wins": 11,
+        "losses": 9,
+        "winRate": 0.55,
+        "avgPnlPerShare": 0.042347639999999985,
+        "takeProfitExits": 8,
+        "stopLossExits": 5,
+        "resolutionExits": 7
+      },
+      "holdout": {
+        "triggers": 17,
+        "wins": 13,
+        "losses": 4,
+        "winRate": 0.7647058823529411,
+        "avgPnlPerShare": 0.21807602352941183,
+        "takeProfitExits": 8,
+        "stopLossExits": 3,
+        "resolutionExits": 6
+      },
+      "fresh": {
+        "triggers": 37,
+        "wins": 24,
+        "losses": 13,
+        "winRate": 0.6486486486486487,
+        "avgPnlPerShare": 0.12308770810810812,
+        "takeProfitExits": 16,
+        "stopLossExits": 8,
+        "resolutionExits": 13
+      },
+      "splitDay": "2026-05-09",
+      "score": 4.783591334740195
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 1,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 28,
+        "wins": 27,
+        "losses": 1,
+        "winRate": 0.9642857142857143,
+        "avgPnlPerShare": 0.15905167142857143,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 26
+      },
+      "train": {
+        "triggers": 13,
+        "wins": 12,
+        "losses": 1,
+        "winRate": 0.9230769230769231,
+        "avgPnlPerShare": 0.11900875384615381,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "holdout": {
+        "triggers": 15,
+        "wins": 15,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.19375553333333334,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "fresh": {
+        "triggers": 28,
+        "wins": 27,
+        "losses": 1,
+        "winRate": 0.9642857142857143,
+        "avgPnlPerShare": 0.15905167142857143,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 26
+      },
+      "splitDay": "2026-05-09",
+      "score": 4.7761028707615525
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.05,
+        "stopLoss": 0.1
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.08,
+        "stopLoss": 0.12
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": 0.15
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.12,
+        "stopLoss": 0.18
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": 0.2
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.2,
+        "stopLoss": 0.25
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 4,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "avgPnlPerShare": 0.16061245999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.19145767142857137,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "fresh": {
+        "triggers": 24,
+        "wins": 22,
+        "losses": 2,
+        "winRate": 0.9166666666666666,
+        "avgPnlPerShare": 0.17860549999999997,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 24
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.774061073193722
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.4,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": 0.15
+      },
+      "all": {
+        "triggers": 25,
+        "wins": 19,
+        "losses": 6,
+        "winRate": 0.76,
+        "avgPnlPerShare": 0.158591792,
+        "takeProfitExits": 17,
+        "stopLossExits": 6,
+        "resolutionExits": 2
+      },
+      "train": {
+        "triggers": 11,
+        "wins": 7,
+        "losses": 4,
+        "winRate": 0.6363636363636364,
+        "avgPnlPerShare": 0.08500501818181817,
+        "takeProfitExits": 7,
+        "stopLossExits": 4,
+        "resolutionExits": 0
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 12,
+        "losses": 2,
+        "winRate": 0.8571428571428571,
+        "avgPnlPerShare": 0.21640997142857143,
+        "takeProfitExits": 10,
+        "stopLossExits": 2,
+        "resolutionExits": 2
+      },
+      "fresh": {
+        "triggers": 25,
+        "wins": 19,
+        "losses": 6,
+        "winRate": 0.76,
+        "avgPnlPerShare": 0.158591792,
+        "takeProfitExits": 17,
+        "stopLossExits": 6,
+        "resolutionExits": 2
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.688072784501755
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 51,
+        "wins": 43,
+        "losses": 8,
+        "winRate": 0.8431372549019608,
+        "avgPnlPerShare": 0.11028256862745096,
+        "takeProfitExits": 4,
+        "stopLossExits": 7,
+        "resolutionExits": 40
+      },
+      "train": {
+        "triggers": 26,
+        "wins": 20,
+        "losses": 6,
+        "winRate": 0.7692307692307693,
+        "avgPnlPerShare": 0.059094838461538464,
+        "takeProfitExits": 0,
+        "stopLossExits": 6,
+        "resolutionExits": 20
+      },
+      "holdout": {
+        "triggers": 25,
+        "wins": 23,
+        "losses": 2,
+        "winRate": 0.92,
+        "avgPnlPerShare": 0.16351780800000001,
+        "takeProfitExits": 4,
+        "stopLossExits": 1,
+        "resolutionExits": 20
+      },
+      "fresh": {
+        "triggers": 51,
+        "wins": 43,
+        "losses": 8,
+        "winRate": 0.8431372549019608,
+        "avgPnlPerShare": 0.11028256862745096,
+        "takeProfitExits": 4,
+        "stopLossExits": 7,
+        "resolutionExits": 40
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.675492332306419
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 28,
+        "wins": 27,
+        "losses": 1,
+        "winRate": 0.9642857142857143,
+        "avgPnlPerShare": 0.1617059285714286,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 26
+      },
+      "train": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.13559024285714286,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "holdout": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.18782161428571428,
+        "takeProfitExits": 1,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "fresh": {
+        "triggers": 28,
+        "wins": 27,
+        "losses": 1,
+        "winRate": 0.9642857142857143,
+        "avgPnlPerShare": 0.1617059285714286,
+        "takeProfitExits": 2,
+        "stopLossExits": 0,
+        "resolutionExits": 26
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.675294426612492
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 63,
+        "wins": 51,
+        "losses": 12,
+        "winRate": 0.8095238095238095,
+        "avgPnlPerShare": 0.09965160634920633,
+        "takeProfitExits": 11,
+        "stopLossExits": 11,
+        "resolutionExits": 41
+      },
+      "train": {
+        "triggers": 31,
+        "wins": 23,
+        "losses": 8,
+        "winRate": 0.7419354838709677,
+        "avgPnlPerShare": 0.049350012903225805,
+        "takeProfitExits": 2,
+        "stopLossExits": 8,
+        "resolutionExits": 21
+      },
+      "holdout": {
+        "triggers": 32,
+        "wins": 28,
+        "losses": 4,
+        "winRate": 0.875,
+        "avgPnlPerShare": 0.148381275,
+        "takeProfitExits": 9,
+        "stopLossExits": 3,
+        "resolutionExits": 20
+      },
+      "fresh": {
+        "triggers": 63,
+        "wins": 51,
+        "losses": 12,
+        "winRate": 0.8095238095238095,
+        "avgPnlPerShare": 0.09965160634920633,
+        "takeProfitExits": 11,
+        "stopLossExits": 11,
+        "resolutionExits": 41
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.670994051419489
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": 0.15
+      },
+      "all": {
+        "triggers": 34,
+        "wins": 25,
+        "losses": 9,
+        "winRate": 0.7352941176470589,
+        "avgPnlPerShare": 0.13298085294117645,
+        "takeProfitExits": 23,
+        "stopLossExits": 9,
+        "resolutionExits": 2
+      },
+      "train": {
+        "triggers": 13,
+        "wins": 8,
+        "losses": 5,
+        "winRate": 0.6153846153846154,
+        "avgPnlPerShare": 0.0520763846153846,
+        "takeProfitExits": 8,
+        "stopLossExits": 5,
+        "resolutionExits": 0
+      },
+      "holdout": {
+        "triggers": 21,
+        "wins": 17,
+        "losses": 4,
+        "winRate": 0.8095238095238095,
+        "avgPnlPerShare": 0.1830645714285714,
+        "takeProfitExits": 15,
+        "stopLossExits": 4,
+        "resolutionExits": 2
+      },
+      "fresh": {
+        "triggers": 34,
+        "wins": 25,
+        "losses": 9,
+        "winRate": 0.7352941176470589,
+        "avgPnlPerShare": 0.13298085294117645,
+        "takeProfitExits": 23,
+        "stopLossExits": 9,
+        "resolutionExits": 2
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.662936636214727
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.25,
+        "stopLoss": 0.3
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 30,
+        "losses": 2,
+        "winRate": 0.9375,
+        "avgPnlPerShare": 0.133542075,
+        "takeProfitExits": 0,
+        "stopLossExits": 1,
+        "resolutionExits": 31
+      },
+      "train": {
+        "triggers": 14,
+        "wins": 12,
+        "losses": 2,
+        "winRate": 0.8571428571428571,
+        "avgPnlPerShare": 0.06276848571428571,
+        "takeProfitExits": 0,
+        "stopLossExits": 1,
+        "resolutionExits": 13
+      },
+      "holdout": {
+        "triggers": 18,
+        "wins": 18,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.18858819999999998,
+        "takeProfitExits": 0,
+        "stopLossExits": 0,
+        "resolutionExits": 18
+      },
+      "fresh": {
+        "triggers": 32,
+        "wins": 30,
+        "losses": 2,
+        "winRate": 0.9375,
+        "avgPnlPerShare": 0.133542075,
+        "takeProfitExits": 0,
+        "stopLossExits": 1,
+        "resolutionExits": 31
+      },
+      "splitDay": "2026-05-09",
+      "score": 4.646620074641108
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 6,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.15,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 31,
+        "losses": 1,
+        "winRate": 0.96875,
+        "avgPnlPerShare": 0.14217545625,
+        "takeProfitExits": 9,
+        "stopLossExits": 0,
+        "resolutionExits": 23
+      },
+      "train": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "avgPnlPerShare": 0.09967277142857142,
+        "takeProfitExits": 4,
+        "stopLossExits": 0,
+        "resolutionExits": 10
+      },
+      "holdout": {
+        "triggers": 18,
+        "wins": 18,
+        "losses": 0,
+        "winRate": 1,
+        "avgPnlPerShare": 0.1752331,
+        "takeProfitExits": 5,
+        "stopLossExits": 0,
+        "resolutionExits": 13
+      },
+      "fresh": {
+        "triggers": 32,
+        "wins": 31,
+        "losses": 1,
+        "winRate": 0.96875,
+        "avgPnlPerShare": 0.14217545625,
+        "takeProfitExits": 9,
+        "stopLossExits": 0,
+        "resolutionExits": 23
+      },
+      "splitDay": "2026-05-09",
+      "score": 4.643150740954119
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 22,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.6,
+      "policy": {
+        "takeProfit": 0.1,
+        "stopLoss": null
+      },
+      "all": {
+        "triggers": 26,
+        "wins": 21,
+        "losses": 5,
+        "winRate": 0.8076923076923077,
+        "avgPnlPerShare": 0.15098677692307694,
+        "takeProfitExits": 12,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "train": {
+        "triggers": 11,
+        "wins": 8,
+        "losses": 3,
+        "winRate": 0.7272727272727273,
+        "avgPnlPerShare": 0.08364798181818178,
+        "takeProfitExits": 5,
+        "stopLossExits": 0,
+        "resolutionExits": 6
+      },
+      "holdout": {
+        "triggers": 15,
+        "wins": 13,
+        "losses": 2,
+        "winRate": 0.8666666666666667,
+        "avgPnlPerShare": 0.20036856000000006,
+        "takeProfitExits": 7,
+        "stopLossExits": 0,
+        "resolutionExits": 8
+      },
+      "fresh": {
+        "triggers": 26,
+        "wins": 21,
+        "losses": 5,
+        "winRate": 0.8076923076923077,
+        "avgPnlPerShare": 0.15098677692307694,
+        "takeProfitExits": 12,
+        "stopLossExits": 0,
+        "resolutionExits": 14
+      },
+      "splitDay": "2026-05-08",
+      "score": 4.637725853426435
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "policy": {
+        "takeProfit": 0.2,
+        "stopLoss": 0.25
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 19,
+        "losses": 8,
+        "winRate": 0.7037037037037037,
+        "avgPnlPerShare": 0.14949728888888883,
+        "takeProfitExits": 17,
+        "stopLossExits": 7,
+        "resolutionExits": 3
+      },
+      "train": {
+        "triggers": 15,
+        "wins": 10,
+        "losses": 5,
+        "winRate": 0.6666666666666666,
+        "avgPnlPerShare": 0.08440922666666664,
+        "takeProfitExits": 9,
+        "stopLossExits": 4,
+        "resolutionExits": 2
+      },
+      "holdout": {
+        "triggers": 12,
+        "wins": 9,
+        "losses": 3,
+        "winRate": 0.75,
+        "avgPnlPerShare": 0.23085736666666667,
+        "takeProfitExits": 8,
+        "stopLossExits": 3,
+        "resolutionExits": 1
+      },
+      "fresh": {
+        "triggers": 27,
+        "wins": 19,
+        "losses": 8,
+        "winRate": 0.7037037037037037,
+        "avgPnlPerShare": 0.14949728888888883,
+        "takeProfitExits": 17,
+        "stopLossExits": 7,
+        "resolutionExits": 3
+      },
+      "splitDay": "2026-05-09",
+      "score": 4.589572229753566
+    }
+  ],
+  "selected": [
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 20,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.05,
+        "stopLoss": 0.1
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 29,
+        "losses": 4,
+        "winRate": 0.8787878787878788,
+        "avgPnlPerShare": 0.06513793939393936,
+        "takeProfitExits": 23,
+        "stopLossExits": 4,
+        "resolutionExits": 6
+      },
+      "train": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "avgPnlPerShare": 0.08710612941176465,
+        "takeProfitExits": 14,
+        "stopLossExits": 1,
+        "resolutionExits": 2
+      },
+      "holdout": {
+        "triggers": 16,
+        "wins": 13,
+        "losses": 3,
+        "winRate": 0.8125,
+        "avgPnlPerShare": 0.041796737499999986,
+        "takeProfitExits": 9,
+        "stopLossExits": 3,
+        "resolutionExits": 4
+      },
+      "fresh": {
+        "triggers": 33,
+        "wins": 29,
+        "losses": 4,
+        "winRate": 0.8787878787878788,
+        "avgPnlPerShare": 0.06513793939393936,
+        "takeProfitExits": 23,
+        "stopLossExits": 4,
+        "resolutionExits": 6
+      },
+      "splitDay": "2026-05-08",
+      "score": 1.544127770544646
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.05,
+        "stopLoss": 0.1
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 25,
+        "losses": 7,
+        "winRate": 0.78125,
+        "avgPnlPerShare": 0.042297849999999984,
+        "takeProfitExits": 18,
+        "stopLossExits": 7,
+        "resolutionExits": 7
+      },
+      "train": {
+        "triggers": 13,
+        "wins": 9,
+        "losses": 4,
+        "winRate": 0.6923076923076923,
+        "avgPnlPerShare": 0.003276369230769204,
+        "takeProfitExits": 7,
+        "stopLossExits": 4,
+        "resolutionExits": 2
+      },
+      "holdout": {
+        "triggers": 19,
+        "wins": 16,
+        "losses": 3,
+        "winRate": 0.8421052631578947,
+        "avgPnlPerShare": 0.06899675789473683,
+        "takeProfitExits": 11,
+        "stopLossExits": 3,
+        "resolutionExits": 5
+      },
+      "fresh": {
+        "triggers": 32,
+        "wins": 25,
+        "losses": 7,
+        "winRate": 0.78125,
+        "avgPnlPerShare": 0.042297849999999984,
+        "takeProfitExits": 18,
+        "stopLossExits": 7,
+        "resolutionExits": 7
+      },
+      "splitDay": "2026-05-09",
+      "score": 1.4800680028359738
+    },
+    {
+      "timeframe": "5m",
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 3,
+      "direction": "DOWN",
+      "priceMin": 0.7,
+      "priceMax": 0.85,
+      "policy": {
+        "takeProfit": 0.05,
+        "stopLoss": 0.1
+      },
+      "all": {
+        "triggers": 30,
+        "wins": 25,
+        "losses": 5,
+        "winRate": 0.8333333333333334,
+        "avgPnlPerShare": 0.034233266666666665,
+        "takeProfitExits": 16,
+        "stopLossExits": 5,
+        "resolutionExits": 9
+      },
+      "train": {
+        "triggers": 10,
+        "wins": 8,
+        "losses": 2,
+        "winRate": 0.8,
+        "avgPnlPerShare": 0.014426979999999978,
+        "takeProfitExits": 3,
+        "stopLossExits": 2,
+        "resolutionExits": 5
+      },
+      "holdout": {
+        "triggers": 20,
+        "wins": 17,
+        "losses": 3,
+        "winRate": 0.85,
+        "avgPnlPerShare": 0.04413641,
+        "takeProfitExits": 13,
+        "stopLossExits": 3,
+        "resolutionExits": 4
+      },
+      "fresh": {
+        "triggers": 30,
+        "wins": 25,
+        "losses": 5,
+        "winRate": 0.8333333333333334,
+        "avgPnlPerShare": 0.034233266666666665,
+        "takeProfitExits": 16,
+        "stopLossExits": 5,
+        "resolutionExits": 9
+      },
+      "splitDay": "2026-05-09",
+      "score": 1.0546620493694994
+    }
+  ],
+  "selectedSimulation": {
+    "startBankroll": 14.690226,
+    "endBankroll": 24.257629,
+    "profit": 9.567403,
+    "minBankroll": 14.690226,
+    "maxDrawdownPct": 0.430272,
+    "trades": 53,
+    "wins": 41,
+    "losses": 12,
+    "winRate": 0.773585,
+    "dayStats": [
+      {
+        "day": "2026-05-07",
+        "trades": 12,
+        "wins": 11,
+        "losses": 1,
+        "pnl": 6.6227,
+        "endBankroll": 21.3129,
+        "winRate": 0.9167
+      },
+      {
+        "day": "2026-05-08",
+        "trades": 25,
+        "wins": 18,
+        "losses": 7,
+        "pnl": 0.9839,
+        "endBankroll": 22.2968,
+        "winRate": 0.72
+      },
+      {
+        "day": "2026-05-09",
+        "trades": 16,
+        "wins": 12,
+        "losses": 4,
+        "pnl": 1.9608,
+        "endBankroll": 24.2576,
+        "winRate": 0.75
+      }
+    ]
+  },
+  "verdict": {
+    "status": "PROMOTION_CANDIDATE_REQUIRES_OPERATOR_APPROVAL",
+    "issues": []
+  }
+}
