@@ -36,6 +36,9 @@ const MIN_LCB = Number(process.env.MIN_WILSON_LCB || '0.58');
 const MIN_AVG_PNL = Number(process.env.MIN_AVG_PNL_PER_SHARE || '0.025');
 const MAX_DRAWDOWN = Number(process.env.MAX_DRAWDOWN || '0.55');
 const MIN_END_MULTIPLE = Number(process.env.MIN_END_MULTIPLE || '1.5');
+const SIGNAL_LAG_SECONDS = Number(process.env.STRUCTURAL_SIGNAL_LAG_SECONDS || '0');
+const ENTRY_SECOND_MIN = Number(process.env.STRUCTURAL_ENTRY_SECOND_MIN || '55');
+const ENTRY_SECOND_MAX = Number(process.env.STRUCTURAL_ENTRY_SECOND_MAX || '59');
 
 const TIMEFRAME_SECONDS = { '5m': 300, '15m': 900, '4h': 14400 };
 const CACHE_SOURCES = [
@@ -235,7 +238,8 @@ function makeObservations(cycles, binanceByAsset) {
         for (const point of cycle.prices) {
             const minute = Number(point?.minute);
             if (!Number.isInteger(minute) || minute <= 0 || minute >= Math.floor(tfSeconds / 60)) continue;
-            const currentRow = klineAt(index, cycle.epoch + (minute * 60));
+            const signalSecond = cycle.epoch + (minute * 60) - SIGNAL_LAG_SECONDS;
+            const currentRow = klineAt(index, signalSecond);
             if (!currentRow || !Number.isFinite(currentRow.close)) continue;
             const moveBps = ((currentRow.close - openRow.open) / openRow.open) * 10000;
             const direction = moveBps >= 0 ? 'UP' : 'DOWN';
@@ -255,6 +259,7 @@ function makeObservations(cycles, binanceByAsset) {
                 asset: cycle.asset,
                 epoch: cycle.epoch,
                 minute,
+                signalLagSeconds: SIGNAL_LAG_SECONDS,
                 utcHour: new Date(cycle.epoch * 1000).getUTCHours(),
                 direction,
                 resolution: cycle.outcome,
@@ -506,6 +511,8 @@ function toStrategy(candidate, index) {
         utcHour: -1,
         entryMinuteMin: candidate.minuteMin,
         entryMinuteMax: candidate.minuteMax,
+        entrySecondMin: ENTRY_SECOND_MIN,
+        entrySecondMax: ENTRY_SECOND_MAX,
         priceMin: MIN_ENTRY,
         priceMax: candidate.maxPrice,
         minMoveBps: candidate.minMoveBps,
@@ -517,7 +524,7 @@ function toStrategy(candidate, index) {
         winRateLCB: round(candidate.all.wilsonLCB95, 6),
         avgPnlPerShare: round(candidate.all.avgPnlPerShare, 6),
         source: 'structural_edge_search',
-        notes: 'Trades in the live Binance cycle-move direction only when Polymarket odds still satisfy the audited cheapness/edge gate.',
+        notes: 'Trades near minute-end in the live Binance cycle-move direction only when Polymarket odds still satisfy the audited cheapness/edge gate.',
         audit: {
             all: stripTrades(candidate).all,
             train: stripTrades(candidate).train,
@@ -545,7 +552,7 @@ function writeStrategyArtifacts(selected, stamp, reportFile) {
             conditions: {
                 requiresStructuralSignal: true,
                 signalSource: 'Binance 1m klines via lib/structural-signal.js',
-                productionNotes: 'Requires runtime structural-edge matcher support and timeframe enablement before use.',
+                productionNotes: 'Requires runtime structural-edge matcher support, minute-end entry-second gating, and timeframe enablement before use.',
             },
             strategies: candidates.map(toStrategy),
         };
@@ -586,6 +593,9 @@ async function main() {
             scanTimeframes: [...SCAN_TIMEFRAMES],
             adverseFillCents: ADVERSE_FILL_CENTS,
             slippagePct: SLIPPAGE_PCT,
+            signalLagSeconds: SIGNAL_LAG_SECONDS,
+            entrySecondMin: ENTRY_SECOND_MIN,
+            entrySecondMax: ENTRY_SECOND_MAX,
             minTriggers: MIN_TRIGGERS,
             minHoldoutTriggers: MIN_HOLDOUT_TRIGGERS,
             minWinRate: MIN_WIN_RATE,

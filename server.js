@@ -145,6 +145,10 @@ strategyAutopilot = new StrategyAutopilot({
 
 function buildStrategyPathDebug() {
     const envStrat15 = process.env.STRATEGY_SET_15M_PATH || null;
+    const envStrat5 = process.env.STRATEGY_SET_5M_PATH || null;
+    const env5mPath = envStrat5
+        ? (path.isAbsolute(envStrat5) ? envStrat5 : path.join(REPO_ROOT, envStrat5))
+        : null;
     const env15mPath = envStrat15
         ? (path.isAbsolute(envStrat15) ? envStrat15 : path.join(REPO_ROOT, envStrat15))
         : null;
@@ -165,6 +169,15 @@ function buildStrategyPathDebug() {
         path.join(REPO_ROOT, 'debug', 'strategy_set_union_validated_top12_max95.json'),
     ];
     const candidates15m = env15mPath ? [env15mPath] : fallbackCandidates15m;
+    const fallbackCandidates5m = [
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_5m_top8.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_5m_top5.json'),
+        path.join(REPO_ROOT, 'strategies', 'strategy_set_5m.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_5m_walkforward_top4.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_5m_exact_b20.json'),
+        path.join(REPO_ROOT, 'debug', 'strategy_set_5m_maxprofit.json'),
+    ];
+    const candidates5m = env5mPath ? [env5mPath] : fallbackCandidates5m;
 
     return {
         nodeDirname: __dirname,
@@ -172,10 +185,13 @@ function buildStrategyPathDebug() {
         strategiesDirExists: fs.existsSync(path.join(REPO_ROOT, 'strategies')),
         debugDirExists: fs.existsSync(path.join(REPO_ROOT, 'debug')),
         env: {
+            STRATEGY_SET_5M_PATH: envStrat5,
             STRATEGY_SET_15M_PATH: envStrat15,
             START_PAUSED: process.env.START_PAUSED,
+            TIMEFRAME_5M_ENABLED: process.env.TIMEFRAME_5M_ENABLED,
             TIMEFRAME_15M_ENABLED: process.env.TIMEFRAME_15M_ENABLED,
             TIMEFRAME_15M_MIN_BANKROLL: process.env.TIMEFRAME_15M_MIN_BANKROLL,
+            STRUCTURAL_SIGNAL_REQUIRE_CLOSED_CANDLE: process.env.STRUCTURAL_SIGNAL_REQUIRE_CLOSED_CANDLE,
             ALLOW_MICRO_MPC_OVERRIDE: process.env.ALLOW_MICRO_MPC_OVERRIDE,
             EPOCH3_ALLOW_MICRO_MPC_OVERRIDE: process.env.EPOCH3_ALLOW_MICRO_MPC_OVERRIDE,
             ALLOW_MICRO_TIMEFRAME_OVERRIDE: process.env.ALLOW_MICRO_TIMEFRAME_OVERRIDE,
@@ -185,6 +201,10 @@ function buildStrategyPathDebug() {
             MICRO_BANKROLL_MPC_CAP: process.env.MICRO_BANKROLL_MPC_CAP
         },
         candidates: {
+            '5m': candidates5m.map(fp => ({
+                filePath: fp,
+                exists: fs.existsSync(fp)
+            })),
             '15m': candidates15m.map(fp => ({
                 filePath: fp,
                 exists: fs.existsSync(fp)
