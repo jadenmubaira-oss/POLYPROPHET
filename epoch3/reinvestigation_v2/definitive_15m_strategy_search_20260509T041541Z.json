@@ -1,0 +1,3107 @@
+{
+  "generatedAt": "2026-05-09T04:15:41.608Z",
+  "verdict": {
+    "promoted": false,
+    "reason": "candidate generated for review; promote only if it materially beats current after governance review",
+    "meets500MostLikely7d": false
+  },
+  "source": {
+    "days": 7,
+    "assets": [
+      "BTC",
+      "ETH",
+      "SOL",
+      "XRP"
+    ],
+    "cycles": 2692,
+    "observations": 80632,
+    "cacheFile": "debug/definitive_15m_cycle_cache_7d.json"
+  },
+  "current": {
+    "file": "strategies/strategy_set_15m_definitive_search_20260508T184521Z.json",
+    "rules": 12,
+    "triggers": 378,
+    "wins": 333,
+    "losses": 45,
+    "winRate": 0.8809523809523809,
+    "wilsonLCB95": 0.8444117815167705,
+    "avgEntry": 0.5707671957671957,
+    "avgPnlPerShare": 0.26848125239894166
+  },
+  "topRules": [
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.45,
+      "priceMax": 0.6,
+      "train": {
+        "triggers": 37,
+        "wins": 32,
+        "losses": 5,
+        "winRate": 0.8648648648648649,
+        "wilsonLCB95": 0.7202227252929444,
+        "avgEntry": 0.5328378378378378,
+        "avgPnlPerShare": 0.28902795584162166
+      },
+      "all": {
+        "triggers": 56,
+        "wins": 48,
+        "losses": 8,
+        "winRate": 0.8571428571428571,
+        "wilsonLCB95": 0.7426383257914847,
+        "avgEntry": 0.5328571428571428,
+        "avgPnlPerShare": 0.28130254073642863
+      },
+      "recent3": {
+        "triggers": 19,
+        "wins": 16,
+        "losses": 3,
+        "winRate": 0.8421052631578947,
+        "wilsonLCB95": 0.6243407235682331,
+        "avgEntry": 0.5328947368421053,
+        "avgPnlPerShare": 0.2662583113210526
+      },
+      "recent1": {
+        "triggers": 5,
+        "wins": 5,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.565508505247919,
+        "avgEntry": 0.5499999999999999,
+        "avgPnlPerShare": 0.40695595526399997
+      },
+      "score": 4.282152131313395
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.45,
+      "priceMax": 0.55,
+      "train": {
+        "triggers": 23,
+        "wins": 22,
+        "losses": 1,
+        "winRate": 0.9565217391304348,
+        "wilsonLCB95": 0.7900841350594088,
+        "avgEntry": 0.5108695652173914,
+        "avgPnlPerShare": 0.40267270699130436
+      },
+      "all": {
+        "triggers": 34,
+        "wins": 31,
+        "losses": 3,
+        "winRate": 0.9117647058823529,
+        "wilsonLCB95": 0.7703918204763959,
+        "avgEntry": 0.5079411764705883,
+        "avgPnlPerShare": 0.36086454432823534
+      },
+      "recent3": {
+        "triggers": 11,
+        "wins": 9,
+        "losses": 2,
+        "winRate": 0.8181818181818182,
+        "wilsonLCB95": 0.5230138624217553,
+        "avgEntry": 0.5018181818181818,
+        "avgPnlPerShare": 0.27344747694181815
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 2,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.3423719528896193,
+        "avgEntry": 0.525,
+        "avgPnlPerShare": 0.43196118337999995
+      },
+      "score": 4.117608910242796
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 20,
+        "wins": 19,
+        "losses": 1,
+        "winRate": 0.95,
+        "wilsonLCB95": 0.7638641064874331,
+        "avgEntry": 0.6672500000000001,
+        "avgPnlPerShare": 0.24159496999099997
+      },
+      "all": {
+        "triggers": 41,
+        "wins": 40,
+        "losses": 1,
+        "winRate": 0.975609756097561,
+        "wilsonLCB95": 0.8740465298832191,
+        "avgEntry": 0.6675609756097564,
+        "avgPnlPerShare": 0.2668226258175609
+      },
+      "recent3": {
+        "triggers": 21,
+        "wins": 21,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8453561767357979,
+        "avgEntry": 0.6678571428571428,
+        "avgPnlPerShare": 0.2908489647
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.535,
+        "avgPnlPerShare": 0.42191223282
+      },
+      "score": 4.028674367104509
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 18,
+        "wins": 18,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8241154494176252,
+        "avgEntry": 0.7166666666666666,
+        "avgPnlPerShare": 0.24309190384666662
+      },
+      "all": {
+        "triggers": 39,
+        "wins": 39,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.910330146399761,
+        "avgEntry": 0.7062820512820515,
+        "avgPnlPerShare": 0.25321730488051275
+      },
+      "recent3": {
+        "triggers": 21,
+        "wins": 21,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8453561767357979,
+        "avgEntry": 0.6973809523809523,
+        "avgPnlPerShare": 0.261896220052381
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.815,
+        "avgPnlPerShare": 0.14732813842000003
+      },
+      "score": 3.901648017669848
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 16,
+        "wins": 16,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8063865817272801,
+        "avgEntry": 0.7015625000000001,
+        "avgPnlPerShare": 0.2577579288062499
+      },
+      "all": {
+        "triggers": 35,
+        "wins": 35,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.9010957324106112,
+        "avgEntry": 0.691714285714286,
+        "avgPnlPerShare": 0.2673722248742856
+      },
+      "recent3": {
+        "triggers": 19,
+        "wins": 19,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8318156346315495,
+        "avgEntry": 0.6834210526315788,
+        "avgPnlPerShare": 0.27546847419473686
+      },
+      "recent1": null,
+      "score": 3.841517758675921
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.2,
+      "priceMax": 0.4,
+      "train": {
+        "triggers": 13,
+        "wins": 11,
+        "losses": 2,
+        "winRate": 0.8461538461538461,
+        "wilsonLCB95": 0.5776482949136899,
+        "avgEntry": 0.2780769230769231,
+        "avgPnlPerShare": 0.5303703040476923
+      },
+      "all": {
+        "triggers": 21,
+        "wins": 17,
+        "losses": 4,
+        "winRate": 0.8095238095238095,
+        "wilsonLCB95": 0.599990134607267,
+        "avgEntry": 0.2957142857142857,
+        "avgPnlPerShare": 0.47545220250095227
+      },
+      "recent3": {
+        "triggers": 8,
+        "wins": 6,
+        "losses": 2,
+        "winRate": 0.75,
+        "wilsonLCB95": 0.40926987910258916,
+        "avgEntry": 0.32437499999999997,
+        "avgPnlPerShare": 0.3862102874874999
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 2,
+        "losses": 1,
+        "winRate": 0.6666666666666666,
+        "wilsonLCB95": 0.20765495512648788,
+        "avgEntry": 0.2816666666666667,
+        "avgPnlPerShare": 0.3471184624733333
+      },
+      "score": 3.7412522146601166
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.5,
+      "priceMax": 0.6,
+      "train": {
+        "triggers": 30,
+        "wins": 26,
+        "losses": 4,
+        "winRate": 0.8666666666666667,
+        "wilsonLCB95": 0.7031831605558306,
+        "avgEntry": 0.5445,
+        "avgPnlPerShare": 0.2791253683686667
+      },
+      "all": {
+        "triggers": 44,
+        "wins": 38,
+        "losses": 6,
+        "winRate": 0.8636363636363636,
+        "wilsonLCB95": 0.7329026247825904,
+        "avgEntry": 0.5472727272727274,
+        "avgPnlPerShare": 0.2733283012527272
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 12,
+        "losses": 2,
+        "winRate": 0.8571428571428571,
+        "wilsonLCB95": 0.600580922361363,
+        "avgEntry": 0.5532142857142858,
+        "avgPnlPerShare": 0.2609060145757142
+      },
+      "recent1": {
+        "triggers": 5,
+        "wins": 5,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.565508505247919,
+        "avgEntry": 0.5499999999999999,
+        "avgPnlPerShare": 0.40695595526399997
+      },
+      "score": 3.714983940585594
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 12,
+        "wins": 11,
+        "losses": 1,
+        "winRate": 0.9166666666666666,
+        "wilsonLCB95": 0.6461140782014047,
+        "avgEntry": 0.5929166666666666,
+        "avgPnlPerShare": 0.2811678258483333
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 26,
+        "losses": 1,
+        "winRate": 0.9629629629629629,
+        "wilsonLCB95": 0.8171614606584349,
+        "avgEntry": 0.6087037037037035,
+        "avgPnlPerShare": 0.3118425054688888
+      },
+      "recent3": {
+        "triggers": 15,
+        "wins": 15,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7961107336956521,
+        "avgEntry": 0.6213333333333334,
+        "avgPnlPerShare": 0.3363822491653334
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.535,
+        "avgPnlPerShare": 0.42191223282
+      },
+      "score": 3.576278338752372
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 17,
+        "wins": 14,
+        "losses": 3,
+        "winRate": 0.8235294117647058,
+        "wilsonLCB95": 0.5897007098262422,
+        "avgEntry": 0.5908823529411764,
+        "avgPnlPerShare": 0.1903569934105882
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 30,
+        "losses": 3,
+        "winRate": 0.9090909090909091,
+        "wilsonLCB95": 0.7642705646564896,
+        "avgEntry": 0.5825757575757575,
+        "avgPnlPerShare": 0.28414519444303027
+      },
+      "recent3": {
+        "triggers": 16,
+        "wins": 16,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8063865817272801,
+        "avgEntry": 0.57375,
+        "avgPnlPerShare": 0.38379515803999986
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 2,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.3423719528896193,
+        "avgEntry": 0.5,
+        "avgPnlPerShare": 0.45713497282
+      },
+      "score": 3.5534729463245505
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "wilsonLCB95": 0.730174547964372,
+        "avgEntry": 0.6179411764705882,
+        "avgPnlPerShare": 0.2806926664741176
+      },
+      "all": {
+        "triggers": 43,
+        "wins": 39,
+        "losses": 4,
+        "winRate": 0.9069767441860465,
+        "wilsonLCB95": 0.7839701160146731,
+        "avgEntry": 0.6413953488372094,
+        "avgPnlPerShare": 0.2235243890781395
+      },
+      "recent3": {
+        "triggers": 26,
+        "wins": 23,
+        "losses": 3,
+        "winRate": 0.8846153846153846,
+        "wilsonLCB95": 0.7102370691310167,
+        "avgEntry": 0.6567307692307692,
+        "avgPnlPerShare": 0.18614513078076914
+      },
+      "recent1": {
+        "triggers": 8,
+        "wins": 7,
+        "losses": 1,
+        "winRate": 0.875,
+        "wilsonLCB95": 0.5291051942301385,
+        "avgEntry": 0.7274999999999999,
+        "avgPnlPerShare": 0.10725613769999996
+      },
+      "score": 3.4123017595460556
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 11,
+        "wins": 10,
+        "losses": 1,
+        "winRate": 0.9090909090909091,
+        "wilsonLCB95": 0.6226353745137962,
+        "avgEntry": 0.5809090909090909,
+        "avgPnlPerShare": 0.28542568597090906
+      },
+      "all": {
+        "triggers": 23,
+        "wins": 22,
+        "losses": 1,
+        "winRate": 0.9565217391304348,
+        "wilsonLCB95": 0.7900841350594088,
+        "avgEntry": 0.5871739130434782,
+        "avgPnlPerShare": 0.326591284273913
+      },
+      "recent3": {
+        "triggers": 12,
+        "wins": 12,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7574992425007574,
+        "avgEntry": 0.5929166666666666,
+        "avgPnlPerShare": 0.36432641605166677
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.535,
+        "avgPnlPerShare": 0.42191223282
+      },
+      "score": 3.3855015783412075
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "wilsonLCB95": 0.730174547964372,
+        "avgEntry": 0.6179411764705882,
+        "avgPnlPerShare": 0.2806926664741176
+      },
+      "all": {
+        "triggers": 42,
+        "wins": 38,
+        "losses": 4,
+        "winRate": 0.9047619047619048,
+        "wilsonLCB95": 0.7793460477494668,
+        "avgEntry": 0.6375000000000001,
+        "avgPnlPerShare": 0.2251098172519048
+      },
+      "recent3": {
+        "triggers": 25,
+        "wins": 22,
+        "losses": 3,
+        "winRate": 0.88,
+        "wilsonLCB95": 0.7004380781662651,
+        "avgEntry": 0.6507999999999999,
+        "avgPnlPerShare": 0.18731347978079993
+      },
+      "recent1": {
+        "triggers": 7,
+        "wins": 6,
+        "losses": 1,
+        "winRate": 0.8571428571428571,
+        "wilsonLCB95": 0.4868654966809702,
+        "avgEntry": 0.7164285714285714,
+        "avgPnlPerShare": 0.10015895654571426
+      },
+      "score": 3.378571173562053
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.45,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 46,
+        "wins": 37,
+        "losses": 9,
+        "winRate": 0.8043478260869565,
+        "wilsonLCB95": 0.668284622588308,
+        "avgEntry": 0.5564130434782608,
+        "avgPnlPerShare": 0.20509917472391306
+      },
+      "all": {
+        "triggers": 73,
+        "wins": 58,
+        "losses": 15,
+        "winRate": 0.7945205479452054,
+        "wilsonLCB95": 0.6882613165474036,
+        "avgEntry": 0.5604109589041096,
+        "avgPnlPerShare": 0.191309266330411
+      },
+      "recent3": {
+        "triggers": 27,
+        "wins": 21,
+        "losses": 6,
+        "winRate": 0.7777777777777778,
+        "wilsonLCB95": 0.5924270453692919,
+        "avgEntry": 0.5672222222222222,
+        "avgPnlPerShare": 0.16781534832666664
+      },
+      "recent1": {
+        "triggers": 8,
+        "wins": 8,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6755843804891231,
+        "avgEntry": 0.5856250000000001,
+        "avgPnlPerShare": 0.3715992259875
+      },
+      "score": 3.370654167534458
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.45,
+      "priceMax": 0.65,
+      "train": {
+        "triggers": 40,
+        "wins": 33,
+        "losses": 7,
+        "winRate": 0.825,
+        "wilsonLCB95": 0.6804970794560756,
+        "avgEntry": 0.5396249999999998,
+        "avgPnlPerShare": 0.24240547409650004
+      },
+      "all": {
+        "triggers": 64,
+        "wins": 51,
+        "losses": 13,
+        "winRate": 0.796875,
+        "wilsonLCB95": 0.6828613244878341,
+        "avgEntry": 0.5449999999999999,
+        "avgPnlPerShare": 0.20894909867625006
+      },
+      "recent3": {
+        "triggers": 24,
+        "wins": 18,
+        "losses": 6,
+        "winRate": 0.75,
+        "wilsonLCB95": 0.5510017468789357,
+        "avgEntry": 0.5539583333333332,
+        "avgPnlPerShare": 0.15318847297583332
+      },
+      "recent1": {
+        "triggers": 7,
+        "wins": 7,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6456611570247934,
+        "avgEntry": 0.5757142857142857,
+        "avgPnlPerShare": 0.3814243798457143
+      },
+      "score": 3.3658323655849633
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 23,
+        "wins": 23,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8568788745827373,
+        "avgEntry": 0.6723913043478261,
+        "avgPnlPerShare": 0.2858498265434782
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 32,
+        "losses": 1,
+        "winRate": 0.9696969696969697,
+        "wilsonLCB95": 0.8468093832683193,
+        "avgEntry": 0.6674242424242425,
+        "avgPnlPerShare": 0.2604381282212121
+      },
+      "recent3": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "wilsonLCB95": 0.5958436145024277,
+        "avgEntry": 0.6559999999999999,
+        "avgPnlPerShare": 0.20199122207999998
+      },
+      "recent1": {
+        "triggers": 9,
+        "wins": 8,
+        "losses": 1,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.5649937852319398,
+        "avgEntry": 0.6583333333333333,
+        "avgPnlPerShare": 0.1885986428422222
+      },
+      "score": 3.3481975963363273
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 23,
+        "wins": 23,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8568788745827373,
+        "avgEntry": 0.6723913043478261,
+        "avgPnlPerShare": 0.2858498265434782
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 32,
+        "losses": 1,
+        "winRate": 0.9696969696969697,
+        "wilsonLCB95": 0.8468093832683193,
+        "avgEntry": 0.6674242424242425,
+        "avgPnlPerShare": 0.2604381282212121
+      },
+      "recent3": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "wilsonLCB95": 0.5958436145024277,
+        "avgEntry": 0.6559999999999999,
+        "avgPnlPerShare": 0.20199122207999998
+      },
+      "recent1": {
+        "triggers": 9,
+        "wins": 8,
+        "losses": 1,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.5649937852319398,
+        "avgEntry": 0.6583333333333333,
+        "avgPnlPerShare": 0.1885986428422222
+      },
+      "score": 3.3481975963363273
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.9,
+      "train": {
+        "triggers": 23,
+        "wins": 23,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8568788745827373,
+        "avgEntry": 0.6723913043478261,
+        "avgPnlPerShare": 0.2858498265434782
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 32,
+        "losses": 1,
+        "winRate": 0.9696969696969697,
+        "wilsonLCB95": 0.8468093832683193,
+        "avgEntry": 0.6674242424242425,
+        "avgPnlPerShare": 0.2604381282212121
+      },
+      "recent3": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "wilsonLCB95": 0.5958436145024277,
+        "avgEntry": 0.6559999999999999,
+        "avgPnlPerShare": 0.20199122207999998
+      },
+      "recent1": {
+        "triggers": 9,
+        "wins": 8,
+        "losses": 1,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.5649937852319398,
+        "avgEntry": 0.6583333333333333,
+        "avgPnlPerShare": 0.1885986428422222
+      },
+      "score": 3.3481975963363273
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "wilsonLCB95": 0.730174547964372,
+        "avgEntry": 0.6179411764705882,
+        "avgPnlPerShare": 0.2806926664741176
+      },
+      "all": {
+        "triggers": 40,
+        "wins": 36,
+        "losses": 4,
+        "winRate": 0.9,
+        "wilsonLCB95": 0.7694792561952611,
+        "avgEntry": 0.630125,
+        "avgPnlPerShare": 0.22755545767350008
+      },
+      "recent3": {
+        "triggers": 23,
+        "wins": 20,
+        "losses": 3,
+        "winRate": 0.8695652173913043,
+        "wilsonLCB95": 0.678721020269818,
+        "avgEntry": 0.6391304347826086,
+        "avgPnlPerShare": 0.18828012942956512
+      },
+      "recent1": {
+        "triggers": 5,
+        "wins": 4,
+        "losses": 1,
+        "winRate": 0.8,
+        "wilsonLCB95": 0.37552826411853885,
+        "avgEntry": 0.689,
+        "avgPnlPerShare": 0.069743735636
+      },
+      "score": 3.298456886695364
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 23,
+        "wins": 23,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8568788745827373,
+        "avgEntry": 0.6723913043478261,
+        "avgPnlPerShare": 0.2858498265434782
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 31,
+        "losses": 1,
+        "winRate": 0.96875,
+        "wilsonLCB95": 0.8425539219962727,
+        "avgEntry": 0.6637500000000001,
+        "avgPnlPerShare": 0.2630706632025
+      },
+      "recent3": {
+        "triggers": 9,
+        "wins": 8,
+        "losses": 1,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.5649937852319398,
+        "avgEntry": 0.6416666666666666,
+        "avgPnlPerShare": 0.20485724577555553
+      },
+      "recent1": {
+        "triggers": 8,
+        "wins": 7,
+        "losses": 1,
+        "winRate": 0.875,
+        "wilsonLCB95": 0.5291051942301385,
+        "avgEntry": 0.6425,
+        "avgPnlPerShare": 0.19014884709500002
+      },
+      "score": 3.2819240279717623
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 31,
+        "wins": 31,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.889740999265246,
+        "avgEntry": 0.6470967741935486,
+        "avgPnlPerShare": 0.31082316773161284
+      },
+      "all": {
+        "triggers": 49,
+        "wins": 44,
+        "losses": 5,
+        "winRate": 0.8979591836734694,
+        "wilsonLCB95": 0.782433758350299,
+        "avgEntry": 0.6375510204081635,
+        "avgPnlPerShare": 0.21819355202530608
+      },
+      "recent3": {
+        "triggers": 18,
+        "wins": 13,
+        "losses": 5,
+        "winRate": 0.7222222222222222,
+        "wilsonLCB95": 0.49126922453805477,
+        "avgEntry": 0.6211111111111111,
+        "avgPnlPerShare": 0.058664769419999985
+      },
+      "recent1": {
+        "triggers": 11,
+        "wins": 9,
+        "losses": 2,
+        "winRate": 0.8181818181818182,
+        "wilsonLCB95": 0.5230138624217553,
+        "avgEntry": 0.6445454545454546,
+        "avgPnlPerShare": 0.13149416258181815
+      },
+      "score": 3.2697663922776607
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 31,
+        "wins": 31,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.889740999265246,
+        "avgEntry": 0.6470967741935486,
+        "avgPnlPerShare": 0.31082316773161284
+      },
+      "all": {
+        "triggers": 49,
+        "wins": 44,
+        "losses": 5,
+        "winRate": 0.8979591836734694,
+        "wilsonLCB95": 0.782433758350299,
+        "avgEntry": 0.6375510204081635,
+        "avgPnlPerShare": 0.21819355202530608
+      },
+      "recent3": {
+        "triggers": 18,
+        "wins": 13,
+        "losses": 5,
+        "winRate": 0.7222222222222222,
+        "wilsonLCB95": 0.49126922453805477,
+        "avgEntry": 0.6211111111111111,
+        "avgPnlPerShare": 0.058664769419999985
+      },
+      "recent1": {
+        "triggers": 11,
+        "wins": 9,
+        "losses": 2,
+        "winRate": 0.8181818181818182,
+        "wilsonLCB95": 0.5230138624217553,
+        "avgEntry": 0.6445454545454546,
+        "avgPnlPerShare": 0.13149416258181815
+      },
+      "score": 3.2697663922776607
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 15,
+        "wins": 12,
+        "losses": 3,
+        "winRate": 0.8,
+        "wilsonLCB95": 0.5481406466534955,
+        "avgEntry": 0.5690000000000001,
+        "avgPnlPerShare": 0.18839115697999995
+      },
+      "all": {
+        "triggers": 31,
+        "wins": 28,
+        "losses": 3,
+        "winRate": 0.9032258064516129,
+        "wilsonLCB95": 0.7509971000182296,
+        "avgEntry": 0.5904838709677418,
+        "avgPnlPerShare": 0.27029509387677414
+      },
+      "recent3": {
+        "triggers": 16,
+        "wins": 16,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8063865817272801,
+        "avgEntry": 0.610625,
+        "avgPnlPerShare": 0.34708003471750004
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.535,
+        "avgPnlPerShare": 0.42191223282
+      },
+      "score": 3.2547151286090164
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.45,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 47,
+        "wins": 38,
+        "losses": 9,
+        "winRate": 0.8085106382978723,
+        "wilsonLCB95": 0.674557199356223,
+        "avgEntry": 0.5599999999999999,
+        "avgPnlPerShare": 0.2057211362085106
+      },
+      "all": {
+        "triggers": 76,
+        "wins": 60,
+        "losses": 16,
+        "winRate": 0.7894736842105263,
+        "wilsonLCB95": 0.6850414943195868,
+        "avgEntry": 0.5667105263157896,
+        "avgPnlPerShare": 0.18004193095578944
+      },
+      "recent3": {
+        "triggers": 29,
+        "wins": 22,
+        "losses": 7,
+        "winRate": 0.7586206896551724,
+        "wilsonLCB95": 0.5789204778167131,
+        "avgEntry": 0.5775862068965517,
+        "avgPnlPerShare": 0.13842390864965518
+      },
+      "recent1": {
+        "triggers": 8,
+        "wins": 8,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6755843804891231,
+        "avgEntry": 0.5856250000000001,
+        "avgPnlPerShare": 0.3715992259875
+      },
+      "score": 3.2367000779843593
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 31,
+        "wins": 31,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.889740999265246,
+        "avgEntry": 0.6470967741935486,
+        "avgPnlPerShare": 0.31082316773161284
+      },
+      "all": {
+        "triggers": 48,
+        "wins": 43,
+        "losses": 5,
+        "winRate": 0.8958333333333334,
+        "wilsonLCB95": 0.7783231187385907,
+        "avgEntry": 0.6344791666666668,
+        "avgPnlPerShare": 0.21906848000874998
+      },
+      "recent3": {
+        "triggers": 17,
+        "wins": 12,
+        "losses": 5,
+        "winRate": 0.7058823529411765,
+        "wilsonLCB95": 0.468664666737861,
+        "avgEntry": 0.6114705882352941,
+        "avgPnlPerShare": 0.05175110827882351
+      },
+      "recent1": {
+        "triggers": 10,
+        "wins": 8,
+        "losses": 2,
+        "winRate": 0.8,
+        "wilsonLCB95": 0.49015684672072346,
+        "avgEntry": 0.6305000000000001,
+        "avgPnlPerShare": 0.12702387795800002
+      },
+      "score": 3.2001319645681177
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 13,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "train": {
+        "triggers": 14,
+        "wins": 11,
+        "losses": 3,
+        "winRate": 0.7857142857142857,
+        "wilsonLCB95": 0.5241027622679172,
+        "avgEntry": 0.4064285714285715,
+        "avgPnlPerShare": 0.3376179180942857
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 21,
+        "losses": 6,
+        "winRate": 0.7777777777777778,
+        "wilsonLCB95": 0.5924270453692919,
+        "avgEntry": 0.39555555555555555,
+        "avgPnlPerShare": 0.34079083086666667
+      },
+      "recent3": {
+        "triggers": 13,
+        "wins": 10,
+        "losses": 3,
+        "winRate": 0.7692307692307693,
+        "wilsonLCB95": 0.49743126004873084,
+        "avgEntry": 0.3838461538461537,
+        "avgPnlPerShare": 0.34420781385230764
+      },
+      "recent1": {
+        "triggers": 6,
+        "wins": 5,
+        "losses": 1,
+        "winRate": 0.8333333333333334,
+        "wilsonLCB95": 0.4364905634363539,
+        "avgEntry": 0.385,
+        "avgPnlPerShare": 0.40710601495333326
+      },
+      "score": 3.1959708424515316
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 22,
+        "wins": 21,
+        "losses": 1,
+        "winRate": 0.9545454545454546,
+        "wilsonLCB95": 0.7820151050048196,
+        "avgEntry": 0.6743181818181818,
+        "avgPnlPerShare": 0.2385490277281818
+      },
+      "all": {
+        "triggers": 30,
+        "wins": 29,
+        "losses": 1,
+        "winRate": 0.9666666666666667,
+        "wilsonLCB95": 0.8332924860304112,
+        "avgEntry": 0.6773333333333332,
+        "avgPnlPerShare": 0.24770904107999994
+      },
+      "recent3": {
+        "triggers": 8,
+        "wins": 8,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6755843804891231,
+        "avgEntry": 0.6856250000000002,
+        "avgPnlPerShare": 0.2728990777975
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 2,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.3423719528896193,
+        "avgEntry": 0.7375,
+        "avgPnlPerShare": 0.22217689017000003
+      },
+      "score": 3.1708508183755684
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 13,
+        "wins": 10,
+        "losses": 3,
+        "winRate": 0.7692307692307693,
+        "wilsonLCB95": 0.49743126004873084,
+        "avgEntry": 0.5503846153846154,
+        "avgPnlPerShare": 0.17607602063230768
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 24,
+        "losses": 3,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.7194181745602704,
+        "avgEntry": 0.5516666666666666,
+        "avgPnlPerShare": 0.29449178580222213
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7846829880728186,
+        "avgEntry": 0.5528571428571428,
+        "avgPnlPerShare": 0.40444928203142844
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 2,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.3423719528896193,
+        "avgEntry": 0.5,
+        "avgPnlPerShare": 0.45713497282
+      },
+      "score": 3.167250238705426
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 22,
+        "wins": 22,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8513404742740388,
+        "avgEntry": 0.7465909090909091,
+        "avgPnlPerShare": 0.21356379031727268
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 33,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8957265699643882,
+        "avgEntry": 0.7512121212121214,
+        "avgPnlPerShare": 0.20905452684121206
+      },
+      "recent3": {
+        "triggers": 11,
+        "wins": 11,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7411599827511859,
+        "avgEntry": 0.7604545454545453,
+        "avgPnlPerShare": 0.20003599988909085
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 3,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.4384939195509822,
+        "avgEntry": 0.7383333333333333,
+        "avgPnlPerShare": 0.2214371011933333
+      },
+      "score": 3.1186060575124905
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.9,
+      "train": {
+        "triggers": 22,
+        "wins": 22,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8513404742740388,
+        "avgEntry": 0.7465909090909091,
+        "avgPnlPerShare": 0.21356379031727268
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 33,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8957265699643882,
+        "avgEntry": 0.7512121212121214,
+        "avgPnlPerShare": 0.20905452684121206
+      },
+      "recent3": {
+        "triggers": 11,
+        "wins": 11,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7411599827511859,
+        "avgEntry": 0.7604545454545453,
+        "avgPnlPerShare": 0.20003599988909085
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 3,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.4384939195509822,
+        "avgEntry": 0.7383333333333333,
+        "avgPnlPerShare": 0.2214371011933333
+      },
+      "score": 3.1186060575124905
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.9,
+      "train": {
+        "triggers": 22,
+        "wins": 22,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8513404742740388,
+        "avgEntry": 0.7465909090909091,
+        "avgPnlPerShare": 0.21356379031727268
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 33,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8957265699643882,
+        "avgEntry": 0.7512121212121214,
+        "avgPnlPerShare": 0.20905452684121206
+      },
+      "recent3": {
+        "triggers": 11,
+        "wins": 11,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7411599827511859,
+        "avgEntry": 0.7604545454545453,
+        "avgPnlPerShare": 0.20003599988909085
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 3,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.4384939195509822,
+        "avgEntry": 0.7383333333333333,
+        "avgPnlPerShare": 0.2214371011933333
+      },
+      "score": 3.1186060575124905
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 16,
+        "wins": 14,
+        "losses": 2,
+        "winRate": 0.875,
+        "wilsonLCB95": 0.6397666856325172,
+        "avgEntry": 0.6559375,
+        "avgPnlPerShare": 0.17752842807624997
+      },
+      "all": {
+        "triggers": 29,
+        "wins": 27,
+        "losses": 2,
+        "winRate": 0.9310344827586207,
+        "wilsonLCB95": 0.7803505240414808,
+        "avgEntry": 0.6396551724137931,
+        "avgPnlPerShare": 0.24956990563448264
+      },
+      "recent3": {
+        "triggers": 13,
+        "wins": 13,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7718981569447084,
+        "avgEntry": 0.6196153846153846,
+        "avgPnlPerShare": 0.3382363395523077
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.535,
+        "avgPnlPerShare": 0.42191223282
+      },
+      "score": 3.102651312590474
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 27,
+        "wins": 25,
+        "losses": 2,
+        "winRate": 0.9259259259259259,
+        "wilsonLCB95": 0.7663002270926939,
+        "avgEntry": 0.7229629629629629,
+        "avgPnlPerShare": 0.1625966595333333
+      },
+      "all": {
+        "triggers": 41,
+        "wins": 39,
+        "losses": 2,
+        "winRate": 0.9512195121951219,
+        "wilsonLCB95": 0.8386073303764864,
+        "avgEntry": 0.7252439024390246,
+        "avgPnlPerShare": 0.18567077709609756
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7846829880728186,
+        "avgEntry": 0.7296428571428571,
+        "avgPnlPerShare": 0.23017086096714284
+      },
+      "recent1": {
+        "triggers": 6,
+        "wins": 6,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6096569663469354,
+        "avgEntry": 0.6775000000000001,
+        "avgPnlPerShare": 0.28105122638999996
+      },
+      "score": 3.0979063373097158
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.9,
+      "train": {
+        "triggers": 27,
+        "wins": 25,
+        "losses": 2,
+        "winRate": 0.9259259259259259,
+        "wilsonLCB95": 0.7663002270926939,
+        "avgEntry": 0.7229629629629629,
+        "avgPnlPerShare": 0.1625966595333333
+      },
+      "all": {
+        "triggers": 41,
+        "wins": 39,
+        "losses": 2,
+        "winRate": 0.9512195121951219,
+        "wilsonLCB95": 0.8386073303764864,
+        "avgEntry": 0.7252439024390246,
+        "avgPnlPerShare": 0.18567077709609756
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7846829880728186,
+        "avgEntry": 0.7296428571428571,
+        "avgPnlPerShare": 0.23017086096714284
+      },
+      "recent1": {
+        "triggers": 6,
+        "wins": 6,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6096569663469354,
+        "avgEntry": 0.6775000000000001,
+        "avgPnlPerShare": 0.28105122638999996
+      },
+      "score": 3.0979063373097158
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.9,
+      "train": {
+        "triggers": 27,
+        "wins": 26,
+        "losses": 1,
+        "winRate": 0.9629629629629629,
+        "wilsonLCB95": 0.8171614606584349,
+        "avgEntry": 0.6964814814814815,
+        "avgPnlPerShare": 0.2254022717933333
+      },
+      "all": {
+        "triggers": 41,
+        "wins": 39,
+        "losses": 2,
+        "winRate": 0.9512195121951219,
+        "wilsonLCB95": 0.8386073303764864,
+        "avgEntry": 0.7112195121951218,
+        "avgPnlPerShare": 0.199340824342439
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "wilsonLCB95": 0.6853073044604219,
+        "avgEntry": 0.7396428571428572,
+        "avgPnlPerShare": 0.14907946140142858
+      },
+      "recent1": {
+        "triggers": 8,
+        "wins": 7,
+        "losses": 1,
+        "winRate": 0.875,
+        "wilsonLCB95": 0.5291051942301385,
+        "avgEntry": 0.7931250000000001,
+        "avgPnlPerShare": 0.0435342021975
+      },
+      "score": 3.094205940091016
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 27,
+        "wins": 26,
+        "losses": 1,
+        "winRate": 0.9629629629629629,
+        "wilsonLCB95": 0.8171614606584349,
+        "avgEntry": 0.6964814814814815,
+        "avgPnlPerShare": 0.2254022717933333
+      },
+      "all": {
+        "triggers": 40,
+        "wins": 38,
+        "losses": 2,
+        "winRate": 0.95,
+        "wilsonLCB95": 0.834958291820748,
+        "avgEntry": 0.7076249999999998,
+        "avgPnlPerShare": 0.2015982958665
+      },
+      "recent3": {
+        "triggers": 13,
+        "wins": 12,
+        "losses": 1,
+        "winRate": 0.9230769230769231,
+        "wilsonLCB95": 0.6668546607175265,
+        "avgEntry": 0.7307692307692307,
+        "avgPnlPerShare": 0.15215926894153847
+      },
+      "recent1": {
+        "triggers": 7,
+        "wins": 6,
+        "losses": 1,
+        "winRate": 0.8571428571428571,
+        "wilsonLCB95": 0.4868654966809702,
+        "avgEntry": 0.7842857142857144,
+        "avgPnlPerShare": 0.034175950600000005
+      },
+      "score": 3.0575719137383737
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 14,
+        "wins": 11,
+        "losses": 3,
+        "winRate": 0.7857142857142857,
+        "wilsonLCB95": 0.5241027622679172,
+        "avgEntry": 0.5578571428571428,
+        "avgPnlPerShare": 0.18510971358571424
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 24,
+        "losses": 3,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.7194181745602704,
+        "avgEntry": 0.5694444444444443,
+        "avgPnlPerShare": 0.27670369632666664
+      },
+      "recent3": {
+        "triggers": 13,
+        "wins": 13,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7718981569447084,
+        "avgEntry": 0.5819230769230769,
+        "avgPnlPerShare": 0.37534337004769236
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.535,
+        "avgPnlPerShare": 0.42191223282
+      },
+      "score": 3.055804633096824
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.65,
+      "train": {
+        "triggers": 13,
+        "wins": 10,
+        "losses": 3,
+        "winRate": 0.7692307692307693,
+        "wilsonLCB95": 0.49743126004873084,
+        "avgEntry": 0.5503846153846154,
+        "avgPnlPerShare": 0.17607602063230768
+      },
+      "all": {
+        "triggers": 25,
+        "wins": 22,
+        "losses": 3,
+        "winRate": 0.88,
+        "wilsonLCB95": 0.7004380781662651,
+        "avgEntry": 0.5418,
+        "avgPnlPerShare": 0.29539667902639993
+      },
+      "recent3": {
+        "triggers": 12,
+        "wins": 12,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7574992425007574,
+        "avgEntry": 0.5325000000000001,
+        "avgPnlPerShare": 0.4246607256199999
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 2,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.3423719528896193,
+        "avgEntry": 0.5,
+        "avgPnlPerShare": 0.45713497282
+      },
+      "score": 3.055533455774006
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.4,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 18,
+        "wins": 13,
+        "losses": 5,
+        "winRate": 0.7222222222222222,
+        "wilsonLCB95": 0.49126922453805477,
+        "avgEntry": 0.5144444444444445,
+        "avgPnlPerShare": 0.16522702997333333
+      },
+      "all": {
+        "triggers": 34,
+        "wins": 28,
+        "losses": 6,
+        "winRate": 0.8235294117647058,
+        "wilsonLCB95": 0.6648593225994784,
+        "avgEntry": 0.5251470588235294,
+        "avgPnlPerShare": 0.2557988911688235
+      },
+      "recent3": {
+        "triggers": 16,
+        "wins": 15,
+        "losses": 1,
+        "winRate": 0.9375,
+        "wilsonLCB95": 0.7167073163197013,
+        "avgEntry": 0.5371875,
+        "avgPnlPerShare": 0.3576922350137499
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 2,
+        "losses": 1,
+        "winRate": 0.6666666666666666,
+        "wilsonLCB95": 0.20765495512648788,
+        "avgEntry": 0.47500000000000003,
+        "avgPnlPerShare": 0.14906846204666666
+      },
+      "score": 3.04749148077902
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 10,
+        "wins": 10,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7224598312333834,
+        "avgEntry": 0.646,
+        "avgPnlPerShare": 0.311768418
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 26,
+        "losses": 1,
+        "winRate": 0.9629629629629629,
+        "wilsonLCB95": 0.8171614606584349,
+        "avgEntry": 0.678888888888889,
+        "avgPnlPerShare": 0.24256895891851843
+      },
+      "recent3": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "wilsonLCB95": 0.730174547964372,
+        "avgEntry": 0.6982352941176471,
+        "avgPnlPerShare": 0.20186339475294116
+      },
+      "recent1": {
+        "triggers": 7,
+        "wins": 7,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6456611570247934,
+        "avgEntry": 0.7492857142857143,
+        "avgPnlPerShare": 0.21086689444285708
+      },
+      "score": 3.0381045626452288
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.9,
+      "train": {
+        "triggers": 10,
+        "wins": 10,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7224598312333834,
+        "avgEntry": 0.646,
+        "avgPnlPerShare": 0.311768418
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 26,
+        "losses": 1,
+        "winRate": 0.9629629629629629,
+        "wilsonLCB95": 0.8171614606584349,
+        "avgEntry": 0.678888888888889,
+        "avgPnlPerShare": 0.24256895891851843
+      },
+      "recent3": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "wilsonLCB95": 0.730174547964372,
+        "avgEntry": 0.6982352941176471,
+        "avgPnlPerShare": 0.20186339475294116
+      },
+      "recent1": {
+        "triggers": 7,
+        "wins": 7,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6456611570247934,
+        "avgEntry": 0.7492857142857143,
+        "avgPnlPerShare": 0.21086689444285708
+      },
+      "score": 3.0381045626452288
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 17,
+        "wins": 17,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8156763396284354,
+        "avgEntry": 0.6535294117647058,
+        "avgPnlPerShare": 0.30431206091764695
+      },
+      "all": {
+        "triggers": 26,
+        "wins": 25,
+        "losses": 1,
+        "winRate": 0.9615384615384616,
+        "wilsonLCB95": 0.8110682300804161,
+        "avgEntry": 0.6494230769230769,
+        "avgPnlPerShare": 0.26988539413769225
+      },
+      "recent3": {
+        "triggers": 9,
+        "wins": 8,
+        "losses": 1,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.5649937852319398,
+        "avgEntry": 0.6416666666666666,
+        "avgPnlPerShare": 0.20485724577555553
+      },
+      "recent1": {
+        "triggers": 8,
+        "wins": 7,
+        "losses": 1,
+        "winRate": 0.875,
+        "wilsonLCB95": 0.5291051942301385,
+        "avgEntry": 0.6425,
+        "avgPnlPerShare": 0.19014884709500002
+      },
+      "score": 3.0350585853657552
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 12,
+        "wins": 12,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7574992425007574,
+        "avgEntry": 0.6975000000000001,
+        "avgPnlPerShare": 0.26147541245
+      },
+      "all": {
+        "triggers": 21,
+        "wins": 21,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8453561767357979,
+        "avgEntry": 0.6821428571428572,
+        "avgPnlPerShare": 0.27652269992285705
+      },
+      "recent3": {
+        "triggers": 9,
+        "wins": 9,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7008472464490406,
+        "avgEntry": 0.6616666666666666,
+        "avgPnlPerShare": 0.29658574988666664
+      },
+      "recent1": null,
+      "score": 3.021033864874964
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 9,
+      "direction": "DOWN",
+      "priceMin": 0.25,
+      "priceMax": 0.55,
+      "train": {
+        "triggers": 10,
+        "wins": 8,
+        "losses": 2,
+        "winRate": 0.8,
+        "wilsonLCB95": 0.49015684672072346,
+        "avgEntry": 0.41200000000000003,
+        "avgPnlPerShare": 0.346814340148
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 19,
+        "losses": 5,
+        "winRate": 0.7916666666666666,
+        "wilsonLCB95": 0.5952915551476453,
+        "avgEntry": 0.40895833333333337,
+        "avgPnlPerShare": 0.34160282350749993
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 11,
+        "losses": 3,
+        "winRate": 0.7857142857142857,
+        "wilsonLCB95": 0.5241027622679172,
+        "avgEntry": 0.4067857142857143,
+        "avgPnlPerShare": 0.3378803116214287
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 0,
+        "losses": 3,
+        "winRate": 0,
+        "wilsonLCB95": 0,
+        "avgEntry": 0.41,
+        "avgPnlPerShare": -0.45141885756000005
+      },
+      "score": 3.0088830741798405
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 25,
+        "wins": 25,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8668035060468212,
+        "avgEntry": 0.6282000000000001,
+        "avgPnlPerShare": 0.32937108899119993
+      },
+      "all": {
+        "triggers": 42,
+        "wins": 37,
+        "losses": 5,
+        "winRate": 0.8809523809523809,
+        "wilsonLCB95": 0.7499931819289246,
+        "avgEntry": 0.6214285714285716,
+        "avgPnlPerShare": 0.2170010967980952
+      },
+      "recent3": {
+        "triggers": 17,
+        "wins": 12,
+        "losses": 5,
+        "winRate": 0.7058823529411765,
+        "wilsonLCB95": 0.468664666737861,
+        "avgEntry": 0.6114705882352941,
+        "avgPnlPerShare": 0.05175110827882351
+      },
+      "recent1": {
+        "triggers": 10,
+        "wins": 8,
+        "losses": 2,
+        "winRate": 0.8,
+        "wilsonLCB95": 0.49015684672072346,
+        "avgEntry": 0.6305000000000001,
+        "avgPnlPerShare": 0.12702387795800002
+      },
+      "score": 3.0072740452506124
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 16,
+        "wins": 15,
+        "losses": 1,
+        "winRate": 0.9375,
+        "wilsonLCB95": 0.7167073163197013,
+        "avgEntry": 0.6125,
+        "avgPnlPerShare": 0.28237177071749997
+      },
+      "all": {
+        "triggers": 35,
+        "wins": 31,
+        "losses": 4,
+        "winRate": 0.8857142857142857,
+        "wilsonLCB95": 0.7404820521187976,
+        "avgEntry": 0.6171428571428572,
+        "avgPnlPerShare": 0.22602877407428565
+      },
+      "recent3": {
+        "triggers": 19,
+        "wins": 16,
+        "losses": 3,
+        "winRate": 0.8421052631578947,
+        "wilsonLCB95": 0.6243407235682331,
+        "avgEntry": 0.6210526315789472,
+        "avgPnlPerShare": 0.17858204005894732
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 1,
+        "losses": 1,
+        "winRate": 0.5,
+        "wilsonLCB95": 0.09452865480086611,
+        "avgEntry": 0.625,
+        "avgPnlPerShare": -0.16741926950000002
+      },
+      "score": 2.9987393057999334
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 10,
+        "wins": 10,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7224598312333834,
+        "avgEntry": 0.646,
+        "avgPnlPerShare": 0.311768418
+      },
+      "all": {
+        "triggers": 26,
+        "wins": 25,
+        "losses": 1,
+        "winRate": 0.9615384615384616,
+        "wilsonLCB95": 0.8110682300804161,
+        "avgEntry": 0.6740384615384616,
+        "avgPnlPerShare": 0.2458625186546153
+      },
+      "recent3": {
+        "triggers": 16,
+        "wins": 15,
+        "losses": 1,
+        "winRate": 0.9375,
+        "wilsonLCB95": 0.7167073163197013,
+        "avgEntry": 0.6915625,
+        "avgPnlPerShare": 0.20467133156375
+      },
+      "recent1": {
+        "triggers": 6,
+        "wins": 6,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6096569663469354,
+        "avgEntry": 0.7400000000000001,
+        "avgPnlPerShare": 0.21985530921999996
+      },
+      "score": 2.998233452346177
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 13,
+        "wins": 13,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7718981569447084,
+        "avgEntry": 0.7692307692307693,
+        "avgPnlPerShare": 0.19157859482769227
+      },
+      "all": {
+        "triggers": 29,
+        "wins": 29,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8830264055344442,
+        "avgEntry": 0.7508620689655174,
+        "avgPnlPerShare": 0.20949809969448277
+      },
+      "recent3": {
+        "triggers": 16,
+        "wins": 16,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8063865817272801,
+        "avgEntry": 0.7359375,
+        "avgPnlPerShare": 0.22405769739874998
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.815,
+        "avgPnlPerShare": 0.14732813842000003
+      },
+      "score": 2.9753338291430884
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.4,
+      "priceMax": 0.65,
+      "train": {
+        "triggers": 18,
+        "wins": 13,
+        "losses": 5,
+        "winRate": 0.7222222222222222,
+        "wilsonLCB95": 0.49126922453805477,
+        "avgEntry": 0.5144444444444445,
+        "avgPnlPerShare": 0.16522702997333333
+      },
+      "all": {
+        "triggers": 32,
+        "wins": 26,
+        "losses": 6,
+        "winRate": 0.8125,
+        "wilsonLCB95": 0.6469050424507756,
+        "avgEntry": 0.51578125,
+        "avgPnlPerShare": 0.25408753308562493
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "wilsonLCB95": 0.6853073044604219,
+        "avgEntry": 0.5175,
+        "avgPnlPerShare": 0.3683367513728571
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 2,
+        "losses": 1,
+        "winRate": 0.6666666666666666,
+        "wilsonLCB95": 0.20765495512648788,
+        "avgEntry": 0.47500000000000003,
+        "avgPnlPerShare": 0.14906846204666666
+      },
+      "score": 2.9220044533401746
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 17,
+        "wins": 17,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8156763396284354,
+        "avgEntry": 0.725,
+        "avgPnlPerShare": 0.2344544965705882
+      },
+      "all": {
+        "triggers": 26,
+        "wins": 26,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8712669561953783,
+        "avgEntry": 0.7334615384615386,
+        "avgPnlPerShare": 0.22622530370307686
+      },
+      "recent3": {
+        "triggers": 9,
+        "wins": 9,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7008472464490406,
+        "avgEntry": 0.7494444444444445,
+        "avgPnlPerShare": 0.21068127273111104
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 3,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.4384939195509822,
+        "avgEntry": 0.7383333333333333,
+        "avgPnlPerShare": 0.2214371011933333
+      },
+      "score": 2.904896823740347
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.6,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 10,
+        "wins": 10,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7224598312333834,
+        "avgEntry": 0.646,
+        "avgPnlPerShare": 0.311768418
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 23,
+        "losses": 1,
+        "winRate": 0.9583333333333334,
+        "wilsonLCB95": 0.7975777375115778,
+        "avgEntry": 0.6647916666666667,
+        "avgPnlPerShare": 0.2516679778074999
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 13,
+        "losses": 1,
+        "winRate": 0.9285714285714286,
+        "wilsonLCB95": 0.6853073044604219,
+        "avgEntry": 0.6782142857142857,
+        "avgPnlPerShare": 0.2087390919557143
+      },
+      "recent1": {
+        "triggers": 4,
+        "wins": 4,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.5100999795960008,
+        "avgEntry": 0.7175,
+        "avgPnlPerShare": 0.24168445942
+      },
+      "score": 2.900502407030632
+    }
+  ],
+  "selected": [
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 1,
+      "direction": "UP",
+      "priceMin": 0.45,
+      "priceMax": 0.6,
+      "train": {
+        "triggers": 37,
+        "wins": 32,
+        "losses": 5,
+        "winRate": 0.8648648648648649,
+        "wilsonLCB95": 0.7202227252929444,
+        "avgEntry": 0.5328378378378378,
+        "avgPnlPerShare": 0.28902795584162166
+      },
+      "all": {
+        "triggers": 56,
+        "wins": 48,
+        "losses": 8,
+        "winRate": 0.8571428571428571,
+        "wilsonLCB95": 0.7426383257914847,
+        "avgEntry": 0.5328571428571428,
+        "avgPnlPerShare": 0.28130254073642863
+      },
+      "recent3": {
+        "triggers": 19,
+        "wins": 16,
+        "losses": 3,
+        "winRate": 0.8421052631578947,
+        "wilsonLCB95": 0.6243407235682331,
+        "avgEntry": 0.5328947368421053,
+        "avgPnlPerShare": 0.2662583113210526
+      },
+      "recent1": {
+        "triggers": 5,
+        "wins": 5,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.565508505247919,
+        "avgEntry": 0.5499999999999999,
+        "avgPnlPerShare": 0.40695595526399997
+      },
+      "score": 4.282152131313395
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.5,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 20,
+        "wins": 19,
+        "losses": 1,
+        "winRate": 0.95,
+        "wilsonLCB95": 0.7638641064874331,
+        "avgEntry": 0.6672500000000001,
+        "avgPnlPerShare": 0.24159496999099997
+      },
+      "all": {
+        "triggers": 41,
+        "wins": 40,
+        "losses": 1,
+        "winRate": 0.975609756097561,
+        "wilsonLCB95": 0.8740465298832191,
+        "avgEntry": 0.6675609756097564,
+        "avgPnlPerShare": 0.2668226258175609
+      },
+      "recent3": {
+        "triggers": 21,
+        "wins": 21,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8453561767357979,
+        "avgEntry": 0.6678571428571428,
+        "avgPnlPerShare": 0.2908489647
+      },
+      "recent1": {
+        "triggers": 1,
+        "wins": 1,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.20654329147389294,
+        "avgEntry": 0.535,
+        "avgPnlPerShare": 0.42191223282
+      },
+      "score": 4.028674367104509
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 14,
+      "entryMinute": 6,
+      "direction": "UP",
+      "priceMin": 0.2,
+      "priceMax": 0.4,
+      "train": {
+        "triggers": 13,
+        "wins": 11,
+        "losses": 2,
+        "winRate": 0.8461538461538461,
+        "wilsonLCB95": 0.5776482949136899,
+        "avgEntry": 0.2780769230769231,
+        "avgPnlPerShare": 0.5303703040476923
+      },
+      "all": {
+        "triggers": 21,
+        "wins": 17,
+        "losses": 4,
+        "winRate": 0.8095238095238095,
+        "wilsonLCB95": 0.599990134607267,
+        "avgEntry": 0.2957142857142857,
+        "avgPnlPerShare": 0.47545220250095227
+      },
+      "recent3": {
+        "triggers": 8,
+        "wins": 6,
+        "losses": 2,
+        "winRate": 0.75,
+        "wilsonLCB95": 0.40926987910258916,
+        "avgEntry": 0.32437499999999997,
+        "avgPnlPerShare": 0.3862102874874999
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 2,
+        "losses": 1,
+        "winRate": 0.6666666666666666,
+        "wilsonLCB95": 0.20765495512648788,
+        "avgEntry": 0.2816666666666667,
+        "avgPnlPerShare": 0.3471184624733333
+      },
+      "score": 3.7412522146601166
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 11,
+      "entryMinute": 2,
+      "direction": "UP",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 17,
+        "wins": 16,
+        "losses": 1,
+        "winRate": 0.9411764705882353,
+        "wilsonLCB95": 0.730174547964372,
+        "avgEntry": 0.6179411764705882,
+        "avgPnlPerShare": 0.2806926664741176
+      },
+      "all": {
+        "triggers": 43,
+        "wins": 39,
+        "losses": 4,
+        "winRate": 0.9069767441860465,
+        "wilsonLCB95": 0.7839701160146731,
+        "avgEntry": 0.6413953488372094,
+        "avgPnlPerShare": 0.2235243890781395
+      },
+      "recent3": {
+        "triggers": 26,
+        "wins": 23,
+        "losses": 3,
+        "winRate": 0.8846153846153846,
+        "wilsonLCB95": 0.7102370691310167,
+        "avgEntry": 0.6567307692307692,
+        "avgPnlPerShare": 0.18614513078076914
+      },
+      "recent1": {
+        "triggers": 8,
+        "wins": 7,
+        "losses": 1,
+        "winRate": 0.875,
+        "wilsonLCB95": 0.5291051942301385,
+        "avgEntry": 0.7274999999999999,
+        "avgPnlPerShare": 0.10725613769999996
+      },
+      "score": 3.4123017595460556
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 1,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.8,
+      "train": {
+        "triggers": 23,
+        "wins": 23,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8568788745827373,
+        "avgEntry": 0.6723913043478261,
+        "avgPnlPerShare": 0.2858498265434782
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 32,
+        "losses": 1,
+        "winRate": 0.9696969696969697,
+        "wilsonLCB95": 0.8468093832683193,
+        "avgEntry": 0.6674242424242425,
+        "avgPnlPerShare": 0.2604381282212121
+      },
+      "recent3": {
+        "triggers": 10,
+        "wins": 9,
+        "losses": 1,
+        "winRate": 0.9,
+        "wilsonLCB95": 0.5958436145024277,
+        "avgEntry": 0.6559999999999999,
+        "avgPnlPerShare": 0.20199122207999998
+      },
+      "recent1": {
+        "triggers": 9,
+        "wins": 8,
+        "losses": 1,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.5649937852319398,
+        "avgEntry": 0.6583333333333333,
+        "avgPnlPerShare": 0.1885986428422222
+      },
+      "score": 3.3481975963363273
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 13,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.35,
+      "priceMax": 0.45,
+      "train": {
+        "triggers": 14,
+        "wins": 11,
+        "losses": 3,
+        "winRate": 0.7857142857142857,
+        "wilsonLCB95": 0.5241027622679172,
+        "avgEntry": 0.4064285714285715,
+        "avgPnlPerShare": 0.3376179180942857
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 21,
+        "losses": 6,
+        "winRate": 0.7777777777777778,
+        "wilsonLCB95": 0.5924270453692919,
+        "avgEntry": 0.39555555555555555,
+        "avgPnlPerShare": 0.34079083086666667
+      },
+      "recent3": {
+        "triggers": 13,
+        "wins": 10,
+        "losses": 3,
+        "winRate": 0.7692307692307693,
+        "wilsonLCB95": 0.49743126004873084,
+        "avgEntry": 0.3838461538461537,
+        "avgPnlPerShare": 0.34420781385230764
+      },
+      "recent1": {
+        "triggers": 6,
+        "wins": 5,
+        "losses": 1,
+        "winRate": 0.8333333333333334,
+        "wilsonLCB95": 0.4364905634363539,
+        "avgEntry": 0.385,
+        "avgPnlPerShare": 0.40710601495333326
+      },
+      "score": 3.1959708424515316
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 5,
+      "entryMinute": 4,
+      "direction": "DOWN",
+      "priceMin": 0.6,
+      "priceMax": 0.75,
+      "train": {
+        "triggers": 22,
+        "wins": 21,
+        "losses": 1,
+        "winRate": 0.9545454545454546,
+        "wilsonLCB95": 0.7820151050048196,
+        "avgEntry": 0.6743181818181818,
+        "avgPnlPerShare": 0.2385490277281818
+      },
+      "all": {
+        "triggers": 30,
+        "wins": 29,
+        "losses": 1,
+        "winRate": 0.9666666666666667,
+        "wilsonLCB95": 0.8332924860304112,
+        "avgEntry": 0.6773333333333332,
+        "avgPnlPerShare": 0.24770904107999994
+      },
+      "recent3": {
+        "triggers": 8,
+        "wins": 8,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.6755843804891231,
+        "avgEntry": 0.6856250000000002,
+        "avgPnlPerShare": 0.2728990777975
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 2,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.3423719528896193,
+        "avgEntry": 0.7375,
+        "avgPnlPerShare": 0.22217689017000003
+      },
+      "score": 3.1708508183755684
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 0,
+      "entryMinute": 7,
+      "direction": "DOWN",
+      "priceMin": 0.45,
+      "priceMax": 0.7,
+      "train": {
+        "triggers": 13,
+        "wins": 10,
+        "losses": 3,
+        "winRate": 0.7692307692307693,
+        "wilsonLCB95": 0.49743126004873084,
+        "avgEntry": 0.5503846153846154,
+        "avgPnlPerShare": 0.17607602063230768
+      },
+      "all": {
+        "triggers": 27,
+        "wins": 24,
+        "losses": 3,
+        "winRate": 0.8888888888888888,
+        "wilsonLCB95": 0.7194181745602704,
+        "avgEntry": 0.5516666666666666,
+        "avgPnlPerShare": 0.29449178580222213
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 14,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7846829880728186,
+        "avgEntry": 0.5528571428571428,
+        "avgPnlPerShare": 0.40444928203142844
+      },
+      "recent1": {
+        "triggers": 2,
+        "wins": 2,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.3423719528896193,
+        "avgEntry": 0.5,
+        "avgPnlPerShare": 0.45713497282
+      },
+      "score": 3.167250238705426
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 23,
+      "entryMinute": 2,
+      "direction": "DOWN",
+      "priceMin": 0.65,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 22,
+        "wins": 22,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8513404742740388,
+        "avgEntry": 0.7465909090909091,
+        "avgPnlPerShare": 0.21356379031727268
+      },
+      "all": {
+        "triggers": 33,
+        "wins": 33,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8957265699643882,
+        "avgEntry": 0.7512121212121214,
+        "avgPnlPerShare": 0.20905452684121206
+      },
+      "recent3": {
+        "triggers": 11,
+        "wins": 11,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.7411599827511859,
+        "avgEntry": 0.7604545454545453,
+        "avgPnlPerShare": 0.20003599988909085
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 3,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.4384939195509822,
+        "avgEntry": 0.7383333333333333,
+        "avgPnlPerShare": 0.2214371011933333
+      },
+      "score": 3.1186060575124905
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 21,
+      "entryMinute": 9,
+      "direction": "DOWN",
+      "priceMin": 0.25,
+      "priceMax": 0.55,
+      "train": {
+        "triggers": 10,
+        "wins": 8,
+        "losses": 2,
+        "winRate": 0.8,
+        "wilsonLCB95": 0.49015684672072346,
+        "avgEntry": 0.41200000000000003,
+        "avgPnlPerShare": 0.346814340148
+      },
+      "all": {
+        "triggers": 24,
+        "wins": 19,
+        "losses": 5,
+        "winRate": 0.7916666666666666,
+        "wilsonLCB95": 0.5952915551476453,
+        "avgEntry": 0.40895833333333337,
+        "avgPnlPerShare": 0.34160282350749993
+      },
+      "recent3": {
+        "triggers": 14,
+        "wins": 11,
+        "losses": 3,
+        "winRate": 0.7857142857142857,
+        "wilsonLCB95": 0.5241027622679172,
+        "avgEntry": 0.4067857142857143,
+        "avgPnlPerShare": 0.3378803116214287
+      },
+      "recent1": {
+        "triggers": 3,
+        "wins": 0,
+        "losses": 3,
+        "winRate": 0,
+        "wilsonLCB95": 0,
+        "avgEntry": 0.41,
+        "avgPnlPerShare": -0.45141885756000005
+      },
+      "score": 3.0088830741798405
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 22,
+      "entryMinute": 6,
+      "direction": "DOWN",
+      "priceMin": 0.55,
+      "priceMax": 0.85,
+      "train": {
+        "triggers": 11,
+        "wins": 10,
+        "losses": 1,
+        "winRate": 0.9090909090909091,
+        "wilsonLCB95": 0.6226353745137962,
+        "avgEntry": 0.6913636363636363,
+        "avgPnlPerShare": 0.17716553290363637
+      },
+      "all": {
+        "triggers": 28,
+        "wins": 27,
+        "losses": 1,
+        "winRate": 0.9642857142857143,
+        "wilsonLCB95": 0.8228742388150134,
+        "avgEntry": 0.692142857142857,
+        "avgPnlPerShare": 0.23150114921285717
+      },
+      "recent3": {
+        "triggers": 17,
+        "wins": 17,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.8156763396284354,
+        "avgEntry": 0.6926470588235293,
+        "avgPnlPerShare": 0.26665948917764704
+      },
+      "recent1": {
+        "triggers": 4,
+        "wins": 4,
+        "losses": 0,
+        "winRate": 1,
+        "wilsonLCB95": 0.5100999795960008,
+        "avgEntry": 0.6125,
+        "avgPnlPerShare": 0.34520802117999994
+      },
+      "score": 2.8944900258560975
+    },
+    {
+      "asset": "ALL",
+      "utcHour": 8,
+      "entryMinute": 5,
+      "direction": "DOWN",
+      "priceMin": 0.35,
+      "priceMax": 0.6,
+      "train": {
+        "triggers": 20,
+        "wins": 16,
+        "losses": 4,
+        "winRate": 0.8,
+        "wilsonLCB95": 0.5839782779742402,
+        "avgEntry": 0.5035000000000001,
+        "avgPnlPerShare": 0.25375224849999994
+      },
+      "all": {
+        "triggers": 35,
+        "wins": 27,
+        "losses": 8,
+        "winRate": 0.7714285714285715,
+        "wilsonLCB95": 0.60982362219898,
+        "avgEntry": 0.47199999999999986,
+        "avgPnlPerShare": 0.25702676384685713
+      },
+      "recent3": {
+        "triggers": 15,
+        "wins": 11,
+        "losses": 4,
+        "winRate": 0.7333333333333333,
+        "wilsonLCB95": 0.48049110342313245,
+        "avgEntry": 0.43,
+        "avgPnlPerShare": 0.2613927843093334
+      },
+      "recent1": {
+        "triggers": 7,
+        "wins": 3,
+        "losses": 4,
+        "winRate": 0.42857142857142855,
+        "wilsonLCB95": 0.15821692226262685,
+        "avgEntry": 0.4071428571428572,
+        "avgPnlPerShare": -0.020124943400000022
+      },
+      "score": 2.8766251685515036
+    }
+  ],
+  "candidateSummary": {
+    "triggers": 398,
+    "wins": 356,
+    "losses": 42,
+    "winRate": 0.8944723618090452,
+    "wilsonLCB95": 0.8604257511147169,
+    "avgEntry": 0.5764447236180904,
+    "avgPnlPerShare": 0.2764882188415574
+  },
+  "projections": [
+    {
+      "label": "current fresh realised-mean",
+      "day7Bankroll": 944854.65,
+      "daily": [
+        {
+          "day": 1,
+          "tradesPerDay": 54,
+          "dailyPnl": 87.65,
+          "endBankroll": 112.64
+        },
+        {
+          "day": 2,
+          "tradesPerDay": 54,
+          "dailyPnl": 395.11,
+          "endBankroll": 507.75
+        },
+        {
+          "day": 3,
+          "tradesPerDay": 54,
+          "dailyPnl": 1780.97,
+          "endBankroll": 2288.72
+        },
+        {
+          "day": 4,
+          "tradesPerDay": 54,
+          "dailyPnl": 8027.85,
+          "endBankroll": 10316.57
+        },
+        {
+          "day": 5,
+          "tradesPerDay": 54,
+          "dailyPnl": 36186.17,
+          "endBankroll": 46502.74
+        },
+        {
+          "day": 6,
+          "tradesPerDay": 54,
+          "dailyPnl": 163111.98,
+          "endBankroll": 209614.72
+        },
+        {
+          "day": 7,
+          "tradesPerDay": 54,
+          "dailyPnl": 735239.92,
+          "endBankroll": 944854.65
+        }
+      ]
+    },
+    {
+      "label": "candidate fresh realised-mean",
+      "day7Bankroll": 1474158.12,
+      "daily": [
+        {
+          "day": 1,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 95.04,
+          "endBankroll": 120.03
+        },
+        {
+          "day": 2,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 456.52,
+          "endBankroll": 576.56
+        },
+        {
+          "day": 3,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 2192.83,
+          "endBankroll": 2769.38
+        },
+        {
+          "day": 4,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 10532.81,
+          "endBankroll": 13302.2
+        },
+        {
+          "day": 5,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 50592.32,
+          "endBankroll": 63894.52
+        },
+        {
+          "day": 6,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 243010.39,
+          "endBankroll": 306904.91
+        },
+        {
+          "day": 7,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 1167253.2,
+          "endBankroll": 1474158.12
+        }
+      ]
+    },
+    {
+      "label": "candidate LCB-penalised",
+      "day7Bankroll": 598220.72,
+      "daily": [
+        {
+          "day": 1,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 80.53,
+          "endBankroll": 105.52
+        },
+        {
+          "day": 2,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 340.06,
+          "endBankroll": 445.59
+        },
+        {
+          "day": 3,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 1435.98,
+          "endBankroll": 1881.56
+        },
+        {
+          "day": 4,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 6063.63,
+          "endBankroll": 7945.2
+        },
+        {
+          "day": 5,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 25604.63,
+          "endBankroll": 33549.83
+        },
+        {
+          "day": 6,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 108119.51,
+          "endBankroll": 141669.34
+        },
+        {
+          "day": 7,
+          "tradesPerDay": 56.86,
+          "dailyPnl": 456551.37,
+          "endBankroll": 598220.72
+        }
+      ]
+    }
+  ],
+  "chronologicalSimulations": [
+    {
+      "label": "current production constraints",
+      "startBankroll": 24.9898,
+      "endBankroll": 36615.0359,
+      "profit": 36590.0461,
+      "minBankroll": 21.9831,
+      "maxDrawdownPct": 0.5356,
+      "trades": 257,
+      "wins": 218,
+      "losses": 39,
+      "winRate": 0.8482490272373541,
+      "days": [
+        {
+          "day": "2026-05-02",
+          "trades": 21,
+          "wins": 19,
+          "losses": 2,
+          "pnl": 327.2607
+        },
+        {
+          "day": "2026-05-03",
+          "trades": 38,
+          "wins": 31,
+          "losses": 7,
+          "pnl": 1775.5424
+        },
+        {
+          "day": "2026-05-04",
+          "trades": 43,
+          "wins": 39,
+          "losses": 4,
+          "pnl": 5062.5704
+        },
+        {
+          "day": "2026-05-05",
+          "trades": 34,
+          "wins": 27,
+          "losses": 7,
+          "pnl": 2557.8728
+        },
+        {
+          "day": "2026-05-06",
+          "trades": 39,
+          "wins": 36,
+          "losses": 3,
+          "pnl": 9730.5841
+        },
+        {
+          "day": "2026-05-07",
+          "trades": 34,
+          "wins": 27,
+          "losses": 7,
+          "pnl": 6842.4822
+        },
+        {
+          "day": "2026-05-08",
+          "trades": 46,
+          "wins": 37,
+          "losses": 9,
+          "pnl": 9675.5141
+        },
+        {
+          "day": "2026-05-09",
+          "trades": 2,
+          "wins": 2,
+          "losses": 0,
+          "pnl": 618.2192
+        }
+      ]
+    },
+    {
+      "label": "candidate production constraints",
+      "startBankroll": 24.9898,
+      "endBankroll": 41827.8001,
+      "profit": 41802.8103,
+      "minBankroll": 21.9831,
+      "maxDrawdownPct": 0.4951,
+      "trades": 246,
+      "wins": 209,
+      "losses": 37,
+      "winRate": 0.8495934959349594,
+      "days": [
+        {
+          "day": "2026-05-02",
+          "trades": 21,
+          "wins": 19,
+          "losses": 2,
+          "pnl": 284.3554
+        },
+        {
+          "day": "2026-05-03",
+          "trades": 39,
+          "wins": 31,
+          "losses": 8,
+          "pnl": 1609.1102
+        },
+        {
+          "day": "2026-05-04",
+          "trades": 42,
+          "wins": 38,
+          "losses": 4,
+          "pnl": 4909.0713
+        },
+        {
+          "day": "2026-05-05",
+          "trades": 30,
+          "wins": 24,
+          "losses": 6,
+          "pnl": 5488.7359
+        },
+        {
+          "day": "2026-05-06",
+          "trades": 37,
+          "wins": 34,
+          "losses": 3,
+          "pnl": 11394.7319
+        },
+        {
+          "day": "2026-05-07",
+          "trades": 32,
+          "wins": 27,
+          "losses": 5,
+          "pnl": 8240.233
+        },
+        {
+          "day": "2026-05-08",
+          "trades": 42,
+          "wins": 33,
+          "losses": 9,
+          "pnl": 8558.5347
+        },
+        {
+          "day": "2026-05-09",
+          "trades": 3,
+          "wins": 3,
+          "losses": 0,
+          "pnl": 1318.0379
+        }
+      ]
+    }
+  ],
+  "strategyArtifact": "strategies/strategy_set_15m_definitive_search_20260509T041541Z.json"
+}
