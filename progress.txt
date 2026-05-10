@@ -1,0 +1,71 @@
+POLYPROPHET STRATEGY REBUILD — PROGRESS LOG
+============================================
+
+LIVE PLAN FILE: STRATEGY_REBUILD_2026_05_10.md  (tick boxes there as you go)
+
+LAST UPDATED: 2026-05-10 14:05 UTC by Cascade (DEITY)
+
+OPERATOR GOAL (locked):
+  * $500+ MEDIAN profit in 7d from $12.89 bankroll
+  * Low bust risk (ideally <=10%)
+  * Full 3-5 day effort, all 5 phases
+  * Iterate until found + present portfolio
+  * Smoke with the strategy WE FIND (not existing structural)
+
+LIVE SAFETY STATE (verified):
+  * Fly release 107, status=degraded (intentional)
+  * Balance $12.892746 pUSD
+  * LIVE_AUTOTRADING_ENABLED=false, manualPause=true, startPausedEnv=true
+  * No pending buys/sells/settlements, redemption=2 dust (non-actionable)
+  * Drawdown brake active (55.3% from peak $28.85)
+
+PHASE STATUS:
+  [x] 0.1  rebase endpoint found (/api/validator/reset exists, no code change needed)
+  [x] 0.2  close-window property test passing (scripts/test-close-window-guard.js)
+  [~] 0.3  15m gap-fill running BG cmd 170  (was BTC 630/741 @14:03 UTC)
+  [~] 0.4  5m 14d fetch running BG cmd 171  (was 500/28231 @14:03 UTC); 4h 14d done (644 cycles)
+  [x] 0.5  Fly safety audit done (paused + brake active)
+
+  [x] 1.1  paper-shadow recorder built + smoke-tested (scripts/paper-shadow-recorder.js)
+  [x] 1.2  paper-shadow lib not needed (recorder directly reuses prod lib/*)
+  [ ] 1.3  48h shadow run - TO LAUNCH
+  [ ] 1.4  /api/paper-shadow/state endpoint (LOW priority; JSONL is directly usable)
+
+  [ ] 2.1  scripts/honest-strategy-search.js with anti-overfit gates
+  [ ] 2.2  hypotheses H1-H5 + iteration
+  [ ] 2.3  confidence_card.json per surviving candidate
+
+  [ ] 3.1  forward-validate top 3 against paper-shadow
+  [ ] 3.2  promotion + portfolio
+
+  [ ] 4.1  promote to Fly (paused)
+  [ ] 4.2  exposure caps MAX_NOTIONAL_PER_TRADE=1.50
+  [ ] 4.3  operator unpause
+  [ ] 4.4  watch first 5 fills
+  [ ] 4.5  10-trade re-audit
+
+  [ ] 5.1  README addendum
+  [ ] 5.2  handover-sync
+
+KEY FILES ADDED THIS SESSION:
+  * STRATEGY_REBUILD_2026_05_10.md         (live plan + handover)
+  * scripts/test-close-window-guard.js     (property test, 36/36 pass)
+  * scripts/verify-harness.js              (extended with close-window test)
+  * scripts/paper-shadow-recorder.js       (Phase 1.1; smoke-tested OK)
+  * progress.txt                           (this file)
+
+KEY FINDINGS:
+  * 5m structural rules (entrySecondMax=59 + entryMinuteMax=4) are entirely
+    unfireable under 45s close-guard — explains zero 5m fills.
+  * 4 of 4 loaded 15m structural rules also rely on blocked 14:55-14:59 window.
+  * $249 todayPnL phantom is cosmetic residue from fixed matched-shares bug;
+    actual loss was only $1.80. Rebase via /api/validator/reset when ready.
+
+FOR NEXT AGENT:
+  1. Read STRATEGY_REBUILD_2026_05_10.md in full.
+  2. Run `node scripts/verify-harness.js` (must be 36/36 PASS).
+  3. Check BG logs: `Get-Content data/_gap-fill-15m.log -Tail 10`
+                   `Get-Content data/_recent-5m-14d.log -Tail 10`
+  4. Verify Fly state unchanged via /api/health.
+  5. Resume at first [ ] unchecked in STRATEGY_REBUILD_2026_05_10.md.
+  6. Never skip Phase 1 before Phase 2 (that's the repeated historical mistake).
