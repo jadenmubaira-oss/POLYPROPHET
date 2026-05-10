@@ -61,11 +61,18 @@ KEY FINDINGS:
   * $249 todayPnL phantom is cosmetic residue from fixed matched-shares bug;
     actual loss was only $1.80. Rebase via /api/validator/reset when ready.
 
-FOR NEXT AGENT:
+FOR NEXT AGENT — DO THIS IMMEDIATELY:
   1. Read STRATEGY_REBUILD_2026_05_10.md in full.
   2. Run `node scripts/verify-harness.js` (must be 36/36 PASS).
-  3. Check BG logs: `Get-Content data/_gap-fill-15m.log -Tail 10`
-                   `Get-Content data/_recent-5m-14d.log -Tail 10`
+  3. LAUNCH paper-shadow recorder (exact command in plan file §"IMMEDIATE NEXT ACTION"):
+       $env:PAPER_SHADOW_TICK_MS='30000'
+       $env:PAPER_SHADOW_ASSETS='BTC,ETH,SOL,XRP,BNB,DOGE'
+       $env:PAPER_SHADOW_TIMEFRAMES='5m,15m'
+       node scripts/paper-shadow-recorder.js 2>&1 | Tee-Object -FilePath data/_paper-shadow.log
   4. Verify Fly state unchanged via /api/health.
-  5. Resume at first [ ] unchecked in STRATEGY_REBUILD_2026_05_10.md.
-  6. Never skip Phase 1 before Phase 2 (that's the repeated historical mistake).
+  5. Check 15m gap-fill result:
+       node -e "const j=require('./data/intracycle-price-data.json');console.log(j.cycles.length,new Date(j.cycles.slice(-1)[0].epoch*1000).toISOString())"
+  6. Resume at first [ ] unchecked in STRATEGY_REBUILD_2026_05_10.md.
+  7. Never skip Phase 1 before Phase 2 (that's the repeated historical mistake).
+
+LAST CASCADE COMMIT: 1973d99 (Strategy rebuild 2026-05-10: Phase 0 hygiene + Phase 1.1 paper-shadow recorder)

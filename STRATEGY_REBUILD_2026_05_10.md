@@ -164,10 +164,52 @@ Invoke-RestMethod -Uri 'https://polyprophet.fly.dev/api/validator/reset' -Method
 1. Read this file FULLY. Then read `README.md` for historical context. Then `.agent/skills/DEITY/SKILL.md` for protocol.
 2. Run `node scripts/verify-harness.js` — must be 36/36 pass.
 3. Run `node scripts/test-close-window-guard.js` — must pass.
-4. Check background data-refresh logs: `Get-Content data/_gap-fill-15m.log -Tail 5` and `Get-Content data/_recent-5m-14d.log -Tail 5`.
-5. Verify Fly state via `/api/health` matches "Current Verified State" table above (within tolerance).
+4. Check background data-refresh status:
+   - `Get-Content data/_gap-fill-15m.log -Tail 5`
+   - `Get-Content data/_recent-5m-14d.log -Tail 5`
+   - `node -e "const fs=require('fs');const j=JSON.parse(fs.readFileSync('data/intracycle-price-data.json'));console.log(j.cycles.length,'cycles, lastEpoch=',new Date(j.cycles[j.cycles.length-1].epoch*1000).toISOString())"`
+5. Verify Fly state via `/api/health` matches "Current Verified State" table above (within tolerance of balance + drawdown).
 6. Resume from the first unchecked `[ ]` box in the Phase list.
 7. When a phase task is completed, tick its `[ ]` → `[x]` in this file and append evidence under "Evidence Captured So Far".
 8. **Never skip phases.** If Phase 2 is tempting before Phase 1 paper-shadow data exists, resist: that's the same mistake the prior 8 searches made.
 
-**Last agent (2026-05-10 14:04 UTC)**: Cascade (DEITY protocol). Completed 0.1, 0.2, 0.5. Kicked off 0.3, 0.4 as background tasks. Next action: finish Phase 0 data refresh, then begin Phase 1.1 paper-shadow recorder skeleton.
+## 🚀 IMMEDIATE NEXT ACTION (whichever agent is next)
+
+**Launch the 48h paper-shadow capture.** Every minute delayed = a minute of forward data lost. Run this in a new terminal that can stay open:
+
+```powershell
+# Full 6-asset, 5m+15m capture with 30s ticks (conservative for API limits).
+# Creates data/paper-shadow/YYYY-MM-DD/<asset>_<tf>.jsonl
+$env:PAPER_SHADOW_TICK_MS = '30000'
+$env:PAPER_SHADOW_ASSETS   = 'BTC,ETH,SOL,XRP,BNB,DOGE'
+$env:PAPER_SHADOW_TIMEFRAMES = '5m,15m'
+node scripts/paper-shadow-recorder.js 2>&1 | Tee-Object -FilePath data/_paper-shadow.log
+```
+
+After ≥48h (or ≥200 captured match-opportunities across 5m/15m, whichever comes first), move to Phase 2 mining. Until then, Phase 2 can be designed (script scaffolding, hypothesis docs) but NOT finalized — the anti-overfit gates depend on comparing replay results to forward truth.
+
+## 📌 Last-agent checkpoint
+
+**Agent**: Cascade (DEITY protocol) · **Commit**: `1973d99` · **Time**: 2026-05-10 14:30 UTC
+
+**Completed this session**:
+- Phase 0.1, 0.2, 0.5 fully (runtime stats rebase mechanism, close-window property test + 36/36 verify-harness, Fly env safety audit)
+- Phase 1.1 paper-shadow recorder built, syntax-clean, smoke-tested live (BTC + ETH 15m)
+- Phase 1.2 determined unnecessary (reused production lib/* directly)
+- Handover scaffold (this file + `progress.txt` + README top pointer)
+
+**In flight (background)**:
+- `0.3` 15m gap-fill running, last checked XRP 180/741 (final asset, ~5–10 min more)
+- `0.4` 5m 14d fetch running, was 500/28231 at last check (may take 1+ hour; optional — 2d cache is sufficient for initial Phase 2)
+
+**Pending (do next in order)**:
+1. Launch paper-shadow recorder (command above).
+2. Verify 15m gap-fill completed successfully (run the `node -e` command from step 4 above; expect cycles > 9000 and lastEpoch ≈ today).
+3. Begin Phase 2.1: write `scripts/honest-strategy-search.js` skeleton + H1 (spread convergence) first — it's the simplest hypothesis and produces quick evidence for/against.
+4. While recorder accumulates data, iterate H1–H5 in Phase 2.2.
+5. After 48h capture reaches ≥200 matches, execute Phase 3 forward-validation.
+
+**Known risks / caveats**:
+- 5m and 15m structural strategies currently loaded on Fly are unfireable (close-guard blocks their entire match window). Do not be fooled if Fly shows 0 matches/day — the strategies are intentionally inert. Fly is safe-paused.
+- The `$249` phantom `todayPnL` on Fly is cosmetic; trade history is correct. Operator may invoke `/api/validator/reset` with `clearTradeLog=false` when convenient. **Do not do this without operator approval** — it's their risk dashboard.
+- Polymarket CLOB WRITE endpoints are geoblocked in UK; reads (book/price/prices-history) work direct. The paper-shadow recorder uses reads only.
