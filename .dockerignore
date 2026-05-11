@@ -90,6 +90,7 @@ data/
 epoch2/
 epoch3/
 external/
+exhaustive_analysis/
 generated_orca_profiles_*/
 telegram_ai_media_bot/
 scripts/
@@ -97,6 +98,7 @@ scripts/
 strategies/candidates/
 print/
 assistant/
+local_archive/
 *.webp
 *.png
 *.jpeg
