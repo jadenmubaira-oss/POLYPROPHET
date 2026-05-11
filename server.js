@@ -93,6 +93,13 @@ const RUNTIME_STATE_REDIS_KEY = String(process.env.RUNTIME_STATE_REDIS_KEY || 'p
 const MICRO_BANKROLL_DEPLOY_PROFILE = !!CONFIG.MICRO_BANKROLL_DEPLOY_PROFILE;
 const START_PAUSED_ENV = String(process.env.START_PAUSED || '').trim().toLowerCase();
 const REDIS_IO_TIMEOUT_MS = 5000;
+const BINANCE_SPOT_SYMBOLS = {
+    BTC: 'BTCUSDT',
+    ETH: 'ETHUSDT',
+    SOL: 'SOLUSDT',
+    XRP: 'XRPUSDT'
+};
+const structuralSignalCache = new Map();
 
 // ==================== CORE STATE ====================
 const riskManager = new RiskManager(CONFIG.RISK.startingBalance);
@@ -123,6 +130,75 @@ let redis = null;
 let redisAvailable = false;
 let runtimeStateLastSavedAt = 0;
 let runtimeStateLastLoadSource = 'FRESH_START';
+
+async function fetchClosedBinanceMinuteSignal(asset, nowSec) {
+    const symbol = BINANCE_SPOT_SYMBOLS[String(asset || '').toUpperCase()];
+    if (!symbol || typeof fetch !== 'function') return null;
+
+    const closedBoundarySec = Math.floor(Number(nowSec || 0) / 60) * 60;
+    if (!Number.isFinite(closedBoundarySec) || closedBoundarySec <= 60) return null;
+    const cacheKey = `${symbol}:${closedBoundarySec}`;
+    const cached = structuralSignalCache.get(cacheKey);
+    if (cached && Date.now() - cached.cachedAt < 60000) return cached.signal;
+
+    const startTime = (closedBoundarySec - 60) * 1000;
+    const endTime = closedBoundarySec * 1000 - 1;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=1`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 2500);
+    try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP_${response.status}`);
+        const rows = await response.json();
+        const row = Array.isArray(rows) ? rows[0] : null;
+        const open = Number(row?.[1]);
+        const close = Number(row?.[4]);
+        if (!(open > 0) || !(close > 0)) return null;
+
+        const moveBps = ((close - open) / open) * 10000;
+        const signal = {
+            ok: Number.isFinite(moveBps) && moveBps !== 0,
+            source: 'BINANCE_CLOSED_1M',
+            symbol,
+            direction: moveBps > 0 ? 'UP' : 'DOWN',
+            moveBps,
+            absMoveBps: Math.abs(moveBps),
+            open,
+            close,
+            candleOpenSec: Math.floor(Number(row?.[0] || startTime) / 1000),
+            candleCloseSec: Math.floor(Number(row?.[6] || endTime) / 1000),
+            observedAtSec: Math.floor(Number(nowSec || Date.now() / 1000))
+        };
+        structuralSignalCache.set(cacheKey, { cachedAt: Date.now(), signal });
+        if (structuralSignalCache.size > 128) {
+            const staleKeys = [...structuralSignalCache.keys()].slice(0, structuralSignalCache.size - 128);
+            staleKeys.forEach((key) => structuralSignalCache.delete(key));
+        }
+        return signal;
+    } catch (e) {
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'STRUCTURAL_SIGNAL_FETCH_FAILED',
+            asset,
+            symbol,
+            error: e.message
+        });
+        if (diagnosticLog.length > 500) diagnosticLog.splice(0, diagnosticLog.length - 500);
+        return null;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function buildStructuralContext(nowSec) {
+    const entries = await Promise.all(
+        CONFIG.ASSETS.map(async (asset) => [asset, await fetchClosedBinanceMinuteSignal(asset, nowSec)])
+    );
+    return entries.reduce((acc, [asset, signal]) => {
+        if (signal?.ok) acc[String(asset).toUpperCase()] = signal;
+        return acc;
+    }, {});
+}
 
 strategyAutopilot = new StrategyAutopilot({
     root: REPO_ROOT,
@@ -876,7 +952,7 @@ async function reconcilePendingLivePositions() {
 // ==================== MAIN ORCHESTRATION LOOP ====================
 async function orchestrate() {
     const nowSec = Math.floor(Date.now() / 1000);
-    const enabledTimeframes = getEnabledTimeframes();
+    let enabledTimeframes = getEnabledTimeframes();
 
     if (CONFIG.TRADE_MODE === 'LIVE') {
         const balanceTimeout = (ms) => new Promise((_, reject) => setTimeout(() => reject(new Error('BALANCE_REFRESH_TIMEOUT')), ms));
@@ -915,6 +991,7 @@ async function orchestrate() {
                 settled: liveSettlements.length
             });
         }
+        enabledTimeframes = getEnabledTimeframes();
     }
 
     // Discover all markets across all timeframes and assets
@@ -930,6 +1007,8 @@ async function orchestrate() {
     let tradesAttempted = 0;
     const allCandidates = [];
 
+    const structuralContext = await buildStructuralContext(nowSec);
+
     // For each timeframe, evaluate strategy matches
     for (const tf of enabledTimeframes) {
         for (const asset of CONFIG.ASSETS) {
@@ -938,7 +1017,7 @@ async function orchestrate() {
             if (!market || market.status !== 'ACTIVE') continue;
             marketsChecked++;
 
-            const matches = evaluateMatch(market, nowSec, tf);
+            const matches = evaluateMatch(market, nowSec, tf, structuralContext);
             if (matches.length > 0) {
                 for (const m of matches) {
                     m.epoch = market.epoch;

@@ -12814,3 +12814,33 @@ The structural CEX-lag v2 strategy is the only approach in the entire H1-H11 res
 - 15m + 5m structural set loaded
 - Close-window guard active (45s for 5m, 120s for 15m)
 - Expected time to $100: **12-48 hours** at backtested WR, **2-4 days** at degraded 70% WR
+
+---
+
+### Addendum 2026-05-11T21:55Z — Junie V2/runtime audit continuation
+
+#### What changed in code
+
+- `lib/clob-client.js` no longer collapses `POLYMARKET_SIGNATURE_TYPE=2/3` to `0`. Credential derivation and trade-ready probing now preserve preferred V2 signature types and add preferred sigType candidates alongside EOA/proxy fallbacks.
+- `server.js` now builds live structural context from confirmed closed Binance 1m candles for `BTC`, `ETH`, `SOL`, and `XRP`, then passes that context into `evaluateMatch()`. This is the missing bridge required for `direction: "ANY"` structural strategies to become executable `UP`/`DOWN` signals.
+- `lib/strategy-matcher.js` now treats missing `utcHour` as a wildcard instead of skipping the strategy via `NaN` comparison. This fixes wildcard-hour structural canary rules.
+- `server.js` recomputes enabled timeframes after live balance refresh inside `orchestrate()`, so stale cached balances cannot suppress 5m discovery after the real live wallet balance is fetched.
+- `scripts/audit-5m-canary-runtime.js` was updated to match current matcher semantics and tolerate missing legacy close-guard config fields; `scripts/verify-v2-sigtype3.js` was added as a deterministic V2 sigType regression.
+
+#### Corrected canary status
+
+- The older line above saying `strategies/strategy_set_5m_canary_0.json` is runtime-incompatible is now stale after this patch set. Runtime probe confirms the canary file loads `4` strategies and matches inside seconds `1..14` of the configured entry minutes, while second `15` is blocked.
+- Honest proof boundary: the local paper-shadow evidence still does **not** reproduce the documented `79` opportunities / `24` executions / `23W-1L`. Latest audit report: `debug/canary-runtime-audit/canary_runtime_audit_20260511T215233Z.json`, verdict `NO_GO_CANARY_NOT_RUNTIME_PROVEN`, with `0` settlement rows and only `4` sane core-asset local opportunities in the strict claimed window.
+- Therefore the canary is now **runtime-enabled but not mathematically promoted to unconditional live GO** from local reproducible evidence. It may be used only as a forward-shadow/live-probe candidate unless fresh settled data proves the headline win rate.
+
+#### Verification run
+
+- `node scripts\verify-v2-sigtype3.js` → pass.
+- `node scripts\audit-5m-canary-runtime.js` → runtime recognition/window pass; proof verdict remains `NO_GO_CANARY_NOT_RUNTIME_PROVEN` because local settlement/profit evidence is missing.
+- `node scripts\verify-harness.js` → `35 passed, 0 failed`, including `node --check server.js`, `lib/config.js`, `lib/strategy-matcher.js`, `lib/risk-manager.js`, `lib/trade-executor.js`, `lib/market-discovery.js`, and `lib/clob-client.js`.
+
+#### Deployment boundary
+
+- Do **not** claim 100% real-world profit certainty from the current local files. The verified result is execution hardening and runtime parity, not a reproduced moonshot median.
+- Before unpausing Fly, confirm live `/api/health`, `/api/status`, and `/api/wallet/balance` show `LIVE`, `isLive=true`, trade-ready balance around the expected wallet cash, no Redis/Telegram/auth degradation, no drawdown brake, and no pending recovery/redemption blocker.
+- If deploying this patch to Fly, use it as a code-hardening deploy first; the honest trading posture is supervised forward proof, not blind unconditional GO.
