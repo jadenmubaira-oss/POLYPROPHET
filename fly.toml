@@ -1,51 +1,53 @@
-# fly.toml app configuration file generated for polyprophet on 2026-05-03T11:26:34Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# POLYPROPHET Fly.io Configuration
+# Region: São Paulo, Brazil
 
-app = 'polyprophet'
-primary_region = 'gru'
+app = "polyprophet"
+primary_region = "gru"
 
 [build]
-  dockerfile = 'Dockerfile'
+  dockerfile = "Dockerfile"
 
 [env]
-  CLOB_FORCE_PROXY = '0'
-  CLOB_ORDER_TYPE = 'FAK'
-  DEFAULT_MIN_ORDER_SHARES = '5'
-  ENABLE_LIVE_TRADING = 'true'
-  HARD_ENTRY_PRICE_CAP = '0.82'
-  LIVE_AUTOTRADING_ENABLED = 'true'
-  MAX_GLOBAL_TRADES_PER_CYCLE = '1'
-  MULTIFRAME_4H_ENABLED = 'false'
-  NODE_ENV = 'production'
-  OPERATOR_STAKE_FRACTION = '0.40'
-  POLYMARKET_AUTO_DERIVE_CREDS = 'true'
-  TELEGRAM_FLY_SECRETS_ENABLED = 'true'
-  TELEGRAM_FLY_APP_NAME = 'polyprophet'
-  POLYMARKET_SIGNATURE_TYPE = '1'
-  PORT = '8080'
-  REQUIRE_REAL_ORDERBOOK = 'true'
-  START_PAUSED = 'true'
-  STRATEGY_SET_15M_PATH = 'strategies/strategy_set_15m_fresh_best_may5_p64.json'
-  TIMEFRAME_15M_ENABLED = 'true'
-  TIMEFRAME_15M_MIN_BANKROLL = '3'
-  TIMEFRAME_5M_ENABLED = 'false'
-  TRADE_MODE = 'LIVE'
+  NODE_ENV = "production"
+  PORT = "8080"
+  START_PAUSED = "true"
+  TRADE_MODE = "LIVE"
+  ENABLE_LIVE_TRADING = "true"
+  LIVE_AUTOTRADING_ENABLED = "true"
+  ASSETS = "BTC,ETH,SOL,XRP,BNB,DOGE"
+  TIMEFRAME_15M_ENABLED = "true"
+  TIMEFRAME_15M_MIN_BANKROLL = "3"
+  TIMEFRAME_5M_ENABLED = "true"
+  TIMEFRAME_5M_MIN_BANKROLL = "3"
+  MULTIFRAME_4H_ENABLED = "false"
+  STRATEGY_SET_5M_PATH = "strategies/strategy_set_5m_structural_edge_20260511T150418Z.json"
+  STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_structural_edge_20260511T150418Z.json"
+  STRUCTURAL_SIGNAL_REQUIRE_CLOSED_CANDLE = "false"
+  POLYMARKET_SIGNATURE_TYPE = "3"
+  POLYMARKET_AUTO_DERIVE_CREDS = "true"
+  TELEGRAM_FLY_SECRETS_ENABLED = "true"
+  TELEGRAM_FLY_APP_NAME = "polyprophet"
+  CLOB_FORCE_PROXY = "0"
+  DEFAULT_MIN_ORDER_SHARES = "5"
+  REQUIRE_REAL_ORDERBOOK = "true"
+  HARD_ENTRY_PRICE_CAP = "0.82"
+  MAX_GLOBAL_TRADES_PER_CYCLE = "2"
+  ALLOW_MICRO_MPC_OVERRIDE = "true"
+  OPERATOR_STAKE_FRACTION = "0.25"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = 'off'
+  auto_stop_machines = false
   auto_start_machines = true
   min_machines_running = 1
 
   [http_service.concurrency]
-    type = 'connections'
+    type = "connections"
     hard_limit = 100
     soft_limit = 80
 
 [[vm]]
-  cpu_kind = 'shared'
+  cpu_kind = "shared"
   cpus = 1
   memory_mb = 1024
