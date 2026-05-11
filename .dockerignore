@@ -30,6 +30,7 @@ backtest_results.json
 !README.md
 
 # Large local artifacts (keep OUT of Docker context)
+debg/
 debug/*
 !debug/strategy_set_top7_drop6.json
 !debug/strategy_set_top3_robust.json
@@ -92,6 +93,7 @@ epoch3/
 external/
 exhaustive_analysis/
 generated_orca_profiles_*/
+polyprophet-lite/
 telegram_ai_media_bot/
 scripts/
 !scripts/migrate-redis.js
@@ -99,6 +101,13 @@ strategies/candidates/
 print/
 assistant/
 local_archive/
+_deploy_tmp/
+.tmp-origin-review/
+crash_reports/
+memory/
+twitter/
+docs/
+MIGRATION-GUIDE/
 *.webp
 *.png
 *.jpeg
