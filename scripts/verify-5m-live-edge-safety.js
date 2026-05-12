@@ -43,6 +43,9 @@ for (const strategy of strategies) {
 
 assert(CONFIG.RISK.enforceNetEdgeGate === true, 'ENFORCE_NET_EDGE_GATE must default true');
 assert(CONFIG.RISK.enforceHighPriceEdgeFloor === true, 'high-price edge floor must default true');
+assert(CONFIG.RISK.orderAuthProofMode === false, 'ORDER_AUTH_PROOF_MODE must default off');
+assert(tradeExecutorSource.includes('_canUseOrderAuthProofMode'), 'trade executor must expose explicit order-auth proof gate');
+assert(tradeExecutorSource.includes('effectiveMinOrderShares * orderPrice'), 'order-auth proof mode must force 5-share/min-order sizing');
 assert(CONFIG.RISK.minNetEdgeRoi >= 0.015, `MIN_NET_EDGE_ROI default too low: ${CONFIG.RISK.minNetEdgeRoi}`);
 assert(CONFIG.RISK.highPriceEdgeFloorMinRoi >= 0.015, `HIGH_PRICE_EDGE_FLOOR_MIN_ROI default too low: ${CONFIG.RISK.highPriceEdgeFloorMinRoi}`);
 assert(CONFIG.RISK.hardEntryPriceCap >= 0.97, `hardEntryPriceCap blocks live 0.97 asks: ${CONFIG.RISK.hardEntryPriceCap}`);
