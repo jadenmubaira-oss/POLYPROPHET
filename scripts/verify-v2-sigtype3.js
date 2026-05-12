@@ -61,5 +61,11 @@ assert(
     source.includes("candidate.credsSource = attempt.label"),
   "credential refresh must rebuild the candidate client with the refreshed API key",
 );
+assert(
+  source.includes("new ClobClient({") &&
+    !source.includes("new ClobClient(\n        host,") &&
+    !source.includes("new ClobClient(\n          host,"),
+  "clob-client-v2 must use object-style constructor, not legacy positional constructor",
+);
 
 console.log("✅ V2 sigType preservation verified");
