@@ -13065,7 +13065,7 @@ The `7d` p90 of `$799` and max of `$1,177` realistically place the operator's `$
 #### Fly secret targets to match repo defaults
 
 ```powershell
-fly secrets set -a polyprophet OPERATOR_STAKE_FRACTION=0.60 KELLY_FRACTION=0.60 KELLY_MAX_FRACTION=0.60 PRE_RESOLUTION_MIN_BID=0.99 HARD_ENTRY_PRICE_CAP=0.98 MIN_NET_EDGE_ROI=0.015 ENFORCE_NET_EDGE_GATE=true ENFORCE_HIGH_PRICE_EDGE_FLOOR=true HIGH_PRICE_EDGE_FLOOR_MIN_ROI=0.015 ORDERBOOK_DEPTH_GUARD_ENABLED=true ORDERBOOK_DEPTH_GUARD_SAFETY_MULT=1.05 --stage
+fly secrets set -a polyprophet OPERATOR_STAKE_FRACTION=0.60 KELLY_FRACTION=0.60 KELLY_MAX_FRACTION=0.60 PRE_RESOLUTION_MIN_BID=0.99 HARD_ENTRY_PRICE_CAP=0.98 MIN_NET_EDGE_ROI=0.015 ENFORCE_NET_EDGE_GATE=true ENFORCE_HIGH_PRICE_EDGE_FLOOR=true HIGH_PRICE_EDGE_FLOOR_MIN_ROI=0.015 ORDERBOOK_DEPTH_GUARD_ENABLED=true ORDERBOOK_DEPTH_GUARD_SAFETY_MULT=1.05 STRATEGY_SET_5M_PATH=strategies/strategy_set_5m_canary_0.json TIMEFRAME_5M_ENABLED=true TIMEFRAME_15M_ENABLED=false MULTIFRAME_4H_ENABLED=false ASSETS=BTC,ETH,SOL,XRP --stage
 ```
 
 The `--stage` form is deliberate: the strategy/risk secrets should be applied by the next Fly deploy together with the committed runtime image. `LIVE_AUTOTRADING_ENABLED` and `START_PAUSED` are intentionally not changed in this pass; remaining live risks (fill priority, Chainlink/Binance basis, adverse selection, reconciliation drag) are unchanged from the prior addendum and still warrant supervised forward activation.
