@@ -135,38 +135,44 @@ async function fetchClosedBinanceMinuteSignal(asset, nowSec) {
     const symbol = BINANCE_SPOT_SYMBOLS[String(asset || '').toUpperCase()];
     if (!symbol || typeof fetch !== 'function') return null;
 
+    const timeframe = CONFIG.TIMEFRAMES.find((tf) => tf.key === '5m') || { seconds: 300 };
+    const epochSec = Math.floor(Number(nowSec || 0) / timeframe.seconds) * timeframe.seconds;
     const closedBoundarySec = Math.floor(Number(nowSec || 0) / 60) * 60;
-    if (!Number.isFinite(closedBoundarySec) || closedBoundarySec <= 60) return null;
-    const cacheKey = `${symbol}:${closedBoundarySec}`;
+    if (!Number.isFinite(epochSec) || !Number.isFinite(closedBoundarySec) || closedBoundarySec <= epochSec) return null;
+    const cacheKey = `${symbol}:${epochSec}:${closedBoundarySec}`;
     const cached = structuralSignalCache.get(cacheKey);
     if (cached && Date.now() - cached.cachedAt < 60000) return cached.signal;
 
-    const startTime = (closedBoundarySec - 60) * 1000;
+    const startTime = epochSec * 1000;
     const endTime = closedBoundarySec * 1000 - 1;
-    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=1`;
+    const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=1m&startTime=${startTime}&endTime=${endTime}&limit=5`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 2500);
     try {
         const response = await fetch(url, { signal: controller.signal });
         if (!response.ok) throw new Error(`HTTP_${response.status}`);
         const rows = await response.json();
-        const row = Array.isArray(rows) ? rows[0] : null;
-        const open = Number(row?.[1]);
-        const close = Number(row?.[4]);
+        const candles = Array.isArray(rows) ? rows.filter((row) => Array.isArray(row)) : [];
+        if (!candles.length) return null;
+        const first = candles[0];
+        const last = candles[candles.length - 1];
+        const open = Number(first?.[1]);
+        const close = Number(last?.[4]);
         if (!(open > 0) || !(close > 0)) return null;
 
         const moveBps = ((close - open) / open) * 10000;
         const signal = {
             ok: Number.isFinite(moveBps) && moveBps !== 0,
-            source: 'BINANCE_CLOSED_1M',
+            source: 'BINANCE_CLOSED_5M_WINDOW',
             symbol,
             direction: moveBps > 0 ? 'UP' : 'DOWN',
             moveBps,
             absMoveBps: Math.abs(moveBps),
             open,
             close,
-            candleOpenSec: Math.floor(Number(row?.[0] || startTime) / 1000),
-            candleCloseSec: Math.floor(Number(row?.[6] || endTime) / 1000),
+            candleOpenSec: Math.floor(Number(first?.[0] || startTime) / 1000),
+            candleCloseSec: Math.floor(Number(last?.[6] || endTime) / 1000),
+            closedCandles: candles.length,
             observedAtSec: Math.floor(Number(nowSec || Date.now() / 1000))
         };
         structuralSignalCache.set(cacheKey, { cachedAt: Date.now(), signal });
