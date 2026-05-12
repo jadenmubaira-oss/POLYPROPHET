@@ -28,5 +28,10 @@ assert(
   /await addCandidate\(\s*preferredSigType,/.test(source),
   "trade-ready probing must add the preferred non-0/1 signature type candidate",
 );
+assert(
+  source.includes('raw.includes("order signer") && raw.includes("api key")') &&
+    source.includes('raw.includes("signer address") && raw.includes("api key")'),
+  "order signer/API-key mismatch must be retryable across ready CLOB candidates",
+);
 
 console.log("✅ V2 sigType preservation verified");
