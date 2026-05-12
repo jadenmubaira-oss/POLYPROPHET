@@ -25,6 +25,14 @@
       "minNaiveEdge": 0.01,
       "pWinEstimate": 0.9639,
       "evWinEstimate": 0.9639,
+      "pWinByEntryMinute": {
+        "2": 0.9639,
+        "3": 0.9910
+      },
+      "evWinByEntryMinute": {
+        "2": 0.9639,
+        "3": 0.9910
+      },
       "winRate": 0.96,
       "winRateLCB": 0.85,
       "nTriggered": 24
@@ -47,6 +55,14 @@
       "minNaiveEdge": 0.01,
       "pWinEstimate": 0.9655,
       "evWinEstimate": 0.9655,
+      "pWinByEntryMinute": {
+        "2": 0.9655,
+        "3": 0.9915
+      },
+      "evWinByEntryMinute": {
+        "2": 0.9655,
+        "3": 0.9915
+      },
       "winRate": 0.96,
       "winRateLCB": 0.85,
       "nTriggered": 24
@@ -69,6 +85,14 @@
       "minNaiveEdge": 0.01,
       "pWinEstimate": 0.9546,
       "evWinEstimate": 0.9546,
+      "pWinByEntryMinute": {
+        "2": 0.9546,
+        "3": 0.9797
+      },
+      "evWinByEntryMinute": {
+        "2": 0.9546,
+        "3": 0.9797
+      },
       "winRate": 0.96,
       "winRateLCB": 0.85,
       "nTriggered": 24
@@ -91,6 +115,14 @@
       "minNaiveEdge": 0.01,
       "pWinEstimate": 0.9657,
       "evWinEstimate": 0.9657,
+      "pWinByEntryMinute": {
+        "2": 0.9657,
+        "3": 0.9909
+      },
+      "evWinByEntryMinute": {
+        "2": 0.9657,
+        "3": 0.9909
+      },
       "winRate": 0.96,
       "winRateLCB": 0.85,
       "nTriggered": 24

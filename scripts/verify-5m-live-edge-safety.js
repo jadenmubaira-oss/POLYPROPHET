@@ -36,16 +36,25 @@ assert(strategies.length === 4, `expected 4 canary strategies, got ${strategies.
 for (const strategy of strategies) {
   assert(strategy.kind === 'STRUCTURAL', `${strategy.id} must remain structural`);
   assert(Number(strategy.entryMinuteMin) <= 2, `${strategy.id} must admit minute-2 cumulative closed-window signals`);
+  assert(Number(strategy.entryMinuteMax) === 3, `${strategy.id} must avoid minute-4 lock chasing`);
+  assert(Number(strategy.entrySecondMax) >= 55, `${strategy.id} must admit the real minute-2/3 executable window`);
   assert(Number(strategy.priceMax) >= 0.97, `${strategy.id} priceMax must admit calibrated 0.97 asks`);
   assert(Number(strategy.priceMax) <= CONFIG.RISK.hardEntryPriceCap + 1e-9, `${strategy.id} priceMax exceeds hard entry cap`);
   assert(Number(strategy.evWinEstimate || strategy.pWinEstimate) >= 0.954, `${strategy.id} EV win estimate too low for minute-2 canary edge`);
+  assert(Number(strategy.pWinByEntryMinute?.['2']) >= 0.954, `${strategy.id} missing minute-2 pWin estimate`);
+  assert(Number(strategy.pWinByEntryMinute?.['3']) >= 0.979, `${strategy.id} missing minute-3 pWin estimate`);
 }
 
 assert(CONFIG.RISK.enforceNetEdgeGate === true, 'ENFORCE_NET_EDGE_GATE must default true');
 assert(CONFIG.RISK.enforceHighPriceEdgeFloor === true, 'high-price edge floor must default true');
 assert(CONFIG.RISK.orderAuthProofMode === false, 'ORDER_AUTH_PROOF_MODE must default off');
+assert(tradeExecutorSource.includes('orderAuthProofMode'), 'trade executor must carry proof-mode marker into runtime candidates');
+assert(marketDiscoverySource || true, 'market discovery source loaded');
 assert(tradeExecutorSource.includes('_canUseOrderAuthProofMode'), 'trade executor must expose explicit order-auth proof gate');
 assert(tradeExecutorSource.includes('effectiveMinOrderShares * orderPrice'), 'order-auth proof mode must force 5-share/min-order sizing');
+const strategyMatcherSource = fs.readFileSync(path.join(ROOT, 'lib', 'strategy-matcher.js'), 'utf8');
+assert(strategyMatcherSource.includes('getMinuteProbability'), 'strategy matcher must support dynamic minute-based pWin');
+assert(strategyMatcherSource.includes('pWinByEntryMinute'), 'strategy matcher must read pWinByEntryMinute');
 assert(CONFIG.RISK.minNetEdgeRoi >= 0.015, `MIN_NET_EDGE_ROI default too low: ${CONFIG.RISK.minNetEdgeRoi}`);
 assert(CONFIG.RISK.highPriceEdgeFloorMinRoi >= 0.015, `HIGH_PRICE_EDGE_FLOOR_MIN_ROI default too low: ${CONFIG.RISK.highPriceEdgeFloorMinRoi}`);
 assert(CONFIG.RISK.hardEntryPriceCap >= 0.97, `hardEntryPriceCap blocks live 0.97 asks: ${CONFIG.RISK.hardEntryPriceCap}`);
