@@ -33,5 +33,16 @@ assert(
     source.includes('raw.includes("signer address") && raw.includes("api key")'),
   "order signer/API-key mismatch must be retryable across ready CLOB candidates",
 );
+assert(
+  source.includes("_refreshOrderSignerCredsForCandidate") &&
+    source.includes("createOrDeriveApiKey") &&
+    source.includes("order-signer-api-key-mismatch"),
+  "order signer/API-key mismatch must rederive order-capable API credentials before retrying",
+);
+assert(
+  source.includes("candidate.client = new ClobClient") &&
+    source.includes("candidate.credsSource = attempt.label"),
+  "credential refresh must rebuild the candidate client with the refreshed API key",
+);
 
 console.log("✅ V2 sigType preservation verified");
