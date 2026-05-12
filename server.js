@@ -2715,6 +2715,7 @@ app.post('/api/manual-smoke-test', async (req, res) => {
 });
 
 app.post('/api/resume-errors', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
     const prev = {
         errorHalt: { halted: errorHalted, consecutiveErrors: consecutiveTickErrors, threshold: ERROR_HALT_THRESHOLD },
         tradeFailureHalt: { halted: tradeFailureHalted, consecutiveFailures: consecutiveTradeFailures, threshold: TRADE_FAILURE_HALT_THRESHOLD, windowMinutes: TRADE_FAILURE_WINDOW_MS / 60000 }
@@ -2736,6 +2737,7 @@ app.get('/api/validator/last', (req, res) => {
 
 app.post('/api/validator/run', (req, res) => {
     try {
+        if (!requireAdminControlSecret(req, res)) return;
         const report = strategyValidator.runCheck({
             risk: riskManager.getStatus(),
             executor: tradeExecutor.getStatus(),
@@ -2800,6 +2802,7 @@ async function resetValidatorBaseline(options = {}) {
 
 app.post('/api/validator/reset', async (req, res) => {
     try {
+        if (!requireAdminControlSecret(req, res)) return;
         const confirmReset = req.body?.confirmReset === true;
         if (!confirmReset) {
             return res.status(400).json({ success: false, error: 'confirmReset=true required' });
@@ -2820,6 +2823,7 @@ app.post('/api/validator/reset', async (req, res) => {
 
 // Telegram — send a test message (for setup verification)
 app.post('/api/telegram/test', (req, res) => {
+    if (!requireAdminControlSecret(req, res)) return;
     const sent = telegram.sendMessage(
         `🧪 <b>TEST PING</b>\nDeploy: <code>${String(DEPLOY_VERSION).slice(0, 12)}</code>\n` +
         `Mode: ${CONFIG.TRADE_MODE} | Live: ${CONFIG.IS_LIVE}`,

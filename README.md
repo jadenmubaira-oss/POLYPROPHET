@@ -13069,3 +13069,13 @@ fly secrets set -a polyprophet OPERATOR_STAKE_FRACTION=0.60 KELLY_FRACTION=0.60 
 ```
 
 The `--stage` form is deliberate: the strategy/risk secrets should be applied by the next Fly deploy together with the committed runtime image. `LIVE_AUTOTRADING_ENABLED` and `START_PAUSED` are intentionally not changed in this pass; remaining live risks (fill priority, Chainlink/Binance basis, adverse selection, reconciliation drag) are unchanged from the prior addendum and still warrant supervised forward activation.
+
+---
+
+### Addendum 2026-05-12T10:05Z — Drawdown brake reset and admin endpoint hardening
+
+The operator requested that the active drawdown brake be deactivated/reset before any further readiness discussion. I used the existing validator baseline reset path with `clearTradeLog=false` and `preservePause=true`, rebasing live risk state to the current CLOB collateral/equity estimate of `$12.892746`. Post-reset `/api/status` verified `drawdownBrake.active=false`, `drawdownPct=0`, `bankroll=12.892746`, `peakBalance=12.892746`, `nominalStakeFraction=0.60`, and `effectiveStakeFraction=0.60`.
+
+Additional issue found and fixed in this pass: several state-changing/admin-like endpoints were not protected by the existing admin control secret. `POST /api/resume-errors`, `POST /api/validator/run`, `POST /api/validator/reset`, and `POST /api/telegram/test` now require the same `x-manual-smoke-key` / `manualSmokeKey` auth path used by pause/resume, manual smoke tests, redemption, rotation reset, and strategy autopilot controls.
+
+Remaining acknowledged issues after the reset: live trading is still intentionally blocked by `LIVE_AUTOTRADING_ENABLED=false` and `tradingPaused=true`; redemption queue summary still shows `2` actionable entries; the 5m canary still lacks local settled runtime-proof rows; and market risks remain fill priority, Chainlink/Binance basis, adverse selection, and settlement/reconciliation timing.
