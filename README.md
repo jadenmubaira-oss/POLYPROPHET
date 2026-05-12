@@ -12930,3 +12930,142 @@ Source: `epoch3/reinvestigation_v2/structural_edge_search_20260511T150418Z.json`
 - **The bot is more ready than before for a controlled real-world forward test**, because the V2/sigType, structural context, wildcard matching, stale-balance timeframe, and matched-share inflation bugs are now guarded by deterministic verifiers.
 - **It is still not honest to say `100% unpause and blind GO with no unforeseen issues`.** The core remaining risk is not a known code syntax/runtime defect; it is whether the backtested structural CEX-lag edge survives live orderbook competition, real fills, missed fills, and the Polymarket reconciliation delay.
 - Recommended live posture remains supervised forward proof: unpause only with active monitoring, tiny bankroll-aware exposure, immediate pause if realized WR falls below `70%` over the first `20` settled trades, if average entry is worse than model by more than `+2c`, or if settlement/accounting lag causes duplicated exposure.
+
+---
+
+### Addendum 2026-05-12T07:12Z — Post-Opus live-edge fix and final conservative sim
+
+#### Critical strategy-band/runtime fixes applied
+
+- Fixed the silent no-trade mismatch identified in the Opus re-review: `strategies/strategy_set_5m_canary_0.json` now uses `priceMax: 0.98` for all `BTC`/`ETH`/`SOL`/`XRP` 5m structural canary rules, so calibrated `0.97` live favored-side asks are no longer rejected by the strategy band.
+- Fixed the second hidden blocker: `lib/config.js` now defaults `HARD_ENTRY_PRICE_CAP` to `0.98` instead of `0.82`, so the global cap no longer rejects the same real trigger zone.
+- Added the missing high-price protection: `ENFORCE_NET_EDGE_GATE=true`, `MIN_NET_EDGE_ROI=0.015`, `ENFORCE_HIGH_PRICE_EDGE_FLOOR=true`, and `HIGH_PRICE_EDGE_FLOOR_MIN_ROI=0.015` now default on. This means high-price entries are admitted only when the post-fee edge estimate is at least `+1.5%` ROI, not merely non-negative.
+- Chosen sizing default is `KELLY_FRACTION=0.30` and `KELLY_MAX_FRACTION=0.30`. This is the best current compromise: materially faster than `0.20`, less fragile than `0.40`, and still rounded to `5`-share minimum orders at the current `$12.89` bootstrap size.
+- Added capacity awareness in `lib/trade-executor.js`: when the real order book is required and visible ask depth at or below the limit is thinner than requested, the bot now reduces shares down to depth-safe capacity if still `>= 5` shares; it blocks only when visible safe depth is below the Polymarket minimum. This avoids both book sweeping and unnecessary no-trade behavior.
+
+#### Fee/oracle/correlation recheck
+
+- Official Polymarket fee docs (`https://docs.polymarket.com/trading/fees`) state crypto taker fee rate `0.07` with formula `fee = C × feeRate × p × (1 - p)`. The runtime helper `lib/polymarket-fees.js` already matches this formula. At `5` shares and `0.97`, the modeled taker fee is about `$0.010476`.
+- Fresh 7d Binance 1m continuation re-run still supports the structural signal: cross-asset `signalMin3_10bps` continuation remains about `98.7%`, with individual assets near `98.0%`-`99.1%` and higher thresholds often `100%` in sample.
+- Important basis-risk correction: Polymarket 5m crypto markets are reported to settle from Chainlink Data Streams / oracle reports, not Binance prints directly. Binance remains a fast liquid proxy for the underlying, but it is not the literal settlement source. This oracle-basis risk cannot be reduced to zero without collecting matched Chainlink report timestamps and settled Polymarket outcomes live.
+
+#### Post-fix conservative profit simulation
+
+Source: `scripts/final-live-edge-profit-sim-20260512.js` writing `debug/opus_rereview_20260512/final_live_edge_profit_sim_20260512.json`.
+
+Inputs: start bankroll `$12.892746`, entry `0.97`, `pWin=0.9869158878504672`, 5-share minimum, official crypto taker fee formula, depth cap modeled at `40` visible shares with `1.05x` safety, fill probability `0.72`, reconciliation cap `6` trades/hour, and `5000` deterministic MC runs.
+
+| Horizon | Kelly | Fill haircut | Median end | P10 / P25 / P75 / P90 | Bust |
+|---:|---:|---:|---:|---:|---:|
+| `24h` | `0.30` | `1.00` | `$22.98` | `$12.98` / `$17.98` / `$27.98` / `$32.98` | `5.16%` |
+| `24h` | `0.30` | `0.45` | `$21.71` | `$11.71` / `$16.71` / `$26.71` / `$26.71` | `5.20%` |
+| `48h` | `0.30` | `1.00` | `$33.08` | `$18.08` / `$28.08` / `$44.12` / `$52.31` | `7.26%` |
+| `48h` | `0.30` | `0.45` | `$29.60` | `$15.52` / `$20.52` / `$34.75` / `$35.71` | `6.68%` |
+| `7d` | `0.30` | `1.00` | `$178.00` | `$55.65` / `$103.65` / `$268.13` / `$355.58` | `7.06%` |
+| `7d` | `0.30` | `0.45` | `$84.28` | `$36.20` / `$58.61` / `$120.78` / `$169.27` | `6.48%` |
+
+This is the newest truthful baseline. It is lower than the previous `$500-$1000` 48h claims because it prices the real `0.97` ask, the `5`-share minimum loss geometry, fees, depth/capacity, missed fills, and reconciliation drag together. The strategy still has positive edge after the fix (`~+1.53%` per dollar at `0.97` with `pWin≈98.69%`), but it is not a 60% ROI-per-trade moonshot.
+
+#### New verification artifacts
+
+- Added `scripts/verify-5m-live-edge-safety.js`. It asserts: canary `priceMax` admits `0.97`, hard cap does not block it, high-price edge gates default on, weak `95%` win-rate high-price entries fail, `98.7%` entries pass, and the depth guard allows/reduces/blocks correctly.
+- Added `scripts/final-live-edge-profit-sim-20260512.js` for deterministic post-fix profit simulation using the real high-price economics.
+- `scripts/verify-harness.js` now syntax-checks both new scripts.
+
+#### Updated final deployment/readiness verdict
+
+- Known issue fixed: the bot should no longer silently skip the real `0.97` structural trigger zone due to stale `0.85` strategy band or `0.82` hard cap.
+- Known issue fixed: high-price entries are no longer allowed by default unless they clear a positive post-fee ROI floor.
+- Known issue fixed: order sizing now respects visible top-of-book depth and reduces size where possible instead of sweeping beyond the intended limit/depth.
+- Still not honest to claim `100/100 no unforeseen issues`: remaining unproven risks are live fill priority, oracle-basis drift between Binance proxy and Chainlink settlement report, competitor/adverse selection, and settlement/reconciliation timing. The correct posture is controlled live forward-test, not blind unattended `GO`.
+
+---
+
+### Addendum 2026-05-12T07:41Z — Bounded max-profit configuration update
+
+#### Change requested
+
+The operator asked whether the lower conservative medians could be raised while still keeping bust risk reasonably low. The answer from the post-fix economics is: yes for the `7d` target, only modestly for `24h`/`48h`, because the real calibrated `0.97` entry has only about `+1.53%` post-fee edge per staked dollar. Configuration can compound that edge faster, but it cannot honestly turn it into a `60%` ROI-per-trade edge.
+
+#### Runtime configuration selected
+
+- `KELLY_FRACTION=0.45` and `KELLY_MAX_FRACTION=0.45` are now the repo defaults. This is the selected bounded-aggressive profile: materially faster than `0.30`, but not the rejected `0.60` profile that adds only modest median upside while worsening p10/bust.
+- Tiered stake caps are now `0.45` below `$50`, `0.40` from `$50-$200`, and `0.35` above `$200`; live depth guards and absolute-stake caps still apply.
+- `PRE_RESOLUTION_MIN_BID=0.99` is now the repo default. This fixes the hidden profit leak where the previous `0.95` floor could sell `0.97` entries at a loss before settlement. Pre-resolution exits should now only improve bankroll reuse when the live bid is already profitable.
+- Existing safety gates remain on: `priceMax=0.98`, `HARD_ENTRY_PRICE_CAP=0.98`, `ENFORCE_NET_EDGE_GATE=true`, `MIN_NET_EDGE_ROI=0.015`, `ENFORCE_HIGH_PRICE_EDGE_FLOOR=true`, `HIGH_PRICE_EDGE_FLOOR_MIN_ROI=0.015`, and `ORDERBOOK_DEPTH_GUARD_ENABLED=true`.
+
+#### Updated profit simulation
+
+Source: `node scripts\final-live-edge-profit-sim-20260512.js`, output `debug/opus_rereview_20260512/final_live_edge_profit_sim_20260512.json`, start bankroll `$12.892746`, entry `0.97`, `pWin≈0.9869`, official fee formula, `5`-share minimum, modeled `40`-share visible depth cap, and `5000` deterministic runs.
+
+| Profile | Horizon | Median end | P10 / P90 | Bust |
+|---|---:|---:|---:|---:|
+| Previous conservative `0.30` | `24h` | `$22.98` | `$12.98` / `$32.98` | `5.30%` |
+| Selected bounded max-profit `0.45` | `24h` | `$29.52` | `$14.68` / `$40.79` | `6.20%` |
+| Rejected ultra `0.60` | `24h` | `$33.25` | `$12.33` / `$54.63` | `7.34%` |
+| Previous conservative `0.30` | `48h` | `$33.08` | `$18.08` / `$52.50` | `6.46%` |
+| Selected bounded max-profit `0.45` | `48h` | `$50.71` | `$19.45` / `$113.10` | `7.28%` |
+| Rejected ultra `0.60` | `48h` | `$65.07` | `$16.71` / `$181.87` | `7.50%` |
+| Previous conservative `0.30` | `7d` | `$176.73` | `$59.87` / `$354.74` | `6.32%` |
+| Selected bounded max-profit `0.45` | `7d` | `$505.87` | `$137.87` / `$718.18` | `7.40%` |
+| Rejected ultra `0.60` | `7d` | `$575.16` | `$111.21` / `$799.40` | `9.04%` |
+
+Haircut stress for the selected `0.45` profile, with effective fills/trade frequency reduced by `55%`, gives medians of `$21.71` at `24h`, `$30.36` at `48h`, and `$142.00` at `7d`, with bust around `5.52%-7.32%`. This is the honest downside if fill priority/reconciliation do not improve from the profit-only exit setting.
+
+#### Deployment-secret note
+
+Fly currently has deployed secrets for `OPERATOR_STAKE_FRACTION`, `KELLY_FRACTION`/`KELLY_MAX_FRACTION` may be absent, and `PRE_RESOLUTION_MIN_BID` is present. To make the live host match this repo profile, set the corresponding Fly secrets explicitly before deployment/testing:
+
+```powershell
+fly secrets set -a polyprophet OPERATOR_STAKE_FRACTION=0.45 KELLY_FRACTION=0.45 KELLY_MAX_FRACTION=0.45 PRE_RESOLUTION_MIN_BID=0.99
+```
+
+Do **not** change `LIVE_AUTOTRADING_ENABLED` or `START_PAUSED` as part of this config-only optimization unless the operator explicitly requests live activation. The new profile improves the profit objective, but remaining risks are still live fill priority, Chainlink-vs-Binance basis, adverse selection, and settlement/reconciliation timing.
+
+---
+
+### Addendum 2026-05-12T09:50Z — Opus v3 operator-accepted max-profit (k=0.60)
+
+#### Why this change
+
+The operator explicitly accepted the previously-rejected `0.60` profile because "bust risk is still low" and asked for the absolute max profit possible. A full 5,000-run Kelly sweep (`scripts/opus_kelly_sweep_20260512.js`) across `k ∈ {0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.85, 1.00}` confirms `0.60` is the operator-optimal stopping point: above `0.65` p10 collapses toward `$0` and bust climbs past `10%` while 7d median plateaus near the depth-cap ceiling.
+
+#### Runtime configuration applied
+
+- `KELLY_FRACTION=0.60`, `KELLY_MAX_FRACTION=0.60` are now the repo defaults (was `0.45`).
+- Tiered stake caps in `lib/risk-manager.js` raised to `0.60/0.60/0.50/0.40` (bootstrap/growth/accelerate/preserve) — was `0.45/0.45/0.40/0.35`.
+- `lib/config.js` `defaultStakeFraction` for `EPOCH3_TIERED_SIZING=true` now `0.60/0.60/0.50/0.40`.
+- Strategy `strategies/strategy_set_5m_canary_0.json` has no per-rule `kellyCap`, so the global runtime config flows in directly with no contradiction.
+- All other safety gates unchanged and re-verified: `priceMax=0.98`, `HARD_ENTRY_PRICE_CAP=0.98`, `ENFORCE_NET_EDGE_GATE=true`, `MIN_NET_EDGE_ROI=0.015`, `ENFORCE_HIGH_PRICE_EDGE_FLOOR=true`, `HIGH_PRICE_EDGE_FLOOR_MIN_ROI=0.015`, `ORDERBOOK_DEPTH_GUARD_ENABLED=true`, `PRE_RESOLUTION_MIN_BID=0.99`, `MAX_MATCHED_SHARES_MULTIPLIER=1.05`.
+
+#### Operator-selected max-profit simulation
+
+Source: `node scripts\final-live-edge-profit-sim-20260512.js`, output `debug/opus_rereview_20260512/final_live_edge_profit_sim_20260512.json`, start bankroll `$12.892746`, entry `0.97`, `pWin≈0.9869`, official Polymarket crypto fee formula, `5`-share minimum, modeled `40`-share visible depth cap with `1.05x` safety, `5,000` deterministic MC runs.
+
+| Profile | Horizon | Median end | P10 / P90 | Max | Bust |
+|---|---:|---:|---:|---:|---:|
+| Operator-selected `k=0.60` | `24h` | `$33.25` | `$12.33` / `$54.63` | `$76.66` | `7.34%` |
+| Operator-selected `k=0.60` | `48h` | `$65.07` | `$16.71` / `$181.87` | `$273.38` | `7.50%` |
+| **Operator-selected `k=0.60`** | **`7d`** | **`$575.16`** | **`$111.21` / `$799.40`** | **`$1,177.35`** | **`9.04%`** |
+| Rejected `k=0.75` | `7d` | `$615.40` | `$4.30` / `$838.20` | `$1,147` | `13.82%` |
+| Rejected `k=1.00` (full Kelly) | `7d` | `$623.40` | `$3.00` / `$885.60` | `$1,190` | `25.92%` |
+
+Haircut stress (effective fills/trade frequency reduced by `55%`) for the selected `0.60` profile: medians `$21.70` (`24h`) / `$34.75` (`48h`) / `$218.39` (`7d`); bust `4.98%-8.46%`.
+
+The `7d` p90 of `$799` and max of `$1,177` realistically place the operator's `$500-$1,000+` target inside the upper half of the distribution at the full-fill 7d horizon, while haircut-stressed median `$218` still represents a `~17×` bankroll increase from `$12.89`. Above `k=0.65` the 7d median gains less than `$30` while p10 collapses from `$132` to `$4` — that is the formal reason `k=0.60` is the chosen operator-optimum.
+
+#### Verification
+
+- `node scripts\verify-5m-live-edge-safety.js` → `VERIFY_5M_LIVE_EDGE_SAFETY_PASS` with `kellyFraction=0.6`, `kellyMaxFraction=0.6`, depth guard reduces oversize orders and blocks below `5` shares.
+- `node scripts\verify-matched-shares-safety.js` → `MATCHED_SHARES_SAFETY_PASS` (the prior `249.76` phantom is still capped at requested shares).
+- `node scripts\verify-v2-sigtype3.js` → sigType `3` preservation verified.
+- `node scripts\final-live-edge-profit-sim-20260512.js` → headline `max_profit_selected` block matches the table above.
+- `node scripts\verify-harness.js` → `39 passed, 0 failed`.
+
+#### Fly secret targets to match repo defaults
+
+```powershell
+fly secrets set -a polyprophet OPERATOR_STAKE_FRACTION=0.60 KELLY_FRACTION=0.60 KELLY_MAX_FRACTION=0.60 PRE_RESOLUTION_MIN_BID=0.99 HARD_ENTRY_PRICE_CAP=0.98 MIN_NET_EDGE_ROI=0.015 ENFORCE_NET_EDGE_GATE=true ENFORCE_HIGH_PRICE_EDGE_FLOOR=true HIGH_PRICE_EDGE_FLOOR_MIN_ROI=0.015 ORDERBOOK_DEPTH_GUARD_ENABLED=true ORDERBOOK_DEPTH_GUARD_SAFETY_MULT=1.05 --stage
+```
+
+The `--stage` form is deliberate: the strategy/risk secrets should be applied by the next Fly deploy together with the committed runtime image. `LIVE_AUTOTRADING_ENABLED` and `START_PAUSED` are intentionally not changed in this pass; remaining live risks (fill priority, Chainlink/Binance basis, adverse selection, reconciliation drag) are unchanged from the prior addendum and still warrant supervised forward activation.

@@ -58,7 +58,7 @@ for (const sf of strategyFiles) {
 }
 
 // Syntax checks
-const jsFiles = ['server.js', 'lib/config.js', 'lib/strategy-matcher.js', 'lib/risk-manager.js', 'lib/trade-executor.js', 'lib/market-discovery.js', 'lib/clob-client.js', 'lib/clob-matched-shares.js', 'scripts/verify-matched-shares-safety.js'];
+const jsFiles = ['server.js', 'lib/config.js', 'lib/strategy-matcher.js', 'lib/risk-manager.js', 'lib/trade-executor.js', 'lib/market-discovery.js', 'lib/clob-client.js', 'lib/clob-matched-shares.js', 'scripts/verify-matched-shares-safety.js', 'scripts/verify-5m-live-edge-safety.js', 'scripts/final-live-edge-profit-sim-20260512.js'];
 for (const jf of jsFiles) {
     check(`node --check ${jf}`, () => {
         const full = path.join(ROOT, jf);
