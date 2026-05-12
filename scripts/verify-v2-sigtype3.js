@@ -49,6 +49,14 @@ assert(
   "order-auth credential derivation must have an explicit env kill switch",
 );
 assert(
+  source.includes("_buildPoly1271SignedOrder") &&
+    source.includes("maker: ethers.utils.getAddress(funder)") &&
+    source.includes("signer: ethers.utils.getAddress(funder)") &&
+    source.includes("TypedDataSign") &&
+    source.includes("Order(uint256 salt,address maker,address signer"),
+  "sigType-3 deposit-wallet orders must use raw ERC-7739 wrapped signing with maker=signer=funder",
+);
+assert(
   source.includes("candidate.client = new ClobClient") &&
     source.includes("candidate.credsSource = attempt.label"),
   "credential refresh must rebuild the candidate client with the refreshed API key",
