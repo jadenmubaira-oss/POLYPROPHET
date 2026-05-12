@@ -40,6 +40,15 @@ assert(
   "order signer/API-key mismatch must rederive order-capable API credentials before retrying",
 );
 assert(
+  source.includes("response?.data ?? response?.body ?? response?.error ?? null") &&
+    source.includes("response?.message || response?.error"),
+  "CLOB SDK {error,status} order failures must be surfaced so signer/API-key mismatch is retryable",
+);
+assert(
+  source.includes("POLYMARKET_ORDER_AUTH_DERIVE"),
+  "order-auth credential derivation must have an explicit env kill switch",
+);
+assert(
   source.includes("candidate.client = new ClobClient") &&
     source.includes("candidate.credsSource = attempt.label"),
   "credential refresh must rebuild the candidate client with the refreshed API key",
