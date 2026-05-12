@@ -387,15 +387,16 @@ function getLifecycleQueueStatus(executorStatus = null) {
     const autoRedeemAuthReady = !!clobStatus?.proxyRedeemAuthReady;
     const reasons = [];
     if (actionableRecoveryQueue) reasons.push('ACTIONABLE_RECOVERY_QUEUE');
-    if (actionableRedemptionQueue) reasons.push('ACTIONABLE_REDEMPTION_QUEUE');
-    if (actionableRedemptionQueue && !autoRedeemAuthReady) reasons.push('PROXY_REDEEM_AUTH_NOT_READY');
+    if (actionableRedemptionQueue) reasons.push('ACTIONABLE_REDEMPTION_QUEUE_NON_BLOCKING');
+    if (actionableRedemptionQueue && !autoRedeemAuthReady) reasons.push('PROXY_REDEEM_AUTH_NOT_READY_NON_BLOCKING');
     return {
-        entriesBlocked: CONFIG.TRADE_MODE === 'LIVE' && (actionableRecoveryQueue || actionableRedemptionQueue),
+        entriesBlocked: CONFIG.TRADE_MODE === 'LIVE' && actionableRecoveryQueue,
         reasons,
         recoveryQueueSummary,
         redemptionQueueSummary,
         actionableRecoveryQueue,
         actionableRedemptionQueue,
+        redemptionQueueBlocksEntries: false,
         autoRedeemAuthReady,
         relayerAuthMode: clobStatus?.relayerAuthMode || null,
         relayerAuthConfigured: !!clobStatus?.relayerAuthConfigured,

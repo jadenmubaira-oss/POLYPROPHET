@@ -13079,3 +13079,13 @@ The operator requested that the active drawdown brake be deactivated/reset befor
 Additional issue found and fixed in this pass: several state-changing/admin-like endpoints were not protected by the existing admin control secret. `POST /api/resume-errors`, `POST /api/validator/run`, `POST /api/validator/reset`, and `POST /api/telegram/test` now require the same `x-manual-smoke-key` / `manualSmokeKey` auth path used by pause/resume, manual smoke tests, redemption, rotation reset, and strategy autopilot controls.
 
 Remaining acknowledged issues after the reset: live trading is still intentionally blocked by `LIVE_AUTOTRADING_ENABLED=false` and `tradingPaused=true`; redemption queue summary still shows `2` actionable entries; the 5m canary still lacks local settled runtime-proof rows; and market risks remain fill priority, Chainlink/Binance basis, adverse selection, and settlement/reconciliation timing.
+
+---
+
+### Addendum 2026-05-12T11:37Z — Pre-resume redemption gating fix and smoke-test boundary
+
+The operator clarified that the redemption queue entries should be harmless/dust-filtered and should not block the bot before resume. I rechecked production and found one deterministic no-trade path: `server.js` lifecycle suppression still treated any `actionableRedemptionQueue` as an entry blocker. Since Fly reported `redemptionQueue.actionable=2`, this could have caused the bot to skip otherwise valid 5m canary entries after resume despite the spendable CLOB collateral showing `$12.892746`.
+
+Fix applied: lifecycle queue status now keeps redemption records visible as `ACTIONABLE_REDEMPTION_QUEUE_NON_BLOCKING` / `PROXY_REDEEM_AUTH_NOT_READY_NON_BLOCKING`, exposes `redemptionQueueBlocksEntries=false`, and only suppresses new entries for an actionable recovery queue. Spendable balance, 5-share minimum sizing, depth guard, net-edge gate, matched-share cap, and live order acceptance remain the hard execution gates. Added `scripts/verify-lifecycle-queue-gating.js` and wired it into harness syntax coverage.
+
+What can be amended before resume is now amended locally: drawdown brake reset, strategy/risk config aligned, admin endpoints protected, and redemption queue no longer blocks entries. What cannot be proven before smoke test must be observed live: first real fill priority, Chainlink/Binance settlement basis, actual post-fee realized edge, adverse selection, and settlement/reconciliation timing. Smoke test should watch the first `10-15` settled trades and pause if realized WR falls below roughly `90%`, if order rejections occur, if matched-share caps trip, or if no valid trade attempts appear after `~2` active signal windows.
