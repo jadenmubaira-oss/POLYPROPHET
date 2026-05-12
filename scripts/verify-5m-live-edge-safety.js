@@ -35,9 +35,10 @@ assert(strategies.length === 4, `expected 4 canary strategies, got ${strategies.
 
 for (const strategy of strategies) {
   assert(strategy.kind === 'STRUCTURAL', `${strategy.id} must remain structural`);
+  assert(Number(strategy.entryMinuteMin) <= 2, `${strategy.id} must admit minute-2 cumulative closed-window signals`);
   assert(Number(strategy.priceMax) >= 0.97, `${strategy.id} priceMax must admit calibrated 0.97 asks`);
   assert(Number(strategy.priceMax) <= CONFIG.RISK.hardEntryPriceCap + 1e-9, `${strategy.id} priceMax exceeds hard entry cap`);
-  assert(Number(strategy.evWinEstimate || strategy.pWinEstimate) >= 0.985, `${strategy.id} EV win estimate too low for high-price gate`);
+  assert(Number(strategy.evWinEstimate || strategy.pWinEstimate) >= 0.954, `${strategy.id} EV win estimate too low for minute-2 canary edge`);
 }
 
 assert(CONFIG.RISK.enforceNetEdgeGate === true, 'ENFORCE_NET_EDGE_GATE must default true');
@@ -61,8 +62,12 @@ assert(
 
 const positiveHighPriceRoi = calcBinaryEvRoiAfterFees(0.987, 0.97, { slippagePct: CONFIG.RISK.slippagePct });
 const weakHighPriceRoi = calcBinaryEvRoiAfterFees(0.95, 0.97, { slippagePct: CONFIG.RISK.slippagePct });
+const minute2PositiveRoi = calcBinaryEvRoiAfterFees(0.9639, 0.94, { slippagePct: CONFIG.RISK.slippagePct });
+const minute2WeakRoi = calcBinaryEvRoiAfterFees(0.9546, 0.94, { slippagePct: CONFIG.RISK.slippagePct });
 assert(positiveHighPriceRoi >= CONFIG.RISK.highPriceEdgeFloorMinRoi, `0.987/0.97 edge should pass: ${positiveHighPriceRoi}`);
 assert(weakHighPriceRoi < CONFIG.RISK.highPriceEdgeFloorMinRoi, `0.95/0.97 weak edge should fail: ${weakHighPriceRoi}`);
+assert(minute2PositiveRoi >= CONFIG.RISK.minNetEdgeRoi, `minute-2 0.9639/0.94 edge should pass: ${minute2PositiveRoi}`);
+assert(minute2WeakRoi < CONFIG.RISK.minNetEdgeRoi, `minute-2 0.9546/0.94 weak edge should fail: ${minute2WeakRoi}`);
 
 const enoughDepth = applyDepthCap({
   requestedShares: 8,
@@ -106,6 +111,8 @@ console.log(JSON.stringify({
   orderbookDepthGuardSafetyMult: CONFIG.RISK.orderbookDepthGuardSafetyMult,
   positiveHighPriceRoi,
   weakHighPriceRoi,
+  minute2PositiveRoi,
+  minute2WeakRoi,
   fiveShareFeeAt97c: fiveShareFee,
   enoughDepth,
   reducedDepth,

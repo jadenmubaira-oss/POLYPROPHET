@@ -13147,3 +13147,13 @@ Root cause: `server.js` `fetchClosedBinanceMinuteSignal()` was only measuring th
 Patch: `fetchClosedBinanceMinuteSignal()` now fetches closed 1m candles from the current 5m epoch start through the last fully closed minute and emits `BINANCE_CLOSED_5M_WINDOW` with cumulative `moveBps`, `absMoveBps`, `direction`, `closedCandles`, and the correct epoch-open/last-close timestamps. This preserves the no-lookahead rule while aligning the deployed bot with the strategy proof and live snapshot trigger logic.
 
 Verification before deploy: `node --check server.js`, `node --check lib\clob-client.js`, `node scripts\verify-v2-sigtype3.js`, `node scripts\verify-5m-live-edge-safety.js`, `node scripts\verify-matched-shares-safety.js`, `node scripts\verify-lifecycle-queue-gating.js`, and `node scripts\verify-harness.js` (`40 passed, 0 failed`). Next watch requirement remains strict: candidates must appear post-deploy, and at least one strategy-valid `LIVE_EXECUTE` must produce an accepted CLOB `orderID` before anyone treats the bot as autonomous or the profit projections as live-validated.
+
+---
+
+### Addendum 2026-05-12T17:50Z — Profit/cadence upgrade: admit minute-2 cumulative entries
+
+Fresh post-fix observation showed the bot was no longer missing qualifying minute-3/4 opportunities, but the configured strategy was still too late for live profitability/cadence: independent snapshots found minute-2 cumulative `>=10bps` signals on SOL at asks `0.88-0.94`, while the deployed strategy waited until minute `3-4`, where asks commonly moved to `0.97-0.99` or disappeared. Waiting improved theoretical win-rate but destroyed executable ROI/fill cadence.
+
+Data basis from `debug/opus_rereview_20260512/continuation_raw.json`: minute-2 cumulative `>=10bps` 7d continuation rates are BTC `96.39%`, ETH `96.55%`, SOL `95.46%`, XRP `96.57%`. At `0.90-0.94` asks this produces materially better post-fee ROI than the old minute-4 `0.97` chase, while `MIN_NET_EDGE_ROI=0.015` still rejects weak/overpriced cases (for example SOL `95.46%` at `0.94` fails, while BTC-like `96.39%` at `0.94` passes).
+
+Patch: `strategies/strategy_set_5m_canary_0.json` version `1.1` now uses `entryMinuteMin=2`, `entryMinuteMax=4`, keeps `minMoveBps=10`, and replaces the old optimistic global `pWinEstimate=0.987` with per-asset minute-2 estimates: BTC `0.9639`, ETH `0.9655`, SOL `0.9546`, XRP `0.9657`. `scripts/verify-5m-live-edge-safety.js` now asserts minute-2 eligibility and verifies both a passing minute-2 ROI case and a rejected weak minute-2 case. This is the best current deployable improvement: higher executable cadence and ROI without weakening edge gates or forcing off-strategy smoke trades.
