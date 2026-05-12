@@ -8,6 +8,8 @@ const { calcBinaryEvRoiAfterFees, calcPolymarketTakerFeeUsd } = require('../lib/
 const ROOT = path.resolve(__dirname, '..');
 const STRATEGY_PATH = path.join(ROOT, 'strategies', 'strategy_set_5m_canary_0.json');
 const strategySet = JSON.parse(fs.readFileSync(STRATEGY_PATH, 'utf8'));
+const marketDiscoverySource = fs.readFileSync(path.join(ROOT, 'lib', 'market-discovery.js'), 'utf8');
+const tradeExecutorSource = fs.readFileSync(path.join(ROOT, 'lib', 'trade-executor.js'), 'utf8');
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -48,6 +50,14 @@ assert(CONFIG.RISK.orderbookDepthGuardEnabled === true, 'orderbook depth guard m
 assert(CONFIG.RISK.kellyFraction >= 0.45, `KELLY_FRACTION default too low for max-profit profile: ${CONFIG.RISK.kellyFraction}`);
 assert(CONFIG.RISK.kellyMaxFraction >= 0.45, `KELLY_MAX_FRACTION default too low for max-profit profile: ${CONFIG.RISK.kellyMaxFraction}`);
 assert(CONFIG.RISK.preResolutionMinBid >= 0.99, `PRE_RESOLUTION_MIN_BID must not exit 0.97 entries at a loss: ${CONFIG.RISK.preResolutionMinBid}`);
+assert(
+  marketDiscoverySource.includes('const buyPrice = bestAsk ?? quoteBuyPrice;'),
+  'CLOB executable buy price must prefer bestAsk over bid-like /price?side=BUY quote',
+);
+assert(
+  /Number\.isFinite\(bestAsk\)\s*&&\s*bestAsk\s*>\s*0\s*\?\s*bestAsk\s*:\s*Number\.isFinite\(buyPrice\)/.test(tradeExecutorSource),
+  'live order entry must prefer executable bestAsk for FAK buys before depth checks',
+);
 
 const positiveHighPriceRoi = calcBinaryEvRoiAfterFees(0.987, 0.97, { slippagePct: CONFIG.RISK.slippagePct });
 const weakHighPriceRoi = calcBinaryEvRoiAfterFees(0.95, 0.97, { slippagePct: CONFIG.RISK.slippagePct });
