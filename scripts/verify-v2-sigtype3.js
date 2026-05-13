@@ -49,6 +49,11 @@ assert(
   "order-auth credential derivation must have an explicit env kill switch",
 );
 assert(
+  source.includes("POLYMARKET_RAW_POLY1271_SIGNING") &&
+    source.includes("CONFIG.POLYMARKET_RAW_POLY1271_SIGNING && candidate.signatureType === 3"),
+  "custom raw POLY_1271 signing must be optional so upgraded SDK path can be preferred",
+);
+assert(
   source.includes("_buildPoly1271SignedOrder") &&
     source.includes("maker: ethers.utils.getAddress(funder)") &&
     source.includes("signer: ethers.utils.getAddress(funder)") &&
