@@ -5225,6 +5225,20 @@ All other env vars remain the same:
 <!-- HANDOFF_STATE_START -->
 ### Current Handoff State (Machine-Parseable)
 
+#### 2026-05-13 — micro-bankroll recovery re-audit, high-price canary rejected, 5m cheap-entry candidate hardened
+
+- Post-deploy update `2026-05-13T08:31Z`: the reviewed paused build was deployed to Fly twice; the app is reachable and now loads `/app/strategies/strategy_set_5m_structural_edge_20260511T150418Z.json` with exactly `4` strategies. Runtime re-audit now passes strategy alignment, CLOB trade readiness, proxy redemption auth, micro-bankroll risk posture, runtime persistence, diagnostics cleanliness, and funding threshold.
+- Guarded auto-redeem update: a temporary admin key was set, `/api/auto-redeem` was called, and the key was removed. Redeem auth returned `authOk=true`, but redemptions returned `redeemed=0`, `failed=3`, `remaining=3`; follow-up `/api/status` still reports `recoveryActionable=1`, `redemptionActionable=3`, and `openPositions=1`.
+- Remaining runtime re-audit verdict is still **NO_GO** by design: `/api/status` reports `LIVE_AUTOTRADING_ENABLED is false`, `manualPause=true`, `recoveryQueue=1` with `actionable=1`, `redemptionQueue=3` with `actionable=3`, and `openPositions=1`. Do not unpause until the recovery/redemption queue is resolved and runtime re-audit turns green.
+- Current verified live host: `https://polyprophet.fly.dev`; `GET /api/wallet/balance` observed `balance=7.929836` and runtime re-audit reached Fly successfully.
+- Live runtime is **not GO** at this handoff: `/api/health` is `degraded`, `isLive=false`, `manualPause=true`, `LIVE_AUTOTRADING_ENABLED=false` on the host, the deployed `5m` strategy is now the pruned structural file, and a real recovery/redemption backlog is still blocking entries.
+- V2/POLY_1271 status: Polymarket docs confirm sig type `3`/`POLY_1271` uses a deposit-wallet funder and ERC-1271 validation; live `/api/clob-status` now reports `CLOB tradeReady PASS` and `proxyRedeemAuthReady=true`/`relayerAuthMode=relayer_api_key`, so the remaining blocker is operational state/strategy/env alignment, not basic CLOB auth.
+- High-price `97c` canary is rejected for the current `$7.93` bankroll: at 5-share minimum it consumes about `$4.85+fee` for ~`1.5%` modeled ROI on a perfect high-probability edge, gives only one practical order slot, and fresh `$7` MC had ~`32–36%` bust under the old canary assumptions.
+- New local recovery candidate is the pruned top-four cheap-entry `5m` structural/CEX-lag strategy in `strategies/strategy_set_5m_structural_edge_20260511T150418Z.json`: max entry `45c`, top-four Wilson LCBs `0.764–0.797`, average entries about `33–36c`, and weaker lower-LCB rules were removed.
+- Local guardrails changed to prevent accidental high-price redeploy: `HARD_ENTRY_PRICE_CAP` default/template is `0.45`, `scripts/verify-5m-live-edge-safety.js` now validates the cheap-entry profile and explicitly documents `97c` as a trap, and `fly.toml` is aligned to `5m`-only structural recovery while keeping `START_PAUSED=true`.
+- Verification run: `node --check server.js`, edited-file `node --check`s, and `node scripts/verify-5m-live-edge-safety.js` pass; post-deploy `node scripts/runtime-reaudit.js` passes strategy alignment/risk/auth checks but remains `NO_GO` because the live host is intentionally paused/inactive and still has actionable recovery/redemption backlog.
+- Exact next GO sequence is: deploy/push only the reviewed patch set, set Fly secrets/env to `STRATEGY_SET_5M_PATH=strategies/strategy_set_5m_structural_edge_20260511T150418Z.json`, `HARD_ENTRY_PRICE_CAP=0.45`, `TIMEFRAME_15M_ENABLED=false`, `TIMEFRAME_5M_ENABLED=true`, `ALLOW_MICRO_5M=true`, `ENFORCE_NET_EDGE_GATE=true`, `ENFORCE_HIGH_PRICE_EDGE_FLOOR=false`; then clear/redeem the stuck recovery queue, re-run `/api/health`, `/api/status`, `/api/wallet/balance`, `/api/clob-status`, and `npm run reverify:full`. Do **not** unpause live trading until runtime re-audit is green.
+
 **Last Agent**: Cascade operating as DEITY agent
 **Date**: 20 April 2026
 **Last Verified Live Strategy**: `strategies/strategy_set_15m_optimal_10usd_v5.json` (23 strategies)

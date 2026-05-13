@@ -5,32 +5,34 @@ const http = require('http');
 const https = require('https');
 
 const ROOT = path.join(__dirname, '..');
-const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet-1-rr1g.onrender.com').replace(/\/+$/, '');
+const LIVE_BASE_URL = String(process.env.LIVE_BASE_URL || 'https://polyprophet.fly.dev').replace(/\/+$/, '');
 const OUTPUT_PATH = path.join(ROOT, 'debug', 'runtime_reaudit_report.json');
-const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_combined_sub50c_tight.json').trim();
+const EXPECTED_15M_STRATEGY_PATH = String(process.env.EXPECTED_15M_STRATEGY_PATH || 'strategies/strategy_set_15m_structural_edge_20260511T150418Z.json').trim();
 const LOCAL_15M_STRATEGY_PATH = path.isAbsolute(EXPECTED_15M_STRATEGY_PATH)
     ? EXPECTED_15M_STRATEGY_PATH
     : path.join(ROOT, EXPECTED_15M_STRATEGY_PATH);
 const EXPECTED_15M_STRATEGY_BASENAME = path.basename(LOCAL_15M_STRATEGY_PATH);
-const EXPECTED_5M_STRATEGY_PATH = String(process.env.EXPECTED_5M_STRATEGY_PATH || 'debug/strategy_set_5m_walkforward_top4.json').trim();
+const EXPECTED_5M_STRATEGY_PATH = String(process.env.EXPECTED_5M_STRATEGY_PATH || 'strategies/strategy_set_5m_structural_edge_20260511T150418Z.json').trim();
 const LOCAL_5M_STRATEGY_PATH = path.isAbsolute(EXPECTED_5M_STRATEGY_PATH)
     ? EXPECTED_5M_STRATEGY_PATH
     : path.join(ROOT, EXPECTED_5M_STRATEGY_PATH);
 const EXPECTED_5M_STRATEGY_BASENAME = path.basename(LOCAL_5M_STRATEGY_PATH);
 const EXPECTED_MODE = String(process.env.EXPECTED_MODE || 'LIVE').trim().toUpperCase();
+const EXPECTED_15M_ENABLED = String(process.env.EXPECTED_15M_ENABLED || 'false').trim().toLowerCase() !== 'false';
 const EXPECTED_5M_ENABLED = String(process.env.EXPECTED_5M_ENABLED || 'true').trim().toLowerCase() !== 'false';
 const REQUIRE_TRADE_READY = String(process.env.REQUIRE_TRADE_READY || (EXPECTED_MODE === 'LIVE' ? 'true' : 'false')).trim().toLowerCase() === 'true';
 const EXPECTED_RISK = {
     requireRealOrderBook: String(process.env.EXPECTED_REQUIRE_REAL_ORDERBOOK || 'true').trim().toLowerCase() !== 'false',
-    enforceNetEdgeGate: String(process.env.EXPECTED_ENFORCE_NET_EDGE_GATE || 'false').trim().toLowerCase() === 'true',
+    enforceNetEdgeGate: String(process.env.EXPECTED_ENFORCE_NET_EDGE_GATE || 'true').trim().toLowerCase() === 'true',
     maxTotalExposure: Number(process.env.EXPECTED_MAX_TOTAL_EXPOSURE ?? 0),
     riskEnvelopeEnabled: String(process.env.EXPECTED_RISK_ENVELOPE_ENABLED || 'false').trim().toLowerCase() === 'true',
     minBalanceFloor: Number(process.env.EXPECTED_MIN_BALANCE_FLOOR ?? 0),
     minOrderShares: Number(process.env.EXPECTED_MIN_ORDER_SHARES ?? 5),
     entryPriceBufferCents: Number(process.env.EXPECTED_ENTRY_BUFFER_CENTS ?? 0),
     maxPerCycle: Number(process.env.EXPECTED_MAX_PER_CYCLE ?? 1),
-    stakeFraction: Number(process.env.EXPECTED_STAKE_FRACTION ?? 0.15)
+    stakeFraction: Number(process.env.EXPECTED_STAKE_FRACTION ?? 0.6)
 };
+const EXPECTED_5M_MIN_BANKROLL = Number(process.env.EXPECTED_5M_MIN_BANKROLL ?? 3);
 
 function writeJson(filePath, value) {
     fs.writeFileSync(filePath, JSON.stringify(value, null, 2));
@@ -136,12 +138,12 @@ async function main() {
         },
         {
             name: 'Correct 15m strategy loaded',
-            status: String(health?.strategySets?.['15m']?.filePath || '').endsWith(EXPECTED_15M_STRATEGY_BASENAME) ? 'PASS' : 'FAIL',
+            status: !EXPECTED_15M_ENABLED || String(health?.strategySets?.['15m']?.filePath || '').endsWith(EXPECTED_15M_STRATEGY_BASENAME) ? 'PASS' : 'FAIL',
             detail: health?.strategySets?.['15m']?.filePath || null
         },
         {
             name: '15m strategy count',
-            status: local15mStrategyCount !== null && Number(health?.strategySets?.['15m']?.strategies) === local15mStrategyCount ? 'PASS' : 'FAIL',
+            status: !EXPECTED_15M_ENABLED || (local15mStrategyCount !== null && Number(health?.strategySets?.['15m']?.strategies) === local15mStrategyCount) ? 'PASS' : 'FAIL',
             detail: {
                 live: Number(health?.strategySets?.['15m']?.strategies || 0),
                 localExpected: local15mStrategyCount
@@ -152,7 +154,7 @@ async function main() {
             status: !EXPECTED_5M_ENABLED || (
                 Array.isArray(health?.timeframes) &&
                 health.timeframes.includes('5m') &&
-                Number(health?.configuredTimeframes?.find?.((tf) => tf?.key === '5m')?.minBankroll) === 2
+                Number(health?.configuredTimeframes?.find?.((tf) => tf?.key === '5m')?.minBankroll) === EXPECTED_5M_MIN_BANKROLL
             ) ? 'PASS' : 'FAIL',
             detail: {
                 activeTimeframes: health?.timeframes || [],
@@ -190,7 +192,7 @@ async function main() {
             }
         },
         {
-            name: '15m risk posture',
+            name: 'Micro-bankroll risk posture',
             status: (
                 health?.riskControls?.requireRealOrderBook === EXPECTED_RISK.requireRealOrderBook &&
                 health?.riskControls?.enforceNetEdgeGate === EXPECTED_RISK.enforceNetEdgeGate &&
