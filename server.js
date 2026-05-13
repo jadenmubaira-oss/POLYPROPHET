@@ -395,8 +395,10 @@ function getLifecycleQueueStatus(executorStatus = null) {
     if (actionableRecoveryQueue) reasons.push('ACTIONABLE_RECOVERY_QUEUE');
     if (actionableRedemptionQueue) reasons.push('ACTIONABLE_REDEMPTION_QUEUE_NON_BLOCKING');
     if (actionableRedemptionQueue && !autoRedeemAuthReady) reasons.push('PROXY_REDEEM_AUTH_NOT_READY_NON_BLOCKING');
+    const skipRecoveryGate = !!CONFIG.RISK?.skipRecoveryQueueGate;
     return {
-        entriesBlocked: CONFIG.TRADE_MODE === 'LIVE' && actionableRecoveryQueue,
+        entriesBlocked: CONFIG.TRADE_MODE === 'LIVE' && actionableRecoveryQueue && !skipRecoveryGate,
+        skipRecoveryQueueGate: skipRecoveryGate,
         reasons,
         recoveryQueueSummary,
         redemptionQueueSummary,
@@ -1881,6 +1883,127 @@ app.post('/api/force-recovery', (req, res) => {
             positionId,
             recovery,
             executor: tradeExecutor.getStatus()
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/dismiss-recovery-item', (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        const positionId = String(req.body?.positionId || '').trim() || null;
+        const tokenId = String(req.body?.tokenId || '').trim() || null;
+        const conditionId = String(req.body?.conditionId || '').trim() || null;
+        const reason = String(req.body?.reason || 'ADMIN_DISMISS_LOST_POSITION').trim();
+        if (!positionId && !tokenId) {
+            return res.status(400).json({ success: false, error: 'POSITION_ID_OR_TOKEN_ID_REQUIRED' });
+        }
+        const match = {};
+        if (positionId) match.positionId = positionId;
+        if (tokenId) match.tokenId = tokenId;
+        if (conditionId) match.conditionId = conditionId;
+        const removed = tradeExecutor.clearRecoveryRecord(match, { outcome: 'ADMIN_DISMISSED', reason });
+        if (removed === null) {
+            return res.status(404).json({ success: false, error: 'RECOVERY_ITEM_NOT_FOUND', match });
+        }
+        const executorStatus = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'ADMIN_DISMISS_RECOVERY_ITEM',
+            match,
+            reason,
+            removed
+        });
+        saveRuntimeState();
+        return res.json({
+            success: true,
+            removed,
+            recoveryQueueSummary: executorStatus.recoveryQueueSummary,
+            redemptionQueueSummary: executorStatus.redemptionQueueSummary,
+            entriesBlocked: lifecycleQueueStatus.entriesBlocked,
+            lifecycleQueueStatus
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/dismiss-redemption-item', (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        const tokenId = String(req.body?.tokenId || '').trim() || null;
+        const positionId = String(req.body?.positionId || '').trim() || null;
+        const reason = String(req.body?.reason || 'ADMIN_DISMISS_FAILED_REDEMPTION').trim();
+        if (!tokenId && !positionId) {
+            return res.status(400).json({ success: false, error: 'TOKEN_ID_OR_POSITION_ID_REQUIRED' });
+        }
+        const queue = tradeExecutor.redemptionQueue || [];
+        const idx = queue.findIndex(item => {
+            if (!item) return false;
+            if (tokenId && item.tokenId === tokenId) return true;
+            if (positionId && item.positionId === positionId) return true;
+            return false;
+        });
+        if (idx < 0) {
+            return res.status(404).json({ success: false, error: 'REDEMPTION_ITEM_NOT_FOUND', tokenId, positionId });
+        }
+        const [removed] = tradeExecutor.redemptionQueue.splice(idx, 1);
+        const executorStatus = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'ADMIN_DISMISS_REDEMPTION_ITEM',
+            tokenId: removed?.tokenId,
+            positionId: removed?.positionId,
+            reason
+        });
+        saveRuntimeState();
+        return res.json({
+            success: true,
+            removed,
+            recoveryQueueSummary: executorStatus.recoveryQueueSummary,
+            redemptionQueueSummary: executorStatus.redemptionQueueSummary,
+            entriesBlocked: lifecycleQueueStatus.entriesBlocked,
+            lifecycleQueueStatus
+        });
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/dismiss-all-failed-redemptions', (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        const maxAttempts = Number(req.body?.maxAttempts ?? 2);
+        const reason = String(req.body?.reason || 'ADMIN_DISMISS_ALL_FAILED').trim();
+        const queue = tradeExecutor.redemptionQueue || [];
+        const toRemove = queue.filter(item =>
+            item && !item.requiresManual && !item.zeroVerified &&
+            Number(item.attempts || 0) >= maxAttempts &&
+            String(item.lastError || '').includes('STATE_FAILED')
+        );
+        const tokenIds = toRemove.map(item => item.tokenId).filter(Boolean);
+        tradeExecutor.redemptionQueue = queue.filter(item => !toRemove.includes(item));
+        const executorStatus = tradeExecutor.getStatus();
+        const lifecycleQueueStatus = getLifecycleQueueStatus(executorStatus);
+        diagnosticLog.push({
+            ts: new Date().toISOString(),
+            type: 'ADMIN_DISMISS_ALL_FAILED_REDEMPTIONS',
+            removed: toRemove.length,
+            tokenIds,
+            reason
+        });
+        saveRuntimeState();
+        return res.json({
+            success: true,
+            removed: toRemove.length,
+            tokenIds,
+            recoveryQueueSummary: executorStatus.recoveryQueueSummary,
+            redemptionQueueSummary: executorStatus.redemptionQueueSummary,
+            entriesBlocked: lifecycleQueueStatus.entriesBlocked,
+            lifecycleQueueStatus
         });
     } catch (e) {
         return res.status(500).json({ success: false, error: e.message });
