@@ -24,6 +24,9 @@ omega_state.json
 state.json
 deity_state.json
 telegram_config.json
+wallet.json
+tmp_key.txt
+tmp_trades.json
 
 # Local script outputs (keep out of repo)
 backtest_results.json
@@ -31,6 +34,9 @@ backtest_results.json
 # Local scratch files
 .tmp_*
 .tmp_ignore
+
+# Local bots / misc local-only folders
+telegram_ai_media_bot/
 
 # Local audit/report drafts
 AUTO_TRADE_IMPLEMENTATION_PLAN.md

@@ -17,6 +17,11 @@ const strategyValidator = require('./lib/strategy-validator');
 const telegramCommands = require('./lib/telegram-commands');
 const flySecrets = require('./lib/fly-secrets');
 const StrategyAutopilot = require('./lib/strategy-autopilot');
+const microstructureTracker = require('./lib/microstructure-tracker');
+const CycleRecorder = require('./lib/cycle-recorder');
+
+const cycleRecorder = new CycleRecorder();
+const cycleRecorderEnabled = String(process.env.CYCLE_RECORDER_ENABLED || 'true').trim().toLowerCase() !== 'false';
 
 async function persistDerivedPolymarketSecrets() {
     const clob = tradeExecutor?.clob;
@@ -80,7 +85,8 @@ function loadClobHeaders() {
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
-const RUNTIME_STATE_PATH = path.join(__dirname, 'data', 'runtime-state.json');
+const RUNTIME_STATE_PATH = String(process.env.RUNTIME_STATE_PATH || '').trim()
+    || path.join(__dirname, 'data', 'runtime-state.json');
 const parseEnvBool = (value, defaultValue = false) => {
     if (value === undefined || value === null || String(value).trim() === '') return defaultValue;
     return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
@@ -1011,6 +1017,15 @@ async function orchestrate() {
         return;
     }
 
+    // Live-observable microstructure proxies (spreads + quote-change counters)
+    microstructureTracker.update(currentMarkets, nowSec);
+
+    // Forward-only dataset recorder (retention-proof, spike-aware via bid/ask min/max)
+    if (cycleRecorderEnabled) {
+        cycleRecorder.update(currentMarkets, nowSec, enabledTimeframes);
+        cycleRecorder.flushEnded(currentMarkets, nowSec, enabledTimeframes);
+    }
+
     let marketsChecked = 0;
     let candidatesFound = 0;
     let tradesAttempted = 0;
@@ -1124,7 +1139,7 @@ async function orchestrate() {
                     }
                 } else if (!result.success) {
                     const reason = String(result.error || '');
-                    const pendingBuyOpen = reason.includes('NO_FILL_AFTER_RETRIES');
+                    const pendingBuyOpen = reason.includes('NO_FILL_AFTER_RETRIES') || reason.includes('PENDING_BUY_OPEN');
                     if (pendingBuyOpen) {
                         consecutiveTradeFailures = 0;
                         lastTradeFailureAt = 0;
@@ -1161,6 +1176,11 @@ async function orchestrate() {
             }
         }
     }
+
+    // Mission exit plan: take-profit ladder (GTC) + fallback sell lifecycle
+    const tpLadderResults = CONFIG.TRADE_MODE === 'LIVE'
+        ? await tradeExecutor.processTakeProfitLadders(currentMarkets, 5)
+        : { success: true, processed: 0, closed: 0, failed: 0 };
 
     // Pre-resolution exit: sell winning positions before cycle ends (avoids redemption dependency)
     const preResExits = tradeExecutor.checkPreResolutionExits(currentMarkets);
@@ -1210,13 +1230,15 @@ async function orchestrate() {
         ? await tradeExecutor.checkAndRedeemPositions()
         : { success: true, redeemed: 0, failed: 0, skipped: 0, remaining: 0 };
 
-    if (paperSettlements.resolved > 0 || liveSettlements.length > 0 || pendingSellResults.closed > 0 || redemptionResults.redeemed > 0) {
+    if (paperSettlements.resolved > 0 || liveSettlements.length > 0 || tpLadderResults.closed > 0 || pendingSellResults.closed > 0 || redemptionResults.redeemed > 0) {
         diagnosticLog.push({
             ts: new Date().toISOString(),
             type: 'LIFECYCLE_MAINTENANCE',
             paperSettlementsResolved: paperSettlements.resolved || 0,
             paperSettlementsRemaining: paperSettlements.remaining || 0,
             liveSettlements: liveSettlements.length,
+            takeProfitClosed: tpLadderResults.closed || 0,
+            takeProfitFailed: tpLadderResults.failed || 0,
             pendingSellsClosed: pendingSellResults.closed || 0,
             pendingSellsFailed: pendingSellResults.failed || 0,
             redeemed: redemptionResults.redeemed || 0,
@@ -2108,6 +2130,35 @@ app.get('/api/forward-log', (req, res) => {
     });
 });
 
+function tailTextFile(filePath, maxLines = 200, maxBytes = 256 * 1024) {
+    const p = String(filePath || '').trim();
+    if (!p) return { ok: false, error: 'FILE_PATH_EMPTY' };
+    try {
+        if (!fs.existsSync(p)) return { ok: false, error: 'FILE_NOT_FOUND' };
+        const stat = fs.statSync(p);
+        const size = Number(stat.size || 0);
+        const readBytes = Math.max(0, Math.min(Number(maxBytes || 0) || 0, size));
+        const start = Math.max(0, size - readBytes);
+        const fd = fs.openSync(p, 'r');
+        const buf = Buffer.alloc(readBytes);
+        fs.readSync(fd, buf, 0, readBytes, start);
+        fs.closeSync(fd);
+        const text = buf.toString('utf8');
+        const parts = text.split(/\r?\n/).filter((v) => v !== '');
+        const tail = parts.slice(-Math.max(1, Math.min(2000, Number(maxLines || 200) || 200)));
+        return {
+            ok: true,
+            filePath: p,
+            fileSizeBytes: size,
+            bytesRead: readBytes,
+            truncated: parts.length > tail.length || start > 0,
+            lines: tail
+        };
+    } catch (e) {
+        return { ok: false, error: 'TAIL_FAILED', message: String(e?.message || e) };
+    }
+}
+
 function getAdminControlSecret() {
     return String(process.env.MANUAL_SMOKE_TEST_KEY || process.env.AUTH_PASSWORD || '').trim();
 }
@@ -2125,6 +2176,52 @@ function requireAdminControlSecret(req, res) {
     }
     return true;
 }
+
+function requireAdminControlSecretWhenLive(req, res) {
+    // Allow read-only diagnostic endpoints when not actually live-trading.
+    // Once live trading is enabled, require the admin control secret again.
+    if (CONFIG.TRADE_MODE !== 'LIVE' || !CONFIG.IS_LIVE) return true;
+    return requireAdminControlSecret(req, res);
+}
+
+app.get('/api/cycle-recorder/status', (req, res) => {
+    if (!requireAdminControlSecretWhenLive(req, res)) return;
+    return res.json({
+        success: true,
+        enabled: cycleRecorderEnabled,
+        status: cycleRecorder.getStatus()
+    });
+});
+
+app.get('/api/cycle-recorder/tail', (req, res) => {
+    if (!requireAdminControlSecretWhenLive(req, res)) return;
+    const requestedLimit = Number.parseInt(String(req.query?.limit || '200'), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(2000, requestedLimit)) : 200;
+    const status = cycleRecorder.getStatus();
+    const tail = tailTextFile(status.filePath, limit);
+    if (!tail.ok) {
+        return res.status(tail.error === 'FILE_NOT_FOUND' ? 404 : 500).json({ success: false, error: tail.error, details: tail });
+    }
+    return res.json({
+        success: true,
+        enabled: cycleRecorderEnabled,
+        recorder: status,
+        tail
+    });
+});
+
+app.get('/api/cycle-recorder/download', (req, res) => {
+    if (!requireAdminControlSecretWhenLive(req, res)) return;
+    const requestedLimit = Number.parseInt(String(req.query?.limit || '500'), 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(5000, requestedLimit)) : 500;
+    const status = cycleRecorder.getStatus();
+    const tail = tailTextFile(status.filePath, limit);
+    if (!tail.ok) {
+        return res.status(tail.error === 'FILE_NOT_FOUND' ? 404 : 500).type('text/plain').send(`error=${tail.error}`);
+    }
+    res.type('text/plain');
+    return res.send(`${tail.lines.join('\n')}\n`);
+});
 
 app.get('/api/strategy-autopilot/status', (req, res) => {
     if (!requireAdminControlSecret(req, res)) return;
@@ -2637,6 +2734,34 @@ app.post('/api/live-order-proof', async (req, res) => {
             tokenId: e.tokenId,
             proofPrice: e.proofPrice,
             note: e.note
+        });
+    }
+});
+
+app.get('/api/hit-sleeve/plan', async (req, res) => {
+    try {
+        if (!requireAdminControlSecretWhenLive(req, res)) return;
+        const result = await tradeExecutor.planHitSleeve();
+        return res.json(result);
+    } catch (e) {
+        return res.status(e.httpStatus || 500).json({
+            success: false,
+            error: e.message || String(e)
+        });
+    }
+});
+
+app.post('/api/hit-sleeve/run', async (req, res) => {
+    try {
+        // This endpoint can place real orders. Always require the admin control secret.
+        if (!requireAdminControlSecret(req, res)) return;
+        const dryRun = req.body?.dryRun === true || String(req.body?.dryRun || '').toLowerCase() === 'true';
+        const result = await tradeExecutor.executeHitSleeve({ dryRun });
+        return res.json(result);
+    } catch (e) {
+        return res.status(e.httpStatus || 500).json({
+            success: false,
+            error: e.message || String(e)
         });
     }
 });

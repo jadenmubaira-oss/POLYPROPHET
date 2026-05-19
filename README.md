@@ -5252,6 +5252,66 @@ All other env vars remain the same:
 - Expected medians from `$7.93`: conservative 1d/2d/7d ≈ `$13.47/$23.47/$559.65`. With `+£5 (+$6.76)`: ≈ `$25.48/$44.84/$1,106.86`. Stress 7d ≈ `$66.46`. These are scenario math; forward fills will prove or refine.
 - Next agent: if `manualPause` ever reverts to `true`, POST `/api/resume` with `AUTH_PASSWORD` as `x-manual-smoke-key`. Do NOT set `START_PAUSED=true`, `LIVE_AUTOTRADING_ENABLED=false`, or add any new blocked positions to the recovery queue without also calling `/api/dismiss-recovery-item`. Monitor `/api/trades` and `/api/status > openPositions` to confirm live order flow.
 
+#### 2026-05-13T19:45Z — user-paused confidence re-audit: runtime ready, strategy not 100% proven
+
+- User paused the bot again for confidence review. Read-only live check shows host `LIVE`, `isLive=true`, `manualPause=true`, no live blockers, `entriesBlocked=false`, balance `$7.929836`, active `5m` strategy `/app/strategies/strategy_set_5m_structural_edge_20260511T150418Z.json`, recovery queue `0`, redemption queue `3`, and CLOB sig type `3` trade readiness currently `READY`.
+- Superseding verdict on the previous `UNCONDITIONAL GO`: runtime blockers are cleared, but the current four-rule cheap-entry structural strategy is **not 100/100 proven** because `/api/forward-log` has no successful live fills for the current structural profile. Last 200 forward records: `2` successes total, `185` blocked; `186` old high-price early-lock records, only `14` current structural records, and those structural records are blocked by gates/pause/no-real-book states rather than filled.
+- Why this should differ from yesterday's bankroll loss if resumed: old high-price `86c-97c` entries are now mechanically blocked by `HARD_ENTRY_PRICE_CAP=0.45` plus the net-edge and real-orderbook gates; stuck recovery queue blocking was cleared; `START_PAUSED=false`, `LIVE_AUTOTRADING_ENABLED=true`, and `SKIP_RECOVERY_QUEUE_GATE=true` prevent the old permanent-degraded loop. What is **not** proven different yet is real fill frequency and realized win rate for the new cheap-entry profile.
+- Profit math remains scenario-only: per filled 5-share order at the deployed weighted stats is about `$1.79` cost at `34.17c` average entry, EV about `+$2.08` with Wilson-LCB p=`77.35%` and `+$2.72` with empirical p=`90.18%`; current-bankroll modeled medians remain roughly `$13.47/$23.47/$559.65` for `1d/2d/7d`, but stress 7d is only about `$66.46`. With +`£5≈$6.76`, modeled medians are roughly `$25.48/$44.84/$1,106.86`, stress 7d about `$128.05`.
+- Honest GO/NO-GO: **NO_GO for an unattended moonshot claim** until a deliberately small live-forward proof captures at least one successful current-profile fill, settlement/redeem behavior, and no reappearance of signer/API-key errors. Best available current profile is still this pruned `5m` structural file; no inspected miner/log artifact provides a more deployable, better-proven micro-bankroll alternative that survives the 5-share, fill, high-price, and runtime-realism constraints.
+
+#### 2026-05-14T04:00Z — forensic certainty audit: no honest universal strategy GO yet
+
+- Added durable report `docs/confidence-audit-2026-05-14.md` after a block-level runtime/strategy audit. It maps the live capital path through `server.js`, `lib/config.js`, `lib/risk-manager.js`, `lib/strategy-matcher.js`, `lib/trade-executor.js`, `lib/clob-client.js`, and `lib/polymarket-fees.js`, including the gates that can place, skip, reserve, close, settle, redeem, or block a trade.
+- Live state stayed paused during the audit: `2026-05-14T03:39:11Z` check showed `mode=LIVE`, `isLive=true`, `manualPause=true`, no live blockers, `entriesBlocked=false`, balance `$7.929836`, recovery queue `0`, redemption queue `3`, open positions `1`, and strategy `/app/strategies/strategy_set_5m_structural_edge_20260511T150418Z.json`.
+- Important correction to prior confidence language: the current `5m` structural file itself says `RESEARCH_CANDIDATE_OPERATOR_APPROVAL_REQUIRED`; its rules have only `39-45` historical observations each and only `8-9` holdout observations each. The inspected forward log has `200` records from `2026-05-12T19:32Z` to `2026-05-14T03:32Z`, `2` successes overall, `185` blocked, and `0` successful current-profile structural fills. That does **not** support 100/100 certainty.
+- Runtime is safer than the failed high-price tests because hard price cap, real-orderbook, net-edge, fee-aware affordability, min-share, max-cycle, pause, and recovery gates now block obvious bad entries. However, those same gates also mean fill frequency can be too low for the moonshot median; no-fill/pending-buy, pre-resolution exit, redemption, and recovery paths can still make live behavior diverge from simple simulations.
+- Universal strategy search verdict: pure prediction, time-of-day, streak, high-price carry, micro-bankroll market-making, settlement arbitrage, cross-exchange arb, and generic sports/news/event pivots all fail at least one current constraint: sample proof, bankroll, min-order, liquidity, latency, fill probability, fee drag, or reproducible automation. Cheap CEX-lag remains the best inspected Polymarket-only candidate, but it is still a candidate, not a certainty.
+- Required future GO gate: keep paused unless an operator-approved forward-proof phase first shows accepted current-profile order auth, at least one real current-profile fill, clean settlement/redeem, and no recurrence of signer/API-key/no-fill bankroll locks. Preliminary confidence needs at least `20` current-profile fills; aggressive compounding should wait for `50+` fills or an equally hard external proof.
+
+#### 2026-05-14 — strategy re-open (crypto 15m), new OOS winner found, and major proactive pivot to `dip+fallback`
+
+- **Why this addendum exists**: user repeatedly observed that previous investigations missed small execution details (fees, min order size, order types, fill realism) that later caused live divergence and bankroll bleed. This addendum records the full chain of new findings, code changes, and the new execution plan.
+
+- **Crypto 15m is not written off**: a walk-forward / OOS exhaustive search over the resolved intracycle dataset produced a high-frequency, high-win portfolio in the *recent regime* (the “20+ trades/day, mostly wins” shape the user referenced). However, it used **high entry bands** like `0.90–0.95`, which is convexity-heavy (`p=0.90` requires ~`9` wins to recover one loss). Historical windows still showed meaningful downside/regime risk.
+
+- **User critique validated with data**: intracycle evidence confirms that for early high-band signals (e.g. XRP DOWN around minute 3 in `0.75–0.80`), prices frequently **dip later in the same 15m cycle**, meaning “enter immediately at the early high band” is often suboptimal versus waiting for lower prices. This directly motivated the new execution plan.
+
+- **New strategy family selected** (operator preference): `dip+fallback`.
+  - **Signal**: detect direction/confidence early.
+  - **Dip leg**: place resting limit orders at lower prices (laddered) to capture dips.
+  - **Fallback leg**: if not filled by a configured fallback time, cancel remaining dip orders and place a marketable capped fallback order.
+  - Goal: materially lower average entry price to improve `p10/p25` and reduce convexity tail risk while preserving high trade frequency.
+
+- **Critical proactive runtime mismatch found and fixed**: the runtime default order type is `FAK` (fill-and-kill). A “dip limit” would therefore **never rest** unless per-order `orderType` overrides exist. This was a direct sim/live divergence risk.
+
+- **Runtime code changes (dip+fallback enabling)**:
+  - `lib/clob-client.js`: `placeOrder(tokenId, price, shares, side, opts)` now forwards `opts` to `_placeOrderWithCandidate(...)`, enabling per-order `orderType` overrides.
+  - `lib/trade-executor.js`:
+    - `_placeCLOBOrder(..., opts)` now forwards `opts` to `clob.placeOrder(..., opts)`.
+    - `_executeLiveTrade()` now supports `candidate.dipPlan`:
+      - places the initial dip order as resting `GTC` (default) using ladder[0]
+      - stores ladder+fallback metadata in `pendingBuys`
+      - returns `PENDING_BUY_OPEN:DIP_LIMIT` so the orchestrator treats it as non-failure
+      - **bugfix**: `risk.registerTradeOpen()` now occurs only after successful order acceptance; immediate full dip fills now open an `OPEN` position immediately.
+    - `processPendingBuys()` now drives the lifecycle:
+      - cancel+replace down the ladder at configured intervals until fallback
+      - at fallback time, cancel dip order and place capped fallback `FAK` using fresh `fetchCLOBBook()` best ask.
+  - `lib/strategy-matcher.js`: strategies can define optional `dipPlan` metadata which is normalized and propagated into candidates.
+  - `server.js`: trade-failure accounting now treats `PENDING_BUY_OPEN:*` like `NO_FILL_AFTER_RETRIES` (does not increment failure halts).
+
+- **New research scripts (not deployed to live, used for strategy mining)**:
+  - `scripts/augment-intracycle-with-minmax.js`: augments `data/intracycle-price-data.json` to include per-cycle `minPrice*/maxPrice*` computed from embedded minute snapshots.
+  - `scripts/mine-15m-signal-dip-fallback.js`: mines two-stage `signal → dip-limit → fallback` strategies on the augmented dataset.
+
+- **Operator safety decisions (delegated by user)**:
+  - dip orders expire via explicit cancel **at fallback time** (avoid GTD semantics).
+  - dip laddering is **enabled** (2–3 prices) to raise dip fill-rate without returning to high-price convexity bands.
+
+- **Next verification gate before any unattended GO**:
+  - Produce a new OOS report where dip fills dominate over fallback (meaning average entry is materially lower), and show that simulated performance remains strong under fee/slippage stress.
+  - Live forward-proof phase must show that resting orders actually persist (GTC), cancel/replace works, and fallback is capped correctly.
+
 **Last Agent**: Junie (JetBrains) operating as DEITY agent
 **Date**: 13 May 2026 (UTC)
 **Last Verified Live Strategy**: `strategies/strategy_set_15m_optimal_10usd_v5.json` (23 strategies)
@@ -13198,3 +13258,1587 @@ The execution loop is no longer theoretical. After upgrading `@polymarket/clob-c
 Post-proof live state: `isLive=true`, `tradingPaused=false`, no live blockers, drawdown brake inactive, no open positions, no pending buys/sells/settlements, recovery queue empty, `tradeFailureHalt=false`, wallet sigType `3` trade-ready, and wallet/live balance both report `$13.140396`. Temporary `ORDER_AUTH_PROOF_MODE` was set back to `false` after the accepted order, so the bot is again running strict profit-gate mode rather than smoke-proof mode. Later XRP/SOL candidates at `0.98` were correctly blocked as negative edge (`roi=-0.0160` / `-0.0274`).
 
 Current honest strategy verdict: the bot is now execution-proven and no longer dormant, but expected cadence is far below the old `6-8/hour` claim. Real live behavior is closer to sparse, gate-qualified opportunities: minute `2-3` cumulative Binance-vs-Polymarket structural entries only when price and dynamic minute-based pWin clear post-fee edge. This is the best deployable approach found in this pass; forcing more trades would mostly mean taking overpriced/negative-EV `0.98-0.99` lock-chase entries.
+
+---
+
+### Addendum 2026-05-15T00:00Z — Mission pivot: rebuild `pre_resolution_exit_harvest` without lookahead + add real take-profit ladder execution
+
+The operator reiterated the only acceptable outcome: **mission-scale compounding** (`$500-$1,000+`) rather than incremental or “floor-safe but slow” strategies.
+
+Key repo truth surfaced in the existing local harness artifacts:
+
+- The only strategy family shown anywhere in this repo to hit mission-scale returns in local simulation is `pre_resolution_exit_harvest` (see `debug/ultra_exhaustive_harness/nuclear/pre_resolution_exit_harvest_trade_readiness_audit.md`).
+- That family is correctly marked **NOT trade-ready** because it uses explicit lookahead leakage (`same_cycle_future_pre_resolution_exit_filter`) and lacks runtime support and live/L2 proof.
+
+Therefore the correct next step is not to deploy the leaky version. The correct next step is to **rebuild the same idea as a strictly non-lookahead, live-executable mechanism**.
+
+#### Chosen execution design decision (decided): laddered take-profit sells (not a single target)
+
+Default exit plan after entry fill will be a **ladder** rather than a single take-profit price, because fill probability dominates outcomes under CLOB microstructure:
+
+- Place `GTC` sell ladder at `0.92/0.95/0.98` (configurable), sized to filled shares.
+- If the ladder does not fill by a fallback time window, cancel remaining resting sells and place a marketable fallback `FAK` sell (capped by a floor to avoid donating value).
+- Always run cancel hygiene at epoch end.
+
+This is the minimal live-executable replacement for the leaky “filter on whether the future hit a pre-exit window.”
+
+#### Floor-control enforcement added to runtime (parity with sims)
+
+To prevent silent sim/live mismatches, the runtime now supports two hard operator controls:
+
+- `MAX_TRADES_PER_DAY`: enforced in `lib/risk-manager.js` (daily counter + gate).
+- `MAX_TRADE_COST_USD`: enforced in `lib/risk-manager.js` sizing envelope and **cannot bypass** the 5-share minimum (blocked if cap < min-order cost).
+
+Note: these controls are not the mission by themselves; they are correctness and survivability controls while the mission-scale strategy family is rebuilt and verified.
+
+#### Next verification gates (must pass before any mission-scale claims)
+
+1. Implement missing runtime support called out by the `pre_resolution_exit_harvest` trade-readiness audit without reintroducing any lookahead.
+2. Create a leak-free miner/validator that ranks candidates by *past-only* predicted probability of hitting the take-profit ladder (walk-forward).
+3. Add explicit exit no-fill/partial-fill/slippage stress; report median + worst-case under stress.
+4. Canary live with minimal sizing until we see real filled exits that match the planned ladder/fallback lifecycle.
+
+#### Data reality note (2026-05-15)
+
+Gamma does not reliably retain past `*-updown-*` markets long enough for offline backfills. To keep sims *up to date*, the runtime now supports a **forward-only** recorder that writes per-minute best bid/ask min/max snapshots to `data/cycle_recorder.jsonl`.
+
+- Enabled by default; set `CYCLE_RECORDER_ENABLED=false` to disable.
+- Output path can be overridden via `CYCLE_RECORDER_PATH`.
+  - Recommended on Fly: `CYCLE_RECORDER_PATH=/data/cycle_recorder.jsonl` with a mounted volume at `/data`.
+- Control resolution grace window via `CYCLE_RECORD_EXTRA_MINUTES` (default `10`).
+- Convert to an intracycle dataset via `node scripts/convert-cycle-recorder-to-intracycle.js`.
+- Recorder visibility / export (admin-gated):
+  - `GET /api/cycle-recorder/status`
+  - `GET /api/cycle-recorder/tail?limit=200`
+  - `GET /api/cycle-recorder/download?limit=500`
+  - Auth: supply header `x-manual-smoke-key` = `MANUAL_SMOKE_TEST_KEY` (or `AUTH_PASSWORD`).
+
+#### Mission investigation status + what’s next (2026-05-15)
+
+This repo has repeatedly failed at the same point: **offline sims claim a moonshot**, then live execution falls flat due to **data mismatch** (no spikes captured, no-fill realities, or market history not retrievable).
+
+Current investigation outcome:
+
+1. **Execution is no longer the blocker**
+   - The runtime now supports a **real take-profit ladder** (`GTC` sell rungs + timed fallback sell) and can manage partial fills.
+   - This is a necessary prerequisite for any mission-grade “pre-exit harvesting” strategy.
+
+2. **Historical backfill is not a reliable truth source for these markets**
+   - Gamma does not reliably retain past `*-updown-*` markets long enough for deterministic offline reconstruction.
+   - `*-updown-15m-*` epochs are also not continuous at `900s` cadence (hour-aligned existence), so naive epoch-stepping collectors silently miss markets.
+   - Minute-`last` datasets do **not** capture intra-minute spikes that pre-exit strategies rely on.
+
+3. **Therefore: sims must be driven by forward-observed truth**
+   - `server.js` now records per-minute best bid/ask min/max/last snapshots into `data/cycle_recorder.jsonl`.
+   - `scripts/convert-cycle-recorder-to-intracycle.js` converts that into `data/intracycle-price-data.live.json`.
+   - The spike-aware miner consumes that live dataset using buy-side `ask` for entries and sell-side `bid` for rung reach.
+
+Next steps (automatic pipeline):
+
+- Keep the runtime running long enough to accumulate a forward dataset (target: **>= 7 days** of cycles).
+- Run `scripts/mission-mine-loop.js` (or the watcher `scripts/mission-watch.js`) periodically:
+  - Convert → mine → bankroll-validate under conservative `SELL_NOFILL_PROB` + slippage and a path-wise floor gate.
+  - Only promote candidates that approach the `$500-$1,000+` target.
+- Once a candidate passes, we will:
+  1) emit the day-by-day balance curve for `$7` and `$7 + 5 GBP` starts,
+  2) write a new mission strategy set JSON for the runtime,
+  3) canary live with strict caps + auto-pause on drift,
+  4) then scale.
+
+#### Addendum — structural-edge runtime parity audit (2026-05-16)
+
+This continuation session re-ran the mission search against the **current live posture**, not older README-era assumptions.
+
+Key verified truths:
+
+- The current runtime really does enforce a live hard entry cap via `CONFIG.RISK.hardEntryPriceCap` (default `0.45`).
+  - Consequence: many older/high-profile `15m` strategy files (`beam12_cap80`, `apr21_edge32`, `micro_recovery`, older `v5`/`optimal_10usd` families) are no longer directly executable under today’s live posture even if they looked strong in older reports.
+- The obvious low-price/simple families were rechecked and still do **not** solve the mission:
+  - `recent_lowprice_*` remains weak/near-random in repo evidence.
+  - `sub50c_underdog` was re-run through the current parity core and failed catastrophically for both `~$7` and `~$13.76` starts.
+- The only serious cap-compatible family left standing was the `15m structural-edge` branch.
+
+What was wrong with structural-edge before this session:
+
+- Live runtime already supported:
+  - structural direction,
+  - `minMoveBps`,
+  - `entryMinuteMin/Max`,
+  - `entrySecondMin/Max`.
+- But live matcher **did not** enforce two research-critical guards:
+  - `maxSignalAgeSec`
+  - `minNaiveEdge`
+
+What was fixed now:
+
+- Added a focused reproducer: `scripts/audit-15m-structural-edge-runtime.js`
+  - Uses the actual `strategy_set_15m_structural_edge_20260511T150418Z.json` file.
+  - Verifies:
+    1. control valid signal still matches,
+    2. stale structural signal is blocked,
+    3. weak naive-edge case is blocked.
+- The reproducer failed pre-fix with:
+  - `STALE_SIGNAL_NOT_BLOCKED`
+  - `WEAK_NAIVE_EDGE_NOT_BLOCKED`
+- `lib/strategy-matcher.js` was then updated to enforce:
+  - `maxSignalAgeSec` using live signal timestamps (`candleCloseSec` / `observedAtSec`)
+  - `minNaiveEdge` using the same research formula:
+    - `min(1, max(0, oppositePrice + absMoveBps/1000)) - entryPrice`
+- Reproducer now passes after the fix.
+
+Verification completed in this session:
+
+- `node scripts/audit-15m-structural-edge-runtime.js` → **PASS** after matcher patch.
+- `node --check lib/strategy-matcher.js` → clean.
+- `node --check server.js` → clean.
+
+Additional runtime/V2 findings re-verified:
+
+- `lib/clob-client.js` still correctly builds raw `POLY_1271` / sig type `3` orders for deposit-wallet flow:
+  - `maker == signer == funder`
+  - V2 exchange domain (`Polymarket CTF Exchange`, version `2`)
+  - `DepositWallet` wrapper signature.
+- Balance/allowance sync path is present and active:
+  - `updateBalanceAllowance({ asset_type: "COLLATERAL" })`
+  - followed by `getBalanceAllowance({ asset_type: "COLLATERAL" })`
+- Pending/recovery state is exposed as **provisional** outcome data and not silently merged into final win/loss counts.
+  - Final headline wins/losses still come from `closedPositions`.
+
+Important caution:
+
+- Structural-edge is now **more runtime-faithful than before**, but it is still **not automatically a GO**.
+- The repo’s stronger structural-edge audit path (`scripts/structural-edge-live-audit.js`) still mixes assets/timeframes beyond the currently discovered live universe and still needs fresh validation under the actual live `15m BTC/ETH/SOL/XRP` surface before mission-scale profit claims are honest.
+- Do **not** quote `$7` / `$13.76` expected-profit numbers from older structural-edge search artifacts without rerunning them under the patched matcher and current live-universe constraints.
+
+Filtered live-universe audit update from the same session:
+
+- `scripts/structural-edge-live-audit.js` now supports:
+  - `FILTER_ASSETS`
+  - `FILTER_TIMEFRAMES`
+  - configurable `STAKE_FRACTIONS`
+  - configurable `MAX_STAKE_USD`
+- Running it on the **actual current live universe** (`15m` + `BTC,ETH,SOL,XRP`, `MAX_ENTRY_PRICE=0.45`) produced:
+  - `162` total opportunities
+  - `142` settled opportunities
+  - `93W / 49L`
+  - win rate `0.6549`
+  - verdict: `MARGINAL_EDGE_CANARY_ONLY`
+- Asset breakdown on that filtered run:
+  - `BTC`: `23W / 16L` (`0.590`)
+  - `ETH`: `22W / 11L` (`0.667`)
+  - `SOL`: `22W / 12L` (`0.647`)
+  - `XRP`: `26W / 10L` (`0.722`)
+- Lower-stake replay still reaches the mission target in-sample, but volatility remains material:
+  - `$7` start, `10%` stake, `$10` cap → end bankroll about `$802.29`, max drawdown `0.3439`
+  - `$7` start, `10%` stake, `$25` cap → end bankroll about `$1750.66`, max drawdown `0.3439`
+  - `$13.76` start, `10%` stake, `$10` cap → end bankroll about `$878.69`, max drawdown `0.3439`
+  - `$13.76` start, `10%` stake, `$25` cap → end bankroll about `$1939.81`, max drawdown `0.3439`
+- This is the strongest current live-cap-compatible branch in repo evidence, but the correct interpretation is still:
+  - **best current candidate**, not unconditional deployment proof;
+  - still requires either forward-only confirmation or stricter holdout-style validation before claiming the moonshot outcome is the most probable real-world path.
+
+Critical correction after deeper parity debugging in the same session:
+
+- The attractive XRP structural-edge replay above was later found to be **invalid under true live entry-side parity**.
+- Reason:
+  - the replay/audit path was effectively rewarding cheap `YES` prices on `DOWN` signals,
+  - but the real runtime enters the **signal side** (`DOWN` => buy `NO`),
+  - and for the debug XRP rows that looked strongest, the real NO entry price was typically `~0.64–0.84`, which violates the live structural-edge rule cap (`priceMax <= 0.45`).
+- A direct matcher probe on a minute-end XRP row with valid-looking move magnitude (`13.78 bps`) still returned **zero matches** because the true `DOWN` entry price was `0.84`, not `0.16`.
+- Therefore:
+  - the earlier XRP-only structural-edge replay should be treated as **invalidated** for deployment,
+  - and the structural-edge family remains **research-only / not GO** until a fully side-correct replay path shows edge on the actual live side prices.
+
+#### Addendum — focused low-price convexity candidate autopsy (2026-05-16, later same session)
+
+After invalidating structural-edge and recent-lowprice under true live-faithful constraints, the search pivoted to a **fresh side-correct mega-miner rerun** under the real live cap:
+
+- family focus: low-price / cap-compatible branches only
+- effective live cap: `0.45`
+- search surface that produced the breakout cluster:
+  - assets: `BTC,ETH,XRP`
+  - entry band focus: `0.08–0.18`
+  - core cluster: `5m`, `UP`, minute `4`
+
+This produced the first corrected rolling candidates of the session, notably:
+
+- `epoch3_76d3b89b`
+- `epoch3_07e25ef3`
+- `epoch3_13783cc0`
+
+At first glance these looked mission-grade again because their saved bootstrap summaries were huge:
+
+- Example (`epoch3_76d3b89b`, start `$13.76`):
+  - saved strict median about `$604.59`
+  - saved worst median about `$535.29`
+- Same family from `$7` still looked strong in saved MC terms:
+  - strict median about `$341.50`
+
+However, the crucial chronology reproducer was then built and rechecked against the exact saved run surface.
+
+What was reproduced exactly:
+
+- The saved candidate really does have `15` holdout matches.
+- The saved catastrophic chronology is also real, not a serialization bug:
+  - start `$13.76` + original stake posture (`45%`) → final about `$0.177856`
+  - start `$7` + original stake posture (`45%`) → final about `$0.441526`
+- Mechanically, the path is toxic because it opens with a severe losing streak before the later convex wins arrive.
+
+So the contradiction is genuine:
+
+- **bootstrap / resampled windows** say the rule is explosive,
+- but the **actual chronological path** can almost wipe out the bankroll immediately.
+
+This means the focused low-price cluster is **not deployable as-is** even though it clears rolling/MC gates.
+
+Risk-control autopsy on the same reconstructed rule:
+
+- Original posture (`45%` stake):
+  - `$13.76` chronology → `~$0.1779`
+  - `$7` chronology → `~$0.4415`
+- Lowering stake to `20%` rescues chronology materially:
+  - `$13.76` chronology → `~$176.39`
+  - `$7` chronology → `~$128.52`
+  - bootstrap bust → `0%`
+  - but medians fall to roughly:
+    - `$268.98` from `$13.76`
+    - `$140.92` from `$7`
+- Alternative high-stake guardrail (`45%` stake + `maxConsecutiveLosses=2` + `cooldownSeconds=3600`) also rescues chronology for `$13.76`:
+  - chronology → `~$180.41`
+  - bootstrap bust → `0%`
+  - bootstrap median → `~$281.93`
+  - but this still fails the mission target, and the `$7` case still collapses.
+
+Conclusion from this branch:
+
+- The fresh focused `5m` low-price convexity family is **real**, **side-correct**, and **reproducible**.
+- But under chronology-safe controls it degrades to **sub-mission** outcomes.
+- Therefore it should be treated as:
+  - the first honest post-structural-edge survivor,
+  - but still **NOT GO** for the stated mission (`$500–$1000+`, with moonshot as most probable outcome).
+
+Smaller chronology-safe sub-branch discovered during the same autopsy:
+
+- A narrower `BTC-only` variant from the same focused run is **much healthier chronologically** than the broader `BTC/ETH(/XRP)` cluster.
+- Representative rules:
+  - `random_cross_family_combo|tf=5m|assets=BTC|dir=UP|m=4|p=0.08-0.18|one_min_momo_lt_-4c`
+  - `random_cross_family_combo|tf=5m|assets=BTC|dir=UP|m=4|p=0.08-0.18|clean_spread_proxy_10c`
+- Revalidated via the corrected chronology helper:
+  - `$13.76` start, original `45%` stake → chronology finishes around `$169.91`
+  - `$7` start, original `45%` stake → chronology finishes around `$90.22`
+  - bootstrap bust remained `0%` on the local replay
+- Honest verdict:
+  - this is a **real admissible edge**,
+  - but still **sub-mission** because it does not credibly project `$500–$1000+` as the most probable real-world path.
+
+Practical implication:
+
+- Do **not** deploy `epoch3_76d3b89b` / `epoch3_07e25ef3` / `epoch3_13783cc0` in their original high-stake form.
+- If reused at all, they belong only as research evidence that **fresh admissible edge exists**, not as the final mission strategy.
+- Search must continue from here rather than stopping at this cluster.
+
+---
+
+### HANDOFF (for next AI / new session) — 2026-05-15
+
+This section is the **canonical handoff** for continuing the mission with minimal chat history.
+
+#### Operator’s mission (do not dilute)
+
+- **Only acceptable objective**: compounding to **$500–$1,000+** in the fastest time (ideally **24–48h**, max **7 days**).
+- Current bankroll is ~`$7` (operator will not add funds due to prior failures).
+- Avoid the historical failure modes:
+  - **High-price trap** (buying `0.90–0.99` for pennies): convexity kills the bankroll.
+  - Ignoring **5-share min order**: sizing math must respect it.
+  - “Sim said yes, live said no”: do not claim performance without **verifiable sim/runtime parity** and **fill realism**.
+- User prefers Polymarket-only, but allows pivots if provably better.
+- User wants **numbers only when a strategy/approach meets or comes close** to mission goals.
+
+#### Where we were (key findings)
+
+1) **Mission-grade candidate family identified, but prior proof was invalid**
+- The only family in repo artifacts that produced mission-scale outcomes in local sims was `pre_resolution_exit_harvest`.
+- It was correctly marked **NOT trade-ready** due to explicit **lookahead leakage** (`same_cycle_future_pre_resolution_exit_filter`).
+
+2) **Execution plumbing is now upgraded to support mission mechanics**
+- Runtime now supports a real, live-executable **take-profit sell ladder**:
+  - `GTC` sell rungs at `0.92/0.95/0.98` (configurable)
+  - timed fallback sell (`FAK`) near cycle end
+  - cancel hygiene
+  - partial-fill safe (ladder coverage extends when more shares fill)
+
+Relevant files:
+- `lib/trade-executor.js`: TP ladder placement + lifecycle (`processTakeProfitLadders()`)
+- `server.js`: calls TP ladder processor each tick
+- `lib/config.js`: `TAKE_PROFIT_LADDER_*` envs
+
+3) **Runtime now has past-only hooks needed to remove lookahead**
+- `pre_exit_seen` cache persisted to disk (past-only): `lib/pre-exit-cache.js`
+- Live microstructure proxies: `lib/microstructure-tracker.js` (spreads, spread deviation, quote-change “print” proxies)
+- Matcher support:
+  - `lib/strategy-matcher.js` supports `filter: pre_exit_seen`
+  - optional constraints on print counts + spread deviation using `market.micro`
+
+4) **Hard truth: offline backfills are not reliable for these markets**
+- Gamma does not reliably retain past `*-updown-*` markets long enough for deterministic offline reconstruction.
+- `*-updown-15m-*` epochs are not continuous at `900s` cadence; naive epoch stepping misses markets.
+- Minute-`last` price datasets miss intra-minute spikes that pre-exit strategies depend on.
+
+Conclusion: **mission sims must be driven by forward-observed truth**.
+
+#### Full reasoning / decision trail (why we made these pivots)
+
+This is the “why” chain that must be preserved to avoid repeating the same collapse pattern (headline sim → live flop).
+
+1) Why we stopped treating `dip+fallback` as the mission path
+- `dip+fallback` is a good *execution realism* improvement (resting `GTC` dip leg + capped fallback), but it is **too low-velocity** to plausibly reach `$500–$1,000+` quickly on a micro bankroll without taking convexity-killing entries.
+- It also depends heavily on fill realities (queue priority + no-fill) that historically broke sim/live parity.
+- Therefore we kept the dip plumbing as useful infrastructure, but we pivoted away from it as the primary mission strategy.
+
+2) Why the mission family is “pre-exit harvesting” and why the old proof was rejected
+- The only place in repo artifacts where the mission-scale target was ever achieved in simulation was the `pre_resolution_exit_harvest` family.
+- Those runs were **not deployable proof** because they used an explicit lookahead label (`same_cycle_future_pre_resolution_exit_filter`). That is leakage: it selects trades using information unavailable at entry time.
+- So the correct move was: keep the core idea (profit from pre-resolution spikes), but rebuild it into a mechanism that is strictly **past-only at entry** and **live-executable**.
+
+3) Why a laddered take-profit exit was chosen (instead of a single TP)
+- On Polymarket CLOB, fill probability is often the dominant variable.
+- A single TP target is brittle: you either get filled or you don’t.
+- A ladder (`0.92/0.95/0.98`) spreads that fill risk across multiple price levels.
+- This also turns “pre-exit spike detection” into an **executable order plan** rather than a post-hoc filter.
+
+4) Why we added hard caps (`MAX_TRADES_PER_DAY`, `MAX_TRADE_COST_USD`) even though they’re not the mission
+- These are *correctness + survivability controls*.
+- They prevent repeat blowups from:
+  - accidental overtrading when the miner/selector expands a candidate set,
+  - and accidental oversizing when the 5-share minimum forces chunky cost.
+- They keep the bot in a predictable sandbox while the true mission strategy is being validated.
+
+5) Why “up-to-date sims” could not be done with the old offline data
+- Multiple prior failures were caused by data mismatch:
+  - minute-level `last` prices miss intra-minute spikes;
+  - Gamma does not reliably retain past `*-updown-*` markets long enough for deterministic backfill;
+  - `*-updown-15m-*` epochs are not continuous in `900s` cadence (many exist only hour-aligned), so naive epoch stepping silently misses markets.
+- Therefore any “moonshot” number derived from stale/leaky/low-fidelity data is not acceptable.
+
+6) Why we switched to a forward-only recorded dataset and why it’s the correct truth source
+- Forward recording captures the same observable surface the live bot uses.
+- We record **best bid/ask min/max/last** per minute:
+  - buy proxy = ask (what you pay)
+  - sell proxy = bid (what you can actually hit)
+- This directly addresses “sim said yes, live said no” due to hidden spread/queue realities.
+
+7) Why we still can’t output mission profit numbers yet
+- The forward dataset needs enough time to accumulate (target: >= 7 days) to support meaningful mining + validation.
+- Until then, any mission-scale day-by-day curve would be an extrapolation, not proof.
+
+#### Files / artifacts added or changed in this mission pivot
+
+Core runtime changes:
+- `lib/trade-executor.js`: take-profit ladder placement + lifecycle + partial fill coverage
+- `server.js`: executes `processTakeProfitLadders()` + wires microstructure + cycle recording
+- `lib/config.js`: `TAKE_PROFIT_LADDER_*` envs
+- `lib/risk-manager.js` + `lib/config.js`: hard caps `MAX_TRADES_PER_DAY`, `MAX_TRADE_COST_USD`
+- `lib/pre-exit-cache.js`: past-only cache for `pre_exit_seen`
+- `lib/microstructure-tracker.js`: spreads + print proxies
+- `lib/cycle-recorder.js`: forward-only per-minute bid/ask recorder
+- `lib/strategy-matcher.js`: `filter: pre_exit_seen` + print/spread constraints
+
+New scripts (key ones):
+- `scripts/convert-cycle-recorder-to-intracycle.js`
+- `scripts/mine-preexit-tp-ladder-spikeaware.js`
+- `scripts/mission-mine-loop.js`
+- `scripts/mission-watch.js`
+
+#### Exact “next actions” to continue toward the perfect strategy
+
+1) Keep runtime running (LIVE or PAPER) with `CYCLE_RECORDER_ENABLED=true`.
+2) Wait for `data/cycle_recorder.jsonl` to accumulate enough completed cycles (>= 7 days target).
+3) Run the mission loop repeatedly:
+```powershell
+node scripts\mission-mine-loop.js
+```
+Or the watcher:
+```powershell
+node scripts\mission-watch.js
+```
+4) Only when the loop writes `debug/mission_candidate_best.json` (mission gate met), then and only then:
+   - output day-by-day balance curves for `$7` and `$7 + 5 GBP (~$13.7)`
+   - promote the candidate into a runtime strategy set JSON
+   - canary live with strict caps + auto-pause drift gates
+
+#### Current blocker (as of this handoff)
+
+- There is not yet enough forward-recorded data to validate mission-scale returns under conservative stress.
+- At the time of writing this handoff, `data/cycle_recorder.jsonl` may not exist yet (first flush requires waiting past cycle end + extra minutes + buffer).
+
+#### What’s running / what to run next
+
+We implemented a retention-proof forward dataset pipeline:
+
+1) Forward recorder (runtime)
+- `server.js` records per-minute best bid/ask min/max/last into `data/cycle_recorder.jsonl`.
+- Controlled by env:
+  - `CYCLE_RECORDER_ENABLED` (default `true`)
+  - `CYCLE_RECORD_EXTRA_MINUTES` (default `10`, can raise to e.g. `30`)
+
+2) Converter (offline)
+```powershell
+node scripts\convert-cycle-recorder-to-intracycle.js
+```
+Outputs: `data/intracycle-price-data.live.json`
+
+3) Spike-aware miner (offline)
+```powershell
+node scripts\mine-preexit-tp-ladder-spikeaware.js
+```
+Uses buy-side `ask` for entries (`buyLast`) and sell-side `bid` for rung reach (`sellMax`).
+
+4) Mission validation loop (offline)
+- `scripts/mission-mine-loop.js` runs:
+  - convert → mine → Monte Carlo bankroll validation
+  - conservative stress knobs: `SELL_NOFILL_PROB`, `FALLBACK_SLIPPAGE_ABS`
+  - path-wise floor gate: `P(minBalance < $3) <= 5%`
+  - mission gate: median final balance >= `TARGET_MEDIAN` (default `500`) over `REQUIRED_DAYS` (default `7`)
+
+5) Watcher (optional)
+- `scripts/mission-watch.js` repeatedly runs the mission loop and logs to `debug/mission_watch.log`.
+
+#### What the next AI should do (ordered, non-negotiable)
+
+1. Ensure TP ladder execution is enabled only when needed:
+   - Default: keep it off until mission candidate selection exists.
+   - When ready: set `TAKE_PROFIT_LADDER_ENABLED=true`.
+
+2. Run the runtime long enough to accumulate forward cycles.
+   - First usable closed cycle requires waiting past end-of-cycle plus `CYCLE_RECORD_EXTRA_MINUTES` plus ~2 minutes.
+
+3. After enough data exists, run `scripts/mission-mine-loop.js` repeatedly.
+   - Only when a candidate meets/approaches mission target under conservative stress + floor gate:
+     - produce day-by-day balance curves for start `$7` and `$7 + 5 GBP (~$13.7)`
+     - write the chosen strategy set JSON
+     - canary live with strict caps and auto-pause.
+
+4. Do not regress into the known failure mode:
+   - No claims of moonshot performance from old leaky sims.
+   - No “win-rate only” strategies that enter at `0.95+`.
+
+---
+
+### Addendum — strict structural-edge replay and micro-bankroll execution fixes (2026-05-17)
+
+This continuation prioritized the operator mission (`~$7` bankroll, target `$500-$1,000+`, no more headline sim/live mismatch) and rechecked the strongest non-5m-only branch across `5m`/`15m` and all paper-shadow assets.
+
+#### Runtime/parity fixes added
+
+- `lib/trade-executor.js` take-profit ladder sizing was corrected for micro-bankroll positions:
+  - before: a 5-share filled position could be split across `0.92/0.95/0.98` into invalid sub-5-share sell rungs;
+  - now: ladder rungs are capped by `minOrderShares`; dust is merged into valid rungs, so a 5-share position becomes one valid sell order rather than three invalid orders.
+- `scripts/structural-edge-live-audit.js` now reports a **strict replay** in addition to the old optimistic replay:
+  - `MIN_ORDER_SHARES=5`
+  - `SETTLEMENT_DELAY_SEC=1800`
+  - `STRICT_MAX_OPEN_POSITIONS=1`
+  - `STRICT_MAX_TRADES_PER_CYCLE=1`
+  - configurable no-fill cutoff (`STRICT_PRICE_NOFILL_CUTOFF`)
+  - actual integer share sizing and cash lock until settlement.
+
+#### Structural-edge evidence from strict replay
+
+The old optimistic replay is still intentionally treated as **not proof** because it stakes fractional dollars and can overtrade. The strict replay is the only number worth carrying forward from this session.
+
+Baseline strict assumptions:
+
+```powershell
+BANKROLL=7 or 13.76
+TARGET_BANKROLL_7D=500
+STAKE_FRACTIONS=0.15,0.25,0.35,0.50
+MAX_STAKE_USD=25,50,uncapped
+MIN_ORDER_SHARES=5
+SETTLEMENT_DELAY_SEC=1800
+STRICT_MAX_OPEN_POSITIONS=1
+STRICT_MAX_TRADES_PER_CYCLE=1
+STRICT_PRICE_NOFILL_CUTOFF=0.55
+```
+
+Results:
+
+- `$7` start → best strict replay: `$774.89`, `19` trades, `15W/4L`, win rate `0.7895`, max drawdown `0.4372`, worst cash `$5.35`.
+- `$13.76` start (`$7 + £5≈$6.76`) → best strict replay: `$1,536.62`, `18` trades, `14W/4L`, win rate `0.7778`, max drawdown `0.7499`, worst cash `$5.38`.
+
+Adversarial stress assumptions:
+
+```powershell
+ADVERSE_FILL=0.10
+STRICT_PRICE_NOFILL_CUTOFF=0.45
+MIN_ORDER_SHARES=5
+SETTLEMENT_DELAY_SEC=1800
+STRICT_MAX_OPEN_POSITIONS=1
+STRICT_MAX_TRADES_PER_CYCLE=1
+```
+
+Results:
+
+- `$7` start → best strict replay: `$510.94`, `20` trades, `13W/7L`, win rate `0.65`, max drawdown `0.4985`, worst cash `$3.58`.
+- `$13.76` start → best strict replay: `$646.24`, `20` trades, `13W/7L`, win rate `0.65`, max drawdown `0.4984`, worst cash `$6.92`.
+
+#### Honest interpretation
+
+- This is currently the **closest mission-scale branch** found in this continuation because it survives strict min-order + locked-funds constraints and includes both `5m` and `15m` opportunities, not just the earlier narrow 5m candidates.
+- It is **not yet unconditional GO proof** because the audit still relies on paper-shadow rows with outcomes inferred from structural open/close when Gamma settlement lookup returned `0` direct settlements.
+- The correct live posture is therefore:
+  - keep Fly running continuously with the durable cycle recorder enabled;
+  - use the strict replay as the current best research target;
+  - require forward recorder confirmation before declaring the moonshot as the most probable real-world outcome.
+
+#### Verification commands completed in this continuation
+
+```powershell
+node --check .\server.js
+node --check .\lib\trade-executor.js
+node --check .\scripts\structural-edge-live-audit.js
+node .\scripts\audit-5m-canary-runtime.js
+node .\scripts\structural-edge-live-audit.js
+```
+
+#### Next exact continuation steps
+
+1. Run the strict audit filtered by current live universe variants (`FILTER_ASSETS`, `FILTER_TIMEFRAMES`) and compare against the all-asset result above.
+2. Pull/export Fly recorder data via `/api/cycle-recorder/download?limit=5000` and run the converter/miner loop.
+3. If forward data confirms the structural-edge strict replay direction, promote only the exact runtime-matchable strategy set; otherwise keep it in canary/paper mode.
+
+---
+
+### Addendum — corrected structural-edge verdict: do not promote yet (2026-05-17 10:57 continuation)
+
+This continuation directly addressed the operator question: **is the structural-edge branch truly the strategy we have been looking for, or another sim/live mismatch?** The answer after the corrected audit is: **do not promote it to live autonomous trading yet.**
+
+#### Critical correction to the previous strict-replay headline
+
+The previous `$7 → $510-$774` / `$13.76 → $646-$1,536` structural-edge numbers are now treated as **invalid promotion evidence**. They were useful for finding a research lead, but they were not runtime-faithful enough to justify live execution.
+
+Two failure modes were found that match the exact historical ways this bot has disappointed live:
+
+1. **Legacy fallback selector mismatch**
+   - `scripts/structural-edge-live-audit.js` could still select trades through a simplified fallback path when `evaluateMatch()` returned no live strategy match.
+   - After adding `ALLOW_LEGACY_FALLBACK_SELECTOR=false` and separate `STRATEGY_PATH_5M` / `STRATEGY_PATH_15M` support, the headline 5m branch produced **zero live-matcher opportunities**.
+   - This means the profitable replay was not proof that the deployed bot would actually enter those trades.
+
+2. **Wrong-side entry-price bug for DOWN trades**
+   - The fallback replay used `YES` `bestAsk` for both `UP` and `DOWN` signals.
+   - Live execution buys the direction token. For a `DOWN` signal, the real entry is `NO` ask (`noBestAsk`), not `YES` ask.
+   - A representative rejected 5m `DOWN` row looked cheap at `YES≈0.43`, but the live `NO` side was about `0.57`, breaching the `HARD_ENTRY_PRICE_CAP=0.45` gate. This is exactly the “high-price trap / sim says cheap, live is not cheap” failure class.
+
+#### Corrected diagnostic audit result
+
+Latest corrected diagnostic file:
+
+```text
+debug/structural-edge-live-audit/structural_edge_live_audit_2026-05-17T101552598Z.json
+```
+
+Key result with direction-correct prices and `ADVERSE_FILL=0.10`, `STRICT_PRICE_NOFILL_CUTOFF=0.45`, 5m only:
+
+- `liveMatches`: `0`
+- `legacyFallbackMatches`: `34`
+- settled fallback opportunities: `32`
+- win/loss: `12W / 20L`
+- win rate: `37.5%`
+- by direction:
+  - `UP`: `3W / 6L` (`33.3%`)
+  - `DOWN`: `9W / 14L` (`39.1%`)
+- best relaxed replay from `$7` did **not** reach mission target; example `0.15` stake fraction ended near `$1.32` with `85%+` drawdown.
+
+Therefore, the corrected answer is: **this is not currently the perfect strategy, not the best proven strategy, and not safe to run live autonomously.** It may still be a research lead only if a new runtime-executable matcher/strategy translation is built and revalidated from scratch, but it is rejected as a deployable strategy today.
+
+#### Deployment posture changed to prevent accidental live loss
+
+Because `fly.toml` was still pointing live 5m trading at the rejected structural-edge file, the deployment config was hardened to keep the bot from spending bankroll on an unproven branch while preserving discovery/recording:
+
+```toml
+START_PAUSED = "true"
+ENABLE_LIVE_TRADING = "false"
+LIVE_AUTOTRADING_ENABLED = "false"
+```
+
+Recorder settings remain enabled, including:
+
+```toml
+CYCLE_RECORDER_ENABLED = "true"
+CYCLE_RECORDER_PATH = "/data/cycle_recorder.jsonl"
+```
+
+This is not “giving up”; it prevents repeating the previous live-loss pattern while continuing the only valid proof path: live-observed bid/ask collection plus runtime-parity mining.
+
+#### Current honest profit expectation
+
+- For the rejected structural-edge branch: expected profit is **not mission-positive** under corrected runtime-parity diagnosis; the corrected diagnostic replay loses money instead of compounding.
+- For current bankroll `~$7`: no strategy is currently promoted as a proven `$500+` live candidate.
+- For `$7 + £5` (`£5≈$6.76`, total `~$13.76`): same conclusion; the extra size helps 5-share geometry, but it does not fix a non-runtime-matching, wrong-side-price strategy.
+
+#### Next exact continuation steps
+
+1. Keep Fly running in paused/non-autotrading mode to collect forward L2/bid-ask truth.
+2. Confirm `/data/cycle_recorder.jsonl` exists on Fly and export it with `/api/cycle-recorder/download` once enough completed cycles exist.
+3. Run:
+   ```powershell
+   node scripts\convert-cycle-recorder-to-intracycle.js
+   node scripts\mission-mine-loop.js
+   ```
+4. Only promote a strategy when it satisfies all gates simultaneously:
+   - `evaluateMatch()` live matcher can select the exact trades;
+   - entry prices use the correct side (`YES` ask for `UP`, `NO` ask for `DOWN`);
+   - 5-share minimum, integer shares, cash lock, order type, no-fill, adverse slippage, and settlement delay are included;
+   - median from `$7` and from `~$13.76` reaches the mission target under stress;
+   - no hidden fallback selector, future leakage, unresolved settlement inference, or high-price trap remains.
+
+---
+
+### Addendum — broad mission search after structural-edge rejection (2026-05-17 16:54 continuation)
+
+This continuation kept the mission priority (`~$7` bankroll, optional `+£5≈+$6.76`, target `$500-$1,000+` fast) but did **not** promote the rejected structural-edge branch. The goal was to find a replacement strategy or the closest honest approximation without repeating the prior pattern of optimistic sim → live loss.
+
+#### New tooling added in this continuation
+
+- `scripts/mission-broad-sweep.js`
+  - Broad static-rule sweep across available 15m/5m/4h intracycle datasets.
+  - Uses chronological train/validate/holdout, 5-share minimum, integer shares, adverse fill buffer, slippage, settlement delay, max-open-position limits, and `$7` / `$13.76` starting bankrolls.
+  - Output from the strict run: `debug/mission_broad_sweep/mission_broad_sweep_strict.json`.
+- `scripts/mission-portfolio-validate.js`
+  - Takes top broad-sweep rules and validates portfolios instead of single rules.
+  - Output: `debug/mission_broad_sweep/mission_portfolio_validate_strict.json`.
+- `scripts/mission-mine-loop.js`
+  - Added `SKIP_CONVERT=1` so an already-converted intracycle dataset can be validated directly.
+  - Added `WINDOW_MODE=latest|recent` so diagnostics can use the most recent available historical window rather than only the earliest window.
+
+#### Evidence/data inventory
+
+- `data/intracycle-price-data.json`: `9,906` 15m cycles, BTC/ETH/SOL/XRP, through `2026-05-15T17:30Z`.
+- `data/intracycle-price-data-5m.json`: `16,045` 5m cycles, through `2026-04-27T17:55Z`.
+- `data/intracycle-price-data-4h.json`: `336` 4h cycles, through `2026-04-27T08:00Z`.
+- `data/epoch3-expanded-intracycle-data.json`: `24,747` mixed 5m/15m/4h cycles.
+- Important boundary: these are still not as strong as forward recorder bid/ask truth; they are proxy/mining inputs, not final live proof.
+
+#### Strategy families tested/rejected in this continuation
+
+1. **Live complete-set arbitrage** (`scripts/live-complete-set-arb-scanner.js`)
+   - Conservative scan: `300` active markets, `0` candidates.
+   - Zero-adverse wider scan: `600` active markets, `418` books scored, `0` candidates.
+   - Verdict: no current complete-set arb worth deploying from the scanned live CLOB surface.
+
+2. **Broad static directional sweep** (`scripts/mission-broad-sweep.js`)
+   - Strict sweep input: `29,298` de-duplicated cycles, `396,557` executable entry rows, `130,877` generated rules.
+   - `84` rules survived strict train/validate/holdout EV gates.
+   - Best single strict near-miss:
+     - Rule: `15m|ALL|DOWN|minute=0|UTC hour=16|price 0.20-0.50`.
+     - `$7` path: `$466.47`, `6W/0L`, but **misses** `$500` and uses only `4` holdout source days; bootstrap 7d median only `$114.31`, target probability `0%`.
+     - `$13.76` path: `$924.13`, `6W/0L`, but bootstrap 7d median only `$225.39`, target probability about `9.6%`.
+   - Verdict: closest non-structural near-miss found in this continuation, but not mission-probable and not deployable as an autonomous live strategy.
+
+3. **Portfolio of top static rules** (`scripts/mission-portfolio-validate.js`)
+   - `33` eligible strict candidates were combined into portfolios.
+   - Larger portfolios worsened robustness: size `2` already dropped `$7` path to `$79.39` with `7W/3L`, and bootstrap median fell to `$20.16` with ~`49%` below-start outcomes.
+   - Verdict: adding more rules does not maximize profit here; it imports losses and reproduces the historical overfit/overtrade failure mode.
+
+4. **TP-ladder/pre-exit mining** (`scripts/mine-preexit-tp-ladder-spikeaware.js` + `mission-mine-loop.js`)
+   - Direct miner on `data/intracycle-price-data.json` found positive proxy candidates such as `SOL DOWN minute=2 price 0.15-0.25`, but `reachRate=0` for top rows means the configured `0.92/0.95/0.98` ladder was not actually the source of profit; the edge was fallback-last-price proxy behavior.
+   - Latest-window mission gate with `SKIP_CONVERT=1`, `WINDOW_MODE=latest`, `SELL_NOFILL_PROB=0.35`, `FALLBACK_SLIPPAGE_ABS=0.01`, `$7` and `$13.76` starts produced no `debug/mission_candidate_best.json`.
+   - Verdict: no TP-ladder candidate currently passes mission median + bankroll-floor gates from the historical proxy dataset.
+
+5. **Old sub-50c underdog family** (`scripts/sim-sub50c-underdog.js`)
+   - Aggressive `$7`, `STAKE_FRACTION=1`, `MPC=1` result: rolling 24h/48h/72h bust rates `99.8%`/`100%`/`100%`; full-period first trade busted.
+   - Verdict: decisively rejected.
+
+#### Current closest strategy, expected profits, and promotion verdict
+
+- **Closest current research lead**: `15m ALL DOWN, entry minute 0, UTC hour 16, entry price 0.20-0.50`.
+- **Current-bankroll `$7` expectation from strict historical holdout**:
+  - lucky holdout path: about `$466.47`, below the `$500` minimum target;
+  - bootstrap median: about `$114.31`;
+  - bootstrap target probability: `0%`.
+- **If depositing +£5** (`£5≈$6.76`, total `~$13.76`):
+  - lucky holdout path: about `$924.13`;
+  - bootstrap median: about `$225.39`;
+  - bootstrap target probability: about `9.6%`.
+- **Promotion verdict**: **NO-GO for autonomous live trading.** This is the closest approximation found in this continuation, but it does not make the moonshot the most probable outcome and it fails the operator’s “do not fall on its face live” requirement.
+
+#### Next exact continuation steps
+
+1. Keep `START_PAUSED=true`, `ENABLE_LIVE_TRADING=false`, and `LIVE_AUTOTRADING_ENABLED=false` until a candidate passes all gates.
+2. Pull the Fly recorder export and run:
+   ```powershell
+   node scripts\convert-cycle-recorder-to-intracycle.js
+   $env:SKIP_CONVERT='1'; $env:WINDOW_MODE='latest'; $env:LIVE_DATA_FILE='data/intracycle-price-data.live.json'; node scripts\mission-mine-loop.js
+   ```
+3. Use `scripts/mission-broad-sweep.js` on the exported recorder dataset, not just historical last-price proxies.
+4. Promote only if `$7` and `~$13.76` both pass the mission median and bankroll-floor gates under correct-side entry, 5-share minimum, integer sizing, locked funds, no-fill, slippage, and no hidden fallback selection.
+
+---
+
+### Addendum — near-miss strategy loaded for proof/shadow mode + recheck (2026-05-17 17:23 continuation)
+
+The operator requested loading the closest strategy while rechecking whether it actually holds up and searching again for anything closer to the mission. This continuation **loaded the closest current candidate into the bot config for proof/shadow readiness only**; it did **not** promote it to unconditional live autotrading.
+
+#### Loaded strategy file
+
+- New runtime strategy file: `strategies/strategy_set_15m_mission_nearmiss_all_down_h16_m0.json`.
+- Exact rule: `15m`, `asset=ALL`, `direction=DOWN`, `entryMinute=0`, `utcHour=16`, `priceMin=0.20`, `priceMax=0.50`, `minOrderShares=5`.
+- Why this file exists: it prevents the deployment from falling back to rejected structural-edge or stale legacy strategy files while allowing the bot to shadow/prove the exact current best near-miss.
+- Important parity fix: the strategy file intentionally does **not** set `maxSignalAgeSec`; in `lib/strategy-matcher.js` that gate applies only to structural-signal strategies, so setting it on this static rule would silently block all matches.
+
+#### Fly config posture after loading
+
+`fly.toml` now points to the near-miss strategy while remaining proof-first:
+
+```toml
+START_PAUSED = "true"
+ENABLE_LIVE_TRADING = "false"
+LIVE_AUTOTRADING_ENABLED = "false"
+TIMEFRAME_15M_ENABLED = "true"
+TIMEFRAME_5M_ENABLED = "false"
+STRATEGY_SET_5M_PATH = ""
+STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_mission_nearmiss_all_down_h16_m0.json"
+MAX_GLOBAL_TRADES_PER_CYCLE = "1"
+```
+
+This means the strategy is **loaded/noted** for the bot, but the bankroll is not exposed to autonomous live trading until promotion gates are met.
+
+#### Runtime parity checks completed
+
+- `evaluateMatch()` selects exactly one candidate for a synthetic `15m` market at `2026-05-17T16:00:05Z`, `asset=BTC`, `noPrice=0.30`.
+- It selects zero candidates for:
+  - price below band (`noPrice=0.19`),
+  - wrong entry minute (`16:01:05Z`),
+  - wrong UTC hour (`15:00:05Z`).
+- Matcher-side interpretation is correct: `DOWN` uses `market.noPrice`, UTC hour comes from the 15m epoch start, and the price band is applied to the same entry side.
+- Micro-bankroll sizing check: at `$7`, 5-share minimum costs `$1.00-$2.50` inside the candidate band, so the order geometry is feasible; risk manager can force a minimum order when available cash permits.
+
+#### Reconfirmed strict results
+
+Strict broad-sweep recheck command wrote `debug/mission_broad_sweep/mission_broad_sweep_recheck.json`:
+
+- Dataset: `29,298` cycles, `396,557` executable rows, `130,877` generated rules.
+- Passing strict candidates: `84`.
+- Rank `1` remained the loaded near-miss: `15m|ALL|DOWN|0|16|0.2-0.5`.
+- `$7` start:
+  - holdout path: `$466.4697`, `6W/0L`, target not reached;
+  - bootstrap 7d median: `$114.3137`;
+  - bootstrap target probability: `0%`;
+  - bootstrap below-start probability: `0%` in this sample.
+- `$13.76` start (`$7 + £5≈$6.76`):
+  - holdout path: `$924.1279`, `6W/0L`, target reached on the lucky holdout path;
+  - bootstrap 7d median: `$225.3871`;
+  - bootstrap target probability: about `10%`;
+  - bootstrap below-start probability: `0%` in this sample.
+
+#### Better-strategy search recheck
+
+- Portfolio validation (`debug/mission_broad_sweep/mission_portfolio_validate_recheck.json`) did **not** improve the `$7` mission case. Size `1` remained best for robustness; size `2+` imported losses and often crushed bootstrap median / increased below-start risk.
+- Live complete-set arbitrage recheck scanned `600` markets with aggressive zero-adverse assumptions and found `0` candidates.
+- TP-ladder/pre-exit miner on `data/intracycle-price-data.json` still did not produce a mission-grade replacement. Top proxy rows had positive `evPerShare` but `reachRate=0`, meaning the configured `0.92/0.95/0.98` take-profit ladder was not the actual profit source.
+- Therefore, no newly investigated strategy displaced the loaded near-miss.
+
+#### Current verdict
+
+- **Loaded strategy status**: `LOADED_PROOF_MODE_NO_GO_FOR_UNCONDITIONAL_LIVE`.
+- **Best current strategy for ~$7**: the loaded `15m ALL DOWN h16/m0 0.20-0.50` rule is still the closest found, but it does **not** honestly meet the `$500+` mission as the probable outcome from `$7`.
+- **Best current strategy for ~$13.76**: same rule; it can hit `$900+` on the lucky holdout path, but the bootstrap median remains only about `$225` and mission target probability is only about `10%`.
+- **Do not enable live autotrading yet** unless fresh Fly recorder/shadow evidence materially improves these odds and passes the no-fill/slippage/settlement/5-share gates.
+
+#### Next continuation steps
+
+1. Deploy/keep Fly in paused proof mode with the near-miss file loaded so `/api/status` and matcher diagnostics can confirm the exact strategy is active without risking bankroll.
+2. Export `CYCLE_RECORDER_PATH=/data/cycle_recorder.jsonl` once Fly has enough current `15m` cycles, convert it, and rerun:
+   ```powershell
+   node scripts\convert-cycle-recorder-to-intracycle.js
+   $env:STARTS='7,13.76'; $env:TARGET='500'; $env:OUT_FILE='mission_broad_sweep_fly_recorder.json'; node scripts\mission-broad-sweep.js
+   ```
+3. Promote only if the loaded rule, or a newly discovered rule, becomes target-probable from `$7` under live-observed bid/ask, 5-share minimum, integer sizing, locked funds, adverse fill, no-fill, slippage, and no hidden fallback selection.
+
+---
+
+### Addendum — max-profit configuration audit for the loaded near-miss (2026-05-18 05:42 continuation)
+
+The operator asked whether the loaded strategy is truly max-profit, whether other times should be added, whether stake/sizing envs should change, how often it must be rechecked, how long it has historically held up, and why this should not repeat prior “best strategy” live flops.
+
+#### Exact current strategy and what it uses
+
+- Runtime file remains: `strategies/strategy_set_15m_mission_nearmiss_all_down_h16_m0.json`.
+- Strategy: `15m` crypto UP/DOWN markets, `asset=ALL`, buy `DOWN`/NO at `entryMinute=0`, `UTC hour=16`, only if current NO ask is `0.20-0.50`.
+- It is a static time/price rule, not a structural-signal rule; there is no `maxSignalAgeSec` gate because that would be a wrong runtime assumption for this rule.
+
+#### Max-config audit artifact
+
+New script/artifact:
+
+- `scripts/audit-nearmiss-max-config.js`
+- `debug/mission_broad_sweep/nearmiss_max_config_audit.json`
+
+Audit assumptions match the strict replay surface: correct-side ask entry, `+0.02` adverse fill, `1%` slippage, integer shares, `5`-share minimum, `30` minute settlement lock, `MAX_OPEN_POSITIONS=1`, `MAX_TRADES_PER_CYCLE=1`, `$7` and `$13.76` starts, and bootstrap-by-day stress.
+
+#### Historical durability of the loaded rule
+
+- Observed sample for the exact loaded rule spans `2026-04-12` through `2026-05-02`, across `21` active days in the current historical dataset.
+- Split stats:
+  - train: `102` samples, `63W/39L`, `WR=61.76%`;
+  - validation: `34` samples, `16W/18L`, `WR=47.06%`;
+  - holdout: `34` samples, `29W/5L`, `WR=85.29%`.
+- Longest historical loss streak inside the exact rule sample: `8`.
+- Interpretation: the recent holdout is very strong, but the validation slice is weak. This is **not** enough to claim it will keep winning indefinitely. It must be treated as a near-miss that may be regime-specific.
+
+#### Expected outcomes after max-config audit
+
+- Loaded base rule (`m0/h16/0.20-0.50`) with full bootstrap sizing:
+  - `$7` start: holdout path `$466.47`, `6W/0L`; bootstrap median `$114.31`; target probability `0%`; below-start probability `0%` in sample.
+  - `$13.76` start (`$7 + £5≈$6.76`): holdout path `$924.13`, `6W/0L`; bootstrap median `$225.39`; target probability about `8.8%-10%`; below-start probability `0%` in sample.
+- A narrower watchlist variant (`15m ALL DOWN`, `minute=1`, `UTC hour=16`, `price=0.10-0.40`) scored a higher bootstrap median (`$7` median `$139.17`, `$13.76` median `$272.27`) but has only `13` holdout samples and weaker train evidence (`36` train samples, `WR=50%`). It is **not loaded for live execution**; forward-validate only.
+
+#### Should other times/hours be added?
+
+- **No.** Adding adjacent UTC hours to the base rule was destructive.
+- Combo-hour audit examples:
+  - adding hour `18`: `$7` below-start probability about `92%`;
+  - adding hour `19`: `$7` below-start probability about `93.4%`;
+  - adding hour `15`: `$7` below-start probability `100%`;
+  - other tested adjacent hours similarly imported losses.
+- Verdict: do **not** expand hours just to increase trade count. That reproduces the historical overtrade/overfit failure mode.
+
+#### Stake/sizing/env changes made for proof parity
+
+Important mismatch found: the strict replay’s best profit path uses full bootstrap compounding, but runtime was capped more tightly.
+
+Changes made:
+
+- `fly.toml`
+  - `HARD_ENTRY_PRICE_CAP = "0.50"` so proof/shadow can actually evaluate the loaded `0.20-0.50` rule instead of silently clipping `0.45-0.50` entries.
+  - `OPERATOR_STAKE_FRACTION = "1.00"`
+  - `MICRO_BOOTSTRAP_STAKE_FRACTION = "1.00"`
+  - `KELLY_FRACTION = "10.00"`
+  - `KELLY_MAX_FRACTION = "1.00"`
+- `lib/config.js`
+  - added `RISK.microBootstrapStakeFraction` from `MICRO_BOOTSTRAP_STAKE_FRACTION`.
+- `lib/risk-manager.js`
+  - bootstrap sizing cap is now env-controlled instead of hardcoded to `0.60`.
+
+Live protection remains unchanged:
+
+```toml
+START_PAUSED = "true"
+ENABLE_LIVE_TRADING = "false"
+LIVE_AUTOTRADING_ENABLED = "false"
+MAX_GLOBAL_TRADES_PER_CYCLE = "1"
+```
+
+So the bot is configured to proof the max-profit sizing geometry, but not to risk live funds automatically.
+
+#### Recheck cadence
+
+- While not live: export/convert Fly recorder data and rerun the max-config audit at least daily, and immediately after every material dataset increase.
+- If ever enabled live: recheck after every trading day and after every `5` actual signals/trades, whichever comes first.
+- Hard stop / do-not-promote if any of these appear in fresh data:
+  - forward/live-shadow validation WR below `65%` for the exact rule;
+  - any two-loss streak early in the micro-bankroll bootstrap;
+  - `$7` bootstrap target probability still near `0%`;
+  - below-start probability rises above `5%` under adverse fill/no-fill/settlement stress;
+  - live fill/no-fill or orderbook depth deviates materially from the replay assumptions.
+
+#### Is this truly the best strategy?
+
+- Best current answer: it is the **best loaded proof-mode strategy found so far**, not a proven mission-complete strategy.
+- Rechecked rejected alternatives:
+  - Complete-set arb: `600` markets / `429` CLOB books scanned, `0` candidates.
+  - Low-price underdog: `$7` bust rate `99.8%-100%`, full-period replay busted to `$0`.
+  - Portfolios / added rules: worse than size `1`; imported losses and below-start risk.
+  - TP-ladder/pre-exit: no mission-grade bankroll distribution; current miner is a proxy ranker and does not replace strict live-parity validation.
+  - Structural-edge: previously rejected because no-fallback runtime-parity audit produced `0` live-matcher opportunities; fallback-only success was not deployable truth.
+
+#### Why this is different from prior failed “best strategy” claims
+
+- This time the result is **not being promoted to live GO** just because a historical holdout path is attractive.
+- The audit explicitly found and fixed sim/runtime config mismatches (`0.45` price cap vs `0.50` rule, `0.60` runtime sizing cap vs full-stake replay).
+- Added hours/rules were tested and rejected rather than added for excitement/trade count.
+- The strategy file now records the NO-GO status and exact caveats, so a future agent/operator should not accidentally treat it as mission-proven.
+
+#### Final verdict for this continuation
+
+- **Do not add other hours.**
+- **Do not enable autonomous live trading yet.**
+- **Use full-bootstrap sizing only in proof/shadow configuration**, because that matches the max-profit replay geometry, but keep `START_PAUSED=true` and live flags false until forward recorder data proves the edge.
+- The current loaded strategy is the closest found, but it is **not yet the 100/100 strategy** the operator wants; the honest next gate is forward/live-shadow proof from Fly recorder data.
+
+---
+
+### Addendum — all-in compounding / moonshot chain audit (2026-05-18 11:11 continuation)
+
+The operator supplied the all-in compounding table (`10c` needs `5` wins to `10 -> 1M`, `50c` needs `17` wins, etc.) and asked for one more out-of-box investigation using any available forward/L2/shadow data, not just existing repo strategy families.
+
+#### New audit artifact
+
+Added:
+
+- `scripts/audit-allin-compounding-mission.js`
+- `debug/mission_broad_sweep/allin_compounding_mission_audit.json`
+
+Audit surface:
+
+- data files: `data/intracycle-price-data.json`, `data/intracycle-price-data-5m.json`, `data/intracycle-price-data-4h.json`, `data/epoch3-expanded-intracycle-data.json`;
+- forward-ish/local shadow evidence: `data/paper-shadow/**/*.jsonl`;
+- any `asset`, any `UTC hour`, `5m`/`15m`/`4h` where present, `UP` or `DOWN`, and price bands through `0.75`;
+- all-in integer sizing with `5`-share minimum, `+0.02` adverse fill, `1%` slippage, one open position, one trade per cycle, and `30` minute settlement lock.
+
+#### Best all-in moonshot chain found
+
+The strongest historical all-in chain was:
+
+- rule: `15m XRP DOWN`, `entryMinute=4`, `UTC hour=ALL`, price band `0.45-0.65`;
+- train: `351` samples, `WR=55.27%`;
+- validation: `117` samples, `WR=59.83%`;
+- holdout: `117` samples, `68W/49L`, `WR=58.12%`, average price `0.5531`;
+- longest holdout win streak: `7`; best theoretical chain multiplier: about `59.5x`;
+- strict chronological `$7` replay: `11W/1L`, peak `$4,031.49`, final `$0.53` after the next loss;
+- `$7` bootstrap peak target probability for `>= $500`: `68.4%`; `>= $1M`: `0%`; final below-start probability: `100%` if the bot keeps trading after the target instead of stopping.
+
+Interpretation: this is the closest literal match to the user's compounding table found so far. It proves why the all-in geometry is powerful: a short chain at `~55c-60c` can reach the mission target quickly. But it also proves why prior live deployments failed: one loss after the chain collapses the bankroll unless a hard target-stop is enforced.
+
+#### Forward/shadow reality check
+
+The same top historical all-in rule matched the local paper-shadow stream only `11` times:
+
+- paper-shadow inferred result: `8W/3L`, `WR=72.73%`;
+- observed sequence: `W W L W L W W W W W L`;
+- because the third match was already a loss, an all-in live run starting on that shadow sequence would have failed before reaching the required chain.
+
+The paper-shadow resolution is inferred from the final recorded structural price, not official settlement, so it is not perfect L2 proof. However, it is enough to reject an unconditional promotion: the exact failure mode appears in the forward-ish data.
+
+#### Comparison to currently loaded near-miss
+
+- Loaded proof rule remains `15m ALL DOWN`, `entryMinute=0`, `UTC hour=16`, price `0.20-0.50`.
+- Loaded near-miss has cleaner recent day streaks (`2026-04-30` was `10W/0L`) and lower modeled below-start risk, but `$7` target probability remains near `0%` under bootstrap.
+- New all-in XRP chain has much higher peak target probability, but unacceptable collapse risk and weak forward sample.
+
+#### Promotion verdict
+
+- **Do not enable autonomous live trading.**
+- **Do not replace the loaded proof strategy with the all-in XRP chain for live execution.**
+- The all-in XRP rule should be treated as a `watchlist/moonshot-chain` candidate only, requiring fresh Fly recorder proof of a clean current win chain before any live use.
+- If it is ever tested live, the only sane form is a hard stop-at-target experiment: stop immediately after `>= $500` (or a smaller operator-defined checkpoint), because continuing the same rule after target has `100%` below-start replay risk in the current strict audit.
+
+#### Why this does not solve the mission yet
+
+- The historical all-in chain does come close to the goal mathematically, but the forward-ish evidence shows early losses.
+- The chain is regime/timing fragile; later holdout days contain frequent losses (`2026-04-30` and `2026-05-02` were especially bad for the top XRP chain).
+- No audited all-in candidate reaches `$1M` from `$7-$10` under strict replay, and none has enough forward support to claim this is the final strategy.
+
+Next gate: keep Fly paused/recording, export fresh recorder data, then rerun `node scripts\audit-allin-compounding-mission.js`. Only promote an all-in chain if the exact current forward recorder sequence shows enough uninterrupted wins and market depth/fills to survive the first-loss ruin geometry.
+
+---
+
+### Addendum — fractional/high-stake compounding re-search and proof-strategy replacement (2026-05-18 11:46 continuation)
+
+The operator clarified that the all-in table was an example of compounding geometry, not an instruction to blindly go all-in. This continuation therefore re-ran the search as a **fractional/high-stake optimizer**: use large stake fractions when the edge supports it, but score candidates by target probability, median outcome, below-start risk, strict execution constraints, durability, and paper-shadow availability.
+
+#### New audit artifact
+
+Added:
+
+- `scripts/audit-fractional-compounding-mission.js`
+- `debug/mission_broad_sweep/fractional_compounding_mission_audit.json`
+- `strategies/strategy_set_15m_mission_fractional_up_h19_m1.json`
+
+Audit surface:
+
+- data files: `data/intracycle-price-data.json`, `data/intracycle-price-data-5m.json`, `data/intracycle-price-data-4h.json`, `data/epoch3-expanded-intracycle-data.json`;
+- local forward-ish/paper evidence: `data/paper-shadow/**/*.jsonl`;
+- searched `5m`/`15m`/`4h`, `BTC/ETH/SOL/XRP/BNB/DOGE` where present plus `ALL`, every UTC hour plus `ALL`, `UP` and `DOWN`, all available minutes, and price bands through `0.75`;
+- strict replay constraints: correct-side ask entry, `+0.02` adverse fill, `1%` slippage, integer shares, `5`-share minimum, one open position, one trade per cycle, and `30` minute settlement lock;
+- stake grid: `15%`, `25%`, `35%`, `50%`, `65%`, `75%`, `90%`, `100%`, with caps `10/25/50/uncapped`.
+
+#### Best current fractional candidate
+
+The new best proof candidate is:
+
+- file now loaded in `fly.toml`: `strategies/strategy_set_15m_mission_fractional_up_h19_m1.json`;
+- rule: `15m`, `asset=ALL`, buy `UP`/YES, `entryMinute=1`, `UTC hour=19`, only if current YES ask is `0.45-0.65`;
+- train: `80W/117`, `WR=68.38%`;
+- validation: `23W/39`, `WR=58.97%`;
+- holdout: `27W/39`, `WR=69.23%`;
+- observed durability in current historical dataset: `22` active days, `firstSeen=2026-04-12T19:15:00Z`, `lastSeen=2026-05-03T19:45:00Z`, longest loss streak `8`.
+
+Strict bootstrap/replay outputs from `debug/mission_broad_sweep/fractional_compounding_mission_audit.json`:
+
+- `$7` start:
+  - holdout path final: `$2,256.07`;
+  - bootstrap 7d final median: `$313.25`;
+  - bootstrap 7d final p90: `$743.03`;
+  - bootstrap final-target probability for `>= $500`: `32.33%`;
+  - bootstrap below-start probability in this sample: `0%`.
+- `$13.76` start (`$7 + £5≈$6.76`):
+  - holdout path final: `$4,544.25`;
+  - bootstrap 7d final median: `$677.14`;
+  - bootstrap final-target probability for `>= $500`: `63.33%`.
+
+This is materially closer to the mission than the previously loaded near-miss:
+
+- prior loaded rule: `15m ALL DOWN`, `entryMinute=0`, `UTC hour=16`, `price=0.20-0.50`;
+- prior `$7` bootstrap median: `$114.31`, target probability `0%`;
+- prior `$13.76` bootstrap median: `$225.39`, target probability about `9.33%`.
+
+#### Why this still is not unconditional live GO
+
+- Local paper-shadow has `0` exact matches for the new h19/m1 candidate, so there is no current forward exact-rule confirmation yet.
+- The optimizer chose `100%` stake for the best replay because strict bootstrap below-start probability was `0%` on the historical sample. That is acceptable for **proof-mode parity**, but it is not enough to risk live funds without forward recorder confirmation.
+- Longest historical loss streak across the rule’s full sample is `8`; the recent holdout/bootstrap path is strong, but the broader sample proves losses can cluster.
+- The known prior failure mode remains possible if this is deployed live before confirming exact current bid/ask/fill behavior.
+
+#### Current loaded config after this continuation
+
+`fly.toml` now points the `15m` strategy loader at the new best proof candidate:
+
+```toml
+STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_mission_fractional_up_h19_m1.json"
+```
+
+Live protection remains intentionally unchanged:
+
+```toml
+START_PAUSED = "true"
+ENABLE_LIVE_TRADING = "false"
+LIVE_AUTOTRADING_ENABLED = "false"
+MAX_GLOBAL_TRADES_PER_CYCLE = "1"
+OPERATOR_STAKE_FRACTION = "1.00"
+MICRO_BOOTSTRAP_STAKE_FRACTION = "1.00"
+```
+
+Meaning: the bot is configured to **shadow/proof the highest-profit current candidate**, not to autonomously spend the bankroll yet.
+
+#### Should other hours/times be added now?
+
+No. The fractional audit’s top candidates show a sharp drop after the new h19/m1 rule and the old h16/m0 rule:
+
+- rank `1`: `15m ALL UP m1 h19 0.45-0.65`, `$7` median `$313.25`, target probability `32.33%`;
+- rank `2`: old `15m ALL DOWN m0 h16 0.20-0.50`, `$7` median `$114.31`, target probability `0%`;
+- rank `3+`: materially weaker medians / no target probability / lower utility.
+
+Adding hours just to increase signal count was a previous failure mode. Any multi-hour portfolio must be re-tested on fresh Fly recorder data before live promotion.
+
+#### Recheck cadence and next gate
+
+- Re-run `node scripts\audit-fractional-compounding-mission.js` daily while paused, and immediately after every fresh Fly recorder export.
+- Required promotion evidence before live `GO`:
+  1. exact h19/m1 rule appears in fresh recorder/live-shadow data;
+  2. forward exact-rule WR remains at or above roughly `65%` with no early two-loss cluster;
+  3. `$7` bootstrap target probability remains materially above the old rule under real bid/ask, no-fill, slippage, and settlement-lock assumptions;
+  4. CLOB orderbook depth confirms `5`-share fills at the modeled ask band;
+  5. runtime diagnostics show the matcher is loading only the intended proof strategy and no stale fallback set.
+
+#### Final verdict for this continuation
+
+- The previous near-miss is no longer the highest-profit loaded proof candidate.
+- The best current strategy closest to the mission is now `15m ALL UP h19/m1 0.45-0.65`, loaded in proof/shadow mode.
+- Expected outcome from current bankroll (`~$7`) under strict historical bootstrap: median about `$313`, p90 about `$743`, target probability about `32%`.
+- Expected outcome with `+£5` (`~$13.76` total): median about `$677`, target probability about `63%`.
+- This is the closest current strategy to the mission, but it is still **not 100/100 live-proven** until fresh Fly recorder data confirms the exact rule.
+
+### HANDOFF ADDENDUM — 2026-05-18 12:30 local — deploy-now env alignment + combo-time decision
+
+User asked to stop waiting for forward proof if that risks missing the window, ensure Fly envs match the final strategy, and re-check whether adding another time improves the strategy. I re-audited the latest loaded fractional candidate and found one material config bug plus one valid portfolio upgrade.
+
+#### Critical env mismatch fixed
+- Loaded strategy allowed `YES ask 0.45-0.65`, but `fly.toml` still had `HARD_ENTRY_PRICE_CAP="0.50"`.
+- That would have silently rejected valid `0.50-0.65` h19 entries live, causing sim/live divergence.
+- Fixed: `HARD_ENTRY_PRICE_CAP="0.65"`.
+
+#### Final loaded deploy-now strategy
+Strategy file remains:
+```toml
+STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_mission_fractional_up_h19_m1.json"
+```
+but the file now contains a **2-rule 15m portfolio**, not just the original h19 rule:
+1. `MISSION_FRACTIONAL_15M_ALL_UP_H19_M1_P45_65`
+   - timeframe: `15m`
+   - asset: `ALL`
+   - direction: `UP` / YES
+   - UTC hour: `19`
+   - entry minute: `1`
+   - YES ask band: `0.45-0.65`
+2. `MISSION_FRACTIONAL_15M_ALL_DOWN_H16_M0_P20_50_COMBO_LEG`
+   - timeframe: `15m`
+   - asset: `ALL`
+   - direction: `DOWN` / NO
+   - UTC hour: `16`
+   - entry minute: `0`
+   - NO ask band: `0.20-0.50`
+
+#### Why add h16, but not broader extra times?
+New artifact: `debug/mission_broad_sweep/fractional_combo_portfolio_audit.json`.
+
+Corrected strict combo audit assumptions:
+- starts: `$7`, `$13.76`;
+- target: `$500`;
+- `1000` bootstrap trials;
+- adverse fill: `+2c`;
+- slippage: `1%`;
+- minimum order: `5` shares;
+- settlement delay: `1800s`;
+- max open positions: `1`;
+- max trades per cycle: `1`.
+
+Results:
+- h19 only:
+  - `$7`: final holdout path `$2,256.07`, bootstrap median `$321.20`, p90 `$975.36`, target probability `33.1%`, below-start `0%`;
+  - `$13.76`: final holdout path `$4,544.25`, bootstrap median `$621.38`, target probability `62.2%`, below-start `0%`.
+- h19 + h16:
+  - `$7`: final holdout path `$153,847.08`, bootstrap median `$4,854.31`, p90 `$31,906.46`, target probability `93.4%`, below-start `0%`;
+  - `$13.76`: final holdout path `$309,859.42`, bootstrap median `$11,287.14`, p90 `$68,338.26`, target probability `98.0%`, below-start `0%`.
+
+Rejected additions:
+- top-5 portfolio collapsed into near-total below-start probability (`~99.8%` for `$7`);
+- 5m additions caused bust-risk regressions;
+- wider h16 bands (`0.25-0.55`, `0.30-0.55`, `0.35-0.55`, `0.40-0.55`) produced severe below-start probabilities (`~97-98%`);
+- adding times broadly just to increase trade count is explicitly rejected because it repeats the old sim/live failure mode.
+
+Conclusion: **add exactly h16 DOWN to h19 UP; do not add any other times yet**.
+
+#### Deploy-now Fly envs
+Because the user explicitly prioritized immediate deployment over waiting for more forward data, `fly.toml` is now set to live/autotrading mode:
+```toml
+START_PAUSED = "false"
+TRADE_MODE = "LIVE"
+ENABLE_LIVE_TRADING = "true"
+LIVE_AUTOTRADING_ENABLED = "true"
+TIMEFRAME_15M_ENABLED = "true"
+TIMEFRAME_5M_ENABLED = "false"
+MULTIFRAME_4H_ENABLED = "false"
+STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_mission_fractional_up_h19_m1.json"
+HARD_ENTRY_PRICE_CAP = "0.65"
+REQUIRE_REAL_ORDERBOOK = "true"
+MAX_GLOBAL_TRADES_PER_CYCLE = "1"
+OPERATOR_STAKE_FRACTION = "1.00"
+MICRO_BOOTSTRAP_STAKE_FRACTION = "1.00"
+DEFAULT_MIN_ORDER_SHARES = "5"
+CYCLE_RECORDER_ENABLED = "true"
+CYCLE_RECORDER_PATH = "/data/cycle_recorder.jsonl"
+```
+
+#### Data freshness truth surface as of 2026-05-18 local
+- `data/cycle_recorder.jsonl` is absent locally, so local forward recorder proof is not available in this checkout.
+- Local `15m` historical intracycle evidence for this exact strategy family ends before 2026-05-18 (combo holdout window in the corrected audit: `2026-04-26T19:46:00Z` to `2026-05-02T19:46:00Z`).
+- Local 5m files are more recent, but 5m additions were rejected by combo bootstrap due bust-risk regression.
+- Therefore the deploy-now config is the best available immediate approximation, not a claim of impossible `100/100` certainty.
+
+#### Operational warning and recheck cadence
+- This config uses `100%` stake because the strict optimizer selected it and the user prioritized rapid compounding; one early live loss can still be severe despite bootstrap below-start being `0%` in the available holdout.
+- Re-run after every trading day, and immediately if the first live result is a loss:
+```powershell
+$env:STARTS='7,13.76'; $env:TARGET='500'; $env:BOOTSTRAP_TRIALS='1000'; $env:TOP_N='12'; node .\scripts\audit-fractional-compounding-mission.js
+$env:STARTS='7,13.76'; $env:TARGET='500'; $env:BOOTSTRAP_TRIALS='1000'; $env:TOP_N='12'; node .\scripts\audit-fractional-combo-portfolio.js
+node .\scripts\verify-harness.js
+```
+- If h19+h16 loses freshness/edge, immediately pause (`START_PAUSED=true`, `ENABLE_LIVE_TRADING=false`, `LIVE_AUTOTRADING_ENABLED=false`) and restart the mission search with fresh Fly recorder data.
+
+#### Actual Fly deployment verification — 2026-05-18 12:21Z
+
+The first deploy surfaced a critical real-world mismatch: Fly secrets were overriding local `fly.toml` and still pointed at the old structural-edge/5m configuration (`TIMEFRAME_15M_ENABLED=false`, `TIMEFRAME_5M_ENABLED=true`, `HARD_ENTRY_PRICE_CAP=0.45`, old strategy path, `OPERATOR_STAKE_FRACTION=0.60`, `MAX_GLOBAL_TRADES_PER_CYCLE=2`). These overrides were corrected via `flyctl secrets set` before the final deployment.
+
+Final deployment evidence:
+- Fly app: `polyprophet`;
+- final image: `registry.fly.io/polyprophet:deployment-01KRXGCB395FM5CD2KR3PR12PV`;
+- final HTTPS checks:
+  - `/api/health`: `status=ok`, `mode=LIVE`, balance about `$7.929836`, redemption queue `0`, no suppression blockers;
+  - `/api/status`: `mode=LIVE`, `isLive=true`, active timeframe list is only `15m`;
+  - `/api/status.strategies.15m`: `loaded=true`, `strategies=2`, `filePath=/app/strategies/strategy_set_15m_mission_fractional_up_h19_m1.json`, `loadError=null`;
+  - `/api/wallet/balance`: endpoint reachable; balance data is exposed through health/status after refresh.
+
+Additional runtime hardening applied after deploy verification:
+- Created Fly volume `polyprophet_data` in `gru` and mounted it at `/data`.
+- Added `[[mounts]]` to `fly.toml` for `/data` durability.
+- Added `RUNTIME_STATE_PATH` env support in `server.js`.
+- Set `REDIS_ENABLED=false` and `RUNTIME_STATE_PATH=/data/runtime-state.json` because Redis/Upstash had hit max request limits and was producing runtime-state save failures.
+- Cycle recorder remains enabled at `/data/cycle_recorder.jsonl`; the file may appear only after a cycle flush.
+
+Current deploy status at the time of that entry was **LIVE and strategy-correct**, but the remaining weakness was evidence freshness. The local exact 15m dataset still did not prove May 18 edge directly, so the operator was required to re-audit daily and pause immediately if the first live result contradicted the h19+h16 thesis.
+
+### HANDOFF ADDENDUM — 2026-05-18 16:15Z — stale-data correction, fresh pull, and NO-GO until current proof
+
+#### User correction accepted
+
+The user correctly objected that the first deploy-now decision was based on stale evidence. The prior addendum explicitly admitted that the exact 15m combo evidence ended before May 18, yet the bot was still deployed live. That was the wrong order of operations for this mission. The correct order is:
+
+1. pull/export fresh data first;
+2. prove the candidate still exists in the current market regime;
+3. only then load and enable live execution.
+
+This addendum supersedes the deploy-now wording above. The loaded 2-rule strategy is no longer considered a live `GO` strategy until fresh evidence validates it.
+
+#### Immediate safety action taken
+
+- Remote Fly secrets were reset to suppress autonomous live trading:
+  - `START_PAUSED=true`
+  - `ENABLE_LIVE_TRADING=false`
+  - `LIVE_AUTOTRADING_ENABLED=false`
+- Local `fly.toml` was changed to match the safe state, so a future deploy does not accidentally re-enable stale live trading.
+- Remote verification after the change:
+  - `/api/health`: `status=degraded` only because manual pause is active;
+  - balance: about `$7.929836`;
+  - `tradingSuppression.manualPause=true`;
+  - runtime state uses `/data/runtime-state.json` and reports `startPausedEnv=true`;
+  - `/api/status.strategies.15m`: still loads `strategies/strategy_set_15m_mission_fractional_up_h19_m1.json` with `2` rules, but those rules are suppressed by pause/autotrading-off.
+
+#### What I pulled fresh on May 18
+
+Fresh artifacts now created/updated:
+
+- `data/cycle_recorder.fly_latest.jsonl`
+  - downloaded from Fly `/data/cycle_recorder.jsonl` through the admin-gated recorder export endpoint;
+  - current coverage: `66` 15m cycle rows;
+  - assets observed: `BTC`, `ETH`, `SOL`, `XRP`, `BNB`, `DOGE`;
+  - time span: `2026-05-18T12:15:00Z` to `2026-05-18T15:00:00Z`.
+- `data/intracycle-price-data.fly_latest.json`
+  - output from the original converter;
+  - result: `0` usable resolved cycles because the original converter required post-window `>=0.99` bid evidence.
+- `data/intracycle-price-data.fly_inferred.json`
+  - output from the updated converter;
+  - result: `60` fresh 15m cycles;
+  - resolution source for all cycles: `LAST_IN_WINDOW_CLOB_BID_PROXY_GE_095`.
+- `debug/mission_broad_sweep/fresh_data_readiness_audit.json`
+  - inventories dataset recency and checks whether the loaded h16/h19 rules appear in fresh recorder rows.
+- `debug/mission_broad_sweep/fresh_recorder_sweep.json`
+  - strict mission sweep on recorder-inferred data only;
+  - result: `0` passing candidates under train/holdout gates.
+- `debug/mission_broad_sweep/fresh_recorder_rule_scan.json`
+  - canary scan over recorder-inferred rows without pretending there is enough official settlement history.
+
+#### Fresh-data verdict on the loaded h19+h16 strategy
+
+Loaded strategy file: `strategies/strategy_set_15m_mission_fractional_up_h19_m1.json`.
+
+Loaded rules:
+
+1. `15m ALL UP`, UTC hour `19`, entry minute `1`, YES ask `0.45-0.65`.
+2. `15m ALL DOWN`, UTC hour `16`, entry minute `0`, NO ask `0.20-0.50`.
+
+Fresh readiness result:
+
+- Fresh Fly recorder currently covers only `12:15Z` through `15:00Z`.
+- Therefore it contains **no exact h16 or h19 observations** yet.
+- The loaded strategy is **unobserved**, not confirmed, on the current May 18 forward data.
+- Because it is unobserved on fresh data, expected-profit numbers from stale historical bootstrap must be treated as research-only.
+- Live verdict: **NO-GO / KEEP PAUSED** until an exact h16/h19 current-day observation is recorded and resolved/scored.
+
+#### Fresh canary search result
+
+The fresh recorder-only canary scan did find short-window rules, but they are **not deploy-authoritative** because:
+
+- the sample is only a few hours (`12:15Z-15:00Z`);
+- outcomes are inferred from last in-window CLOB bid behavior, not official settlement rows;
+- rules are not yet proven over multiple days or across h16/h19 target hours;
+- deploying from a one-afternoon canary would repeat the old failure pattern: tiny-sample overfit -> live flop.
+
+Top fresh canary examples from `debug/mission_broad_sweep/fresh_recorder_rule_scan.json`:
+
+- `15m ALL DOWN`, minute `0`, UTC hour `13`, price `0.50-0.75`: `17W/0L`, avg entry `0.6447`.
+- `15m ALL DOWN`, minute `1`, UTC hour `13`, price `0.50-0.75`: `15W/0L`, avg entry `0.6773`.
+- `15m ALL DOWN`, minute `8`, all hours in the fresh window, price `0.50-0.75`: `12W/0L`, avg entry `0.6775`.
+- `15m ALL DOWN`, minute `6`, all hours in the fresh window, price `0.40-0.65`: `8W/0L`, avg entry `0.5262`.
+
+These are useful leads for continued mining, not live signals.
+
+#### Why the stale deploy was a logic failure
+
+The prior deployment repeated a known class of failure:
+
+- It optimized against an older historical holdout.
+- It treated a high bootstrap result as sufficient despite the known regime-freshness gap.
+- It did not force an exact same-day observation before enabling live orders.
+- It trusted strategy attractiveness before proving data recency.
+
+This is exactly what the user has repeatedly warned against. Going forward, any strategy claim must distinguish:
+
+- `research-positive`: historically good;
+- `fresh-canary-positive`: current-day CLOB recorder suggests possible continuation;
+- `fresh-resolved-positive`: current-day/forward rows are resolved and scored;
+- `live-order-ready`: runtime/env/orderbook/sizing all match the proven rule;
+- `GO`: only after all above are true.
+
+The deployed h19+h16 strategy is currently only `research-positive`; it is **not** `fresh-resolved-positive`.
+
+#### Full “make sure” checklist for the next audit
+
+Before any future live enablement, the agent must make sure all of the following are true:
+
+- Make sure the dataset includes current-day rows through the actual candidate hour.
+- Make sure the candidate has exact observations for the same `asset/timeframe/hour/minute/direction/price band` that runtime will trade.
+- Make sure the data source is labeled: official settlement, post-window CLOB bid, last-in-window CLOB proxy, or stale historical backfill.
+- Make sure the sim uses buy-side executable ask prices, not midpoint/last-price fantasy fills.
+- Make sure exits use sell-side bid prices if exit logic is modeled.
+- Make sure 5-share minimum, integer shares, current bankroll, and settlement-lock delay are enforced.
+- Make sure `MAX_GLOBAL_TRADES_PER_CYCLE=1` and open-position limits match the sim if those constraints are assumed.
+- Make sure `HARD_ENTRY_PRICE_CAP` does not silently reject the strategy’s own upper price band.
+- Make sure Fly secrets do not override `fly.toml` with stale strategy paths or stake fractions.
+- Make sure `TIMEFRAME_5M_ENABLED` / `TIMEFRAME_15M_ENABLED` match the intended strategy file.
+- Make sure the strategy file loaded by `/api/status.strategies` is exactly the file being audited.
+- Make sure cycle recorder is writing to durable `/data`, not ephemeral local disk.
+- Make sure the recorder export has fresh rows and the converter does not silently output `0` usable cycles.
+- Make sure any inferred-resolution dataset is not treated as official settlement proof.
+- Make sure complete-set arbitrage, TP-ladder, static rules, and fresh canary rules are compared under one shared bankroll/risk model.
+- Make sure no rule is promoted just because it has a tiny same-day sample.
+- Make sure stale local historical files are marked research-only unless fresh forward data agrees.
+- Make sure V2/sigType-3 order placement remains compatible with the current Polymarket API before live enablement.
+- Make sure funds reconciliation / redemption queue / pending settlement state does not block or double-count available bankroll.
+- Make sure the expected-profit statement has three separate numbers: historical research, fresh canary, and fresh resolved/live-ready.
+
+#### Server/runtime audit thinking: what to actually check
+
+When auditing the server, do not merely check that files compile. The audit must trace the exact money path:
+
+1. **Configuration ingestion**
+   - `fly.toml`, Fly secrets, and runtime envs must agree.
+   - Check `START_PAUSED`, `ENABLE_LIVE_TRADING`, `LIVE_AUTOTRADING_ENABLED`, timeframe flags, stake fractions, price caps, and strategy paths.
+2. **Market discovery**
+   - Confirm the runtime can discover the active `15m` slugs and token IDs for all enabled assets.
+   - Confirm the asset universe includes `BTC`, `ETH`, `SOL`, `XRP`, `BNB`, `DOGE` if the strategy says `ALL`.
+3. **Strategy matcher**
+   - Confirm the matcher uses cycle start UTC hour and entry minute exactly as the miner did.
+   - Confirm `UP` uses YES ask and `DOWN` uses NO ask.
+   - Confirm no legacy fallback strategy set is loaded.
+4. **Risk/sizing**
+   - Confirm bankroll source, available cash, locked funds, minimum shares, max open positions, and max trades per cycle.
+   - Confirm one 5-share order is possible at the modeled price with the actual current balance.
+5. **Order placement**
+   - Confirm V2 client, `sigType=3`, funder/deposit wallet, token allowances, and order type are aligned with Polymarket V2 docs.
+   - Confirm real orderbook requirement is active so no synthetic price can trigger a live order.
+6. **Post-trade accounting**
+   - Confirm pending buys/sells/settlements and redemption queue do not cause duplicate entries or false win/loss counters.
+   - Confirm settlement delay is modeled and runtime does not re-use locked capital.
+7. **Recorder and proof loop**
+   - Confirm recorder writes to `/data/cycle_recorder.jsonl`.
+   - Confirm export/download works and produces rows for the exact candidate hours.
+   - Confirm conversion/scoring is non-empty before any strategy promotion.
+
+#### Current expected profits after the stale-data correction
+
+Because the loaded h19+h16 portfolio has no exact fresh May 18 h16/h19 observations yet, the honest current live-ready expected profit is:
+
+- Current bankroll (`~$7.93`): **no live-ready expected-profit claim**; bot remains paused.
+- With another `£5` deposit: at the repo’s prior conversion basis `£5≈$6.76`, total would be roughly `$14.69`; still **no live-ready expected-profit claim** until fresh proof exists.
+
+Research-only stale-bootstrap numbers from the previous h19+h16 combo remain recorded above, but they are no longer allowed to justify live deployment by themselves.
+
+#### Next exact action
+
+Keep Fly running but paused to collect recorder data. After the UTC `16` and `19` windows have passed and the recorder contains those rows, run:
+
+```powershell
+$env:IN_FILE='data/cycle_recorder.fly_latest.jsonl'; $env:OUT_FILE='data/intracycle-price-data.fly_inferred.json'; node .\scripts\convert-cycle-recorder-to-intracycle.js
+node .\scripts\audit-fresh-data-readiness.js
+$env:DATA_FILE='data/intracycle-price-data.fly_inferred.json'; node .\scripts\audit-fresh-recorder-rules.js
+$env:DATA_FILES='data/intracycle-price-data.fly_inferred.json'; $env:OUT_FILE='fresh_recorder_sweep.json'; node .\scripts\mission-broad-sweep.js
+```
+
+Only if the exact candidate rule is present, resolved/scored, and still positive under runtime-parity constraints should the strategy be considered for re-enable.
+
+### HANDOFF ADDENDUM — 2026-05-18 18:19+ — Last-7 Fresh API Sweep, Loaded Strategy Rejection, Weather-Market Check
+
+#### User mission restatement / non-negotiables I used for this audit
+
+The user goal remains: find the highest-realistic-profit strategy from the current micro-bankroll (`~$7.93` observed on Fly; with another `£5≈$6.76`, total `~$14.69`) while avoiding another repeat of the old cycle: stale backtest -> confident claim -> live flop -> bankroll loss. The user explicitly asked for fresh Polymarket API data from done cycles, intracycle data, last-7-day testing, canary testing, broader pattern discovery, weather/temperature-market assessment, and Fly env alignment. The audit therefore treated **freshness and execution parity as first-order constraints**, not optional caveats.
+
+#### Fresh data pulled / generated in this pass
+
+- Exported latest Fly recorder tail from `/api/cycle-recorder/download` into `data/cycle_recorder.fly_latest.jsonl`.
+- Converted it with `scripts/convert-cycle-recorder-to-intracycle.js` into `data/intracycle-price-data.fly_inferred.json`.
+- Latest Fly recorder export had `78` lines / `71` usable inferred cycles, covering `2026-05-18T13:30Z` through `2026-05-18T17:00Z` across `BTC/ETH/SOL/XRP/BNB/DOGE` `15m` markets.
+- Added `scripts/collect-last7-crypto-intracycle.js`, a resumable Gamma+CLOB collector, because the older monolithic `fresh-strategy-search.js` full 7-day run timed out after ~15 minutes and lost its in-memory progress.
+- The resumable collector produced `data/intracycle-price-data.last7.crypto.resumable.json` with `1,450` fresh last-7-day closed cycles so far:
+  - `BTC`: `673` cycles, complete for the window.
+  - `ETH`: complete for the window by the second continuation run.
+  - `SOL`: partially collected.
+  - Window: `2026-05-11T17:15Z` to `2026-05-18T17:15Z`.
+- Important provenance caveat: the fresh API collector uses Gamma closed-event outcome prices for resolution and CLOB `prices-history` `last` prices for intracycle. This is much fresher than stale local artifacts but is still **not identical to live executable ask/bid orderbook fills**. Fly recorder rows are closer to the live truth surface but currently cover only part of one day.
+
+#### Loaded strategy retest — hard rejection for live GO
+
+The currently loaded proof strategy file remains `strategies/strategy_set_15m_mission_fractional_up_h19_m1.json`, but Fly/local envs are paused and live/autotrading disabled. The fresh last-7-day corpus rejects the loaded h19+h16 idea as a live strategy:
+
+- `loaded_h19_up`: `15m ALL UP`, minute `1`, UTC hour `19`, price `0.45-0.65`:
+  - Fresh last-7 proxy result: `33` matches, `21W/12L`, win rate `63.64%`.
+  - Day detail: May 11 `4W/0L`; May 12 `4W/2L`; May 13 `4W/2L`; May 14 `1W/3L`; May 15 `3W/3L`; May 16 `3W/2L`; May 17 `2W/0L`.
+  - This is not remotely close to the near-perfect chain needed for aggressive compounding.
+- `loaded_h16_down`: `15m ALL DOWN`, minute `0`, UTC hour `16`, price `0.20-0.50`:
+  - Fresh last-7+Fly proxy result: `37` matches, `18W/19L`, win rate `48.65%`.
+  - Day detail: May 12 `6W/5L`; May 13 `0W/5L`; May 15 `3W/1L`; May 16 `1W/3L`; May 17 `1W/3L`; May 18 `7W/2L`.
+  - The strong May 18 recorder/canary behavior is **not enough**; the same exact family had recent multi-loss days.
+- Verdict: **the loaded strategy is not the strategy we were looking for**. Enabling it now would repeat the stale-data failure pattern the user warned about.
+
+#### Fresh canary retest — short-window perfection collapses over the week
+
+The May 18 Fly recorder short-window canary scan found tempting perfect DOWN rules, but the last-7-day retest broke them:
+
+- `fresh_canary_h16_m6_down`: `15m ALL DOWN`, minute `6`, UTC hour `16`, price `0.20-0.50`:
+  - Fresh week result: `29` matches, `13W/16L`, win rate `44.83%`.
+  - May 18 alone: `7W/0L`, but prior days included May 15 `2W/5L`, May 16 `0W/5L`, May 17 `1W/2L`.
+  - This is a textbook tiny-sample trap.
+- `fresh_canary_m7_down`: `15m ALL DOWN`, minute `7`, all hours, price `0.40-0.65`:
+  - Fresh week result: `329` matches, `190W/139L`, win rate `57.75%`.
+- `fresh_canary_m11_down`: `15m ALL DOWN`, minute `11`, all hours, price `0.45-0.65`:
+  - Fresh week result: `160` matches, `102W/58L`, win rate `63.75%`.
+- Verdict: these canaries are useful for regime diagnostics, **not live deployment**.
+
+#### Fresh last-7 strategy mining result
+
+Ran `scripts/mission-broad-sweep.js` on:
+
+```text
+data/intracycle-price-data.last7.crypto.resumable.json,
+data/intracycle-price-data.fly_inferred.json
+```
+
+with current-bankroll starts `7.93` and `14.69`, target `500`, strict 5-share geometry, settlement delay, slippage/adverse-fill assumptions, and price bands up to `0.75`.
+
+Result file: `debug/mission_broad_sweep/mission_broad_sweep_last7_fresh_api.json`.
+
+Key output:
+
+- `cycleCount=1,521`, `rowCount=34,363`, `ruleCount=37,320`, `passingCandidateCount=14`.
+- Best visible strict candidate: `15m BTC DOWN`, minute `10`, all UTC hours, price `0.40-0.70`:
+  - train `48W/72` (`66.67%`), validate `17W/24` (`70.83%`), holdout `17W/25` (`68.00%`).
+  - From `~$7.93`: final `~$11.47`, bootstrap median `~$11.34`, target probability `0%`, below-start/bust-under-start probability `27.4%`.
+  - From `~$14.69`: bootstrap median only `~$14.97`, target probability `0%`.
+- Some candidates look better only with the larger bankroll because `~$7.93` cannot place enough 5-share trades at the modeled prices.
+- No fresh last-7 crypto static/canary candidate currently comes close to the mission (`$500+`) under a strict bankroll model.
+
+#### Weather / temperature market investigation
+
+The user asked whether weather markets may be more predictable and easier to compound.
+
+Findings:
+
+- Web search found real Polymarket weather/temperature events, e.g.:
+  - `highest-temperature-in-denver-on-may-18-2026`.
+  - `highest-temperature-in-nyc-on-may-18-2026`.
+  - `highest-temperature-in-chicago-on-may-18-2026`.
+  - `highest-temperature-in-dallas-on-may-18-2026`.
+  - `highest-temperature-in-seattle-on-may-18-2026`.
+- Direct Gamma search by generic terms (`weather`, `temperature`, `rain`, `snow`) returned unrelated GTA markets, so generic search is unreliable.
+- Targeted Gamma event-slug calls work and expose binary submarkets with `clobTokenIds`, prices, liquidity, and `acceptingOrders=true`.
+- These are not a single binary up/down market; they are multi-bucket events represented as multiple binary submarkets.
+- Near-resolution weather buckets can be highly predictable from NWS/NOAA/ensemble forecasts, but the market usually prices the obvious side near `0.96-0.997`, which gives tiny ROI and is a high-price trap for micro-bankroll compounding.
+- The mid-price buckets (`~0.20-0.35`) have the compounding geometry the user wants but are precisely the ambiguous forecast bins where a 1-2°F observation error/regime/model shift can flip the result.
+- Current runtime cannot safely trade these without new code: market discovery is crypto-up/down oriented, strategy matcher assumes `UP/DOWN`, and runtime sizing/accounting assumes the existing binary asset/timeframe loop.
+
+Weather verdict: **promising research direction, not an immediate deployable replacement today**. It may eventually beat crypto for high-certainty short-lead bets, but it requires a dedicated weather-market executor plus external forecast/observation validation. Enabling the current bot on weather now is not possible via env-only changes and would be another unproven live-risk move.
+
+#### Final deployment/Fly configuration verdict after this audit
+
+- Do **not** enable live trading.
+- Keep Fly paused and recording.
+- Current `fly.toml` is aligned with safety:
+  - `START_PAUSED="true"`
+  - `ENABLE_LIVE_TRADING="false"`
+  - `LIVE_AUTOTRADING_ENABLED="false"`
+  - `TIMEFRAME_15M_ENABLED="true"`
+  - `TIMEFRAME_5M_ENABLED="false"`
+  - `STRATEGY_SET_15M_PATH="strategies/strategy_set_15m_mission_fractional_up_h19_m1.json"` only as suppressed proof config.
+  - `CYCLE_RECORDER_ENABLED="true"`, `CYCLE_RECORDER_PATH="/data/cycle_recorder.jsonl"`.
+- Do not add more times/hours to the loaded strategy: fresh last-7 mining shows all broad DOWN hour/minute additions are not mission-grade and some introduce immediate bust risk.
+- Do not switch to the May 18 canary rule: it is overfit to a few current-day hours and fails over the week.
+- Do not promote weather until a dedicated weather execution path is implemented and validated.
+
+#### What this audit found that directly answers the user’s concern
+
+The user was correct to challenge the stale-data deploy. Once fresh last-7 API/intracycle evidence was pulled, the previously loaded strategy did **not** hold up. This time is different only if we refuse to live-enable it. The correct action is to keep the bot paused, continue durable recording, and either:
+
+1. continue the resumable last-7 collector until SOL/XRP are complete, then rerun the sweep; and/or
+2. build a separate weather-market research/execution module; and/or
+3. search non-crypto short-horizon markets with objective external data, but only if token/liquidity/execution support is implemented.
+
+Current live-ready expected-profit claim:
+
+- From `~$7.93`: **no live-ready profitable strategy found; expected mission profit not claimable; keep paused**.
+- From `~$14.69` (`~$7.93 + £5≈$6.76`): **still no live-ready mission strategy; fresh best crypto median is nowhere near `$500`**.
+
+This is not the desired answer, but it is the honest answer that prevents repeating the exact loss cycle.
+
+---
+
+## EPOCH 3 MAY 2026 ADDENDUM — ORACLE MARKET PIVOT + HIT-WEEK SLEEVE (Fly)
+
+**Timestamp**: 2026-05-19
+
+### Live runtime truth (Fly)
+
+- **Live base URL**: `https://polyprophet.fly.dev/`
+- **Wallet balance (CLOB collateral fallback)**: `~$7.93` (as reported by `/api/wallet/balance`)
+- **Trade gates**: `TRADE_MODE=LIVE` but **not actually live trading** (`ENABLE_LIVE_TRADING=false`, `LIVE_AUTOTRADING_ENABLED=false` → server reports `isLive=false`).
+
+### What changed since the prior audit section above
+
+The prior section concluded “no live-ready strategy found” under the repo’s original crypto `15m up/down` family. That conclusion remains correct for that family.
+
+However, we built and validated a different lane that is:
+
+- **oracle-verifiable** (explicit Pyth resolution sources),
+- **CLOB-executable** (we confirmed real orderbook depth near executable asks for shortlisted markets),
+- **configurable without rewriting the whole bot** (implemented as an optional, capped "hit-week sleeve").
+
+This does **not** magically guarantee `$500–$1000` from `$7.93` in 7 days; it creates a *new, testable, deployable* mechanism with much stronger truth surfaces than the previous intracycle heuristics.
+
+### Implemented feature: `hit-week sleeve`
+
+New code:
+
+- `lib/hit-sleeve.js`
+- `TradeExecutor.planHitSleeve()` + `TradeExecutor.executeHitSleeve({ dryRun })`
+- Server endpoints:
+  - `GET /api/hit-sleeve/plan` (read-only plan)
+  - `POST /api/hit-sleeve/run` (can place orders; supports `{ "dryRun": true }`)
+
+**Safety posture**:
+
+- `/api/hit-sleeve/run` always requires the admin control secret header `x-manual-smoke-key`.
+- `TradeExecutor.executeHitSleeve()` refuses to place orders unless `CONFIG.IS_LIVE` is true (dry-run allowed).
+
+### Required envs
+
+Enable the sleeve:
+
+- `HIT_SLEEVE_ENABLED=true`
+- `HIT_SLEEVE_ORDERS_JSON` = JSON array of orders:
+
+```json
+[
+  {"slug":"will-spy-reach-745-by-may-18-2026","side":"YES","maxPrice":0.55,"stakeFraction":0.25},
+  {"slug":"will-rklb-dip-to-112-by-may-18-2026","side":"NO","maxPrice":0.70,"stakeFraction":0.20},
+  {"slug":"will-rklb-dip-to-110-by-may-18-2026","side":"NO","maxPrice":0.78,"stakeFraction":0.15}
+]
+```
+
+Notes:
+
+- `maxPrice` is an executable *ask cap*. If `bestAsk > maxPrice`, the plan marks the order as `ASK_ABOVE_MAX_PRICE`.
+- `stakeFraction` is per-order cap. With a ~$7.93 bankroll and 5-share minimums, you will still often be share-limited.
+
+### Verified execution feasibility (May 2026)
+
+We confirmed via CLOB `/book` that at least one robust candidate has real depth near the executable ask:
+
+- `will-spy-reach-745-by-may-18-2026` (YES): `bestAsk ~0.54`, depth at ask `>= 100` shares.
+
+This resolves a prior false alarm where a temporary evaluator bug mis-read `bestAsk` as `0.99`.
+
+### Operator-facing rollout checklist (recommended)
+
+1. Keep `ENABLE_LIVE_TRADING=false` and run:
+   - `GET https://polyprophet.fly.dev/api/hit-sleeve/plan`
+   - Confirm each order is `ok=true`, `shares>=5`, `depthAtAsk.shares>=5`.
+2. Set/rotate `MANUAL_SMOKE_TEST_KEY` on Fly.
+3. Flip live gates (`ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`) only when ready.
+4. Run supervised micro proof:
+   - `POST /api/hit-sleeve/run` with `{ "dryRun": true }` first.
+   - Then run with `{ "dryRun": false }` for *one* order.
+5. Only after confirmed acceptance/fill behavior, enable repeating automation.
+
+### Deposit scenario
+
+The current working assumption is **+£2 max**, not £5.
+
+- Approx `£2 ≈ $2.66` at ~`1.33` GBPUSD.
+- New bankroll would be `~$10.6`.
