@@ -2766,6 +2766,29 @@ app.post('/api/hit-sleeve/run', async (req, res) => {
     }
 });
 
+app.get('/api/clob/ready-debug', async (req, res) => {
+    try {
+        if (!requireAdminControlSecret(req, res)) return;
+        if (!tradeExecutor.clob?.wallet) {
+            return res.json({ success: false, error: 'No wallet loaded' });
+        }
+        const ready = await tradeExecutor.clob.getTradeReadyClient({ force: true, ttlMs: 30000 });
+        const diagnostics = await tradeExecutor.clob.getTradeDiagnostics({ ttlMs: 30000 });
+        const { client, ...safeReady } = ready || {};
+        return res.json({
+            success: true,
+            checkedAt: new Date().toISOString(),
+            ready: safeReady,
+            diagnostics
+        });
+    } catch (e) {
+        return res.status(e.httpStatus || 500).json({
+            success: false,
+            error: e.message || String(e)
+        });
+    }
+});
+
 app.get('/api/derive-debug', async (req, res) => {
     try {
         const { ClobClient: ClobClientClass, version: sdkVersion } = loadClobClientSdk();
