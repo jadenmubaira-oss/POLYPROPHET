@@ -1,7 +1,7 @@
 /**
  * Fresh 7-day backtest for ALL 15m UP/DOWN hours & directions.
  * Pulls live Polymarket closed-cycle data via Gamma API.
- * Tests H19+H16 portfolio and scans all hours for best regime-stable pattern.
+ * Tests the deployed 7-signal portfolio and scans all hours for best regime-stable pattern.
  *
  * Run: node scripts/fresh_7day_backtest.js
  */
@@ -9,6 +9,8 @@
 'use strict';
 const https = require('https');
 const fs = require('fs');
+
+const ACTIVE_STRATEGY_PATH = process.env.STRATEGY_SET_15M_PATH || 'strategies/strategy_set_15m_crossval_7signal_v2.json';
 
 const ASSETS = ['btc', 'eth', 'sol', 'xrp', 'bnb', 'doge'];
 const DAYS_BACK = 7;
@@ -68,6 +70,27 @@ function getIntracyclePrice(market, minute) {
   const ask = Number(market.bestAsk || 0);
   const bid = Number(market.bestBid || 0);
   return ask > 0 ? ask : (bid > 0 ? bid : null);
+}
+
+function loadActiveStrategySet() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(ACTIVE_STRATEGY_PATH, 'utf8'));
+    const strategies = Array.isArray(parsed.strategies) ? parsed.strategies : [];
+    return {
+      path: ACTIVE_STRATEGY_PATH,
+      strategies: strategies.map((strategy) => ({
+        name: strategy.name || `H${strategy.utcHour}_M${strategy.utcMinute}_${strategy.direction}`,
+        utcHour: Number(strategy.utcHour),
+        utcMinute: Number(strategy.utcMinute),
+        direction: String(strategy.direction || '').toUpperCase(),
+        pWinEstimate: Number(strategy.pWinEstimate || 0),
+      })).filter((strategy) => Number.isFinite(strategy.utcHour)
+        && Number.isFinite(strategy.utcMinute)
+        && ['UP', 'DOWN'].includes(strategy.direction)),
+    };
+  } catch (err) {
+    return { path: ACTIVE_STRATEGY_PATH, strategies: [], error: err.message };
+  }
 }
 
 async function main() {
@@ -205,23 +228,26 @@ async function main() {
   });
   
   // ==========================
-  // TEST CURRENT H19 + H16 STRATEGY
+  // TEST DEPLOYED STRATEGY SET
   // ==========================
-  console.log('\n=== CURRENT STRATEGY: H19 M15 UP + H16 M0 DOWN ===');
-  // H19 minute 1 in strategy JSON = cycle starting at 19:15 UTC (utcMinute=15, utcHour=19)
-  const h19up = records.filter(r => r.utcHour === 19 && r.utcMinute === 15 && r.outcome === 'UP');
-  const h19total = records.filter(r => r.utcHour === 19 && r.utcMinute === 15);
-  const h16down = records.filter(r => r.utcHour === 16 && r.utcMinute === 0 && r.outcome === 'DOWN');
-  const h16total = records.filter(r => r.utcHour === 16 && r.utcMinute === 0);
-  
-  console.log(`H19 m15 UP:   ${h19up.length}W / ${h19total.length}T = ${h19total.length > 0 ? (h19up.length/h19total.length*100).toFixed(1) : 'N/A'}% WR`);
-  console.log(`H16 m0 DOWN:  ${h16down.length}W / ${h16total.length}T = ${h16total.length > 0 ? (h16down.length/h16total.length*100).toFixed(1) : 'N/A'}% WR`);
-  
-  // Combined trades
-  const allCurrentTrades = [
-    ...records.filter(r => r.utcHour === 19 && r.utcMinute === 15).map(r => ({ ...r, stratDir: 'UP', win: r.outcome === 'UP' })),
-    ...records.filter(r => r.utcHour === 16 && r.utcMinute === 0).map(r => ({ ...r, stratDir: 'DOWN', win: r.outcome === 'DOWN' }))
-  ];
+  const activeStrategySet = loadActiveStrategySet();
+  console.log(`\n=== DEPLOYED STRATEGY SET: ${activeStrategySet.path} ===`);
+  if (activeStrategySet.error) {
+    console.log(`ERROR: could not load active strategy file: ${activeStrategySet.error}`);
+  }
+
+  const activeStrategyResults = activeStrategySet.strategies.map((strategy) => {
+    const matching = records.filter(r => r.utcHour === strategy.utcHour && r.utcMinute === strategy.utcMinute);
+    const wins = matching.filter(r => r.outcome === strategy.direction).length;
+    const total = matching.length;
+    const winRate = total > 0 ? wins / total : null;
+    console.log(`${strategy.name.padEnd(30)} H${String(strategy.utcHour).padStart(2, '0')}:M${String(strategy.utcMinute).padStart(2, '0')} ${strategy.direction.padEnd(4)} ${wins}W/${total}T = ${winRate !== null ? (winRate * 100).toFixed(1) : 'N/A'}% WR | pWinEstimate=${strategy.pWinEstimate || 'N/A'}`);
+    return { ...strategy, wins, total, winRate };
+  });
+
+  const allCurrentTrades = activeStrategySet.strategies.flatMap((strategy) => records
+    .filter(r => r.utcHour === strategy.utcHour && r.utcMinute === strategy.utcMinute)
+    .map(r => ({ ...r, strategy: strategy.name, stratDir: strategy.direction, win: r.outcome === strategy.direction })));
   const comboWins = allCurrentTrades.filter(r => r.win).length;
   console.log(`\nCombined:     ${comboWins}W / ${allCurrentTrades.length}T = ${allCurrentTrades.length > 0 ? (comboWins/allCurrentTrades.length*100).toFixed(1) : 'N/A'}% WR`);
   
@@ -277,9 +303,9 @@ async function main() {
   });
   
   // ==========================
-  // DAILY BREAKDOWN FOR H19+H16
+  // DAILY BREAKDOWN FOR DEPLOYED STRATEGY SET
   // ==========================
-  console.log('\n=== DAILY BREAKDOWN (H19 UP + H16 DOWN) ===');
+  console.log('\n=== DAILY BREAKDOWN (DEPLOYED STRATEGY SET) ===');
   const byDate = {};
   for (const trade of allCurrentTrades) {
     const date = trade.iso.split('T')[0];
@@ -299,9 +325,10 @@ async function main() {
       to: new Date(nowCycleStart * 1000).toISOString(),
       totalRecords: records.length
     },
-    currentStrategy: {
-      h19_m15_up: { wins: h19up.length, total: h19total.length, wr: h19total.length > 0 ? h19up.length/h19total.length : null },
-      h16_m0_down: { wins: h16down.length, total: h16total.length, wr: h16total.length > 0 ? h16down.length/h16total.length : null },
+    activeStrategy: {
+      path: activeStrategySet.path,
+      error: activeStrategySet.error || null,
+      signals: activeStrategyResults,
       combo: { wins: comboWins, total: allCurrentTrades.length, wr: allCurrentTrades.length > 0 ? comboWins/allCurrentTrades.length : null }
     },
     topRules: sorted.slice(0, 30).map(([key, v]) => ({ key, ...v })),

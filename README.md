@@ -13,7 +13,30 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 v7 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE ORDER-WRITE PROOF PASSED — 7-signal cross-validated v2 strategy loaded, trade halt flags fixed, cycle-minute parity fixed, deposit-wallet sigType 3 route accepted by CLOB
+**Last Updated**: 20 May 2026 v8 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ AUDIT REVERIFIED — live order-write proof passed, 7-signal cross-validated v2 strategy loaded, exact-cycle parity enforced, fresh audit tooling corrected
+
+## 20 May 2026 Junie Addendum v8 — WHY THIS IS DIFFERENT / ANTI-REPEAT AUDIT
+
+### What Is Actually Different This Time
+
+- **Trading mechanics are no longer inferred:** a guarded live Fly proof submitted an authenticated CLOB order, received real `orderID=0x2f2abfb5412d6b571eb317ff1a198ab21ec18530a5204799fbe470a6408ea224`, matched `0` shares by design, canceled successfully, and left bankroll unchanged. Previous failures often stopped at health/readiness checks; this one has order-write evidence through the real deposit-wallet sigType `3` route.
+- **Runtime/backtest parity has a regression gate:** every deployed signal is pinned by `utcHour` **and** `utcMinute`; `node scripts/verify_cycle_minute_strategy_match.js` proves `H19:30`, `H12:15`, and `H12:30` do not cross-fire into other 15m cycles. This directly fixes the earlier hour-only matching defect that could trade different live cycles than the backtest validated.
+- **Strategy selection is cross-validated, not just in-sample:** the current 7 signals survive May 13-20 and May 2-9 checks. The tempting `H1_M15_DOWN` signal is still rejected despite `92.9%` fresh-window WR because it had only `39.6%` WR in the independent May 2-9 window. This is the clearest anti-repeat proof against the old “best strategy” trap.
+- **Fresh audit script truth surface is fixed:** `scripts/fresh_7day_backtest.js` now loads the deployed `strategies/strategy_set_15m_crossval_7signal_v2.json` instead of a stale H19/H16 pair, and `scripts/cross_validate_signals.js` now reports the actual threshold that failed. This removes a concrete stale-tooling source of false confidence.
+- **Live configuration parity is checked:** Fly runtime env currently prints `START_PAUSED=false`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`, `STRATEGY_SET_15M_PATH=strategies/strategy_set_15m_crossval_7signal_v2.json`, `TIMEFRAME_15M_ENABLED=true`, `TIMEFRAME_5M_ENABLED=false`, `POLYMARKET_SIGNATURE_TYPE=3`, `HARD_ENTRY_PRICE_CAP=0.72`, `DEFAULT_MIN_ORDER_SHARES=5`, `MAX_GLOBAL_TRADES_PER_CYCLE=1`, and `REQUIRE_REAL_ORDERBOOK=true`.
+- **Intracycle recorder is live on persistent Fly volume:** `/data/cycle_recorder.jsonl` exists with `1,218` cycle records and ~`4.29MB` of minute-by-minute bid/ask snapshots. Future audits can use real intracycle data rather than only closed-outcome Gamma data.
+
+### Fresh Reinvestigation Snapshot
+
+- Fresh 7-day Gamma pull on 20 May fetched `4,050/4,050` resolved records with `0` API misses. The deployed 7-signal strategy scored `224W/294T = 76.2%` in that window: `H19:30 UP 71.4%`, `H7:15 UP 83.3%`, `H12:30 UP 85.7%`, `H12:15 UP 78.6%`, `H3:15 UP 73.8%`, `H13:15 DOWN 71.4%`, `H13:30 DOWN 69.0%`.
+- The same fresh window also proves the strategy is **not** guaranteed: daily breakdown included one bad day (`2026-05-16`: `19W/23L = 45%`) alongside strong days. This remains a high-variance micro-bankroll strategy, not a risk-free edge.
+- Cross-validation still keeps exactly the same 7 signals and drops 12 alternatives. `H6_M15_DOWN` now clearly drops because May13-20 WR was `64.3% < 65%`, not because of May2-9.
+
+### GO Boundary After This Audit
+
+- **GO for mechanics:** live mode, no blockers, no manual pause, no pending exposure, bankroll around `$7.929836`, CLOB route accepted by real order-write proof, and the strategy path is correct on Fly.
+- **GO for best-found non-overfit strategy:** the 7-signal set is still the best strategy found under the repo’s current data and validation gates. Do **not** replace it with any single-window “higher WR” candidate unless it passes the same independent-window and live-executable checks.
+- **Not a guarantee:** the honest projection remains the deterministic 5-share MC from `scripts/final_mc_simulation.js`: current-bankroll realistic 7-day median about `$858.65` with `14.74%` bust; +£5 GBP start about `$14.23` median about `$1,696.30` with `5.46%` bust. If regime changes or live fills/slippage differ, the result can be materially worse.
 
 ## 20 May 2026 Junie Addendum v7 — FINAL LIVE ORDER-WRITE PROOF PASSED
 

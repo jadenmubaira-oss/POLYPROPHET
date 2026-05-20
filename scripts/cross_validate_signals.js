@@ -190,7 +190,12 @@ async function main() {
         const wr1320 = may1320[sig.key] || 0;
         const wr29 = stats.t > 0 ? stats.w / stats.t : null;
         
-        const robust = wr29 !== null && wr29 >= 0.58 && wr1320 >= 0.65;
+        const failReasons = [];
+        if (wr29 === null) failReasons.push('No May2-9 data');
+        else if (wr29 < 0.58) failReasons.push(`May2-9 WR ${(wr29*100).toFixed(1)}% < 58%`);
+        if (wr1320 < 0.65) failReasons.push(`May13-20 WR ${(wr1320*100).toFixed(1)}% < 65%`);
+
+        const robust = failReasons.length === 0;
         const keep = robust;
         
         const wr29Str = wr29 !== null ? `${(wr29*100).toFixed(1)}% (${stats.w}/${stats.t})` : 'N/A';
@@ -209,7 +214,7 @@ async function main() {
                 n_may29: stats.t
             });
         } else {
-            droppedSignals.push({ key: sig.key, reason: wr29 !== null ? `May2-9 WR ${(wr29*100).toFixed(1)}% < 58%` : 'No May2-9 data' });
+            droppedSignals.push({ key: sig.key, reason: failReasons.join('; ') });
         }
     }
     
