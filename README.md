@@ -13,7 +13,17 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 28 April 2026 | **Runtime**: `polyprophet-lite` (root `server.js`) | **Live Balance**: ~$3.73 USDC
+**Last Updated**: 20 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: not currently CLOB-trade-ready (`LAST_KNOWN_GOOD` cache ~$7.93 is stale/unusable)
+
+## 20 May 2026 Junie Addendum — Fly/CLOB V2 wallet-auth truth state
+
+- Current deployed status is **NO-GO for live auto-trading**. Fly is reachable, global live/autotrade remains disabled/paused, and supervised sleeve planning works, but authenticated CLOB order placement is still blocked by wallet/API-key/funder alignment.
+- User-provided addresses were tested: profile wallet `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97` reaches on-chain pUSD but CLOB rejects it with `maker address not allowed, please use the deposit wallet flow`; exported/private-key wallet `0x649d25119aC67295c11e45fb74E9A5E8E992488E` is the loaded signer but CLOB readiness reports `balanceRaw=0` for sigType `0`.
+- Auto-derived proxy/deposit candidate with `POLYMARKET_ADDRESS` unset is `0x3d21C8a5c47A6A9b289900852d403878e0953492`; diagnostics show `deployed=false`, CLOB balance `0`, and sigType `3` refresh fails `Unauthorized/Invalid api key`. This is not a verified tradeable wallet.
+- Code hardening deployed on Fly: bounded CLOB balance/order timeouts, fresh derive fallback after API-key create failure, forced derive option `POLYMARKET_FORCE_DERIVE_CREDS`, sigType `3` signer/funder alignment attempts, pure-EOA fallback guard, and guarded `GET /api/clob/ready-debug` for redacted candidate diagnostics.
+- Balance truth fix: `LAST_KNOWN_GOOD` cached balance is now always marked `stale=true` and `usableForTrading=false`; the bot must not treat the cached ~$7.93 as deploy-ready capital unless `/api/clob/ready-debug` reports a ready CLOB candidate with positive balance.
+- Latest verification after deploy: `/api/clob/ready-debug` => `ready.ok=false`, selected funder `0x3d21...3492`, reason `Unauthorized/Invalid api key`; `/api/wallet/balance` => source `LAST_KNOWN_GOOD`, tradingBalance `7.929836`, `usableForTrading=false`, `stale=true`.
+- Next required action before any GO: obtain the actual Polymarket deposit/trading wallet address or valid V2 API key/funder mapping from the Polymarket UI/account flow, then set Fly `POLYMARKET_ADDRESS` to that verified address and rerun `/api/clob/ready-debug` plus a supervised proof order. Do **not** enable live/autotrading until that proof returns an accepted CLOB order ID or a verified ready positive CLOB balance.
 
 ## 🚀 New Operator Setup / Key Rotation Guide
 
