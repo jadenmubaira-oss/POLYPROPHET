@@ -8,6 +8,15 @@ const START = 7.93;
 const N_RUNS = 100000;
 const N_TRADES_7D = 49; // 7 signals x 7 days
 const N_TRADES_14D = 98;
+const MIN_ORDER_SHARES = 5;
+
+function createRng(seed) {
+    let state = seed >>> 0;
+    return () => {
+        state = (1664525 * state + 1013904223) >>> 0;
+        return state / 0x100000000;
+    };
+}
 
 // CROSS-VALIDATED PORTFOLIO — 7 signals that survived both windows
 const portfolio = [
@@ -26,20 +35,22 @@ const stressPortfolio = portfolio.map(s => ({...s, pWin: Math.max(0.50, s.pWin -
 // Worst case: -15% WR degradation
 const worstPortfolio = portfolio.map(s => ({...s, pWin: Math.max(0.50, s.pWin - 0.15)}));
 
-function runMC(port, start, nTrades, nRuns, slippage = 0) {
+function runMC(port, start, nTrades, nRuns, slippage = 0, seed = 123456789) {
+    const random = createRng(seed);
     const results = [];
     for (let r = 0; r < nRuns; r++) {
         let b = start;
         let bust = false;
         for (let t = 0; t < nTrades; t++) {
-            if (b < 0.30) { bust = true; break; }
             const trade = port[t % port.length];
             // Bootstrap stake cap at 60%
             const stakeF = Math.min(trade.kelly75, 0.60);
-            const stake = b * stakeF;
-            if (stake < 0.10) { bust = true; break; }
             const effectivePrice = Math.min(0.85, trade.price + slippage);
-            const win = Math.random() < trade.pWin;
+            const minOrderCost = MIN_ORDER_SHARES * effectivePrice;
+            let stake = b * stakeF;
+            if (stake < minOrderCost) stake = minOrderCost;
+            if (stake > b) { bust = true; break; }
+            const win = random() < trade.pWin;
             if (win) {
                 b += stake * (1/effectivePrice - 1);
             } else {
@@ -64,24 +75,24 @@ function fmt(mc) {
     return `median=$${mc.median.toFixed(2)}, p10=$${mc.p10.toFixed(2)}, p25=$${mc.p25.toFixed(2)}, p75=$${mc.p75.toFixed(2)}, p90=$${mc.p90.toFixed(2)}, bust=${(mc.bustRate*100).toFixed(2)}%`;
 }
 
-console.log('Running 100k MC simulations...\n');
+console.log(`Running 100k deterministic MC simulations with ${MIN_ORDER_SHARES}-share minimum order...\n`);
 
 // Base scenario
-const mc7 = runMC(portfolio, START, N_TRADES_7D, N_RUNS, 0.0);
-const mc14 = runMC(portfolio, START, N_TRADES_14D, N_RUNS, 0.0);
+const mc7 = runMC(portfolio, START, N_TRADES_7D, N_RUNS, 0.0, 1001);
+const mc14 = runMC(portfolio, START, N_TRADES_14D, N_RUNS, 0.0, 1002);
 
 // With +1.5c slippage
-const mc7Slip = runMC(portfolio, START, N_TRADES_7D, N_RUNS, 0.015);
+const mc7Slip = runMC(portfolio, START, N_TRADES_7D, N_RUNS, 0.015, 1003);
 
 // Stress: -10% WR  
-const mc7Stress = runMC(stressPortfolio, START, N_TRADES_7D, N_RUNS, 0.015);
+const mc7Stress = runMC(stressPortfolio, START, N_TRADES_7D, N_RUNS, 0.015, 1004);
 
 // Worst: -15% WR + slippage
-const mc7Worst = runMC(worstPortfolio, START, N_TRADES_7D, N_RUNS, 0.02);
+const mc7Worst = runMC(worstPortfolio, START, N_TRADES_7D, N_RUNS, 0.02, 1005);
 
 // With extra deposit (+5 GBP = ~$6.30)
-const mc7Extra = runMC(portfolio, START + 6.30, N_TRADES_7D, N_RUNS, 0.015);
-const mc14Extra = runMC(portfolio, START + 6.30, N_TRADES_14D, N_RUNS, 0.015);
+const mc7Extra = runMC(portfolio, START + 6.30, N_TRADES_7D, N_RUNS, 0.015, 1006);
+const mc14Extra = runMC(portfolio, START + 6.30, N_TRADES_14D, N_RUNS, 0.015, 1007);
 
 console.log('=== CROSS-VALIDATED 7-SIGNAL PORTFOLIO ===');
 console.log('Signals: H19:30 UP, H7:15 UP, H12:30 UP, H12:15 UP, H3:15 UP, H13:15 DOWN, H13:30 DOWN');
@@ -106,8 +117,8 @@ console.log('  14-day (+1.5c slip): ' + fmt(mc14Extra));
 
 console.log('\n=== ALL-IN SINGLE BEST SIGNAL (H19:30 UP, 79.8% WR) ===');
 const allInPort = [{ key: 'H19_M30_UP', pWin: 0.798, price: 0.491, kelly75: 1.0 }];
-const mcAllIn17 = runMC(allInPort, START, 17, N_RUNS, 0.015);
-const mcAllIn10 = runMC(allInPort, START, 10, N_RUNS, 0.015);
+const mcAllIn17 = runMC(allInPort, START, 17, N_RUNS, 0.015, 1008);
+const mcAllIn10 = runMC(allInPort, START, 10, N_RUNS, 0.015, 1009);
 console.log('  All-in 17 trades: ' + fmt(mcAllIn17));
 console.log('  All-in 10 trades: ' + fmt(mcAllIn10));
 console.log('  NOTE: All-in = 100% bust if any loss in streak. Not recommended.');
@@ -122,6 +133,6 @@ const oldPortfolio = [
     { key: 'H12_M0_UP', pWin: 0.714, price: 0.477, kelly75: 0.32 },
     { key: 'H13_M15_DOWN', pWin: 0.714, price: 0.502, kelly75: 0.32 },
 ];
-const mcOld7 = runMC(oldPortfolio, START, N_TRADES_7D, N_RUNS, 0.015);
+const mcOld7 = runMC(oldPortfolio, START, N_TRADES_7D, N_RUNS, 0.015, 1010);
 console.log('  Old 7-signal (in-sample WRs, +1.5c slip): ' + fmt(mcOld7));
 console.log('  New 7-signal (cross-val WRs, +1.5c slip): ' + fmt(mc7Slip));

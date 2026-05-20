@@ -1420,7 +1420,8 @@ function getUpcomingWindowsForTelegram(hoursAhead = 6) {
         const strats = tf15.strategies.filter((s) => s.utcHour === hour);
         for (const s of strats) {
             const entry = new Date(slot);
-            entry.setUTCMinutes(Number(s.entryMinute || 0), 0, 0);
+            const cycleMinute = Number(s.utcMinute ?? s.cycleMinute ?? s.utcCycleMinute ?? s.entryMinute ?? 0);
+            entry.setUTCMinutes(cycleMinute, 0, 0);
             if (entry.getTime() < now.getTime()) continue;
             const oosWr = Number(s.stats?.oos?.wr ?? s.pWinEstimate ?? s.winRate ?? 0);
             out.push({

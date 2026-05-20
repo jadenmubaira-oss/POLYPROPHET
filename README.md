@@ -13,7 +13,29 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 v3 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE — `isLive=true`, `manualPause=false`, 7-signal cross-validated v2 strategy loaded, trade halt FIXED
+**Last Updated**: 20 May 2026 v4 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE — `isLive=true`, `manualPause=false`, 7-signal cross-validated v2 strategy loaded, trade halt FIXED, cycle-minute parity FIXED
+
+## 20 May 2026 Junie Addendum v4 — REVERIFICATION: CYCLE-MINUTE PARITY FIX + 5-SHARE RISK CORRECTION
+
+### Critical Runtime/Backtest Parity Defect Found & Fixed
+
+- **Defect found during re-verification:** backtests identify signals by cycle-start slot such as `H19_M30_UP`, but runtime matching previously only checked `utcHour` and elapsed in-cycle `entryMinute`. Example: the `H19:30` signal could also match `19:00`, `19:15`, and `19:45` at elapsed minute `0`.
+- **Why this matters:** this could silently trade unvalidated cycles and repeat the exact failure pattern where a claimed strategy looked valid in research but traded different live conditions.
+- **Fix applied:** `lib/strategy-matcher.js` now supports explicit cycle-start minute fields (`utcMinute`/`cycleMinute`/`utcCycleMinute`), `server.js` Telegram upcoming-window display uses the same cycle minute, and `strategies/strategy_set_15m_crossval_7signal_v2.json` now pins every signal to its intended `:15`/`:30` cycle.
+- **New proof gate:** `node scripts/verify_cycle_minute_strategy_match.js` proves `H19:30` only fires on the `19:30` cycle and does not cross-fire on `19:00`, `19:15`, or `19:45`; it also checks `H12:15` and `H12:30` are distinct cycles.
+
+### Revised Monte Carlo With Real 5-Share Minimum
+
+- **Earlier v3 bust-risk claim was too optimistic** because the MC floor was below Polymarket's real 5-share minimum. Runtime already enforces `DEFAULT_MIN_ORDER_SHARES=5`, but the projection script did not.
+- **Corrected deterministic MC** (`node scripts/final_mc_simulation.js`, 100k runs, 5-share minimum, 1.5c slippage): from `$7.93`, realistic 7-day median is **$858.65**, p25 **$126.35**, p75 **$3,987.71**, p90 **$14,367.46**, bust **14.74%**.
+- **With +£5 GBP (~$6.30, start `$14.23`)**: realistic 7-day median is **$1,696.30**, p10 **$64.02**, p25 **$356.95**, p90 **$25,225.58**, bust **5.46%**. Deposit remains strongly favorable because it reduces min-order geometry pressure.
+- **Stress scenario** (`-10%` WR degradation + 1.5c slippage) from `$7.93`: median **$11.85**, bust **45.49%**. This is the honest regime-change/min-order failure mode and must not be hidden.
+
+### Updated GO Boundary
+
+- **GO remains conditional on deploying this v4 fix.** Do not rely on any deployment that lacks `utcMinute` support and the explicit `utcMinute` fields in the active 7-signal strategy.
+- **Best available strategy after re-verification:** the 7-signal 15m crypto portfolio remains the best found, but the real-world risk is materially higher than v3 stated because a micro-bankroll can be forced into minimum-size orders after losses.
+- **Operator recommendation:** if available, deposit +£5 before/while running this strategy. It does not guarantee profit, but it materially lowers minimum-order bust pressure versus starting at ~$7.93.
 
 ## 20 May 2026 Junie Addendum v3 — TRADE HALT FIXED + FULL CROSS-VALIDATION (TWO WINDOWS)
 
