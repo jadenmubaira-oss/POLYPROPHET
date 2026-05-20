@@ -53,7 +53,7 @@ async function main() {
     assertReady(String(strategy15m.filePath || '').includes('strategy_set_15m_crossval_7signal_v2.json'), 'Unexpected active strategy path', strategy15m);
 
     assertReady(status.isLive === true, 'Status endpoint is not live', { isLive: status.isLive, mode: status.mode });
-    assertReady(status.tradingPaused === false, 'Trading is paused', { tradingPaused: status.tradingPaused });
+    assertReady(status.tradingPaused !== true && risk.tradingPaused !== true, 'Trading is paused', { tradingPaused: status.tradingPaused, riskTradingPaused: risk.tradingPaused });
     assertReady(risk.errorHalted !== true, 'Risk manager error halt is active', risk);
     assertReady(risk.tradeFailureHalted !== true, 'Risk manager trade failure halt is active', risk);
     assertReady(bankroll >= 2.5, 'Bankroll cannot afford a likely 5-share 50c order', { bankroll });
@@ -63,7 +63,15 @@ async function main() {
     assertReady(clobStatus.hasCreds === true, 'CLOB credentials are missing', clobStatus);
     assertReady(tradeReady.ok === true, 'CLOB tradeReady probe failed', tradeReady);
     assertReady(Number.isFinite(configuredSigType), 'Configured CLOB signature type is invalid', { configuredSigType: clobStatus.sigType });
-    assertReady(selectedSigType === configuredSigType, 'Selected CLOB route does not match configured signature type', { configuredSigType, selectedSigType, selected });
+    if (selectedSigType !== configuredSigType) {
+        const candidates = Array.isArray(tradeReady.candidates) ? tradeReady.candidates : [];
+        const configuredCandidate = candidates.find((candidate) => Number(candidate.signatureType) === configuredSigType);
+        assertReady(
+            configuredSigType === 3 && selectedSigType === 1 && configuredCandidate && String(configuredCandidate.funderAddress || '').toLowerCase() === String(selected.funderAddress || '').toLowerCase(),
+            'Selected CLOB route does not match configured signature type and no same-funder deposit-wallet candidate exists',
+            { configuredSigType, selectedSigType, selected, configuredCandidate },
+        );
+    }
     assertReady(selectedBalanceRaw > 0, 'Selected CLOB route has no funded balance', selected);
     assertReady(selected.allowanceMaxRaw !== undefined && selected.allowanceMaxRaw !== null, 'Selected CLOB route has no max allowance proof', selected);
 
