@@ -13,7 +13,21 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 v6 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ⚠️ EXECUTION FIX DEPLOYING — 7-signal cross-validated v2 strategy loaded, trade halt flags fixed, cycle-minute parity fixed, sigType 1 maker-policy failure found, deposit-wallet sigType 3 route restored with EOA signer + funder config
+**Last Updated**: 20 May 2026 v7 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE ORDER-WRITE PROOF PASSED — 7-signal cross-validated v2 strategy loaded, trade halt flags fixed, cycle-minute parity fixed, deposit-wallet sigType 3 route accepted by CLOB
+
+## 20 May 2026 Junie Addendum v7 — FINAL LIVE ORDER-WRITE PROOF PASSED
+
+### Genuine Trading Verification Result
+
+- **Accepted-order proof passed on Fly:** `/api/live-order-proof` returned `success=true`, `acceptedOrder=true`, real CLOB `orderID=0x2f2abfb5412d6b571eb317ff1a198ab21ec18530a5204799fbe470a6408ea224`, `signatureType=3`, `funderAddress=0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`, `orderType=GTC`, `shares=100`, `price=0.01`, `maxNotionalUsd=1`.
+- **No unintended exposure:** proof was deliberately non-marketable (`bestBid=0.89`, `bestAsk=0.90`), matched `0` shares, `cancelAttempted=true`, `cancelSucceeded=true`, before/after bankroll stayed `$7.929836`, and `/api/status` shows no pending buys/sells, no trade-failure halt, no error halt.
+- **Execution route now proven:** sigType `1` still must not be used for order writes because it fails maker policy. The working route is sigType `3` / POLY_1271 with EOA signer + deposit-wallet `funder/funderAddress`. The first stale candidate can still show API-key mismatch, but the funded deposit-wallet candidate `0x4975...36e97` is accepted by CLOB and cancels cleanly.
+- **GO condition met for trading mechanics:** the bot can authenticate, submit, receive an order ID, and cancel via live CLOB from Fly. Remaining uncertainty is strategy/regime risk, not order-placement plumbing.
+
+### Strategy / Profit Projection Still Honest
+
+- Active strategy remains `strategies/strategy_set_15m_crossval_7signal_v2.json`. Fresh 7-day + cross-validation checks still reject tempting in-sample alternatives and keep the same 7 exact-cycle signals.
+- Projection remains: from about `$7.93`, realistic 7-day median about `$858.65` with `14.74%` bust; with +£5 GBP (~`$6.30`, start about `$14.23`), realistic 7-day median about `$1,696.30` with `5.46%` bust. These are not guarantees; they are the current best non-overfit Monte Carlo numbers with the real 5-share minimum.
 
 ## 20 May 2026 Junie Addendum v6 — LIVE ORDER FAILURE FOUND: RESTORE DEPOSIT-WALLET SIGTYPE 3 BEFORE GO
 
