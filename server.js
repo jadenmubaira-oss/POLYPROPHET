@@ -2772,8 +2772,10 @@ app.get('/api/clob/ready-debug', async (req, res) => {
         if (!tradeExecutor.clob?.wallet) {
             return res.json({ success: false, error: 'No wallet loaded' });
         }
-        const ready = await tradeExecutor.clob.getTradeReadyClient({ force: true, ttlMs: 30000 });
-        const diagnostics = await tradeExecutor.clob.getTradeDiagnostics({ ttlMs: 30000 });
+        const force = String(req.query?.force || '').toLowerCase() === 'true';
+        const ttlMs = force ? 30000 : 15000;
+        const ready = await tradeExecutor.clob.getTradeReadyClient({ force, ttlMs });
+        const diagnostics = await tradeExecutor.clob.getTradeDiagnostics({ ttlMs });
         const { client, ...safeReady } = ready || {};
         return res.json({
             success: true,
