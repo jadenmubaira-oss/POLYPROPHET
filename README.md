@@ -13,7 +13,21 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 v4 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE — `isLive=true`, `manualPause=false`, 7-signal cross-validated v2 strategy loaded, trade halt FIXED, cycle-minute parity FIXED
+**Last Updated**: 20 May 2026 v5 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE — `isLive=true`, `manualPause=false`, 7-signal cross-validated v2 strategy loaded, trade halt FIXED, cycle-minute parity FIXED, CLOB route aligned to sigType 1
+
+## 20 May 2026 Junie Addendum v5 — TRADE-READINESS REVERIFICATION: ALIGN LIVE ORDER ROUTE TO WORKING SIGTYPE 1
+
+### CLOB/V2 Execution Path Audit Result
+
+- **Critical recheck:** `/api/clob-status` showed `tradeReady.ok=true` by selecting the funded/approved sigType `1` route for proxy funder `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`, while the configured `POLYMARKET_SIGNATURE_TYPE=3` candidate returned `401 Unauthorized/Invalid api key`.
+- **Why this could become another “it says ready but won’t trade” failure:** readiness and actual order placement both probe candidates, but leaving sigType `3` as the preferred env made diagnostics misleading and could prioritize a failing preferred route if it later appeared superficially ready.
+- **Durable fix:** `fly.toml` now sets `POLYMARKET_SIGNATURE_TYPE="1"`, matching the route the live CLOB probe actually proves as funded, allowance-approved, and trade-ready. `lib/clob-client.js` also no longer hard-restricts order attempts to sigType `3` when preferred sigType is `3`; ready fallback candidates can be attempted instead of silently blocking the known-good route.
+- **Operational meaning:** the bot should place orders through the same sigType `1` funder path that `/api/clob-status` verifies, not through the currently failing sigType `3` path. After deployment, live env must show `POLYMARKET_SIGNATURE_TYPE=1` and `/api/clob-status.tradeReady.selected.signatureType=1`.
+
+### Current Strategy Verdict Remains
+
+- The active strategy remains `strategies/strategy_set_15m_crossval_7signal_v2.json`: 7 exact-cycle 15m crypto signals, average cross-validated WR about `72.5%`, hard cycle-minute parity enforced by `utcMinute` fields.
+- Corrected realistic projection remains: from about `$7.93`, 7-day median about `$858.65`, bust about `14.74%`; with +£5 GBP (~`$6.30`, start about `$14.23`), 7-day median about `$1,696.30`, bust about `5.46%`.
 
 ## 20 May 2026 Junie Addendum v4 — REVERIFICATION: CYCLE-MINUTE PARITY FIX + 5-SHARE RISK CORRECTION
 
