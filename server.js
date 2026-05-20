@@ -2618,12 +2618,16 @@ async function runLiveOrderProof(body = {}) {
         const bestAsk = direction === 'DOWN' ? market.noBestAsk : market.yesBestAsk;
         const bestBid = direction === 'DOWN' ? market.noBestBid : market.yesBestBid;
         const minOrderSize = Number(direction === 'DOWN' ? market.noMinOrderSize : market.yesMinOrderSize);
-        const shares = Math.max(5, Number.isFinite(minOrderSize) && minOrderSize > 0 ? minOrderSize : 5);
         const fillProof = body.fillProof === true || String(body.fillProof || '').toLowerCase() === 'true';
         const requestedPrice = Number(body.price);
         const proofPrice = fillProof
             ? Math.min(0.98, Number.isFinite(requestedPrice) ? requestedPrice : Number(bestAsk || 0.01))
             : Math.max(0.01, Math.min(0.05, Number.isFinite(requestedPrice) ? requestedPrice : 0.01));
+        const minShares = Math.max(5, Number.isFinite(minOrderSize) && minOrderSize > 0 ? minOrderSize : 5);
+        const minNotionalUsd = fillProof ? 0 : 1;
+        const shares = fillProof
+            ? minShares
+            : Math.max(minShares, Math.ceil(minNotionalUsd / proofPrice));
         const maxNotionalUsd = proofPrice * shares;
 
         if (!tokenId || !Number.isFinite(proofPrice) || proofPrice <= 0 || proofPrice >= 1) {
@@ -2636,7 +2640,14 @@ async function runLiveOrderProof(body = {}) {
         }
 
         const beforeBalance = await getLiveProofBalanceSnapshot(true);
-        const result = await tradeExecutor.clob.placeOrder(tokenId, proofPrice, shares, 'BUY');
+        const proofOrderType = fillProof ? undefined : 'GTC';
+        const result = await tradeExecutor.clob.placeOrder(
+            tokenId,
+            proofPrice,
+            shares,
+            'BUY',
+            proofOrderType ? { orderType: proofOrderType } : {}
+        );
         const afterBalance = await getLiveProofBalanceSnapshot(true);
         diagnosticLog.push({
             ts: new Date().toISOString(),
@@ -2666,7 +2677,9 @@ async function runLiveOrderProof(body = {}) {
                 price: proofPrice,
                 maxNotionalUsd,
                 fillProof,
-                defaultNoFillCancelProof: !fillProof
+                defaultNoFillCancelProof: !fillProof,
+                minNotionalUsd,
+                proofOrderType: proofOrderType || (CONFIG.CLOB_ORDER_TYPE || 'FAK')
             },
             market: {
                 asset,
