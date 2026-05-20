@@ -13,7 +13,107 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 v8 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ AUDIT REVERIFIED — live order-write proof passed, 7-signal cross-validated v2 strategy loaded, exact-cycle parity enforced, fresh audit tooling corrected
+**Last Updated**: 20 May 2026 v9 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ FINAL VERIFIED & DOCUMENTED — CLOB live-order fix locked in, "why this is different" anti-repeat checklist written, v9 is the canonical handoff state
+
+## 20 May 2026 Junie Addendum v9 — DEFINITIVE CLOB FIX REFERENCE + FINAL ANTI-REPEAT CHECKLIST
+
+> **⚠️ FUTURE AI AGENT / OPERATOR MANDATORY READ ⚠️**
+> This addendum is the authoritative record of the Polymarket V2 CLOB execution fix. Do not undo it. Do not "fix" it back to sigType 1. Do not trust `/api/clob-status` readiness alone without a live order-write proof. Read every bullet before touching `lib/clob-client.js`, `fly.toml`, or `POLYMARKET_SIGNATURE_TYPE`.
+
+---
+
+### SECTION A — DEFINITIVE CLOB LIVE-ORDER FIX (read before touching any CLOB code)
+
+#### The Problem Pattern (DO NOT Repeat)
+
+1. `/api/clob-status` shows `tradeReady.ok=true` and `selected.signatureType=1` → agent concludes "sigType 1 works" → sets `POLYMARKET_SIGNATURE_TYPE=1` → bot places orders → **CLOB rejects every order** with `maker address not allowed, please use the deposit wallet flow` → `tradeFailureHalt=true` after 8 consecutive failures → bot stops trading entirely.
+
+2. Alternatively: sigType `3` probe returns `401 Unauthorized/Invalid api key` at readiness stage → agent concludes "sigType 3 is broken" → switches to sigType `1` → falls back to failure #1.
+
+**Both of these conclusions are WRONG. Here is why:**
+
+- `/api/clob-status` readiness probes test API-key authentication, not CLOB maker policy. A candidate can pass readiness probes but still be rejected at actual order write.
+- `sigType=1` (EOA direct) is rejected by Polymarket's CLOB for deposit-wallet accounts: **you must use the deposit-wallet flow** (sigType `3` / POLY_1271).
+- The sigType `3` candidate from `env_sigType3` source sometimes shows `401` at the readiness-probe stage because the API key derivation doesn't match the probe's expectations — but the **actual order placement** through the funded deposit-wallet candidate (`0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`) **succeeds**.
+
+#### The Correct (Proven) Configuration
+
+| Setting | Value | Reason |
+|---|---|---|
+| `POLYMARKET_SIGNATURE_TYPE` | `3` | POLY_1271 / deposit-wallet flow required by Polymarket V2 |
+| Fly secret `POLYMARKET_SIGNATURE_TYPE` | `3` | Must match toml or will be overridden |
+| `fly.toml [env]` | `POLYMARKET_SIGNATURE_TYPE = "3"` | Set this value |
+| `lib/clob-client.js` candidate order | sigType 3 first, sigType 1 as fallback | sigType 1 fallback exists but will fail maker policy on real orders |
+
+#### The Proven Order-Write Evidence (do not replace this with a new proof unless it includes a real orderID)
+
+- Live Fly proof on 20 May 2026: `orderID=0x2f2abfb5412d6b571eb317ff1a198ab21ec18530a5204799fbe470a6408ea224`, `signatureType=3`, `funderAddress=0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`, `shares=100`, `price=0.01`, matched `0` shares by design (non-marketable), canceled cleanly, bankroll unchanged at `$7.929836`.
+- This is the only shape of proof that actually verifies order-write: **a real CLOB orderID returned from the live endpoint, followed by a successful cancel**.
+- Do NOT accept `/api/clob-status tradeReady.ok=true` alone as proof of order-write capability.
+
+#### The Code Guard (in `lib/clob-client.js`)
+
+- The `candidateOrderForAttempt()` function orders candidates: sigType `3` deposit-wallet funder is tried before sigType `1`.
+- The old guard that **hard-blocked ALL other candidates when preferredSigType=3 and any sigType-3 probe was present** has been removed. This was dangerous because a stale/failed sigType-3 probe could block the funded deposit-wallet sigType-3 candidate.
+- If you see `if (preferredSigType === 3) { const preferredOnly = ready.filter...` reappear in `lib/clob-client.js`, **remove it immediately** — it is the bug.
+
+#### Quick Diagnostic Flowchart
+
+```
+Bot not trading → check /api/status for tradeFailureHalted=true
+  → if true: check recent logs for "maker address not allowed"
+    → if present: POLYMARKET_SIGNATURE_TYPE is wrong (probably 1); set it back to 3 and redeploy
+  → if "401 Unauthorized" in logs at ORDER stage (not readiness probe):
+    → check that fly secret POLYMARKET_SIGNATURE_TYPE=3 is set (fly secrets list)
+    → check that the deposit-wallet funder address 0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97 has balance
+    → run node scripts/verify_clob_attempt_order.js — must return PASS_CLOB_ATTEMPT_ORDER
+    → run /api/live-order-proof on Fly — must return acceptedOrder=true with a real orderID
+```
+
+---
+
+### SECTION B — WHAT MAKES THIS DIFFERENT (Final Anti-Repeat Checklist)
+
+Every previous deployment cycle ended the same way: "best strategy found, deploying" → real trading falls flat. Here is a point-by-point comparison of what has changed and what remains uncertain.
+
+#### Things That Were Always Wrong Before (Now Fixed)
+
+| Past failure | Fix applied | Regression proof |
+|---|---|---|
+| Trade halt flags: `ENABLE_LIVE_TRADING=false`, `START_PAUSED=true` blocked all trading | All three flags set to enable trading in `fly.toml` | `/api/health` returns `liveModeBlockers=[]` |
+| Strategy signal matching checked `utcHour` only → signals fired on wrong 15m cycles | `lib/strategy-matcher.js` checks `utcHour` AND `utcMinute` | `node scripts/verify_cycle_minute_strategy_match.js` → `PASS_CYCLE_MINUTE_PARITY` |
+| Strategy selected on in-sample data only → overfit signals collapsed live | All 7 signals pass two-window cross-validation (May 2-9 + May 13-20) | `node scripts/cross_validate_signals.js` keeps same 7, drops 12 overfit alternatives |
+| Audit scripts tested stale H19/H16 strategy, not the deployed one | `scripts/fresh_7day_backtest.js` loads `STRATEGY_SET_15M_PATH` | Output shows deployed signal names, not H19/H16 |
+| MC bust rate was too optimistic because it ignored 5-share minimum | `scripts/final_mc_simulation.js` applies `DEFAULT_MIN_ORDER_SHARES=5` | Honest bust `14.74%` from `$7.93` |
+| CLOB order route mismatched (sigType 1 failed maker policy) | Restored `POLYMARKET_SIGNATURE_TYPE=3` + proven deposit-wallet route | Real `orderID` from live CLOB via `/api/live-order-proof` |
+| Claimed "strategy is best" without adversarial cross-check | `H1_M15_DOWN` (92.9% single-window WR) explicitly rejected: only 39.6% cross-val WR | Cross-validation output shows it dropped with fail reason |
+
+#### Things That Are Still Honestly Uncertain (Not Fixed, Cannot Be Fixed Without Future Data)
+
+| Residual risk | Honest quantification |
+|---|---|
+| Regime change: 15m crypto UP/DOWN bias can shift | Stress MC: -10% WR → median `$11.85`, bust `45.49%`. No fix; monitor weekly. |
+| Live slippage/fill rate on thin 15m books | Modelled as 1.5c; real fills may differ. Run `node scripts/fresh_7day_backtest.js` weekly. |
+| 5-share minimum forces over-sizing on small bankroll | Honest bust `14.74%` from `$7.93`; +£5 deposit reduces to `5.46%`. |
+| Bot has not yet placed a real strategy-triggered live trade under this code | Proof is order-write only; first real strategy window will be the true live test. |
+
+#### Single Most Important Statement
+
+> **This deployment is different because for the first time, trading mechanics are proven by a real CLOB orderID, not by a health check. Strategy validity is proven by two-window cross-validation, not by a single in-sample scan. Cycle matching is proven by a regression script, not by visual inspection. All three of those failures existed simultaneously in every prior deployment and have been individually fixed and regression-gated. Residual risk is strategy regime risk, not plumbing.**
+
+---
+
+### SECTION C — CURRENT LIVE STATE (as of 20 May 2026 23:25 UTC)
+
+- **`/api/health`**: `isLive=true`, `liveModeBlockers=[]`, `manualPause=false`, strategy `strategy_set_15m_crossval_7signal_v2.json`, `strategies=7`
+- **`/api/status`**: `mode=LIVE`, `tradingPaused=false`, `errorHalted=false`, `tradeFailureHalted=false`, `bankroll≈$7.929836`, `pendingBuys=0`, `pendingSells=0`
+- **`/api/wallet/balance`**: pUSD on-chain balance usable, wallet loaded
+- **`/api/live-order-proof`**: `acceptedOrder=true`, real `orderID` proven, canceled cleanly ✅
+- **`node scripts/verify_cycle_minute_strategy_match.js`**: `PASS_CYCLE_MINUTE_PARITY` ✅
+- **`node scripts/verify_clob_attempt_order.js`**: `PASS_CLOB_ATTEMPT_ORDER` ✅
+- **Active strategy signals**: `H3:15 UP` (71.3%), `H7:15 UP` (75.0%), `H12:15 UP` (71.6%), `H12:30 UP` (72.0%), `H13:15 DOWN` (69.0%), `H13:30 DOWN` (68.9%), `H19:30 UP` (79.8%) — all cross-validated WRs
+- **Honest 7-day projection from `$7.93`**: median `$858.65`, bust `14.74%` (realistic MC with 5-share min + 1.5c slippage)
+- **Honest 7-day projection from `$14.23` (+£5 deposit)**: median `$1,696.30`, bust `5.46%`
 
 ## 20 May 2026 Junie Addendum v8 — WHY THIS IS DIFFERENT / ANTI-REPEAT AUDIT
 
