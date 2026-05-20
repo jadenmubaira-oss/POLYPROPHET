@@ -13,7 +13,7 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 v6 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ⚠️ EXECUTION FIX DEPLOYING — 7-signal cross-validated v2 strategy loaded, trade halt flags fixed, cycle-minute parity fixed, sigType 1 maker-policy failure found, deposit-wallet sigType 3 route restored in code/config
+**Last Updated**: 20 May 2026 v6 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ⚠️ EXECUTION FIX DEPLOYING — 7-signal cross-validated v2 strategy loaded, trade halt flags fixed, cycle-minute parity fixed, sigType 1 maker-policy failure found, deposit-wallet sigType 3 route restored with EOA signer + funder config
 
 ## 20 May 2026 Junie Addendum v6 — LIVE ORDER FAILURE FOUND: RESTORE DEPOSIT-WALLET SIGTYPE 3 BEFORE GO
 
@@ -21,7 +21,7 @@
 
 - **Critical live truth:** the `19:30 UTC` signal window attempted real live orders and failed repeatedly with `maker address not allowed, please use the deposit wallet flow`, then set `tradeFailureHalt=true` after `8/8` failures. This means the previous v5 conclusion that sigType `1` was the working order route was wrong: sigType `1` can look funded/approved in readiness probes but is rejected by Polymarket for actual deposit-wallet order writes.
 - **Historical match:** older README handoff already documented this exact failure and a successful proof: sigType `1` reached `/order` but failed maker policy; sigType `3`/POLY_1271 with deposit wallet/funder `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97` was the proven accepted route.
-- **Code/config fix in progress:** `fly.toml` is restored to `POLYMARKET_SIGNATURE_TYPE="3"`. `lib/clob-client.js` now tries a retryable preferred sigType-3 deposit-wallet candidate before the sigType-1 fallback when the same funder has proven collateral, so order placement can re-derive/use deposit-wallet credentials instead of dying on the maker-policy-rejected sigType-1 route.
+- **Code/config fix in progress:** `fly.toml` is restored to `POLYMARKET_SIGNATURE_TYPE="3"`. `lib/clob-client.js` now tries a retryable preferred sigType-3 deposit-wallet candidate before the sigType-1 fallback when the same funder has proven collateral, and constructs/derives sigType-3 clients with the official pattern: EOA signer plus deposit-wallet `funder`/`funderAddress`. The previous custom deposit-wallet signer wrapper created an API-key/order-signer mismatch: `the order signer address has to be the address of the API KEY`.
 - **New regression proof:** `node scripts/verify_clob_attempt_order.js` returns `PASS_CLOB_ATTEMPT_ORDER` and proves the known failure shape now orders attempts as `3:env_sigType3` before `1:env`.
 - **Do not call GO until after deployment:** deploy this v6 fix, set Fly secret `POLYMARKET_SIGNATURE_TYPE=3`, clear/reset the live trade-failure halt, and run a guarded accepted-order proof or the next strategy-window live proof. If sigType `3` still returns `401 Invalid api key` at order write after re-derive, the bot is still NO-GO until API-key derivation is repaired.
 
