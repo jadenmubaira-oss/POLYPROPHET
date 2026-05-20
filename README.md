@@ -13,7 +13,49 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 v9 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ FINAL VERIFIED & DOCUMENTED — CLOB live-order fix locked in, "why this is different" anti-repeat checklist written, v9 is the canonical handoff state
+**Last Updated**: 20 May 2026 v10 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ FINAL VERIFIED & DOCUMENTED — CLOB live-order fix locked in, anti-repeat checklist written, future strategy-update SOP added, v10 is the canonical handoff state
+
+## 20 May 2026 Junie Addendum v10 — FUTURE STRATEGY UPDATE / REGIME-CHANGE SOP
+
+> **FUTURE AI AGENT MANDATORY RULE:** if you are asked to update, replace, or "improve" the strategy, do **not** start from vibes, a single fresh leaderboard, or a high one-window win rate. Follow this section exactly. The goal is to prevent the next strategy from repeating the same failures: overfit backtests, stale scripts, wrong live route, minute-mismatch, fake MC math, and unproven deployment claims.
+
+### Current Strategy Verdict As Of This Audit
+
+- The deployed strategy is still the best non-overfit strategy found under the current repo evidence: `224W/294T = 76.2%` fresh 7-day WR, the same 7 signals retained by two-window cross-validation, exact `utcHour` + `utcMinute` runtime parity, and live CLOB order-write proof already obtained.
+- It is **not currently showing sustained regime failure**: the bad day on `2026-05-16` was `19W/23L = 45.2%`, but the next four days recovered to `81.0%`, `81.0%`, `66.7%`, and `95.2%`. That pattern is a variance shock/recovery, not yet a confirmed permanent regime break.
+- It is **not guaranteed**: the exact failure mode is still known. If the true WR degrades by about `10%`, the stress MC collapses to about `$11.85` median with `45.49%` bust from `$7.93`. Any future AI must preserve that honesty instead of overselling a new “perfect” strategy.
+
+### Hard Regime-Change Triggers — When Replacement Is Allowed / Required
+
+Do not replace the deployed 7-signal set just because a fresh one-window signal looks better. Replace or quarantine only if one of these is true:
+
+| Trigger | Required action |
+|---|---|
+| Two consecutive deployed-strategy days below `55%` WR with at least `30` trades/day | Mark possible regime change; run full replacement search before next deploy |
+| Rolling deployed-strategy sample of `>=84` trades falls below `58%` WR | Disable the weakest signals first; do not blindly add more trades |
+| Any individual deployed signal falls below `55%` in fresh 7-day data **and** below `58%` in an independent older window | Remove or quarantine that signal |
+| Live fills show average entry/slippage materially worse than modelled `1.5c` | Re-run MC with real fills before any GO claim |
+| `tradeFailureHalt`, repeated CLOB write failures, or `maker address not allowed` appears | Stop strategy discussion; fix CLOB mechanics using v9 Section A first |
+| No real strategy-triggered trades occur despite valid windows | Audit discovery/matcher/scheduler before changing strategy |
+
+### Future Strategy Formulation “Make-Sures” Checklist
+
+Every future strategy update must pass **all** of these gates before deployment:
+
+1. **Read and preserve the live mechanics first.** Read this README top-down through v10, especially v9 Section A. Keep `POLYMARKET_SIGNATURE_TYPE=3`, deposit-wallet `funder/funderAddress`, live flags, 5-share minimum, exact-cycle matching, and `REQUIRE_REAL_ORDERBOOK=true` intact unless you have a real orderID proof for a different route.
+2. **Use the correct data, not stale scripts.** Run `node scripts/fresh_7day_backtest.js`, `node scripts/cross_validate_signals.js`, and inspect Fly `/data/cycle_recorder.jsonl` intracycle data. Include real closed-cycle data, intracycle bid/ask snapshots, and live fill/order evidence where available.
+3. **Reject single-window false winners.** A candidate with `90%+` in the latest 7 days is still **rejected** if it fails an independent window. The canonical cautionary example is `H1_M15_DOWN`: great fresh WR, failed May 2-9 cross-validation at `39.6%`.
+4. **Prove runtime/backtest parity.** Every signal must explicitly define asset scope, `utcHour`, `utcMinute`, `direction`, `entryMinute`, price bounds, max price cap, min shares, and stake logic. Run `node scripts/verify_cycle_minute_strategy_match.js` after any strategy JSON or matcher change.
+5. **Model the real bankroll geometry.** MC must enforce `DEFAULT_MIN_ORDER_SHARES=5`, current bankroll, optional +£5 bankroll, realistic slippage, no-fill/latency assumptions, max one global trade per cycle unless deliberately changed, and degraded WR stress cases (`-5%`, `-10%`, and worst-day replay).
+6. **Compare against the current deployed portfolio.** A replacement must beat the current 7-signal set under the same tests: fresh 7-day WR, two independent windows, daily drawdown profile, MC median, p10/p25, bust risk, and live executability. If it only wins in one metric, do not deploy it.
+7. **Audit every common pitfall before GO.** Explicitly check for stale strategy paths, stale output files, ignored `.env`/Fly secret overrides, hour-only matching, 5m/15m confusion, weather-market liquidity mismatch, high-price traps, 5-share-min order rejection, and fake readiness probes.
+8. **Deploy only after proof gates.** Minimum gates: `node --check server.js`, `node --check lib\clob-client.js`, `node --check lib\trade-executor.js`, `node scripts/verify_cycle_minute_strategy_match.js`, `node scripts/verify_clob_attempt_order.js`, `node scripts/final_mc_simulation.js`, Fly `/api/health`, `/api/status`, `/api/wallet/balance`, and either a guarded `/api/live-order-proof` or a real strategy-triggered order/cancel proof.
+9. **Document the decision like an audit, not a sales pitch.** README addendum must state data ranges, exact records/trades used, every accepted signal, every rejected tempting signal, why the new strategy beats the old one, expected profit from current bankroll and +£5, bust risk, regime risks, live env changes, rollback path, and the exact commands run.
+
+### Deployment / Rollback Rule For The Next AI
+
+- If a future strategy is deployed and the first live day underperforms, do **not** panic-replace with the latest top leaderboard. First determine whether the failure was mechanics (`CLOB`, env, matcher, scheduler, balance/allowance, order min) or strategy (`WR`, slippage, regime). Mechanics failures must be repaired against v9 Section A; strategy failures must go through the full v10 checklist.
+- Keep the previous working strategy JSON and env path documented before switching. If the new strategy fails any hard trigger above, rollback to the last strategy that passed cross-validation and live mechanics, then re-run the full search.
 
 ## 20 May 2026 Junie Addendum v9 — DEFINITIVE CLOB FIX REFERENCE + FINAL ANTI-REPEAT CHECKLIST
 
