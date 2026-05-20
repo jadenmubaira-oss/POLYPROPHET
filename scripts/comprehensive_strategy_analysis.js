@@ -12,6 +12,17 @@ const path = require('path');
 
 // ===== LOAD FRESH DATA =====
 const RAW_DATA_PATH = path.join(__dirname, '../debug/7day_backtest_raw.json');
+const ACTIVE_STRATEGY_PATH = path.join(__dirname, '../strategies/strategy_set_15m_crossval_7signal_v2.json');
+const MIN_ORDER_SHARES = 5;
+const ACTIVE_AVG_PRICES = {
+    H19_M30_UP: 0.491,
+    H7_M15_UP: 0.472,
+    H12_M30_UP: 0.510,
+    H12_M15_UP: 0.510,
+    H3_M15_UP: 0.493,
+    H13_M15_DOWN: 0.480,
+    H13_M30_DOWN: 0.480,
+};
 
 function loadFreshData() {
     if (!fs.existsSync(RAW_DATA_PATH)) {
@@ -19,6 +30,18 @@ function loadFreshData() {
         process.exit(1);
     }
     return JSON.parse(fs.readFileSync(RAW_DATA_PATH, 'utf8'));
+}
+
+function loadActiveStrategy() {
+    if (!fs.existsSync(ACTIVE_STRATEGY_PATH)) {
+        console.error(`ERROR: Active strategy not found: ${ACTIVE_STRATEGY_PATH}`);
+        process.exit(1);
+    }
+    return JSON.parse(fs.readFileSync(ACTIVE_STRATEGY_PATH, 'utf8'));
+}
+
+function strategyKey(strategy) {
+    return `H${strategy.utcHour}_M${strategy.utcMinute}_${strategy.direction}`;
 }
 
 // ===== SIGNAL ANALYSIS =====
@@ -56,13 +79,22 @@ function kellyFraction(pWin, odds = 1.0) {
 }
 
 // ===== MONTE CARLO SIMULATION =====
-function monteCarlo(signals, startBalance, numTrades, numRuns = 50000) {
+function createRng(seed) {
+    let state = seed >>> 0;
+    return () => {
+        state = (1664525 * state + 1013904223) >>> 0;
+        return state / 0x100000000;
+    };
+}
+
+function monteCarlo(signals, startBalance, numTrades, numRuns = 50000, slippage = 0.015, seed = 20260520) {
+    const random = createRng(seed);
     const results = [];
     
     // Build trade schedule (signals fire at their times, cycling through days)
     const tradeSchedule = signals.map(s => ({
         pWin: s.pWin,
-        price: s.avgPrice || 0.50,
+        price: s.avgPrice || s.price || 0.50,
         stakeFraction: Math.min(s.stakeF, 0.60), // bootstrap cap
         name: s.key
     }));
@@ -74,18 +106,18 @@ function monteCarlo(signals, startBalance, numTrades, numRuns = 50000) {
         let bust = false;
         
         for (let t = 0; t < numTrades; t++) {
-            if (balance < 0.50) { bust = true; break; } // can't meet min order
-            
             const trade = tradeSchedule[t % tradeSchedule.length];
-            const stake = balance * trade.stakeFraction;
-            const actualStake = Math.max(stake, 0.25); // min viable
+            const effectivePrice = Math.min(0.85, trade.price + slippage);
+            const minOrderCost = MIN_ORDER_SHARES * effectivePrice;
+            let actualStake = balance * trade.stakeFraction;
+            if (actualStake < minOrderCost) actualStake = minOrderCost;
             
             if (actualStake > balance) { bust = true; break; }
             
-            const win = Math.random() < trade.pWin;
+            const win = random() < trade.pWin;
             if (win) {
                 // Win: get stake back + profit at price p: profit = stake * (1/price - 1)
-                balance += actualStake * (1 / trade.price - 1);
+                balance += actualStake * (1 / effectivePrice - 1);
             } else {
                 balance -= actualStake;
             }
@@ -216,6 +248,9 @@ async function main() {
     console.log('Loading fresh May 13-20 data...');
     const freshData = loadFreshData();
     console.log(`Loaded ${freshData.length} records\n`);
+    const activeStrategyFile = loadActiveStrategy();
+    const activeStrategies = Array.isArray(activeStrategyFile.strategies) ? activeStrategyFile.strategies : [];
+    const activeKeySet = new Set(activeStrategies.map(strategyKey));
     
     // Analyze all signal win rates
     const freshSignals = analyzeSignals(freshData, 'May13-20');
@@ -235,17 +270,17 @@ async function main() {
         console.log(`${s.key.padEnd(21)}| ${(s.wr*100).toFixed(1).padStart(5)}% | ${s.w}/${s.t} | ${(kelly*100).toFixed(0).padStart(4)}% | ${stakeStr}`);
     }
     
-    // ===== TEST CURRENT 7-SIGNAL STRATEGY =====
-    console.log('\n=== CURRENT 7-SIGNAL STRATEGY (May 13-20 WRs) ===');
-    const currentSignalKeys = [
-        { key: 'H19_M30_UP', name: 'H19:30 UP', avgPrice: 0.491 },
-        { key: 'H13_M30_DOWN', name: 'H13:30 DOWN', avgPrice: 0.490 },
-        { key: 'H7_M15_UP', name: 'H7:15 UP', avgPrice: 0.472 },
-        { key: 'H3_M15_UP', name: 'H3:15 UP', avgPrice: 0.493 },
-        { key: 'H6_M15_DOWN', name: 'H6:15 DOWN', avgPrice: 0.458 },
-        { key: 'H12_M0_UP', name: 'H12:00 UP', avgPrice: 0.477 },
-        { key: 'H13_M15_DOWN', name: 'H13:15 DOWN', avgPrice: 0.502 },
-    ];
+    // ===== TEST ACTIVE DEPLOYED 7-SIGNAL STRATEGY =====
+    console.log('\n=== ACTIVE DEPLOYED 7-SIGNAL STRATEGY (May 13-20 WRs + cross-val pWin) ===');
+    const currentSignalKeys = activeStrategies.map(strategy => {
+        const key = strategyKey(strategy);
+        return {
+            key,
+            name: `H${strategy.utcHour}:${String(strategy.utcMinute).padStart(2, '0')} ${strategy.direction}`,
+            avgPrice: ACTIVE_AVG_PRICES[key] || ((Number(strategy.priceMin) + Number(strategy.priceMax)) / 2) || 0.50,
+            pWinEstimate: Number(strategy.pWinEstimate),
+        };
+    });
     
     const currentPortfolio = [];
     let currentTotalW = 0, currentTotalT = 0;
@@ -255,19 +290,20 @@ async function main() {
             console.log(`${sig.name}: NO DATA`);
             continue;
         }
-        const wr = data.w / data.t;
-        const kelly = kellyFraction(wr) * 0.75;
+        const freshWr = data.w / data.t;
+        const pWin = Number.isFinite(sig.pWinEstimate) ? sig.pWinEstimate : freshWr;
+        const kelly = kellyFraction(pWin) * 0.75;
         const stakeF = Math.min(kelly, 0.60); // bootstrap cap
         currentTotalW += data.w;
         currentTotalT += data.t;
-        console.log(`  ${sig.name}: ${(wr*100).toFixed(1)}% WR (${data.w}/${data.t}) — Kelly=${(kelly*100).toFixed(0)}%, Stake=${(stakeF*100).toFixed(0)}%`);
-        currentPortfolio.push({ key: sig.key, pWin: wr, avgPrice: sig.avgPrice, stakeF });
+        console.log(`  ${sig.name}: fresh ${(freshWr*100).toFixed(1)}% WR (${data.w}/${data.t}), cross-val pWin=${(pWin*100).toFixed(1)}% — Kelly=${(kelly*100).toFixed(0)}%, Stake=${(stakeF*100).toFixed(0)}%`);
+        currentPortfolio.push({ key: sig.key, pWin, freshWr, avgPrice: sig.avgPrice, stakeF });
     }
     const currentCombinedWR = currentTotalW / currentTotalT;
     console.log(`  COMBINED: ${(currentCombinedWR*100).toFixed(1)}% WR (${currentTotalW}/${currentTotalT})`);
     
-    // ===== BUILD NEW OPTIMAL PORTFOLIO =====
-    console.log('\n=== BUILDING OPTIMAL NEW PORTFOLIO (non-overlapping, >65% WR) ===');
+    // ===== BUILD IN-SAMPLE CHALLENGER PORTFOLIO =====
+    console.log('\n=== IN-SAMPLE CHALLENGER PORTFOLIO (NOT DEPLOYABLE WITHOUT CROSS-VALIDATION) ===');
     
     // Select top signals that don't overlap in 15-min windows
     const usedWindows = new Set();
@@ -302,9 +338,10 @@ async function main() {
         if (newPortfolio.length >= 12) break; // max 12 signals
     }
     
-    console.log('New portfolio signals:');
+    console.log('In-sample challenger signals:');
     for (const s of newPortfolio) {
-        console.log(`  ${s.key}: ${(s.pWin*100).toFixed(1)}% WR (${s.w}/${s.t}), stake=${(s.stakeF*100).toFixed(0)}%`);
+        const status = activeKeySet.has(s.key) ? 'ACTIVE_CROSSVAL' : 'IN_SAMPLE_ONLY_DROP_UNTIL_CROSSVAL';
+        console.log(`  ${s.key}: ${(s.pWin*100).toFixed(1)}% WR (${s.w}/${s.t}), stake=${(s.stakeF*100).toFixed(0)}%, ${status}`);
     }
     
     // ===== MONTE CARLO: CURRENT 7-SIGNAL =====
@@ -320,10 +357,10 @@ async function main() {
     const mc7_extra = monteCarlo(currentPortfolio, extraBalancce, TRADES_7DAY, 50000);
     console.log(`7-day +£5 deposit ($${extraBalancce.toFixed(2)}): median=$${mc7_extra.median.toFixed(2)}, p10=$${mc7_extra.p10.toFixed(2)}, p90=$${mc7_extra.p90.toFixed(2)}, bust=${(mc7_extra.bustRate*100).toFixed(1)}%`);
     
-    // ===== MONTE CARLO: NEW PORTFOLIO =====
+    // ===== MONTE CARLO: IN-SAMPLE CHALLENGER PORTFOLIO =====
     if (newPortfolio.length > 0) {
-        console.log(`\n=== MONTE CARLO: NEW OPTIMAL PORTFOLIO (${newPortfolio.length} signals) ===`);
-        console.log('Running 50,000 simulations...');
+        console.log(`\n=== MONTE CARLO: IN-SAMPLE CHALLENGER (${newPortfolio.length} signals, DIAGNOSTIC ONLY) ===`);
+        console.log('Running 50,000 simulations with real 5-share minimum; this is NOT a deploy recommendation unless each new signal passes May2-9 cross-validation.');
         const numTradesNew7 = newPortfolio.length * 7;
         const mcNew = monteCarlo(newPortfolio, START_BALANCE, numTradesNew7, 50000);
         console.log(`7-day (${numTradesNew7} trades): median=$${mcNew.median.toFixed(2)}, p10=$${mcNew.p10.toFixed(2)}, p25=$${mcNew.p25.toFixed(2)}, p75=$${mcNew.p75.toFixed(2)}, p90=$${mcNew.p90.toFixed(2)}, bust=${(mcNew.bustRate*100).toFixed(1)}%`);
@@ -341,13 +378,14 @@ async function main() {
     console.log(`7-day stress: median=$${mcStress.median.toFixed(2)}, p10=$${mcStress.p10.toFixed(2)}, p90=$${mcStress.p90.toFixed(2)}, bust=${(mcStress.bustRate*100).toFixed(1)}%`);
     
     // ===== IDENTIFY BEST SINGLE SIGNAL FOR ALL-IN APPROACH =====
-    console.log('\n=== BEST SINGLE-SIGNAL ALL-IN ANALYSIS ===');
+    console.log('\n=== BEST SINGLE-SIGNAL ALL-IN ANALYSIS (IN-SAMPLE ONLY UNLESS ACTIVE_CROSSVAL) ===');
     const topSignals = sortedSignals.slice(0, 5);
     for (const sig of topSignals) {
         // All-in MC
         const allInPortfolio = [{ key: sig.key, pWin: sig.wr, avgPrice: 0.50, stakeF: 1.0 }];
         const mc = monteCarlo(allInPortfolio, START_BALANCE, 17, 50000); // 17 wins needed for $10→$1M at 50c
-        console.log(`  ${sig.key} (${(sig.wr*100).toFixed(1)}%): all-in 17 trades → median=$${mc.median.toFixed(0)}, bust=${(mc.bustRate*100).toFixed(1)}%`);
+        const status = activeKeySet.has(sig.key) ? 'ACTIVE_CROSSVAL' : 'IN_SAMPLE_ONLY_DROP_UNTIL_CROSSVAL';
+        console.log(`  ${sig.key} (${(sig.wr*100).toFixed(1)}%, ${status}): all-in 17 trades → median=$${mc.median.toFixed(0)}, bust=${(mc.bustRate*100).toFixed(1)}%`);
     }
     
     // ===== WEATHER MARKETS ASSESSMENT =====
@@ -417,8 +455,9 @@ async function main() {
     const newPortfolioAvgWR = newPortfolio.length > 0 ? newPortfolio.reduce((sum, s) => sum + s.pWin, 0) / newPortfolio.length : 0;
     if (newPortfolio.length > 0) {
         const mcNewFinal = monteCarlo(newPortfolio, START_BALANCE, newPortfolio.length * 7, 50000);
-        console.log(`NEW portfolio (${newPortfolio.length} signals) avg WR: ${(newPortfolioAvgWR*100).toFixed(1)}%`);
-        console.log(`7-day MC median: $${mcNewFinal.median.toFixed(2)} (p10=$${mcNewFinal.p10.toFixed(2)}, p90=$${mcNewFinal.p90.toFixed(2)})`);
+        console.log(`IN-SAMPLE challenger (${newPortfolio.length} signals) avg WR: ${(newPortfolioAvgWR*100).toFixed(1)}%`);
+        console.log(`Diagnostic 7-day MC median: $${mcNewFinal.median.toFixed(2)} (p10=$${mcNewFinal.p10.toFixed(2)}, p90=$${mcNewFinal.p90.toFixed(2)})`);
+        console.log('Deploy verdict: DO NOT DEPLOY challenger unless non-active signals pass the same two-window cross-validation gate.');
     }
     
     // Save results
