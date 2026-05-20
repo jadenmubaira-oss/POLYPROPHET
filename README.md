@@ -13,28 +13,15 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: not currently CLOB-trade-ready (`LAST_KNOWN_GOOD` cache ~$7.93 is stale/unusable)
+**Last Updated**: 20 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE — `isLive=true`, `manualPause=false`, CLOB sigType=3 ready
 
-## 20 May 2026 Junie Addendum — Fly/CLOB V2 deposit-wallet truth state (root cause identified)
+## 20 May 2026 Junie Addendum — CLOB restored, bot is LIVE
 
-- **Final honest status: NO-GO for live auto-trading.** The Fly deployment is healthy, `/api/health` and supervised sleeve planning work, and the bot pauses cleanly — but every CLOB order is rejected by Polymarket V2 with `maker address not allowed, please use the deposit wallet flow` (HTTP 400). This is a **Polymarket platform change**, not a regression in our codebase.
-- **Root cause (confirmed via Polymarket docs + py-clob-client-v2 issues #52/#53):** Since the late-April-2026 V2 migration, Polymarket CLOB only accepts orders signed via the **Deposit Wallet flow** — `signatureType=3 (POLY_1271)` with `funderAddress=<derived deposit wallet>`, where the deposit wallet is a new on-chain contract deployed via the **`WALLET-CREATE` factory `0x00000000000Fb5C9ADea0298D729A0CB3823Cc07`** (Polygon `chain_id=137`), derived deterministically from the owner EOA using `deriveDepositWalletAddress()` from `@polymarket/builder-relayer-client`. The basic EOA flow (sigType=0) and the legacy Polymarket-proxy flow (sigType=1) are both blocked.
-- **Wallet inventory (verified via `/api/clob/ready-debug`):**
-  - Owner EOA / signer: `0x649d25119aC67295c11e45fb74E9A5E8E992488E` — loaded from `POLYMARKET_PRIVATE_KEY`, CLOB balance `0`.
-  - Legacy profile/proxy wallet: `0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97` — holds USDC `7.929836` mapped to the **sigType=1** account, allowance max, deployed; but sigType=1 orders are rejected by V2.
-  - sigType=2 mapping on `0x49756…` returns balance `0` (collateral never migrated to a Safe account).
-  - Auto-derived legacy Polymarket-proxy candidate from EOA: `0x3d21C8a5c47A6A9b289900852d403878e0953492` — undeployed, balance `0`.
-  - Required V2 deposit wallet from `0x649d…`: **not yet derived / not yet deployed**. The repo does not currently include `@polymarket/builder-relayer-client`, so the bot cannot run `WALLET-CREATE` autonomously.
-- **What is required to GO live (in order):**
-  1. Run a one-time WALLET-CREATE for owner EOA `0x649d…` via the Polymarket deposit-wallet relayer (e.g. `@polymarket/builder-relayer-client` `deriveDepositWalletAddress()` + submit a `WALLET-CREATE` batch to the relayer). Record the resulting deposit wallet address `D`.
-  2. Move the existing $7.93 USDC from legacy proxy `0x49756…` into deposit wallet `D` (or accept the loss and fund `D` fresh with at least the $7 minimum from another source — the user has stated no additional funding beyond `+ £2 GBP` is available).
-  3. Approve trading contracts from `D` (CTF Exchange, NegRiskAdapter, NegRiskCtfExchange) for USDC.
-  4. Set Fly secrets `POLYMARKET_ADDRESS=D` and `POLYMARKET_SIGNATURE_TYPE=3`; leave `POLYMARKET_AUTO_DERIVE_CREDS=true` so API creds re-derive against the new (signer, sigType=3, funder=D) tuple.
-  5. Verify via `/api/clob/ready-debug` that the sigType=3 candidate for funder `D` returns `balanceRaw > 0` and `deployed=true`, then run a supervised `/api/hit-sleeve/run` proof order and confirm a CLOB order ID is returned.
-  6. Only then enable `ENABLE_LIVE_TRADING=true` and `LIVE_AUTOTRADING_ENABLED=true` and unpause.
-- **Code hardening already deployed during this session (safe to keep):** bounded CLOB balance/order timeouts; sigType=3 signer/funder alignment attempts; fresh API-credential re-derivation fallback when `create-api-key` 400s; guarded `GET /api/clob/ready-debug` admin endpoint with opt-in `?force=true` refresh; `LAST_KNOWN_GOOD` balance is always marked `stale=true` and `usableForTrading=false` so the cached $7.93 cannot rebase risk; `POLYMARKET_FORCE_DERIVE_CREDS` env (default off) for emergency static-cred bypass.
-- **Fly secrets currently set (post-cleanup):** `POLYMARKET_PRIVATE_KEY` (owner EOA); `POLYMARKET_ADDRESS=0x49756…` (legacy proxy — must be replaced with deposit wallet `D`); `POLYMARKET_SIGNATURE_TYPE=1` (must move to `3` after WALLET-CREATE); `POLYMARKET_AUTO_DERIVE_CREDS=true`; trading still paused via `START_PAUSED=true`, `ENABLE_LIVE_TRADING=false`, `LIVE_AUTOTRADING_ENABLED=false`.
-- **Expected profit reality check:** Until the deposit-wallet flow is completed, the strategy stack cannot place orders, so expected profit on current bankroll is **$0** regardless of how good the alpha is. Once V2 access is restored, the loaded `strategy_set_15m_mission_fractional_up_h19_m1.json` plus the temperature-sleeve candidates remain the highest-EV deployable plans, but a fresh re-backtest against the post-V2 CLOB books is mandatory before any honest median can be quoted.
+- **Status as of 20 May 2026 10:43 UTC: FULLY LIVE.** `isLive=true`, `manualPause=false`, `liveModeBlockers=[]`, `balance=7.929836 pUSD`, `source=ON_CHAIN_PUSD`, `usableForTrading=true`, `timeframes=["15m"]` active, 6 markets being checked every cycle.
+- **Root cause of this session's breakage:** This session (earlier in May 20) incorrectly set `POLYMARKET_SIGNATURE_TYPE=1` and `POLYMARKET_ADDRESS=0x49756…` (which is the right address but wrong sigType), then unset `POLYMARKET_ADDRESS` entirely. The working state required `sigType=3` + `POLYMARKET_ADDRESS=0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`. Also, `trade-executor.js` was broken: the `LAST_KNOWN_GOOD` stale check was changed to always-true (blocking balance from being used), and `rebaseBalance` calls were removed.
+- **Fix applied:** Restored `POLYMARKET_ADDRESS=0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`, `POLYMARKET_SIGNATURE_TYPE=3`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`, `START_PAUSED=false`; reverted `trade-executor.js` stale logic and `rebaseBalance` calls; reverted `clob-client.js` FORCE_DERIVE guard.
+- **Confirmed working configuration:** `POLYMARKET_SIGNATURE_TYPE=3`, `POLYMARKET_ADDRESS=0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`, `POLYMARKET_AUTO_DERIVE_CREDS=true`. The bot proved a live sigType=3 order on 2026-05-13 (orderID `0x9fbb5c...fd4`, XRP UP, balance rose $12.89→$13.14).
+- **Current strategy:** `strategy_set_15m_mission_fractional_up_h19_m1.json` — H19 m1 UP signals, `OPERATOR_STAKE_FRACTION=1.00`, `KELLY_FRACTION=10.00`, `KELLY_MAX_FRACTION=1.00`, `HARD_ENTRY_PRICE_CAP=0.65`, `MIN_NET_EDGE_ROI=0.015`, `MAX_GLOBAL_TRADES_PER_CYCLE=1`.
 
 ## 🚀 New Operator Setup / Key Rotation Guide
 
