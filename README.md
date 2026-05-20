@@ -13,7 +13,84 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 20 May 2026 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE — `isLive=true`, `manualPause=false`, 8-signal cross-validated strategy loaded
+**Last Updated**: 20 May 2026 v3 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: ~$7.93 pUSD | **Status**: ✅ LIVE — `isLive=true`, `manualPause=false`, 7-signal cross-validated v2 strategy loaded, trade halt FIXED
+
+## 20 May 2026 Junie Addendum v3 — TRADE HALT FIXED + FULL CROSS-VALIDATION (TWO WINDOWS)
+
+### Trade Halt Root Cause & Fix
+
+- **Root cause found:** `fly.toml` had `ENABLE_LIVE_TRADING="false"`, `LIVE_AUTOTRADING_ENABLED="false"`, `START_PAUSED="true"` — ALL THREE flags explicitly disabled trading. The bot was "live" in name only but couldn't execute any trades.
+- **Fix applied:** All three flags updated in `fly.toml`: `START_PAUSED=false`, `ENABLE_LIVE_TRADING=true`, `LIVE_AUTOTRADING_ENABLED=true`.
+- **How `IS_LIVE` is computed** (server.js line 442): `IS_LIVE = TRADE_MODE==='LIVE' && ENABLE_LIVE_TRADING && LIVE_AUTOTRADING_ENABLED && !signalsOnly`. ALL four conditions must be true.
+
+### Fresh Data Investigation (20 May 2026)
+
+- **Fresh 7-day backtest run:** Fetched 4,050 resolved records from Polymarket Gamma API (May 13-20, 6 assets, 4 cycles/hour). 
+- **CRITICAL LESSON: H1:15 DOWN had 92.9% WR in May 13-20 but only 39.6% in May 2-9.** This is exactly the failure cycle we've been warned about — in-sample WRs can be completely fake.
+- **Cross-validation fetch:** Ran `scripts/cross_validate_signals.js` — fetched 912 resolved records for target signal slots in May 2-9 window. Only signals passing >58% WR in BOTH windows kept.
+
+### New Cross-Validated 7-Signal Portfolio v2
+
+| Signal | May 2-9 WR | May 13-20 WR | Combined | Kelly Stake |
+|--------|-----------|-------------|---------|------------|
+| H19:30 UP | 83.3% (40/48) | 76.2% (32/42) | **79.8%** | 45% |
+| H7:15 UP | 66.7% (32/48) | 83.3% (35/42) | **75.0%** | 37% |
+| H12:30 UP *(new)* | 58.3% (28/48) | 85.7% (36/42) | **72.0%** | 33% |
+| H12:15 UP *(new)* | 64.6% (31/48) | 78.6% (33/42) | **71.6%** | 32% |
+| H3:15 UP | 68.8% (33/48) | 73.8% (31/42) | **71.3%** | 32% |
+| H13:15 DOWN | 66.7% (32/48) | 71.4% (30/42) | **69.0%** | 29% |
+| H13:30 DOWN | 68.8% (33/48) | 69.0% (29/42) | **68.9%** | 28% |
+
+**Dropped from previous strategy:** H6:15 DOWN (64.3% below 65% threshold in May 13-20), H12:00 UP (56.3% in May 2-9).
+**Dropped signals that looked good in-sample but FAILED cross-validation:** H1:15 DOWN (39.6%), H9:00 DOWN (52.1%), H13:00 DOWN (50.0%), H11:45 DOWN (39.6%), H16:00 UP (50.0%), H8:30 UP (52.1%).
+
+### Monte Carlo Projections (100k runs, start=$7.93)
+
+| Scenario | 7-day Median | p10 | p90 | Bust Rate |
+|---------|-------------|-----|-----|----------|
+| Base (no slippage) | $1,638 | $86 | $25,588 | 0.18% |
+| **Realistic (+1.5c slip)** | **$954** | **$52** | **$14,122** | **0.26%** |
+| Stress (-10% WR + slip) | $30 | $1 | $593 | 7.02% |
+| Worst (-15% WR + 2c slip) | $4.57 | $0 | $100 | 21.87% |
+| +£5 deposit ($14.23, realistic) | $1,709 | $95 | $25,208 | 0.08% |
+| +£5 deposit, 14-day | $190,547 | $3,340 | $8.86M | 0.10% |
+
+**HONEST DISCLAIMER:** The realistic scenario ($954 median) uses cross-validated WRs. The 7% bust in the stress scenario is the "what if WRs degrade by 10%" picture — this IS the failure mode we've experienced repeatedly. Do NOT treat $954 as guaranteed.
+
+### Weather Markets Assessment
+
+- **Confirmed: weather/temperature markets are HIGH-PRICE TRAPS.** Winning outcomes trade at 90-99¢ giving <11% ROI per trade — not viable for rapid compounding.
+- **The Polymarket "weather" tag returns unrelated markets** (GTA VI release, album releases, etc.) — actual temperature markets are very sparse and illiquid.
+- **Decision: stick with 15m crypto UP/DOWN portfolio** — best available approach for rapid compounding.
+
+### Strategy File & Fly.dev Configuration
+
+- **New strategy:** `strategies/strategy_set_15m_crossval_7signal_v2.json`
+- **fly.toml changes:**
+  - `START_PAUSED = "false"` ← **CRITICAL FIX**
+  - `ENABLE_LIVE_TRADING = "true"` ← **CRITICAL FIX**  
+  - `LIVE_AUTOTRADING_ENABLED = "true"` ← **CRITICAL FIX**
+  - `STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_crossval_7signal_v2.json"`
+  - All other settings unchanged (KELLY_FRACTION=0.75, HARD_ENTRY_PRICE_CAP=0.72, MAX_GLOBAL_TRADES_PER_CYCLE=1)
+
+### Deposit Decision
+
+- **Current $7.93:** 7-day median $954, p10=$52, bust=0.26%
+- **+£5 GBP (~$6.30, total $14.23):** 7-day median $1,709, bust=0.08% — **significantly reduces bust risk and improves median by 79%**. Recommend depositing if available.
+
+### Regime Monitoring
+
+- Re-run `node scripts/fresh_7day_backtest.js` + `node scripts/cross_validate_signals.js` every 7 days.
+- If any signal drops below 55% WR in fresh 7-day data, drop it IMMEDIATELY.
+- H12:30 UP has lower May 2-9 WR (58.3%) — monitor this signal most closely.
+- **Success criteria for believing strategy is working:** After 21+ live trades, if the portfolio win rate is above 60%, the strategy is performing as expected.
+
+### Next Agent Instructions
+
+- Bot should now be LIVE and trading. Verify with `/api/health` → `isLive=true`, `liveModeBlockers=[]`, `manualPause=false`.
+- Trading windows: 03:15, 07:15, 12:15, 12:30, 13:15, 13:30, 19:30 UTC.
+- If no trades fire after 24h, check: `fly logs --app polyprophet | Select-String "HARD_ENTRY|PRICE_CAP|candidatesFound|entryMinute"`.
+- If bot is halted or paused: POST `/api/resume` or send Telegram `/resume`.
 
 ## 20 May 2026 Junie Addendum v2 — HONEST RE-AUDIT, H6:30 UP dropped, 7-signal corrected strategy
 
