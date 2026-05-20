@@ -35,6 +35,7 @@
 
 - **GO remains conditional on deploying this v4 fix.** Do not rely on any deployment that lacks `utcMinute` support and the explicit `utcMinute` fields in the active 7-signal strategy.
 - **Best available strategy after re-verification:** the 7-signal 15m crypto portfolio remains the best found, but the real-world risk is materially higher than v3 stated because a micro-bankroll can be forced into minimum-size orders after losses.
+- **CLOB/V2 readiness nuance:** live config still has `POLYMARKET_SIGNATURE_TYPE=3`, but `/api/clob-status` trade-readiness currently selects the funded/approved sigType `1` route as OK (`0x49756ECdA82F999EfB75F93f8B70a0Ff4Ea36e97`, balance raw `7929836`, allowance present). The sigType `3` candidate returns `401 Unauthorized/Invalid api key`. This is not a current halt because `tradeReady.ok=true`, but do not claim pure sigType `3` order readiness until a live proof/order confirms that path.
 - **Operator recommendation:** if available, deposit +£5 before/while running this strategy. It does not guarantee profit, but it materially lowers minimum-order bust pressure versus starting at ~$7.93.
 
 ## 20 May 2026 Junie Addendum v3 — TRADE HALT FIXED + FULL CROSS-VALIDATION (TWO WINDOWS)
