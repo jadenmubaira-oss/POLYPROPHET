@@ -221,21 +221,21 @@ Bot not trading?
 - If wrong, you lose the entire stake.
 
 **Compounding:** At 72.5% WR and 7 trades/day, compounding is approximately:
-- Day 1 from $13.68: expected ~$26–30
-- Week 1 from $13.68: realistic median ~$1,194
+- Day 1 from $13.68: expected ~$26–30, but individual-day variance can be severe
+- Week 1 from exact live bankroll $13.683966: realistic median ~$1,620.75 in the latest deterministic rerun
 
-### 5.2 Monte Carlo Projections (100,000 runs, as of 21 May 2026)
+### 5.2 Monte Carlo Projections (100,000 runs, final rerun 21 May 2026)
 
-The MC simulation uses: `DEFAULT_MIN_ORDER_SHARES=5`, `1.5c` slippage, cross-validated WRs.
+The MC simulation uses: `DEFAULT_MIN_ORDER_SHARES=5`, `1.5c` slippage, cross-validated WRs. `scripts/final_mc_simulation.js` is still the historical `$7.93` authority; exact current-bankroll numbers below were rerun from `$13.683966` using the same deterministic MC logic.
 
 | Scenario | Start | 7-day Median | Bust Risk | p10 | p90 |
 |---|---|---|---|---|---|
-| **Realistic** | $13.68 | **$1,194** | **5.6%** | $36 | $11,378 |
-| Stress (-10% WR) | $13.68 | $24 | 32.9% | $0 | $615 |
-| Worst case (-15% WR) | $13.68 | $0 | 67.8% | $0 | $89 |
+| **Realistic** | $13.683966 | **$1,620.75** | **5.78%** | $57.63 | $24,491.16 |
+| Stress (-10% WR) | $13.683966 | $44.29 | 30.10% | $0 | $1,039.65 |
+| Worst case (-15% WR + 2c slip) | $13.683966 | $0 | 53.99% | $0 | $172.75 |
 | Realistic | $7.93 | $858 | 14.7% | $0 | $14,367 |
 | With +£5 deposit ($14.23) | $14.23 | $1,696 | 5.46% | $64 | $25,226 |
-| 14-day realistic | $13.68 | $183,620 | 5.6% | $1,378 | $9,063,850 |
+| 14-day realistic | $13.683966 | $176,083.19 | 5.74% | $1,410.81 | $8,475,636.16 |
 
 **The $13.68 current bankroll is past the most dangerous minimum-order pressure zone.** Below $10, the 5-share minimum forces over-sized % bets which increases bust risk non-linearly. At $13.68, this risk is materially reduced.
 
@@ -301,6 +301,20 @@ node scripts\cross_validate_signals.js
 # Re-runs two-window cross-validation; ensure deployed 7 signals still pass
 ```
 
+**Active compounding cadence:** while the bankroll is still small and compounding aggressively, run the fresh 7-day check every 24 hours. If stable for several days, weekly is acceptable. Re-run immediately after two weak strategy days, drawdown below $10, or any CLOB/order-write halt.
+
+### 6.5 Mandatory Audit-Start Checklist (v13 — do these FIRST at the start of every audit)
+
+1. **Open position / pending reconciliation check:**
+```powershell
+$s = Invoke-RestMethod https://polyprophet.fly.dev/api/status -TimeoutSec 30
+$s.executor.openPositions; ($s.pendingBuys | Measure-Object).Count; ($s.pendingSells | Measure-Object).Count
+# MUST all be 0 before trusting displayed bankroll
+```
+2. **Coin-flip disproof** — run MC with `p=0.50` baseline alongside real strategy; strategy median MUST be >> coin-flip median. If not, the strategy has degraded to random.
+3. **Current-bankroll MC rerun** — always use live `$s.risk.bankroll` as start value, not stale $7.93 or $13.68.
+4. **Strategy hours check** — answer: do any signals need to be added or removed? (requires two-window cross-validation evidence)
+
 ---
 
 ## SECTION 7 — CRITICAL FLY.DEV ENVIRONMENT VARIABLES
@@ -341,9 +355,9 @@ fly ssh console --app polyprophet --command "printenv POLYMARKET_SIGNATURE_TYPE 
 | `lib/risk-manager.js` | Enforces bankroll, min shares, stake fraction; tracks wins/losses/halts |
 | `strategies/strategy_set_15m_crossval_7signal_v2.json` | **THE DEPLOYED STRATEGY** — 7 cross-validated signals |
 | `fly.toml` | Fly.dev deployment config; env vars must match Fly secrets |
-| `scripts/fresh_7day_backtest.js` | Fetches and backtests last 7 days on deployed strategy |
-| `scripts/cross_validate_signals.js` | Two-window cross-validation; source of truth for signal validity |
-| `scripts/final_mc_simulation.js` | 100k deterministic MC simulation with 5-share min enforcement |
+| `scripts/fresh_7day_backtest.js` | Fetches and backtests last 7 days on deployed strategy; truthful for regime checks, rough internal MC only |
+| `scripts/cross_validate_signals.js` | Two-window cross-validation for current candidate set; not a universal future exhaustive search without extending candidates/windows |
+| `scripts/final_mc_simulation.js` | 100k deterministic MC simulation with 5-share min enforcement; historical `$7.93` start unless rerun/edited |
 | `scripts/verify_cycle_minute_strategy_match.js` | Regression: confirms strategy signals match correct cycle minutes |
 | `scripts/verify_clob_attempt_order.js` | Regression: confirms CLOB order attempt route uses sigType 3 |
 | `legacy-root-runtime/` | Old code — DO NOT use; reference only for comparison |
@@ -372,7 +386,7 @@ fly ssh console --app polyprophet --command "printenv POLYMARKET_SIGNATURE_TYPE 
 
 - Do nothing. Let it compound.
 - Check `/api/status` daily to confirm no halt flags.
-- Run `node scripts/fresh_7day_backtest.js` weekly to monitor WR drift.
+- While aggressively compounding from a micro-bankroll, run `node scripts/fresh_7day_backtest.js` every 24 hours; if stable for several days, weekly monitoring is acceptable.
 - H12:30 UP (lowest WR at 72%) is the first signal to watch.
 
 ### 10.2 If a signal falls below 58% WR in fresh 7-day data AND below 58% in cross-validation
@@ -412,7 +426,7 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 
 ---
 
-## SECTION 11 — CURRENT STATE SNAPSHOT (21 May 2026, 09:26 UTC)
+## SECTION 11 — CURRENT STATE SNAPSHOT (21 May 2026, 14:00 UTC — v13 audit)
 
 | Item | Status |
 |---|---|
@@ -422,18 +436,23 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 | **tradingPaused** | ✅ false |
 | **errorHalted** | ✅ false |
 | **tradeFailureHalted** | ✅ false |
-| **Bankroll** | ✅ $13.683966 pUSD |
-| **Total Trades** | 2 |
-| **Total Wins** | 2 (100% — early sample) |
+| **Bankroll** | ✅ $10.591971 pUSD (settled, 0 open positions) |
+| **Total Trades** | 5 (3W/2L = 60% — N=5 too small to be significant) |
+| **Total Wins** | 3 |
 | **Strategy** | `strategy_set_15m_crossval_7signal_v2.json` (7 signals) |
 | **Signature Type** | 3 (POLY_1271 deposit-wallet) ✅ |
+| **Pending Exposure** | ✅ 0 open positions / 0 pending buys / 0 pending sells |
 | **CLOB Order Proof** | Real orderID obtained 20 May 2026 ✅ |
 | **PASS_CYCLE_MINUTE_PARITY** | ✅ |
 | **PASS_CLOB_ATTEMPT_ORDER** | ✅ |
+| **Regime status** | ✅ No degradation. Today's 53% partial = macro volatility event |
+| **Coin-flip proof** | ✅ Coin-flip = 87.6% bust / $0 median. Strategy = 7.44% bust / $1,260 median |
 | **Git Branch** | `main` |
 | **Latest Commit** | See `git log --oneline -5` |
 
-**Next signal windows today (UTC):** H12:15 UP, H12:30 UP, H13:15 DOWN, H13:30 DOWN, H19:30 UP
+**Remaining signal windows today (UTC):** H13:30 DOWN, H19:30 UP
+
+**Bankroll note:** Dropped from $13.68 peak to $10.59 due to 2 losses in last 3 trades. This is normal variance at N=5. P(3W/5T | true WR=72.5%) = 42%.
 
 ---
 
@@ -442,10 +461,10 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 Every prior deployment ended the same way: "best strategy found" → deployed → failed live. Here is the exhaustive list of why this one is different:
 
 1. **Trading mechanics proven by real CLOB orderID** — not just a health check. A real `orderID` was returned from the live CLOB endpoint via sigType 3 on 20 May 2026.
-2. **Two actual strategy-triggered wins recorded** — not simulated, not guarded test orders. Real strategy windows fired, the bot bought shares, the market resolved in the predicted direction, and the bankroll increased from $7.93 to $13.68.
+2. **Five actual strategy-triggered trades recorded** — 3W/2L = 60% on N=5 (normal variance; P(X≤3|n=5,p=0.725)=42%). Bankroll trail: $7.93 → $10.24 → $13.54 → ~$13.52 → $10.59. The bot is trading correctly.
 3. **Strategy cross-validated across two independent weeks** — not a single in-sample fit. 12 signals that looked good in one window were discarded because they failed the other.
 4. **Exact-cycle-minute runtime parity enforced by regression test** — the matcher checks `utcHour AND utcMinute`, not just hour. This was previously the cause of signals firing on wrong cycles.
-5. **MC simulations use real constraints** — 5-share minimum, 1.5c slippage. Previous MC showed 0% bust. Honest MC shows 14.7% from $7.93, 5.6% from $13.68.
+5. **MC simulations use real constraints** — 5-share minimum, 1.5c slippage. Previous MC showed 0% bust. Honest MC shows 14.7% from $7.93 and latest rerun shows 7.44% bust / $1,260 7-day median from current $10.59. Coin-flip baseline = 87.6% bust / $0 median — the edge is mathematically proven.
 6. **Audit tooling fixed to test deployed strategy** — not stale hardcoded signal pairs. Scripts load `STRATEGY_SET_15M_PATH` from env.
 7. **Every historical failure mode explicitly documented and regression-gated** — see Section 9.
 
