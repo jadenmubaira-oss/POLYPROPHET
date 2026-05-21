@@ -404,6 +404,7 @@ Follow this checklist exactly. Do NOT skip any item:
 6. Pin the new signal to exact `utcHour + utcMinute` in strategy JSON.
 7. Run `node scripts/verify_cycle_minute_strategy_match.js` after any strategy JSON change.
 8. Deploy and confirm via all gates in Section 6.
+9. **Mandatory Audit Question**: Every operational, development, or strategic audit MUST explicitly investigate and answer the question: *Do any strategy hours or signals need to be added or removed from the deployed portfolio?* Any addition or removal must be strictly backed by two-window cross-validation, fresh 7-day backtest data, and a full Monte Carlo simulation proving utility maximization and risk minimization.
 
 ### 10.5 Deposit Recommendation
 

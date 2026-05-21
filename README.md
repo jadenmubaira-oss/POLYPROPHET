@@ -3400,6 +3400,7 @@ When performing an audit, agents must verify more than API responses. The minimu
 3. Runtime-vs-README consistency
 4. Lite-vs-legacy feature comparison for touched systems
 5. Real-world execution path assumptions: balance source, entry, fills, partial fills, exits, redemption, and failure handling
+6. Strategy hours check: Explicitly investigate and answer: should any strategy hours/signals be added or removed from the deployed portfolio? (Must be backed by two-window cross-validation and fresh 7-day backtest data).
 
 #### Mandatory Response Brief
 

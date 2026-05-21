@@ -30,6 +30,7 @@ Every audit must cover:
 5. **README consistency**: Check that README claims match live runtime truth
 6. **IS_LIVE flag chain**: Verify all 5 flags required for live trading are correctly set
 7. **Wallet/auth posture**: Check `sigType`, `funderAddress`, `collateral`, `allowance`
+8. **Strategy hours check**: Explicitly investigate and answer: should any strategy hours/signals be added or removed from the deployed portfolio? (Must be backed by two-window cross-validation and fresh 7-day backtest data).
 
 ## Anti-Hallucination Rules
 
