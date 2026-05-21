@@ -3,7 +3,9 @@
 > **FOR ANY NEW AI AGENT OR OPERATOR:**
 > This document is the complete, chronological source of truth for the POLYPROPHET project.
 > Read it **in full, top to bottom** before touching a single file. Everything that was tried, everything that failed, every fix that worked, and every decision that was made is recorded here.
-> The main `README.md` contains older addenda as supporting context. This file is the **clean, canonical, forward-going reference** written on 21 May 2026 to eliminate all ambiguity.
+> The main `README.md` contains older addenda as supporting context. This file is the **clean, canonical, forward-going reference** written on 21 May 2026 and updated through v14.
+>
+> **CRITICAL AUDIT REQUIREMENT:** Before concluding any audit, complete ALL 10 items in Section 6.6-D (Operator Mandate Checklist). If any item fails, do NOT submit a GO verdict.
 
 ---
 
@@ -303,7 +305,7 @@ node scripts\cross_validate_signals.js
 
 **Active compounding cadence:** while the bankroll is still small and compounding aggressively, run the fresh 7-day check every 24 hours. If stable for several days, weekly is acceptable. Re-run immediately after two weak strategy days, drawdown below $10, or any CLOB/order-write halt.
 
-### 6.5 Mandatory Audit-Start Checklist (v13 — do these FIRST at the start of every audit)
+### 6.5 Mandatory Audit-Start Checklist (v14 — do these FIRST at the start of every audit)
 
 1. **Open position / pending reconciliation check:**
 ```powershell
@@ -314,6 +316,65 @@ $s.executor.openPositions; ($s.pendingBuys | Measure-Object).Count; ($s.pendingS
 2. **Coin-flip disproof** — run MC with `p=0.50` baseline alongside real strategy; strategy median MUST be >> coin-flip median. If not, the strategy has degraded to random.
 3. **Current-bankroll MC rerun** — always use live `$s.risk.bankroll` as start value, not stale $7.93 or $13.68.
 4. **Strategy hours check** — answer: do any signals need to be added or removed? (requires two-window cross-validation evidence)
+
+### 6.6 Operator Mandate Compliance Checklist (v14 — added per operator explicit request)
+
+This section captures the **operator's non-negotiable goals** that every audit must verify are still being met. These were explicitly requested to be part of every audit.
+
+#### A. Top 1% Quantitative Finance Standard
+
+Every audit must verify all of the following are true:
+
+| Check | Required Standard | How to Verify |
+|---|---|---|
+| No lazy assumptions — math from first principles | Kelly formula verified independently | Re-run `node -e "..."` Kelly calc per signal |
+| No hallucinated WRs | All WRs from real resolved Polymarket data | `fresh_7day_backtest.js` fetches live epochs |
+| No High-Price Traps | `HARD_ENTRY_PRICE_CAP` set; no signals above 0.72 | Check fly.toml + signal `priceMax` fields |
+| 5-share minimum math modelled | MC enforces `minOrderCost = 5 × price` | Check `scripts/final_mc_simulation.js` MIN_ORDER_SHARES |
+| Sub-Kelly sizing | Actual stakes < full Kelly | Verify Kelly75 = fullKelly × 0.75, capped at 0.75 |
+| Two-window cross-validation | Both windows passed, N≥20 per slot | `node scripts/cross_validate_signals.js` |
+| No overfitting | Signals rejected if only one window passes | Review dropped signals list in cross-val output |
+
+#### B. Goal Compliance — $10 → $500-$1000+ in 7 Days
+
+| Goal | Required | Check |
+|---|---|---|
+| 7-day realistic MC median | ≥ $500 from current bankroll | Run `node scripts/final_mc_simulation.js <bankroll>` |
+| Bust risk | ≤ 20% (absolute max) | Same MC output — bust rate |
+| Coin-flip bust vs strategy bust | Strategy bust < 50% of coin-flip bust (85%) | MC with `pWin=0.50` for baseline |
+| Compounding mechanism active | Kelly staking on every trade | Verify `KELLY_FRACTION=0.75` in fly.toml |
+| Strategy not mediocre | Median ≫ $0 (not X or XX) | Fail if median < $100 from current bankroll |
+
+**If the MC median falls below $500, the strategy must be reinvestigated before the next deploy.**
+
+#### C. Prediction Near-Certainty — Expected Edge Going Forward
+
+The operator's goal is to "predict with almost certainty, both now and going into the future." This means:
+
+- **Now:** At least 6 of 7 signals must have current 7-day WR above 65%. If any fall below 58%, flag for removal.
+- **Going into the future:** Cross-validation with 2 independent windows is the primary guard. Additionally:
+  - No signal with WR variance > 20pp between the two windows (e.g., 80% vs 55% = unstable)
+  - Regime change trigger: 2 consecutive sub-55% strategy days OR rolling 84-trade WR below 58% → HALT & reinvestigate
+
+**What we cannot predict with certainty** (document this honestly every audit):
+- Individual trade outcomes (72.5% WR = ~1 in 4 trades loses by design)
+- Macro crypto volatility events (random shock days like May 16 at 45% WR)
+- Exact timing of regime change (can only detect after the fact via triggers above)
+
+#### D. Complete Operator Mandate Checklist (10 items — FAIL any = NO GO)
+
+- [ ] NET_EDGE ROI gate passing for all deployed signals (minimum 38% per signal)
+- [ ] Cross-validation cache < 14 days old; two independent windows used
+- [ ] Coin-flip disproof valid: strategy bust rate < 42.5% (< half of 85% coin-flip baseline)
+- [ ] 7-day realistic MC median ≥ $500 from current bankroll
+- [ ] Kelly stakes sub-Kelly (actual stakes < full Kelly for all signals)
+- [ ] HARD_ENTRY_PRICE_CAP blocking High-Price Traps (no signal above 0.72)
+- [ ] No regime-change trigger active (no 2 consecutive sub-55% strategy days)
+- [ ] Signal hours reviewed for addition/removal (dual-window evidence required for changes)
+- [ ] `POLYMARKET_SIGNATURE_TYPE=3` in Fly secrets (do NOT change this)
+- [ ] `ENABLE_LIVE_TRADING=true` and `START_PAUSED=false` in Fly env (verify via `/api/health`)
+
+**If any item is unchecked, DO NOT submit a GO verdict. Fix the issue first.**
 
 ---
 
