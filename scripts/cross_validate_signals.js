@@ -106,7 +106,14 @@ async function main() {
     let records = [];
     
     if (fs.existsSync(cacheFile)) {
-        console.log('Loading cached May 2-9 cross-validation data...');
+        const cacheStats = fs.statSync(cacheFile);
+        const cacheAgeMs = Date.now() - cacheStats.mtimeMs;
+        const cacheAgeDays = cacheAgeMs / (1000 * 60 * 60 * 24);
+        if (cacheAgeDays > 14) {
+            console.warn(`\n⚠️  WARNING: Cache file is ${cacheAgeDays.toFixed(0)} days old (${cacheFile})`);
+            console.warn('   May 2-9 cross-validation data may be stale. Delete the cache file to re-fetch.\n');
+        }
+        console.log(`Loading cached May 2-9 cross-validation data (cache age: ${cacheAgeDays.toFixed(1)} days)...`);
         records = JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
         console.log(`Loaded ${records.length} records from cache\n`);
     } else {

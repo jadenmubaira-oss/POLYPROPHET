@@ -4,7 +4,8 @@
  * Uses actual observed WRs from TWO independent windows (May 2-9 + May 13-20).
  */
 
-const START = 7.93;
+// Allow dynamic start override: node scripts/final_mc_simulation.js [startBalance]
+const START = parseFloat(process.argv[2]) || 10.591971; // Default to current live bankroll (update periodically)
 const N_RUNS = 100000;
 const N_TRADES_7D = 49; // 7 signals x 7 days
 const N_TRADES_14D = 98;
@@ -19,14 +20,16 @@ function createRng(seed) {
 }
 
 // CROSS-VALIDATED PORTFOLIO — 7 signals that survived both windows
+// kelly75 = fullKelly * 0.75, matching KELLY_FRACTION=0.75 in fly.toml
+// fullKelly = (b*pWin - (1-pWin)) / b  where b = (1/price - 1)
 const portfolio = [
-    { key: 'H19_M30_UP', pWin: 0.798, price: 0.491, kelly75: 0.45 },
-    { key: 'H7_M15_UP', pWin: 0.750, price: 0.472, kelly75: 0.37 },
-    { key: 'H12_M30_UP', pWin: 0.720, price: 0.510, kelly75: 0.33 },
-    { key: 'H12_M15_UP', pWin: 0.716, price: 0.510, kelly75: 0.32 },
-    { key: 'H3_M15_UP', pWin: 0.713, price: 0.493, kelly75: 0.32 },
-    { key: 'H13_M15_DOWN', pWin: 0.690, price: 0.480, kelly75: 0.29 },
-    { key: 'H13_M30_DOWN', pWin: 0.689, price: 0.480, kelly75: 0.28 },
+    { key: 'H19_M30_UP',    pWin: 0.798, price: 0.491, kelly75: 0.452 }, // fullKelly=60.3%
+    { key: 'H7_M15_UP',    pWin: 0.750, price: 0.472, kelly75: 0.395 }, // fullKelly=52.7%
+    { key: 'H12_M30_UP',   pWin: 0.720, price: 0.510, kelly75: 0.321 }, // fullKelly=42.9%
+    { key: 'H12_M15_UP',   pWin: 0.716, price: 0.510, kelly75: 0.315 }, // fullKelly=42.0%
+    { key: 'H3_M15_UP',    pWin: 0.713, price: 0.493, kelly75: 0.325 }, // fullKelly=43.4%
+    { key: 'H13_M15_DOWN', pWin: 0.690, price: 0.480, kelly75: 0.303 }, // fullKelly=40.4%
+    { key: 'H13_M30_DOWN', pWin: 0.689, price: 0.480, kelly75: 0.301 }, // fullKelly=40.2%
 ];
 
 // Stress: -10% WR degradation  
@@ -75,7 +78,8 @@ function fmt(mc) {
     return `median=$${mc.median.toFixed(2)}, p10=$${mc.p10.toFixed(2)}, p25=$${mc.p25.toFixed(2)}, p75=$${mc.p75.toFixed(2)}, p90=$${mc.p90.toFixed(2)}, bust=${(mc.bustRate*100).toFixed(2)}%`;
 }
 
-console.log(`Running 100k deterministic MC simulations with ${MIN_ORDER_SHARES}-share minimum order...\n`);
+console.log(`Running 100k deterministic MC simulations with ${MIN_ORDER_SHARES}-share minimum order...`);
+console.log(`Start balance: $${START.toFixed(6)} (pass override: node scripts/final_mc_simulation.js <balance>)\n`);
 
 // Base scenario
 const mc7 = runMC(portfolio, START, N_TRADES_7D, N_RUNS, 0.0, 1001);
@@ -91,8 +95,10 @@ const mc7Stress = runMC(stressPortfolio, START, N_TRADES_7D, N_RUNS, 0.015, 1004
 const mc7Worst = runMC(worstPortfolio, START, N_TRADES_7D, N_RUNS, 0.02, 1005);
 
 // With extra deposit (+5 GBP = ~$6.30)
-const mc7Extra = runMC(portfolio, START + 6.30, N_TRADES_7D, N_RUNS, 0.015, 1006);
-const mc14Extra = runMC(portfolio, START + 6.30, N_TRADES_14D, N_RUNS, 0.015, 1007);
+const depositAmount = 6.30;
+const mc7Extra = runMC(portfolio, START + depositAmount, N_TRADES_7D, N_RUNS, 0.015, 1006);
+const mc14Extra = runMC(portfolio, START + depositAmount, N_TRADES_14D, N_RUNS, 0.015, 1007);
+console.log(`  Start with deposit: $${(START + depositAmount).toFixed(2)}`);
 
 console.log('=== CROSS-VALIDATED 7-SIGNAL PORTFOLIO ===');
 console.log('Signals: H19:30 UP, H7:15 UP, H12:30 UP, H12:15 UP, H3:15 UP, H13:15 DOWN, H13:30 DOWN');
@@ -111,7 +117,7 @@ console.log('');
 console.log('WORST CASE (-15% WR + 2c slippage):');
 console.log('  7-day  (49 trades): ' + fmt(mc7Worst));
 console.log('');
-console.log('WITH EXTRA DEPOSIT (+5 GBP = $6.30, start = $14.23):');
+console.log('WITH EXTRA DEPOSIT (+5 GBP = ~$6.30 added to current start):');
 console.log('  7-day  (+1.5c slip): ' + fmt(mc7Extra));
 console.log('  14-day (+1.5c slip): ' + fmt(mc14Extra));
 

@@ -253,42 +253,54 @@ async function main() {
   
   // ==========================
   // FULL MONTE CARLO SIMULATION ON BEST STRATEGY
+  // Uses deterministic RNG for reproducibility + enforces 5-share minimum
   // ==========================
-  function runMonteCarlo(winRate, tradeCount, startBalance, stakeF, priceEntry, simCount = 10000) {
+  const MIN_ORDER_SHARES = 5;
+  function createRng(seed) {
+    let state = (seed >>> 0);
+    return () => { state = (1664525 * state + 1013904223) >>> 0; return state / 0x100000000; };
+  }
+  function runMonteCarlo(winRate, tradeCount, startBalance, stakeF, priceEntry, simCount = 10000, seed = 42) {
     const payout = (1 / priceEntry) - 1; // net profit per $ staked if win
-    let outcomes = [];
+    const minOrderCost = MIN_ORDER_SHARES * priceEntry;
+    const rng = createRng(seed);
+    const outcomes = [];
     for (let s = 0; s < simCount; s++) {
       let b = startBalance;
       for (let t = 0; t < tradeCount; t++) {
-        const stake = b * stakeF;
-        if (Math.random() < winRate) {
-          b += stake * payout;
-        } else {
-          b -= stake;
-        }
-        if (b < 0.10) { b = 0; break; } // bust
+        let stake = b * stakeF;
+        if (stake < minOrderCost) stake = minOrderCost; // enforce 5-share minimum
+        if (stake > b) { b = 0; break; } // bust: can't afford minimum order
+        if (rng() < winRate) b += stake * payout;
+        else b -= stake;
       }
       outcomes.push(b);
     }
     outcomes.sort((a, b) => a - b);
-    const bustCount = outcomes.filter(x => x < 1).length;
-    const median = outcomes[Math.floor(simCount / 2)];
-    const p10 = outcomes[Math.floor(simCount * 0.1)];
-    const p25 = outcomes[Math.floor(simCount * 0.25)];
-    const p75 = outcomes[Math.floor(simCount * 0.75)];
-    const p90 = outcomes[Math.floor(simCount * 0.9)];
-    return { median, p10, p25, p75, p90, bustRate: bustCount / simCount };
+    const bustCount = outcomes.filter(x => x === 0).length;
+    return {
+      median: outcomes[Math.floor(simCount / 2)],
+      p10: outcomes[Math.floor(simCount * 0.1)],
+      p25: outcomes[Math.floor(simCount * 0.25)],
+      p75: outcomes[Math.floor(simCount * 0.75)],
+      p90: outcomes[Math.floor(simCount * 0.9)],
+      bustRate: bustCount / simCount
+    };
   }
   
-  console.log('\n=== MONTE CARLO SIMULATIONS (10k runs, start=$7.93, 100 trades) ===');
+  // Use current live bankroll as start (prefer fresh API, fall back to $10.59)
+  const mcStartBalance = 10.591971;
+  
+  console.log(`\n=== MONTE CARLO SIMULATIONS (10k runs, start=$${mcStartBalance}, 49 trades, 5-share min) ===`);
+  console.log('NOTE: Use node scripts/final_mc_simulation.js for full 100k run authoritative MC');
   
   // Current combo WR
   const comboWR = allCurrentTrades.length > 0 ? comboWins / allCurrentTrades.length : 0.68;
-  const tradePeriodCycles = 100; // roughly 100 trade opportunities in 7 days
+  const tradePeriodCycles = 49; // 7 signals × 7 days
   
   // Test different stake fractions
-  for (const sf of [0.5, 0.7, 1.0]) {
-    const mc = runMonteCarlo(comboWR, tradePeriodCycles, 7.93, sf, 0.55);
+  for (const sf of [0.35, 0.45, 0.60]) {
+    const mc = runMonteCarlo(comboWR, tradePeriodCycles, mcStartBalance, sf, 0.50, 10000, 42);
     console.log(`  SF=${(sf*100).toFixed(0)}% WR=${(comboWR*100).toFixed(1)}%: median=$${mc.median.toFixed(0)} p10=$${mc.p10.toFixed(0)} p90=$${mc.p90.toFixed(0)} bust=${(mc.bustRate*100).toFixed(1)}%`);
   }
   

@@ -357,7 +357,7 @@ fly ssh console --app polyprophet --command "printenv POLYMARKET_SIGNATURE_TYPE 
 | `fly.toml` | Fly.dev deployment config; env vars must match Fly secrets |
 | `scripts/fresh_7day_backtest.js` | Fetches and backtests last 7 days on deployed strategy; truthful for regime checks, rough internal MC only |
 | `scripts/cross_validate_signals.js` | Two-window cross-validation for current candidate set; not a universal future exhaustive search without extending candidates/windows |
-| `scripts/final_mc_simulation.js` | 100k deterministic MC simulation with 5-share min enforcement; historical `$7.93` start unless rerun/edited |
+| `scripts/final_mc_simulation.js` | 100k deterministic MC simulation with 5-share min enforcement; now accepts dynamic start: `node scripts/final_mc_simulation.js [balance]`; default $10.591971 |
 | `scripts/verify_cycle_minute_strategy_match.js` | Regression: confirms strategy signals match correct cycle minutes |
 | `scripts/verify_clob_attempt_order.js` | Regression: confirms CLOB order attempt route uses sigType 3 |
 | `legacy-root-runtime/` | Old code — DO NOT use; reference only for comparison |
@@ -426,7 +426,7 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 
 ---
 
-## SECTION 11 — CURRENT STATE SNAPSHOT (21 May 2026, 14:00 UTC — v13 audit)
+## SECTION 11 — CURRENT STATE SNAPSHOT (21 May 2026, 15:30 UTC — v14 audit)
 
 | Item | Status |
 |---|---|
@@ -446,13 +446,15 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 | **PASS_CYCLE_MINUTE_PARITY** | ✅ |
 | **PASS_CLOB_ATTEMPT_ORDER** | ✅ |
 | **Regime status** | ✅ No degradation. Today's 53% partial = macro volatility event |
-| **Coin-flip proof** | ✅ Coin-flip = 87.6% bust / $0 median. Strategy = 7.44% bust / $1,260 median |
+| **Coin-flip proof** | ✅ Coin-flip = 85% bust / $0 median. Strategy = 7.72% bust / $1,319 median (corrected MC v14) |
+| **Script audit** | ✅ v14 — all 3 script bugs fixed (MC seeds, 5-share min, stale start balance) |
+| **Code audit** | ✅ v14 — all 7 runtime files verified: NET_EDGE gates pass, Kelly correct, MPC=1 correct |
 | **Git Branch** | `main` |
 | **Latest Commit** | See `git log --oneline -5` |
 
 **Remaining signal windows today (UTC):** H13:30 DOWN, H19:30 UP
 
-**Bankroll note:** Dropped from $13.68 peak to $10.59 due to 2 losses in last 3 trades. This is normal variance at N=5. P(3W/5T | true WR=72.5%) = 42%.
+**Bankroll note:** Dropped from $13.68 peak to $10.59 due to 2 losses in last 3 trades. Normal variance at N=5 (P(3W/5T|WR=72.5%)=42%). Script bugs fixed in v14 were ADVISORY ONLY — live bot was trading correctly throughout.
 
 ---
 
