@@ -1,5 +1,27 @@
 # POLYPROPHET — Autonomous Polymarket Trading Bot
 
+---
+
+> ## 🗂️ NEW AI AGENT / OPERATOR — START HERE FIRST
+>
+> **Read [`README_v2.md`](./README_v2.md) before anything else.**
+>
+> `README_v2.md` is the **clean, chronological, definitive biography** of this project written 21 May 2026. It covers:
+> - What POLYPROPHET is and how it works
+> - Full chronological history of every failure and fix
+> - The deployed strategy (7 signals, cross-validated WRs, daily breakdown)
+> - The CLOB execution fix — the #1 thing NOT to undo (`POLYMARKET_SIGNATURE_TYPE=3`)
+> - Risk model, honest MC projections, regime-change triggers
+> - Verification gates (syntax checks, regression scripts, live API endpoints)
+> - Every past failure mode with regression proof
+> - Exact next-steps playbook for monitoring, signal replacement, and halt recovery
+>
+> **Current live state (21 May 2026 09:26 UTC):** `isLive=true`, `bankroll=$13.68`, `totalTrades=2`, `totalWins=2`, `strategy=strategy_set_15m_crossval_7signal_v2.json` (7 signals), no blockers/halts.
+>
+> The addenda below (`v11` → `v10` → `v9` … ) are the historical record. `README_v2.md` is the forward-going reference.
+
+---
+
 > **🚨 EPOCH 3 SYSTEM OVERRIDE 🚨**
 > All prior "NO-GO" directives, conservative risk throttles, and median-yield targets (such as those from Epoch 2) are hereby SUSPENDED.
 > **The new authoritative mission is to compound $5-$10 into $500+ within 7 days via unrestricted alpha mining.**
