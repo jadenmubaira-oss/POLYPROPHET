@@ -3155,6 +3155,13 @@ function isCountableTradeFailure(result) {
     const reason = String(result.error || '');
     if (!reason) return false;
     if (reason.includes('NO_FILL_AFTER_RETRIES')) return false;
+    // Transient Polymarket server-side errors (425 "service not ready", 503, 502) are NOT
+    // real trade failures — they are temporary CLOB unavailability and must not count toward
+    // the tradeFailureHalt counter. Without this guard, a brief Polymarket outage during a
+    // signal window triggers a false halt requiring manual /api/resume-errors intervention.
+    if (reason.includes('service not ready') || reason.includes('status=425') ||
+        reason.includes('status=503') || reason.includes('status=502') ||
+        reason.includes('Service Unavailable') || reason.includes('Bad Gateway')) return false;
     return reason.startsWith('CLOB_ORDER_FAILED:') || reason.startsWith('LIVE_TRADE_ERROR:');
 }
 
