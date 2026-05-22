@@ -16,7 +16,7 @@
 > - Every past failure mode with regression proof
 > - Exact next-steps playbook for monitoring, signal replacement, and halt recovery
 >
-> **Current live state (21 May 2026 08:50 UTC recheck):** `isLive=true`, `bankroll=$13.683966`, `totalTrades=2`, `totalWins=2`, `strategy=strategy_set_15m_crossval_7signal_v2.json` (7 signals), no blockers/halts, no pending exposure, `POLYMARKET_SIGNATURE_TYPE=3` selected.
+> **Current live state (22 May 2026 10:46 UTC v16 reconciliation/schedule audit):** `isLive=true`, `bankroll=$14.376211`, `peak=$14.376211`, `totalTrades=8`, `totalWins=5`, `strategy=strategy_set_15m_crossval_7signal_v2.json` (7 signals), no blockers/halts, no pending buys/sells/open positions, `POLYMARKET_SIGNATURE_TYPE=3` configured and selected. Fresh 7-day deployed-strategy check: `212W/294T = 72.1%`; today so far: `10W/12T = 83%`; no formal regime trigger.
 >
 > The addenda below (`v11` → `v10` → `v9` … ) are the historical record. `README_v2.md` is the forward-going reference.
 
@@ -35,7 +35,229 @@
 > **THE IMMORTAL MANIFESTO** — Source of truth for all AI agents and operators.
 > Read fully before ANY changes. Continue building upon this document.
 
-**Last Updated**: 21 May 2026 v14 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: $10.591971 pUSD (5 trades placed: 3W/2L) | **Status**: ✅ LIVE & TRADING — full logic/script/code audit complete (v14), operator mandate compliance verified (PART E), all reasoning 100% verified, strategy sound, scripts corrected
+**Last Updated**: 22 May 2026 v17 | **Runtime**: `polyprophet-lite` (root `server.js` on Fly) | **Live Balance**: $14.376211 pUSD (8 trades placed: 5W/3L) | **Status**: ✅ LIVE & TRADING — v17 halt root-cause fix deployed, tradeFailureHalt false-positive patched, no blockers/halts, 7-signal strategy retained
+
+## 22 May 2026 Junie Addendum v17 — TRADE HALT ROOT CAUSE + FIX (13:20 UTC)
+
+### What Happened
+
+At `2026-05-22T12:16 UTC` (the H12:15 UP signal window), Polymarket's CLOB returned HTTP 425 `{"error":"service not ready"}` on every single order attempt (~10 consecutive attempts across BTC/ETH/BNB/DOGE). This is a **transient Polymarket server-side unavailability** — it has nothing to do with API keys, wallet credentials, or `sigType` (do NOT change those).
+
+The bug: `isCountableTradeFailure()` in `server.js` treated ANY `CLOB_ORDER_FAILED:` prefix as a real trade failure and counted it toward the `TRADE_FAILURE_HALT_THRESHOLD = 8`. With ~10 consecutive 425 responses during a single slot, the counter hit 8 and triggered a `tradeFailureHalt`, freezing all further entries until a manual `POST /api/resume-errors` (or a server restart) cleared it.
+
+### Root Cause Table
+
+| Symptom | Root Cause | NOT the cause |
+|---|---|---|
+| `tradeFailureHalted=true` after H12:15 window | HTTP 425 "service not ready" from Polymarket CLOB counted as real failures | API keys, sigType, wallet address, network config |
+| All 10 order attempts failed same slot | Polymarket CLOB temporarily unavailable at slot open time | Strategy logic, risk manager, CLOB client code |
+| Bot resumed after server restart | `tradeFailureHalted` flag cleared on restart | No permanent config damage |
+
+### The Fix (commit `bf5a19b`, deployed 12:26 UTC)
+
+`isCountableTradeFailure()` in `server.js` now explicitly excludes transient server-side HTTP errors from the consecutive-failure counter:
+
+```
+// EXCLUDED from halt counter (transient Polymarket outages, NOT real trade failures):
+status=425  "service not ready"
+status=503  Service Unavailable
+status=502  Bad Gateway
+```
+
+**Effect:** a 5-minute Polymarket CLOB outage will now silently skip the slot (the forward-log shows `LIVE_EXECUTE failed` but `blocked=false`, so no trade happens) without accumulating toward the halt threshold. Real persistent failures (e.g. signer address mismatch, geoblock) are still counted and will halt the bot as intended.
+
+### CRITICAL: Do NOT Touch These
+
+- `POLYMARKET_SIGNATURE_TYPE=3` — this is the proven working deposit-wallet route. Real order IDs were obtained via sigType 3 on 20 May 2026. Do NOT change to 1.
+- API keys / wallet credentials — these are 100% correct. 425 errors are Polymarket's server, not yours.
+- Any CLOB client signing code — the existing code correctly routes through the deposit-wallet funder address.
+
+### Manual Recovery if Halt Triggers Again
+
+If `tradeFailureHalted=true` appears in `/api/status`:
+
+```
+POST https://polyprophet.fly.dev/api/resume-errors
+```
+
+Or restart the Fly machine:
+
+```
+fly machine restart <machine-id> --app polyprophet
+```
+
+Do NOT restart if `errorHalted=true` without investigating the tick errors first.
+
+### Post-Fix Live State
+
+| Check | Result |
+|---|---|
+| Bot isLive | ✅ true |
+| manualPause | ✅ false |
+| liveModeBlockers | ✅ none |
+| tradingPaused | ✅ false |
+| errorHalted | ✅ false |
+| tradeFailureHalted | ✅ false |
+| bankroll | $14.376211 |
+| totalTrades | 8 (5W/3L) |
+| strategyPath | `strategy_set_15m_crossval_7signal_v2.json` (7 signals) |
+| redeployed at | 2026-05-22T12:26:57Z |
+
+### Permanent Rule for Future AI Agents
+
+> **HALT TRIAGE RULE**: Before assuming API keys or sigType are wrong when a halt occurs, always check `/api/status` for `tradeFailureHalted` vs `errorHalted`, check `/api/forward-log` for the actual error strings, and distinguish between HTTP 4xx client errors (your fault) and HTTP 425/503/502 server errors (Polymarket's fault). The bot's credentials have been verified working by real live trade IDs. Treat halt as an infrastructure/transient issue first, credential issue only if explicitly confirmed by the error message.
+
+---
+
+## 22 May 2026 Junie Addendum v16 — BALANCE RECONCILIATION + SCHEDULE REALITY AUDIT (10:46 UTC)
+
+### Scope
+
+This audit answers the operator's specific concern: whether balance reconciliation is slower than expected, whether locked/reconciling funds are causing missed trades, whether the bot is actually following the intended schedule, and whether the deployment is merely surviving while staying stale near the starting balance.
+
+### Live Reconciliation State
+
+| Check | Result |
+|---|---|
+| `/api/status` settled bankroll | `$14.376211` |
+| Peak balance | `$14.376211` |
+| Trade count | `8` total, `5` wins |
+| Pending buys / sells | effectively empty (`null` top-level; executor counts `0/0`) |
+| Open positions | `0` |
+| Pending settlements | `0` |
+| CLOB selected balance raw | `14376211` = `$14.376211` |
+| CLOB readiness | `POLYMARKET_SIGNATURE_TYPE=3`, selected sigType `3`, `tradeReady.ok=true` |
+
+**Verdict:** reconciliation is **not currently lagging or blocking the bot**. The earlier apparent low-balance reads were mid-reconciliation/status timing artefacts; after reconciliation, both the risk bankroll and CLOB selected balance agree at `$14.376211`. There is no hidden open exposure, pending buy, pending sell, or settlement queue at the audit time.
+
+### Schedule Reality Check
+
+The retained `/api/forward-log?limit=500` covers `2026-05-21T03:16:58Z` through `2026-05-22T07:16:59Z`. It proves the bot evaluated the intended deployed slots rather than sleeping through them:
+
+| Slot observed | Result |
+|---|---|
+| `2026-05-21 03:16 UTC` | evaluated; no fill in retained attempts |
+| `2026-05-21 07:16 UTC` | live order placed |
+| `2026-05-21 12:16 UTC` | live order placed |
+| `2026-05-21 12:32 UTC` | two failed BTC/ETH attempts, then live SOL order placed |
+| `2026-05-21 13:16 UTC` | live order placed |
+| `2026-05-21 19:30 UTC` | live order placed |
+| `2026-05-22 03:16 UTC` | live order placed |
+| `2026-05-22 07:16 UTC` | live order placed |
+
+Forward-log blocker mix over the last 500 retained attempts: `258` `RISK_GATE`, `144` `SPREAD_TOO_WIDE`, `74` `DUPLICATE_POSITION`, `15` `EDGE_GUARD`, `7` successes, `2` failed live executes. These are mostly expected consequences of repeatedly polling the same cycle: once one asset fills, same-epoch follow-up attempts are blocked by `MAX_TRADES_CYCLE (1/1)` or `DUPLICATE_POSITION`; wide markets are rejected by spread/edge guards.
+
+### Reconciliation / Missed-Trade Risk
+
+Code audit confirms:
+
+- `server.js` refreshes live balance at the start of orchestration, processes pending buys/live settlements, and runs pending-sell maintenance again after entry attempts.
+- `trade-executor.js` refreshes live balance again immediately before live sizing/entry, then checks hard price cap, strategy price band, edge ROI, risk gates, sizing, min shares, orderbook depth, and fee-inclusive cash.
+- `risk-manager.js` limits to `1` trade per exact market epoch while bankroll is under `$15`; this does **not** globally block later non-overlapping signal windows.
+- `getAvailableCash()` subtracts reserved pending-buy capital and returns `0` if the last-known-good live balance becomes stale, which is conservative and prevents over-ordering during API uncertainty.
+
+**Conclusion:** no evidence that reconciliation delay is currently making the bot lose scheduled trades. The real schedule risks are CLOB execution/no-fill and guard rejections, not stale bankroll. The `12:32` slot proves this: BTC/ETH live attempts failed (`NO_FILL_AFTER_RETRIES` / signer-policy fallback), but the bot kept trying candidates and filled SOL in the same slot.
+
+### Is It Operating as Expected or Staying Stale?
+
+It is operating as expected for this strategy's structure:
+
+- The bot is designed to be idle most of the day because only 7 exact UTC 15m slots are deployed.
+- It is **not** staying near starting balance: current settled balance is `$14.376211`, up from the original `$7.929836` deployment bankroll.
+- Live performance is `5W/8T = 62.5%`; that is below the cross-validated `~72.5%` expectation but statistically plausible (`P(≤5 wins out of 8 | p=72.5%) ≈ 38.45%`).
+- Fresh resolved strategy data is still strong: deployed set `212W/294T = 72.1%`, today `10W/12T = 83%`.
+
+### Current Projection From Reconciled Bankroll
+
+Authoritative command: `node scripts/final_mc_simulation.js 14.376211`.
+
+| Scenario | 7-day median | Bust |
+|---|---:|---:|
+| Base, no slippage | `$3,098.13` | `4.61%` |
+| Realistic, +1.5c slippage | `$1,790.91` | `5.85%` |
+| Stress, -10pp WR +1.5c slippage | `$43.34` | `30.31%` |
+| Worst, -15pp WR +2c slippage | `$0.00` | `54.65%` |
+
+**Path verdict:** the bot is still tracking the high-median path more than the stress/bad path. It is not guaranteed, and the stress case remains the main danger, but current settled bankroll, today's resolved WR, and schedule evidence do not support a stale/degraded verdict.
+
+### Mandatory Future Audit Addition
+
+Every future audit must now explicitly answer:
+
+- Are `status.risk.bankroll`, CLOB selected balance, and wallet/trading balance reconciled, or is a low balance only a mid-cycle locked-funds artefact?
+- Are `pendingBuys`, `pendingSells`, `executor.openPositions`, and `executor.pendingSettlements` truly empty before judging performance?
+- Did `/api/forward-log` show attempts at each expected signal slot, and if not, was the miss due to schedule, reconciliation, orderbook/price guards, CLOB no-fill, or a halt?
+- Are repeated `MAX_TRADES_CYCLE`/`DUPLICATE_POSITION` blockers occurring after a successful fill in the same epoch, rather than before all trades?
+- Is current-bankroll MC still above the operator's `$500+` 7-day median requirement after using the **reconciled** bankroll, not a transient mid-trade balance?
+
+---
+
+## 21 May 2026 Junie Addendum v15 — FINAL RE-READ + EXTENSIVE REAUDIT (16:17 LOCAL / 15:19 UTC)
+
+### Scope
+
+This audit was run after re-reading the compressed chat history, `README.md`, and `README_v2.md` guidance. The purpose was to verify whether the live bot, strategy, audit scripts, documentation handoff, and regime status still match reality.
+
+### Live Server State
+
+| Check | Result |
+|---|---|
+| `/api/health` | `isLive=true`, `liveModeBlockers=[]`, strategy path `/app/strategies/strategy_set_15m_crossval_7signal_v2.json`, 7 strategies loaded |
+| `/api/status` | `bankroll=$10.591971`, `totalTrades=5`, `totalWins=3`, `tradingPaused=false` |
+| Exposure | `pendingBuys=0`, `pendingSells=0`, `openPositions=0` |
+| Halts | No `errorHalted`, no `tradeFailureHalted` |
+| CLOB | `POLYMARKET_SIGNATURE_TYPE=3` configured and selected; `tradeReady.ok=true` |
+
+**Verdict:** trading mechanics are still `GO`. The bot is not currently stuck in an open-position or pending-reconciliation state.
+
+### Strategy / Regime Recheck
+
+Fresh `node scripts/fresh_7day_backtest.js` result, generated during this audit:
+
+| Signal | Fresh 7-day WR |
+|---|---:|
+| `H19:30 UP` | `30/42 = 71.4%` |
+| `H07:15 UP` | `34/42 = 81.0%` |
+| `H12:30 UP` | `36/42 = 85.7%` |
+| `H12:15 UP` | `27/42 = 64.3%` |
+| `H03:15 UP` | `32/42 = 76.2%` |
+| `H13:15 DOWN` | `25/42 = 59.5%` |
+| `H13:30 DOWN` | `29/42 = 69.0%` |
+| **Combined** | **`213/294 = 72.4%`** |
+
+Daily deployed-strategy breakdown now shows: `2026-05-14 67%` (partial day), `05-15 76%`, `05-16 45%`, `05-17 81%`, `05-18 81%`, `05-19 67%`, `05-20 95%`, `05-21 61%` so far.
+
+**Regime verdict:** no formal regime-change trigger yet. Today is weaker than the target but still above the `55%` hard trigger, and there are not two consecutive sub-55% deployed-strategy days. The weakest signals to monitor next are `H13:15 DOWN` and `H12:15 UP`, but they are not eligible for removal unless they also fail the independent cross-validation rule.
+
+### Add / Remove Strategy-Hours Decision
+
+`node scripts/cross_validate_signals.js` still keeps the exact same 7-signal portfolio and drops 12 tempting recent-window signals. Example: `H1_M15_DOWN` is `92.9%` in the recent window but only `39.6%` in May 2-9, so it remains rejected.
+
+**Decision:** do **not** add 5m signals, do **not** add recent one-window leaders, and do **not** prune the current 7 signals yet. The current set remains the best robust portfolio under the repo's evidence rules.
+
+### Current-Bankroll MC
+
+Authoritative command: `node scripts/final_mc_simulation.js 10.591971`.
+
+| Scenario | Median | Bust |
+|---|---:|---:|
+| 7-day base, no slippage | `$2,270.33` | `6.58%` |
+| 7-day realistic, +1.5c slippage | `$1,319.12` | `7.72%` |
+| 7-day stress, -10% WR +1.5c slippage | `$28.61` | `35.88%` |
+| 7-day worst, -15% WR +2c slippage | `$0.00` median | `60.24%` |
+| +£5 deposit realistic | `$2,128.65` | `3.76%` |
+
+**Interpretation:** the strategy still meets the operator's `$500+` median target from the current bankroll under the realistic model, but the stress case remains dangerous. The next audit must focus on whether the true live WR is drifting toward the stress case.
+
+### Audit Tool / Intracycle Data Caveat
+
+The audit scripts are truthful for what they test: resolved-cycle strategy WR, cross-window validation, exact-cycle parity, CLOB attempt ordering, and MC with 5-share minimum. The cycle-recorder endpoints exist, but in live mode they require the deployed admin control secret. During this audit, local credentials returned `401`, and a Fly SSH tail probe failed due command parsing before execution. This is an access/diagnostic limitation, not a trading failure. Future agents should verify `/data/cycle_recorder.jsonl` via Fly SSH or the live admin key before making claims about fresh L2/intracycle content.
+
+### README / Handoff Corrections
+
+This audit found stale handoff text: the top README and README_v2 Section 2.4 still referenced the earlier `$13.683966`, `2/2` state. Those callouts were corrected to the current `$10.591971`, `5T/3W`, no-open-exposure state so a new AI will not restart from a false balance/trade-count assumption.
+
+---
 
 ## 21 May 2026 Junie Addendum v14 — FULL LOGIC/SCRIPT/CODE SOUNDNESS AUDIT (15:30 UTC)
 
@@ -423,6 +645,8 @@ The following items are now permanently added to all audit checklists:
 
 ## 21 May 2026 Junie Addendum v12 — FINAL REINVESTIGATION / LEAVE-RUNNING VERDICT
 
+> **Historical note:** this v12 section records the state at `08:50 UTC` when the bot was `2/2` and bankroll was `$13.683966`. It is superseded by the v15 current-state audit above (`5T/3W`, `$10.591971`). Keep it for chronology, not as the current balance.
+
 ### Live Server / Trading Readiness Recheck
 
 Final recheck at **2026-05-21 08:50 UTC**:
@@ -507,6 +731,8 @@ You can leave the bot running unattended **provided these checks are done**:
 ---
 
 ## 21 May 2026 Junie Addendum v11 — LIVE TRADE EVIDENCE + 5m MARKET AUDIT + UPDATED PROJECTIONS
+
+> **Historical note:** this v11 section records the earlier `2`-trade / `$13.683966` peak state. It is superseded by the v15 current-state audit above. Do not use v11 numbers as current bankroll or current trade count.
 
 ### Live Trade Evidence (as of 21 May 2026 08:26 UTC)
 

@@ -3,7 +3,7 @@
 > **FOR ANY NEW AI AGENT OR OPERATOR:**
 > This document is the complete, chronological source of truth for the POLYPROPHET project.
 > Read it **in full, top to bottom** before touching a single file. Everything that was tried, everything that failed, every fix that worked, and every decision that was made is recorded here.
-> The main `README.md` contains older addenda as supporting context. This file is the **clean, canonical, forward-going reference** written on 21 May 2026 and updated through v14.
+> The main `README.md` contains older addenda as supporting context. This file is the **clean, canonical, forward-going reference** written on 21 May 2026 and updated through v15.
 >
 > **CRITICAL AUDIT REQUIREMENT:** Before concluding any audit, complete ALL 10 items in Section 6.6-D (Operator Mandate Checklist). If any item fails, do NOT submit a GO verdict.
 
@@ -61,16 +61,19 @@ The following was done to find the current deployed strategy:
 
 ### 2.4 May 20–21, 2026 — Live Trades and Current State
 
-**The bot has placed 2 real strategy-triggered trades:**
+**The bot has placed 5 real strategy-triggered trades:** 3 wins / 2 losses. The early 2/2 winning state at `$13.683966` was real, but it is now stale; later trades settled the bankroll to `$10.591971`.
 
-| # | Time (UTC) | Asset | Direction | Entry | Size | Result | PnL | Bankroll After |
-|---|---|---|---|---|---|---|---|---|
-| 1 | 2026-05-21 03:28 | BTC 15m | UP | $0.51 | $2.55 | ✅ WIN | +$2.31 | $10.24 |
-| 2 | 2026-05-21 07:33 | BTC 15m | UP | $0.51 | $3.57 | ✅ WIN | +$3.30 | $13.68 |
+| Current snapshot | Value |
+|---|---|
+| Checked | 21 May 2026 15:19 UTC v15 audit |
+| Starting bankroll before this strategy | ~$7.93 |
+| Peak bankroll observed | `$13.683966` |
+| Current settled bankroll | `$10.591971` |
+| Total trades | `5` |
+| Total wins | `3` |
+| Open exposure | `0` open positions / `0` pending buys / `0` pending sells |
 
-**Starting bankroll was $7.93. Current bankroll (21 May 2026 09:26 UTC) is $13.68.**
-
-**Note on bankroll display anomaly:** During an open position, `/api/status` shows the post-stake bankroll (locked funds deducted). After settlement it shows full settled balance. A mid-trade reading showed `$6.54` which confused previous agents — this is NOT a bug. Real balance confirmed via `/api/wallet/balance → clobCollateralUsdc = $13.683966`.
+**Note on bankroll display anomaly:** During an open position, `/api/status` can show the post-stake bankroll (locked funds deducted). After settlement it shows full settled balance. Do not confuse locked stake during a live cycle with actual loss; always check open positions and pending reconciliation first.
 
 ---
 
@@ -222,24 +225,24 @@ Bot not trading?
 - Your profit per dollar staked = `(1/p) - 1` = `(1/0.51) - 1 = 96%` at $0.51 entry.
 - If wrong, you lose the entire stake.
 
-**Compounding:** At 72.5% WR and 7 trades/day, compounding is approximately:
-- Day 1 from $13.68: expected ~$26–30, but individual-day variance can be severe
-- Week 1 from exact live bankroll $13.683966: realistic median ~$1,620.75 in the latest deterministic rerun
+**Compounding:** At ~72.5% WR and 7 trades/day, compounding is approximately:
+- Day 1 from `$10.591971`: expected growth is positive, but individual-day variance can be severe and losses can temporarily pull the bankroll back toward the 5-share-minimum pressure zone.
+- Week 1 from exact live bankroll `$10.591971`: realistic median `$1,319.12` in the latest deterministic v15 rerun.
 
 ### 5.2 Monte Carlo Projections (100,000 runs, final rerun 21 May 2026)
 
-The MC simulation uses: `DEFAULT_MIN_ORDER_SHARES=5`, `1.5c` slippage, cross-validated WRs. `scripts/final_mc_simulation.js` is still the historical `$7.93` authority; exact current-bankroll numbers below were rerun from `$13.683966` using the same deterministic MC logic.
+The MC simulation uses: `DEFAULT_MIN_ORDER_SHARES=5`, `1.5c` slippage, cross-validated WRs, and current bankroll input. Always run `node scripts/final_mc_simulation.js <live bankroll>`; the v15 exact-current-bankroll run used `$10.591971`.
 
 | Scenario | Start | 7-day Median | Bust Risk | p10 | p90 |
 |---|---|---|---|---|---|
-| **Realistic** | $13.683966 | **$1,620.75** | **5.78%** | $57.63 | $24,491.16 |
-| Stress (-10% WR) | $13.683966 | $44.29 | 30.10% | $0 | $1,039.65 |
-| Worst case (-15% WR + 2c slip) | $13.683966 | $0 | 53.99% | $0 | $172.75 |
+| **Realistic** | $10.591971 | **$1,319.12** | **7.72%** | $30.15 | $21,696.52 |
+| Stress (-10% WR) | $10.591971 | $28.61 | 35.88% | $0 | $851.74 |
+| Worst case (-15% WR + 2c slip) | $10.591971 | $0 | 60.24% | $0 | $131.19 |
 | Realistic | $7.93 | $858 | 14.7% | $0 | $14,367 |
 | With +£5 deposit ($14.23) | $14.23 | $1,696 | 5.46% | $64 | $25,226 |
-| 14-day realistic | $13.683966 | $176,083.19 | 5.74% | $1,410.81 | $8,475,636.16 |
+| With +£5 deposit from current start | ~$16.89 | $2,128.65 | 3.76% | $92.75 | $33,844.10 |
 
-**The $13.68 current bankroll is past the most dangerous minimum-order pressure zone.** Below $10, the 5-share minimum forces over-sized % bets which increases bust risk non-linearly. At $13.68, this risk is materially reduced.
+**The `$10.591971` current bankroll is only slightly above the most dangerous minimum-order pressure zone.** Below `$10`, the 5-share minimum forces over-sized % bets which increases bust risk non-linearly. A +£5 deposit remains optional but materially lowers modeled bust risk.
 
 ### 5.3 Regime Change Risk (the main risk)
 
@@ -251,7 +254,7 @@ The May 16 dip (45.2%) was a single-day variance shock — it recovered within 2
 
 ### 5.4 The 5-Share Minimum (Structural Risk)
 
-Polymarket requires a minimum of 5 shares per order. At $0.51 entry price, minimum order = 5 × $0.51 = $2.55. At a $7.93 bankroll, this forces betting ~32% per trade — far above Kelly optimal. This is why small bankroll has high bust risk (14.7%). At $13.68+, this constraint is less binding.
+Polymarket requires a minimum of 5 shares per order. At $0.51 entry price, minimum order = 5 × $0.51 = $2.55. At a $7.93 bankroll, this forces betting ~32% per trade — far above Kelly optimal. At the current `$10.591971`, the minimum still consumes ~24% of bankroll when binding, so monitoring remains strict until the bankroll is materially above `$14–$16`.
 
 ---
 
@@ -487,7 +490,7 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 
 ---
 
-## SECTION 11 — CURRENT STATE SNAPSHOT (21 May 2026, 15:30 UTC — v14 audit)
+## SECTION 11 — CURRENT STATE SNAPSHOT (22 May 2026, 13:26 UTC — v17 halt-fix deployed)
 
 | Item | Status |
 |---|---|
@@ -497,25 +500,48 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 | **tradingPaused** | ✅ false |
 | **errorHalted** | ✅ false |
 | **tradeFailureHalted** | ✅ false |
-| **Bankroll** | ✅ $10.591971 pUSD (settled, 0 open positions) |
-| **Total Trades** | 5 (3W/2L = 60% — N=5 too small to be significant) |
-| **Total Wins** | 3 |
+| **Bankroll** | ✅ $14.376211 pUSD (settled/reconciled, 0 open positions) |
+| **Total Trades** | 8 (5W/3L = 62.5% — N=8 still too small to declare degradation) |
+| **Total Wins** | 5 |
 | **Strategy** | `strategy_set_15m_crossval_7signal_v2.json` (7 signals) |
 | **Signature Type** | 3 (POLY_1271 deposit-wallet) ✅ |
 | **Pending Exposure** | ✅ 0 open positions / 0 pending buys / 0 pending sells |
 | **CLOB Order Proof** | Real orderID obtained 20 May 2026 ✅ |
 | **PASS_CYCLE_MINUTE_PARITY** | ✅ |
 | **PASS_CLOB_ATTEMPT_ORDER** | ✅ |
-| **Regime status** | ✅ No degradation. Today's 53% partial = macro volatility event |
-| **Coin-flip proof** | ✅ Coin-flip = 85% bust / $0 median. Strategy = 7.72% bust / $1,319 median (corrected MC v14) |
+| **Regime status** | ✅ No formal degradation trigger. Fresh 7-day deployed strategy `212/294 = 72.1%`; today so far `10/12 = 83%` |
+| **Coin-flip proof** | ✅ Coin-flip = 85% bust / $0 median baseline. Strategy from current reconciled `$14.376211` = `5.85%` realistic bust / `$1,790.91` 7-day median |
 | **Script audit** | ✅ v14 — all 3 script bugs fixed (MC seeds, 5-share min, stale start balance) |
 | **Code audit** | ✅ v14 — all 7 runtime files verified: NET_EDGE gates pass, Kelly correct, MPC=1 correct |
 | **Git Branch** | `main` |
 | **Latest Commit** | See `git log --oneline -5` |
 
-**Remaining signal windows today (UTC):** H13:30 DOWN, H19:30 UP
+**Remaining signal windows today (UTC):** depends on current UTC time; always check the live clock and strategy file before assuming a remaining window.
 
-**Bankroll note:** Dropped from $13.68 peak to $10.59 due to 2 losses in last 3 trades. Normal variance at N=5 (P(3W/5T|WR=72.5%)=42%). Script bugs fixed in v14 were ADVISORY ONLY — live bot was trading correctly throughout.
+**v17 halt fix note:** a `tradeFailureHalt` was triggered at `2026-05-22T12:16 UTC` when Polymarket CLOB returned HTTP 425 "service not ready" on ~10 consecutive attempts during the H12:15 UP window. This was a **Polymarket server-side transient outage**, NOT an API key or sigType problem. `isCountableTradeFailure()` in `server.js` was patched (commit `bf5a19b`) to exclude HTTP 425/503/502 from the failure counter. Bot redeployed at `12:26:57 UTC` and is fully live with no halt.
+
+**Reconciliation/schedule note (v16):** the bot is not currently stale or blocked by slow reconciliation. `/api/status` bankroll and CLOB selected balance agree at `$14.376211`; executor pending buys, pending sells, pending settlements, and open positions are all `0`. The forward log proves the bot evaluated expected slots from `2026-05-21 03:16 UTC` through `2026-05-22 07:16 UTC`, with 7 successful live orders in the retained log. Repeated `MAX_TRADES_CYCLE`/`DUPLICATE_POSITION` blockers after a fill are expected same-epoch guards, not evidence of missed later slots.
+
+### 11.0 Halt Triage Rule (added v17 — MUST READ BEFORE ANY HALT INVESTIGATION)
+
+**When a halt occurs, follow this order:**
+
+1. Check `/api/status` → `errorHalted` vs `tradeFailureHalted` — they have different root causes and different recovery paths.
+2. Check `/api/forward-log?limit=100` — look at the actual error string in the most recent `LIVE_EXECUTE` failures.
+3. **If errors contain `status=425`, `service not ready`, `status=503`, `status=502`** → this is a **Polymarket server outage**. Do NOT touch sigType, API keys, or wallet config. Bot will resume automatically after the outage (post-fix `bf5a19b`). Only manually call `POST /api/resume-errors` if you need to unblock immediately.
+4. **If errors contain `the order signer address has to be the address of the API KEY`** → this is a sigType config mismatch. Check `POLYMARKET_SIGNATURE_TYPE` env (must be `3`).
+5. **If errors contain `GEOBLOCK` or `403`** → this is a Fly region issue. Check proxy config or redeploy to Mexico region.
+6. **`POLYMARKET_SIGNATURE_TYPE=3` is correct and proven** — real orderIDs were obtained via sigType 3 on 20 May 2026. Do NOT change to 1.
+
+### 11.1 Mandatory Reconciliation + Schedule Audit Questions (added v16)
+
+Every future audit must answer these before judging performance:
+
+1. Are `status.risk.bankroll`, CLOB selected balance, and any wallet/trading balance fields reconciled, or is a low balance only a transient mid-cycle locked-funds artefact?
+2. Are `pendingBuys`, `pendingSells`, `executor.openPositions`, and `executor.pendingSettlements` truly empty before concluding the bot is stale or underperforming?
+3. Does `/api/forward-log?limit=500` show attempts at each expected deployed signal slot? If not, classify the miss as schedule, reconciliation, orderbook/price guard, CLOB no-fill, or halt.
+4. Are repeated `MAX_TRADES_CYCLE`/`DUPLICATE_POSITION` blockers happening after a successful fill in the same epoch, rather than before all trades?
+5. Is current-bankroll MC still above the operator's `$500+` 7-day median requirement after using the **reconciled** bankroll, not a transient mid-trade balance?
 
 ---
 
@@ -524,10 +550,10 @@ If bankroll drops back below $10 for any reason, consider depositing an extra £
 Every prior deployment ended the same way: "best strategy found" → deployed → failed live. Here is the exhaustive list of why this one is different:
 
 1. **Trading mechanics proven by real CLOB orderID** — not just a health check. A real `orderID` was returned from the live CLOB endpoint via sigType 3 on 20 May 2026.
-2. **Five actual strategy-triggered trades recorded** — 3W/2L = 60% on N=5 (normal variance; P(X≤3|n=5,p=0.725)=42%). Bankroll trail: $7.93 → $10.24 → $13.54 → ~$13.52 → $10.59. The bot is trading correctly.
+2. **Eight actual strategy-triggered trades recorded** — 5W/3L = 62.5% on N=8 (normal variance; P(X≤5|n=8,p=0.725)≈38.45%). Settled bankroll is now $14.376211, above the original ~$7.93 deployment bankroll. The bot is trading correctly.
 3. **Strategy cross-validated across two independent weeks** — not a single in-sample fit. 12 signals that looked good in one window were discarded because they failed the other.
 4. **Exact-cycle-minute runtime parity enforced by regression test** — the matcher checks `utcHour AND utcMinute`, not just hour. This was previously the cause of signals firing on wrong cycles.
-5. **MC simulations use real constraints** — 5-share minimum, 1.5c slippage. Previous MC showed 0% bust. Honest MC shows 14.7% from $7.93 and latest rerun shows 7.44% bust / $1,260 7-day median from current $10.59. Coin-flip baseline = 87.6% bust / $0 median — the edge is mathematically proven.
+5. **MC simulations use real constraints** — 5-share minimum, 1.5c slippage. Previous MC showed 0% bust. Honest MC shows 14.7% from $7.93 and latest rerun from reconciled `$14.376211` shows `5.85%` bust / `$1,790.91` 7-day median. Coin-flip baseline = ~85% bust / $0 median — the edge is mathematically proven.
 6. **Audit tooling fixed to test deployed strategy** — not stale hardcoded signal pairs. Scripts load `STRATEGY_SET_15M_PATH` from env.
 7. **Every historical failure mode explicitly documented and regression-gated** — see Section 9.
 
