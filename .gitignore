@@ -195,3 +195,31 @@ tools/
 # - .env.example, generate_creds.js.example
 #
 # Historical/debug material is on the 'archive' branch.
+
+
+# ============================================
+# v14 audit additions (2026-06-15)
+# ============================================
+# Local scratch artifact folders (timestamped)
+_local_artifacts_*/
+# Process stdout/stderr dumps
+*.out
+*.err
+# Keep the v14 audit deliverables tracked (they are NOT scratch)
+!audit_v14/
+!audit_v14/**
+
+
+# --- Full portable backups: keep live secrets out of git (added 2026-06-25) ---
+# (.env.* above already ignores .env.secrets, but be explicit for the backup bundles)
+**/.env.secrets
+POLYPROPHET_FULL_BACKUP_*/SECRETS/
+deploy-backup/.env.secrets
+
+# --- 2026-06-26 hardening: never commit the multi-GB live data dir or whole backup bundles ---
+data/
+POLYPROPHET_FULL_BACKUP_*/
+# belt-and-braces secret patterns before any push
+*.key
+*private*key*
+/SECRETS/

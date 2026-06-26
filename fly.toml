@@ -1,7 +1,7 @@
 # POLYPROPHET Fly.io Configuration
 # Region: São Paulo, Brazil
 
-app = "polyprophet"
+app = "polyprophet-live"
 primary_region = "gru"
 
 [build]
@@ -15,15 +15,27 @@ primary_region = "gru"
   TRADE_MODE = "LIVE"
   ENABLE_LIVE_TRADING = "true"
   LIVE_AUTOTRADING_ENABLED = "true"
-  ASSETS = "BTC,ETH,SOL,XRP,BNB,DOGE"
+  # v12 SNIPE needs all 6 Binance-spot assets (README_v12 continuation 7).
+  ASSETS = "BTC,ETH,SOL,XRP,DOGE,BNB"
   TIMEFRAME_15M_ENABLED = "true"
-  TIMEFRAME_15M_MIN_BANKROLL = "3"
+  TIMEFRAME_15M_MIN_BANKROLL = "2.00"
+  # v23 Step 7 profit-speed gate: 5m remains paper/shadow-only. The existing
+  # strategy file is explicitly AUDITED_EXPERIMENTAL_SHADOW_ONLY/deployGrade=false,
+  # and fresh K/5m evidence did not pass the live promotion gate.
   TIMEFRAME_5M_ENABLED = "false"
   TIMEFRAME_5M_MIN_BANKROLL = "3"
+  # v28 runtime-truth fix: native SNIPE 1h is intentionally allowed alongside
+  # 15m because the live ledger already shows recent 1h entries; the runtime
+  # now has an explicit allowlist so disabled timeframes cannot silently trade.
+  TIMEFRAME_1H_ENABLED = "true"
+  TIMEFRAME_1H_MIN_BANKROLL = "2.00"
   MULTIFRAME_4H_ENABLED = "false"
-  STRATEGY_SET_5M_PATH = ""
-  STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_crossval_7signal_v2.json"
+  TIMEFRAME_4H_MIN_BANKROLL = "2.00"
+  STRATEGY_SET_5M_PATH = "strategies/strategy_set_5m_audited_v1.json"
+  STRATEGY_SET_15M_PATH = "strategies/strategy_set_15m_audited_v1.json"
+  STRATEGY_SET_4H_PATH = "strategies/strategy_set_4h_audited_v1.json"
   STRUCTURAL_SIGNAL_REQUIRE_CLOSED_CANDLE = "false"
+  ALLOW_MICRO_5M = "false"
   POLYMARKET_SIGNATURE_TYPE = "3"
   POLYMARKET_AUTO_DERIVE_CREDS = "true"
   TELEGRAM_FLY_SECRETS_ENABLED = "true"
@@ -32,23 +44,128 @@ primary_region = "gru"
   PRIMARY_REGION = "gru"
   DEFAULT_MIN_ORDER_SHARES = "5"
   REQUIRE_REAL_ORDERBOOK = "true"
-  HARD_ENTRY_PRICE_CAP = "0.72"
+  HARD_ENTRY_PRICE_CAP = "0.95"
   ENFORCE_HIGH_PRICE_EDGE_FLOOR = "false"
   HIGH_PRICE_EDGE_FLOOR_PRICE = "0.90"
   ENFORCE_NET_EDGE_GATE = "true"
   MIN_NET_EDGE_ROI = "0.015"
   MAX_GLOBAL_TRADES_PER_CYCLE = "1"
   ALLOW_MICRO_MPC_OVERRIDE = "true"
-  ALLOW_MICRO_5M = "true"
-  OPERATOR_STAKE_FRACTION = "1.00"
-  KELLY_FRACTION = "0.75"
-  KELLY_MAX_FRACTION = "0.75"
-  MICRO_BOOTSTRAP_STAKE_FRACTION = "0.75"
+  STRATEGY_AUDIT_SCRIPT = "npm run audit:strategies"
+  OPERATOR_STAKE_FRACTION = "0.15"
+  KELLY_FRACTION = "0.25"
+  KELLY_MAX_FRACTION = "0.30"
+  MICRO_BOOTSTRAP_STAKE_FRACTION = "0.15"
+  PRE_RESOLUTION_EXIT_ENABLED = "false"
   REDIS_ENABLED = "false"
   CYCLE_RECORDER_ENABLED = "true"
   CYCLE_RECORDER_PATH = "/data/cycle_recorder.jsonl"
   CYCLE_RECORD_EXTRA_MINUTES = "10"
   RUNTIME_STATE_PATH = "/data/runtime-state.json"
+  # v119: Persist the Winner's armed/enabled/paper state on the Fly volume (/data)
+  # rather than the ephemeral container filesystem (/app/data). Before this, arming
+  # the Winner via Telegram was WIPED by every redeploy/machine restart, so the
+  # strategy silently reverted to disabled and never traded. Now arming survives.
+  WINNER_STATE_PATH = "/data/winner-paper-state.json"
+  # v132: LeadLag paper evidence / live-readiness must also survive redeploys.
+  # Without this, a restart silently resets paper bankroll + trade history and
+  # makes the "paper first, promote later" gate untruthful.
+  LEADLAG_STATE_PATH = "/data/leadlag-paper-state.json"
+  PEAK_DRAWDOWN_BRAKE_PCT = "0.25"
+  PEAK_DRAWDOWN_BRAKE_MIN_BANKROLL = "0"
+  MAX_CONSECUTIVE_LOSSES = "3"
+  COOLDOWN_SECONDS = "3600"
+  # FINAL 11 Jun 2026 posture (README_v12 continuations 1-11): the v12 SNIPE
+  # family (settlement snipe + deep sleeve + streak-reversal) is the ONLY enabled
+  # strategy. LeadLag is DISABLED (it failed its paper trials); LEADLAG_ONLY_MODE
+  # stays true so the legacy route/hour directional entries remain blocked too.
+  # SNIPE starts LIVE on server boot because the operator already promoted it.
+  # Runtime controls are also persisted in /data/snipe/state.json so Telegram
+  # live/paper changes survive deploys and machine restarts.
+  SNIPE_ENABLED = "true"
+  SNIPE_PAPER_MODE = "false"
+  # v14.1 AUDIT NOTE (CORRECTED 2026-06-16 from the LIVE /data ledger pull):
+  # The live snipe is 0L to date. state.json reports 121W/0L and a dedupe-correct parse of the
+  # 2466-line live ledger (scripts/v14-live-ledger-verify.js) finds 149 winning settlement keys
+  # with ZERO loss rows. The earlier "46W/2L / negative-EV / survivorship" note (taken from a small
+  # OLD local paper file) was WRONG and is retracted; the running bot is net-positive. Forward risk
+  # that is still real: at a 0.99 ask the break-even win-rate is ~99%, so one loss ~= 100 wins --
+  # keep sizing survivable, do NOT over-lever on a 100% streak. The ACTUAL live bottleneck is NOT
+  # EV but on-chain redemption FAILING (relayer STATE_FAILED -> MANUAL_REQUIRED): ~$18 of won funds
+  # are stranded and free bankroll is ~$1.56 (see README_v14 I6). NOTE: a running bot's fraction
+  # persists in /data/snipe/state.json `control` and OVERRIDES this env, so change it via Telegram
+  # (/snipe ... stake) to affect a live instance.
+  SNIPE_STAKE_FRACTION = "0.85"
+  # v36 (2026-06-20) OPERATOR-DIRECTED K=2. Native SNIPE reads SNIPE_MAX_CONCURRENT
+  # (NOT MAX_GLOBAL_TRADES_PER_CYCLE). setMaxConcurrent() has no callers, so this env is
+  # the sole source of truth; no persisted /data control overrides it. No overriding Fly
+  # secret exists, so this [env] value is live after deploy. Bounded [1..6] in SnipeManager.
+  # HONEST CAVEAT (verified from sizing code lib/snipe-strategy.js _openInner/_sizingSnapshot):
+  #   With f=0.85 the FIRST position consumes ~85% of bankroll, so a SECOND 5-share order
+  #   (~$5.00) cannot fund until bankroll is high (~$39: a 2nd entry also applies f=0.85 to the
+  #   post-first-fill live balance, needing 0.85*0.15*B >= ~$5). Below that, K=2 is INERT and
+  #   risk-identical to K=1 (entry-lock + cost>bankroll skip + balance-aware resize prevent any
+  #   overcommit). RISK once active (>~$39): K=2 REMOVES the single-slot mitigation (hub F4) that
+  #   capped a synchronized cross-asset whipsaw (hub F1, the one proven live loss mechanism) to
+  #   ONE loss; with K=2 two concurrent positions can both lose in the same whipsaw cluster.
+  SNIPE_MAX_CONCURRENT = "2"
+  # v14 (I1) SNIPE_MIN_BANKROLL: LIVE emergency stop-loss floor. The snipe is NOT gated by
+  # the MAX_CONSECUTIVE_LOSSES cooldown (it never calls risk-manager.canTrade), so this is
+  # its circuit-breaker: refuse new LIVE entries below this bankroll. "0" disables.
+  SNIPE_MIN_BANKROLL = "5.5"
+  # v14.4 redemption recovery: pendingReconciliation cleared at 2026-06-16 17:29.
+  # Accounting-only freeze is now off so normal trading can resume; the runtime still
+  # compacts only zero-verified/accounting-refreshed unmatched queue noise.
+  SNIPE_REDEMPTION_CANARY = "false"
+  SNIPE_REDEMPTION_ACCOUNTING_ONLY = "false"
+  SNIPE_REDEMPTION_MAX_ITEMS = "10"
+  SNIPE_REDEMPTION_CANARY_RESET = "v14_4_stale_manual_20260616_1647"
+  SNIPE_PAPER_BANKROLL = "10"
+  SNIPE_STREAK_ENABLED = "true"
+  SNIPE_STREAK_STAKE_FRACTION = "0.07"
+  
+  # HYPERLIQUID DUAL-EXECUTION SAFETY GATE (Continuation 22+): the shared SNIPE
+  # signal is proven on Polymarket binary expiry, NOT yet on Hyperliquid delta-one
+  # perps. Keep Hyper disabled unless explicitly enabled for controlled paper/live
+  # validation. This prevents automatic paper/live bleed on every server restart.
+  HYPER_SNIPE_ENABLED = "false"
+  HYPER_PAPER_MODE = "true"
+  HYPER_LEVERAGE = "5"
+  HYPER_BANKROLL = "10"
+  HYPER_MAX_CONCURRENT = "1"
+  HYPER_MIN_Z = "4"
+  HYPER_MIN_BPS = "50"
+  SNIPE_STATE_DIR = "/data/snipe"
+  LEADLAG_ENABLED = "false"
+  LEADLAG_PAPER_MODE = "true"
+  LEADLAG_ONLY_MODE = "true"
+  LEADLAG_PAPER_BANKROLL = "5"
+  LEADLAG_STAKE_FRACTION = "0.15"
+  # Anti-bust per-trade cap (Trap #23, v95): reject any entry whose forced 5-share
+  # minimum lot would commit > this fraction of available bankroll. Stops the
+  # single-loss near-bust ($5.80 -> $1.79) on expensive favourites at tiny bankrolls.
+  LEADLAG_MAX_STAKE_FRACTION = "0.50"
+  # Bankroll-aware adaptive cap (v99): the per-trade over-concentration cap scales with
+  # the available bankroll so a $5 account can still trade favourites (cap ~0.60 at $5,
+  # one full loss still leaves roughly ~$2.00) while a grown bankroll is protected (cap tightens to ~0.25
+  # by $25). Set LEADLAG_ADAPTIVE_CAP_ENABLED=false to fall back to the static cap above.
+  LEADLAG_ADAPTIVE_CAP_ENABLED = "true"
+  LEADLAG_CAP_SMALL_BANKROLL_USD = "5"
+  LEADLAG_CAP_AT_SMALL = "0.60"
+  LEADLAG_CAP_LARGE_BANKROLL_USD = "25"
+  LEADLAG_CAP_AT_LARGE = "0.25"
+  LEADLAG_TIMEFRAMES = "15m"
+  # v133 variance-first refinement: the strongest simple reduction in path risk
+  # was to wait for the last 2 actionable minutes of the 15m cycle. This keeps
+  # the same LeadLag family and runtime logic, but filters out the noisier earlier
+  # minutes that dominated recent drawdown without adding a new venue dependency.
+  LEADLAG_MIN_MINUTE = "13"
+  LEADLAG_MAX_MINUTE = "14"
+  LEADLAG_WR_TRIPWIRE = "0.65"
+  LEADLAG_MIN_PAPER_TRADES = "200"
+  LEADLAG_MIN_PAPER_WR = "0.65"
+  LEADLAG_MAX_ENTRY_PRICE = "0.94"
+  WINNER_ENABLED = "false"
 
 [http_service]
   internal_port = 8080
